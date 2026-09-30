@@ -1,0 +1,21 @@
+[package]
+name = "libavutil-sys"
+description = "Raw FFI bindings to FFmpeg's libavutil"
+links = "avutil"
+build = "build.rs"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+publish.workspace = true
+
+[lib]
+# C doc comments carry C code blocks that are not Rust doctests.
+doctest = false
+
+[dependencies]
+
+
+[build-dependencies]
+bindgen.workspace = true
+cc.workspace = true
+serde_json.workspace = true

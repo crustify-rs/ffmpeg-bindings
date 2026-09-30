@@ -1,0 +1,793 @@
+{
+  "schema_version": 3,
+  "oracle_config": {
+    "path": "crustify/wavefront/configs/libavutil/hwcontext/wavefront-config.json",
+    "sha256": "16a996e7693e948a48acc9c5c11d015f064b8261772ab7543f8ed346e669c71d"
+  },
+  "api_headers_only": true,
+  "budgets": {
+    "max_syms": 25,
+    "max_loc": 500,
+    "max_types": 2,
+    "min_fields": 20
+  },
+  "summary": {
+    "unit_count": 29,
+    "layer_count": 3,
+    "batch_count": 10,
+    "file_count": 6
+  },
+  "waves": [
+    {
+      "unit_count": 8,
+      "batches": [
+        {
+          "kind": "type",
+          "source_file": "libavutil/buffer_internal.h",
+          "items": [
+            {
+              "name": "AVBufferPool",
+              "defined_in": "libavutil/buffer_internal.h",
+              "kind": "type",
+              "source_kind": "struct",
+              "layer": 0,
+              "loc": 8,
+              "deps": {
+                "types": [],
+                "symbols": []
+              },
+              "fallback": [],
+              "back_fill": [],
+              "generates": [],
+              "field_anchors": []
+            },
+            {
+              "name": "AVBufferRef",
+              "defined_in": "libavutil/buffer.h",
+              "kind": "type",
+              "source_kind": "struct",
+              "layer": 0,
+              "loc": 3,
+              "deps": {
+                "types": [],
+                "symbols": []
+              },
+              "fallback": [],
+              "back_fill": [],
+              "generates": [],
+              "field_anchors": []
+            }
+          ]
+        },
+        {
+          "kind": "type",
+          "source_file": "libavutil/log.h",
+          "items": [
+            {
+              "name": "AVClass",
+              "defined_in": "libavutil/log.h",
+              "kind": "type",
+              "source_kind": "struct",
+              "layer": 0,
+              "loc": 12,
+              "deps": {
+                "types": [],
+                "symbols": []
+              },
+              "fallback": [],
+              "back_fill": [],
+              "generates": [],
+              "field_anchors": []
+            },
+            {
+              "name": "AVDictionary",
+              "defined_in": "libavutil/dict.c",
+              "kind": "type",
+              "source_kind": "struct",
+              "layer": 0,
+              "loc": 2,
+              "deps": {
+                "types": [],
+                "symbols": []
+              },
+              "fallback": [],
+              "back_fill": [],
+              "generates": [],
+              "field_anchors": []
+            }
+          ]
+        },
+        {
+          "kind": "type",
+          "source_file": "libavutil/frame.h",
+          "items": [
+            {
+              "name": "AVFrame",
+              "defined_in": "libavutil/frame.h",
+              "kind": "type",
+              "source_kind": "struct",
+              "layer": 0,
+              "loc": 40,
+              "deps": {
+                "types": [],
+                "symbols": []
+              },
+              "fallback": [],
+              "back_fill": [],
+              "generates": [],
+              "field_anchors": []
+            }
+          ]
+        },
+        {
+          "kind": "type",
+          "source_file": "libavutil/hwcontext.h",
+          "items": [
+            {
+              "name": "AVHWDeviceType",
+              "defined_in": "libavutil/hwcontext.h",
+              "kind": "type",
+              "source_kind": "enum",
+              "layer": 0,
+              "loc": 0,
+              "deps": {
+                "types": [],
+                "symbols": []
+              },
+              "fallback": [],
+              "back_fill": [],
+              "generates": [],
+              "field_anchors": []
+            },
+            {
+              "name": "AVHWFrameTransferDirection",
+              "defined_in": "libavutil/hwcontext.h",
+              "kind": "type",
+              "source_kind": "enum",
+              "layer": 0,
+              "loc": 0,
+              "deps": {
+                "types": [],
+                "symbols": []
+              },
+              "fallback": [],
+              "back_fill": [],
+              "generates": [],
+              "field_anchors": []
+            }
+          ]
+        },
+        {
+          "kind": "type",
+          "source_file": "libavutil/pixfmt.h",
+          "items": [
+            {
+              "name": "AVPixelFormat",
+              "defined_in": "libavutil/pixfmt.h",
+              "kind": "type",
+              "source_kind": "enum",
+              "layer": 0,
+              "loc": 0,
+              "deps": {
+                "types": [],
+                "symbols": []
+              },
+              "fallback": [],
+              "back_fill": [],
+              "generates": [],
+              "field_anchors": []
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "unit_count": 18,
+      "batches": [
+        {
+          "kind": "type",
+          "source_file": "libavutil/hwcontext.h",
+          "items": [
+            {
+              "name": "AVHWDeviceContext",
+              "defined_in": "libavutil/hwcontext.h",
+              "kind": "type",
+              "source_kind": "struct",
+              "layer": 1,
+              "loc": 5,
+              "deps": {
+                "types": [
+                  {
+                    "name": "AVClass",
+                    "defined_in": "libavutil/log.h",
+                    "scope": "wrap"
+                  },
+                  {
+                    "name": "AVHWDeviceType",
+                    "defined_in": "libavutil/hwcontext.h",
+                    "scope": "wrap"
+                  }
+                ],
+                "symbols": []
+              },
+              "fallback": [],
+              "back_fill": [],
+              "generates": [],
+              "field_anchors": [
+                "type",
+                "av_class",
+                "free",
+                "user_opaque",
+                "hwctx"
+              ]
+            },
+            {
+              "name": "AVHWFramesConstraints",
+              "defined_in": "libavutil/hwcontext.h",
+              "kind": "type",
+              "source_kind": "struct",
+              "layer": 1,
+              "loc": 6,
+              "deps": {
+                "types": [
+                  {
+                    "name": "AVPixelFormat",
+                    "defined_in": "libavutil/pixfmt.h",
+                    "scope": "wrap"
+                  }
+                ],
+                "symbols": []
+              },
+              "fallback": [],
+              "back_fill": [],
+              "generates": [],
+              "field_anchors": [
+                "max_width",
+                "max_height",
+                "min_width",
+                "min_height",
+                "valid_sw_formats",
+                "valid_hw_formats"
+              ]
+            }
+          ]
+        },
+        {
+          "kind": "symbol",
+          "source_file": null,
+          "items": [
+            {
+              "name": "av_hwdevice_ctx_alloc",
+              "defined_in": "libavutil/hwcontext.c",
+              "kind": "symbol",
+              "source_kind": "function_exported",
+              "layer": 1,
+              "loc": 45,
+              "deps": {
+                "types": [
+                  {
+                    "name": "AVBufferRef",
+                    "defined_in": "libavutil/buffer.h",
+                    "scope": "wrap"
+                  },
+                  {
+                    "name": "AVHWDeviceType",
+                    "defined_in": "libavutil/hwcontext.h",
+                    "scope": "wrap"
+                  }
+                ],
+                "symbols": []
+              },
+              "fallback": [],
+              "back_fill": [],
+              "generates": [],
+              "field_anchors": []
+            },
+            {
+              "name": "av_hwdevice_ctx_create",
+              "defined_in": "libavutil/hwcontext.c",
+              "kind": "symbol",
+              "source_kind": "function_exported",
+              "layer": 1,
+              "loc": 33,
+              "deps": {
+                "types": [
+                  {
+                    "name": "AVBufferRef",
+                    "defined_in": "libavutil/buffer.h",
+                    "scope": "wrap"
+                  },
+                  {
+                    "name": "AVDictionary",
+                    "defined_in": "libavutil/dict.c",
+                    "scope": "wrap"
+                  },
+                  {
+                    "name": "AVHWDeviceType",
+                    "defined_in": "libavutil/hwcontext.h",
+                    "scope": "wrap"
+                  }
+                ],
+                "symbols": []
+              },
+              "fallback": [],
+              "back_fill": [],
+              "generates": [],
+              "field_anchors": []
+            },
+            {
+              "name": "av_hwdevice_ctx_create_derived",
+              "defined_in": "libavutil/hwcontext.c",
+              "kind": "symbol",
+              "source_kind": "function_exported",
+              "layer": 1,
+              "loc": 4,
+              "deps": {
+                "types": [
+                  {
+                    "name": "AVBufferRef",
+                    "defined_in": "libavutil/buffer.h",
+                    "scope": "wrap"
+                  },
+                  {
+                    "name": "AVHWDeviceType",
+                    "defined_in": "libavutil/hwcontext.h",
+                    "scope": "wrap"
+                  }
+                ],
+                "symbols": []
+              },
+              "fallback": [],
+              "back_fill": [],
+              "generates": [],
+              "field_anchors": []
+            },
+            {
+              "name": "av_hwdevice_ctx_create_derived_opts",
+              "defined_in": "libavutil/hwcontext.c",
+              "kind": "symbol",
+              "source_kind": "function_exported",
+              "layer": 1,
+              "loc": 62,
+              "deps": {
+                "types": [
+                  {
+                    "name": "AVBufferRef",
+                    "defined_in": "libavutil/buffer.h",
+                    "scope": "wrap"
+                  },
+                  {
+                    "name": "AVDictionary",
+                    "defined_in": "libavutil/dict.c",
+                    "scope": "wrap"
+                  },
+                  {
+                    "name": "AVHWDeviceType",
+                    "defined_in": "libavutil/hwcontext.h",
+                    "scope": "wrap"
+                  }
+                ],
+                "symbols": []
+              },
+              "fallback": [],
+              "back_fill": [],
+              "generates": [],
+              "field_anchors": []
+            },
+            {
+              "name": "av_hwdevice_ctx_init",
+              "defined_in": "libavutil/hwcontext.c",
+              "kind": "symbol",
+              "source_kind": "function_exported",
+              "layer": 1,
+              "loc": 10,
+              "deps": {
+                "types": [
+                  {
+                    "name": "AVBufferRef",
+                    "defined_in": "libavutil/buffer.h",
+                    "scope": "wrap"
+                  }
+                ],
+                "symbols": []
+              },
+              "fallback": [],
+              "back_fill": [],
+              "generates": [],
+              "field_anchors": []
+            },
+            {
+              "name": "av_hwdevice_find_type_by_name",
+              "defined_in": "libavutil/hwcontext.c",
+              "kind": "symbol",
+              "source_kind": "function_exported",
+              "layer": 1,
+              "loc": 8,
+              "deps": {
+                "types": [
+                  {
+                    "name": "AVHWDeviceType",
+                    "defined_in": "libavutil/hwcontext.h",
+                    "scope": "wrap"
+                  }
+                ],
+                "symbols": []
+              },
+              "fallback": [],
+              "back_fill": [],
+              "generates": [],
+              "field_anchors": []
+            },
+            {
+              "name": "av_hwdevice_get_type_name",
+              "defined_in": "libavutil/hwcontext.c",
+              "kind": "symbol",
+              "source_kind": "function_exported",
+              "layer": 1,
+              "loc": 7,
+              "deps": {
+                "types": [
+                  {
+                    "name": "AVHWDeviceType",
+                    "defined_in": "libavutil/hwcontext.h",
+                    "scope": "wrap"
+                  }
+                ],
+                "symbols": []
+              },
+              "fallback": [],
+              "back_fill": [],
+              "generates": [],
+              "field_anchors": []
+            },
+            {
+              "name": "av_hwdevice_hwconfig_alloc",
+              "defined_in": "libavutil/hwcontext.c",
+              "kind": "symbol",
+              "source_kind": "function_exported",
+              "layer": 1,
+              "loc": 9,
+              "deps": {
+                "types": [
+                  {
+                    "name": "AVBufferRef",
+                    "defined_in": "libavutil/buffer.h",
+                    "scope": "wrap"
+                  }
+                ],
+                "symbols": []
+              },
+              "fallback": [],
+              "back_fill": [],
+              "generates": [],
+              "field_anchors": []
+            },
+            {
+              "name": "av_hwdevice_iterate_types",
+              "defined_in": "libavutil/hwcontext.c",
+              "kind": "symbol",
+              "source_kind": "function_exported",
+              "layer": 1,
+              "loc": 13,
+              "deps": {
+                "types": [
+                  {
+                    "name": "AVHWDeviceType",
+                    "defined_in": "libavutil/hwcontext.h",
+                    "scope": "wrap"
+                  }
+                ],
+                "symbols": []
+              },
+              "fallback": [],
+              "back_fill": [],
+              "generates": [],
+              "field_anchors": []
+            },
+            {
+              "name": "av_hwframe_ctx_alloc",
+              "defined_in": "libavutil/hwcontext.c",
+              "kind": "symbol",
+              "source_kind": "function_exported",
+              "layer": 1,
+              "loc": 44,
+              "deps": {
+                "types": [
+                  {
+                    "name": "AVBufferRef",
+                    "defined_in": "libavutil/buffer.h",
+                    "scope": "wrap"
+                  }
+                ],
+                "symbols": []
+              },
+              "fallback": [],
+              "back_fill": [],
+              "generates": [],
+              "field_anchors": []
+            },
+            {
+              "name": "av_hwframe_ctx_create_derived",
+              "defined_in": "libavutil/hwcontext.c",
+              "kind": "symbol",
+              "source_kind": "function_exported",
+              "layer": 1,
+              "loc": 71,
+              "deps": {
+                "types": [
+                  {
+                    "name": "AVBufferRef",
+                    "defined_in": "libavutil/buffer.h",
+                    "scope": "wrap"
+                  },
+                  {
+                    "name": "AVPixelFormat",
+                    "defined_in": "libavutil/pixfmt.h",
+                    "scope": "wrap"
+                  }
+                ],
+                "symbols": []
+              },
+              "fallback": [],
+              "back_fill": [],
+              "generates": [],
+              "field_anchors": []
+            },
+            {
+              "name": "av_hwframe_ctx_init",
+              "defined_in": "libavutil/hwcontext.c",
+              "kind": "symbol",
+              "source_kind": "function_exported",
+              "layer": 1,
+              "loc": 47,
+              "deps": {
+                "types": [
+                  {
+                    "name": "AVBufferRef",
+                    "defined_in": "libavutil/buffer.h",
+                    "scope": "wrap"
+                  }
+                ],
+                "symbols": []
+              },
+              "fallback": [],
+              "back_fill": [],
+              "generates": [],
+              "field_anchors": []
+            },
+            {
+              "name": "av_hwframe_get_buffer",
+              "defined_in": "libavutil/hwcontext.c",
+              "kind": "symbol",
+              "source_kind": "function_exported",
+              "layer": 1,
+              "loc": 62,
+              "deps": {
+                "types": [
+                  {
+                    "name": "AVBufferRef",
+                    "defined_in": "libavutil/buffer.h",
+                    "scope": "wrap"
+                  },
+                  {
+                    "name": "AVFrame",
+                    "defined_in": "libavutil/frame.h",
+                    "scope": "wrap"
+                  }
+                ],
+                "symbols": []
+              },
+              "fallback": [],
+              "back_fill": [],
+              "generates": [],
+              "field_anchors": []
+            },
+            {
+              "name": "av_hwframe_map",
+              "defined_in": "libavutil/hwcontext.c",
+              "kind": "symbol",
+              "source_kind": "function_exported",
+              "layer": 1,
+              "loc": 76,
+              "deps": {
+                "types": [
+                  {
+                    "name": "AVFrame",
+                    "defined_in": "libavutil/frame.h",
+                    "scope": "wrap"
+                  }
+                ],
+                "symbols": []
+              },
+              "fallback": [],
+              "back_fill": [],
+              "generates": [],
+              "field_anchors": []
+            }
+          ]
+        },
+        {
+          "kind": "symbol",
+          "source_file": null,
+          "items": [
+            {
+              "name": "av_hwframe_transfer_data",
+              "defined_in": "libavutil/hwcontext.c",
+              "kind": "symbol",
+              "source_kind": "function_exported",
+              "layer": 1,
+              "loc": 56,
+              "deps": {
+                "types": [
+                  {
+                    "name": "AVFrame",
+                    "defined_in": "libavutil/frame.h",
+                    "scope": "wrap"
+                  }
+                ],
+                "symbols": []
+              },
+              "fallback": [],
+              "back_fill": [],
+              "generates": [],
+              "field_anchors": []
+            },
+            {
+              "name": "av_hwframe_transfer_get_formats",
+              "defined_in": "libavutil/hwcontext.c",
+              "kind": "symbol",
+              "source_kind": "function_exported",
+              "layer": 1,
+              "loc": 8,
+              "deps": {
+                "types": [
+                  {
+                    "name": "AVBufferRef",
+                    "defined_in": "libavutil/buffer.h",
+                    "scope": "wrap"
+                  },
+                  {
+                    "name": "AVHWFrameTransferDirection",
+                    "defined_in": "libavutil/hwcontext.h",
+                    "scope": "wrap"
+                  },
+                  {
+                    "name": "AVPixelFormat",
+                    "defined_in": "libavutil/pixfmt.h",
+                    "scope": "wrap"
+                  }
+                ],
+                "symbols": []
+              },
+              "fallback": [],
+              "back_fill": [],
+              "generates": [],
+              "field_anchors": []
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "unit_count": 3,
+      "batches": [
+        {
+          "kind": "type",
+          "source_file": "libavutil/hwcontext.h",
+          "items": [
+            {
+              "name": "AVHWFramesContext",
+              "defined_in": "libavutil/hwcontext.h",
+              "kind": "type",
+              "source_kind": "struct",
+              "layer": 2,
+              "loc": 12,
+              "deps": {
+                "types": [
+                  {
+                    "name": "AVBufferPool",
+                    "defined_in": "libavutil/buffer_internal.h",
+                    "scope": "wrap"
+                  },
+                  {
+                    "name": "AVBufferRef",
+                    "defined_in": "libavutil/buffer.h",
+                    "scope": "wrap"
+                  },
+                  {
+                    "name": "AVClass",
+                    "defined_in": "libavutil/log.h",
+                    "scope": "wrap"
+                  },
+                  {
+                    "name": "AVHWDeviceContext",
+                    "defined_in": "libavutil/hwcontext.h",
+                    "scope": "wrap"
+                  },
+                  {
+                    "name": "AVPixelFormat",
+                    "defined_in": "libavutil/pixfmt.h",
+                    "scope": "wrap"
+                  }
+                ],
+                "symbols": []
+              },
+              "fallback": [],
+              "back_fill": [],
+              "generates": [],
+              "field_anchors": [
+                "height",
+                "av_class",
+                "format",
+                "width",
+                "device_ref",
+                "initial_pool_size",
+                "pool",
+                "device_ctx",
+                "free",
+                "sw_format",
+                "user_opaque",
+                "hwctx"
+              ]
+            }
+          ]
+        },
+        {
+          "kind": "symbol",
+          "source_file": null,
+          "items": [
+            {
+              "name": "av_hwdevice_get_hwframe_constraints",
+              "defined_in": "libavutil/hwcontext.c",
+              "kind": "symbol",
+              "source_kind": "function_exported",
+              "layer": 2,
+              "loc": 22,
+              "deps": {
+                "types": [
+                  {
+                    "name": "AVBufferRef",
+                    "defined_in": "libavutil/buffer.h",
+                    "scope": "wrap"
+                  },
+                  {
+                    "name": "AVHWFramesConstraints",
+                    "defined_in": "libavutil/hwcontext.h",
+                    "scope": "wrap"
+                  }
+                ],
+                "symbols": []
+              },
+              "fallback": [],
+              "back_fill": [],
+              "generates": [],
+              "field_anchors": []
+            },
+            {
+              "name": "av_hwframe_constraints_free",
+              "defined_in": "libavutil/hwcontext.c",
+              "kind": "symbol",
+              "source_kind": "function_exported",
+              "layer": 2,
+              "loc": 7,
+              "deps": {
+                "types": [
+                  {
+                    "name": "AVHWFramesConstraints",
+                    "defined_in": "libavutil/hwcontext.h",
+                    "scope": "wrap"
+                  }
+                ],
+                "symbols": []
+              },
+              "fallback": [],
+              "back_fill": [],
+              "generates": [],
+              "field_anchors": []
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

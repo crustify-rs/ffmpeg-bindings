@@ -1,0 +1,3348 @@
+{
+  "schema_version": 3,
+  "oracle_config": {
+    "path": "crustify/wavefront/configs/libavformat/core/wavefront-config.json",
+    "sha256": "bfa1584e156218d453db06bd792020990e8833c5afb356ceb8a344802aa03e35"
+  },
+  "api_headers_only": true,
+  "budgets": {
+    "max_syms": 25,
+    "max_loc": 500,
+    "max_types": 2,
+    "min_fields": 20
+  },
+  "summary": {
+    "unit_count": 124,
+    "layer_count": 5,
+    "batch_count": 33,
+    "file_count": 15
+  },
+  "waves": [
+    {
+      "unit_count": 39,
+      "batches": [
+        {
+          "kind": "type",
+          "source_file": "libavutil/log.h",
+          "items": [
+            {
+              "name": "AVClass",
+              "defined_in": "libavutil/log.h",
+              "kind": "type",
+              "source_kind": "struct",
+              "layer": 0,
+              "loc": 12,
+              "deps": {
+                "types": [],
+                "symbols": []
+              },
+              "fallback": [],
+              "back_fill": [],
+              "generates": [],
+              "field_anchors": []
+            },
+            {
+              "name": "AVCodec",
+              "defined_in": "libavcodec/codec.h",
+              "kind": "type",
+              "source_kind": "struct",
+              "layer": 0,
+              "loc": 9,
+              "deps": {
+                "types": [],
+                "symbols": []
+              },
+              "fallback": [],
+              "back_fill": [],
+              "generates": [],
+              "field_anchors": []
+            }
+          ]
+        },
+        {
+          "kind": "type",
+          "source_file": "libavcodec/codec_id.h",
+          "items": [
+            {
+              "name": "AVCodecID",
+              "defined_in": "libavcodec/codec_id.h",
+              "kind": "type",
+              "source_kind": "enum",
+              "layer": 0,
+              "loc": 0,
+              "deps": {
+                "types": [],
+                "symbols": []
+              },
+              "fallback": [],
+              "back_fill": [],
+              "generates": [],
+              "field_anchors": []
+            }
+          ]
+        },
+        {
+          "kind": "type",
+          "source_file": "libavcodec/codec_par.h",
+          "items": [
+            {
+              "name": "AVCodecParameters",
+              "defined_in": "libavcodec/codec_par.h",
+              "kind": "type",
+              "source_kind": "struct",
+              "layer": 0,
+              "loc": 32,
+              "deps": {
+                "types": [],
+                "symbols": []
+              },
+              "fallback": [],
+              "back_fill": [],
+              "generates": [],
+              "field_anchors": []
+            }
+          ]
+        },
+        {
+          "kind": "type",
+          "source_file": "libavcodec/avcodec.h",
+          "items": [
+            {
+              "name": "AVCodecParserContext",
+              "defined_in": "libavcodec/avcodec.h",
+              "kind": "type",
+              "source_kind": "struct",
+              "layer": 0,
+              "loc": 35,
+              "deps": {
+                "types": [],
+                "symbols": []
+              },
+              "fallback": [],
+              "back_fill": [],
+              "generates": [],
+              "field_anchors": []
+            }
+          ]
+        },
+        {
+          "kind": "type",
+          "source_file": "libavformat/internal.h",
+          "items": [
+            {
+              "name": "AVCodecTag",
+              "defined_in": "libavformat/internal.h",
+              "kind": "type",
+              "source_kind": "struct",
+              "layer": 0,
+              "loc": 2,
+              "deps": {
+                "types": [],
+                "symbols": []
+              },
+              "fallback": [],
+              "back_fill": [],
+              "generates": [],
+              "field_anchors": []
+            },
+            {
+              "name": "AVDictionary",
+              "defined_in": "libavutil/dict.c",
+              "kind": "type",
+              "source_kind": "struct",
+              "layer": 0,
+              "loc": 2,
+              "deps": {
+                "types": [],
+                "symbols": []
+              },
+              "fallback": [],
+              "back_fill": [],
+              "generates": [],
+              "field_anchors": []
+            }
+          ]
+        },
+        {
+          "kind": "type",
+          "source_file": "libavcodec/defs.h",
+          "items": [
+            {
+              "name": "AVDiscard",
+              "defined_in": "libavcodec/defs.h",
+              "kind": "type",
+              "source_kind": "enum",
+              "layer": 0,
+              "loc": 0,
+              "deps": {
+                "types": [],
+                "symbols": []
+              },
+              "fallback": [],
+              "back_fill": [],
+              "generates": [],
+              "field_anchors": []
+            },
+            {
+              "name": "AVDurationEstimationMethod",
+              "defined_in": "libavformat/avformat.h",
+              "kind": "type",
+              "source_kind": "enum",
+              "layer": 0,
+              "loc": 0,
+              "deps": {
+                "types": [],
+                "symbols": []
+              },
+              "fallback": [],
+              "back_fill": [],
+              "generates": [],
+              "field_anchors": []
+            }
+          ]
+        },
+        {
+          "kind": "type",
+          "source_file": "libavformat/avformat.h",
+          "items": [
+            {
+              "name": "AVFormatCommandID",
+              "defined_in": "libavformat/avformat.h",
+              "kind": "type",
+              "source_kind": "enum",
+              "layer": 0,
+              "loc": 0,
+              "deps": {
+                "types": [],
+                "symbols": []
+              },
+              "fallback": [],
+              "back_fill": [],
+              "generates": [],
+              "field_anchors": []
+            }
+          ]
+        },
+        {
+          "kind": "type",
+          "source_file": "libavutil/frame.h",
+          "items": [
+            {
+              "name": "AVFrame",
+              "defined_in": "libavutil/frame.h",
+              "kind": "type",
+              "source_kind": "struct",
+              "layer": 0,
+              "loc": 40,
+              "deps": {
+                "types": [],
+                "symbols": []
+              },
+              "fallback": [],
+              "back_fill": [],
+              "generates": [],
+              "field_anchors": []
+            }
+          ]
+        },
+        {
+          "kind": "type",
+          "source_file": "libavutil/iamf.h",
+          "items": [
+            {
+              "name": "AVIAMFAudioElement",
+              "defined_in": "libavutil/iamf.h",
+              "kind": "type",
+              "source_kind": "struct",
+              "layer": 0,
+              "loc": 7,
+              "deps": {
+                "types": [],
+                "symbols": []
+              },
+              "fallback": [],
+              "back_fill": [],
+              "generates": [],
+              "field_anchors": []
+            },
+            {
+              "name": "AVIAMFMixPresentation",
+              "defined_in": "libavutil/iamf.h",
+              "kind": "type",
+              "source_kind": "struct",
+              "layer": 0,
+              "loc": 4,
+              "deps": {
+                "types": [],
+                "symbols": []
+              },
+              "fallback": [],
+              "back_fill": [],
+              "generates": [],
+              "field_anchors": []
+            }
+          ]
+        },
+        {
+          "kind": "type",
+          "source_file": "libavformat/avio.h",
+          "items": [
+            {
+              "name": "AVIOContext",
+              "defined_in": "libavformat/avio.h",
+              "kind": "type",
+              "source_kind": "struct",
+              "layer": 0,
+              "loc": 29,
+              "deps": {
+                "types": [],
+                "symbols": []
+              },
+              "fallback": [],
+              "back_fill": [],
+              "generates": [],
+              "field_anchors": []
+            }
+          ]
+        },
+        {
+          "kind": "type",
+          "source_file": "libavformat/avio.h",
+          "items": [
+            {
+              "name": "AVIOInterruptCB",
+              "defined_in": "libavformat/avio.h",
+              "kind": "type",
+              "source_kind": "struct",
+              "layer": 0,
+              "loc": 2,
+              "deps": {
+                "types": [],
+                "symbols": []
+              },
+              "fallback": [],
+              "back_fill": [],
+              "generates": [],
+              "field_anchors": []
+            },
+            {
+              "name": "AVIndexEntry",
+              "defined_in": "libavformat/avformat.h",
+              "kind": "type",
+              "source_kind": "struct",
+              "layer": 0,
+              "loc": 5,
+              "deps": {
+                "types": [],
+                "symbols": []
+              },
+              "fallback": [],
+              "back_fill": [],
+              "generates": [],
+              "field_anchors": [
+                "flags",
+                "size",
+                "pos",
+                "timestamp",
+                "min_distance"
+              ]
+            }
+          ]
+        },
+        {
+          "kind": "type",
+          "source_file": "libavutil/avutil.h",
+          "items": [
+            {
+              "name": "AVMediaType",
+              "defined_in": "libavutil/avutil.h",
+              "kind": "type",
+              "source_kind": "enum",
+              "layer": 0,
+              "loc": 0,
+              "deps": {
+                "types": [],
+                "symbols": []
+              },
+              "fallback": [],
+              "back_fill": [],
+              "generates": [],
+              "field_anchors": []
+            },
+            {
+              "name": "AVPacket",
+              "defined_in": "libavcodec/packet.h",
+              "kind": "type",
+              "source_kind": "struct",
+              "layer": 0,
+              "loc": 14,
+              "deps": {
+                "types": [],
+                "symbols": []
+              },
+              "fallback": [],
+              "back_fill": [],
+              "generates": [],
+              "field_anchors": []
+            }
+          ]
+        },
+        {
+          "kind": "type",
+          "source_file": "libavcodec/packet.h",
+          "items": [
+            {
+              "name": "AVPacketSideData",
+              "defined_in": "libavcodec/packet.h",
+              "kind": "type",
+              "source_kind": "struct",
+              "layer": 0,
+              "loc": 3,
+              "deps": {
+                "types": [],
+                "symbols": []
+              },
+              "fallback": [],
+              "back_fill": [],
+              "generates": [],
+              "field_anchors": []
+            },
+            {
+              "name": "AVProbeData",
+              "defined_in": "libavformat/avformat.h",
+              "kind": "type",
+              "source_kind": "struct",
+              "layer": 0,
+              "loc": 4,
+              "deps": {
+                "types": [],
+                "symbols": []
+              },
+              "fallback": [],
+              "back_fill": [],
+              "generates": [],
+              "field_anchors": [
+                "buf",
+                "buf_size",
+                "filename",
+                "mime_type"
+              ]
+            }
+          ]
+        },
+        {
+          "kind": "type",
+          "source_file": "libavformat/avformat.h",
+          "items": [
+            {
+              "name": "AVRTSPResponse",
+              "defined_in": "libavformat/avformat.h",
+              "kind": "type",
+              "source_kind": "struct",
+              "layer": 0,
+              "loc": 4,
+              "deps": {
+                "types": [],
+                "symbols": []
+              },
+              "fallback": [],
+              "back_fill": [],
+              "generates": [],
+              "field_anchors": [
+                "body",
+                "body_len",
+                "reason",
+                "status_code"
+              ]
+            },
+            {
+              "name": "AVRational",
+              "defined_in": "libavutil/rational.h",
+              "kind": "type",
+              "source_kind": "struct",
+              "layer": 0,
+              "loc": 2,
+              "deps": {
+                "types": [],
+                "symbols": []
+              },
+              "fallback": [],
+              "back_fill": [],
+              "generates": [],
+              "field_anchors": []
+            }
+          ]
+        },
+        {
+          "kind": "type",
+          "source_file": "libavformat/avformat.h",
+          "items": [
+            {
+              "name": "AVStreamGroupParamsType",
+              "defined_in": "libavformat/avformat.h",
+              "kind": "type",
+              "source_kind": "enum",
+              "layer": 0,
+              "loc": 0,
+              "deps": {
+                "types": [],
+                "symbols": []
+              },
+              "fallback": [],
+              "back_fill": [],
+              "generates": [],
+              "field_anchors": []
+            },
+            {
+              "name": "AVStreamParseType",
+              "defined_in": "libavformat/avformat.h",
+              "kind": "type",
+              "source_kind": "enum",
+              "layer": 0,
+              "loc": 0,
+              "deps": {
+                "types": [],
+                "symbols": []
+              },
+              "fallback": [],
+              "back_fill": [],
+              "generates": [],
+              "field_anchors": []
+            }
+          ]
+        },
+        {
+          "kind": "type",
+          "source_file": "libavutil/bprint.h",
+          "items": [
+            {
+              "name": "FF_PAD_STRUCTURE",
+              "defined_in": "libavutil/bprint.h",
+              "kind": "type",
+              "source_kind": "macro",
+              "layer": 0,
+              "loc": 0,
+              "deps": {
+                "types": [],
+                "symbols": []
+              },
+              "fallback": [],
+              "back_fill": [],
+              "generates": [
+                "AVBPrint",
+                "ff_pad_helper_AVBPrint"
+              ],
+              "field_anchors": []
+            }
+          ]
+        },
+        {
+          "kind": "type",
+          "source_file": "/usr/include/x86_64-linux-gnu/bits/types/struct_FILE.h",
+          "items": [
+            {
+              "name": "_IO_FILE",
+              "defined_in": "/usr/include/x86_64-linux-gnu/bits/types/struct_FILE.h",
+              "kind": "type",
+              "source_kind": "struct",
+              "layer": 0,
+              "loc": 30,
+              "deps": {
+                "types": [],
+                "symbols": []
+              },
+              "fallback": [],
+              "back_fill": [],
+              "generates": [],
+              "field_anchors": []
+            }
+          ]
+        },
+        {
+          "kind": "symbol",
+          "source_file": null,
+          "items": [
+            {
+              "name": "av_disposition_from_string",
+              "defined_in": "libavformat/options.c",
+              "kind": "symbol",
+              "source_kind": "function_exported",
+              "layer": 0,
+              "loc": 6,
+              "deps": {
+                "types": [],
+                "symbols": []
+              },
+              "fallback": [],
+              "back_fill": [],
+              "generates": [],
+              "field_anchors": []
+            },
+            {
+              "name": "av_disposition_to_string",
+              "defined_in": "libavformat/options.c",
+              "kind": "symbol",
+              "source_kind": "function_exported",
+              "layer": 0,
+              "loc": 13,
+              "deps": {
+                "types": [],
+                "symbols": []
+              },
+              "fallback": [],
+              "back_fill": [],
+              "generates": [],
+              "field_anchors": []
+            },
+            {
+              "name": "av_filename_number_test",
+              "defined_in": "libavformat/utils.c",
+              "kind": "symbol",
+              "source_kind": "function_exported",
+              "layer": 0,
+              "loc": 8,
+              "deps": {
+                "types": [],
+                "symbols": []
+              },
+              "fallback": [],
+              "back_fill": [],
+              "generates": [],
+              "field_anchors": []
+            },
+            {
+              "name": "av_get_frame_filename",
+              "defined_in": "libavformat/utils.c",
+              "kind": "symbol",
+              "source_kind": "function_exported",
+              "layer": 0,
+              "loc": 3,
+              "deps": {
+                "types": [],
+                "symbols": []
+              },
+              "fallback": [],
+              "back_fill": [],
+              "generates": [],
+              "field_anchors": []
+            },
+            {
+              "name": "av_get_frame_filename2",
+              "defined_in": "libavformat/utils.c",
+              "kind": "symbol",
+              "source_kind": "function_exported",
+              "layer": 0,
+              "loc": 3,
+              "deps": {
+                "types": [],
+                "symbols": []
+              },
+              "fallback": [],
+              "back_fill": [],
+              "generates": [],
+              "field_anchors": []
+            },
+            {
+              "name": "av_hex_dump_log",
+              "defined_in": "libavformat/dump.c",
+              "kind": "symbol",
+              "source_kind": "function_exported",
+              "layer": 0,
+              "loc": 3,
+              "deps": {
+                "types": [],
+                "symbols": []
+              },
+              "fallback": [],
+              "back_fill": [],
+              "generates": [],
+              "field_anchors": []
+            },
+            {
+              "name": "av_match_ext",
+              "defined_in": "libavformat/format.c",
+              "kind": "symbol",
+              "source_kind": "function_exported",
+              "layer": 0,
+              "loc": 11,
+              "deps": {
+                "types": [],
+                "symbols": []
+              },
+              "fallback": [],
+              "back_fill": [],
+              "generates": [],
+              "field_anchors": []
+            },
+            {
+              "name": "av_url_split",
+              "defined_in": "libavformat/utils.c",
+              "kind": "symbol",
+              "source_kind": "function_exported",
+              "layer": 0,
+              "loc": 58,
+              "deps": {
+                "types": [],
+                "symbols": []
+              },
+              "fallback": [],
+              "back_fill": [],
+              "generates": [],
+              "field_anchors": []
+            },
+            {
+              "name": "avformat_configuration",
+              "defined_in": "libavformat/version.c",
+              "kind": "symbol",
+              "source_kind": "function_exported",
+              "layer": 0,
+              "loc": 3,
+              "deps": {
+                "types": [],
+                "symbols": []
+              },
+              "fallback": [],
+              "back_fill": [],
+              "generates": [],
+              "field_anchors": []
+            },
+            {
+              "name": "avformat_license",
+              "defined_in": "libavformat/version.c",
+              "kind": "symbol",
+              "source_kind": "function_exported",
+              "layer": 0,
+              "loc": 4,
+              "deps": {
+                "types": [],
+                "symbols": []
+              },
+              "fallback": [],
+              "back_fill": [],
+              "generates": [],
+              "field_anchors": []
+            },
+            {
+              "name": "avformat_network_deinit",
+              "defined_in": "libavformat/utils.c",
+              "kind": "symbol",
+              "source_kind": "function_exported",
+              "layer": 0,
+              "loc": 7,
+              "deps": {
+                "types": [],
+                "symbols": []
+              },
+              "fallback": [],
+              "back_fill": [],
+              "generates": [],
+              "field_anchors": []
+            },
+            {
+              "name": "avformat_network_init",
+              "defined_in": "libavformat/utils.c",
+              "kind": "symbol",
+              "source_kind": "function_exported",
+              "layer": 0,
+              "loc": 10,
+              "deps": {
+                "types": [],
+                "symbols": []
+              },
+              "fallback": [],
+              "back_fill": [],
+              "generates": [],
+              "field_anchors": []
+            },
+            {
+              "name": "avformat_version",
+              "defined_in": "libavformat/version.c",
+              "kind": "symbol",
+              "source_kind": "function_exported",
+              "layer": 0,
+              "loc": 4,
+              "deps": {
+                "types": [],
+                "symbols": []
+              },
+              "fallback": [],
+              "back_fill": [],
+              "generates": [],
+              "field_anchors": []
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "unit_count": 24,
+      "batches": [
+        {
+          "kind": "type",
+          "source_file": "libavutil/bprint.h",
+          "items": [
+            {
+              "name": "AVBPrint",
+              "defined_in": "libavutil/bprint.h",
+              "kind": "type",
+              "source_kind": "struct",
+              "layer": 1,
+              "loc": 6,
+              "deps": {
+                "types": [],
+                "symbols": [
+                  {
+                    "name": "FF_PAD_STRUCTURE",
+                    "defined_in": "libavutil/bprint.h",
+                    "scope": "wrap"
+                  }
+                ]
+              },
+              "fallback": [],
+              "back_fill": [],
+              "generates": [],
+              "field_anchors": []
+            },
+            {
+              "name": "AVChapter",
+              "defined_in": "libavformat/avformat.h",
+              "kind": "type",
+              "source_kind": "struct",
+              "layer": 1,
+              "loc": 5,
+              "deps": {
+                "types": [
+                  {
+                    "name": "AVDictionary",
+                    "defined_in": "libavutil/dict.c",
+                    "scope": "wrap"
+                  },
+                  {
+                    "name": "AVRational",
+                    "defined_in": "libavutil/rational.h",
+                    "scope": "wrap"
+                  }
+                ],
+                "symbols": []
+              },
+              "fallback": [],
+              "back_fill": [],
+              "generates": [],
+              "field_anchors": [
+                "end",
+                "id",
+                "metadata",
+                "time_base",
+                "start"
+              ]
+            }
+          ]
+        },
+        {
+          "kind": "type",
+          "source_file": "libavformat/avformat.h",
+          "items": [
+            {
+              "name": "AVInputFormat",
+              "defined_in": "libavformat/avformat.h",
+              "kind": "type",
+              "source_kind": "struct",
+              "layer": 1,
+              "loc": 7,
+              "deps": {
+                "types": [
+                  {
+                    "name": "AVClass",
+                    "defined_in": "libavutil/log.h",
+                    "scope": "wrap"
+                  },
+                  {
+                    "name": "AVCodecTag",
+                    "defined_in": "libavformat/internal.h",
+                    "scope": "wrap"
+                  }
+                ],
+                "symbols": []
+              },
+              "fallback": [],
+              "back_fill": [],
+              "generates": [],
+              "field_anchors": [
+                "name",
+                "priv_class",
+                "flags",
+                "mime_type",
+                "codec_tag",
+                "extensions",
+                "long_name"
+              ]
+            },
+            {
+              "name": "AVOutputFormat",
+              "defined_in": "libavformat/avformat.h",
+              "kind": "type",
+              "source_kind": "struct",
+              "layer": 1,
+              "loc": 10,
+              "deps": {
+                "types": [
+                  {
+                    "name": "AVClass",
+                    "defined_in": "libavutil/log.h",
+                    "scope": "wrap"
+                  },
+                  {
+                    "name": "AVCodecID",
+                    "defined_in": "libavcodec/codec_id.h",
+                    "scope": "wrap"
+                  },
+                  {
+                    "name": "AVCodecTag",
+                    "defined_in": "libavformat/internal.h",
+                    "scope": "wrap"
+                  }
+                ],
+                "symbols": []
+              },
+              "fallback": [],
+              "back_fill": [],
+              "generates": [],
+              "field_anchors": [
+                "name",
+                "priv_class",
+                "flags",
+                "subtitle_codec",
+                "audio_codec",
+                "video_codec",
+                "mime_type",
+                "codec_tag",
+                "extensions",
+                "long_name"
+              ]
+            }
+          ]
+        },
+        {
+          "kind": "type",
+          "source_file": "libavformat/avformat.h",
+          "items": [
+            {
+              "name": "AVProgram",
+              "defined_in": "libavformat/avformat.h",
+              "kind": "type",
+              "source_kind": "struct",
+              "layer": 1,
+              "loc": 14,
+              "deps": {
+                "types": [
+                  {
+                    "name": "AVDictionary",
+                    "defined_in": "libavutil/dict.c",
+                    "scope": "wrap"
+                  },
+                  {
+                    "name": "AVDiscard",
+                    "defined_in": "libavcodec/defs.h",
+                    "scope": "wrap"
+                  }
+                ],
+                "symbols": []
+              },
+              "fallback": [],
+              "back_fill": [],
+              "generates": [],
+              "field_anchors": [
+                "flags",
+                "id",
+                "metadata",
+                "start_time",
+                "pts_wrap_behavior",
+                "pts_wrap_reference",
+                "end_time",
+                "pmt_version",
+                "pcr_pid",
+                "pmt_pid",
+                "program_num",
+                "nb_stream_indexes",
+                "stream_index",
+                "discard"
+              ]
+            },
+            {
+              "name": "AVRTSPCommandRequest",
+              "defined_in": "libavformat/avformat.h",
+              "kind": "type",
+              "source_kind": "struct",
+              "layer": 1,
+              "loc": 3,
+              "deps": {
+                "types": [
+                  {
+                    "name": "AVDictionary",
+                    "defined_in": "libavutil/dict.c",
+                    "scope": "wrap"
+                  }
+                ],
+                "symbols": []
+              },
+              "fallback": [],
+              "back_fill": [],
+              "generates": [],
+              "field_anchors": [
+                "body",
+                "body_len",
+                "headers"
+              ]
+            }
+          ]
+        },
+        {
+          "kind": "type",
+          "source_file": "libavformat/avformat.h",
+          "items": [
+            {
+              "name": "AVStream",
+              "defined_in": "libavformat/avformat.h",
+              "kind": "type",
+              "source_kind": "struct",
+              "layer": 1,
+              "loc": 18,
+              "deps": {
+                "types": [
+                  {
+                    "name": "AVClass",
+                    "defined_in": "libavutil/log.h",
+                    "scope": "wrap"
+                  },
+                  {
+                    "name": "AVCodecParameters",
+                    "defined_in": "libavcodec/codec_par.h",
+                    "scope": "wrap"
+                  },
+                  {
+                    "name": "AVDictionary",
+                    "defined_in": "libavutil/dict.c",
+                    "scope": "wrap"
+                  },
+                  {
+                    "name": "AVDiscard",
+                    "defined_in": "libavcodec/defs.h",
+                    "scope": "wrap"
+                  },
+                  {
+                    "name": "AVPacket",
+                    "defined_in": "libavcodec/packet.h",
+                    "scope": "wrap"
+                  },
+                  {
+                    "name": "AVRational",
+                    "defined_in": "libavutil/rational.h",
+                    "scope": "wrap"
+                  }
+                ],
+                "symbols": []
+              },
+              "fallback": [],
+              "back_fill": [],
+              "generates": [],
+              "field_anchors": [
+                "id",
+                "duration",
+                "event_flags",
+                "metadata",
+                "start_time",
+                "time_base",
+                "priv_data",
+                "av_class",
+                "discard",
+                "disposition",
+                "index",
+                "pts_wrap_bits",
+                "r_frame_rate",
+                "attached_pic",
+                "avg_frame_rate",
+                "sample_aspect_ratio",
+                "nb_frames",
+                "codecpar"
+              ]
+            },
+            {
+              "name": "AVStreamGroupLayeredVideo",
+              "defined_in": "libavformat/avformat.h",
+              "kind": "type",
+              "source_kind": "struct",
+              "layer": 1,
+              "loc": 6,
+              "deps": {
+                "types": [
+                  {
+                    "name": "AVClass",
+                    "defined_in": "libavutil/log.h",
+                    "scope": "wrap"
+                  }
+                ],
+                "symbols": []
+              },
+              "fallback": [],
+              "back_fill": [],
+              "generates": [],
+              "field_anchors": [
+                "(unknown field)",
+                "height",
+                "av_class",
+                "width",
+                "(unknown field).el_index",
+                "(unknown field).lcevc_index"
+              ]
+            }
+          ]
+        },
+        {
+          "kind": "type",
+          "source_file": "libavformat/avformat.h",
+          "items": [
+            {
+              "name": "AVStreamGroupTREF",
+              "defined_in": "libavformat/avformat.h",
+              "kind": "type",
+              "source_kind": "struct",
+              "layer": 1,
+              "loc": 2,
+              "deps": {
+                "types": [
+                  {
+                    "name": "AVClass",
+                    "defined_in": "libavutil/log.h",
+                    "scope": "wrap"
+                  }
+                ],
+                "symbols": []
+              },
+              "fallback": [],
+              "back_fill": [],
+              "generates": [],
+              "field_anchors": [
+                "av_class",
+                "metadata_index"
+              ]
+            },
+            {
+              "name": "AVStreamGroupTileGrid",
+              "defined_in": "libavformat/avformat.h",
+              "kind": "type",
+              "source_kind": "struct",
+              "layer": 1,
+              "loc": 12,
+              "deps": {
+                "types": [
+                  {
+                    "name": "AVClass",
+                    "defined_in": "libavutil/log.h",
+                    "scope": "wrap"
+                  },
+                  {
+                    "name": "AVPacketSideData",
+                    "defined_in": "libavcodec/packet.h",
+                    "scope": "wrap"
+                  }
+                ],
+                "symbols": []
+              },
+              "fallback": [],
+              "back_fill": [],
+              "generates": [],
+              "field_anchors": [
+                "height",
+                "av_class",
+                "coded_height",
+                "coded_width",
+                "width",
+                "nb_coded_side_data",
+                "coded_side_data",
+                "vertical_offset",
+                "horizontal_offset",
+                "background",
+                "offsets",
+                "nb_tiles"
+              ]
+            }
+          ]
+        },
+        {
+          "kind": "symbol",
+          "source_file": null,
+          "items": [
+            {
+              "name": "av_append_packet",
+              "defined_in": "libavformat/utils.c",
+              "kind": "symbol",
+              "source_kind": "function_exported",
+              "layer": 1,
+              "loc": 5,
+              "deps": {
+                "types": [
+                  {
+                    "name": "AVIOContext",
+                    "defined_in": "libavformat/avio.h",
+                    "scope": "wrap"
+                  },
+                  {
+                    "name": "AVPacket",
+                    "defined_in": "libavcodec/packet.h",
+                    "scope": "wrap"
+                  }
+                ],
+                "symbols": []
+              },
+              "fallback": [],
+              "back_fill": [],
+              "generates": [],
+              "field_anchors": []
+            },
+            {
+              "name": "av_codec_get_id",
+              "defined_in": "libavformat/utils.c",
+              "kind": "symbol",
+              "source_kind": "function_exported",
+              "layer": 1,
+              "loc": 8,
+              "deps": {
+                "types": [
+                  {
+                    "name": "AVCodecID",
+                    "defined_in": "libavcodec/codec_id.h",
+                    "scope": "wrap"
+                  },
+                  {
+                    "name": "AVCodecTag",
+                    "defined_in": "libavformat/internal.h",
+                    "scope": "wrap"
+                  }
+                ],
+                "symbols": []
+              },
+              "fallback": [],
+              "back_fill": [],
+              "generates": [],
+              "field_anchors": []
+            },
+            {
+              "name": "av_codec_get_tag",
+              "defined_in": "libavformat/utils.c",
+              "kind": "symbol",
+              "source_kind": "function_exported",
+              "layer": 1,
+              "loc": 6,
+              "deps": {
+                "types": [
+                  {
+                    "name": "AVCodecID",
+                    "defined_in": "libavcodec/codec_id.h",
+                    "scope": "wrap"
+                  },
+                  {
+                    "name": "AVCodecTag",
+                    "defined_in": "libavformat/internal.h",
+                    "scope": "wrap"
+                  }
+                ],
+                "symbols": []
+              },
+              "fallback": [],
+              "back_fill": [],
+              "generates": [],
+              "field_anchors": []
+            },
+            {
+              "name": "av_codec_get_tag2",
+              "defined_in": "libavformat/utils.c",
+              "kind": "symbol",
+              "source_kind": "function_exported",
+              "layer": 1,
+              "loc": 13,
+              "deps": {
+                "types": [
+                  {
+                    "name": "AVCodecID",
+                    "defined_in": "libavcodec/codec_id.h",
+                    "scope": "wrap"
+                  },
+                  {
+                    "name": "AVCodecTag",
+                    "defined_in": "libavformat/internal.h",
+                    "scope": "wrap"
+                  }
+                ],
+                "symbols": []
+              },
+              "fallback": [],
+              "back_fill": [],
+              "generates": [],
+              "field_anchors": []
+            },
+            {
+              "name": "av_get_packet",
+              "defined_in": "libavformat/utils.c",
+              "kind": "symbol",
+              "source_kind": "function_exported",
+              "layer": 1,
+              "loc": 14,
+              "deps": {
+                "types": [
+                  {
+                    "name": "AVIOContext",
+                    "defined_in": "libavformat/avio.h",
+                    "scope": "wrap"
+                  },
+                  {
+                    "name": "AVPacket",
+                    "defined_in": "libavcodec/packet.h",
+                    "scope": "wrap"
+                  }
+                ],
+                "symbols": []
+              },
+              "fallback": [],
+              "back_fill": [],
+              "generates": [],
+              "field_anchors": []
+            },
+            {
+              "name": "av_hex_dump",
+              "defined_in": "libavformat/dump.c",
+              "kind": "symbol",
+              "source_kind": "function_exported",
+              "layer": 1,
+              "loc": 3,
+              "deps": {
+                "types": [
+                  {
+                    "name": "_IO_FILE",
+                    "defined_in": "/usr/include/x86_64-linux-gnu/bits/types/struct_FILE.h",
+                    "scope": "wrap"
+                  }
+                ],
+                "symbols": []
+              },
+              "fallback": [],
+              "back_fill": [],
+              "generates": [],
+              "field_anchors": []
+            },
+            {
+              "name": "av_stream_get_class",
+              "defined_in": "libavformat/options.c",
+              "kind": "symbol",
+              "source_kind": "function_exported",
+              "layer": 1,
+              "loc": 3,
+              "deps": {
+                "types": [
+                  {
+                    "name": "AVClass",
+                    "defined_in": "libavutil/log.h",
+                    "scope": "wrap"
+                  }
+                ],
+                "symbols": []
+              },
+              "fallback": [],
+              "back_fill": [],
+              "generates": [],
+              "field_anchors": []
+            },
+            {
+              "name": "av_stream_group_get_class",
+              "defined_in": "libavformat/options.c",
+              "kind": "symbol",
+              "source_kind": "function_exported",
+              "layer": 1,
+              "loc": 3,
+              "deps": {
+                "types": [
+                  {
+                    "name": "AVClass",
+                    "defined_in": "libavutil/log.h",
+                    "scope": "wrap"
+                  }
+                ],
+                "symbols": []
+              },
+              "fallback": [],
+              "back_fill": [],
+              "generates": [],
+              "field_anchors": []
+            },
+            {
+              "name": "avformat_get_class",
+              "defined_in": "libavformat/options.c",
+              "kind": "symbol",
+              "source_kind": "function_exported",
+              "layer": 1,
+              "loc": 3,
+              "deps": {
+                "types": [
+                  {
+                    "name": "AVClass",
+                    "defined_in": "libavutil/log.h",
+                    "scope": "wrap"
+                  }
+                ],
+                "symbols": []
+              },
+              "fallback": [],
+              "back_fill": [],
+              "generates": [],
+              "field_anchors": []
+            },
+            {
+              "name": "avformat_get_mov_audio_tags",
+              "defined_in": "libavformat/isom_tags.c",
+              "kind": "symbol",
+              "source_kind": "function_exported",
+              "layer": 1,
+              "loc": 3,
+              "deps": {
+                "types": [
+                  {
+                    "name": "AVCodecTag",
+                    "defined_in": "libavformat/internal.h",
+                    "scope": "wrap"
+                  }
+                ],
+                "symbols": []
+              },
+              "fallback": [],
+              "back_fill": [],
+              "generates": [],
+              "field_anchors": []
+            },
+            {
+              "name": "avformat_get_mov_video_tags",
+              "defined_in": "libavformat/isom_tags.c",
+              "kind": "symbol",
+              "source_kind": "function_exported",
+              "layer": 1,
+              "loc": 3,
+              "deps": {
+                "types": [
+                  {
+                    "name": "AVCodecTag",
+                    "defined_in": "libavformat/internal.h",
+                    "scope": "wrap"
+                  }
+                ],
+                "symbols": []
+              },
+              "fallback": [],
+              "back_fill": [],
+              "generates": [],
+              "field_anchors": []
+            },
+            {
+              "name": "avformat_get_riff_audio_tags",
+              "defined_in": "libavformat/riff.c",
+              "kind": "symbol",
+              "source_kind": "function_exported",
+              "layer": 1,
+              "loc": 3,
+              "deps": {
+                "types": [
+                  {
+                    "name": "AVCodecTag",
+                    "defined_in": "libavformat/internal.h",
+                    "scope": "wrap"
+                  }
+                ],
+                "symbols": []
+              },
+              "fallback": [],
+              "back_fill": [],
+              "generates": [],
+              "field_anchors": []
+            },
+            {
+              "name": "avformat_get_riff_video_tags",
+              "defined_in": "libavformat/riff.c",
+              "kind": "symbol",
+              "source_kind": "function_exported",
+              "layer": 1,
+              "loc": 3,
+              "deps": {
+                "types": [
+                  {
+                    "name": "AVCodecTag",
+                    "defined_in": "libavformat/internal.h",
+                    "scope": "wrap"
+                  }
+                ],
+                "symbols": []
+              },
+              "fallback": [],
+              "back_fill": [],
+              "generates": [],
+              "field_anchors": []
+            },
+            {
+              "name": "avformat_stream_group_name",
+              "defined_in": "libavformat/avformat.c",
+              "kind": "symbol",
+              "source_kind": "function_exported",
+              "layer": 1,
+              "loc": 11,
+              "deps": {
+                "types": [
+                  {
+                    "name": "AVStreamGroupParamsType",
+                    "defined_in": "libavformat/avformat.h",
+                    "scope": "wrap"
+                  }
+                ],
+                "symbols": []
+              },
+              "fallback": [],
+              "back_fill": [],
+              "generates": [],
+              "field_anchors": []
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "unit_count": 21,
+      "batches": [
+        {
+          "kind": "type",
+          "source_file": "libavformat/avformat.h",
+          "items": [
+            {
+              "name": "AVStreamGroup",
+              "defined_in": "libavformat/avformat.h",
+              "kind": "type",
+              "source_kind": "struct",
+              "layer": 2,
+              "loc": 16,
+              "deps": {
+                "types": [
+                  {
+                    "name": "AVClass",
+                    "defined_in": "libavutil/log.h",
+                    "scope": "wrap"
+                  },
+                  {
+                    "name": "AVDictionary",
+                    "defined_in": "libavutil/dict.c",
+                    "scope": "wrap"
+                  },
+                  {
+                    "name": "AVIAMFAudioElement",
+                    "defined_in": "libavutil/iamf.h",
+                    "scope": "wrap"
+                  },
+                  {
+                    "name": "AVIAMFMixPresentation",
+                    "defined_in": "libavutil/iamf.h",
+                    "scope": "wrap"
+                  },
+                  {
+                    "name": "AVStream",
+                    "defined_in": "libavformat/avformat.h",
+                    "scope": "wrap"
+                  },
+                  {
+                    "name": "AVStreamGroupLayeredVideo",
+                    "defined_in": "libavformat/avformat.h",
+                    "scope": "wrap"
+                  },
+                  {
+                    "name": "AVStreamGroupParamsType",
+                    "defined_in": "libavformat/avformat.h",
+                    "scope": "wrap"
+                  },
+                  {
+                    "name": "AVStreamGroupTREF",
+                    "defined_in": "libavformat/avformat.h",
+                    "scope": "wrap"
+                  },
+                  {
+                    "name": "AVStreamGroupTileGrid",
+                    "defined_in": "libavformat/avformat.h",
+                    "scope": "wrap"
+                  }
+                ],
+                "symbols": []
+              },
+              "fallback": [],
+              "back_fill": [],
+              "generates": [],
+              "field_anchors": [
+                "type",
+                "id",
+                "nb_streams",
+                "metadata",
+                "streams",
+                "priv_data",
+                "av_class",
+                "disposition",
+                "params",
+                "index",
+                "params.iamf_audio_element",
+                "params.iamf_mix_presentation",
+                "params.tile_grid",
+                "params.layered_video",
+                "params.lcevc",
+                "params.tref"
+              ]
+            }
+          ]
+        },
+        {
+          "kind": "symbol",
+          "source_file": null,
+          "items": [
+            {
+              "name": "av_add_index_entry",
+              "defined_in": "libavformat/seek.c",
+              "kind": "symbol",
+              "source_kind": "function_exported",
+              "layer": 2,
+              "loc": 7,
+              "deps": {
+                "types": [
+                  {
+                    "name": "AVStream",
+                    "defined_in": "libavformat/avformat.h",
+                    "scope": "wrap"
+                  }
+                ],
+                "symbols": []
+              },
+              "fallback": [],
+              "back_fill": [],
+              "generates": [],
+              "field_anchors": []
+            },
+            {
+              "name": "av_demuxer_iterate",
+              "defined_in": "libavformat/allformats.c",
+              "kind": "symbol",
+              "source_kind": "function_exported",
+              "layer": 2,
+              "loc": 19,
+              "deps": {
+                "types": [
+                  {
+                    "name": "AVInputFormat",
+                    "defined_in": "libavformat/avformat.h",
+                    "scope": "wrap"
+                  }
+                ],
+                "symbols": []
+              },
+              "fallback": [],
+              "back_fill": [],
+              "generates": [],
+              "field_anchors": []
+            },
+            {
+              "name": "av_find_input_format",
+              "defined_in": "libavformat/format.c",
+              "kind": "symbol",
+              "source_kind": "function_exported",
+              "layer": 2,
+              "loc": 8,
+              "deps": {
+                "types": [
+                  {
+                    "name": "AVInputFormat",
+                    "defined_in": "libavformat/avformat.h",
+                    "scope": "wrap"
+                  }
+                ],
+                "symbols": []
+              },
+              "fallback": [],
+              "back_fill": [],
+              "generates": [],
+              "field_anchors": []
+            },
+            {
+              "name": "av_guess_codec",
+              "defined_in": "libavformat/format.c",
+              "kind": "symbol",
+              "source_kind": "function_exported",
+              "layer": 2,
+              "loc": 25,
+              "deps": {
+                "types": [
+                  {
+                    "name": "AVCodecID",
+                    "defined_in": "libavcodec/codec_id.h",
+                    "scope": "wrap"
+                  },
+                  {
+                    "name": "AVMediaType",
+                    "defined_in": "libavutil/avutil.h",
+                    "scope": "wrap"
+                  },
+                  {
+                    "name": "AVOutputFormat",
+                    "defined_in": "libavformat/avformat.h",
+                    "scope": "wrap"
+                  }
+                ],
+                "symbols": []
+              },
+              "fallback": [],
+              "back_fill": [],
+              "generates": [],
+              "field_anchors": []
+            },
+            {
+              "name": "av_guess_format",
+              "defined_in": "libavformat/format.c",
+              "kind": "symbol",
+              "source_kind": "function_exported",
+              "layer": 2,
+              "loc": 35,
+              "deps": {
+                "types": [
+                  {
+                    "name": "AVOutputFormat",
+                    "defined_in": "libavformat/avformat.h",
+                    "scope": "wrap"
+                  }
+                ],
+                "symbols": []
+              },
+              "fallback": [],
+              "back_fill": [],
+              "generates": [],
+              "field_anchors": []
+            },
+            {
+              "name": "av_index_search_timestamp",
+              "defined_in": "libavformat/seek.c",
+              "kind": "symbol",
+              "source_kind": "function_exported",
+              "layer": 2,
+              "loc": 5,
+              "deps": {
+                "types": [
+                  {
+                    "name": "AVStream",
+                    "defined_in": "libavformat/avformat.h",
+                    "scope": "wrap"
+                  }
+                ],
+                "symbols": []
+              },
+              "fallback": [],
+              "back_fill": [],
+              "generates": [],
+              "field_anchors": []
+            },
+            {
+              "name": "av_mime_codec_str",
+              "defined_in": "libavformat/codecstring.c",
+              "kind": "symbol",
+              "source_kind": "function_exported",
+              "layer": 2,
+              "loc": 3,
+              "deps": {
+                "types": [
+                  {
+                    "name": "AVBPrint",
+                    "defined_in": "libavutil/bprint.h",
+                    "scope": "wrap"
+                  },
+                  {
+                    "name": "AVCodecParameters",
+                    "defined_in": "libavcodec/codec_par.h",
+                    "scope": "wrap"
+                  },
+                  {
+                    "name": "AVRational",
+                    "defined_in": "libavutil/rational.h",
+                    "scope": "wrap"
+                  }
+                ],
+                "symbols": []
+              },
+              "fallback": [],
+              "back_fill": [],
+              "generates": [],
+              "field_anchors": []
+            },
+            {
+              "name": "av_muxer_iterate",
+              "defined_in": "libavformat/allformats.c",
+              "kind": "symbol",
+              "source_kind": "function_exported",
+              "layer": 2,
+              "loc": 19,
+              "deps": {
+                "types": [
+                  {
+                    "name": "AVOutputFormat",
+                    "defined_in": "libavformat/avformat.h",
+                    "scope": "wrap"
+                  }
+                ],
+                "symbols": []
+              },
+              "fallback": [],
+              "back_fill": [],
+              "generates": [],
+              "field_anchors": []
+            },
+            {
+              "name": "av_pkt_dump2",
+              "defined_in": "libavformat/dump.c",
+              "kind": "symbol",
+              "source_kind": "function_exported",
+              "layer": 2,
+              "loc": 3,
+              "deps": {
+                "types": [
+                  {
+                    "name": "AVPacket",
+                    "defined_in": "libavcodec/packet.h",
+                    "scope": "wrap"
+                  },
+                  {
+                    "name": "AVStream",
+                    "defined_in": "libavformat/avformat.h",
+                    "scope": "wrap"
+                  },
+                  {
+                    "name": "_IO_FILE",
+                    "defined_in": "/usr/include/x86_64-linux-gnu/bits/types/struct_FILE.h",
+                    "scope": "wrap"
+                  }
+                ],
+                "symbols": []
+              },
+              "fallback": [],
+              "back_fill": [],
+              "generates": [],
+              "field_anchors": []
+            },
+            {
+              "name": "av_pkt_dump_log2",
+              "defined_in": "libavformat/dump.c",
+              "kind": "symbol",
+              "source_kind": "function_exported",
+              "layer": 2,
+              "loc": 3,
+              "deps": {
+                "types": [
+                  {
+                    "name": "AVPacket",
+                    "defined_in": "libavcodec/packet.h",
+                    "scope": "wrap"
+                  },
+                  {
+                    "name": "AVStream",
+                    "defined_in": "libavformat/avformat.h",
+                    "scope": "wrap"
+                  }
+                ],
+                "symbols": []
+              },
+              "fallback": [],
+              "back_fill": [],
+              "generates": [],
+              "field_anchors": []
+            },
+            {
+              "name": "av_probe_input_buffer",
+              "defined_in": "libavformat/format.c",
+              "kind": "symbol",
+              "source_kind": "function_exported",
+              "layer": 2,
+              "loc": 4,
+              "deps": {
+                "types": [
+                  {
+                    "name": "AVIOContext",
+                    "defined_in": "libavformat/avio.h",
+                    "scope": "wrap"
+                  },
+                  {
+                    "name": "AVInputFormat",
+                    "defined_in": "libavformat/avformat.h",
+                    "scope": "wrap"
+                  }
+                ],
+                "symbols": []
+              },
+              "fallback": [],
+              "back_fill": [],
+              "generates": [],
+              "field_anchors": []
+            },
+            {
+              "name": "av_probe_input_buffer2",
+              "defined_in": "libavformat/format.c",
+              "kind": "symbol",
+              "source_kind": "function_exported",
+              "layer": 2,
+              "loc": 88,
+              "deps": {
+                "types": [
+                  {
+                    "name": "AVIOContext",
+                    "defined_in": "libavformat/avio.h",
+                    "scope": "wrap"
+                  },
+                  {
+                    "name": "AVInputFormat",
+                    "defined_in": "libavformat/avformat.h",
+                    "scope": "wrap"
+                  }
+                ],
+                "symbols": []
+              },
+              "fallback": [],
+              "back_fill": [],
+              "generates": [],
+              "field_anchors": []
+            },
+            {
+              "name": "av_probe_input_format",
+              "defined_in": "libavformat/format.c",
+              "kind": "symbol",
+              "source_kind": "function_exported",
+              "layer": 2,
+              "loc": 4,
+              "deps": {
+                "types": [
+                  {
+                    "name": "AVInputFormat",
+                    "defined_in": "libavformat/avformat.h",
+                    "scope": "wrap"
+                  },
+                  {
+                    "name": "AVProbeData",
+                    "defined_in": "libavformat/avformat.h",
+                    "scope": "wrap"
+                  }
+                ],
+                "symbols": []
+              },
+              "fallback": [],
+              "back_fill": [],
+              "generates": [],
+              "field_anchors": []
+            },
+            {
+              "name": "av_probe_input_format2",
+              "defined_in": "libavformat/format.c",
+              "kind": "symbol",
+              "source_kind": "function_exported",
+              "layer": 2,
+              "loc": 9,
+              "deps": {
+                "types": [
+                  {
+                    "name": "AVInputFormat",
+                    "defined_in": "libavformat/avformat.h",
+                    "scope": "wrap"
+                  },
+                  {
+                    "name": "AVProbeData",
+                    "defined_in": "libavformat/avformat.h",
+                    "scope": "wrap"
+                  }
+                ],
+                "symbols": []
+              },
+              "fallback": [],
+              "back_fill": [],
+              "generates": [],
+              "field_anchors": []
+            },
+            {
+              "name": "av_probe_input_format3",
+              "defined_in": "libavformat/format.c",
+              "kind": "symbol",
+              "source_kind": "function_exported",
+              "layer": 2,
+              "loc": 79,
+              "deps": {
+                "types": [
+                  {
+                    "name": "AVInputFormat",
+                    "defined_in": "libavformat/avformat.h",
+                    "scope": "wrap"
+                  },
+                  {
+                    "name": "AVProbeData",
+                    "defined_in": "libavformat/avformat.h",
+                    "scope": "wrap"
+                  }
+                ],
+                "symbols": []
+              },
+              "fallback": [],
+              "back_fill": [],
+              "generates": [],
+              "field_anchors": []
+            },
+            {
+              "name": "av_stream_get_parser",
+              "defined_in": "libavformat/demux_utils.c",
+              "kind": "symbol",
+              "source_kind": "function_exported",
+              "layer": 2,
+              "loc": 3,
+              "deps": {
+                "types": [
+                  {
+                    "name": "AVCodecParserContext",
+                    "defined_in": "libavcodec/avcodec.h",
+                    "scope": "wrap"
+                  },
+                  {
+                    "name": "AVStream",
+                    "defined_in": "libavformat/avformat.h",
+                    "scope": "wrap"
+                  }
+                ],
+                "symbols": []
+              },
+              "fallback": [],
+              "back_fill": [],
+              "generates": [],
+              "field_anchors": []
+            },
+            {
+              "name": "avformat_index_get_entries_count",
+              "defined_in": "libavformat/seek.c",
+              "kind": "symbol",
+              "source_kind": "function_exported",
+              "layer": 2,
+              "loc": 3,
+              "deps": {
+                "types": [
+                  {
+                    "name": "AVStream",
+                    "defined_in": "libavformat/avformat.h",
+                    "scope": "wrap"
+                  }
+                ],
+                "symbols": []
+              },
+              "fallback": [],
+              "back_fill": [],
+              "generates": [],
+              "field_anchors": []
+            },
+            {
+              "name": "avformat_index_get_entry",
+              "defined_in": "libavformat/seek.c",
+              "kind": "symbol",
+              "source_kind": "function_exported",
+              "layer": 2,
+              "loc": 7,
+              "deps": {
+                "types": [
+                  {
+                    "name": "AVIndexEntry",
+                    "defined_in": "libavformat/avformat.h",
+                    "scope": "wrap"
+                  },
+                  {
+                    "name": "AVStream",
+                    "defined_in": "libavformat/avformat.h",
+                    "scope": "wrap"
+                  }
+                ],
+                "symbols": []
+              },
+              "fallback": [],
+              "back_fill": [],
+              "generates": [],
+              "field_anchors": []
+            },
+            {
+              "name": "avformat_index_get_entry_from_timestamp",
+              "defined_in": "libavformat/seek.c",
+              "kind": "symbol",
+              "source_kind": "function_exported",
+              "layer": 2,
+              "loc": 11,
+              "deps": {
+                "types": [
+                  {
+                    "name": "AVIndexEntry",
+                    "defined_in": "libavformat/avformat.h",
+                    "scope": "wrap"
+                  },
+                  {
+                    "name": "AVStream",
+                    "defined_in": "libavformat/avformat.h",
+                    "scope": "wrap"
+                  }
+                ],
+                "symbols": []
+              },
+              "fallback": [],
+              "back_fill": [],
+              "generates": [],
+              "field_anchors": []
+            },
+            {
+              "name": "avformat_query_codec",
+              "defined_in": "libavformat/mux_utils.c",
+              "kind": "symbol",
+              "source_kind": "function_exported",
+              "layer": 2,
+              "loc": 36,
+              "deps": {
+                "types": [
+                  {
+                    "name": "AVCodecID",
+                    "defined_in": "libavcodec/codec_id.h",
+                    "scope": "wrap"
+                  },
+                  {
+                    "name": "AVOutputFormat",
+                    "defined_in": "libavformat/avformat.h",
+                    "scope": "wrap"
+                  }
+                ],
+                "symbols": []
+              },
+              "fallback": [],
+              "back_fill": [],
+              "generates": [],
+              "field_anchors": []
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "unit_count": 2,
+      "batches": [
+        {
+          "kind": "type",
+          "source_file": "libavformat/avformat.h",
+          "items": [
+            {
+              "name": "AVFormatContext",
+              "defined_in": "libavformat/avformat.h",
+              "kind": "type",
+              "source_kind": "struct",
+              "layer": 3,
+              "loc": 76,
+              "deps": {
+                "types": [
+                  {
+                    "name": "AVChapter",
+                    "defined_in": "libavformat/avformat.h",
+                    "scope": "wrap"
+                  },
+                  {
+                    "name": "AVClass",
+                    "defined_in": "libavutil/log.h",
+                    "scope": "wrap"
+                  },
+                  {
+                    "name": "AVCodec",
+                    "defined_in": "libavcodec/codec.h",
+                    "scope": "wrap"
+                  },
+                  {
+                    "name": "AVCodecID",
+                    "defined_in": "libavcodec/codec_id.h",
+                    "scope": "wrap"
+                  },
+                  {
+                    "name": "AVDictionary",
+                    "defined_in": "libavutil/dict.c",
+                    "scope": "wrap"
+                  },
+                  {
+                    "name": "AVDurationEstimationMethod",
+                    "defined_in": "libavformat/avformat.h",
+                    "scope": "wrap"
+                  },
+                  {
+                    "name": "AVIOContext",
+                    "defined_in": "libavformat/avio.h",
+                    "scope": "wrap"
+                  },
+                  {
+                    "name": "AVIOInterruptCB",
+                    "defined_in": "libavformat/avio.h",
+                    "scope": "wrap"
+                  },
+                  {
+                    "name": "AVInputFormat",
+                    "defined_in": "libavformat/avformat.h",
+                    "scope": "wrap"
+                  },
+                  {
+                    "name": "AVOutputFormat",
+                    "defined_in": "libavformat/avformat.h",
+                    "scope": "wrap"
+                  },
+                  {
+                    "name": "AVProgram",
+                    "defined_in": "libavformat/avformat.h",
+                    "scope": "wrap"
+                  },
+                  {
+                    "name": "AVStream",
+                    "defined_in": "libavformat/avformat.h",
+                    "scope": "wrap"
+                  },
+                  {
+                    "name": "AVStreamGroup",
+                    "defined_in": "libavformat/avformat.h",
+                    "scope": "wrap"
+                  }
+                ],
+                "symbols": []
+              },
+              "fallback": [],
+              "back_fill": [],
+              "generates": [],
+              "field_anchors": [
+                "name",
+                "key",
+                "flags",
+                "pb",
+                "nb_streams",
+                "duration",
+                "recursion_limit",
+                "duration_probesize",
+                "io_close2",
+                "io_open",
+                "dump_separator",
+                "output_ts_offset",
+                "control_message_cb",
+                "opaque",
+                "metadata_header_padding",
+                "data_codec",
+                "subtitle_codec",
+                "audio_codec",
+                "video_codec",
+                "io_repositioned",
+                "protocol_blacklist",
+                "protocol_whitelist",
+                "format_whitelist",
+                "codec_whitelist",
+                "format_probesize",
+                "probe_score",
+                "flush_packets",
+                "seek2any",
+                "correct_ts_overflow",
+                "skip_initial_bytes",
+                "duration_estimation_method",
+                "avio_flags",
+                "skip_estimate_duration_from_pts",
+                "use_wallclock_as_timestamps",
+                "audio_preload",
+                "avoid_negative_ts",
+                "event_flags",
+                "strict_std_compliance",
+                "max_probe_packets",
+                "max_chunk_size",
+                "max_chunk_duration",
+                "max_ts_probe",
+                "max_interleave_delta",
+                "max_picture_buffer",
+                "max_index_size",
+                "max_streams",
+                "debug",
+                "interrupt_callback",
+                "error_recognition",
+                "fps_probe_size",
+                "start_time_realtime",
+                "metadata",
+                "data_codec_id",
+                "subtitle_codec_id",
+                "audio_codec_id",
+                "video_codec_id",
+                "programs",
+                "nb_programs",
+                "keylen",
+                "max_analyze_duration",
+                "probesize",
+                "max_delay",
+                "packet_size",
+                "bit_rate",
+                "start_time",
+                "url",
+                "chapters",
+                "nb_chapters",
+                "stream_groups",
+                "nb_stream_groups",
+                "streams",
+                "ctx_flags",
+                "priv_data",
+                "oformat",
+                "iformat",
+                "av_class"
+              ]
+            }
+          ]
+        },
+        {
+          "kind": "symbol",
+          "source_file": null,
+          "items": [
+            {
+              "name": "avformat_stream_group_add_stream",
+              "defined_in": "libavformat/options.c",
+              "kind": "symbol",
+              "source_kind": "function_exported",
+              "layer": 3,
+              "loc": 13,
+              "deps": {
+                "types": [
+                  {
+                    "name": "AVStream",
+                    "defined_in": "libavformat/avformat.h",
+                    "scope": "wrap"
+                  },
+                  {
+                    "name": "AVStreamGroup",
+                    "defined_in": "libavformat/avformat.h",
+                    "scope": "wrap"
+                  }
+                ],
+                "symbols": []
+              },
+              "fallback": [],
+              "back_fill": [],
+              "generates": [],
+              "field_anchors": []
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "unit_count": 38,
+      "batches": [
+        {
+          "kind": "symbol",
+          "source_file": null,
+          "items": [
+            {
+              "name": "av_dump_format",
+              "defined_in": "libavformat/dump.c",
+              "kind": "symbol",
+              "source_kind": "function_exported",
+              "layer": 4,
+              "loc": 89,
+              "deps": {
+                "types": [
+                  {
+                    "name": "AVFormatContext",
+                    "defined_in": "libavformat/avformat.h",
+                    "scope": "wrap"
+                  }
+                ],
+                "symbols": []
+              },
+              "fallback": [],
+              "back_fill": [],
+              "generates": [],
+              "field_anchors": []
+            },
+            {
+              "name": "av_find_best_stream",
+              "defined_in": "libavformat/avformat.c",
+              "kind": "symbol",
+              "source_kind": "function_exported",
+              "layer": 4,
+              "loc": 62,
+              "deps": {
+                "types": [
+                  {
+                    "name": "AVCodec",
+                    "defined_in": "libavcodec/codec.h",
+                    "scope": "wrap"
+                  },
+                  {
+                    "name": "AVFormatContext",
+                    "defined_in": "libavformat/avformat.h",
+                    "scope": "wrap"
+                  },
+                  {
+                    "name": "AVMediaType",
+                    "defined_in": "libavutil/avutil.h",
+                    "scope": "wrap"
+                  }
+                ],
+                "symbols": []
+              },
+              "fallback": [],
+              "back_fill": [],
+              "generates": [],
+              "field_anchors": []
+            },
+            {
+              "name": "av_find_default_stream_index",
+              "defined_in": "libavformat/avformat.c",
+              "kind": "symbol",
+              "source_kind": "function_exported",
+              "layer": 4,
+              "loc": 34,
+              "deps": {
+                "types": [
+                  {
+                    "name": "AVFormatContext",
+                    "defined_in": "libavformat/avformat.h",
+                    "scope": "wrap"
+                  }
+                ],
+                "symbols": []
+              },
+              "fallback": [],
+              "back_fill": [],
+              "generates": [],
+              "field_anchors": []
+            },
+            {
+              "name": "av_find_program_from_stream",
+              "defined_in": "libavformat/avformat.c",
+              "kind": "symbol",
+              "source_kind": "function_exported",
+              "layer": 4,
+              "loc": 13,
+              "deps": {
+                "types": [
+                  {
+                    "name": "AVFormatContext",
+                    "defined_in": "libavformat/avformat.h",
+                    "scope": "wrap"
+                  },
+                  {
+                    "name": "AVProgram",
+                    "defined_in": "libavformat/avformat.h",
+                    "scope": "wrap"
+                  }
+                ],
+                "symbols": []
+              },
+              "fallback": [],
+              "back_fill": [],
+              "generates": [],
+              "field_anchors": []
+            },
+            {
+              "name": "av_get_output_timestamp",
+              "defined_in": "libavformat/mux.c",
+              "kind": "symbol",
+              "source_kind": "function_exported",
+              "layer": 4,
+              "loc": 7,
+              "deps": {
+                "types": [
+                  {
+                    "name": "AVFormatContext",
+                    "defined_in": "libavformat/avformat.h",
+                    "scope": "wrap"
+                  }
+                ],
+                "symbols": []
+              },
+              "fallback": [],
+              "back_fill": [],
+              "generates": [],
+              "field_anchors": []
+            },
+            {
+              "name": "av_guess_frame_rate",
+              "defined_in": "libavformat/avformat.c",
+              "kind": "symbol",
+              "source_kind": "function_exported",
+              "layer": 4,
+              "loc": 21,
+              "deps": {
+                "types": [
+                  {
+                    "name": "AVFormatContext",
+                    "defined_in": "libavformat/avformat.h",
+                    "scope": "wrap"
+                  },
+                  {
+                    "name": "AVFrame",
+                    "defined_in": "libavutil/frame.h",
+                    "scope": "wrap"
+                  },
+                  {
+                    "name": "AVRational",
+                    "defined_in": "libavutil/rational.h",
+                    "scope": "wrap"
+                  },
+                  {
+                    "name": "AVStream",
+                    "defined_in": "libavformat/avformat.h",
+                    "scope": "wrap"
+                  }
+                ],
+                "symbols": []
+              },
+              "fallback": [],
+              "back_fill": [],
+              "generates": [],
+              "field_anchors": []
+            },
+            {
+              "name": "av_guess_sample_aspect_ratio",
+              "defined_in": "libavformat/avformat.c",
+              "kind": "symbol",
+              "source_kind": "function_exported",
+              "layer": 4,
+              "loc": 21,
+              "deps": {
+                "types": [
+                  {
+                    "name": "AVFormatContext",
+                    "defined_in": "libavformat/avformat.h",
+                    "scope": "wrap"
+                  },
+                  {
+                    "name": "AVFrame",
+                    "defined_in": "libavutil/frame.h",
+                    "scope": "wrap"
+                  },
+                  {
+                    "name": "AVRational",
+                    "defined_in": "libavutil/rational.h",
+                    "scope": "wrap"
+                  },
+                  {
+                    "name": "AVStream",
+                    "defined_in": "libavformat/avformat.h",
+                    "scope": "wrap"
+                  }
+                ],
+                "symbols": []
+              },
+              "fallback": [],
+              "back_fill": [],
+              "generates": [],
+              "field_anchors": []
+            },
+            {
+              "name": "av_interleaved_write_frame",
+              "defined_in": "libavformat/mux.c",
+              "kind": "symbol",
+              "source_kind": "function_exported",
+              "layer": 4,
+              "loc": 13,
+              "deps": {
+                "types": [
+                  {
+                    "name": "AVFormatContext",
+                    "defined_in": "libavformat/avformat.h",
+                    "scope": "wrap"
+                  },
+                  {
+                    "name": "AVPacket",
+                    "defined_in": "libavcodec/packet.h",
+                    "scope": "wrap"
+                  }
+                ],
+                "symbols": []
+              },
+              "fallback": [],
+              "back_fill": [],
+              "generates": [],
+              "field_anchors": []
+            },
+            {
+              "name": "av_interleaved_write_uncoded_frame",
+              "defined_in": "libavformat/mux.c",
+              "kind": "symbol",
+              "source_kind": "function_exported",
+              "layer": 4,
+              "loc": 3,
+              "deps": {
+                "types": [
+                  {
+                    "name": "AVFormatContext",
+                    "defined_in": "libavformat/avformat.h",
+                    "scope": "wrap"
+                  },
+                  {
+                    "name": "AVFrame",
+                    "defined_in": "libavutil/frame.h",
+                    "scope": "wrap"
+                  }
+                ],
+                "symbols": []
+              },
+              "fallback": [],
+              "back_fill": [],
+              "generates": [],
+              "field_anchors": []
+            },
+            {
+              "name": "av_new_program",
+              "defined_in": "libavformat/avformat.c",
+              "kind": "symbol",
+              "source_kind": "function_exported",
+              "layer": 4,
+              "loc": 29,
+              "deps": {
+                "types": [
+                  {
+                    "name": "AVFormatContext",
+                    "defined_in": "libavformat/avformat.h",
+                    "scope": "wrap"
+                  },
+                  {
+                    "name": "AVProgram",
+                    "defined_in": "libavformat/avformat.h",
+                    "scope": "wrap"
+                  }
+                ],
+                "symbols": []
+              },
+              "fallback": [],
+              "back_fill": [],
+              "generates": [],
+              "field_anchors": []
+            },
+            {
+              "name": "av_program_add_stream_index",
+              "defined_in": "libavformat/avformat.c",
+              "kind": "symbol",
+              "source_kind": "function_exported",
+              "layer": 4,
+              "loc": 4,
+              "deps": {
+                "types": [
+                  {
+                    "name": "AVFormatContext",
+                    "defined_in": "libavformat/avformat.h",
+                    "scope": "wrap"
+                  }
+                ],
+                "symbols": []
+              },
+              "fallback": [],
+              "back_fill": [],
+              "generates": [],
+              "field_anchors": []
+            },
+            {
+              "name": "av_program_add_stream_index2",
+              "defined_in": "libavformat/avformat.c",
+              "kind": "symbol",
+              "source_kind": "function_exported",
+              "layer": 4,
+              "loc": 28,
+              "deps": {
+                "types": [
+                  {
+                    "name": "AVFormatContext",
+                    "defined_in": "libavformat/avformat.h",
+                    "scope": "wrap"
+                  }
+                ],
+                "symbols": []
+              },
+              "fallback": [],
+              "back_fill": [],
+              "generates": [],
+              "field_anchors": []
+            },
+            {
+              "name": "av_program_copy",
+              "defined_in": "libavformat/avformat.c",
+              "kind": "symbol",
+              "source_kind": "function_exported",
+              "layer": 4,
+              "loc": 103,
+              "deps": {
+                "types": [
+                  {
+                    "name": "AVFormatContext",
+                    "defined_in": "libavformat/avformat.h",
+                    "scope": "wrap"
+                  }
+                ],
+                "symbols": []
+              },
+              "fallback": [],
+              "back_fill": [],
+              "generates": [],
+              "field_anchors": []
+            }
+          ]
+        },
+        {
+          "kind": "symbol",
+          "source_file": null,
+          "items": [
+            {
+              "name": "av_read_frame",
+              "defined_in": "libavformat/demux.c",
+              "kind": "symbol",
+              "source_kind": "function_exported",
+              "layer": 4,
+              "loc": 93,
+              "deps": {
+                "types": [
+                  {
+                    "name": "AVFormatContext",
+                    "defined_in": "libavformat/avformat.h",
+                    "scope": "wrap"
+                  },
+                  {
+                    "name": "AVPacket",
+                    "defined_in": "libavcodec/packet.h",
+                    "scope": "wrap"
+                  }
+                ],
+                "symbols": []
+              },
+              "fallback": [],
+              "back_fill": [],
+              "generates": [],
+              "field_anchors": []
+            },
+            {
+              "name": "av_read_pause",
+              "defined_in": "libavformat/demux_utils.c",
+              "kind": "symbol",
+              "source_kind": "function_exported",
+              "layer": 4,
+              "loc": 7,
+              "deps": {
+                "types": [
+                  {
+                    "name": "AVFormatContext",
+                    "defined_in": "libavformat/avformat.h",
+                    "scope": "wrap"
+                  }
+                ],
+                "symbols": []
+              },
+              "fallback": [],
+              "back_fill": [],
+              "generates": [],
+              "field_anchors": []
+            },
+            {
+              "name": "av_read_play",
+              "defined_in": "libavformat/demux_utils.c",
+              "kind": "symbol",
+              "source_kind": "function_exported",
+              "layer": 4,
+              "loc": 7,
+              "deps": {
+                "types": [
+                  {
+                    "name": "AVFormatContext",
+                    "defined_in": "libavformat/avformat.h",
+                    "scope": "wrap"
+                  }
+                ],
+                "symbols": []
+              },
+              "fallback": [],
+              "back_fill": [],
+              "generates": [],
+              "field_anchors": []
+            },
+            {
+              "name": "av_sdp_create",
+              "defined_in": "libavformat/sdp.c",
+              "kind": "symbol",
+              "source_kind": "function_exported",
+              "layer": 4,
+              "loc": 71,
+              "deps": {
+                "types": [
+                  {
+                    "name": "AVFormatContext",
+                    "defined_in": "libavformat/avformat.h",
+                    "scope": "wrap"
+                  }
+                ],
+                "symbols": []
+              },
+              "fallback": [],
+              "back_fill": [],
+              "generates": [],
+              "field_anchors": []
+            },
+            {
+              "name": "av_seek_frame",
+              "defined_in": "libavformat/seek.c",
+              "kind": "symbol",
+              "source_kind": "function_exported",
+              "layer": 4,
+              "loc": 20,
+              "deps": {
+                "types": [
+                  {
+                    "name": "AVFormatContext",
+                    "defined_in": "libavformat/avformat.h",
+                    "scope": "wrap"
+                  }
+                ],
+                "symbols": []
+              },
+              "fallback": [],
+              "back_fill": [],
+              "generates": [],
+              "field_anchors": []
+            },
+            {
+              "name": "av_write_frame",
+              "defined_in": "libavformat/mux.c",
+              "kind": "symbol",
+              "source_kind": "function_exported",
+              "layer": 4,
+              "loc": 45,
+              "deps": {
+                "types": [
+                  {
+                    "name": "AVFormatContext",
+                    "defined_in": "libavformat/avformat.h",
+                    "scope": "wrap"
+                  },
+                  {
+                    "name": "AVPacket",
+                    "defined_in": "libavcodec/packet.h",
+                    "scope": "wrap"
+                  }
+                ],
+                "symbols": []
+              },
+              "fallback": [],
+              "back_fill": [],
+              "generates": [],
+              "field_anchors": []
+            },
+            {
+              "name": "av_write_trailer",
+              "defined_in": "libavformat/mux.c",
+              "kind": "symbol",
+              "source_kind": "function_exported",
+              "layer": 4,
+              "loc": 44,
+              "deps": {
+                "types": [
+                  {
+                    "name": "AVFormatContext",
+                    "defined_in": "libavformat/avformat.h",
+                    "scope": "wrap"
+                  }
+                ],
+                "symbols": []
+              },
+              "fallback": [],
+              "back_fill": [],
+              "generates": [],
+              "field_anchors": []
+            },
+            {
+              "name": "av_write_uncoded_frame",
+              "defined_in": "libavformat/mux.c",
+              "kind": "symbol",
+              "source_kind": "function_exported",
+              "layer": 4,
+              "loc": 3,
+              "deps": {
+                "types": [
+                  {
+                    "name": "AVFormatContext",
+                    "defined_in": "libavformat/avformat.h",
+                    "scope": "wrap"
+                  },
+                  {
+                    "name": "AVFrame",
+                    "defined_in": "libavutil/frame.h",
+                    "scope": "wrap"
+                  }
+                ],
+                "symbols": []
+              },
+              "fallback": [],
+              "back_fill": [],
+              "generates": [],
+              "field_anchors": []
+            },
+            {
+              "name": "av_write_uncoded_frame_query",
+              "defined_in": "libavformat/mux.c",
+              "kind": "symbol",
+              "source_kind": "function_exported",
+              "layer": 4,
+              "loc": 8,
+              "deps": {
+                "types": [
+                  {
+                    "name": "AVFormatContext",
+                    "defined_in": "libavformat/avformat.h",
+                    "scope": "wrap"
+                  }
+                ],
+                "symbols": []
+              },
+              "fallback": [],
+              "back_fill": [],
+              "generates": [],
+              "field_anchors": []
+            },
+            {
+              "name": "avformat_alloc_context",
+              "defined_in": "libavformat/options.c",
+              "kind": "symbol",
+              "source_kind": "function_exported",
+              "layer": 4,
+              "loc": 26,
+              "deps": {
+                "types": [
+                  {
+                    "name": "AVFormatContext",
+                    "defined_in": "libavformat/avformat.h",
+                    "scope": "wrap"
+                  }
+                ],
+                "symbols": []
+              },
+              "fallback": [],
+              "back_fill": [],
+              "generates": [],
+              "field_anchors": []
+            },
+            {
+              "name": "avformat_alloc_output_context2",
+              "defined_in": "libavformat/mux.c",
+              "kind": "symbol",
+              "source_kind": "function_exported",
+              "layer": 4,
+              "loc": 55,
+              "deps": {
+                "types": [
+                  {
+                    "name": "AVFormatContext",
+                    "defined_in": "libavformat/avformat.h",
+                    "scope": "wrap"
+                  },
+                  {
+                    "name": "AVOutputFormat",
+                    "defined_in": "libavformat/avformat.h",
+                    "scope": "wrap"
+                  }
+                ],
+                "symbols": []
+              },
+              "fallback": [],
+              "back_fill": [],
+              "generates": [],
+              "field_anchors": []
+            },
+            {
+              "name": "avformat_close_input",
+              "defined_in": "libavformat/demux.c",
+              "kind": "symbol",
+              "source_kind": "function_exported",
+              "layer": 4,
+              "loc": 23,
+              "deps": {
+                "types": [
+                  {
+                    "name": "AVFormatContext",
+                    "defined_in": "libavformat/avformat.h",
+                    "scope": "wrap"
+                  }
+                ],
+                "symbols": []
+              },
+              "fallback": [],
+              "back_fill": [],
+              "generates": [],
+              "field_anchors": []
+            }
+          ]
+        },
+        {
+          "kind": "symbol",
+          "source_file": null,
+          "items": [
+            {
+              "name": "avformat_find_stream_info",
+              "defined_in": "libavformat/demux.c",
+              "kind": "symbol",
+              "source_kind": "function_exported",
+              "layer": 4,
+              "loc": 607,
+              "deps": {
+                "types": [
+                  {
+                    "name": "AVDictionary",
+                    "defined_in": "libavutil/dict.c",
+                    "scope": "wrap"
+                  },
+                  {
+                    "name": "AVFormatContext",
+                    "defined_in": "libavformat/avformat.h",
+                    "scope": "wrap"
+                  }
+                ],
+                "symbols": []
+              },
+              "fallback": [],
+              "back_fill": [],
+              "generates": [],
+              "field_anchors": []
+            }
+          ]
+        },
+        {
+          "kind": "symbol",
+          "source_file": null,
+          "items": [
+            {
+              "name": "avformat_flush",
+              "defined_in": "libavformat/seek.c",
+              "kind": "symbol",
+              "source_kind": "function_exported",
+              "layer": 4,
+              "loc": 4,
+              "deps": {
+                "types": [
+                  {
+                    "name": "AVFormatContext",
+                    "defined_in": "libavformat/avformat.h",
+                    "scope": "wrap"
+                  }
+                ],
+                "symbols": []
+              },
+              "fallback": [],
+              "back_fill": [],
+              "generates": [],
+              "field_anchors": []
+            },
+            {
+              "name": "avformat_free_context",
+              "defined_in": "libavformat/avformat.c",
+              "kind": "symbol",
+              "source_kind": "function_exported",
+              "layer": 4,
+              "loc": 55,
+              "deps": {
+                "types": [
+                  {
+                    "name": "AVFormatContext",
+                    "defined_in": "libavformat/avformat.h",
+                    "scope": "wrap"
+                  }
+                ],
+                "symbols": []
+              },
+              "fallback": [],
+              "back_fill": [],
+              "generates": [],
+              "field_anchors": []
+            },
+            {
+              "name": "avformat_init_output",
+              "defined_in": "libavformat/mux.c",
+              "kind": "symbol",
+              "source_kind": "function_exported",
+              "layer": 4,
+              "loc": 19,
+              "deps": {
+                "types": [
+                  {
+                    "name": "AVDictionary",
+                    "defined_in": "libavutil/dict.c",
+                    "scope": "wrap"
+                  },
+                  {
+                    "name": "AVFormatContext",
+                    "defined_in": "libavformat/avformat.h",
+                    "scope": "wrap"
+                  }
+                ],
+                "symbols": []
+              },
+              "fallback": [],
+              "back_fill": [],
+              "generates": [],
+              "field_anchors": []
+            },
+            {
+              "name": "avformat_match_stream_specifier",
+              "defined_in": "libavformat/avformat.c",
+              "kind": "symbol",
+              "source_kind": "function_exported",
+              "layer": 4,
+              "loc": 43,
+              "deps": {
+                "types": [
+                  {
+                    "name": "AVFormatContext",
+                    "defined_in": "libavformat/avformat.h",
+                    "scope": "wrap"
+                  },
+                  {
+                    "name": "AVStream",
+                    "defined_in": "libavformat/avformat.h",
+                    "scope": "wrap"
+                  }
+                ],
+                "symbols": []
+              },
+              "fallback": [],
+              "back_fill": [],
+              "generates": [],
+              "field_anchors": []
+            },
+            {
+              "name": "avformat_new_stream",
+              "defined_in": "libavformat/options.c",
+              "kind": "symbol",
+              "source_kind": "function_exported",
+              "layer": 4,
+              "loc": 81,
+              "deps": {
+                "types": [
+                  {
+                    "name": "AVCodec",
+                    "defined_in": "libavcodec/codec.h",
+                    "scope": "wrap"
+                  },
+                  {
+                    "name": "AVFormatContext",
+                    "defined_in": "libavformat/avformat.h",
+                    "scope": "wrap"
+                  },
+                  {
+                    "name": "AVStream",
+                    "defined_in": "libavformat/avformat.h",
+                    "scope": "wrap"
+                  }
+                ],
+                "symbols": []
+              },
+              "fallback": [],
+              "back_fill": [],
+              "generates": [],
+              "field_anchors": []
+            },
+            {
+              "name": "avformat_open_input",
+              "defined_in": "libavformat/demux.c",
+              "kind": "symbol",
+              "source_kind": "function_exported",
+              "layer": 4,
+              "loc": 143,
+              "deps": {
+                "types": [
+                  {
+                    "name": "AVDictionary",
+                    "defined_in": "libavutil/dict.c",
+                    "scope": "wrap"
+                  },
+                  {
+                    "name": "AVFormatContext",
+                    "defined_in": "libavformat/avformat.h",
+                    "scope": "wrap"
+                  },
+                  {
+                    "name": "AVInputFormat",
+                    "defined_in": "libavformat/avformat.h",
+                    "scope": "wrap"
+                  }
+                ],
+                "symbols": []
+              },
+              "fallback": [],
+              "back_fill": [],
+              "generates": [],
+              "field_anchors": []
+            },
+            {
+              "name": "avformat_queue_attached_pictures",
+              "defined_in": "libavformat/demux_utils.c",
+              "kind": "symbol",
+              "source_kind": "function_exported",
+              "layer": 4,
+              "loc": 21,
+              "deps": {
+                "types": [
+                  {
+                    "name": "AVFormatContext",
+                    "defined_in": "libavformat/avformat.h",
+                    "scope": "wrap"
+                  }
+                ],
+                "symbols": []
+              },
+              "fallback": [],
+              "back_fill": [],
+              "generates": [],
+              "field_anchors": []
+            },
+            {
+              "name": "avformat_receive_command_reply",
+              "defined_in": "libavformat/demux_utils.c",
+              "kind": "symbol",
+              "source_kind": "function_exported",
+              "layer": 4,
+              "loc": 5,
+              "deps": {
+                "types": [
+                  {
+                    "name": "AVFormatCommandID",
+                    "defined_in": "libavformat/avformat.h",
+                    "scope": "wrap"
+                  },
+                  {
+                    "name": "AVFormatContext",
+                    "defined_in": "libavformat/avformat.h",
+                    "scope": "wrap"
+                  }
+                ],
+                "symbols": []
+              },
+              "fallback": [],
+              "back_fill": [],
+              "generates": [],
+              "field_anchors": []
+            },
+            {
+              "name": "avformat_seek_file",
+              "defined_in": "libavformat/seek.c",
+              "kind": "symbol",
+              "source_kind": "function_exported",
+              "layer": 4,
+              "loc": 48,
+              "deps": {
+                "types": [
+                  {
+                    "name": "AVFormatContext",
+                    "defined_in": "libavformat/avformat.h",
+                    "scope": "wrap"
+                  }
+                ],
+                "symbols": []
+              },
+              "fallback": [],
+              "back_fill": [],
+              "generates": [],
+              "field_anchors": []
+            },
+            {
+              "name": "avformat_send_command",
+              "defined_in": "libavformat/demux_utils.c",
+              "kind": "symbol",
+              "source_kind": "function_exported",
+              "layer": 4,
+              "loc": 5,
+              "deps": {
+                "types": [
+                  {
+                    "name": "AVFormatCommandID",
+                    "defined_in": "libavformat/avformat.h",
+                    "scope": "wrap"
+                  },
+                  {
+                    "name": "AVFormatContext",
+                    "defined_in": "libavformat/avformat.h",
+                    "scope": "wrap"
+                  }
+                ],
+                "symbols": []
+              },
+              "fallback": [],
+              "back_fill": [],
+              "generates": [],
+              "field_anchors": []
+            },
+            {
+              "name": "avformat_stream_group_create",
+              "defined_in": "libavformat/options.c",
+              "kind": "symbol",
+              "source_kind": "function_exported",
+              "layer": 4,
+              "loc": 71,
+              "deps": {
+                "types": [
+                  {
+                    "name": "AVDictionary",
+                    "defined_in": "libavutil/dict.c",
+                    "scope": "wrap"
+                  },
+                  {
+                    "name": "AVFormatContext",
+                    "defined_in": "libavformat/avformat.h",
+                    "scope": "wrap"
+                  },
+                  {
+                    "name": "AVStreamGroup",
+                    "defined_in": "libavformat/avformat.h",
+                    "scope": "wrap"
+                  },
+                  {
+                    "name": "AVStreamGroupParamsType",
+                    "defined_in": "libavformat/avformat.h",
+                    "scope": "wrap"
+                  }
+                ],
+                "symbols": []
+              },
+              "fallback": [],
+              "back_fill": [],
+              "generates": [],
+              "field_anchors": []
+            }
+          ]
+        },
+        {
+          "kind": "symbol",
+          "source_file": null,
+          "items": [
+            {
+              "name": "avformat_write_header",
+              "defined_in": "libavformat/mux.c",
+              "kind": "symbol",
+              "source_kind": "function_exported",
+              "layer": 4,
+              "loc": 34,
+              "deps": {
+                "types": [
+                  {
+                    "name": "AVDictionary",
+                    "defined_in": "libavutil/dict.c",
+                    "scope": "wrap"
+                  },
+                  {
+                    "name": "AVFormatContext",
+                    "defined_in": "libavformat/avformat.h",
+                    "scope": "wrap"
+                  }
+                ],
+                "symbols": []
+              },
+              "fallback": [],
+              "back_fill": [],
+              "generates": [],
+              "field_anchors": []
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

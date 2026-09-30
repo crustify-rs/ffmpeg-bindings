@@ -1,0 +1,1637 @@
+{
+  "schema_version": 3,
+  "oracle_config": {
+    "path": "crustify/wavefront/configs/libavformat/avio/wavefront-config.json",
+    "sha256": "4a52361b22cac0ce213c41599e178871b56edaa097d76df7e12ef5f4c17895f7"
+  },
+  "api_headers_only": true,
+  "budgets": {
+    "max_syms": 25,
+    "max_loc": 500,
+    "max_types": 2,
+    "min_fields": 20
+  },
+  "summary": {
+    "unit_count": 69,
+    "layer_count": 3,
+    "batch_count": 11,
+    "file_count": 4
+  },
+  "waves": [
+    {
+      "unit_count": 11,
+      "batches": [
+        {
+          "kind": "type",
+          "source_file": "libavutil/log.h",
+          "items": [
+            {
+              "name": "AVClass",
+              "defined_in": "libavutil/log.h",
+              "kind": "type",
+              "source_kind": "struct",
+              "layer": 0,
+              "loc": 12,
+              "deps": {
+                "types": [],
+                "symbols": []
+              },
+              "fallback": [],
+              "back_fill": [],
+              "generates": [],
+              "field_anchors": []
+            },
+            {
+              "name": "AVDictionary",
+              "defined_in": "libavutil/dict.c",
+              "kind": "type",
+              "source_kind": "struct",
+              "layer": 0,
+              "loc": 2,
+              "deps": {
+                "types": [],
+                "symbols": []
+              },
+              "fallback": [],
+              "back_fill": [],
+              "generates": [],
+              "field_anchors": []
+            }
+          ]
+        },
+        {
+          "kind": "type",
+          "source_file": "libavformat/avio.h",
+          "items": [
+            {
+              "name": "AVIODataMarkerType",
+              "defined_in": "libavformat/avio.h",
+              "kind": "type",
+              "source_kind": "enum",
+              "layer": 0,
+              "loc": 0,
+              "deps": {
+                "types": [],
+                "symbols": []
+              },
+              "fallback": [],
+              "back_fill": [],
+              "generates": [],
+              "field_anchors": []
+            },
+            {
+              "name": "AVIODirContext",
+              "defined_in": "libavformat/avio.c",
+              "kind": "type",
+              "source_kind": "struct",
+              "layer": 0,
+              "loc": 1,
+              "deps": {
+                "types": [],
+                "symbols": []
+              },
+              "fallback": [],
+              "back_fill": [],
+              "generates": [],
+              "field_anchors": []
+            }
+          ]
+        },
+        {
+          "kind": "type",
+          "source_file": "libavformat/avio.h",
+          "items": [
+            {
+              "name": "AVIODirEntry",
+              "defined_in": "libavformat/avio.h",
+              "kind": "type",
+              "source_kind": "struct",
+              "layer": 0,
+              "loc": 10,
+              "deps": {
+                "types": [],
+                "symbols": []
+              },
+              "fallback": [],
+              "back_fill": [],
+              "generates": [],
+              "field_anchors": [
+                "name",
+                "type",
+                "size",
+                "group_id",
+                "filemode",
+                "user_id",
+                "status_change_timestamp",
+                "access_timestamp",
+                "modification_timestamp",
+                "utf8"
+              ]
+            },
+            {
+              "name": "AVIODirEntryType",
+              "defined_in": "libavformat/avio.h",
+              "kind": "type",
+              "source_kind": "enum",
+              "layer": 0,
+              "loc": 0,
+              "deps": {
+                "types": [],
+                "symbols": []
+              },
+              "fallback": [],
+              "back_fill": [],
+              "generates": [],
+              "field_anchors": []
+            }
+          ]
+        },
+        {
+          "kind": "type",
+          "source_file": "libavformat/avio.h",
+          "items": [
+            {
+              "name": "AVIOInterruptCB",
+              "defined_in": "libavformat/avio.h",
+              "kind": "type",
+              "source_kind": "struct",
+              "layer": 0,
+              "loc": 2,
+              "deps": {
+                "types": [],
+                "symbols": []
+              },
+              "fallback": [],
+              "back_fill": [],
+              "generates": [],
+              "field_anchors": [
+                "opaque",
+                "callback"
+              ]
+            },
+            {
+              "name": "FF_PAD_STRUCTURE",
+              "defined_in": "libavutil/bprint.h",
+              "kind": "type",
+              "source_kind": "macro",
+              "layer": 0,
+              "loc": 0,
+              "deps": {
+                "types": [],
+                "symbols": []
+              },
+              "fallback": [],
+              "back_fill": [],
+              "generates": [
+                "AVBPrint",
+                "ff_pad_helper_AVBPrint"
+              ],
+              "field_anchors": []
+            }
+          ]
+        },
+        {
+          "kind": "symbol",
+          "source_file": null,
+          "items": [
+            {
+              "name": "avio_check",
+              "defined_in": "libavformat/avio.c",
+              "kind": "symbol",
+              "source_kind": "function_exported",
+              "layer": 0,
+              "loc": 17,
+              "deps": {
+                "types": [],
+                "symbols": []
+              },
+              "fallback": [],
+              "back_fill": [],
+              "generates": [],
+              "field_anchors": []
+            },
+            {
+              "name": "avio_enum_protocols",
+              "defined_in": "libavformat/protocols.c",
+              "kind": "symbol",
+              "source_kind": "function_exported",
+              "layer": 0,
+              "loc": 13,
+              "deps": {
+                "types": [],
+                "symbols": []
+              },
+              "fallback": [],
+              "back_fill": [],
+              "generates": [],
+              "field_anchors": []
+            },
+            {
+              "name": "avio_find_protocol_name",
+              "defined_in": "libavformat/avio.c",
+              "kind": "symbol",
+              "source_kind": "function_exported",
+              "layer": 0,
+              "loc": 5,
+              "deps": {
+                "types": [],
+                "symbols": []
+              },
+              "fallback": [],
+              "back_fill": [],
+              "generates": [],
+              "field_anchors": []
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "unit_count": 7,
+      "batches": [
+        {
+          "kind": "type",
+          "source_file": "libavutil/bprint.h",
+          "items": [
+            {
+              "name": "AVBPrint",
+              "defined_in": "libavutil/bprint.h",
+              "kind": "type",
+              "source_kind": "struct",
+              "layer": 1,
+              "loc": 6,
+              "deps": {
+                "types": [],
+                "symbols": [
+                  {
+                    "name": "FF_PAD_STRUCTURE",
+                    "defined_in": "libavutil/bprint.h",
+                    "scope": "wrap"
+                  }
+                ]
+              },
+              "fallback": [],
+              "back_fill": [],
+              "generates": [],
+              "field_anchors": []
+            }
+          ]
+        },
+        {
+          "kind": "type",
+          "source_file": "libavformat/avio.h",
+          "items": [
+            {
+              "name": "AVIOContext",
+              "defined_in": "libavformat/avio.h",
+              "kind": "type",
+              "source_kind": "struct",
+              "layer": 1,
+              "loc": 29,
+              "deps": {
+                "types": [
+                  {
+                    "name": "AVClass",
+                    "defined_in": "libavutil/log.h",
+                    "scope": "wrap"
+                  },
+                  {
+                    "name": "AVIODataMarkerType",
+                    "defined_in": "libavformat/avio.h",
+                    "scope": "wrap"
+                  }
+                ],
+                "symbols": []
+              },
+              "fallback": [],
+              "back_fill": [],
+              "generates": [],
+              "field_anchors": [
+                "buffer",
+                "error",
+                "opaque",
+                "protocol_blacklist",
+                "protocol_whitelist",
+                "av_class",
+                "pos",
+                "buf_end",
+                "buffer_size",
+                "write_packet",
+                "buf_ptr",
+                "bytes_read",
+                "read_packet",
+                "checksum",
+                "seek",
+                "bytes_written",
+                "max_packet_size",
+                "direct",
+                "read_seek",
+                "buf_ptr_max",
+                "ignore_boundary_point",
+                "write_data_type",
+                "seekable",
+                "read_pause",
+                "update_checksum",
+                "checksum_ptr",
+                "min_packet_size",
+                "write_flag",
+                "eof_reached"
+              ]
+            }
+          ]
+        },
+        {
+          "kind": "symbol",
+          "source_file": null,
+          "items": [
+            {
+              "name": "avio_close_dir",
+              "defined_in": "libavformat/avio.c",
+              "kind": "symbol",
+              "source_kind": "function_exported",
+              "layer": 1,
+              "loc": 13,
+              "deps": {
+                "types": [
+                  {
+                    "name": "AVIODirContext",
+                    "defined_in": "libavformat/avio.c",
+                    "scope": "wrap"
+                  }
+                ],
+                "symbols": []
+              },
+              "fallback": [],
+              "back_fill": [],
+              "generates": [],
+              "field_anchors": []
+            },
+            {
+              "name": "avio_free_directory_entry",
+              "defined_in": "libavformat/avio.c",
+              "kind": "symbol",
+              "source_kind": "function_exported",
+              "layer": 1,
+              "loc": 6,
+              "deps": {
+                "types": [
+                  {
+                    "name": "AVIODirEntry",
+                    "defined_in": "libavformat/avio.h",
+                    "scope": "wrap"
+                  }
+                ],
+                "symbols": []
+              },
+              "fallback": [],
+              "back_fill": [],
+              "generates": [],
+              "field_anchors": []
+            },
+            {
+              "name": "avio_open_dir",
+              "defined_in": "libavformat/avio.c",
+              "kind": "symbol",
+              "source_kind": "function_exported",
+              "layer": 1,
+              "loc": 36,
+              "deps": {
+                "types": [
+                  {
+                    "name": "AVDictionary",
+                    "defined_in": "libavutil/dict.c",
+                    "scope": "wrap"
+                  },
+                  {
+                    "name": "AVIODirContext",
+                    "defined_in": "libavformat/avio.c",
+                    "scope": "wrap"
+                  }
+                ],
+                "symbols": []
+              },
+              "fallback": [],
+              "back_fill": [],
+              "generates": [],
+              "field_anchors": []
+            },
+            {
+              "name": "avio_protocol_get_class",
+              "defined_in": "libavformat/protocols.c",
+              "kind": "symbol",
+              "source_kind": "function_exported",
+              "layer": 1,
+              "loc": 8,
+              "deps": {
+                "types": [
+                  {
+                    "name": "AVClass",
+                    "defined_in": "libavutil/log.h",
+                    "scope": "wrap"
+                  }
+                ],
+                "symbols": []
+              },
+              "fallback": [],
+              "back_fill": [],
+              "generates": [],
+              "field_anchors": []
+            },
+            {
+              "name": "avio_read_dir",
+              "defined_in": "libavformat/avio.c",
+              "kind": "symbol",
+              "source_kind": "function_exported",
+              "layer": 1,
+              "loc": 11,
+              "deps": {
+                "types": [
+                  {
+                    "name": "AVIODirContext",
+                    "defined_in": "libavformat/avio.c",
+                    "scope": "wrap"
+                  },
+                  {
+                    "name": "AVIODirEntry",
+                    "defined_in": "libavformat/avio.h",
+                    "scope": "wrap"
+                  }
+                ],
+                "symbols": []
+              },
+              "fallback": [],
+              "back_fill": [],
+              "generates": [],
+              "field_anchors": []
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "unit_count": 51,
+      "batches": [
+        {
+          "kind": "symbol",
+          "source_file": null,
+          "items": [
+            {
+              "name": "avio_accept",
+              "defined_in": "libavformat/avio.c",
+              "kind": "symbol",
+              "source_kind": "function_exported",
+              "layer": 2,
+              "loc": 9,
+              "deps": {
+                "types": [
+                  {
+                    "name": "AVIOContext",
+                    "defined_in": "libavformat/avio.h",
+                    "scope": "wrap"
+                  }
+                ],
+                "symbols": []
+              },
+              "fallback": [],
+              "back_fill": [],
+              "generates": [],
+              "field_anchors": []
+            },
+            {
+              "name": "avio_alloc_context",
+              "defined_in": "libavformat/aviobuf.c",
+              "kind": "symbol",
+              "source_kind": "function_exported",
+              "layer": 2,
+              "loc": 8,
+              "deps": {
+                "types": [
+                  {
+                    "name": "AVIOContext",
+                    "defined_in": "libavformat/avio.h",
+                    "scope": "wrap"
+                  }
+                ],
+                "symbols": []
+              },
+              "fallback": [],
+              "back_fill": [],
+              "generates": [],
+              "field_anchors": []
+            },
+            {
+              "name": "avio_close",
+              "defined_in": "libavformat/avio.c",
+              "kind": "symbol",
+              "source_kind": "function_exported",
+              "layer": 2,
+              "loc": 31,
+              "deps": {
+                "types": [
+                  {
+                    "name": "AVIOContext",
+                    "defined_in": "libavformat/avio.h",
+                    "scope": "wrap"
+                  }
+                ],
+                "symbols": []
+              },
+              "fallback": [],
+              "back_fill": [],
+              "generates": [],
+              "field_anchors": []
+            },
+            {
+              "name": "avio_close_dyn_buf",
+              "defined_in": "libavformat/aviobuf.c",
+              "kind": "symbol",
+              "source_kind": "function_exported",
+              "layer": 2,
+              "loc": 26,
+              "deps": {
+                "types": [
+                  {
+                    "name": "AVIOContext",
+                    "defined_in": "libavformat/avio.h",
+                    "scope": "wrap"
+                  }
+                ],
+                "symbols": []
+              },
+              "fallback": [],
+              "back_fill": [],
+              "generates": [],
+              "field_anchors": []
+            },
+            {
+              "name": "avio_closep",
+              "defined_in": "libavformat/avio.c",
+              "kind": "symbol",
+              "source_kind": "function_exported",
+              "layer": 2,
+              "loc": 5,
+              "deps": {
+                "types": [
+                  {
+                    "name": "AVIOContext",
+                    "defined_in": "libavformat/avio.h",
+                    "scope": "wrap"
+                  }
+                ],
+                "symbols": []
+              },
+              "fallback": [],
+              "back_fill": [],
+              "generates": [],
+              "field_anchors": []
+            },
+            {
+              "name": "avio_context_free",
+              "defined_in": "libavformat/aviobuf.c",
+              "kind": "symbol",
+              "source_kind": "function_exported",
+              "layer": 2,
+              "loc": 8,
+              "deps": {
+                "types": [
+                  {
+                    "name": "AVIOContext",
+                    "defined_in": "libavformat/avio.h",
+                    "scope": "wrap"
+                  }
+                ],
+                "symbols": []
+              },
+              "fallback": [],
+              "back_fill": [],
+              "generates": [],
+              "field_anchors": []
+            },
+            {
+              "name": "avio_feof",
+              "defined_in": "libavformat/aviobuf.c",
+              "kind": "symbol",
+              "source_kind": "function_exported",
+              "layer": 2,
+              "loc": 9,
+              "deps": {
+                "types": [
+                  {
+                    "name": "AVIOContext",
+                    "defined_in": "libavformat/avio.h",
+                    "scope": "wrap"
+                  }
+                ],
+                "symbols": []
+              },
+              "fallback": [],
+              "back_fill": [],
+              "generates": [],
+              "field_anchors": []
+            },
+            {
+              "name": "avio_flush",
+              "defined_in": "libavformat/aviobuf.c",
+              "kind": "symbol",
+              "source_kind": "function_exported",
+              "layer": 2,
+              "loc": 6,
+              "deps": {
+                "types": [
+                  {
+                    "name": "AVIOContext",
+                    "defined_in": "libavformat/avio.h",
+                    "scope": "wrap"
+                  }
+                ],
+                "symbols": []
+              },
+              "fallback": [],
+              "back_fill": [],
+              "generates": [],
+              "field_anchors": []
+            },
+            {
+              "name": "avio_get_dyn_buf",
+              "defined_in": "libavformat/aviobuf.c",
+              "kind": "symbol",
+              "source_kind": "function_exported",
+              "layer": 2,
+              "loc": 20,
+              "deps": {
+                "types": [
+                  {
+                    "name": "AVIOContext",
+                    "defined_in": "libavformat/avio.h",
+                    "scope": "wrap"
+                  }
+                ],
+                "symbols": []
+              },
+              "fallback": [],
+              "back_fill": [],
+              "generates": [],
+              "field_anchors": []
+            },
+            {
+              "name": "avio_get_str",
+              "defined_in": "libavformat/aviobuf.c",
+              "kind": "symbol",
+              "source_kind": "function_exported",
+              "layer": 2,
+              "loc": 16,
+              "deps": {
+                "types": [
+                  {
+                    "name": "AVIOContext",
+                    "defined_in": "libavformat/avio.h",
+                    "scope": "wrap"
+                  }
+                ],
+                "symbols": []
+              },
+              "fallback": [],
+              "back_fill": [],
+              "generates": [],
+              "field_anchors": []
+            },
+            {
+              "name": "avio_get_str16be",
+              "defined_in": "libavformat/aviobuf.c",
+              "kind": "symbol",
+              "source_kind": "function_exported",
+              "layer": 2,
+              "loc": 1,
+              "deps": {
+                "types": [
+                  {
+                    "name": "AVIOContext",
+                    "defined_in": "libavformat/avio.h",
+                    "scope": "wrap"
+                  }
+                ],
+                "symbols": []
+              },
+              "fallback": [],
+              "back_fill": [],
+              "generates": [],
+              "field_anchors": []
+            },
+            {
+              "name": "avio_get_str16le",
+              "defined_in": "libavformat/aviobuf.c",
+              "kind": "symbol",
+              "source_kind": "function_exported",
+              "layer": 2,
+              "loc": 1,
+              "deps": {
+                "types": [
+                  {
+                    "name": "AVIOContext",
+                    "defined_in": "libavformat/avio.h",
+                    "scope": "wrap"
+                  }
+                ],
+                "symbols": []
+              },
+              "fallback": [],
+              "back_fill": [],
+              "generates": [],
+              "field_anchors": []
+            },
+            {
+              "name": "avio_handshake",
+              "defined_in": "libavformat/avio.c",
+              "kind": "symbol",
+              "source_kind": "function_exported",
+              "layer": 2,
+              "loc": 4,
+              "deps": {
+                "types": [
+                  {
+                    "name": "AVIOContext",
+                    "defined_in": "libavformat/avio.h",
+                    "scope": "wrap"
+                  }
+                ],
+                "symbols": []
+              },
+              "fallback": [],
+              "back_fill": [],
+              "generates": [],
+              "field_anchors": []
+            },
+            {
+              "name": "avio_open",
+              "defined_in": "libavformat/avio.c",
+              "kind": "symbol",
+              "source_kind": "function_exported",
+              "layer": 2,
+              "loc": 3,
+              "deps": {
+                "types": [
+                  {
+                    "name": "AVIOContext",
+                    "defined_in": "libavformat/avio.h",
+                    "scope": "wrap"
+                  }
+                ],
+                "symbols": []
+              },
+              "fallback": [],
+              "back_fill": [],
+              "generates": [],
+              "field_anchors": []
+            },
+            {
+              "name": "avio_open2",
+              "defined_in": "libavformat/avio.c",
+              "kind": "symbol",
+              "source_kind": "function_exported",
+              "layer": 2,
+              "loc": 3,
+              "deps": {
+                "types": [
+                  {
+                    "name": "AVDictionary",
+                    "defined_in": "libavutil/dict.c",
+                    "scope": "wrap"
+                  },
+                  {
+                    "name": "AVIOContext",
+                    "defined_in": "libavformat/avio.h",
+                    "scope": "wrap"
+                  },
+                  {
+                    "name": "AVIOInterruptCB",
+                    "defined_in": "libavformat/avio.h",
+                    "scope": "wrap"
+                  }
+                ],
+                "symbols": []
+              },
+              "fallback": [],
+              "back_fill": [],
+              "generates": [],
+              "field_anchors": []
+            },
+            {
+              "name": "avio_open_dyn_buf",
+              "defined_in": "libavformat/aviobuf.c",
+              "kind": "symbol",
+              "source_kind": "function_exported",
+              "layer": 2,
+              "loc": 3,
+              "deps": {
+                "types": [
+                  {
+                    "name": "AVIOContext",
+                    "defined_in": "libavformat/avio.h",
+                    "scope": "wrap"
+                  }
+                ],
+                "symbols": []
+              },
+              "fallback": [],
+              "back_fill": [],
+              "generates": [],
+              "field_anchors": []
+            },
+            {
+              "name": "avio_pause",
+              "defined_in": "libavformat/aviobuf.c",
+              "kind": "symbol",
+              "source_kind": "function_exported",
+              "layer": 2,
+              "loc": 5,
+              "deps": {
+                "types": [
+                  {
+                    "name": "AVIOContext",
+                    "defined_in": "libavformat/avio.h",
+                    "scope": "wrap"
+                  }
+                ],
+                "symbols": []
+              },
+              "fallback": [],
+              "back_fill": [],
+              "generates": [],
+              "field_anchors": []
+            },
+            {
+              "name": "avio_print_string_array",
+              "defined_in": "libavformat/aviobuf.c",
+              "kind": "symbol",
+              "source_kind": "function_exported",
+              "layer": 2,
+              "loc": 4,
+              "deps": {
+                "types": [
+                  {
+                    "name": "AVIOContext",
+                    "defined_in": "libavformat/avio.h",
+                    "scope": "wrap"
+                  }
+                ],
+                "symbols": []
+              },
+              "fallback": [],
+              "back_fill": [],
+              "generates": [],
+              "field_anchors": []
+            },
+            {
+              "name": "avio_printf",
+              "defined_in": "libavformat/aviobuf.c",
+              "kind": "symbol",
+              "source_kind": "function_exported",
+              "layer": 2,
+              "loc": 10,
+              "deps": {
+                "types": [
+                  {
+                    "name": "AVIOContext",
+                    "defined_in": "libavformat/avio.h",
+                    "scope": "wrap"
+                  }
+                ],
+                "symbols": []
+              },
+              "fallback": [],
+              "back_fill": [],
+              "generates": [],
+              "field_anchors": []
+            },
+            {
+              "name": "avio_put_str",
+              "defined_in": "libavformat/aviobuf.c",
+              "kind": "symbol",
+              "source_kind": "function_exported",
+              "layer": 2,
+              "loc": 9,
+              "deps": {
+                "types": [
+                  {
+                    "name": "AVIOContext",
+                    "defined_in": "libavformat/avio.h",
+                    "scope": "wrap"
+                  }
+                ],
+                "symbols": []
+              },
+              "fallback": [],
+              "back_fill": [],
+              "generates": [],
+              "field_anchors": []
+            },
+            {
+              "name": "avio_put_str16be",
+              "defined_in": "libavformat/aviobuf.c",
+              "kind": "symbol",
+              "source_kind": "function_exported",
+              "layer": 2,
+              "loc": 1,
+              "deps": {
+                "types": [
+                  {
+                    "name": "AVIOContext",
+                    "defined_in": "libavformat/avio.h",
+                    "scope": "wrap"
+                  }
+                ],
+                "symbols": []
+              },
+              "fallback": [],
+              "back_fill": [],
+              "generates": [],
+              "field_anchors": []
+            },
+            {
+              "name": "avio_put_str16le",
+              "defined_in": "libavformat/aviobuf.c",
+              "kind": "symbol",
+              "source_kind": "function_exported",
+              "layer": 2,
+              "loc": 1,
+              "deps": {
+                "types": [
+                  {
+                    "name": "AVIOContext",
+                    "defined_in": "libavformat/avio.h",
+                    "scope": "wrap"
+                  }
+                ],
+                "symbols": []
+              },
+              "fallback": [],
+              "back_fill": [],
+              "generates": [],
+              "field_anchors": []
+            },
+            {
+              "name": "avio_r8",
+              "defined_in": "libavformat/aviobuf.c",
+              "kind": "symbol",
+              "source_kind": "function_exported",
+              "layer": 2,
+              "loc": 7,
+              "deps": {
+                "types": [
+                  {
+                    "name": "AVIOContext",
+                    "defined_in": "libavformat/avio.h",
+                    "scope": "wrap"
+                  }
+                ],
+                "symbols": []
+              },
+              "fallback": [],
+              "back_fill": [],
+              "generates": [],
+              "field_anchors": []
+            },
+            {
+              "name": "avio_rb16",
+              "defined_in": "libavformat/aviobuf.c",
+              "kind": "symbol",
+              "source_kind": "function_exported",
+              "layer": 2,
+              "loc": 6,
+              "deps": {
+                "types": [
+                  {
+                    "name": "AVIOContext",
+                    "defined_in": "libavformat/avio.h",
+                    "scope": "wrap"
+                  }
+                ],
+                "symbols": []
+              },
+              "fallback": [],
+              "back_fill": [],
+              "generates": [],
+              "field_anchors": []
+            },
+            {
+              "name": "avio_rb24",
+              "defined_in": "libavformat/aviobuf.c",
+              "kind": "symbol",
+              "source_kind": "function_exported",
+              "layer": 2,
+              "loc": 6,
+              "deps": {
+                "types": [
+                  {
+                    "name": "AVIOContext",
+                    "defined_in": "libavformat/avio.h",
+                    "scope": "wrap"
+                  }
+                ],
+                "symbols": []
+              },
+              "fallback": [],
+              "back_fill": [],
+              "generates": [],
+              "field_anchors": []
+            }
+          ]
+        },
+        {
+          "kind": "symbol",
+          "source_file": null,
+          "items": [
+            {
+              "name": "avio_rb32",
+              "defined_in": "libavformat/aviobuf.c",
+              "kind": "symbol",
+              "source_kind": "function_exported",
+              "layer": 2,
+              "loc": 6,
+              "deps": {
+                "types": [
+                  {
+                    "name": "AVIOContext",
+                    "defined_in": "libavformat/avio.h",
+                    "scope": "wrap"
+                  }
+                ],
+                "symbols": []
+              },
+              "fallback": [],
+              "back_fill": [],
+              "generates": [],
+              "field_anchors": []
+            },
+            {
+              "name": "avio_rb64",
+              "defined_in": "libavformat/aviobuf.c",
+              "kind": "symbol",
+              "source_kind": "function_exported",
+              "layer": 2,
+              "loc": 6,
+              "deps": {
+                "types": [
+                  {
+                    "name": "AVIOContext",
+                    "defined_in": "libavformat/avio.h",
+                    "scope": "wrap"
+                  }
+                ],
+                "symbols": []
+              },
+              "fallback": [],
+              "back_fill": [],
+              "generates": [],
+              "field_anchors": []
+            },
+            {
+              "name": "avio_read",
+              "defined_in": "libavformat/aviobuf.c",
+              "kind": "symbol",
+              "source_kind": "function_exported",
+              "layer": 2,
+              "loc": 48,
+              "deps": {
+                "types": [
+                  {
+                    "name": "AVIOContext",
+                    "defined_in": "libavformat/avio.h",
+                    "scope": "wrap"
+                  }
+                ],
+                "symbols": []
+              },
+              "fallback": [],
+              "back_fill": [],
+              "generates": [],
+              "field_anchors": []
+            },
+            {
+              "name": "avio_read_partial",
+              "defined_in": "libavformat/aviobuf.c",
+              "kind": "symbol",
+              "source_kind": "function_exported",
+              "layer": 2,
+              "loc": 28,
+              "deps": {
+                "types": [
+                  {
+                    "name": "AVIOContext",
+                    "defined_in": "libavformat/avio.h",
+                    "scope": "wrap"
+                  }
+                ],
+                "symbols": []
+              },
+              "fallback": [],
+              "back_fill": [],
+              "generates": [],
+              "field_anchors": []
+            },
+            {
+              "name": "avio_read_to_bprint",
+              "defined_in": "libavformat/aviobuf.c",
+              "kind": "symbol",
+              "source_kind": "function_exported",
+              "layer": 2,
+              "loc": 16,
+              "deps": {
+                "types": [
+                  {
+                    "name": "AVBPrint",
+                    "defined_in": "libavutil/bprint.h",
+                    "scope": "wrap"
+                  },
+                  {
+                    "name": "AVIOContext",
+                    "defined_in": "libavformat/avio.h",
+                    "scope": "wrap"
+                  }
+                ],
+                "symbols": []
+              },
+              "fallback": [],
+              "back_fill": [],
+              "generates": [],
+              "field_anchors": []
+            },
+            {
+              "name": "avio_rl16",
+              "defined_in": "libavformat/aviobuf.c",
+              "kind": "symbol",
+              "source_kind": "function_exported",
+              "layer": 2,
+              "loc": 6,
+              "deps": {
+                "types": [
+                  {
+                    "name": "AVIOContext",
+                    "defined_in": "libavformat/avio.h",
+                    "scope": "wrap"
+                  }
+                ],
+                "symbols": []
+              },
+              "fallback": [],
+              "back_fill": [],
+              "generates": [],
+              "field_anchors": []
+            },
+            {
+              "name": "avio_rl24",
+              "defined_in": "libavformat/aviobuf.c",
+              "kind": "symbol",
+              "source_kind": "function_exported",
+              "layer": 2,
+              "loc": 6,
+              "deps": {
+                "types": [
+                  {
+                    "name": "AVIOContext",
+                    "defined_in": "libavformat/avio.h",
+                    "scope": "wrap"
+                  }
+                ],
+                "symbols": []
+              },
+              "fallback": [],
+              "back_fill": [],
+              "generates": [],
+              "field_anchors": []
+            },
+            {
+              "name": "avio_rl32",
+              "defined_in": "libavformat/aviobuf.c",
+              "kind": "symbol",
+              "source_kind": "function_exported",
+              "layer": 2,
+              "loc": 6,
+              "deps": {
+                "types": [
+                  {
+                    "name": "AVIOContext",
+                    "defined_in": "libavformat/avio.h",
+                    "scope": "wrap"
+                  }
+                ],
+                "symbols": []
+              },
+              "fallback": [],
+              "back_fill": [],
+              "generates": [],
+              "field_anchors": []
+            },
+            {
+              "name": "avio_rl64",
+              "defined_in": "libavformat/aviobuf.c",
+              "kind": "symbol",
+              "source_kind": "function_exported",
+              "layer": 2,
+              "loc": 6,
+              "deps": {
+                "types": [
+                  {
+                    "name": "AVIOContext",
+                    "defined_in": "libavformat/avio.h",
+                    "scope": "wrap"
+                  }
+                ],
+                "symbols": []
+              },
+              "fallback": [],
+              "back_fill": [],
+              "generates": [],
+              "field_anchors": []
+            },
+            {
+              "name": "avio_seek",
+              "defined_in": "libavformat/aviobuf.c",
+              "kind": "symbol",
+              "source_kind": "function_exported",
+              "layer": 2,
+              "loc": 83,
+              "deps": {
+                "types": [
+                  {
+                    "name": "AVIOContext",
+                    "defined_in": "libavformat/avio.h",
+                    "scope": "wrap"
+                  }
+                ],
+                "symbols": []
+              },
+              "fallback": [],
+              "back_fill": [],
+              "generates": [],
+              "field_anchors": []
+            },
+            {
+              "name": "avio_seek_time",
+              "defined_in": "libavformat/aviobuf.c",
+              "kind": "symbol",
+              "source_kind": "function_exported",
+              "layer": 2,
+              "loc": 16,
+              "deps": {
+                "types": [
+                  {
+                    "name": "AVIOContext",
+                    "defined_in": "libavformat/avio.h",
+                    "scope": "wrap"
+                  }
+                ],
+                "symbols": []
+              },
+              "fallback": [],
+              "back_fill": [],
+              "generates": [],
+              "field_anchors": []
+            },
+            {
+              "name": "avio_size",
+              "defined_in": "libavformat/aviobuf.c",
+              "kind": "symbol",
+              "source_kind": "function_exported",
+              "layer": 2,
+              "loc": 21,
+              "deps": {
+                "types": [
+                  {
+                    "name": "AVIOContext",
+                    "defined_in": "libavformat/avio.h",
+                    "scope": "wrap"
+                  }
+                ],
+                "symbols": []
+              },
+              "fallback": [],
+              "back_fill": [],
+              "generates": [],
+              "field_anchors": []
+            },
+            {
+              "name": "avio_skip",
+              "defined_in": "libavformat/aviobuf.c",
+              "kind": "symbol",
+              "source_kind": "function_exported",
+              "layer": 2,
+              "loc": 3,
+              "deps": {
+                "types": [
+                  {
+                    "name": "AVIOContext",
+                    "defined_in": "libavformat/avio.h",
+                    "scope": "wrap"
+                  }
+                ],
+                "symbols": []
+              },
+              "fallback": [],
+              "back_fill": [],
+              "generates": [],
+              "field_anchors": []
+            },
+            {
+              "name": "avio_tell",
+              "defined_in": "libavformat/avio.h",
+              "kind": "symbol",
+              "source_kind": "function_inline_header",
+              "layer": 2,
+              "loc": 3,
+              "deps": {
+                "types": [
+                  {
+                    "name": "AVIOContext",
+                    "defined_in": "libavformat/avio.h",
+                    "scope": "wrap"
+                  }
+                ],
+                "symbols": []
+              },
+              "fallback": [],
+              "back_fill": [],
+              "generates": [],
+              "field_anchors": []
+            },
+            {
+              "name": "avio_vprintf",
+              "defined_in": "libavformat/aviobuf.c",
+              "kind": "symbol",
+              "source_kind": "function_exported",
+              "layer": 2,
+              "loc": 14,
+              "deps": {
+                "types": [
+                  {
+                    "name": "AVIOContext",
+                    "defined_in": "libavformat/avio.h",
+                    "scope": "wrap"
+                  }
+                ],
+                "symbols": []
+              },
+              "fallback": [],
+              "back_fill": [],
+              "generates": [],
+              "field_anchors": []
+            },
+            {
+              "name": "avio_w8",
+              "defined_in": "libavformat/aviobuf.c",
+              "kind": "symbol",
+              "source_kind": "function_exported",
+              "layer": 2,
+              "loc": 6,
+              "deps": {
+                "types": [
+                  {
+                    "name": "AVIOContext",
+                    "defined_in": "libavformat/avio.h",
+                    "scope": "wrap"
+                  }
+                ],
+                "symbols": []
+              },
+              "fallback": [],
+              "back_fill": [],
+              "generates": [],
+              "field_anchors": []
+            },
+            {
+              "name": "avio_wb16",
+              "defined_in": "libavformat/aviobuf.c",
+              "kind": "symbol",
+              "source_kind": "function_exported",
+              "layer": 2,
+              "loc": 4,
+              "deps": {
+                "types": [
+                  {
+                    "name": "AVIOContext",
+                    "defined_in": "libavformat/avio.h",
+                    "scope": "wrap"
+                  }
+                ],
+                "symbols": []
+              },
+              "fallback": [],
+              "back_fill": [],
+              "generates": [],
+              "field_anchors": []
+            },
+            {
+              "name": "avio_wb24",
+              "defined_in": "libavformat/aviobuf.c",
+              "kind": "symbol",
+              "source_kind": "function_exported",
+              "layer": 2,
+              "loc": 4,
+              "deps": {
+                "types": [
+                  {
+                    "name": "AVIOContext",
+                    "defined_in": "libavformat/avio.h",
+                    "scope": "wrap"
+                  }
+                ],
+                "symbols": []
+              },
+              "fallback": [],
+              "back_fill": [],
+              "generates": [],
+              "field_anchors": []
+            },
+            {
+              "name": "avio_wb32",
+              "defined_in": "libavformat/aviobuf.c",
+              "kind": "symbol",
+              "source_kind": "function_exported",
+              "layer": 2,
+              "loc": 6,
+              "deps": {
+                "types": [
+                  {
+                    "name": "AVIOContext",
+                    "defined_in": "libavformat/avio.h",
+                    "scope": "wrap"
+                  }
+                ],
+                "symbols": []
+              },
+              "fallback": [],
+              "back_fill": [],
+              "generates": [],
+              "field_anchors": []
+            },
+            {
+              "name": "avio_wb64",
+              "defined_in": "libavformat/aviobuf.c",
+              "kind": "symbol",
+              "source_kind": "function_exported",
+              "layer": 2,
+              "loc": 4,
+              "deps": {
+                "types": [
+                  {
+                    "name": "AVIOContext",
+                    "defined_in": "libavformat/avio.h",
+                    "scope": "wrap"
+                  }
+                ],
+                "symbols": []
+              },
+              "fallback": [],
+              "back_fill": [],
+              "generates": [],
+              "field_anchors": []
+            },
+            {
+              "name": "avio_wl16",
+              "defined_in": "libavformat/aviobuf.c",
+              "kind": "symbol",
+              "source_kind": "function_exported",
+              "layer": 2,
+              "loc": 4,
+              "deps": {
+                "types": [
+                  {
+                    "name": "AVIOContext",
+                    "defined_in": "libavformat/avio.h",
+                    "scope": "wrap"
+                  }
+                ],
+                "symbols": []
+              },
+              "fallback": [],
+              "back_fill": [],
+              "generates": [],
+              "field_anchors": []
+            },
+            {
+              "name": "avio_wl24",
+              "defined_in": "libavformat/aviobuf.c",
+              "kind": "symbol",
+              "source_kind": "function_exported",
+              "layer": 2,
+              "loc": 4,
+              "deps": {
+                "types": [
+                  {
+                    "name": "AVIOContext",
+                    "defined_in": "libavformat/avio.h",
+                    "scope": "wrap"
+                  }
+                ],
+                "symbols": []
+              },
+              "fallback": [],
+              "back_fill": [],
+              "generates": [],
+              "field_anchors": []
+            },
+            {
+              "name": "avio_wl32",
+              "defined_in": "libavformat/aviobuf.c",
+              "kind": "symbol",
+              "source_kind": "function_exported",
+              "layer": 2,
+              "loc": 6,
+              "deps": {
+                "types": [
+                  {
+                    "name": "AVIOContext",
+                    "defined_in": "libavformat/avio.h",
+                    "scope": "wrap"
+                  }
+                ],
+                "symbols": []
+              },
+              "fallback": [],
+              "back_fill": [],
+              "generates": [],
+              "field_anchors": []
+            },
+            {
+              "name": "avio_wl64",
+              "defined_in": "libavformat/aviobuf.c",
+              "kind": "symbol",
+              "source_kind": "function_exported",
+              "layer": 2,
+              "loc": 4,
+              "deps": {
+                "types": [
+                  {
+                    "name": "AVIOContext",
+                    "defined_in": "libavformat/avio.h",
+                    "scope": "wrap"
+                  }
+                ],
+                "symbols": []
+              },
+              "fallback": [],
+              "back_fill": [],
+              "generates": [],
+              "field_anchors": []
+            },
+            {
+              "name": "avio_write",
+              "defined_in": "libavformat/aviobuf.c",
+              "kind": "symbol",
+              "source_kind": "function_exported",
+              "layer": 2,
+              "loc": 20,
+              "deps": {
+                "types": [
+                  {
+                    "name": "AVIOContext",
+                    "defined_in": "libavformat/avio.h",
+                    "scope": "wrap"
+                  }
+                ],
+                "symbols": []
+              },
+              "fallback": [],
+              "back_fill": [],
+              "generates": [],
+              "field_anchors": []
+            }
+          ]
+        },
+        {
+          "kind": "symbol",
+          "source_file": null,
+          "items": [
+            {
+              "name": "avio_write_marker",
+              "defined_in": "libavformat/aviobuf.c",
+              "kind": "symbol",
+              "source_kind": "function_exported",
+              "layer": 2,
+              "loc": 35,
+              "deps": {
+                "types": [
+                  {
+                    "name": "AVIOContext",
+                    "defined_in": "libavformat/avio.h",
+                    "scope": "wrap"
+                  },
+                  {
+                    "name": "AVIODataMarkerType",
+                    "defined_in": "libavformat/avio.h",
+                    "scope": "wrap"
+                  }
+                ],
+                "symbols": []
+              },
+              "fallback": [],
+              "back_fill": [],
+              "generates": [],
+              "field_anchors": []
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

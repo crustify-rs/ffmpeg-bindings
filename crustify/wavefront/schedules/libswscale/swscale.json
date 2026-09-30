@@ -1,0 +1,1304 @@
+{
+  "schema_version": 3,
+  "oracle_config": {
+    "path": "crustify/wavefront/configs/libswscale/swscale/wavefront-config.json",
+    "sha256": "0ebd362fe0b03593f2557bc33b698e47ae95e8d4f4fc255ebe72a8ee15988cb6"
+  },
+  "api_headers_only": true,
+  "budgets": {
+    "max_syms": 25,
+    "max_loc": 500,
+    "max_types": 2,
+    "min_fields": 20
+  },
+  "summary": {
+    "unit_count": 55,
+    "layer_count": 3,
+    "batch_count": 13,
+    "file_count": 5
+  },
+  "waves": [
+    {
+      "unit_count": 19,
+      "batches": [
+        {
+          "kind": "type",
+          "source_file": "libavutil/log.h",
+          "items": [
+            {
+              "name": "AVClass",
+              "defined_in": "libavutil/log.h",
+              "kind": "type",
+              "source_kind": "struct",
+              "layer": 0,
+              "loc": 12,
+              "deps": {
+                "types": [],
+                "symbols": []
+              },
+              "fallback": [],
+              "back_fill": [],
+              "generates": [],
+              "field_anchors": []
+            },
+            {
+              "name": "AVColorPrimaries",
+              "defined_in": "libavutil/pixfmt.h",
+              "kind": "type",
+              "source_kind": "enum",
+              "layer": 0,
+              "loc": 0,
+              "deps": {
+                "types": [],
+                "symbols": []
+              },
+              "fallback": [],
+              "back_fill": [],
+              "generates": [],
+              "field_anchors": []
+            }
+          ]
+        },
+        {
+          "kind": "type",
+          "source_file": "libavutil/pixfmt.h",
+          "items": [
+            {
+              "name": "AVColorSpace",
+              "defined_in": "libavutil/pixfmt.h",
+              "kind": "type",
+              "source_kind": "enum",
+              "layer": 0,
+              "loc": 0,
+              "deps": {
+                "types": [],
+                "symbols": []
+              },
+              "fallback": [],
+              "back_fill": [],
+              "generates": [],
+              "field_anchors": []
+            },
+            {
+              "name": "AVColorTransferCharacteristic",
+              "defined_in": "libavutil/pixfmt.h",
+              "kind": "type",
+              "source_kind": "enum",
+              "layer": 0,
+              "loc": 0,
+              "deps": {
+                "types": [],
+                "symbols": []
+              },
+              "fallback": [],
+              "back_fill": [],
+              "generates": [],
+              "field_anchors": []
+            }
+          ]
+        },
+        {
+          "kind": "type",
+          "source_file": "libavutil/frame.h",
+          "items": [
+            {
+              "name": "AVFrame",
+              "defined_in": "libavutil/frame.h",
+              "kind": "type",
+              "source_kind": "struct",
+              "layer": 0,
+              "loc": 40,
+              "deps": {
+                "types": [],
+                "symbols": []
+              },
+              "fallback": [],
+              "back_fill": [],
+              "generates": [],
+              "field_anchors": []
+            }
+          ]
+        },
+        {
+          "kind": "type",
+          "source_file": "libavutil/pixfmt.h",
+          "items": [
+            {
+              "name": "AVPixelFormat",
+              "defined_in": "libavutil/pixfmt.h",
+              "kind": "type",
+              "source_kind": "enum",
+              "layer": 0,
+              "loc": 0,
+              "deps": {
+                "types": [],
+                "symbols": []
+              },
+              "fallback": [],
+              "back_fill": [],
+              "generates": [],
+              "field_anchors": []
+            },
+            {
+              "name": "SwsAlphaBlend",
+              "defined_in": "libswscale/swscale.h",
+              "kind": "type",
+              "source_kind": "enum",
+              "layer": 0,
+              "loc": 0,
+              "deps": {
+                "types": [],
+                "symbols": []
+              },
+              "fallback": [],
+              "back_fill": [],
+              "generates": [],
+              "field_anchors": []
+            }
+          ]
+        },
+        {
+          "kind": "type",
+          "source_file": "libswscale/swscale.h",
+          "items": [
+            {
+              "name": "SwsBackend",
+              "defined_in": "libswscale/swscale.h",
+              "kind": "type",
+              "source_kind": "enum",
+              "layer": 0,
+              "loc": 0,
+              "deps": {
+                "types": [],
+                "symbols": []
+              },
+              "fallback": [],
+              "back_fill": [],
+              "generates": [],
+              "field_anchors": []
+            },
+            {
+              "name": "SwsDither",
+              "defined_in": "libswscale/swscale.h",
+              "kind": "type",
+              "source_kind": "enum",
+              "layer": 0,
+              "loc": 0,
+              "deps": {
+                "types": [],
+                "symbols": []
+              },
+              "fallback": [],
+              "back_fill": [],
+              "generates": [],
+              "field_anchors": []
+            }
+          ]
+        },
+        {
+          "kind": "type",
+          "source_file": "libswscale/swscale.h",
+          "items": [
+            {
+              "name": "SwsFlags",
+              "defined_in": "libswscale/swscale.h",
+              "kind": "type",
+              "source_kind": "enum",
+              "layer": 0,
+              "loc": 0,
+              "deps": {
+                "types": [],
+                "symbols": []
+              },
+              "fallback": [],
+              "back_fill": [],
+              "generates": [],
+              "field_anchors": []
+            },
+            {
+              "name": "SwsIntent",
+              "defined_in": "libswscale/swscale.h",
+              "kind": "type",
+              "source_kind": "enum",
+              "layer": 0,
+              "loc": 0,
+              "deps": {
+                "types": [],
+                "symbols": []
+              },
+              "fallback": [],
+              "back_fill": [],
+              "generates": [],
+              "field_anchors": []
+            }
+          ]
+        },
+        {
+          "kind": "type",
+          "source_file": "libswscale/swscale.h",
+          "items": [
+            {
+              "name": "SwsScaler",
+              "defined_in": "libswscale/swscale.h",
+              "kind": "type",
+              "source_kind": "enum",
+              "layer": 0,
+              "loc": 0,
+              "deps": {
+                "types": [],
+                "symbols": []
+              },
+              "fallback": [],
+              "back_fill": [],
+              "generates": [],
+              "field_anchors": []
+            },
+            {
+              "name": "SwsVector",
+              "defined_in": "libswscale/swscale.h",
+              "kind": "type",
+              "source_kind": "struct",
+              "layer": 0,
+              "loc": 2,
+              "deps": {
+                "types": [],
+                "symbols": []
+              },
+              "fallback": [],
+              "back_fill": [],
+              "generates": [],
+              "field_anchors": [
+                "length",
+                "coeff"
+              ]
+            }
+          ]
+        },
+        {
+          "kind": "symbol",
+          "source_file": null,
+          "items": [
+            {
+              "name": "sws_convertPalette8ToPacked24",
+              "defined_in": "libswscale/swscale_unscaled.c",
+              "kind": "symbol",
+              "source_kind": "function_exported",
+              "layer": 0,
+              "loc": 11,
+              "deps": {
+                "types": [],
+                "symbols": []
+              },
+              "fallback": [],
+              "back_fill": [],
+              "generates": [],
+              "field_anchors": []
+            },
+            {
+              "name": "sws_convertPalette8ToPacked32",
+              "defined_in": "libswscale/swscale_unscaled.c",
+              "kind": "symbol",
+              "source_kind": "function_exported",
+              "layer": 0,
+              "loc": 6,
+              "deps": {
+                "types": [],
+                "symbols": []
+              },
+              "fallback": [],
+              "back_fill": [],
+              "generates": [],
+              "field_anchors": []
+            },
+            {
+              "name": "sws_getCoefficients",
+              "defined_in": "libswscale/yuv2rgb.c",
+              "kind": "symbol",
+              "source_kind": "function_exported",
+              "layer": 0,
+              "loc": 5,
+              "deps": {
+                "types": [],
+                "symbols": []
+              },
+              "fallback": [],
+              "back_fill": [],
+              "generates": [],
+              "field_anchors": []
+            },
+            {
+              "name": "swscale_configuration",
+              "defined_in": "libswscale/version.c",
+              "kind": "symbol",
+              "source_kind": "function_exported",
+              "layer": 0,
+              "loc": 3,
+              "deps": {
+                "types": [],
+                "symbols": []
+              },
+              "fallback": [],
+              "back_fill": [],
+              "generates": [],
+              "field_anchors": []
+            },
+            {
+              "name": "swscale_license",
+              "defined_in": "libswscale/version.c",
+              "kind": "symbol",
+              "source_kind": "function_exported",
+              "layer": 0,
+              "loc": 4,
+              "deps": {
+                "types": [],
+                "symbols": []
+              },
+              "fallback": [],
+              "back_fill": [],
+              "generates": [],
+              "field_anchors": []
+            },
+            {
+              "name": "swscale_version",
+              "defined_in": "libswscale/version.c",
+              "kind": "symbol",
+              "source_kind": "function_exported",
+              "layer": 0,
+              "loc": 4,
+              "deps": {
+                "types": [],
+                "symbols": []
+              },
+              "fallback": [],
+              "back_fill": [],
+              "generates": [],
+              "field_anchors": []
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "unit_count": 18,
+      "batches": [
+        {
+          "kind": "type",
+          "source_file": "libswscale/swscale.h",
+          "items": [
+            {
+              "name": "SwsContext",
+              "defined_in": "libswscale/swscale.h",
+              "kind": "type",
+              "source_kind": "struct",
+              "layer": 1,
+              "loc": 24,
+              "deps": {
+                "types": [
+                  {
+                    "name": "AVClass",
+                    "defined_in": "libavutil/log.h",
+                    "scope": "wrap"
+                  },
+                  {
+                    "name": "SwsAlphaBlend",
+                    "defined_in": "libswscale/swscale.h",
+                    "scope": "wrap"
+                  },
+                  {
+                    "name": "SwsBackend",
+                    "defined_in": "libswscale/swscale.h",
+                    "scope": "wrap"
+                  },
+                  {
+                    "name": "SwsDither",
+                    "defined_in": "libswscale/swscale.h",
+                    "scope": "wrap"
+                  },
+                  {
+                    "name": "SwsScaler",
+                    "defined_in": "libswscale/swscale.h",
+                    "scope": "wrap"
+                  }
+                ],
+                "symbols": []
+              },
+              "fallback": [],
+              "back_fill": [],
+              "generates": [],
+              "field_anchors": [
+                "flags",
+                "opaque",
+                "av_class",
+                "dither",
+                "src_format",
+                "dst_format",
+                "threads",
+                "backends",
+                "scaler_sub",
+                "scaler",
+                "intent",
+                "dst_h_chr_pos",
+                "dst_v_chr_pos",
+                "src_h_chr_pos",
+                "src_v_chr_pos",
+                "dst_range",
+                "src_range",
+                "dst_h",
+                "dst_w",
+                "src_h",
+                "src_w",
+                "gamma_flag",
+                "alpha_blend",
+                "scaler_params"
+              ]
+            }
+          ]
+        },
+        {
+          "kind": "type",
+          "source_file": "libswscale/swscale.h",
+          "items": [
+            {
+              "name": "SwsFilter",
+              "defined_in": "libswscale/swscale.h",
+              "kind": "type",
+              "source_kind": "struct",
+              "layer": 1,
+              "loc": 4,
+              "deps": {
+                "types": [
+                  {
+                    "name": "SwsVector",
+                    "defined_in": "libswscale/swscale.h",
+                    "scope": "wrap"
+                  }
+                ],
+                "symbols": []
+              },
+              "fallback": [],
+              "back_fill": [],
+              "generates": [],
+              "field_anchors": [
+                "chrV",
+                "chrH",
+                "lumV",
+                "lumH"
+              ]
+            }
+          ]
+        },
+        {
+          "kind": "symbol",
+          "source_file": null,
+          "items": [
+            {
+              "name": "sws_allocVec",
+              "defined_in": "libswscale/utils.c",
+              "kind": "symbol",
+              "source_kind": "function_exported",
+              "layer": 1,
+              "loc": 15,
+              "deps": {
+                "types": [
+                  {
+                    "name": "SwsVector",
+                    "defined_in": "libswscale/swscale.h",
+                    "scope": "wrap"
+                  }
+                ],
+                "symbols": []
+              },
+              "fallback": [],
+              "back_fill": [],
+              "generates": [],
+              "field_anchors": []
+            },
+            {
+              "name": "sws_freeVec",
+              "defined_in": "libswscale/utils.c",
+              "kind": "symbol",
+              "source_kind": "function_exported",
+              "layer": 1,
+              "loc": 7,
+              "deps": {
+                "types": [
+                  {
+                    "name": "SwsVector",
+                    "defined_in": "libswscale/swscale.h",
+                    "scope": "wrap"
+                  }
+                ],
+                "symbols": []
+              },
+              "fallback": [],
+              "back_fill": [],
+              "generates": [],
+              "field_anchors": []
+            },
+            {
+              "name": "sws_getGaussianVec",
+              "defined_in": "libswscale/utils.c",
+              "kind": "symbol",
+              "source_kind": "function_exported",
+              "layer": 1,
+              "loc": 24,
+              "deps": {
+                "types": [
+                  {
+                    "name": "SwsVector",
+                    "defined_in": "libswscale/swscale.h",
+                    "scope": "wrap"
+                  }
+                ],
+                "symbols": []
+              },
+              "fallback": [],
+              "back_fill": [],
+              "generates": [],
+              "field_anchors": []
+            },
+            {
+              "name": "sws_get_class",
+              "defined_in": "libswscale/options.c",
+              "kind": "symbol",
+              "source_kind": "function_exported",
+              "layer": 1,
+              "loc": 3,
+              "deps": {
+                "types": [
+                  {
+                    "name": "AVClass",
+                    "defined_in": "libavutil/log.h",
+                    "scope": "wrap"
+                  }
+                ],
+                "symbols": []
+              },
+              "fallback": [],
+              "back_fill": [],
+              "generates": [],
+              "field_anchors": []
+            },
+            {
+              "name": "sws_isSupportedEndiannessConversion",
+              "defined_in": "libswscale/format.c",
+              "kind": "symbol",
+              "source_kind": "function_exported",
+              "layer": 1,
+              "loc": 4,
+              "deps": {
+                "types": [
+                  {
+                    "name": "AVPixelFormat",
+                    "defined_in": "libavutil/pixfmt.h",
+                    "scope": "wrap"
+                  }
+                ],
+                "symbols": []
+              },
+              "fallback": [],
+              "back_fill": [],
+              "generates": [],
+              "field_anchors": []
+            },
+            {
+              "name": "sws_isSupportedInput",
+              "defined_in": "libswscale/format.c",
+              "kind": "symbol",
+              "source_kind": "function_exported",
+              "layer": 1,
+              "loc": 4,
+              "deps": {
+                "types": [
+                  {
+                    "name": "AVPixelFormat",
+                    "defined_in": "libavutil/pixfmt.h",
+                    "scope": "wrap"
+                  }
+                ],
+                "symbols": []
+              },
+              "fallback": [],
+              "back_fill": [],
+              "generates": [],
+              "field_anchors": []
+            },
+            {
+              "name": "sws_isSupportedOutput",
+              "defined_in": "libswscale/format.c",
+              "kind": "symbol",
+              "source_kind": "function_exported",
+              "layer": 1,
+              "loc": 4,
+              "deps": {
+                "types": [
+                  {
+                    "name": "AVPixelFormat",
+                    "defined_in": "libavutil/pixfmt.h",
+                    "scope": "wrap"
+                  }
+                ],
+                "symbols": []
+              },
+              "fallback": [],
+              "back_fill": [],
+              "generates": [],
+              "field_anchors": []
+            },
+            {
+              "name": "sws_is_noop",
+              "defined_in": "libswscale/format.c",
+              "kind": "symbol",
+              "source_kind": "function_exported",
+              "layer": 1,
+              "loc": 12,
+              "deps": {
+                "types": [
+                  {
+                    "name": "AVFrame",
+                    "defined_in": "libavutil/frame.h",
+                    "scope": "wrap"
+                  }
+                ],
+                "symbols": []
+              },
+              "fallback": [],
+              "back_fill": [],
+              "generates": [],
+              "field_anchors": []
+            },
+            {
+              "name": "sws_normalizeVec",
+              "defined_in": "libswscale/utils.c",
+              "kind": "symbol",
+              "source_kind": "function_exported",
+              "layer": 1,
+              "loc": 3,
+              "deps": {
+                "types": [
+                  {
+                    "name": "SwsVector",
+                    "defined_in": "libswscale/swscale.h",
+                    "scope": "wrap"
+                  }
+                ],
+                "symbols": []
+              },
+              "fallback": [],
+              "back_fill": [],
+              "generates": [],
+              "field_anchors": []
+            },
+            {
+              "name": "sws_scaleVec",
+              "defined_in": "libswscale/utils.c",
+              "kind": "symbol",
+              "source_kind": "function_exported",
+              "layer": 1,
+              "loc": 6,
+              "deps": {
+                "types": [
+                  {
+                    "name": "SwsVector",
+                    "defined_in": "libswscale/swscale.h",
+                    "scope": "wrap"
+                  }
+                ],
+                "symbols": []
+              },
+              "fallback": [],
+              "back_fill": [],
+              "generates": [],
+              "field_anchors": []
+            },
+            {
+              "name": "sws_test_colorspace",
+              "defined_in": "libswscale/format.c",
+              "kind": "symbol",
+              "source_kind": "function_exported",
+              "layer": 1,
+              "loc": 15,
+              "deps": {
+                "types": [
+                  {
+                    "name": "AVColorSpace",
+                    "defined_in": "libavutil/pixfmt.h",
+                    "scope": "wrap"
+                  }
+                ],
+                "symbols": []
+              },
+              "fallback": [],
+              "back_fill": [],
+              "generates": [],
+              "field_anchors": []
+            },
+            {
+              "name": "sws_test_format",
+              "defined_in": "libswscale/format.c",
+              "kind": "symbol",
+              "source_kind": "function_exported",
+              "layer": 1,
+              "loc": 3,
+              "deps": {
+                "types": [
+                  {
+                    "name": "AVPixelFormat",
+                    "defined_in": "libavutil/pixfmt.h",
+                    "scope": "wrap"
+                  }
+                ],
+                "symbols": []
+              },
+              "fallback": [],
+              "back_fill": [],
+              "generates": [],
+              "field_anchors": []
+            },
+            {
+              "name": "sws_test_frame",
+              "defined_in": "libswscale/format.c",
+              "kind": "symbol",
+              "source_kind": "function_exported",
+              "layer": 1,
+              "loc": 11,
+              "deps": {
+                "types": [
+                  {
+                    "name": "AVFrame",
+                    "defined_in": "libavutil/frame.h",
+                    "scope": "wrap"
+                  }
+                ],
+                "symbols": []
+              },
+              "fallback": [],
+              "back_fill": [],
+              "generates": [],
+              "field_anchors": []
+            },
+            {
+              "name": "sws_test_hw_format",
+              "defined_in": "libswscale/format.c",
+              "kind": "symbol",
+              "source_kind": "function_exported",
+              "layer": 1,
+              "loc": 9,
+              "deps": {
+                "types": [
+                  {
+                    "name": "AVPixelFormat",
+                    "defined_in": "libavutil/pixfmt.h",
+                    "scope": "wrap"
+                  }
+                ],
+                "symbols": []
+              },
+              "fallback": [],
+              "back_fill": [],
+              "generates": [],
+              "field_anchors": []
+            },
+            {
+              "name": "sws_test_primaries",
+              "defined_in": "libswscale/format.c",
+              "kind": "symbol",
+              "source_kind": "function_exported",
+              "layer": 1,
+              "loc": 5,
+              "deps": {
+                "types": [
+                  {
+                    "name": "AVColorPrimaries",
+                    "defined_in": "libavutil/pixfmt.h",
+                    "scope": "wrap"
+                  }
+                ],
+                "symbols": []
+              },
+              "fallback": [],
+              "back_fill": [],
+              "generates": [],
+              "field_anchors": []
+            },
+            {
+              "name": "sws_test_transfer",
+              "defined_in": "libswscale/format.c",
+              "kind": "symbol",
+              "source_kind": "function_exported",
+              "layer": 1,
+              "loc": 5,
+              "deps": {
+                "types": [
+                  {
+                    "name": "AVColorTransferCharacteristic",
+                    "defined_in": "libavutil/pixfmt.h",
+                    "scope": "wrap"
+                  }
+                ],
+                "symbols": []
+              },
+              "fallback": [],
+              "back_fill": [],
+              "generates": [],
+              "field_anchors": []
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "unit_count": 18,
+      "batches": [
+        {
+          "kind": "symbol",
+          "source_file": null,
+          "items": [
+            {
+              "name": "sws_alloc_context",
+              "defined_in": "libswscale/utils.c",
+              "kind": "symbol",
+              "source_kind": "function_exported",
+              "layer": 2,
+              "loc": 12,
+              "deps": {
+                "types": [
+                  {
+                    "name": "SwsContext",
+                    "defined_in": "libswscale/swscale.h",
+                    "scope": "wrap"
+                  }
+                ],
+                "symbols": []
+              },
+              "fallback": [],
+              "back_fill": [],
+              "generates": [],
+              "field_anchors": []
+            },
+            {
+              "name": "sws_frame_end",
+              "defined_in": "libswscale/swscale.c",
+              "kind": "symbol",
+              "source_kind": "function_exported",
+              "layer": 2,
+              "loc": 8,
+              "deps": {
+                "types": [
+                  {
+                    "name": "SwsContext",
+                    "defined_in": "libswscale/swscale.h",
+                    "scope": "wrap"
+                  }
+                ],
+                "symbols": []
+              },
+              "fallback": [],
+              "back_fill": [],
+              "generates": [],
+              "field_anchors": []
+            },
+            {
+              "name": "sws_frame_setup",
+              "defined_in": "libswscale/swscale.c",
+              "kind": "symbol",
+              "source_kind": "function_exported",
+              "layer": 2,
+              "loc": 120,
+              "deps": {
+                "types": [
+                  {
+                    "name": "AVFrame",
+                    "defined_in": "libavutil/frame.h",
+                    "scope": "wrap"
+                  },
+                  {
+                    "name": "SwsContext",
+                    "defined_in": "libswscale/swscale.h",
+                    "scope": "wrap"
+                  }
+                ],
+                "symbols": []
+              },
+              "fallback": [],
+              "back_fill": [],
+              "generates": [],
+              "field_anchors": []
+            },
+            {
+              "name": "sws_frame_start",
+              "defined_in": "libswscale/swscale.c",
+              "kind": "symbol",
+              "source_kind": "function_exported",
+              "layer": 2,
+              "loc": 31,
+              "deps": {
+                "types": [
+                  {
+                    "name": "AVFrame",
+                    "defined_in": "libavutil/frame.h",
+                    "scope": "wrap"
+                  },
+                  {
+                    "name": "SwsContext",
+                    "defined_in": "libswscale/swscale.h",
+                    "scope": "wrap"
+                  }
+                ],
+                "symbols": []
+              },
+              "fallback": [],
+              "back_fill": [],
+              "generates": [],
+              "field_anchors": []
+            },
+            {
+              "name": "sws_freeContext",
+              "defined_in": "libswscale/utils.c",
+              "kind": "symbol",
+              "source_kind": "function_exported",
+              "layer": 2,
+              "loc": 69,
+              "deps": {
+                "types": [
+                  {
+                    "name": "SwsContext",
+                    "defined_in": "libswscale/swscale.h",
+                    "scope": "wrap"
+                  }
+                ],
+                "symbols": []
+              },
+              "fallback": [],
+              "back_fill": [],
+              "generates": [],
+              "field_anchors": []
+            },
+            {
+              "name": "sws_freeFilter",
+              "defined_in": "libswscale/utils.c",
+              "kind": "symbol",
+              "source_kind": "function_exported",
+              "layer": 2,
+              "loc": 10,
+              "deps": {
+                "types": [
+                  {
+                    "name": "SwsFilter",
+                    "defined_in": "libswscale/swscale.h",
+                    "scope": "wrap"
+                  }
+                ],
+                "symbols": []
+              },
+              "fallback": [],
+              "back_fill": [],
+              "generates": [],
+              "field_anchors": []
+            },
+            {
+              "name": "sws_free_context",
+              "defined_in": "libswscale/utils.c",
+              "kind": "symbol",
+              "source_kind": "function_exported",
+              "layer": 2,
+              "loc": 8,
+              "deps": {
+                "types": [
+                  {
+                    "name": "SwsContext",
+                    "defined_in": "libswscale/swscale.h",
+                    "scope": "wrap"
+                  }
+                ],
+                "symbols": []
+              },
+              "fallback": [],
+              "back_fill": [],
+              "generates": [],
+              "field_anchors": []
+            },
+            {
+              "name": "sws_getCachedContext",
+              "defined_in": "libswscale/utils.c",
+              "kind": "symbol",
+              "source_kind": "function_exported",
+              "layer": 2,
+              "loc": 45,
+              "deps": {
+                "types": [
+                  {
+                    "name": "AVPixelFormat",
+                    "defined_in": "libavutil/pixfmt.h",
+                    "scope": "wrap"
+                  },
+                  {
+                    "name": "SwsContext",
+                    "defined_in": "libswscale/swscale.h",
+                    "scope": "wrap"
+                  },
+                  {
+                    "name": "SwsFilter",
+                    "defined_in": "libswscale/swscale.h",
+                    "scope": "wrap"
+                  }
+                ],
+                "symbols": []
+              },
+              "fallback": [],
+              "back_fill": [],
+              "generates": [],
+              "field_anchors": []
+            },
+            {
+              "name": "sws_getColorspaceDetails",
+              "defined_in": "libswscale/utils.c",
+              "kind": "symbol",
+              "source_kind": "function_exported",
+              "layer": 2,
+              "loc": 21,
+              "deps": {
+                "types": [
+                  {
+                    "name": "SwsContext",
+                    "defined_in": "libswscale/swscale.h",
+                    "scope": "wrap"
+                  }
+                ],
+                "symbols": []
+              },
+              "fallback": [],
+              "back_fill": [],
+              "generates": [],
+              "field_anchors": []
+            },
+            {
+              "name": "sws_getContext",
+              "defined_in": "libswscale/utils.c",
+              "kind": "symbol",
+              "source_kind": "function_exported",
+              "layer": 2,
+              "loc": 16,
+              "deps": {
+                "types": [
+                  {
+                    "name": "AVPixelFormat",
+                    "defined_in": "libavutil/pixfmt.h",
+                    "scope": "wrap"
+                  },
+                  {
+                    "name": "SwsContext",
+                    "defined_in": "libswscale/swscale.h",
+                    "scope": "wrap"
+                  },
+                  {
+                    "name": "SwsFilter",
+                    "defined_in": "libswscale/swscale.h",
+                    "scope": "wrap"
+                  }
+                ],
+                "symbols": []
+              },
+              "fallback": [],
+              "back_fill": [],
+              "generates": [],
+              "field_anchors": []
+            },
+            {
+              "name": "sws_getDefaultFilter",
+              "defined_in": "libswscale/utils.c",
+              "kind": "symbol",
+              "source_kind": "function_exported",
+              "layer": 2,
+              "loc": 78,
+              "deps": {
+                "types": [
+                  {
+                    "name": "SwsFilter",
+                    "defined_in": "libswscale/swscale.h",
+                    "scope": "wrap"
+                  }
+                ],
+                "symbols": []
+              },
+              "fallback": [],
+              "back_fill": [],
+              "generates": [],
+              "field_anchors": []
+            },
+            {
+              "name": "sws_init_context",
+              "defined_in": "libswscale/utils.c",
+              "kind": "symbol",
+              "source_kind": "function_exported",
+              "layer": 2,
+              "loc": 32,
+              "deps": {
+                "types": [
+                  {
+                    "name": "SwsContext",
+                    "defined_in": "libswscale/swscale.h",
+                    "scope": "wrap"
+                  },
+                  {
+                    "name": "SwsFilter",
+                    "defined_in": "libswscale/swscale.h",
+                    "scope": "wrap"
+                  }
+                ],
+                "symbols": []
+              },
+              "fallback": [],
+              "back_fill": [],
+              "generates": [],
+              "field_anchors": []
+            },
+            {
+              "name": "sws_receive_slice",
+              "defined_in": "libswscale/swscale.c",
+              "kind": "symbol",
+              "source_kind": "function_exported",
+              "layer": 2,
+              "loc": 41,
+              "deps": {
+                "types": [
+                  {
+                    "name": "SwsContext",
+                    "defined_in": "libswscale/swscale.h",
+                    "scope": "wrap"
+                  }
+                ],
+                "symbols": []
+              },
+              "fallback": [],
+              "back_fill": [],
+              "generates": [],
+              "field_anchors": []
+            },
+            {
+              "name": "sws_receive_slice_alignment",
+              "defined_in": "libswscale/swscale.c",
+              "kind": "symbol",
+              "source_kind": "function_exported",
+              "layer": 2,
+              "loc": 7,
+              "deps": {
+                "types": [
+                  {
+                    "name": "SwsContext",
+                    "defined_in": "libswscale/swscale.h",
+                    "scope": "wrap"
+                  }
+                ],
+                "symbols": []
+              },
+              "fallback": [],
+              "back_fill": [],
+              "generates": [],
+              "field_anchors": []
+            }
+          ]
+        },
+        {
+          "kind": "symbol",
+          "source_file": null,
+          "items": [
+            {
+              "name": "sws_scale",
+              "defined_in": "libswscale/swscale.c",
+              "kind": "symbol",
+              "source_kind": "function_exported",
+              "layer": 2,
+              "loc": 13,
+              "deps": {
+                "types": [
+                  {
+                    "name": "SwsContext",
+                    "defined_in": "libswscale/swscale.h",
+                    "scope": "wrap"
+                  }
+                ],
+                "symbols": []
+              },
+              "fallback": [],
+              "back_fill": [],
+              "generates": [],
+              "field_anchors": []
+            },
+            {
+              "name": "sws_scale_frame",
+              "defined_in": "libswscale/swscale.c",
+              "kind": "symbol",
+              "source_kind": "function_exported",
+              "layer": 2,
+              "loc": 75,
+              "deps": {
+                "types": [
+                  {
+                    "name": "AVFrame",
+                    "defined_in": "libavutil/frame.h",
+                    "scope": "wrap"
+                  },
+                  {
+                    "name": "SwsContext",
+                    "defined_in": "libswscale/swscale.h",
+                    "scope": "wrap"
+                  }
+                ],
+                "symbols": []
+              },
+              "fallback": [],
+              "back_fill": [],
+              "generates": [],
+              "field_anchors": []
+            },
+            {
+              "name": "sws_send_slice",
+              "defined_in": "libswscale/swscale.c",
+              "kind": "symbol",
+              "source_kind": "function_exported",
+              "layer": 2,
+              "loc": 12,
+              "deps": {
+                "types": [
+                  {
+                    "name": "SwsContext",
+                    "defined_in": "libswscale/swscale.h",
+                    "scope": "wrap"
+                  }
+                ],
+                "symbols": []
+              },
+              "fallback": [],
+              "back_fill": [],
+              "generates": [],
+              "field_anchors": []
+            },
+            {
+              "name": "sws_setColorspaceDetails",
+              "defined_in": "libswscale/utils.c",
+              "kind": "symbol",
+              "source_kind": "function_exported",
+              "layer": 2,
+              "loc": 154,
+              "deps": {
+                "types": [
+                  {
+                    "name": "SwsContext",
+                    "defined_in": "libswscale/swscale.h",
+                    "scope": "wrap"
+                  }
+                ],
+                "symbols": []
+              },
+              "fallback": [],
+              "back_fill": [],
+              "generates": [],
+              "field_anchors": []
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

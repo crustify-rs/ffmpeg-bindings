@@ -1,0 +1,49 @@
+{
+  "schema_version": 3,
+  "oracle_config": {
+    "path": "crustify/wavefront/configs/wavefront-config.json",
+    "sha256": "22af2c8bd86d5c330942e8d124bbb968612caceb1254f6d676ea798dce2802ce"
+  },
+  "api_headers_only": false,
+  "budgets": {
+    "max_syms": 1,
+    "max_loc": null,
+    "max_types": 1,
+    "min_fields": 0
+  },
+  "summary": {
+    "unit_count": 1,
+    "layer_count": 1,
+    "batch_count": 1,
+    "file_count": 1
+  },
+  "waves": [
+    {
+      "unit_count": 1,
+      "batches": [
+        {
+          "kind": "raw-lifetime",
+          "source_file": "lifetime-for-void",
+          "items": [
+            {
+              "name": "void",
+              "defined_in": null,
+              "kind": "raw-lifetime",
+              "source_kind": "raw-lifetime",
+              "layer": 0,
+              "loc": 0,
+              "deps": {
+                "types": [],
+                "symbols": []
+              },
+              "fallback": [],
+              "back_fill": [],
+              "generates": [],
+              "field_anchors": []
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}
