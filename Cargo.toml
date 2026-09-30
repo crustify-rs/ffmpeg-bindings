@@ -1,0 +1,36 @@
+[package]
+name = "ffmpeg"
+description = "Safe Rust wrappers over FFmpeg's public C API"
+build = "build.rs"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+publish.workspace = true
+
+[lib]
+path = "lib.rs"
+
+[features]
+default = ["libavutil", "libswresample", "libswscale", "libavcodec", "libavformat", "libavfilter", "libavdevice"]
+libavutil = ["dep:libavutil-sys"]
+libswresample = ["dep:libswresample-sys", "libavutil"]
+libswscale = ["dep:libswscale-sys", "libavutil"]
+libavcodec = ["dep:libavcodec-sys", "libswresample", "libavutil"]
+libavformat = ["dep:libavformat-sys", "libavcodec", "libavutil"]
+libavfilter = ["dep:libavfilter-sys", "libswscale", "libavformat", "libavcodec", "libswresample", "libavutil"]
+libavdevice = ["dep:libavdevice-sys", "libavfilter", "libavformat", "libavcodec", "libavutil"]
+
+[dependencies]
+libavutil-sys = { workspace = true, optional = true }
+libswresample-sys = { workspace = true, optional = true }
+libswscale-sys = { workspace = true, optional = true }
+libavcodec-sys = { workspace = true, optional = true }
+libavformat-sys = { workspace = true, optional = true }
+libavfilter-sys = { workspace = true, optional = true }
+libavdevice-sys = { workspace = true, optional = true }
+
+[dev-dependencies]
+trybuild.workspace = true
+
+[lints]
+workspace = true

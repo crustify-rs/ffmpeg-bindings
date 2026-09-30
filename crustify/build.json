@@ -1,0 +1,26 @@
+{
+  "_comment": "FFmpeg @ 1019f8f036 prebuilds for crustify campaign 20260930-163841. FFmpeg has no configure switch for deprecated APIs (FF_API_* is hard-defined in version_major.h), so deprecated items are excluded at schedule time, not here. --disable-autodetect keeps the build hermetic; platform/vendor hwcontext backends are out of scope. No tsan or bsan variant: this container denies personality(ADDR_NO_RANDOMIZE) and vm.mmap_rnd_bits is 32, so every TSan runtime (clang 20, gcc 14) and the bsan shadow runtime abort at startup; restoring it needs a host-level sysctl vm.mmap_rnd_bits=28 or a seccomp profile allowing personality.",
+  "version": 2,
+  "build_commands": {
+    "configure": "./configure --enable-shared --disable-static --disable-autodetect --enable-pthreads --enable-zlib --disable-doc --disable-stripping --samples=/target/crustify/fate-suite",
+    "build": "make -j48",
+    "test": "LD_LIBRARY_PATH=$(printf '%s:' \"$PWD\"/lib*) make -k -j48 fate"
+  },
+  "variants": {
+    "plain": {
+      "dir": "crustify/builds/plain",
+      "configure": "../../../configure --enable-shared --disable-static --disable-autodetect --enable-pthreads --enable-zlib --disable-doc --disable-stripping --samples=/target/crustify/fate-suite",
+      "build": "make -j48"
+    },
+    "coverage": {
+      "dir": "crustify/builds/coverage",
+      "configure": "../../../configure --enable-shared --disable-static --disable-autodetect --enable-pthreads --enable-zlib --disable-doc --disable-stripping --samples=/target/crustify/fate-suite --toolchain=gcov",
+      "build": "make -j48"
+    },
+    "asan-ubsan": {
+      "dir": "crustify/builds/asan-ubsan",
+      "configure": "../../../configure --enable-shared --disable-static --disable-autodetect --enable-pthreads --enable-zlib --disable-doc --disable-stripping --samples=/target/crustify/fate-suite --toolchain=clang-asan-ubsan",
+      "build": "make -j48"
+    }
+  }
+}

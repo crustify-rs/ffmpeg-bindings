@@ -1,0 +1,2 @@
+# Agent-owned bindgen allowlist for libavutil.
+# One `<function|type|var|item> <regex>` per line; add only the FFI items a batch needs.

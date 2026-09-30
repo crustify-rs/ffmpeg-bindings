@@ -1,0 +1,5052 @@
+{
+  "schema_version": 3,
+  "oracle_config": {
+    "path": "crustify/wavefront/configs/libavutil/metadata/wavefront-config.json",
+    "sha256": "d4e7e9a473df023b0827e8a367b546d9d318035627705131295cdccb2250ca7f"
+  },
+  "api_headers_only": true,
+  "budgets": {
+    "max_syms": 25,
+    "max_loc": 500,
+    "max_types": 2,
+    "min_fields": 20
+  },
+  "summary": {
+    "unit_count": 187,
+    "layer_count": 6,
+    "batch_count": 58,
+    "file_count": 22
+  },
+  "waves": [
+    {
+      "unit_count": 70,
+      "batches": [
+        {
+          "kind": "type",
+          "source_file": "libavutil/tdrdi.h",
+          "items": [
+            {
+              "name": "AV3DReferenceDisplay",
+              "defined_in": "libavutil/tdrdi.h",
+              "kind": "type",
+              "source_kind": "struct",
+              "layer": 0,
+              "loc": 8,
+              "deps": {
+                "types": [],
+                "symbols": []
+              },
+              "fallback": [],
+              "back_fill": [],
+              "generates": [],
+              "field_anchors": [
+                "additional_shift_present_flag",
+                "mantissa_ref_viewing_distance",
+                "exponent_ref_viewing_distance",
+                "mantissa_ref_display_width",
+                "exponent_ref_display_width",
+                "right_view_id",
+                "left_view_id",
+                "num_sample_shift"
+              ]
+            },
+            {
+              "name": "AV3DReferenceDisplaysInfo",
+              "defined_in": "libavutil/tdrdi.h",
+              "kind": "type",
+              "source_kind": "struct",
+              "layer": 0,
+              "loc": 6,
+              "deps": {
+                "types": [],
+                "symbols": []
+              },
+              "fallback": [],
+              "back_fill": [],
+              "generates": [],
+              "field_anchors": [
+                "prec_ref_viewing_dist",
+                "ref_viewing_distance_flag",
+                "prec_ref_display_width",
+                "entry_size",
+                "num_ref_displays",
+                "entries_offset"
+              ]
+            }
+          ]
+        },
+        {
+          "kind": "type",
+          "source_file": "libavutil/channel_layout.h",
+          "items": [
+            {
+              "name": "AVChannelLayout",
+              "defined_in": "libavutil/channel_layout.h",
+              "kind": "type",
+              "source_kind": "struct",
+              "layer": 0,
+              "loc": 6,
+              "deps": {
+                "types": [],
+                "symbols": []
+              },
+              "fallback": [],
+              "back_fill": [],
+              "generates": [],
+              "field_anchors": []
+            },
+            {
+              "name": "AVClass",
+              "defined_in": "libavutil/log.h",
+              "kind": "type",
+              "source_kind": "struct",
+              "layer": 0,
+              "loc": 12,
+              "deps": {
+                "types": [],
+                "symbols": []
+              },
+              "fallback": [],
+              "back_fill": [],
+              "generates": [],
+              "field_anchors": []
+            }
+          ]
+        },
+        {
+          "kind": "type",
+          "source_file": "libavutil/pixfmt.h",
+          "items": [
+            {
+              "name": "AVColorPrimaries",
+              "defined_in": "libavutil/pixfmt.h",
+              "kind": "type",
+              "source_kind": "enum",
+              "layer": 0,
+              "loc": 0,
+              "deps": {
+                "types": [],
+                "symbols": []
+              },
+              "fallback": [],
+              "back_fill": [],
+              "generates": [],
+              "field_anchors": []
+            },
+            {
+              "name": "AVColorPrimariesDesc",
+              "defined_in": "libavutil/csp.h",
+              "kind": "type",
+              "source_kind": "struct",
+              "layer": 0,
+              "loc": 2,
+              "deps": {
+                "types": [],
+                "symbols": []
+              },
+              "fallback": [],
+              "back_fill": [],
+              "generates": [],
+              "field_anchors": []
+            }
+          ]
+        },
+        {
+          "kind": "type",
+          "source_file": "libavutil/pixfmt.h",
+          "items": [
+            {
+              "name": "AVColorRange",
+              "defined_in": "libavutil/pixfmt.h",
+              "kind": "type",
+              "source_kind": "enum",
+              "layer": 0,
+              "loc": 0,
+              "deps": {
+                "types": [],
+                "symbols": []
+              },
+              "fallback": [],
+              "back_fill": [],
+              "generates": [],
+              "field_anchors": []
+            },
+            {
+              "name": "AVColorSpace",
+              "defined_in": "libavutil/pixfmt.h",
+              "kind": "type",
+              "source_kind": "enum",
+              "layer": 0,
+              "loc": 0,
+              "deps": {
+                "types": [],
+                "symbols": []
+              },
+              "fallback": [],
+              "back_fill": [],
+              "generates": [],
+              "field_anchors": []
+            }
+          ]
+        },
+        {
+          "kind": "type",
+          "source_file": "libavutil/pixfmt.h",
+          "items": [
+            {
+              "name": "AVColorTransferCharacteristic",
+              "defined_in": "libavutil/pixfmt.h",
+              "kind": "type",
+              "source_kind": "enum",
+              "layer": 0,
+              "loc": 0,
+              "deps": {
+                "types": [],
+                "symbols": []
+              },
+              "fallback": [],
+              "back_fill": [],
+              "generates": [],
+              "field_anchors": []
+            },
+            {
+              "name": "AVContentLightMetadata",
+              "defined_in": "libavutil/mastering_display_metadata.h",
+              "kind": "type",
+              "source_kind": "struct",
+              "layer": 0,
+              "loc": 2,
+              "deps": {
+                "types": [],
+                "symbols": []
+              },
+              "fallback": [],
+              "back_fill": [],
+              "generates": [],
+              "field_anchors": [
+                "MaxFALL",
+                "MaxCLL"
+              ]
+            }
+          ]
+        },
+        {
+          "kind": "type",
+          "source_file": "libavutil/dovi_meta.h",
+          "items": [
+            {
+              "name": "AVDOVICompression",
+              "defined_in": "libavutil/dovi_meta.h",
+              "kind": "type",
+              "source_kind": "enum",
+              "layer": 0,
+              "loc": 0,
+              "deps": {
+                "types": [],
+                "symbols": []
+              },
+              "fallback": [],
+              "back_fill": [],
+              "generates": [],
+              "field_anchors": []
+            },
+            {
+              "name": "AVDOVIDecoderConfigurationRecord",
+              "defined_in": "libavutil/dovi_meta.h",
+              "kind": "type",
+              "source_kind": "struct",
+              "layer": 0,
+              "loc": 9,
+              "deps": {
+                "types": [],
+                "symbols": []
+              },
+              "fallback": [],
+              "back_fill": [],
+              "generates": [],
+              "field_anchors": [
+                "dv_version_major",
+                "dv_version_minor",
+                "dv_profile",
+                "dv_level",
+                "rpu_present_flag",
+                "el_present_flag",
+                "bl_present_flag",
+                "dv_bl_signal_compatibility_id",
+                "dv_md_compression"
+              ]
+            }
+          ]
+        },
+        {
+          "kind": "type",
+          "source_file": "libavutil/dovi_meta.h",
+          "items": [
+            {
+              "name": "AVDOVIDmLevel1",
+              "defined_in": "libavutil/dovi_meta.h",
+              "kind": "type",
+              "source_kind": "struct",
+              "layer": 0,
+              "loc": 3,
+              "deps": {
+                "types": [],
+                "symbols": []
+              },
+              "fallback": [],
+              "back_fill": [],
+              "generates": [],
+              "field_anchors": [
+                "avg_pq",
+                "max_pq",
+                "min_pq"
+              ]
+            },
+            {
+              "name": "AVDOVIDmLevel11",
+              "defined_in": "libavutil/dovi_meta.h",
+              "kind": "type",
+              "source_kind": "struct",
+              "layer": 0,
+              "loc": 9,
+              "deps": {
+                "types": [],
+                "symbols": []
+              },
+              "fallback": [],
+              "back_fill": [],
+              "generates": [],
+              "field_anchors": [
+                "color",
+                "brightness",
+                "content_type",
+                "noise_reduction",
+                "sharpness",
+                "frame_rate_conversion",
+                "mpeg_noise_reduction",
+                "reference_mode_flag",
+                "whitepoint"
+              ]
+            }
+          ]
+        },
+        {
+          "kind": "type",
+          "source_file": "libavutil/dovi_meta.h",
+          "items": [
+            {
+              "name": "AVDOVIDmLevel2",
+              "defined_in": "libavutil/dovi_meta.h",
+              "kind": "type",
+              "source_kind": "struct",
+              "layer": 0,
+              "loc": 7,
+              "deps": {
+                "types": [],
+                "symbols": []
+              },
+              "fallback": [],
+              "back_fill": [],
+              "generates": [],
+              "field_anchors": [
+                "trim_offset",
+                "target_max_pq",
+                "ms_weight",
+                "trim_saturation_gain",
+                "trim_chroma_weight",
+                "trim_power",
+                "trim_slope"
+              ]
+            },
+            {
+              "name": "AVDOVIDmLevel254",
+              "defined_in": "libavutil/dovi_meta.h",
+              "kind": "type",
+              "source_kind": "struct",
+              "layer": 0,
+              "loc": 2,
+              "deps": {
+                "types": [],
+                "symbols": []
+              },
+              "fallback": [],
+              "back_fill": [],
+              "generates": [],
+              "field_anchors": [
+                "dm_version_index",
+                "dm_mode"
+              ]
+            }
+          ]
+        },
+        {
+          "kind": "type",
+          "source_file": "libavutil/dovi_meta.h",
+          "items": [
+            {
+              "name": "AVDOVIDmLevel255",
+              "defined_in": "libavutil/dovi_meta.h",
+              "kind": "type",
+              "source_kind": "struct",
+              "layer": 0,
+              "loc": 3,
+              "deps": {
+                "types": [],
+                "symbols": []
+              },
+              "fallback": [],
+              "back_fill": [],
+              "generates": [],
+              "field_anchors": [
+                "dm_debug",
+                "dm_run_version",
+                "dm_run_mode"
+              ]
+            },
+            {
+              "name": "AVDOVIDmLevel3",
+              "defined_in": "libavutil/dovi_meta.h",
+              "kind": "type",
+              "source_kind": "struct",
+              "layer": 0,
+              "loc": 3,
+              "deps": {
+                "types": [],
+                "symbols": []
+              },
+              "fallback": [],
+              "back_fill": [],
+              "generates": [],
+              "field_anchors": [
+                "avg_pq_offset",
+                "max_pq_offset",
+                "min_pq_offset"
+              ]
+            }
+          ]
+        },
+        {
+          "kind": "type",
+          "source_file": "libavutil/dovi_meta.h",
+          "items": [
+            {
+              "name": "AVDOVIDmLevel4",
+              "defined_in": "libavutil/dovi_meta.h",
+              "kind": "type",
+              "source_kind": "struct",
+              "layer": 0,
+              "loc": 2,
+              "deps": {
+                "types": [],
+                "symbols": []
+              },
+              "fallback": [],
+              "back_fill": [],
+              "generates": [],
+              "field_anchors": [
+                "anchor_power",
+                "anchor_pq"
+              ]
+            },
+            {
+              "name": "AVDOVIDmLevel5",
+              "defined_in": "libavutil/dovi_meta.h",
+              "kind": "type",
+              "source_kind": "struct",
+              "layer": 0,
+              "loc": 4,
+              "deps": {
+                "types": [],
+                "symbols": []
+              },
+              "fallback": [],
+              "back_fill": [],
+              "generates": [],
+              "field_anchors": [
+                "bottom_offset",
+                "top_offset",
+                "right_offset",
+                "left_offset"
+              ]
+            }
+          ]
+        },
+        {
+          "kind": "type",
+          "source_file": "libavutil/dovi_meta.h",
+          "items": [
+            {
+              "name": "AVDOVIDmLevel6",
+              "defined_in": "libavutil/dovi_meta.h",
+              "kind": "type",
+              "source_kind": "struct",
+              "layer": 0,
+              "loc": 4,
+              "deps": {
+                "types": [],
+                "symbols": []
+              },
+              "fallback": [],
+              "back_fill": [],
+              "generates": [],
+              "field_anchors": [
+                "max_luminance",
+                "min_luminance",
+                "max_cll",
+                "max_fall"
+              ]
+            },
+            {
+              "name": "AVDOVIDmLevel8",
+              "defined_in": "libavutil/dovi_meta.h",
+              "kind": "type",
+              "source_kind": "struct",
+              "layer": 0,
+              "loc": 11,
+              "deps": {
+                "types": [],
+                "symbols": []
+              },
+              "fallback": [],
+              "back_fill": [],
+              "generates": [],
+              "field_anchors": [
+                "trim_offset",
+                "target_display_index",
+                "hue_vector_field",
+                "saturation_vector_field",
+                "clip_trim",
+                "target_mid_contrast",
+                "ms_weight",
+                "trim_saturation_gain",
+                "trim_chroma_weight",
+                "trim_power",
+                "trim_slope"
+              ]
+            }
+          ]
+        },
+        {
+          "kind": "type",
+          "source_file": "libavutil/dovi_meta.h",
+          "items": [
+            {
+              "name": "AVDOVIMappingMethod",
+              "defined_in": "libavutil/dovi_meta.h",
+              "kind": "type",
+              "source_kind": "enum",
+              "layer": 0,
+              "loc": 0,
+              "deps": {
+                "types": [],
+                "symbols": []
+              },
+              "fallback": [],
+              "back_fill": [],
+              "generates": [],
+              "field_anchors": []
+            },
+            {
+              "name": "AVDOVIMetadata",
+              "defined_in": "libavutil/dovi_meta.h",
+              "kind": "type",
+              "source_kind": "struct",
+              "layer": 0,
+              "loc": 6,
+              "deps": {
+                "types": [],
+                "symbols": []
+              },
+              "fallback": [],
+              "back_fill": [],
+              "generates": [],
+              "field_anchors": [
+                "num_ext_blocks",
+                "color_offset",
+                "header_offset",
+                "ext_block_size",
+                "ext_block_offset",
+                "mapping_offset"
+              ]
+            }
+          ]
+        },
+        {
+          "kind": "type",
+          "source_file": "libavutil/dovi_meta.h",
+          "items": [
+            {
+              "name": "AVDOVINLQMethod",
+              "defined_in": "libavutil/dovi_meta.h",
+              "kind": "type",
+              "source_kind": "enum",
+              "layer": 0,
+              "loc": 0,
+              "deps": {
+                "types": [],
+                "symbols": []
+              },
+              "fallback": [],
+              "back_fill": [],
+              "generates": [],
+              "field_anchors": []
+            },
+            {
+              "name": "AVDOVINLQParams",
+              "defined_in": "libavutil/dovi_meta.h",
+              "kind": "type",
+              "source_kind": "struct",
+              "layer": 0,
+              "loc": 4,
+              "deps": {
+                "types": [],
+                "symbols": []
+              },
+              "fallback": [],
+              "back_fill": [],
+              "generates": [],
+              "field_anchors": [
+                "nlq_offset",
+                "vdr_in_max",
+                "linear_deadzone_slope",
+                "linear_deadzone_threshold"
+              ]
+            }
+          ]
+        },
+        {
+          "kind": "type",
+          "source_file": "libavutil/dovi_meta.h",
+          "items": [
+            {
+              "name": "AVDOVIRpuDataHeader",
+              "defined_in": "libavutil/dovi_meta.h",
+              "kind": "type",
+              "source_kind": "struct",
+              "layer": 0,
+              "loc": 17,
+              "deps": {
+                "types": [],
+                "symbols": []
+              },
+              "fallback": [],
+              "back_fill": [],
+              "generates": [],
+              "field_anchors": [
+                "rpu_type",
+                "rpu_format",
+                "vdr_rpu_profile",
+                "vdr_rpu_level",
+                "chroma_resampling_explicit_filter_flag",
+                "coef_data_type",
+                "coef_log2_denom",
+                "vdr_rpu_normalized_idc",
+                "bl_video_full_range_flag",
+                "bl_bit_depth",
+                "el_bit_depth",
+                "vdr_bit_depth",
+                "spatial_resampling_filter_flag",
+                "el_spatial_resampling_filter_flag",
+                "disable_residual_flag",
+                "ext_mapping_idc_5_7",
+                "ext_mapping_idc_0_4"
+              ]
+            },
+            {
+              "name": "AVDetectionBBoxHeader",
+              "defined_in": "libavutil/detection_bbox.h",
+              "kind": "type",
+              "source_kind": "struct",
+              "layer": 0,
+              "loc": 4,
+              "deps": {
+                "types": [],
+                "symbols": []
+              },
+              "fallback": [],
+              "back_fill": [],
+              "generates": [],
+              "field_anchors": [
+                "source",
+                "bbox_size",
+                "bboxes_offset",
+                "nb_bboxes"
+              ]
+            }
+          ]
+        },
+        {
+          "kind": "type",
+          "source_file": "libavutil/dict.c",
+          "items": [
+            {
+              "name": "AVDictionary",
+              "defined_in": "libavutil/dict.c",
+              "kind": "type",
+              "source_kind": "struct",
+              "layer": 0,
+              "loc": 2,
+              "deps": {
+                "types": [],
+                "symbols": []
+              },
+              "fallback": [],
+              "back_fill": [],
+              "generates": [],
+              "field_anchors": []
+            },
+            {
+              "name": "AVDownmixType",
+              "defined_in": "libavutil/downmix_info.h",
+              "kind": "type",
+              "source_kind": "enum",
+              "layer": 0,
+              "loc": 0,
+              "deps": {
+                "types": [],
+                "symbols": []
+              },
+              "fallback": [],
+              "back_fill": [],
+              "generates": [],
+              "field_anchors": []
+            }
+          ]
+        },
+        {
+          "kind": "type",
+          "source_file": "libavutil/hdr_dynamic_metadata.h",
+          "items": [
+            {
+              "name": "AVDynamicHDRSmpte2094App5",
+              "defined_in": "libavutil/hdr_dynamic_metadata.h",
+              "kind": "type",
+              "source_kind": "struct",
+              "layer": 0,
+              "loc": 21,
+              "deps": {
+                "types": [],
+                "symbols": []
+              },
+              "fallback": [],
+              "back_fill": [],
+              "generates": [],
+              "field_anchors": [
+                "application_version",
+                "minimum_application_version",
+                "has_custom_hdr_reference_white_flag",
+                "has_adaptive_tone_map_flag",
+                "hdr_reference_white",
+                "baseline_hdr_headroom",
+                "use_reference_white_tone_mapping_flag",
+                "num_alternate_images",
+                "gain_application_space_chromaticities_flag",
+                "has_common_component_mix_params_flag",
+                "has_common_curve_params_flag",
+                "gain_application_space_chromaticities",
+                "component_mixing_type",
+                "has_component_mixing_coefficient_flag",
+                "component_mixing_coefficient",
+                "gain_curve_num_control_points_minus_1",
+                "gain_curve_use_pchip_slope_flag",
+                "gain_curve_control_points_theta",
+                "gain_curve_control_points_y",
+                "gain_curve_control_points_x",
+                "alternate_hdr_headrooms"
+              ]
+            }
+          ]
+        },
+        {
+          "kind": "type",
+          "source_file": "libavutil/encryption_info.h",
+          "items": [
+            {
+              "name": "AVEncryptionInitInfo",
+              "defined_in": "libavutil/encryption_info.h",
+              "kind": "type",
+              "source_kind": "struct",
+              "layer": 0,
+              "loc": 8,
+              "deps": {
+                "types": [],
+                "symbols": []
+              },
+              "fallback": [],
+              "back_fill": [],
+              "generates": [],
+              "field_anchors": [
+                "data",
+                "data_size",
+                "next",
+                "key_id_size",
+                "num_key_ids",
+                "key_ids",
+                "system_id_size",
+                "system_id"
+              ]
+            },
+            {
+              "name": "AVFilmGrainAOMParams",
+              "defined_in": "libavutil/film_grain_params.h",
+              "kind": "type",
+              "source_kind": "struct",
+              "layer": 0,
+              "loc": 16,
+              "deps": {
+                "types": [],
+                "symbols": []
+              },
+              "fallback": [],
+              "back_fill": [],
+              "generates": [],
+              "field_anchors": [
+                "chroma_scaling_from_luma",
+                "scaling_shift",
+                "ar_coeff_lag",
+                "ar_coeff_shift",
+                "grain_scale_shift",
+                "overlap_flag",
+                "limit_output_range",
+                "ar_coeffs_y",
+                "ar_coeffs_uv",
+                "uv_mult",
+                "uv_mult_luma",
+                "uv_offset",
+                "num_y_points",
+                "uv_points",
+                "num_uv_points",
+                "y_points"
+              ]
+            }
+          ]
+        },
+        {
+          "kind": "type",
+          "source_file": "libavutil/film_grain_params.h",
+          "items": [
+            {
+              "name": "AVFilmGrainH274Params",
+              "defined_in": "libavutil/film_grain_params.h",
+              "kind": "type",
+              "source_kind": "struct",
+              "layer": 0,
+              "loc": 9,
+              "deps": {
+                "types": [],
+                "symbols": []
+              },
+              "fallback": [],
+              "back_fill": [],
+              "generates": [],
+              "field_anchors": [
+                "model_id",
+                "blending_mode_id",
+                "log2_scale_factor",
+                "intensity_interval_lower_bound",
+                "intensity_interval_upper_bound",
+                "comp_model_value",
+                "num_model_values",
+                "num_intensity_intervals",
+                "component_model_present"
+              ]
+            },
+            {
+              "name": "AVFilmGrainParamsType",
+              "defined_in": "libavutil/film_grain_params.h",
+              "kind": "type",
+              "source_kind": "enum",
+              "layer": 0,
+              "loc": 0,
+              "deps": {
+                "types": [],
+                "symbols": []
+              },
+              "fallback": [],
+              "back_fill": [],
+              "generates": [],
+              "field_anchors": []
+            }
+          ]
+        },
+        {
+          "kind": "type",
+          "source_file": "libavutil/frame.h",
+          "items": [
+            {
+              "name": "AVFrame",
+              "defined_in": "libavutil/frame.h",
+              "kind": "type",
+              "source_kind": "struct",
+              "layer": 0,
+              "loc": 40,
+              "deps": {
+                "types": [],
+                "symbols": []
+              },
+              "fallback": [],
+              "back_fill": [],
+              "generates": [],
+              "field_anchors": []
+            }
+          ]
+        },
+        {
+          "kind": "type",
+          "source_file": "libavutil/hdr_dynamic_metadata.h",
+          "items": [
+            {
+              "name": "AVHDRPlusOverlapProcessOption",
+              "defined_in": "libavutil/hdr_dynamic_metadata.h",
+              "kind": "type",
+              "source_kind": "enum",
+              "layer": 0,
+              "loc": 0,
+              "deps": {
+                "types": [],
+                "symbols": []
+              },
+              "fallback": [],
+              "back_fill": [],
+              "generates": [],
+              "field_anchors": []
+            },
+            {
+              "name": "AVIAMFAmbisonicsMode",
+              "defined_in": "libavutil/iamf.h",
+              "kind": "type",
+              "source_kind": "enum",
+              "layer": 0,
+              "loc": 0,
+              "deps": {
+                "types": [],
+                "symbols": []
+              },
+              "fallback": [],
+              "back_fill": [],
+              "generates": [],
+              "field_anchors": []
+            }
+          ]
+        },
+        {
+          "kind": "type",
+          "source_file": "libavutil/iamf.h",
+          "items": [
+            {
+              "name": "AVIAMFAnimationType",
+              "defined_in": "libavutil/iamf.h",
+              "kind": "type",
+              "source_kind": "enum",
+              "layer": 0,
+              "loc": 0,
+              "deps": {
+                "types": [],
+                "symbols": []
+              },
+              "fallback": [],
+              "back_fill": [],
+              "generates": [],
+              "field_anchors": []
+            },
+            {
+              "name": "AVIAMFAudioElementType",
+              "defined_in": "libavutil/iamf.h",
+              "kind": "type",
+              "source_kind": "enum",
+              "layer": 0,
+              "loc": 0,
+              "deps": {
+                "types": [],
+                "symbols": []
+              },
+              "fallback": [],
+              "back_fill": [],
+              "generates": [],
+              "field_anchors": []
+            }
+          ]
+        },
+        {
+          "kind": "type",
+          "source_file": "libavutil/iamf.h",
+          "items": [
+            {
+              "name": "AVIAMFHeadphonesMode",
+              "defined_in": "libavutil/iamf.h",
+              "kind": "type",
+              "source_kind": "enum",
+              "layer": 0,
+              "loc": 0,
+              "deps": {
+                "types": [],
+                "symbols": []
+              },
+              "fallback": [],
+              "back_fill": [],
+              "generates": [],
+              "field_anchors": []
+            },
+            {
+              "name": "AVIAMFParamDefinitionType",
+              "defined_in": "libavutil/iamf.h",
+              "kind": "type",
+              "source_kind": "enum",
+              "layer": 0,
+              "loc": 0,
+              "deps": {
+                "types": [],
+                "symbols": []
+              },
+              "fallback": [],
+              "back_fill": [],
+              "generates": [],
+              "field_anchors": []
+            }
+          ]
+        },
+        {
+          "kind": "type",
+          "source_file": "libavutil/iamf.h",
+          "items": [
+            {
+              "name": "AVIAMFSubmixLayoutType",
+              "defined_in": "libavutil/iamf.h",
+              "kind": "type",
+              "source_kind": "enum",
+              "layer": 0,
+              "loc": 0,
+              "deps": {
+                "types": [],
+                "symbols": []
+              },
+              "fallback": [],
+              "back_fill": [],
+              "generates": [],
+              "field_anchors": []
+            },
+            {
+              "name": "AVMotionVector",
+              "defined_in": "libavutil/motion_vector.h",
+              "kind": "type",
+              "source_kind": "struct",
+              "layer": 0,
+              "loc": 11,
+              "deps": {
+                "types": [],
+                "symbols": []
+              },
+              "fallback": [],
+              "back_fill": [],
+              "generates": [],
+              "field_anchors": [
+                "flags",
+                "h",
+                "w",
+                "source",
+                "src_y",
+                "src_x",
+                "dst_x",
+                "dst_y",
+                "motion_x",
+                "motion_y",
+                "motion_scale"
+              ]
+            }
+          ]
+        },
+        {
+          "kind": "type",
+          "source_file": "libavutil/rational.h",
+          "items": [
+            {
+              "name": "AVRational",
+              "defined_in": "libavutil/rational.h",
+              "kind": "type",
+              "source_kind": "struct",
+              "layer": 0,
+              "loc": 2,
+              "deps": {
+                "types": [],
+                "symbols": []
+              },
+              "fallback": [],
+              "back_fill": [],
+              "generates": [],
+              "field_anchors": []
+            },
+            {
+              "name": "AVRawColorParamsType",
+              "defined_in": "libavutil/raw_color_params.h",
+              "kind": "type",
+              "source_kind": "enum",
+              "layer": 0,
+              "loc": 0,
+              "deps": {
+                "types": [],
+                "symbols": []
+              },
+              "fallback": [],
+              "back_fill": [],
+              "generates": [],
+              "field_anchors": []
+            }
+          ]
+        },
+        {
+          "kind": "type",
+          "source_file": "libavutil/replaygain.h",
+          "items": [
+            {
+              "name": "AVReplayGain",
+              "defined_in": "libavutil/replaygain.h",
+              "kind": "type",
+              "source_kind": "struct",
+              "layer": 0,
+              "loc": 4,
+              "deps": {
+                "types": [],
+                "symbols": []
+              },
+              "fallback": [],
+              "back_fill": [],
+              "generates": [],
+              "field_anchors": [
+                "track_gain",
+                "track_peak",
+                "album_peak",
+                "album_gain"
+              ]
+            },
+            {
+              "name": "AVSphericalProjection",
+              "defined_in": "libavutil/spherical.h",
+              "kind": "type",
+              "source_kind": "enum",
+              "layer": 0,
+              "loc": 0,
+              "deps": {
+                "types": [],
+                "symbols": []
+              },
+              "fallback": [],
+              "back_fill": [],
+              "generates": [],
+              "field_anchors": []
+            }
+          ]
+        },
+        {
+          "kind": "type",
+          "source_file": "libavutil/stereo3d.h",
+          "items": [
+            {
+              "name": "AVStereo3DPrimaryEye",
+              "defined_in": "libavutil/stereo3d.h",
+              "kind": "type",
+              "source_kind": "enum",
+              "layer": 0,
+              "loc": 0,
+              "deps": {
+                "types": [],
+                "symbols": []
+              },
+              "fallback": [],
+              "back_fill": [],
+              "generates": [],
+              "field_anchors": []
+            },
+            {
+              "name": "AVStereo3DType",
+              "defined_in": "libavutil/stereo3d.h",
+              "kind": "type",
+              "source_kind": "enum",
+              "layer": 0,
+              "loc": 0,
+              "deps": {
+                "types": [],
+                "symbols": []
+              },
+              "fallback": [],
+              "back_fill": [],
+              "generates": [],
+              "field_anchors": []
+            }
+          ]
+        },
+        {
+          "kind": "type",
+          "source_file": "libavutil/stereo3d.h",
+          "items": [
+            {
+              "name": "AVStereo3DView",
+              "defined_in": "libavutil/stereo3d.h",
+              "kind": "type",
+              "source_kind": "enum",
+              "layer": 0,
+              "loc": 0,
+              "deps": {
+                "types": [],
+                "symbols": []
+              },
+              "fallback": [],
+              "back_fill": [],
+              "generates": [],
+              "field_anchors": []
+            },
+            {
+              "name": "AVSubsampleEncryptionInfo",
+              "defined_in": "libavutil/encryption_info.h",
+              "kind": "type",
+              "source_kind": "struct",
+              "layer": 0,
+              "loc": 2,
+              "deps": {
+                "types": [],
+                "symbols": []
+              },
+              "fallback": [],
+              "back_fill": [],
+              "generates": [],
+              "field_anchors": [
+                "bytes_of_protected_data",
+                "bytes_of_clear_data"
+              ]
+            }
+          ]
+        },
+        {
+          "kind": "type",
+          "source_file": "libavutil/timecode.h",
+          "items": [
+            {
+              "name": "AVTimecodeFlag",
+              "defined_in": "libavutil/timecode.h",
+              "kind": "type",
+              "source_kind": "enum",
+              "layer": 0,
+              "loc": 0,
+              "deps": {
+                "types": [],
+                "symbols": []
+              },
+              "fallback": [],
+              "back_fill": [],
+              "generates": [],
+              "field_anchors": []
+            },
+            {
+              "name": "AVVideoBlockParams",
+              "defined_in": "libavutil/video_enc_params.h",
+              "kind": "type",
+              "source_kind": "struct",
+              "layer": 0,
+              "loc": 5,
+              "deps": {
+                "types": [],
+                "symbols": []
+              },
+              "fallback": [],
+              "back_fill": [],
+              "generates": [],
+              "field_anchors": [
+                "h",
+                "w",
+                "src_y",
+                "src_x",
+                "delta_qp"
+              ]
+            }
+          ]
+        },
+        {
+          "kind": "type",
+          "source_file": "libavutil/video_enc_params.h",
+          "items": [
+            {
+              "name": "AVVideoEncParamsType",
+              "defined_in": "libavutil/video_enc_params.h",
+              "kind": "type",
+              "source_kind": "enum",
+              "layer": 0,
+              "loc": 0,
+              "deps": {
+                "types": [],
+                "symbols": []
+              },
+              "fallback": [],
+              "back_fill": [],
+              "generates": [],
+              "field_anchors": []
+            },
+            {
+              "name": "AVVideoHintType",
+              "defined_in": "libavutil/video_hint.h",
+              "kind": "type",
+              "source_kind": "enum",
+              "layer": 0,
+              "loc": 0,
+              "deps": {
+                "types": [],
+                "symbols": []
+              },
+              "fallback": [],
+              "back_fill": [],
+              "generates": [],
+              "field_anchors": []
+            }
+          ]
+        },
+        {
+          "kind": "type",
+          "source_file": "libavutil/video_hint.h",
+          "items": [
+            {
+              "name": "AVVideoRect",
+              "defined_in": "libavutil/video_hint.h",
+              "kind": "type",
+              "source_kind": "struct",
+              "layer": 0,
+              "loc": 4,
+              "deps": {
+                "types": [],
+                "symbols": []
+              },
+              "fallback": [],
+              "back_fill": [],
+              "generates": [],
+              "field_anchors": [
+                "height",
+                "x",
+                "y",
+                "width"
+              ]
+            }
+          ]
+        },
+        {
+          "kind": "symbol",
+          "source_file": null,
+          "items": [
+            {
+              "name": "av_display_matrix_flip",
+              "defined_in": "libavutil/display.c",
+              "kind": "symbol",
+              "source_kind": "function_exported",
+              "layer": 0,
+              "loc": 8,
+              "deps": {
+                "types": [],
+                "symbols": []
+              },
+              "fallback": [],
+              "back_fill": [],
+              "generates": [],
+              "field_anchors": []
+            },
+            {
+              "name": "av_display_rotation_get",
+              "defined_in": "libavutil/display.c",
+              "kind": "symbol",
+              "source_kind": "function_exported",
+              "layer": 0,
+              "loc": 14,
+              "deps": {
+                "types": [],
+                "symbols": []
+              },
+              "fallback": [],
+              "back_fill": [],
+              "generates": [],
+              "field_anchors": []
+            },
+            {
+              "name": "av_display_rotation_set",
+              "defined_in": "libavutil/display.c",
+              "kind": "symbol",
+              "source_kind": "function_exported",
+              "layer": 0,
+              "loc": 13,
+              "deps": {
+                "types": [],
+                "symbols": []
+              },
+              "fallback": [],
+              "back_fill": [],
+              "generates": [],
+              "field_anchors": []
+            },
+            {
+              "name": "av_spherical_from_name",
+              "defined_in": "libavutil/spherical.c",
+              "kind": "symbol",
+              "source_kind": "function_exported",
+              "layer": 0,
+              "loc": 10,
+              "deps": {
+                "types": [],
+                "symbols": []
+              },
+              "fallback": [],
+              "back_fill": [],
+              "generates": [],
+              "field_anchors": []
+            },
+            {
+              "name": "av_stereo3d_from_name",
+              "defined_in": "libavutil/stereo3d.c",
+              "kind": "symbol",
+              "source_kind": "function_exported",
+              "layer": 0,
+              "loc": 10,
+              "deps": {
+                "types": [],
+                "symbols": []
+              },
+              "fallback": [],
+              "back_fill": [],
+              "generates": [],
+              "field_anchors": []
+            },
+            {
+              "name": "av_stereo3d_primary_eye_from_name",
+              "defined_in": "libavutil/stereo3d.c",
+              "kind": "symbol",
+              "source_kind": "function_exported",
+              "layer": 0,
+              "loc": 10,
+              "deps": {
+                "types": [],
+                "symbols": []
+              },
+              "fallback": [],
+              "back_fill": [],
+              "generates": [],
+              "field_anchors": []
+            },
+            {
+              "name": "av_stereo3d_primary_eye_name",
+              "defined_in": "libavutil/stereo3d.c",
+              "kind": "symbol",
+              "source_kind": "function_exported",
+              "layer": 0,
+              "loc": 6,
+              "deps": {
+                "types": [],
+                "symbols": []
+              },
+              "fallback": [],
+              "back_fill": [],
+              "generates": [],
+              "field_anchors": []
+            },
+            {
+              "name": "av_stereo3d_type_name",
+              "defined_in": "libavutil/stereo3d.c",
+              "kind": "symbol",
+              "source_kind": "function_exported",
+              "layer": 0,
+              "loc": 6,
+              "deps": {
+                "types": [],
+                "symbols": []
+              },
+              "fallback": [],
+              "back_fill": [],
+              "generates": [],
+              "field_anchors": []
+            },
+            {
+              "name": "av_stereo3d_view_from_name",
+              "defined_in": "libavutil/stereo3d.c",
+              "kind": "symbol",
+              "source_kind": "function_exported",
+              "layer": 0,
+              "loc": 10,
+              "deps": {
+                "types": [],
+                "symbols": []
+              },
+              "fallback": [],
+              "back_fill": [],
+              "generates": [],
+              "field_anchors": []
+            },
+            {
+              "name": "av_stereo3d_view_name",
+              "defined_in": "libavutil/stereo3d.c",
+              "kind": "symbol",
+              "source_kind": "function_exported",
+              "layer": 0,
+              "loc": 6,
+              "deps": {
+                "types": [],
+                "symbols": []
+              },
+              "fallback": [],
+              "back_fill": [],
+              "generates": [],
+              "field_anchors": []
+            },
+            {
+              "name": "av_timecode_adjust_ntsc_framenum2",
+              "defined_in": "libavutil/timecode.c",
+              "kind": "symbol",
+              "source_kind": "function_exported",
+              "layer": 0,
+              "loc": 16,
+              "deps": {
+                "types": [],
+                "symbols": []
+              },
+              "fallback": [],
+              "back_fill": [],
+              "generates": [],
+              "field_anchors": []
+            },
+            {
+              "name": "av_timecode_make_mpeg_tc_string",
+              "defined_in": "libavutil/timecode.c",
+              "kind": "symbol",
+              "source_kind": "function_exported",
+              "layer": 0,
+              "loc": 10,
+              "deps": {
+                "types": [],
+                "symbols": []
+              },
+              "fallback": [],
+              "back_fill": [],
+              "generates": [],
+              "field_anchors": []
+            },
+            {
+              "name": "av_timecode_make_smpte_tc_string",
+              "defined_in": "libavutil/timecode.c",
+              "kind": "symbol",
+              "source_kind": "function_exported",
+              "layer": 0,
+              "loc": 3,
+              "deps": {
+                "types": [],
+                "symbols": []
+              },
+              "fallback": [],
+              "back_fill": [],
+              "generates": [],
+              "field_anchors": []
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "unit_count": 49,
+      "batches": [
+        {
+          "kind": "type",
+          "source_file": "libavutil/ambient_viewing_environment.h",
+          "items": [
+            {
+              "name": "AVAmbientViewingEnvironment",
+              "defined_in": "libavutil/ambient_viewing_environment.h",
+              "kind": "type",
+              "source_kind": "struct",
+              "layer": 1,
+              "loc": 3,
+              "deps": {
+                "types": [
+                  {
+                    "name": "AVRational",
+                    "defined_in": "libavutil/rational.h",
+                    "scope": "wrap"
+                  }
+                ],
+                "symbols": []
+              },
+              "fallback": [],
+              "back_fill": [],
+              "generates": [],
+              "field_anchors": [
+                "ambient_illuminance",
+                "ambient_light_x",
+                "ambient_light_y"
+              ]
+            },
+            {
+              "name": "AVDOVIColorMetadata",
+              "defined_in": "libavutil/dovi_meta.h",
+              "kind": "type",
+              "source_kind": "struct",
+              "layer": 1,
+              "loc": 16,
+              "deps": {
+                "types": [
+                  {
+                    "name": "AVRational",
+                    "defined_in": "libavutil/rational.h",
+                    "scope": "wrap"
+                  }
+                ],
+                "symbols": []
+              },
+              "fallback": [],
+              "back_fill": [],
+              "generates": [],
+              "field_anchors": [
+                "dm_metadata_id",
+                "scene_refresh_flag",
+                "ycc_to_rgb_matrix",
+                "ycc_to_rgb_offset",
+                "rgb_to_lms_matrix",
+                "signal_eotf",
+                "signal_eotf_param0",
+                "signal_eotf_param1",
+                "signal_eotf_param2",
+                "signal_bit_depth",
+                "signal_color_space",
+                "signal_chroma_format",
+                "signal_full_range_flag",
+                "source_min_pq",
+                "source_max_pq",
+                "source_diagonal"
+              ]
+            }
+          ]
+        },
+        {
+          "kind": "type",
+          "source_file": "libavutil/dovi_meta.h",
+          "items": [
+            {
+              "name": "AVDOVIDmLevel10",
+              "defined_in": "libavutil/dovi_meta.h",
+              "kind": "type",
+              "source_kind": "struct",
+              "layer": 1,
+              "loc": 5,
+              "deps": {
+                "types": [
+                  {
+                    "name": "AVColorPrimariesDesc",
+                    "defined_in": "libavutil/csp.h",
+                    "scope": "wrap"
+                  }
+                ],
+                "symbols": []
+              },
+              "fallback": [],
+              "back_fill": [],
+              "generates": [],
+              "field_anchors": [
+                "target_display_primaries",
+                "target_primary_index",
+                "target_min_pq",
+                "target_max_pq",
+                "target_display_index"
+              ]
+            },
+            {
+              "name": "AVDOVIDmLevel9",
+              "defined_in": "libavutil/dovi_meta.h",
+              "kind": "type",
+              "source_kind": "struct",
+              "layer": 1,
+              "loc": 2,
+              "deps": {
+                "types": [
+                  {
+                    "name": "AVColorPrimariesDesc",
+                    "defined_in": "libavutil/csp.h",
+                    "scope": "wrap"
+                  }
+                ],
+                "symbols": []
+              },
+              "fallback": [],
+              "back_fill": [],
+              "generates": [],
+              "field_anchors": [
+                "source_display_primaries",
+                "source_primary_index"
+              ]
+            }
+          ]
+        },
+        {
+          "kind": "type",
+          "source_file": "libavutil/dovi_meta.h",
+          "items": [
+            {
+              "name": "AVDOVIReshapingCurve",
+              "defined_in": "libavutil/dovi_meta.h",
+              "kind": "type",
+              "source_kind": "struct",
+              "layer": 1,
+              "loc": 8,
+              "deps": {
+                "types": [
+                  {
+                    "name": "AVDOVIMappingMethod",
+                    "defined_in": "libavutil/dovi_meta.h",
+                    "scope": "wrap"
+                  }
+                ],
+                "symbols": []
+              },
+              "fallback": [],
+              "back_fill": [],
+              "generates": [],
+              "field_anchors": [
+                "pivots",
+                "mapping_idc",
+                "poly_order",
+                "poly_coef",
+                "mmr_order",
+                "mmr_constant",
+                "mmr_coef",
+                "num_pivots"
+              ]
+            },
+            {
+              "name": "AVDetectionBBox",
+              "defined_in": "libavutil/detection_bbox.h",
+              "kind": "type",
+              "source_kind": "struct",
+              "layer": 1,
+              "loc": 9,
+              "deps": {
+                "types": [
+                  {
+                    "name": "AVRational",
+                    "defined_in": "libavutil/rational.h",
+                    "scope": "wrap"
+                  }
+                ],
+                "symbols": []
+              },
+              "fallback": [],
+              "back_fill": [],
+              "generates": [],
+              "field_anchors": [
+                "h",
+                "x",
+                "y",
+                "w",
+                "classify_confidences",
+                "classify_labels",
+                "classify_count",
+                "detect_confidence",
+                "detect_label"
+              ]
+            }
+          ]
+        },
+        {
+          "kind": "type",
+          "source_file": "libavutil/downmix_info.h",
+          "items": [
+            {
+              "name": "AVDownmixInfo",
+              "defined_in": "libavutil/downmix_info.h",
+              "kind": "type",
+              "source_kind": "struct",
+              "layer": 1,
+              "loc": 6,
+              "deps": {
+                "types": [
+                  {
+                    "name": "AVDownmixType",
+                    "defined_in": "libavutil/downmix_info.h",
+                    "scope": "wrap"
+                  }
+                ],
+                "symbols": []
+              },
+              "fallback": [],
+              "back_fill": [],
+              "generates": [],
+              "field_anchors": [
+                "lfe_mix_level",
+                "surround_mix_level_ltrt",
+                "surround_mix_level",
+                "center_mix_level_ltrt",
+                "center_mix_level",
+                "preferred_downmix_type"
+              ]
+            },
+            {
+              "name": "AVDownmixMatrix",
+              "defined_in": "libavutil/downmix_info.h",
+              "kind": "type",
+              "source_kind": "struct",
+              "layer": 1,
+              "loc": 4,
+              "deps": {
+                "types": [
+                  {
+                    "name": "AVDownmixType",
+                    "defined_in": "libavutil/downmix_info.h",
+                    "scope": "wrap"
+                  }
+                ],
+                "symbols": []
+              },
+              "fallback": [],
+              "back_fill": [],
+              "generates": [],
+              "field_anchors": [
+                "downmix_type",
+                "nb_coeffs",
+                "coeffs_offset",
+                "in_ch_count"
+              ]
+            }
+          ]
+        },
+        {
+          "kind": "type",
+          "source_file": "libavutil/encryption_info.h",
+          "items": [
+            {
+              "name": "AVEncryptionInfo",
+              "defined_in": "libavutil/encryption_info.h",
+              "kind": "type",
+              "source_kind": "struct",
+              "layer": 1,
+              "loc": 9,
+              "deps": {
+                "types": [
+                  {
+                    "name": "AVSubsampleEncryptionInfo",
+                    "defined_in": "libavutil/encryption_info.h",
+                    "scope": "wrap"
+                  }
+                ],
+                "symbols": []
+              },
+              "fallback": [],
+              "back_fill": [],
+              "generates": [],
+              "field_anchors": [
+                "iv",
+                "scheme",
+                "key_id_size",
+                "subsample_count",
+                "subsamples",
+                "iv_size",
+                "key_id",
+                "skip_byte_block",
+                "crypt_byte_block"
+              ]
+            },
+            {
+              "name": "AVFilmGrainParams",
+              "defined_in": "libavutil/film_grain_params.h",
+              "kind": "type",
+              "source_kind": "struct",
+              "layer": 1,
+              "loc": 15,
+              "deps": {
+                "types": [
+                  {
+                    "name": "AVColorPrimaries",
+                    "defined_in": "libavutil/pixfmt.h",
+                    "scope": "wrap"
+                  },
+                  {
+                    "name": "AVColorRange",
+                    "defined_in": "libavutil/pixfmt.h",
+                    "scope": "wrap"
+                  },
+                  {
+                    "name": "AVColorSpace",
+                    "defined_in": "libavutil/pixfmt.h",
+                    "scope": "wrap"
+                  },
+                  {
+                    "name": "AVColorTransferCharacteristic",
+                    "defined_in": "libavutil/pixfmt.h",
+                    "scope": "wrap"
+                  },
+                  {
+                    "name": "AVFilmGrainAOMParams",
+                    "defined_in": "libavutil/film_grain_params.h",
+                    "scope": "wrap"
+                  },
+                  {
+                    "name": "AVFilmGrainH274Params",
+                    "defined_in": "libavutil/film_grain_params.h",
+                    "scope": "wrap"
+                  },
+                  {
+                    "name": "AVFilmGrainParamsType",
+                    "defined_in": "libavutil/film_grain_params.h",
+                    "scope": "wrap"
+                  }
+                ],
+                "symbols": []
+              },
+              "fallback": [],
+              "back_fill": [],
+              "generates": [],
+              "field_anchors": [
+                "type",
+                "height",
+                "width",
+                "codec",
+                "color_range",
+                "color_trc",
+                "color_primaries",
+                "seed",
+                "color_space",
+                "subsampling_x",
+                "subsampling_y",
+                "bit_depth_luma",
+                "bit_depth_chroma",
+                "codec.aom",
+                "codec.h274"
+              ]
+            }
+          ]
+        },
+        {
+          "kind": "type",
+          "source_file": "libavutil/hdr_dynamic_metadata.h",
+          "items": [
+            {
+              "name": "AVHDRPlusPercentile",
+              "defined_in": "libavutil/hdr_dynamic_metadata.h",
+              "kind": "type",
+              "source_kind": "struct",
+              "layer": 1,
+              "loc": 2,
+              "deps": {
+                "types": [
+                  {
+                    "name": "AVRational",
+                    "defined_in": "libavutil/rational.h",
+                    "scope": "wrap"
+                  }
+                ],
+                "symbols": []
+              },
+              "fallback": [],
+              "back_fill": [],
+              "generates": [],
+              "field_anchors": [
+                "percentile",
+                "percentage"
+              ]
+            },
+            {
+              "name": "AVHDRVivid3SplineParams",
+              "defined_in": "libavutil/hdr_dynamic_vivid_metadata.h",
+              "kind": "type",
+              "source_kind": "struct",
+              "layer": 1,
+              "loc": 6,
+              "deps": {
+                "types": [
+                  {
+                    "name": "AVRational",
+                    "defined_in": "libavutil/rational.h",
+                    "scope": "wrap"
+                  }
+                ],
+                "symbols": []
+              },
+              "fallback": [],
+              "back_fill": [],
+              "generates": [],
+              "field_anchors": [
+                "enable_strength",
+                "th_delta2",
+                "th_delta1",
+                "th_enable",
+                "th_enable_mb",
+                "th_mode"
+              ]
+            }
+          ]
+        },
+        {
+          "kind": "type",
+          "source_file": "libavutil/iamf.h",
+          "items": [
+            {
+              "name": "AVIAMFDemixingInfo",
+              "defined_in": "libavutil/iamf.h",
+              "kind": "type",
+              "source_kind": "struct",
+              "layer": 1,
+              "loc": 3,
+              "deps": {
+                "types": [
+                  {
+                    "name": "AVClass",
+                    "defined_in": "libavutil/log.h",
+                    "scope": "wrap"
+                  }
+                ],
+                "symbols": []
+              },
+              "fallback": [],
+              "back_fill": [],
+              "generates": [],
+              "field_anchors": [
+                "av_class",
+                "subblock_duration",
+                "dmixp_mode"
+              ]
+            },
+            {
+              "name": "AVIAMFLayer",
+              "defined_in": "libavutil/iamf.h",
+              "kind": "type",
+              "source_kind": "struct",
+              "layer": 1,
+              "loc": 8,
+              "deps": {
+                "types": [
+                  {
+                    "name": "AVChannelLayout",
+                    "defined_in": "libavutil/channel_layout.h",
+                    "scope": "wrap"
+                  },
+                  {
+                    "name": "AVClass",
+                    "defined_in": "libavutil/log.h",
+                    "scope": "wrap"
+                  },
+                  {
+                    "name": "AVIAMFAmbisonicsMode",
+                    "defined_in": "libavutil/iamf.h",
+                    "scope": "wrap"
+                  },
+                  {
+                    "name": "AVRational",
+                    "defined_in": "libavutil/rational.h",
+                    "scope": "wrap"
+                  }
+                ],
+                "symbols": []
+              },
+              "fallback": [],
+              "back_fill": [],
+              "generates": [],
+              "field_anchors": [
+                "flags",
+                "av_class",
+                "ch_layout",
+                "output_gain_flags",
+                "output_gain",
+                "ambisonics_mode",
+                "demixing_matrix",
+                "nb_demixing_matrix"
+              ]
+            }
+          ]
+        },
+        {
+          "kind": "type",
+          "source_file": "libavutil/iamf.h",
+          "items": [
+            {
+              "name": "AVIAMFMixGain",
+              "defined_in": "libavutil/iamf.h",
+              "kind": "type",
+              "source_kind": "struct",
+              "layer": 1,
+              "loc": 7,
+              "deps": {
+                "types": [
+                  {
+                    "name": "AVClass",
+                    "defined_in": "libavutil/log.h",
+                    "scope": "wrap"
+                  },
+                  {
+                    "name": "AVIAMFAnimationType",
+                    "defined_in": "libavutil/iamf.h",
+                    "scope": "wrap"
+                  },
+                  {
+                    "name": "AVRational",
+                    "defined_in": "libavutil/rational.h",
+                    "scope": "wrap"
+                  }
+                ],
+                "symbols": []
+              },
+              "fallback": [],
+              "back_fill": [],
+              "generates": [],
+              "field_anchors": [
+                "av_class",
+                "subblock_duration",
+                "animation_type",
+                "start_point_value",
+                "end_point_value",
+                "control_point_value",
+                "control_point_relative_time"
+              ]
+            },
+            {
+              "name": "AVIAMFParamDefinition",
+              "defined_in": "libavutil/iamf.h",
+              "kind": "type",
+              "source_kind": "struct",
+              "layer": 1,
+              "loc": 9,
+              "deps": {
+                "types": [
+                  {
+                    "name": "AVClass",
+                    "defined_in": "libavutil/log.h",
+                    "scope": "wrap"
+                  },
+                  {
+                    "name": "AVIAMFParamDefinitionType",
+                    "defined_in": "libavutil/iamf.h",
+                    "scope": "wrap"
+                  }
+                ],
+                "symbols": []
+              },
+              "fallback": [],
+              "back_fill": [],
+              "generates": [],
+              "field_anchors": [
+                "type",
+                "duration",
+                "av_class",
+                "nb_subblocks",
+                "parameter_id",
+                "parameter_rate",
+                "constant_subblock_duration",
+                "subblock_size",
+                "subblocks_offset"
+              ]
+            }
+          ]
+        },
+        {
+          "kind": "type",
+          "source_file": "libavutil/iamf.h",
+          "items": [
+            {
+              "name": "AVIAMFReconGain",
+              "defined_in": "libavutil/iamf.h",
+              "kind": "type",
+              "source_kind": "struct",
+              "layer": 1,
+              "loc": 3,
+              "deps": {
+                "types": [
+                  {
+                    "name": "AVClass",
+                    "defined_in": "libavutil/log.h",
+                    "scope": "wrap"
+                  }
+                ],
+                "symbols": []
+              },
+              "fallback": [],
+              "back_fill": [],
+              "generates": [],
+              "field_anchors": [
+                "av_class",
+                "recon_gain",
+                "subblock_duration"
+              ]
+            },
+            {
+              "name": "AVIAMFSubmixLayout",
+              "defined_in": "libavutil/iamf.h",
+              "kind": "type",
+              "source_kind": "struct",
+              "layer": 1,
+              "loc": 8,
+              "deps": {
+                "types": [
+                  {
+                    "name": "AVChannelLayout",
+                    "defined_in": "libavutil/channel_layout.h",
+                    "scope": "wrap"
+                  },
+                  {
+                    "name": "AVClass",
+                    "defined_in": "libavutil/log.h",
+                    "scope": "wrap"
+                  },
+                  {
+                    "name": "AVIAMFSubmixLayoutType",
+                    "defined_in": "libavutil/iamf.h",
+                    "scope": "wrap"
+                  },
+                  {
+                    "name": "AVRational",
+                    "defined_in": "libavutil/rational.h",
+                    "scope": "wrap"
+                  }
+                ],
+                "symbols": []
+              },
+              "fallback": [],
+              "back_fill": [],
+              "generates": [],
+              "field_anchors": [
+                "av_class",
+                "true_peak",
+                "layout_type",
+                "sound_system",
+                "integrated_loudness",
+                "digital_peak",
+                "dialogue_anchored_loudness",
+                "album_anchored_loudness"
+              ]
+            }
+          ]
+        },
+        {
+          "kind": "type",
+          "source_file": "libavutil/mastering_display_metadata.h",
+          "items": [
+            {
+              "name": "AVMasteringDisplayMetadata",
+              "defined_in": "libavutil/mastering_display_metadata.h",
+              "kind": "type",
+              "source_kind": "struct",
+              "layer": 1,
+              "loc": 6,
+              "deps": {
+                "types": [
+                  {
+                    "name": "AVRational",
+                    "defined_in": "libavutil/rational.h",
+                    "scope": "wrap"
+                  }
+                ],
+                "symbols": []
+              },
+              "fallback": [],
+              "back_fill": [],
+              "generates": [],
+              "field_anchors": [
+                "has_luminance",
+                "has_primaries",
+                "max_luminance",
+                "min_luminance",
+                "white_point",
+                "display_primaries"
+              ]
+            },
+            {
+              "name": "AVProResRawColorParams",
+              "defined_in": "libavutil/raw_color_params.h",
+              "kind": "type",
+              "source_kind": "struct",
+              "layer": 1,
+              "loc": 4,
+              "deps": {
+                "types": [
+                  {
+                    "name": "AVRational",
+                    "defined_in": "libavutil/rational.h",
+                    "scope": "wrap"
+                  }
+                ],
+                "symbols": []
+              },
+              "fallback": [],
+              "back_fill": [],
+              "generates": [],
+              "field_anchors": [
+                "gain",
+                "color_matrix",
+                "wb_red",
+                "wb_blue"
+              ]
+            }
+          ]
+        },
+        {
+          "kind": "type",
+          "source_file": "libavutil/spherical.h",
+          "items": [
+            {
+              "name": "AVSphericalMapping",
+              "defined_in": "libavutil/spherical.h",
+              "kind": "type",
+              "source_kind": "struct",
+              "layer": 1,
+              "loc": 9,
+              "deps": {
+                "types": [
+                  {
+                    "name": "AVSphericalProjection",
+                    "defined_in": "libavutil/spherical.h",
+                    "scope": "wrap"
+                  }
+                ],
+                "symbols": []
+              },
+              "fallback": [],
+              "back_fill": [],
+              "generates": [],
+              "field_anchors": [
+                "pitch",
+                "projection",
+                "padding",
+                "bound_left",
+                "bound_top",
+                "bound_right",
+                "bound_bottom",
+                "yaw",
+                "roll"
+              ]
+            },
+            {
+              "name": "AVStereo3D",
+              "defined_in": "libavutil/stereo3d.h",
+              "kind": "type",
+              "source_kind": "struct",
+              "layer": 1,
+              "loc": 7,
+              "deps": {
+                "types": [
+                  {
+                    "name": "AVRational",
+                    "defined_in": "libavutil/rational.h",
+                    "scope": "wrap"
+                  },
+                  {
+                    "name": "AVStereo3DPrimaryEye",
+                    "defined_in": "libavutil/stereo3d.h",
+                    "scope": "wrap"
+                  },
+                  {
+                    "name": "AVStereo3DType",
+                    "defined_in": "libavutil/stereo3d.h",
+                    "scope": "wrap"
+                  },
+                  {
+                    "name": "AVStereo3DView",
+                    "defined_in": "libavutil/stereo3d.h",
+                    "scope": "wrap"
+                  }
+                ],
+                "symbols": []
+              },
+              "fallback": [],
+              "back_fill": [],
+              "generates": [],
+              "field_anchors": [
+                "type",
+                "flags",
+                "view",
+                "primary_eye",
+                "baseline",
+                "horizontal_disparity_adjustment",
+                "horizontal_field_of_view"
+              ]
+            }
+          ]
+        },
+        {
+          "kind": "type",
+          "source_file": "libavutil/timecode.h",
+          "items": [
+            {
+              "name": "AVTimecode",
+              "defined_in": "libavutil/timecode.h",
+              "kind": "type",
+              "source_kind": "struct",
+              "layer": 1,
+              "loc": 4,
+              "deps": {
+                "types": [
+                  {
+                    "name": "AVRational",
+                    "defined_in": "libavutil/rational.h",
+                    "scope": "wrap"
+                  }
+                ],
+                "symbols": []
+              },
+              "fallback": [],
+              "back_fill": [],
+              "generates": [],
+              "field_anchors": [
+                "flags",
+                "start",
+                "rate",
+                "fps"
+              ]
+            },
+            {
+              "name": "AVVideoEncParams",
+              "defined_in": "libavutil/video_enc_params.h",
+              "kind": "type",
+              "source_kind": "struct",
+              "layer": 1,
+              "loc": 6,
+              "deps": {
+                "types": [
+                  {
+                    "name": "AVVideoEncParamsType",
+                    "defined_in": "libavutil/video_enc_params.h",
+                    "scope": "wrap"
+                  }
+                ],
+                "symbols": []
+              },
+              "fallback": [],
+              "back_fill": [],
+              "generates": [],
+              "field_anchors": [
+                "type",
+                "block_size",
+                "nb_blocks",
+                "qp",
+                "delta_qp",
+                "blocks_offset"
+              ]
+            }
+          ]
+        },
+        {
+          "kind": "type",
+          "source_file": "libavutil/video_hint.h",
+          "items": [
+            {
+              "name": "AVVideoHint",
+              "defined_in": "libavutil/video_hint.h",
+              "kind": "type",
+              "source_kind": "struct",
+              "layer": 1,
+              "loc": 4,
+              "deps": {
+                "types": [
+                  {
+                    "name": "AVVideoHintType",
+                    "defined_in": "libavutil/video_hint.h",
+                    "scope": "wrap"
+                  }
+                ],
+                "symbols": []
+              },
+              "fallback": [],
+              "back_fill": [],
+              "generates": [],
+              "field_anchors": [
+                "type",
+                "rect_size",
+                "rect_offset",
+                "nb_rects"
+              ]
+            }
+          ]
+        },
+        {
+          "kind": "symbol",
+          "source_file": null,
+          "items": [
+            {
+              "name": "av_content_light_metadata_alloc",
+              "defined_in": "libavutil/mastering_display_metadata.c",
+              "kind": "symbol",
+              "source_kind": "function_exported",
+              "layer": 1,
+              "loc": 8,
+              "deps": {
+                "types": [
+                  {
+                    "name": "AVContentLightMetadata",
+                    "defined_in": "libavutil/mastering_display_metadata.h",
+                    "scope": "wrap"
+                  }
+                ],
+                "symbols": []
+              },
+              "fallback": [],
+              "back_fill": [],
+              "generates": [],
+              "field_anchors": []
+            },
+            {
+              "name": "av_content_light_metadata_create_side_data",
+              "defined_in": "libavutil/mastering_display_metadata.c",
+              "kind": "symbol",
+              "source_kind": "function_exported",
+              "layer": 1,
+              "loc": 11,
+              "deps": {
+                "types": [
+                  {
+                    "name": "AVContentLightMetadata",
+                    "defined_in": "libavutil/mastering_display_metadata.h",
+                    "scope": "wrap"
+                  },
+                  {
+                    "name": "AVFrame",
+                    "defined_in": "libavutil/frame.h",
+                    "scope": "wrap"
+                  }
+                ],
+                "symbols": []
+              },
+              "fallback": [],
+              "back_fill": [],
+              "generates": [],
+              "field_anchors": []
+            },
+            {
+              "name": "av_detection_bbox_alloc",
+              "defined_in": "libavutil/detection_bbox.c",
+              "kind": "symbol",
+              "source_kind": "function_exported",
+              "layer": 1,
+              "loc": 28,
+              "deps": {
+                "types": [
+                  {
+                    "name": "AVDetectionBBoxHeader",
+                    "defined_in": "libavutil/detection_bbox.h",
+                    "scope": "wrap"
+                  }
+                ],
+                "symbols": []
+              },
+              "fallback": [],
+              "back_fill": [],
+              "generates": [],
+              "field_anchors": []
+            },
+            {
+              "name": "av_detection_bbox_create_side_data",
+              "defined_in": "libavutil/detection_bbox.c",
+              "kind": "symbol",
+              "source_kind": "function_exported",
+              "layer": 1,
+              "loc": 21,
+              "deps": {
+                "types": [
+                  {
+                    "name": "AVDetectionBBoxHeader",
+                    "defined_in": "libavutil/detection_bbox.h",
+                    "scope": "wrap"
+                  },
+                  {
+                    "name": "AVFrame",
+                    "defined_in": "libavutil/frame.h",
+                    "scope": "wrap"
+                  }
+                ],
+                "symbols": []
+              },
+              "fallback": [],
+              "back_fill": [],
+              "generates": [],
+              "field_anchors": []
+            },
+            {
+              "name": "av_dovi_alloc",
+              "defined_in": "libavutil/dovi_meta.c",
+              "kind": "symbol",
+              "source_kind": "function_exported",
+              "layer": 1,
+              "loc": 9,
+              "deps": {
+                "types": [
+                  {
+                    "name": "AVDOVIDecoderConfigurationRecord",
+                    "defined_in": "libavutil/dovi_meta.h",
+                    "scope": "wrap"
+                  }
+                ],
+                "symbols": []
+              },
+              "fallback": [],
+              "back_fill": [],
+              "generates": [],
+              "field_anchors": []
+            },
+            {
+              "name": "av_dovi_get_header",
+              "defined_in": "libavutil/dovi_meta.h",
+              "kind": "symbol",
+              "source_kind": "function_inline_header",
+              "layer": 1,
+              "loc": 3,
+              "deps": {
+                "types": [
+                  {
+                    "name": "AVDOVIMetadata",
+                    "defined_in": "libavutil/dovi_meta.h",
+                    "scope": "wrap"
+                  },
+                  {
+                    "name": "AVDOVIRpuDataHeader",
+                    "defined_in": "libavutil/dovi_meta.h",
+                    "scope": "wrap"
+                  }
+                ],
+                "symbols": []
+              },
+              "fallback": [],
+              "back_fill": [],
+              "generates": [],
+              "field_anchors": []
+            },
+            {
+              "name": "av_dovi_metadata_alloc",
+              "defined_in": "libavutil/dovi_meta.c",
+              "kind": "symbol",
+              "source_kind": "function_exported",
+              "layer": 1,
+              "loc": 19,
+              "deps": {
+                "types": [
+                  {
+                    "name": "AVDOVIMetadata",
+                    "defined_in": "libavutil/dovi_meta.h",
+                    "scope": "wrap"
+                  }
+                ],
+                "symbols": []
+              },
+              "fallback": [],
+              "back_fill": [],
+              "generates": [],
+              "field_anchors": []
+            },
+            {
+              "name": "av_dynamic_hdr_smpte2094_app5_alloc",
+              "defined_in": "libavutil/hdr_dynamic_metadata.c",
+              "kind": "symbol",
+              "source_kind": "function_exported",
+              "layer": 1,
+              "loc": 8,
+              "deps": {
+                "types": [
+                  {
+                    "name": "AVDynamicHDRSmpte2094App5",
+                    "defined_in": "libavutil/hdr_dynamic_metadata.h",
+                    "scope": "wrap"
+                  }
+                ],
+                "symbols": []
+              },
+              "fallback": [],
+              "back_fill": [],
+              "generates": [],
+              "field_anchors": []
+            },
+            {
+              "name": "av_dynamic_hdr_smpte2094_app5_create_side_data",
+              "defined_in": "libavutil/hdr_dynamic_metadata.c",
+              "kind": "symbol",
+              "source_kind": "function_exported",
+              "layer": 1,
+              "loc": 11,
+              "deps": {
+                "types": [
+                  {
+                    "name": "AVDynamicHDRSmpte2094App5",
+                    "defined_in": "libavutil/hdr_dynamic_metadata.h",
+                    "scope": "wrap"
+                  },
+                  {
+                    "name": "AVFrame",
+                    "defined_in": "libavutil/frame.h",
+                    "scope": "wrap"
+                  }
+                ],
+                "symbols": []
+              },
+              "fallback": [],
+              "back_fill": [],
+              "generates": [],
+              "field_anchors": []
+            },
+            {
+              "name": "av_dynamic_hdr_smpte2094_app5_from_t35",
+              "defined_in": "libavutil/hdr_dynamic_metadata.c",
+              "kind": "symbol",
+              "source_kind": "function_exported",
+              "layer": 1,
+              "loc": 131,
+              "deps": {
+                "types": [
+                  {
+                    "name": "AVDynamicHDRSmpte2094App5",
+                    "defined_in": "libavutil/hdr_dynamic_metadata.h",
+                    "scope": "wrap"
+                  }
+                ],
+                "symbols": []
+              },
+              "fallback": [],
+              "back_fill": [],
+              "generates": [],
+              "field_anchors": []
+            },
+            {
+              "name": "av_dynamic_hdr_smpte2094_app5_to_t35",
+              "defined_in": "libavutil/hdr_dynamic_metadata.c",
+              "kind": "symbol",
+              "source_kind": "function_exported",
+              "layer": 1,
+              "loc": 142,
+              "deps": {
+                "types": [
+                  {
+                    "name": "AVDynamicHDRSmpte2094App5",
+                    "defined_in": "libavutil/hdr_dynamic_metadata.h",
+                    "scope": "wrap"
+                  }
+                ],
+                "symbols": []
+              },
+              "fallback": [],
+              "back_fill": [],
+              "generates": [],
+              "field_anchors": []
+            },
+            {
+              "name": "av_encryption_init_info_add_side_data",
+              "defined_in": "libavutil/encryption_info.c",
+              "kind": "symbol",
+              "source_kind": "function_exported",
+              "layer": 1,
+              "loc": 51,
+              "deps": {
+                "types": [
+                  {
+                    "name": "AVEncryptionInitInfo",
+                    "defined_in": "libavutil/encryption_info.h",
+                    "scope": "wrap"
+                  }
+                ],
+                "symbols": []
+              },
+              "fallback": [],
+              "back_fill": [],
+              "generates": [],
+              "field_anchors": []
+            },
+            {
+              "name": "av_encryption_init_info_alloc",
+              "defined_in": "libavutil/encryption_info.c",
+              "kind": "symbol",
+              "source_kind": "function_exported",
+              "layer": 1,
+              "loc": 35,
+              "deps": {
+                "types": [
+                  {
+                    "name": "AVEncryptionInitInfo",
+                    "defined_in": "libavutil/encryption_info.h",
+                    "scope": "wrap"
+                  }
+                ],
+                "symbols": []
+              },
+              "fallback": [],
+              "back_fill": [],
+              "generates": [],
+              "field_anchors": []
+            },
+            {
+              "name": "av_encryption_init_info_free",
+              "defined_in": "libavutil/encryption_info.c",
+              "kind": "symbol",
+              "source_kind": "function_exported",
+              "layer": 1,
+              "loc": 13,
+              "deps": {
+                "types": [
+                  {
+                    "name": "AVEncryptionInitInfo",
+                    "defined_in": "libavutil/encryption_info.h",
+                    "scope": "wrap"
+                  }
+                ],
+                "symbols": []
+              },
+              "fallback": [],
+              "back_fill": [],
+              "generates": [],
+              "field_anchors": []
+            }
+          ]
+        },
+        {
+          "kind": "symbol",
+          "source_file": null,
+          "items": [
+            {
+              "name": "av_encryption_init_info_get_side_data",
+              "defined_in": "libavutil/encryption_info.c",
+              "kind": "symbol",
+              "source_kind": "function_exported",
+              "layer": 1,
+              "loc": 58,
+              "deps": {
+                "types": [
+                  {
+                    "name": "AVEncryptionInitInfo",
+                    "defined_in": "libavutil/encryption_info.h",
+                    "scope": "wrap"
+                  }
+                ],
+                "symbols": []
+              },
+              "fallback": [],
+              "back_fill": [],
+              "generates": [],
+              "field_anchors": []
+            },
+            {
+              "name": "av_iamf_audio_element_get_class",
+              "defined_in": "libavutil/iamf.c",
+              "kind": "symbol",
+              "source_kind": "function_exported",
+              "layer": 1,
+              "loc": 3,
+              "deps": {
+                "types": [
+                  {
+                    "name": "AVClass",
+                    "defined_in": "libavutil/log.h",
+                    "scope": "wrap"
+                  }
+                ],
+                "symbols": []
+              },
+              "fallback": [],
+              "back_fill": [],
+              "generates": [],
+              "field_anchors": []
+            },
+            {
+              "name": "av_iamf_mix_presentation_get_class",
+              "defined_in": "libavutil/iamf.c",
+              "kind": "symbol",
+              "source_kind": "function_exported",
+              "layer": 1,
+              "loc": 3,
+              "deps": {
+                "types": [
+                  {
+                    "name": "AVClass",
+                    "defined_in": "libavutil/log.h",
+                    "scope": "wrap"
+                  }
+                ],
+                "symbols": []
+              },
+              "fallback": [],
+              "back_fill": [],
+              "generates": [],
+              "field_anchors": []
+            },
+            {
+              "name": "av_iamf_param_definition_get_class",
+              "defined_in": "libavutil/iamf.c",
+              "kind": "symbol",
+              "source_kind": "function_exported",
+              "layer": 1,
+              "loc": 3,
+              "deps": {
+                "types": [
+                  {
+                    "name": "AVClass",
+                    "defined_in": "libavutil/log.h",
+                    "scope": "wrap"
+                  }
+                ],
+                "symbols": []
+              },
+              "fallback": [],
+              "back_fill": [],
+              "generates": [],
+              "field_anchors": []
+            },
+            {
+              "name": "av_spherical_projection_name",
+              "defined_in": "libavutil/spherical.c",
+              "kind": "symbol",
+              "source_kind": "function_exported",
+              "layer": 1,
+              "loc": 6,
+              "deps": {
+                "types": [
+                  {
+                    "name": "AVSphericalProjection",
+                    "defined_in": "libavutil/spherical.h",
+                    "scope": "wrap"
+                  }
+                ],
+                "symbols": []
+              },
+              "fallback": [],
+              "back_fill": [],
+              "generates": [],
+              "field_anchors": []
+            },
+            {
+              "name": "av_tdrdi_alloc",
+              "defined_in": "libavutil/tdrdi.c",
+              "kind": "symbol",
+              "source_kind": "function_exported",
+              "layer": 1,
+              "loc": 26,
+              "deps": {
+                "types": [
+                  {
+                    "name": "AV3DReferenceDisplaysInfo",
+                    "defined_in": "libavutil/tdrdi.h",
+                    "scope": "wrap"
+                  }
+                ],
+                "symbols": []
+              },
+              "fallback": [],
+              "back_fill": [],
+              "generates": [],
+              "field_anchors": []
+            },
+            {
+              "name": "av_tdrdi_get_display",
+              "defined_in": "libavutil/tdrdi.h",
+              "kind": "symbol",
+              "source_kind": "function_inline_header",
+              "layer": 1,
+              "loc": 5,
+              "deps": {
+                "types": [
+                  {
+                    "name": "AV3DReferenceDisplay",
+                    "defined_in": "libavutil/tdrdi.h",
+                    "scope": "wrap"
+                  },
+                  {
+                    "name": "AV3DReferenceDisplaysInfo",
+                    "defined_in": "libavutil/tdrdi.h",
+                    "scope": "wrap"
+                  }
+                ],
+                "symbols": []
+              },
+              "fallback": [],
+              "back_fill": [],
+              "generates": [],
+              "field_anchors": []
+            },
+            {
+              "name": "av_timecode_check_frame_rate",
+              "defined_in": "libavutil/timecode.c",
+              "kind": "symbol",
+              "source_kind": "function_exported",
+              "layer": 1,
+              "loc": 3,
+              "deps": {
+                "types": [
+                  {
+                    "name": "AVRational",
+                    "defined_in": "libavutil/rational.h",
+                    "scope": "wrap"
+                  }
+                ],
+                "symbols": []
+              },
+              "fallback": [],
+              "back_fill": [],
+              "generates": [],
+              "field_anchors": []
+            },
+            {
+              "name": "av_timecode_get_smpte",
+              "defined_in": "libavutil/timecode.c",
+              "kind": "symbol",
+              "source_kind": "function_exported",
+              "layer": 1,
+              "loc": 32,
+              "deps": {
+                "types": [
+                  {
+                    "name": "AVRational",
+                    "defined_in": "libavutil/rational.h",
+                    "scope": "wrap"
+                  }
+                ],
+                "symbols": []
+              },
+              "fallback": [],
+              "back_fill": [],
+              "generates": [],
+              "field_anchors": []
+            },
+            {
+              "name": "av_timecode_make_smpte_tc_string2",
+              "defined_in": "libavutil/timecode.c",
+              "kind": "symbol",
+              "source_kind": "function_exported",
+              "layer": 1,
+              "loc": 9,
+              "deps": {
+                "types": [
+                  {
+                    "name": "AVRational",
+                    "defined_in": "libavutil/rational.h",
+                    "scope": "wrap"
+                  }
+                ],
+                "symbols": []
+              },
+              "fallback": [],
+              "back_fill": [],
+              "generates": [],
+              "field_anchors": []
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "unit_count": 44,
+      "batches": [
+        {
+          "kind": "type",
+          "source_file": "libavutil/dovi_meta.h",
+          "items": [
+            {
+              "name": "AVDOVIDataMapping",
+              "defined_in": "libavutil/dovi_meta.h",
+              "kind": "type",
+              "source_kind": "struct",
+              "layer": 2,
+              "loc": 9,
+              "deps": {
+                "types": [
+                  {
+                    "name": "AVDOVINLQMethod",
+                    "defined_in": "libavutil/dovi_meta.h",
+                    "scope": "wrap"
+                  },
+                  {
+                    "name": "AVDOVINLQParams",
+                    "defined_in": "libavutil/dovi_meta.h",
+                    "scope": "wrap"
+                  },
+                  {
+                    "name": "AVDOVIReshapingCurve",
+                    "defined_in": "libavutil/dovi_meta.h",
+                    "scope": "wrap"
+                  }
+                ],
+                "symbols": []
+              },
+              "fallback": [],
+              "back_fill": [],
+              "generates": [],
+              "field_anchors": [
+                "vdr_rpu_id",
+                "mapping_color_space",
+                "mapping_chroma_format_idc",
+                "nlq_method_idc",
+                "num_x_partitions",
+                "num_y_partitions",
+                "nlq",
+                "nlq_pivots",
+                "curves"
+              ]
+            },
+            {
+              "name": "AVDOVIDmData",
+              "defined_in": "libavutil/dovi_meta.h",
+              "kind": "type",
+              "source_kind": "struct",
+              "layer": 2,
+              "loc": 14,
+              "deps": {
+                "types": [
+                  {
+                    "name": "AVDOVIDmLevel1",
+                    "defined_in": "libavutil/dovi_meta.h",
+                    "scope": "wrap"
+                  },
+                  {
+                    "name": "AVDOVIDmLevel10",
+                    "defined_in": "libavutil/dovi_meta.h",
+                    "scope": "wrap"
+                  },
+                  {
+                    "name": "AVDOVIDmLevel11",
+                    "defined_in": "libavutil/dovi_meta.h",
+                    "scope": "wrap"
+                  },
+                  {
+                    "name": "AVDOVIDmLevel2",
+                    "defined_in": "libavutil/dovi_meta.h",
+                    "scope": "wrap"
+                  },
+                  {
+                    "name": "AVDOVIDmLevel254",
+                    "defined_in": "libavutil/dovi_meta.h",
+                    "scope": "wrap"
+                  },
+                  {
+                    "name": "AVDOVIDmLevel255",
+                    "defined_in": "libavutil/dovi_meta.h",
+                    "scope": "wrap"
+                  },
+                  {
+                    "name": "AVDOVIDmLevel3",
+                    "defined_in": "libavutil/dovi_meta.h",
+                    "scope": "wrap"
+                  },
+                  {
+                    "name": "AVDOVIDmLevel4",
+                    "defined_in": "libavutil/dovi_meta.h",
+                    "scope": "wrap"
+                  },
+                  {
+                    "name": "AVDOVIDmLevel5",
+                    "defined_in": "libavutil/dovi_meta.h",
+                    "scope": "wrap"
+                  },
+                  {
+                    "name": "AVDOVIDmLevel6",
+                    "defined_in": "libavutil/dovi_meta.h",
+                    "scope": "wrap"
+                  },
+                  {
+                    "name": "AVDOVIDmLevel8",
+                    "defined_in": "libavutil/dovi_meta.h",
+                    "scope": "wrap"
+                  },
+                  {
+                    "name": "AVDOVIDmLevel9",
+                    "defined_in": "libavutil/dovi_meta.h",
+                    "scope": "wrap"
+                  }
+                ],
+                "symbols": []
+              },
+              "fallback": [],
+              "back_fill": [],
+              "generates": [],
+              "field_anchors": [
+                "(unknown field)",
+                "level",
+                "(unknown field).l8",
+                "(unknown field).l9",
+                "(unknown field).l10",
+                "(unknown field).l3",
+                "(unknown field).l11",
+                "(unknown field).l254",
+                "(unknown field).l1",
+                "(unknown field).l2",
+                "(unknown field).l4",
+                "(unknown field).l5",
+                "(unknown field).l6",
+                "(unknown field).l255"
+              ]
+            }
+          ]
+        },
+        {
+          "kind": "type",
+          "source_file": "libavutil/hdr_dynamic_metadata.h",
+          "items": [
+            {
+              "name": "AVHDRPlusColorTransformParams",
+              "defined_in": "libavutil/hdr_dynamic_metadata.h",
+              "kind": "type",
+              "source_kind": "struct",
+              "layer": 2,
+              "loc": 23,
+              "deps": {
+                "types": [
+                  {
+                    "name": "AVHDRPlusOverlapProcessOption",
+                    "defined_in": "libavutil/hdr_dynamic_metadata.h",
+                    "scope": "wrap"
+                  },
+                  {
+                    "name": "AVHDRPlusPercentile",
+                    "defined_in": "libavutil/hdr_dynamic_metadata.h",
+                    "scope": "wrap"
+                  },
+                  {
+                    "name": "AVRational",
+                    "defined_in": "libavutil/rational.h",
+                    "scope": "wrap"
+                  }
+                ],
+                "symbols": []
+              },
+              "fallback": [],
+              "back_fill": [],
+              "generates": [],
+              "field_anchors": [
+                "average_maxrgb",
+                "color_saturation_mapping_flag",
+                "window_upper_left_corner_x",
+                "window_upper_left_corner_y",
+                "window_lower_right_corner_x",
+                "window_lower_right_corner_y",
+                "center_of_ellipse_x",
+                "center_of_ellipse_y",
+                "rotation_angle",
+                "semimajor_axis_internal_ellipse",
+                "semimajor_axis_external_ellipse",
+                "semiminor_axis_external_ellipse",
+                "overlap_process_option",
+                "maxscl",
+                "num_distribution_maxrgb_percentiles",
+                "fraction_bright_pixels",
+                "knee_point_x",
+                "knee_point_y",
+                "num_bezier_curve_anchors",
+                "bezier_curve_anchors",
+                "color_saturation_weight",
+                "tone_mapping_flag",
+                "distribution_maxrgb"
+              ]
+            }
+          ]
+        },
+        {
+          "kind": "type",
+          "source_file": "libavutil/hdr_dynamic_vivid_metadata.h",
+          "items": [
+            {
+              "name": "AVHDRVividColorToneMappingParams",
+              "defined_in": "libavutil/hdr_dynamic_vivid_metadata.h",
+              "kind": "type",
+              "source_kind": "struct",
+              "layer": 2,
+              "loc": 15,
+              "deps": {
+                "types": [
+                  {
+                    "name": "AVHDRVivid3SplineParams",
+                    "defined_in": "libavutil/hdr_dynamic_vivid_metadata.h",
+                    "scope": "wrap"
+                  },
+                  {
+                    "name": "AVRational",
+                    "defined_in": "libavutil/rational.h",
+                    "scope": "wrap"
+                  }
+                ],
+                "symbols": []
+              },
+              "fallback": [],
+              "back_fill": [],
+              "generates": [],
+              "field_anchors": [
+                "targeted_system_display_maximum_luminance",
+                "base_enable_flag",
+                "base_param_m_p",
+                "base_param_m_m",
+                "base_param_m_a",
+                "base_param_m_b",
+                "base_param_m_n",
+                "base_param_k1",
+                "base_param_k2",
+                "base_param_k3",
+                "base_param_Delta_enable_mode",
+                "base_param_Delta",
+                "three_spline",
+                "three_Spline_num",
+                "three_Spline_enable_flag"
+              ]
+            },
+            {
+              "name": "AVIAMFAudioElement",
+              "defined_in": "libavutil/iamf.h",
+              "kind": "type",
+              "source_kind": "struct",
+              "layer": 2,
+              "loc": 7,
+              "deps": {
+                "types": [
+                  {
+                    "name": "AVClass",
+                    "defined_in": "libavutil/log.h",
+                    "scope": "wrap"
+                  },
+                  {
+                    "name": "AVIAMFAudioElementType",
+                    "defined_in": "libavutil/iamf.h",
+                    "scope": "wrap"
+                  },
+                  {
+                    "name": "AVIAMFLayer",
+                    "defined_in": "libavutil/iamf.h",
+                    "scope": "wrap"
+                  },
+                  {
+                    "name": "AVIAMFParamDefinition",
+                    "defined_in": "libavutil/iamf.h",
+                    "scope": "wrap"
+                  }
+                ],
+                "symbols": []
+              },
+              "fallback": [],
+              "back_fill": [],
+              "generates": [],
+              "field_anchors": [
+                "av_class",
+                "demixing_info",
+                "recon_gain_info",
+                "nb_layers",
+                "audio_element_type",
+                "default_w",
+                "layers"
+              ]
+            }
+          ]
+        },
+        {
+          "kind": "type",
+          "source_file": "libavutil/iamf.h",
+          "items": [
+            {
+              "name": "AVIAMFSubmixElement",
+              "defined_in": "libavutil/iamf.h",
+              "kind": "type",
+              "source_kind": "struct",
+              "layer": 2,
+              "loc": 6,
+              "deps": {
+                "types": [
+                  {
+                    "name": "AVClass",
+                    "defined_in": "libavutil/log.h",
+                    "scope": "wrap"
+                  },
+                  {
+                    "name": "AVDictionary",
+                    "defined_in": "libavutil/dict.c",
+                    "scope": "wrap"
+                  },
+                  {
+                    "name": "AVIAMFHeadphonesMode",
+                    "defined_in": "libavutil/iamf.h",
+                    "scope": "wrap"
+                  },
+                  {
+                    "name": "AVIAMFParamDefinition",
+                    "defined_in": "libavutil/iamf.h",
+                    "scope": "wrap"
+                  },
+                  {
+                    "name": "AVRational",
+                    "defined_in": "libavutil/rational.h",
+                    "scope": "wrap"
+                  }
+                ],
+                "symbols": []
+              },
+              "fallback": [],
+              "back_fill": [],
+              "generates": [],
+              "field_anchors": [
+                "av_class",
+                "element_mix_config",
+                "default_mix_gain",
+                "headphones_rendering_mode",
+                "annotations",
+                "audio_element_id"
+              ]
+            },
+            {
+              "name": "AVRawColorParams",
+              "defined_in": "libavutil/raw_color_params.h",
+              "kind": "type",
+              "source_kind": "struct",
+              "layer": 2,
+              "loc": 6,
+              "deps": {
+                "types": [
+                  {
+                    "name": "AVProResRawColorParams",
+                    "defined_in": "libavutil/raw_color_params.h",
+                    "scope": "wrap"
+                  },
+                  {
+                    "name": "AVRational",
+                    "defined_in": "libavutil/rational.h",
+                    "scope": "wrap"
+                  },
+                  {
+                    "name": "AVRawColorParamsType",
+                    "defined_in": "libavutil/raw_color_params.h",
+                    "scope": "wrap"
+                  }
+                ],
+                "symbols": []
+              },
+              "fallback": [],
+              "back_fill": [],
+              "generates": [],
+              "field_anchors": [
+                "type",
+                "codec",
+                "black_level",
+                "white_level",
+                "wb_cct",
+                "codec.prores_raw"
+              ]
+            }
+          ]
+        },
+        {
+          "kind": "symbol",
+          "source_file": null,
+          "items": [
+            {
+              "name": "av_ambient_viewing_environment_alloc",
+              "defined_in": "libavutil/ambient_viewing_environment.c",
+              "kind": "symbol",
+              "source_kind": "function_exported",
+              "layer": 2,
+              "loc": 14,
+              "deps": {
+                "types": [
+                  {
+                    "name": "AVAmbientViewingEnvironment",
+                    "defined_in": "libavutil/ambient_viewing_environment.h",
+                    "scope": "wrap"
+                  }
+                ],
+                "symbols": []
+              },
+              "fallback": [],
+              "back_fill": [],
+              "generates": [],
+              "field_anchors": []
+            },
+            {
+              "name": "av_ambient_viewing_environment_create_side_data",
+              "defined_in": "libavutil/ambient_viewing_environment.c",
+              "kind": "symbol",
+              "source_kind": "function_exported",
+              "layer": 2,
+              "loc": 13,
+              "deps": {
+                "types": [
+                  {
+                    "name": "AVAmbientViewingEnvironment",
+                    "defined_in": "libavutil/ambient_viewing_environment.h",
+                    "scope": "wrap"
+                  },
+                  {
+                    "name": "AVFrame",
+                    "defined_in": "libavutil/frame.h",
+                    "scope": "wrap"
+                  }
+                ],
+                "symbols": []
+              },
+              "fallback": [],
+              "back_fill": [],
+              "generates": [],
+              "field_anchors": []
+            },
+            {
+              "name": "av_dovi_get_color",
+              "defined_in": "libavutil/dovi_meta.h",
+              "kind": "symbol",
+              "source_kind": "function_inline_header",
+              "layer": 2,
+              "loc": 3,
+              "deps": {
+                "types": [
+                  {
+                    "name": "AVDOVIColorMetadata",
+                    "defined_in": "libavutil/dovi_meta.h",
+                    "scope": "wrap"
+                  },
+                  {
+                    "name": "AVDOVIMetadata",
+                    "defined_in": "libavutil/dovi_meta.h",
+                    "scope": "wrap"
+                  }
+                ],
+                "symbols": []
+              },
+              "fallback": [],
+              "back_fill": [],
+              "generates": [],
+              "field_anchors": []
+            },
+            {
+              "name": "av_downmix_info_update_side_data",
+              "defined_in": "libavutil/downmix_info.c",
+              "kind": "symbol",
+              "source_kind": "function_exported",
+              "layer": 2,
+              "loc": 17,
+              "deps": {
+                "types": [
+                  {
+                    "name": "AVDownmixInfo",
+                    "defined_in": "libavutil/downmix_info.h",
+                    "scope": "wrap"
+                  },
+                  {
+                    "name": "AVFrame",
+                    "defined_in": "libavutil/frame.h",
+                    "scope": "wrap"
+                  }
+                ],
+                "symbols": []
+              },
+              "fallback": [],
+              "back_fill": [],
+              "generates": [],
+              "field_anchors": []
+            },
+            {
+              "name": "av_downmix_matrix_alloc",
+              "defined_in": "libavutil/downmix_info.c",
+              "kind": "symbol",
+              "source_kind": "function_exported",
+              "layer": 2,
+              "loc": 31,
+              "deps": {
+                "types": [
+                  {
+                    "name": "AVDownmixMatrix",
+                    "defined_in": "libavutil/downmix_info.h",
+                    "scope": "wrap"
+                  },
+                  {
+                    "name": "AVDownmixType",
+                    "defined_in": "libavutil/downmix_info.h",
+                    "scope": "wrap"
+                  }
+                ],
+                "symbols": []
+              },
+              "fallback": [],
+              "back_fill": [],
+              "generates": [],
+              "field_anchors": []
+            },
+            {
+              "name": "av_downmix_matrix_coeff",
+              "defined_in": "libavutil/downmix_info.h",
+              "kind": "symbol",
+              "source_kind": "function_inline_header",
+              "layer": 2,
+              "loc": 4,
+              "deps": {
+                "types": [
+                  {
+                    "name": "AVDownmixMatrix",
+                    "defined_in": "libavutil/downmix_info.h",
+                    "scope": "wrap"
+                  }
+                ],
+                "symbols": []
+              },
+              "fallback": [],
+              "back_fill": [],
+              "generates": [],
+              "field_anchors": []
+            },
+            {
+              "name": "av_encryption_info_add_side_data",
+              "defined_in": "libavutil/encryption_info.c",
+              "kind": "symbol",
+              "source_kind": "function_exported",
+              "layer": 2,
+              "loc": 35,
+              "deps": {
+                "types": [
+                  {
+                    "name": "AVEncryptionInfo",
+                    "defined_in": "libavutil/encryption_info.h",
+                    "scope": "wrap"
+                  }
+                ],
+                "symbols": []
+              },
+              "fallback": [],
+              "back_fill": [],
+              "generates": [],
+              "field_anchors": []
+            },
+            {
+              "name": "av_encryption_info_alloc",
+              "defined_in": "libavutil/encryption_info.c",
+              "kind": "symbol",
+              "source_kind": "function_exported",
+              "layer": 2,
+              "loc": 22,
+              "deps": {
+                "types": [
+                  {
+                    "name": "AVEncryptionInfo",
+                    "defined_in": "libavutil/encryption_info.h",
+                    "scope": "wrap"
+                  }
+                ],
+                "symbols": []
+              },
+              "fallback": [],
+              "back_fill": [],
+              "generates": [],
+              "field_anchors": []
+            },
+            {
+              "name": "av_encryption_info_clone",
+              "defined_in": "libavutil/encryption_info.c",
+              "kind": "symbol",
+              "source_kind": "function_exported",
+              "layer": 2,
+              "loc": 15,
+              "deps": {
+                "types": [
+                  {
+                    "name": "AVEncryptionInfo",
+                    "defined_in": "libavutil/encryption_info.h",
+                    "scope": "wrap"
+                  }
+                ],
+                "symbols": []
+              },
+              "fallback": [],
+              "back_fill": [],
+              "generates": [],
+              "field_anchors": []
+            },
+            {
+              "name": "av_encryption_info_free",
+              "defined_in": "libavutil/encryption_info.c",
+              "kind": "symbol",
+              "source_kind": "function_exported",
+              "layer": 2,
+              "loc": 8,
+              "deps": {
+                "types": [
+                  {
+                    "name": "AVEncryptionInfo",
+                    "defined_in": "libavutil/encryption_info.h",
+                    "scope": "wrap"
+                  }
+                ],
+                "symbols": []
+              },
+              "fallback": [],
+              "back_fill": [],
+              "generates": [],
+              "field_anchors": []
+            },
+            {
+              "name": "av_encryption_info_get_side_data",
+              "defined_in": "libavutil/encryption_info.c",
+              "kind": "symbol",
+              "source_kind": "function_exported",
+              "layer": 2,
+              "loc": 33,
+              "deps": {
+                "types": [
+                  {
+                    "name": "AVEncryptionInfo",
+                    "defined_in": "libavutil/encryption_info.h",
+                    "scope": "wrap"
+                  }
+                ],
+                "symbols": []
+              },
+              "fallback": [],
+              "back_fill": [],
+              "generates": [],
+              "field_anchors": []
+            },
+            {
+              "name": "av_film_grain_params_alloc",
+              "defined_in": "libavutil/film_grain_params.c",
+              "kind": "symbol",
+              "source_kind": "function_exported",
+              "layer": 2,
+              "loc": 8,
+              "deps": {
+                "types": [
+                  {
+                    "name": "AVFilmGrainParams",
+                    "defined_in": "libavutil/film_grain_params.h",
+                    "scope": "wrap"
+                  }
+                ],
+                "symbols": []
+              },
+              "fallback": [],
+              "back_fill": [],
+              "generates": [],
+              "field_anchors": []
+            },
+            {
+              "name": "av_film_grain_params_create_side_data",
+              "defined_in": "libavutil/film_grain_params.c",
+              "kind": "symbol",
+              "source_kind": "function_exported",
+              "layer": 2,
+              "loc": 18,
+              "deps": {
+                "types": [
+                  {
+                    "name": "AVFilmGrainParams",
+                    "defined_in": "libavutil/film_grain_params.h",
+                    "scope": "wrap"
+                  },
+                  {
+                    "name": "AVFrame",
+                    "defined_in": "libavutil/frame.h",
+                    "scope": "wrap"
+                  }
+                ],
+                "symbols": []
+              },
+              "fallback": [],
+              "back_fill": [],
+              "generates": [],
+              "field_anchors": []
+            },
+            {
+              "name": "av_film_grain_params_select",
+              "defined_in": "libavutil/film_grain_params.c",
+              "kind": "symbol",
+              "source_kind": "function_exported",
+              "layer": 2,
+              "loc": 53,
+              "deps": {
+                "types": [
+                  {
+                    "name": "AVFilmGrainParams",
+                    "defined_in": "libavutil/film_grain_params.h",
+                    "scope": "wrap"
+                  },
+                  {
+                    "name": "AVFrame",
+                    "defined_in": "libavutil/frame.h",
+                    "scope": "wrap"
+                  }
+                ],
+                "symbols": []
+              },
+              "fallback": [],
+              "back_fill": [],
+              "generates": [],
+              "field_anchors": []
+            },
+            {
+              "name": "av_get_detection_bbox",
+              "defined_in": "libavutil/detection_bbox.h",
+              "kind": "symbol",
+              "source_kind": "function_inline_header",
+              "layer": 2,
+              "loc": 5,
+              "deps": {
+                "types": [
+                  {
+                    "name": "AVDetectionBBox",
+                    "defined_in": "libavutil/detection_bbox.h",
+                    "scope": "wrap"
+                  },
+                  {
+                    "name": "AVDetectionBBoxHeader",
+                    "defined_in": "libavutil/detection_bbox.h",
+                    "scope": "wrap"
+                  }
+                ],
+                "symbols": []
+              },
+              "fallback": [],
+              "back_fill": [],
+              "generates": [],
+              "field_anchors": []
+            },
+            {
+              "name": "av_iamf_param_definition_alloc",
+              "defined_in": "libavutil/iamf.c",
+              "kind": "symbol",
+              "source_kind": "function_exported",
+              "layer": 2,
+              "loc": 75,
+              "deps": {
+                "types": [
+                  {
+                    "name": "AVIAMFParamDefinition",
+                    "defined_in": "libavutil/iamf.h",
+                    "scope": "wrap"
+                  },
+                  {
+                    "name": "AVIAMFParamDefinitionType",
+                    "defined_in": "libavutil/iamf.h",
+                    "scope": "wrap"
+                  }
+                ],
+                "symbols": []
+              },
+              "fallback": [],
+              "back_fill": [],
+              "generates": [],
+              "field_anchors": []
+            },
+            {
+              "name": "av_iamf_param_definition_get_subblock",
+              "defined_in": "libavutil/iamf.h",
+              "kind": "symbol",
+              "source_kind": "function_inline_header",
+              "layer": 2,
+              "loc": 4,
+              "deps": {
+                "types": [
+                  {
+                    "name": "AVIAMFParamDefinition",
+                    "defined_in": "libavutil/iamf.h",
+                    "scope": "wrap"
+                  }
+                ],
+                "symbols": []
+              },
+              "fallback": [],
+              "back_fill": [],
+              "generates": [],
+              "field_anchors": []
+            },
+            {
+              "name": "av_mastering_display_metadata_alloc",
+              "defined_in": "libavutil/mastering_display_metadata.c",
+              "kind": "symbol",
+              "source_kind": "function_exported",
+              "layer": 2,
+              "loc": 3,
+              "deps": {
+                "types": [
+                  {
+                    "name": "AVMasteringDisplayMetadata",
+                    "defined_in": "libavutil/mastering_display_metadata.h",
+                    "scope": "wrap"
+                  }
+                ],
+                "symbols": []
+              },
+              "fallback": [],
+              "back_fill": [],
+              "generates": [],
+              "field_anchors": []
+            },
+            {
+              "name": "av_mastering_display_metadata_alloc_size",
+              "defined_in": "libavutil/mastering_display_metadata.c",
+              "kind": "symbol",
+              "source_kind": "function_exported",
+              "layer": 2,
+              "loc": 13,
+              "deps": {
+                "types": [
+                  {
+                    "name": "AVMasteringDisplayMetadata",
+                    "defined_in": "libavutil/mastering_display_metadata.h",
+                    "scope": "wrap"
+                  }
+                ],
+                "symbols": []
+              },
+              "fallback": [],
+              "back_fill": [],
+              "generates": [],
+              "field_anchors": []
+            },
+            {
+              "name": "av_mastering_display_metadata_create_side_data",
+              "defined_in": "libavutil/mastering_display_metadata.c",
+              "kind": "symbol",
+              "source_kind": "function_exported",
+              "layer": 2,
+              "loc": 12,
+              "deps": {
+                "types": [
+                  {
+                    "name": "AVFrame",
+                    "defined_in": "libavutil/frame.h",
+                    "scope": "wrap"
+                  },
+                  {
+                    "name": "AVMasteringDisplayMetadata",
+                    "defined_in": "libavutil/mastering_display_metadata.h",
+                    "scope": "wrap"
+                  }
+                ],
+                "symbols": []
+              },
+              "fallback": [],
+              "back_fill": [],
+              "generates": [],
+              "field_anchors": []
+            },
+            {
+              "name": "av_spherical_alloc",
+              "defined_in": "libavutil/spherical.c",
+              "kind": "symbol",
+              "source_kind": "function_exported",
+              "layer": 2,
+              "loc": 13,
+              "deps": {
+                "types": [
+                  {
+                    "name": "AVSphericalMapping",
+                    "defined_in": "libavutil/spherical.h",
+                    "scope": "wrap"
+                  }
+                ],
+                "symbols": []
+              },
+              "fallback": [],
+              "back_fill": [],
+              "generates": [],
+              "field_anchors": []
+            },
+            {
+              "name": "av_spherical_tile_bounds",
+              "defined_in": "libavutil/spherical.c",
+              "kind": "symbol",
+              "source_kind": "function_exported",
+              "layer": 2,
+              "loc": 13,
+              "deps": {
+                "types": [
+                  {
+                    "name": "AVSphericalMapping",
+                    "defined_in": "libavutil/spherical.h",
+                    "scope": "wrap"
+                  }
+                ],
+                "symbols": []
+              },
+              "fallback": [],
+              "back_fill": [],
+              "generates": [],
+              "field_anchors": []
+            },
+            {
+              "name": "av_stereo3d_alloc",
+              "defined_in": "libavutil/stereo3d.c",
+              "kind": "symbol",
+              "source_kind": "function_exported",
+              "layer": 2,
+              "loc": 3,
+              "deps": {
+                "types": [
+                  {
+                    "name": "AVStereo3D",
+                    "defined_in": "libavutil/stereo3d.h",
+                    "scope": "wrap"
+                  }
+                ],
+                "symbols": []
+              },
+              "fallback": [],
+              "back_fill": [],
+              "generates": [],
+              "field_anchors": []
+            },
+            {
+              "name": "av_stereo3d_alloc_size",
+              "defined_in": "libavutil/stereo3d.c",
+              "kind": "symbol",
+              "source_kind": "function_exported",
+              "layer": 2,
+              "loc": 13,
+              "deps": {
+                "types": [
+                  {
+                    "name": "AVStereo3D",
+                    "defined_in": "libavutil/stereo3d.h",
+                    "scope": "wrap"
+                  }
+                ],
+                "symbols": []
+              },
+              "fallback": [],
+              "back_fill": [],
+              "generates": [],
+              "field_anchors": []
+            },
+            {
+              "name": "av_stereo3d_create_side_data",
+              "defined_in": "libavutil/stereo3d.c",
+              "kind": "symbol",
+              "source_kind": "function_exported",
+              "layer": 2,
+              "loc": 12,
+              "deps": {
+                "types": [
+                  {
+                    "name": "AVFrame",
+                    "defined_in": "libavutil/frame.h",
+                    "scope": "wrap"
+                  },
+                  {
+                    "name": "AVStereo3D",
+                    "defined_in": "libavutil/stereo3d.h",
+                    "scope": "wrap"
+                  }
+                ],
+                "symbols": []
+              },
+              "fallback": [],
+              "back_fill": [],
+              "generates": [],
+              "field_anchors": []
+            }
+          ]
+        },
+        {
+          "kind": "symbol",
+          "source_file": null,
+          "items": [
+            {
+              "name": "av_timecode_get_smpte_from_framenum",
+              "defined_in": "libavutil/timecode.c",
+              "kind": "symbol",
+              "source_kind": "function_exported",
+              "layer": 2,
+              "loc": 14,
+              "deps": {
+                "types": [
+                  {
+                    "name": "AVTimecode",
+                    "defined_in": "libavutil/timecode.h",
+                    "scope": "wrap"
+                  }
+                ],
+                "symbols": []
+              },
+              "fallback": [],
+              "back_fill": [],
+              "generates": [],
+              "field_anchors": []
+            },
+            {
+              "name": "av_timecode_init",
+              "defined_in": "libavutil/timecode.c",
+              "kind": "symbol",
+              "source_kind": "function_exported",
+              "layer": 2,
+              "loc": 8,
+              "deps": {
+                "types": [
+                  {
+                    "name": "AVRational",
+                    "defined_in": "libavutil/rational.h",
+                    "scope": "wrap"
+                  },
+                  {
+                    "name": "AVTimecode",
+                    "defined_in": "libavutil/timecode.h",
+                    "scope": "wrap"
+                  }
+                ],
+                "symbols": []
+              },
+              "fallback": [],
+              "back_fill": [],
+              "generates": [],
+              "field_anchors": []
+            },
+            {
+              "name": "av_timecode_init_from_components",
+              "defined_in": "libavutil/timecode.c",
+              "kind": "symbol",
+              "source_kind": "function_exported",
+              "layer": 2,
+              "loc": 28,
+              "deps": {
+                "types": [
+                  {
+                    "name": "AVRational",
+                    "defined_in": "libavutil/rational.h",
+                    "scope": "wrap"
+                  },
+                  {
+                    "name": "AVTimecode",
+                    "defined_in": "libavutil/timecode.h",
+                    "scope": "wrap"
+                  }
+                ],
+                "symbols": []
+              },
+              "fallback": [],
+              "back_fill": [],
+              "generates": [],
+              "field_anchors": []
+            },
+            {
+              "name": "av_timecode_init_from_string",
+              "defined_in": "libavutil/timecode.c",
+              "kind": "symbol",
+              "source_kind": "function_exported",
+              "layer": 2,
+              "loc": 13,
+              "deps": {
+                "types": [
+                  {
+                    "name": "AVRational",
+                    "defined_in": "libavutil/rational.h",
+                    "scope": "wrap"
+                  },
+                  {
+                    "name": "AVTimecode",
+                    "defined_in": "libavutil/timecode.h",
+                    "scope": "wrap"
+                  }
+                ],
+                "symbols": []
+              },
+              "fallback": [],
+              "back_fill": [],
+              "generates": [],
+              "field_anchors": []
+            },
+            {
+              "name": "av_timecode_make_string",
+              "defined_in": "libavutil/timecode.c",
+              "kind": "symbol",
+              "source_kind": "function_exported",
+              "layer": 2,
+              "loc": 25,
+              "deps": {
+                "types": [
+                  {
+                    "name": "AVTimecode",
+                    "defined_in": "libavutil/timecode.h",
+                    "scope": "wrap"
+                  }
+                ],
+                "symbols": []
+              },
+              "fallback": [],
+              "back_fill": [],
+              "generates": [],
+              "field_anchors": []
+            },
+            {
+              "name": "av_video_enc_params_alloc",
+              "defined_in": "libavutil/video_enc_params.c",
+              "kind": "symbol",
+              "source_kind": "function_exported",
+              "layer": 2,
+              "loc": 27,
+              "deps": {
+                "types": [
+                  {
+                    "name": "AVVideoEncParams",
+                    "defined_in": "libavutil/video_enc_params.h",
+                    "scope": "wrap"
+                  },
+                  {
+                    "name": "AVVideoEncParamsType",
+                    "defined_in": "libavutil/video_enc_params.h",
+                    "scope": "wrap"
+                  }
+                ],
+                "symbols": []
+              },
+              "fallback": [],
+              "back_fill": [],
+              "generates": [],
+              "field_anchors": []
+            },
+            {
+              "name": "av_video_enc_params_block",
+              "defined_in": "libavutil/video_enc_params.h",
+              "kind": "symbol",
+              "source_kind": "function_inline_header",
+              "layer": 2,
+              "loc": 5,
+              "deps": {
+                "types": [
+                  {
+                    "name": "AVVideoBlockParams",
+                    "defined_in": "libavutil/video_enc_params.h",
+                    "scope": "wrap"
+                  },
+                  {
+                    "name": "AVVideoEncParams",
+                    "defined_in": "libavutil/video_enc_params.h",
+                    "scope": "wrap"
+                  }
+                ],
+                "symbols": []
+              },
+              "fallback": [],
+              "back_fill": [],
+              "generates": [],
+              "field_anchors": []
+            },
+            {
+              "name": "av_video_enc_params_create_side_data",
+              "defined_in": "libavutil/video_enc_params.c",
+              "kind": "symbol",
+              "source_kind": "function_exported",
+              "layer": 2,
+              "loc": 21,
+              "deps": {
+                "types": [
+                  {
+                    "name": "AVFrame",
+                    "defined_in": "libavutil/frame.h",
+                    "scope": "wrap"
+                  },
+                  {
+                    "name": "AVVideoEncParams",
+                    "defined_in": "libavutil/video_enc_params.h",
+                    "scope": "wrap"
+                  },
+                  {
+                    "name": "AVVideoEncParamsType",
+                    "defined_in": "libavutil/video_enc_params.h",
+                    "scope": "wrap"
+                  }
+                ],
+                "symbols": []
+              },
+              "fallback": [],
+              "back_fill": [],
+              "generates": [],
+              "field_anchors": []
+            },
+            {
+              "name": "av_video_hint_alloc",
+              "defined_in": "libavutil/video_hint.c",
+              "kind": "symbol",
+              "source_kind": "function_exported",
+              "layer": 2,
+              "loc": 26,
+              "deps": {
+                "types": [
+                  {
+                    "name": "AVVideoHint",
+                    "defined_in": "libavutil/video_hint.h",
+                    "scope": "wrap"
+                  }
+                ],
+                "symbols": []
+              },
+              "fallback": [],
+              "back_fill": [],
+              "generates": [],
+              "field_anchors": []
+            },
+            {
+              "name": "av_video_hint_create_side_data",
+              "defined_in": "libavutil/video_hint.c",
+              "kind": "symbol",
+              "source_kind": "function_exported",
+              "layer": 2,
+              "loc": 22,
+              "deps": {
+                "types": [
+                  {
+                    "name": "AVFrame",
+                    "defined_in": "libavutil/frame.h",
+                    "scope": "wrap"
+                  },
+                  {
+                    "name": "AVVideoHint",
+                    "defined_in": "libavutil/video_hint.h",
+                    "scope": "wrap"
+                  }
+                ],
+                "symbols": []
+              },
+              "fallback": [],
+              "back_fill": [],
+              "generates": [],
+              "field_anchors": []
+            },
+            {
+              "name": "av_video_hint_get_rect",
+              "defined_in": "libavutil/video_hint.h",
+              "kind": "symbol",
+              "source_kind": "function_inline_header",
+              "layer": 2,
+              "loc": 3,
+              "deps": {
+                "types": [
+                  {
+                    "name": "AVVideoHint",
+                    "defined_in": "libavutil/video_hint.h",
+                    "scope": "wrap"
+                  },
+                  {
+                    "name": "AVVideoRect",
+                    "defined_in": "libavutil/video_hint.h",
+                    "scope": "wrap"
+                  }
+                ],
+                "symbols": []
+              },
+              "fallback": [],
+              "back_fill": [],
+              "generates": [],
+              "field_anchors": []
+            },
+            {
+              "name": "av_video_hint_rects",
+              "defined_in": "libavutil/video_hint.h",
+              "kind": "symbol",
+              "source_kind": "function_inline_header",
+              "layer": 2,
+              "loc": 3,
+              "deps": {
+                "types": [
+                  {
+                    "name": "AVVideoHint",
+                    "defined_in": "libavutil/video_hint.h",
+                    "scope": "wrap"
+                  },
+                  {
+                    "name": "AVVideoRect",
+                    "defined_in": "libavutil/video_hint.h",
+                    "scope": "wrap"
+                  }
+                ],
+                "symbols": []
+              },
+              "fallback": [],
+              "back_fill": [],
+              "generates": [],
+              "field_anchors": []
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "unit_count": 11,
+      "batches": [
+        {
+          "kind": "type",
+          "source_file": "libavutil/hdr_dynamic_metadata.h",
+          "items": [
+            {
+              "name": "AVDynamicHDRPlus",
+              "defined_in": "libavutil/hdr_dynamic_metadata.h",
+              "kind": "type",
+              "source_kind": "struct",
+              "layer": 3,
+              "loc": 13,
+              "deps": {
+                "types": [
+                  {
+                    "name": "AVHDRPlusColorTransformParams",
+                    "defined_in": "libavutil/hdr_dynamic_metadata.h",
+                    "scope": "wrap"
+                  },
+                  {
+                    "name": "AVRational",
+                    "defined_in": "libavutil/rational.h",
+                    "scope": "wrap"
+                  }
+                ],
+                "symbols": []
+              },
+              "fallback": [],
+              "back_fill": [],
+              "generates": [],
+              "field_anchors": [
+                "params",
+                "num_windows",
+                "targeted_system_display_maximum_luminance",
+                "application_version",
+                "num_rows_targeted_system_display_actual_peak_luminance",
+                "num_cols_targeted_system_display_actual_peak_luminance",
+                "targeted_system_display_actual_peak_luminance",
+                "num_rows_mastering_display_actual_peak_luminance",
+                "num_cols_mastering_display_actual_peak_luminance",
+                "mastering_display_actual_peak_luminance",
+                "itu_t_t35_country_code",
+                "mastering_display_actual_peak_luminance_flag",
+                "targeted_system_display_actual_peak_luminance_flag"
+              ]
+            },
+            {
+              "name": "AVHDRVividColorTransformParams",
+              "defined_in": "libavutil/hdr_dynamic_vivid_metadata.h",
+              "kind": "type",
+              "source_kind": "struct",
+              "layer": 3,
+              "loc": 10,
+              "deps": {
+                "types": [
+                  {
+                    "name": "AVHDRVividColorToneMappingParams",
+                    "defined_in": "libavutil/hdr_dynamic_vivid_metadata.h",
+                    "scope": "wrap"
+                  },
+                  {
+                    "name": "AVRational",
+                    "defined_in": "libavutil/rational.h",
+                    "scope": "wrap"
+                  }
+                ],
+                "symbols": []
+              },
+              "fallback": [],
+              "back_fill": [],
+              "generates": [],
+              "field_anchors": [
+                "minimum_maxrgb",
+                "average_maxrgb",
+                "variance_maxrgb",
+                "maximum_maxrgb",
+                "tone_mapping_mode_flag",
+                "tone_mapping_param_num",
+                "tm_params",
+                "color_saturation_mapping_flag",
+                "color_saturation_num",
+                "color_saturation_gain"
+              ]
+            }
+          ]
+        },
+        {
+          "kind": "type",
+          "source_file": "libavutil/iamf.h",
+          "items": [
+            {
+              "name": "AVIAMFSubmix",
+              "defined_in": "libavutil/iamf.h",
+              "kind": "type",
+              "source_kind": "struct",
+              "layer": 3,
+              "loc": 7,
+              "deps": {
+                "types": [
+                  {
+                    "name": "AVClass",
+                    "defined_in": "libavutil/log.h",
+                    "scope": "wrap"
+                  },
+                  {
+                    "name": "AVIAMFParamDefinition",
+                    "defined_in": "libavutil/iamf.h",
+                    "scope": "wrap"
+                  },
+                  {
+                    "name": "AVIAMFSubmixElement",
+                    "defined_in": "libavutil/iamf.h",
+                    "scope": "wrap"
+                  },
+                  {
+                    "name": "AVIAMFSubmixLayout",
+                    "defined_in": "libavutil/iamf.h",
+                    "scope": "wrap"
+                  },
+                  {
+                    "name": "AVRational",
+                    "defined_in": "libavutil/rational.h",
+                    "scope": "wrap"
+                  }
+                ],
+                "symbols": []
+              },
+              "fallback": [],
+              "back_fill": [],
+              "generates": [],
+              "field_anchors": [
+                "av_class",
+                "output_mix_config",
+                "nb_elements",
+                "nb_layouts",
+                "default_mix_gain",
+                "layouts",
+                "elements"
+              ]
+            }
+          ]
+        },
+        {
+          "kind": "symbol",
+          "source_file": null,
+          "items": [
+            {
+              "name": "av_dovi_find_level",
+              "defined_in": "libavutil/dovi_meta.c",
+              "kind": "symbol",
+              "source_kind": "function_exported",
+              "layer": 3,
+              "loc": 9,
+              "deps": {
+                "types": [
+                  {
+                    "name": "AVDOVIDmData",
+                    "defined_in": "libavutil/dovi_meta.h",
+                    "scope": "wrap"
+                  },
+                  {
+                    "name": "AVDOVIMetadata",
+                    "defined_in": "libavutil/dovi_meta.h",
+                    "scope": "wrap"
+                  }
+                ],
+                "symbols": []
+              },
+              "fallback": [],
+              "back_fill": [],
+              "generates": [],
+              "field_anchors": []
+            },
+            {
+              "name": "av_dovi_get_ext",
+              "defined_in": "libavutil/dovi_meta.h",
+              "kind": "symbol",
+              "source_kind": "function_inline_header",
+              "layer": 3,
+              "loc": 4,
+              "deps": {
+                "types": [
+                  {
+                    "name": "AVDOVIDmData",
+                    "defined_in": "libavutil/dovi_meta.h",
+                    "scope": "wrap"
+                  },
+                  {
+                    "name": "AVDOVIMetadata",
+                    "defined_in": "libavutil/dovi_meta.h",
+                    "scope": "wrap"
+                  }
+                ],
+                "symbols": []
+              },
+              "fallback": [],
+              "back_fill": [],
+              "generates": [],
+              "field_anchors": []
+            },
+            {
+              "name": "av_dovi_get_mapping",
+              "defined_in": "libavutil/dovi_meta.h",
+              "kind": "symbol",
+              "source_kind": "function_inline_header",
+              "layer": 3,
+              "loc": 3,
+              "deps": {
+                "types": [
+                  {
+                    "name": "AVDOVIDataMapping",
+                    "defined_in": "libavutil/dovi_meta.h",
+                    "scope": "wrap"
+                  },
+                  {
+                    "name": "AVDOVIMetadata",
+                    "defined_in": "libavutil/dovi_meta.h",
+                    "scope": "wrap"
+                  }
+                ],
+                "symbols": []
+              },
+              "fallback": [],
+              "back_fill": [],
+              "generates": [],
+              "field_anchors": []
+            },
+            {
+              "name": "av_iamf_audio_element_add_layer",
+              "defined_in": "libavutil/iamf.c",
+              "kind": "symbol",
+              "source_kind": "function_exported",
+              "layer": 3,
+              "loc": 1,
+              "deps": {
+                "types": [
+                  {
+                    "name": "AVIAMFAudioElement",
+                    "defined_in": "libavutil/iamf.h",
+                    "scope": "wrap"
+                  },
+                  {
+                    "name": "AVIAMFLayer",
+                    "defined_in": "libavutil/iamf.h",
+                    "scope": "wrap"
+                  }
+                ],
+                "symbols": []
+              },
+              "fallback": [],
+              "back_fill": [],
+              "generates": [],
+              "field_anchors": []
+            },
+            {
+              "name": "av_iamf_audio_element_alloc",
+              "defined_in": "libavutil/iamf.c",
+              "kind": "symbol",
+              "source_kind": "function_exported",
+              "layer": 3,
+              "loc": 10,
+              "deps": {
+                "types": [
+                  {
+                    "name": "AVIAMFAudioElement",
+                    "defined_in": "libavutil/iamf.h",
+                    "scope": "wrap"
+                  }
+                ],
+                "symbols": []
+              },
+              "fallback": [],
+              "back_fill": [],
+              "generates": [],
+              "field_anchors": []
+            },
+            {
+              "name": "av_iamf_audio_element_free",
+              "defined_in": "libavutil/iamf.c",
+              "kind": "symbol",
+              "source_kind": "function_exported",
+              "layer": 3,
+              "loc": 18,
+              "deps": {
+                "types": [
+                  {
+                    "name": "AVIAMFAudioElement",
+                    "defined_in": "libavutil/iamf.h",
+                    "scope": "wrap"
+                  }
+                ],
+                "symbols": []
+              },
+              "fallback": [],
+              "back_fill": [],
+              "generates": [],
+              "field_anchors": []
+            },
+            {
+              "name": "av_raw_color_params_alloc",
+              "defined_in": "libavutil/raw_color_params.c",
+              "kind": "symbol",
+              "source_kind": "function_exported",
+              "layer": 3,
+              "loc": 10,
+              "deps": {
+                "types": [
+                  {
+                    "name": "AVRawColorParams",
+                    "defined_in": "libavutil/raw_color_params.h",
+                    "scope": "wrap"
+                  }
+                ],
+                "symbols": []
+              },
+              "fallback": [],
+              "back_fill": [],
+              "generates": [],
+              "field_anchors": []
+            },
+            {
+              "name": "av_raw_color_params_create_side_data",
+              "defined_in": "libavutil/raw_color_params.c",
+              "kind": "symbol",
+              "source_kind": "function_exported",
+              "layer": 3,
+              "loc": 11,
+              "deps": {
+                "types": [
+                  {
+                    "name": "AVFrame",
+                    "defined_in": "libavutil/frame.h",
+                    "scope": "wrap"
+                  },
+                  {
+                    "name": "AVRawColorParams",
+                    "defined_in": "libavutil/raw_color_params.h",
+                    "scope": "wrap"
+                  }
+                ],
+                "symbols": []
+              },
+              "fallback": [],
+              "back_fill": [],
+              "generates": [],
+              "field_anchors": []
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "unit_count": 8,
+      "batches": [
+        {
+          "kind": "type",
+          "source_file": "libavutil/hdr_dynamic_vivid_metadata.h",
+          "items": [
+            {
+              "name": "AVDynamicHDRVivid",
+              "defined_in": "libavutil/hdr_dynamic_vivid_metadata.h",
+              "kind": "type",
+              "source_kind": "struct",
+              "layer": 4,
+              "loc": 3,
+              "deps": {
+                "types": [
+                  {
+                    "name": "AVHDRVividColorTransformParams",
+                    "defined_in": "libavutil/hdr_dynamic_vivid_metadata.h",
+                    "scope": "wrap"
+                  }
+                ],
+                "symbols": []
+              },
+              "fallback": [],
+              "back_fill": [],
+              "generates": [],
+              "field_anchors": [
+                "params",
+                "num_windows",
+                "system_start_code"
+              ]
+            },
+            {
+              "name": "AVIAMFMixPresentation",
+              "defined_in": "libavutil/iamf.h",
+              "kind": "type",
+              "source_kind": "struct",
+              "layer": 4,
+              "loc": 4,
+              "deps": {
+                "types": [
+                  {
+                    "name": "AVClass",
+                    "defined_in": "libavutil/log.h",
+                    "scope": "wrap"
+                  },
+                  {
+                    "name": "AVDictionary",
+                    "defined_in": "libavutil/dict.c",
+                    "scope": "wrap"
+                  },
+                  {
+                    "name": "AVIAMFSubmix",
+                    "defined_in": "libavutil/iamf.h",
+                    "scope": "wrap"
+                  }
+                ],
+                "symbols": []
+              },
+              "fallback": [],
+              "back_fill": [],
+              "generates": [],
+              "field_anchors": [
+                "av_class",
+                "nb_submixes",
+                "annotations",
+                "submixes"
+              ]
+            }
+          ]
+        },
+        {
+          "kind": "symbol",
+          "source_file": null,
+          "items": [
+            {
+              "name": "av_dynamic_hdr_plus_alloc",
+              "defined_in": "libavutil/hdr_dynamic_metadata.c",
+              "kind": "symbol",
+              "source_kind": "function_exported",
+              "layer": 4,
+              "loc": 8,
+              "deps": {
+                "types": [
+                  {
+                    "name": "AVDynamicHDRPlus",
+                    "defined_in": "libavutil/hdr_dynamic_metadata.h",
+                    "scope": "wrap"
+                  }
+                ],
+                "symbols": []
+              },
+              "fallback": [],
+              "back_fill": [],
+              "generates": [],
+              "field_anchors": []
+            },
+            {
+              "name": "av_dynamic_hdr_plus_create_side_data",
+              "defined_in": "libavutil/hdr_dynamic_metadata.c",
+              "kind": "symbol",
+              "source_kind": "function_exported",
+              "layer": 4,
+              "loc": 11,
+              "deps": {
+                "types": [
+                  {
+                    "name": "AVDynamicHDRPlus",
+                    "defined_in": "libavutil/hdr_dynamic_metadata.h",
+                    "scope": "wrap"
+                  },
+                  {
+                    "name": "AVFrame",
+                    "defined_in": "libavutil/frame.h",
+                    "scope": "wrap"
+                  }
+                ],
+                "symbols": []
+              },
+              "fallback": [],
+              "back_fill": [],
+              "generates": [],
+              "field_anchors": []
+            },
+            {
+              "name": "av_dynamic_hdr_plus_from_t35",
+              "defined_in": "libavutil/hdr_dynamic_metadata.c",
+              "kind": "symbol",
+              "source_kind": "function_exported",
+              "layer": 4,
+              "loc": 175,
+              "deps": {
+                "types": [
+                  {
+                    "name": "AVDynamicHDRPlus",
+                    "defined_in": "libavutil/hdr_dynamic_metadata.h",
+                    "scope": "wrap"
+                  }
+                ],
+                "symbols": []
+              },
+              "fallback": [],
+              "back_fill": [],
+              "generates": [],
+              "field_anchors": []
+            },
+            {
+              "name": "av_dynamic_hdr_plus_to_t35",
+              "defined_in": "libavutil/hdr_dynamic_metadata.c",
+              "kind": "symbol",
+              "source_kind": "function_exported",
+              "layer": 4,
+              "loc": 158,
+              "deps": {
+                "types": [
+                  {
+                    "name": "AVDynamicHDRPlus",
+                    "defined_in": "libavutil/hdr_dynamic_metadata.h",
+                    "scope": "wrap"
+                  }
+                ],
+                "symbols": []
+              },
+              "fallback": [],
+              "back_fill": [],
+              "generates": [],
+              "field_anchors": []
+            },
+            {
+              "name": "av_iamf_submix_add_element",
+              "defined_in": "libavutil/iamf.c",
+              "kind": "symbol",
+              "source_kind": "function_exported",
+              "layer": 4,
+              "loc": 1,
+              "deps": {
+                "types": [
+                  {
+                    "name": "AVIAMFSubmix",
+                    "defined_in": "libavutil/iamf.h",
+                    "scope": "wrap"
+                  },
+                  {
+                    "name": "AVIAMFSubmixElement",
+                    "defined_in": "libavutil/iamf.h",
+                    "scope": "wrap"
+                  }
+                ],
+                "symbols": []
+              },
+              "fallback": [],
+              "back_fill": [],
+              "generates": [],
+              "field_anchors": []
+            },
+            {
+              "name": "av_iamf_submix_add_layout",
+              "defined_in": "libavutil/iamf.c",
+              "kind": "symbol",
+              "source_kind": "function_exported",
+              "layer": 4,
+              "loc": 1,
+              "deps": {
+                "types": [
+                  {
+                    "name": "AVIAMFSubmix",
+                    "defined_in": "libavutil/iamf.h",
+                    "scope": "wrap"
+                  },
+                  {
+                    "name": "AVIAMFSubmixLayout",
+                    "defined_in": "libavutil/iamf.h",
+                    "scope": "wrap"
+                  }
+                ],
+                "symbols": []
+              },
+              "fallback": [],
+              "back_fill": [],
+              "generates": [],
+              "field_anchors": []
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "unit_count": 5,
+      "batches": [
+        {
+          "kind": "symbol",
+          "source_file": null,
+          "items": [
+            {
+              "name": "av_dynamic_hdr_vivid_alloc",
+              "defined_in": "libavutil/hdr_dynamic_vivid_metadata.c",
+              "kind": "symbol",
+              "source_kind": "function_exported",
+              "layer": 5,
+              "loc": 8,
+              "deps": {
+                "types": [
+                  {
+                    "name": "AVDynamicHDRVivid",
+                    "defined_in": "libavutil/hdr_dynamic_vivid_metadata.h",
+                    "scope": "wrap"
+                  }
+                ],
+                "symbols": []
+              },
+              "fallback": [],
+              "back_fill": [],
+              "generates": [],
+              "field_anchors": []
+            },
+            {
+              "name": "av_dynamic_hdr_vivid_create_side_data",
+              "defined_in": "libavutil/hdr_dynamic_vivid_metadata.c",
+              "kind": "symbol",
+              "source_kind": "function_exported",
+              "layer": 5,
+              "loc": 11,
+              "deps": {
+                "types": [
+                  {
+                    "name": "AVDynamicHDRVivid",
+                    "defined_in": "libavutil/hdr_dynamic_vivid_metadata.h",
+                    "scope": "wrap"
+                  },
+                  {
+                    "name": "AVFrame",
+                    "defined_in": "libavutil/frame.h",
+                    "scope": "wrap"
+                  }
+                ],
+                "symbols": []
+              },
+              "fallback": [],
+              "back_fill": [],
+              "generates": [],
+              "field_anchors": []
+            },
+            {
+              "name": "av_iamf_mix_presentation_add_submix",
+              "defined_in": "libavutil/iamf.c",
+              "kind": "symbol",
+              "source_kind": "function_exported",
+              "layer": 5,
+              "loc": 1,
+              "deps": {
+                "types": [
+                  {
+                    "name": "AVIAMFMixPresentation",
+                    "defined_in": "libavutil/iamf.h",
+                    "scope": "wrap"
+                  },
+                  {
+                    "name": "AVIAMFSubmix",
+                    "defined_in": "libavutil/iamf.h",
+                    "scope": "wrap"
+                  }
+                ],
+                "symbols": []
+              },
+              "fallback": [],
+              "back_fill": [],
+              "generates": [],
+              "field_anchors": []
+            },
+            {
+              "name": "av_iamf_mix_presentation_alloc",
+              "defined_in": "libavutil/iamf.c",
+              "kind": "symbol",
+              "source_kind": "function_exported",
+              "layer": 5,
+              "loc": 10,
+              "deps": {
+                "types": [
+                  {
+                    "name": "AVIAMFMixPresentation",
+                    "defined_in": "libavutil/iamf.h",
+                    "scope": "wrap"
+                  }
+                ],
+                "symbols": []
+              },
+              "fallback": [],
+              "back_fill": [],
+              "generates": [],
+              "field_anchors": []
+            },
+            {
+              "name": "av_iamf_mix_presentation_free",
+              "defined_in": "libavutil/iamf.c",
+              "kind": "symbol",
+              "source_kind": "function_exported",
+              "layer": 5,
+              "loc": 29,
+              "deps": {
+                "types": [
+                  {
+                    "name": "AVIAMFMixPresentation",
+                    "defined_in": "libavutil/iamf.h",
+                    "scope": "wrap"
+                  }
+                ],
+                "symbols": []
+              },
+              "fallback": [],
+              "back_fill": [],
+              "generates": [],
+              "field_anchors": []
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

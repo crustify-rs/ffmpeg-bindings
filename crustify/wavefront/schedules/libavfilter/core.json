@@ -1,0 +1,2550 @@
+{
+  "schema_version": 3,
+  "oracle_config": {
+    "path": "crustify/wavefront/configs/libavfilter/core/wavefront-config.json",
+    "sha256": "d3ce2e1ad606546353394c0177655975de85c6c975dc2d9178cea2c3a2015cd3"
+  },
+  "api_headers_only": true,
+  "budgets": {
+    "max_syms": 25,
+    "max_loc": 500,
+    "max_types": 2,
+    "min_fields": 20
+  },
+  "summary": {
+    "unit_count": 93,
+    "layer_count": 7,
+    "batch_count": 23,
+    "file_count": 9
+  },
+  "waves": [
+    {
+      "unit_count": 18,
+      "batches": [
+        {
+          "kind": "type",
+          "source_file": "libavutil/pixfmt.h",
+          "items": [
+            {
+              "name": "AVAlphaMode",
+              "defined_in": "libavutil/pixfmt.h",
+              "kind": "type",
+              "source_kind": "enum",
+              "layer": 0,
+              "loc": 0,
+              "deps": {
+                "types": [],
+                "symbols": []
+              },
+              "fallback": [],
+              "back_fill": [],
+              "generates": [],
+              "field_anchors": []
+            },
+            {
+              "name": "AVBufferRef",
+              "defined_in": "libavutil/buffer.h",
+              "kind": "type",
+              "source_kind": "struct",
+              "layer": 0,
+              "loc": 3,
+              "deps": {
+                "types": [],
+                "symbols": []
+              },
+              "fallback": [],
+              "back_fill": [],
+              "generates": [],
+              "field_anchors": []
+            }
+          ]
+        },
+        {
+          "kind": "type",
+          "source_file": "libavutil/channel_layout.h",
+          "items": [
+            {
+              "name": "AVChannelLayout",
+              "defined_in": "libavutil/channel_layout.h",
+              "kind": "type",
+              "source_kind": "struct",
+              "layer": 0,
+              "loc": 6,
+              "deps": {
+                "types": [],
+                "symbols": []
+              },
+              "fallback": [],
+              "back_fill": [],
+              "generates": [],
+              "field_anchors": []
+            },
+            {
+              "name": "AVClass",
+              "defined_in": "libavutil/log.h",
+              "kind": "type",
+              "source_kind": "struct",
+              "layer": 0,
+              "loc": 12,
+              "deps": {
+                "types": [],
+                "symbols": []
+              },
+              "fallback": [],
+              "back_fill": [],
+              "generates": [],
+              "field_anchors": []
+            }
+          ]
+        },
+        {
+          "kind": "type",
+          "source_file": "libavutil/pixfmt.h",
+          "items": [
+            {
+              "name": "AVColorRange",
+              "defined_in": "libavutil/pixfmt.h",
+              "kind": "type",
+              "source_kind": "enum",
+              "layer": 0,
+              "loc": 0,
+              "deps": {
+                "types": [],
+                "symbols": []
+              },
+              "fallback": [],
+              "back_fill": [],
+              "generates": [],
+              "field_anchors": []
+            },
+            {
+              "name": "AVColorSpace",
+              "defined_in": "libavutil/pixfmt.h",
+              "kind": "type",
+              "source_kind": "enum",
+              "layer": 0,
+              "loc": 0,
+              "deps": {
+                "types": [],
+                "symbols": []
+              },
+              "fallback": [],
+              "back_fill": [],
+              "generates": [],
+              "field_anchors": []
+            }
+          ]
+        },
+        {
+          "kind": "type",
+          "source_file": "libavutil/dict.c",
+          "items": [
+            {
+              "name": "AVDictionary",
+              "defined_in": "libavutil/dict.c",
+              "kind": "type",
+              "source_kind": "struct",
+              "layer": 0,
+              "loc": 2,
+              "deps": {
+                "types": [],
+                "symbols": []
+              },
+              "fallback": [],
+              "back_fill": [],
+              "generates": [],
+              "field_anchors": []
+            },
+            {
+              "name": "AVFilterChannelLayouts",
+              "defined_in": "libavfilter/formats.h",
+              "kind": "type",
+              "source_kind": "struct",
+              "layer": 0,
+              "loc": 6,
+              "deps": {
+                "types": [],
+                "symbols": []
+              },
+              "fallback": [],
+              "back_fill": [],
+              "generates": [],
+              "field_anchors": []
+            }
+          ]
+        },
+        {
+          "kind": "type",
+          "source_file": "libavfilter/formats.h",
+          "items": [
+            {
+              "name": "AVFilterFormats",
+              "defined_in": "libavfilter/formats.h",
+              "kind": "type",
+              "source_kind": "struct",
+              "layer": 0,
+              "loc": 4,
+              "deps": {
+                "types": [],
+                "symbols": []
+              },
+              "fallback": [],
+              "back_fill": [],
+              "generates": [],
+              "field_anchors": []
+            },
+            {
+              "name": "AVFilterPad",
+              "defined_in": "libavfilter/filters.h",
+              "kind": "type",
+              "source_kind": "struct",
+              "layer": 0,
+              "loc": 9,
+              "deps": {
+                "types": [],
+                "symbols": []
+              },
+              "fallback": [],
+              "back_fill": [],
+              "generates": [],
+              "field_anchors": []
+            }
+          ]
+        },
+        {
+          "kind": "type",
+          "source_file": "libavfilter/avfilter.h",
+          "items": [
+            {
+              "name": "AVFilterPadParams",
+              "defined_in": "libavfilter/avfilter.h",
+              "kind": "type",
+              "source_kind": "struct",
+              "layer": 0,
+              "loc": 1,
+              "deps": {
+                "types": [],
+                "symbols": []
+              },
+              "fallback": [],
+              "back_fill": [],
+              "generates": [],
+              "field_anchors": [
+                "label"
+              ]
+            }
+          ]
+        },
+        {
+          "kind": "type",
+          "source_file": "libavutil/frame.h",
+          "items": [
+            {
+              "name": "AVFrame",
+              "defined_in": "libavutil/frame.h",
+              "kind": "type",
+              "source_kind": "struct",
+              "layer": 0,
+              "loc": 40,
+              "deps": {
+                "types": [],
+                "symbols": []
+              },
+              "fallback": [],
+              "back_fill": [],
+              "generates": [],
+              "field_anchors": []
+            }
+          ]
+        },
+        {
+          "kind": "type",
+          "source_file": "libavutil/frame.h",
+          "items": [
+            {
+              "name": "AVFrameSideData",
+              "defined_in": "libavutil/frame.h",
+              "kind": "type",
+              "source_kind": "struct",
+              "layer": 0,
+              "loc": 5,
+              "deps": {
+                "types": [],
+                "symbols": []
+              },
+              "fallback": [],
+              "back_fill": [],
+              "generates": [],
+              "field_anchors": []
+            },
+            {
+              "name": "AVMediaType",
+              "defined_in": "libavutil/avutil.h",
+              "kind": "type",
+              "source_kind": "enum",
+              "layer": 0,
+              "loc": 0,
+              "deps": {
+                "types": [],
+                "symbols": []
+              },
+              "fallback": [],
+              "back_fill": [],
+              "generates": [],
+              "field_anchors": []
+            }
+          ]
+        },
+        {
+          "kind": "type",
+          "source_file": "libavutil/rational.h",
+          "items": [
+            {
+              "name": "AVRational",
+              "defined_in": "libavutil/rational.h",
+              "kind": "type",
+              "source_kind": "struct",
+              "layer": 0,
+              "loc": 2,
+              "deps": {
+                "types": [],
+                "symbols": []
+              },
+              "fallback": [],
+              "back_fill": [],
+              "generates": [],
+              "field_anchors": []
+            }
+          ]
+        },
+        {
+          "kind": "symbol",
+          "source_file": null,
+          "items": [
+            {
+              "name": "avfilter_configuration",
+              "defined_in": "libavfilter/version.c",
+              "kind": "symbol",
+              "source_kind": "function_exported",
+              "layer": 0,
+              "loc": 3,
+              "deps": {
+                "types": [],
+                "symbols": []
+              },
+              "fallback": [],
+              "back_fill": [],
+              "generates": [],
+              "field_anchors": []
+            },
+            {
+              "name": "avfilter_license",
+              "defined_in": "libavfilter/version.c",
+              "kind": "symbol",
+              "source_kind": "function_exported",
+              "layer": 0,
+              "loc": 4,
+              "deps": {
+                "types": [],
+                "symbols": []
+              },
+              "fallback": [],
+              "back_fill": [],
+              "generates": [],
+              "field_anchors": []
+            },
+            {
+              "name": "avfilter_version",
+              "defined_in": "libavfilter/version.c",
+              "kind": "symbol",
+              "source_kind": "function_exported",
+              "layer": 0,
+              "loc": 4,
+              "deps": {
+                "types": [],
+                "symbols": []
+              },
+              "fallback": [],
+              "back_fill": [],
+              "generates": [],
+              "field_anchors": []
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "unit_count": 6,
+      "batches": [
+        {
+          "kind": "type",
+          "source_file": "libavfilter/buffersrc.h",
+          "items": [
+            {
+              "name": "AVBufferSrcParameters",
+              "defined_in": "libavfilter/buffersrc.h",
+              "kind": "type",
+              "source_kind": "struct",
+              "layer": 1,
+              "loc": 14,
+              "deps": {
+                "types": [
+                  {
+                    "name": "AVAlphaMode",
+                    "defined_in": "libavutil/pixfmt.h",
+                    "scope": "wrap"
+                  },
+                  {
+                    "name": "AVBufferRef",
+                    "defined_in": "libavutil/buffer.h",
+                    "scope": "wrap"
+                  },
+                  {
+                    "name": "AVChannelLayout",
+                    "defined_in": "libavutil/channel_layout.h",
+                    "scope": "wrap"
+                  },
+                  {
+                    "name": "AVColorRange",
+                    "defined_in": "libavutil/pixfmt.h",
+                    "scope": "wrap"
+                  },
+                  {
+                    "name": "AVColorSpace",
+                    "defined_in": "libavutil/pixfmt.h",
+                    "scope": "wrap"
+                  },
+                  {
+                    "name": "AVFrameSideData",
+                    "defined_in": "libavutil/frame.h",
+                    "scope": "wrap"
+                  },
+                  {
+                    "name": "AVRational",
+                    "defined_in": "libavutil/rational.h",
+                    "scope": "wrap"
+                  }
+                ],
+                "symbols": []
+              },
+              "fallback": [],
+              "back_fill": [],
+              "generates": [],
+              "field_anchors": [
+                "frame_rate",
+                "height",
+                "time_base",
+                "format",
+                "width",
+                "sample_aspect_ratio",
+                "alpha_mode",
+                "hw_frames_ctx",
+                "sample_rate",
+                "ch_layout",
+                "color_range",
+                "nb_side_data",
+                "side_data",
+                "color_space"
+              ]
+            },
+            {
+              "name": "AVFilter",
+              "defined_in": "libavfilter/avfilter.h",
+              "kind": "type",
+              "source_kind": "struct",
+              "layer": 1,
+              "loc": 6,
+              "deps": {
+                "types": [
+                  {
+                    "name": "AVClass",
+                    "defined_in": "libavutil/log.h",
+                    "scope": "wrap"
+                  },
+                  {
+                    "name": "AVFilterPad",
+                    "defined_in": "libavfilter/filters.h",
+                    "scope": "wrap"
+                  }
+                ],
+                "symbols": []
+              },
+              "fallback": [],
+              "back_fill": [],
+              "generates": [],
+              "field_anchors": [
+                "name",
+                "priv_class",
+                "flags",
+                "description",
+                "outputs",
+                "inputs"
+              ]
+            }
+          ]
+        },
+        {
+          "kind": "type",
+          "source_file": "libavfilter/avfilter.h",
+          "items": [
+            {
+              "name": "AVFilterFormatsConfig",
+              "defined_in": "libavfilter/avfilter.h",
+              "kind": "type",
+              "source_kind": "struct",
+              "layer": 1,
+              "loc": 6,
+              "deps": {
+                "types": [
+                  {
+                    "name": "AVFilterChannelLayouts",
+                    "defined_in": "libavfilter/formats.h",
+                    "scope": "wrap"
+                  },
+                  {
+                    "name": "AVFilterFormats",
+                    "defined_in": "libavfilter/formats.h",
+                    "scope": "wrap"
+                  }
+                ],
+                "symbols": []
+              },
+              "fallback": [],
+              "back_fill": [],
+              "generates": [],
+              "field_anchors": [
+                "alpha_modes",
+                "color_ranges",
+                "color_spaces",
+                "channel_layouts",
+                "samplerates",
+                "formats"
+              ]
+            }
+          ]
+        },
+        {
+          "kind": "symbol",
+          "source_file": null,
+          "items": [
+            {
+              "name": "avfilter_get_class",
+              "defined_in": "libavfilter/avfilter.c",
+              "kind": "symbol",
+              "source_kind": "function_exported",
+              "layer": 1,
+              "loc": 3,
+              "deps": {
+                "types": [
+                  {
+                    "name": "AVClass",
+                    "defined_in": "libavutil/log.h",
+                    "scope": "wrap"
+                  }
+                ],
+                "symbols": []
+              },
+              "fallback": [],
+              "back_fill": [],
+              "generates": [],
+              "field_anchors": []
+            },
+            {
+              "name": "avfilter_pad_get_name",
+              "defined_in": "libavfilter/avfilter.c",
+              "kind": "symbol",
+              "source_kind": "function_exported",
+              "layer": 1,
+              "loc": 3,
+              "deps": {
+                "types": [
+                  {
+                    "name": "AVFilterPad",
+                    "defined_in": "libavfilter/filters.h",
+                    "scope": "wrap"
+                  }
+                ],
+                "symbols": []
+              },
+              "fallback": [],
+              "back_fill": [],
+              "generates": [],
+              "field_anchors": []
+            },
+            {
+              "name": "avfilter_pad_get_type",
+              "defined_in": "libavfilter/avfilter.c",
+              "kind": "symbol",
+              "source_kind": "function_exported",
+              "layer": 1,
+              "loc": 3,
+              "deps": {
+                "types": [
+                  {
+                    "name": "AVFilterPad",
+                    "defined_in": "libavfilter/filters.h",
+                    "scope": "wrap"
+                  },
+                  {
+                    "name": "AVMediaType",
+                    "defined_in": "libavutil/avutil.h",
+                    "scope": "wrap"
+                  }
+                ],
+                "symbols": []
+              },
+              "fallback": [],
+              "back_fill": [],
+              "generates": [],
+              "field_anchors": []
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "unit_count": 5,
+      "batches": [
+        {
+          "kind": "type",
+          "source_file": "libavfilter/avfilter.h",
+          "items": [
+            {
+              "name": "AVFilterContext",
+              "defined_in": "libavfilter/avfilter.h",
+              "kind": "type",
+              "source_kind": "struct",
+              "layer": 2,
+              "loc": 17,
+              "deps": {
+                "types": [
+                  {
+                    "name": "AVBufferRef",
+                    "defined_in": "libavutil/buffer.h",
+                    "scope": "wrap"
+                  },
+                  {
+                    "name": "AVClass",
+                    "defined_in": "libavutil/log.h",
+                    "scope": "wrap"
+                  },
+                  {
+                    "name": "AVFilter",
+                    "defined_in": "libavfilter/avfilter.h",
+                    "scope": "wrap"
+                  },
+                  {
+                    "name": "AVFilterPad",
+                    "defined_in": "libavfilter/filters.h",
+                    "scope": "wrap"
+                  }
+                ],
+                "symbols": []
+              },
+              "fallback": [
+                {
+                  "name": "AVFilterGraph",
+                  "defined_in": "libavfilter/avfilter.h",
+                  "scope": "wrap"
+                },
+                {
+                  "name": "AVFilterLink",
+                  "defined_in": "libavfilter/avfilter.h",
+                  "scope": "wrap"
+                }
+              ],
+              "back_fill": [],
+              "generates": [],
+              "field_anchors": [
+                "graph",
+                "priv",
+                "name",
+                "nb_inputs",
+                "nb_outputs",
+                "av_class",
+                "thread_type",
+                "extra_hw_frames",
+                "hw_device_ctx",
+                "filter",
+                "outputs",
+                "inputs",
+                "is_disabled",
+                "enable_str",
+                "nb_threads",
+                "output_pads",
+                "input_pads"
+              ]
+            }
+          ]
+        },
+        {
+          "kind": "symbol",
+          "source_file": null,
+          "items": [
+            {
+              "name": "av_buffersrc_parameters_alloc",
+              "defined_in": "libavfilter/buffersrc.c",
+              "kind": "symbol",
+              "source_kind": "function_exported",
+              "layer": 2,
+              "loc": 12,
+              "deps": {
+                "types": [
+                  {
+                    "name": "AVBufferSrcParameters",
+                    "defined_in": "libavfilter/buffersrc.h",
+                    "scope": "wrap"
+                  }
+                ],
+                "symbols": []
+              },
+              "fallback": [],
+              "back_fill": [],
+              "generates": [],
+              "field_anchors": []
+            },
+            {
+              "name": "av_filter_iterate",
+              "defined_in": "libavfilter/allfilters.c",
+              "kind": "symbol",
+              "source_kind": "function_exported",
+              "layer": 2,
+              "loc": 11,
+              "deps": {
+                "types": [
+                  {
+                    "name": "AVFilter",
+                    "defined_in": "libavfilter/avfilter.h",
+                    "scope": "wrap"
+                  }
+                ],
+                "symbols": []
+              },
+              "fallback": [],
+              "back_fill": [],
+              "generates": [],
+              "field_anchors": []
+            },
+            {
+              "name": "avfilter_filter_pad_count",
+              "defined_in": "libavfilter/avfilter.c",
+              "kind": "symbol",
+              "source_kind": "function_exported",
+              "layer": 2,
+              "loc": 3,
+              "deps": {
+                "types": [
+                  {
+                    "name": "AVFilter",
+                    "defined_in": "libavfilter/avfilter.h",
+                    "scope": "wrap"
+                  }
+                ],
+                "symbols": []
+              },
+              "fallback": [],
+              "back_fill": [],
+              "generates": [],
+              "field_anchors": []
+            },
+            {
+              "name": "avfilter_get_by_name",
+              "defined_in": "libavfilter/allfilters.c",
+              "kind": "symbol",
+              "source_kind": "function_exported",
+              "layer": 2,
+              "loc": 13,
+              "deps": {
+                "types": [
+                  {
+                    "name": "AVFilter",
+                    "defined_in": "libavfilter/avfilter.h",
+                    "scope": "wrap"
+                  }
+                ],
+                "symbols": []
+              },
+              "fallback": [],
+              "back_fill": [],
+              "generates": [],
+              "field_anchors": []
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "unit_count": 36,
+      "batches": [
+        {
+          "kind": "type",
+          "source_file": "libavfilter/avfilter.h",
+          "items": [
+            {
+              "name": "AVFilterGraph",
+              "defined_in": "libavfilter/avfilter.h",
+              "kind": "type",
+              "source_kind": "struct",
+              "layer": 3,
+              "loc": 10,
+              "deps": {
+                "types": [
+                  {
+                    "name": "AVClass",
+                    "defined_in": "libavutil/log.h",
+                    "scope": "wrap"
+                  },
+                  {
+                    "name": "AVFilterContext",
+                    "defined_in": "libavfilter/avfilter.h",
+                    "scope": "wrap"
+                  }
+                ],
+                "symbols": []
+              },
+              "fallback": [],
+              "back_fill": [
+                {
+                  "name": "AVFilterContext",
+                  "defined_in": "libavfilter/avfilter.h",
+                  "scope": "wrap"
+                }
+              ],
+              "generates": [],
+              "field_anchors": [
+                "opaque",
+                "av_class",
+                "execute",
+                "thread_type",
+                "filters",
+                "scale_sws_opts",
+                "nb_filters",
+                "nb_threads",
+                "max_buffered_frames",
+                "aresample_swr_opts"
+              ]
+            },
+            {
+              "name": "AVFilterInOut",
+              "defined_in": "libavfilter/avfilter.h",
+              "kind": "type",
+              "source_kind": "struct",
+              "layer": 3,
+              "loc": 4,
+              "deps": {
+                "types": [
+                  {
+                    "name": "AVFilterContext",
+                    "defined_in": "libavfilter/avfilter.h",
+                    "scope": "wrap"
+                  }
+                ],
+                "symbols": []
+              },
+              "fallback": [],
+              "back_fill": [],
+              "generates": [],
+              "field_anchors": [
+                "name",
+                "next",
+                "pad_idx",
+                "filter_ctx"
+              ]
+            }
+          ]
+        },
+        {
+          "kind": "type",
+          "source_file": "libavfilter/avfilter.h",
+          "items": [
+            {
+              "name": "AVFilterLink",
+              "defined_in": "libavfilter/avfilter.h",
+              "kind": "type",
+              "source_kind": "struct",
+              "layer": 3,
+              "loc": 19,
+              "deps": {
+                "types": [
+                  {
+                    "name": "AVAlphaMode",
+                    "defined_in": "libavutil/pixfmt.h",
+                    "scope": "wrap"
+                  },
+                  {
+                    "name": "AVChannelLayout",
+                    "defined_in": "libavutil/channel_layout.h",
+                    "scope": "wrap"
+                  },
+                  {
+                    "name": "AVColorRange",
+                    "defined_in": "libavutil/pixfmt.h",
+                    "scope": "wrap"
+                  },
+                  {
+                    "name": "AVColorSpace",
+                    "defined_in": "libavutil/pixfmt.h",
+                    "scope": "wrap"
+                  },
+                  {
+                    "name": "AVFilterContext",
+                    "defined_in": "libavfilter/avfilter.h",
+                    "scope": "wrap"
+                  },
+                  {
+                    "name": "AVFilterFormatsConfig",
+                    "defined_in": "libavfilter/avfilter.h",
+                    "scope": "wrap"
+                  },
+                  {
+                    "name": "AVFilterPad",
+                    "defined_in": "libavfilter/filters.h",
+                    "scope": "wrap"
+                  },
+                  {
+                    "name": "AVFrameSideData",
+                    "defined_in": "libavutil/frame.h",
+                    "scope": "wrap"
+                  },
+                  {
+                    "name": "AVMediaType",
+                    "defined_in": "libavutil/avutil.h",
+                    "scope": "wrap"
+                  },
+                  {
+                    "name": "AVRational",
+                    "defined_in": "libavutil/rational.h",
+                    "scope": "wrap"
+                  }
+                ],
+                "symbols": []
+              },
+              "fallback": [],
+              "back_fill": [
+                {
+                  "name": "AVFilterContext",
+                  "defined_in": "libavfilter/avfilter.h",
+                  "scope": "wrap"
+                }
+              ],
+              "generates": [],
+              "field_anchors": [
+                "type",
+                "dst",
+                "src",
+                "h",
+                "time_base",
+                "format",
+                "sample_aspect_ratio",
+                "w",
+                "alpha_mode",
+                "sample_rate",
+                "ch_layout",
+                "color_range",
+                "colorspace",
+                "nb_side_data",
+                "side_data",
+                "outcfg",
+                "incfg",
+                "dstpad",
+                "srcpad"
+              ]
+            },
+            {
+              "name": "AVFilterParams",
+              "defined_in": "libavfilter/avfilter.h",
+              "kind": "type",
+              "source_kind": "struct",
+              "layer": 3,
+              "loc": 8,
+              "deps": {
+                "types": [
+                  {
+                    "name": "AVDictionary",
+                    "defined_in": "libavutil/dict.c",
+                    "scope": "wrap"
+                  },
+                  {
+                    "name": "AVFilterContext",
+                    "defined_in": "libavfilter/avfilter.h",
+                    "scope": "wrap"
+                  },
+                  {
+                    "name": "AVFilterPadParams",
+                    "defined_in": "libavfilter/avfilter.h",
+                    "scope": "wrap"
+                  }
+                ],
+                "symbols": []
+              },
+              "fallback": [],
+              "back_fill": [],
+              "generates": [],
+              "field_anchors": [
+                "opts",
+                "nb_inputs",
+                "nb_outputs",
+                "filter_name",
+                "filter",
+                "outputs",
+                "inputs",
+                "instance_name"
+              ]
+            }
+          ]
+        },
+        {
+          "kind": "symbol",
+          "source_file": null,
+          "items": [
+            {
+              "name": "av_buffersink_get_alpha_mode",
+              "defined_in": "libavfilter/buffersink.c",
+              "kind": "symbol",
+              "source_kind": "function_exported",
+              "layer": 3,
+              "loc": 1,
+              "deps": {
+                "types": [
+                  {
+                    "name": "AVAlphaMode",
+                    "defined_in": "libavutil/pixfmt.h",
+                    "scope": "wrap"
+                  },
+                  {
+                    "name": "AVFilterContext",
+                    "defined_in": "libavfilter/avfilter.h",
+                    "scope": "wrap"
+                  }
+                ],
+                "symbols": []
+              },
+              "fallback": [],
+              "back_fill": [],
+              "generates": [],
+              "field_anchors": []
+            },
+            {
+              "name": "av_buffersink_get_ch_layout",
+              "defined_in": "libavfilter/buffersink.c",
+              "kind": "symbol",
+              "source_kind": "function_exported",
+              "layer": 3,
+              "loc": 11,
+              "deps": {
+                "types": [
+                  {
+                    "name": "AVChannelLayout",
+                    "defined_in": "libavutil/channel_layout.h",
+                    "scope": "wrap"
+                  },
+                  {
+                    "name": "AVFilterContext",
+                    "defined_in": "libavfilter/avfilter.h",
+                    "scope": "wrap"
+                  }
+                ],
+                "symbols": []
+              },
+              "fallback": [],
+              "back_fill": [],
+              "generates": [],
+              "field_anchors": []
+            },
+            {
+              "name": "av_buffersink_get_channels",
+              "defined_in": "libavfilter/buffersink.c",
+              "kind": "symbol",
+              "source_kind": "function_exported",
+              "layer": 3,
+              "loc": 4,
+              "deps": {
+                "types": [
+                  {
+                    "name": "AVFilterContext",
+                    "defined_in": "libavfilter/avfilter.h",
+                    "scope": "wrap"
+                  }
+                ],
+                "symbols": []
+              },
+              "fallback": [],
+              "back_fill": [],
+              "generates": [],
+              "field_anchors": []
+            },
+            {
+              "name": "av_buffersink_get_color_range",
+              "defined_in": "libavfilter/buffersink.c",
+              "kind": "symbol",
+              "source_kind": "function_exported",
+              "layer": 3,
+              "loc": 1,
+              "deps": {
+                "types": [
+                  {
+                    "name": "AVColorRange",
+                    "defined_in": "libavutil/pixfmt.h",
+                    "scope": "wrap"
+                  },
+                  {
+                    "name": "AVFilterContext",
+                    "defined_in": "libavfilter/avfilter.h",
+                    "scope": "wrap"
+                  }
+                ],
+                "symbols": []
+              },
+              "fallback": [],
+              "back_fill": [],
+              "generates": [],
+              "field_anchors": []
+            },
+            {
+              "name": "av_buffersink_get_colorspace",
+              "defined_in": "libavfilter/buffersink.c",
+              "kind": "symbol",
+              "source_kind": "function_exported",
+              "layer": 3,
+              "loc": 1,
+              "deps": {
+                "types": [
+                  {
+                    "name": "AVColorSpace",
+                    "defined_in": "libavutil/pixfmt.h",
+                    "scope": "wrap"
+                  },
+                  {
+                    "name": "AVFilterContext",
+                    "defined_in": "libavfilter/avfilter.h",
+                    "scope": "wrap"
+                  }
+                ],
+                "symbols": []
+              },
+              "fallback": [],
+              "back_fill": [],
+              "generates": [],
+              "field_anchors": []
+            },
+            {
+              "name": "av_buffersink_get_format",
+              "defined_in": "libavfilter/buffersink.c",
+              "kind": "symbol",
+              "source_kind": "function_exported",
+              "layer": 3,
+              "loc": 1,
+              "deps": {
+                "types": [
+                  {
+                    "name": "AVFilterContext",
+                    "defined_in": "libavfilter/avfilter.h",
+                    "scope": "wrap"
+                  }
+                ],
+                "symbols": []
+              },
+              "fallback": [],
+              "back_fill": [],
+              "generates": [],
+              "field_anchors": []
+            },
+            {
+              "name": "av_buffersink_get_frame",
+              "defined_in": "libavfilter/buffersink.c",
+              "kind": "symbol",
+              "source_kind": "function_exported",
+              "layer": 3,
+              "loc": 3,
+              "deps": {
+                "types": [
+                  {
+                    "name": "AVFilterContext",
+                    "defined_in": "libavfilter/avfilter.h",
+                    "scope": "wrap"
+                  },
+                  {
+                    "name": "AVFrame",
+                    "defined_in": "libavutil/frame.h",
+                    "scope": "wrap"
+                  }
+                ],
+                "symbols": []
+              },
+              "fallback": [],
+              "back_fill": [],
+              "generates": [],
+              "field_anchors": []
+            },
+            {
+              "name": "av_buffersink_get_frame_flags",
+              "defined_in": "libavfilter/buffersink.c",
+              "kind": "symbol",
+              "source_kind": "function_exported",
+              "layer": 3,
+              "loc": 4,
+              "deps": {
+                "types": [
+                  {
+                    "name": "AVFilterContext",
+                    "defined_in": "libavfilter/avfilter.h",
+                    "scope": "wrap"
+                  },
+                  {
+                    "name": "AVFrame",
+                    "defined_in": "libavutil/frame.h",
+                    "scope": "wrap"
+                  }
+                ],
+                "symbols": []
+              },
+              "fallback": [],
+              "back_fill": [],
+              "generates": [],
+              "field_anchors": []
+            },
+            {
+              "name": "av_buffersink_get_frame_rate",
+              "defined_in": "libavfilter/buffersink.c",
+              "kind": "symbol",
+              "source_kind": "function_exported",
+              "layer": 3,
+              "loc": 5,
+              "deps": {
+                "types": [
+                  {
+                    "name": "AVFilterContext",
+                    "defined_in": "libavfilter/avfilter.h",
+                    "scope": "wrap"
+                  },
+                  {
+                    "name": "AVRational",
+                    "defined_in": "libavutil/rational.h",
+                    "scope": "wrap"
+                  }
+                ],
+                "symbols": []
+              },
+              "fallback": [],
+              "back_fill": [],
+              "generates": [],
+              "field_anchors": []
+            },
+            {
+              "name": "av_buffersink_get_h",
+              "defined_in": "libavfilter/buffersink.c",
+              "kind": "symbol",
+              "source_kind": "function_exported",
+              "layer": 3,
+              "loc": 1,
+              "deps": {
+                "types": [
+                  {
+                    "name": "AVFilterContext",
+                    "defined_in": "libavfilter/avfilter.h",
+                    "scope": "wrap"
+                  }
+                ],
+                "symbols": []
+              },
+              "fallback": [],
+              "back_fill": [],
+              "generates": [],
+              "field_anchors": []
+            },
+            {
+              "name": "av_buffersink_get_hw_frames_ctx",
+              "defined_in": "libavfilter/buffersink.c",
+              "kind": "symbol",
+              "source_kind": "function_exported",
+              "layer": 3,
+              "loc": 5,
+              "deps": {
+                "types": [
+                  {
+                    "name": "AVBufferRef",
+                    "defined_in": "libavutil/buffer.h",
+                    "scope": "wrap"
+                  },
+                  {
+                    "name": "AVFilterContext",
+                    "defined_in": "libavfilter/avfilter.h",
+                    "scope": "wrap"
+                  }
+                ],
+                "symbols": []
+              },
+              "fallback": [],
+              "back_fill": [],
+              "generates": [],
+              "field_anchors": []
+            },
+            {
+              "name": "av_buffersink_get_sample_aspect_ratio",
+              "defined_in": "libavfilter/buffersink.c",
+              "kind": "symbol",
+              "source_kind": "function_exported",
+              "layer": 3,
+              "loc": 1,
+              "deps": {
+                "types": [
+                  {
+                    "name": "AVFilterContext",
+                    "defined_in": "libavfilter/avfilter.h",
+                    "scope": "wrap"
+                  },
+                  {
+                    "name": "AVRational",
+                    "defined_in": "libavutil/rational.h",
+                    "scope": "wrap"
+                  }
+                ],
+                "symbols": []
+              },
+              "fallback": [],
+              "back_fill": [],
+              "generates": [],
+              "field_anchors": []
+            },
+            {
+              "name": "av_buffersink_get_sample_rate",
+              "defined_in": "libavfilter/buffersink.c",
+              "kind": "symbol",
+              "source_kind": "function_exported",
+              "layer": 3,
+              "loc": 1,
+              "deps": {
+                "types": [
+                  {
+                    "name": "AVFilterContext",
+                    "defined_in": "libavfilter/avfilter.h",
+                    "scope": "wrap"
+                  }
+                ],
+                "symbols": []
+              },
+              "fallback": [],
+              "back_fill": [],
+              "generates": [],
+              "field_anchors": []
+            },
+            {
+              "name": "av_buffersink_get_samples",
+              "defined_in": "libavfilter/buffersink.c",
+              "kind": "symbol",
+              "source_kind": "function_exported",
+              "layer": 3,
+              "loc": 3,
+              "deps": {
+                "types": [
+                  {
+                    "name": "AVFilterContext",
+                    "defined_in": "libavfilter/avfilter.h",
+                    "scope": "wrap"
+                  },
+                  {
+                    "name": "AVFrame",
+                    "defined_in": "libavutil/frame.h",
+                    "scope": "wrap"
+                  }
+                ],
+                "symbols": []
+              },
+              "fallback": [],
+              "back_fill": [],
+              "generates": [],
+              "field_anchors": []
+            },
+            {
+              "name": "av_buffersink_get_side_data",
+              "defined_in": "libavfilter/buffersink.c",
+              "kind": "symbol",
+              "source_kind": "function_exported",
+              "layer": 3,
+              "loc": 5,
+              "deps": {
+                "types": [
+                  {
+                    "name": "AVFilterContext",
+                    "defined_in": "libavfilter/avfilter.h",
+                    "scope": "wrap"
+                  },
+                  {
+                    "name": "AVFrameSideData",
+                    "defined_in": "libavutil/frame.h",
+                    "scope": "wrap"
+                  }
+                ],
+                "symbols": []
+              },
+              "fallback": [],
+              "back_fill": [],
+              "generates": [],
+              "field_anchors": []
+            },
+            {
+              "name": "av_buffersink_get_time_base",
+              "defined_in": "libavfilter/buffersink.c",
+              "kind": "symbol",
+              "source_kind": "function_exported",
+              "layer": 3,
+              "loc": 1,
+              "deps": {
+                "types": [
+                  {
+                    "name": "AVFilterContext",
+                    "defined_in": "libavfilter/avfilter.h",
+                    "scope": "wrap"
+                  },
+                  {
+                    "name": "AVRational",
+                    "defined_in": "libavutil/rational.h",
+                    "scope": "wrap"
+                  }
+                ],
+                "symbols": []
+              },
+              "fallback": [],
+              "back_fill": [],
+              "generates": [],
+              "field_anchors": []
+            },
+            {
+              "name": "av_buffersink_get_type",
+              "defined_in": "libavfilter/buffersink.c",
+              "kind": "symbol",
+              "source_kind": "function_exported",
+              "layer": 3,
+              "loc": 1,
+              "deps": {
+                "types": [
+                  {
+                    "name": "AVFilterContext",
+                    "defined_in": "libavfilter/avfilter.h",
+                    "scope": "wrap"
+                  },
+                  {
+                    "name": "AVMediaType",
+                    "defined_in": "libavutil/avutil.h",
+                    "scope": "wrap"
+                  }
+                ],
+                "symbols": []
+              },
+              "fallback": [],
+              "back_fill": [],
+              "generates": [],
+              "field_anchors": []
+            },
+            {
+              "name": "av_buffersink_get_w",
+              "defined_in": "libavfilter/buffersink.c",
+              "kind": "symbol",
+              "source_kind": "function_exported",
+              "layer": 3,
+              "loc": 1,
+              "deps": {
+                "types": [
+                  {
+                    "name": "AVFilterContext",
+                    "defined_in": "libavfilter/avfilter.h",
+                    "scope": "wrap"
+                  }
+                ],
+                "symbols": []
+              },
+              "fallback": [],
+              "back_fill": [],
+              "generates": [],
+              "field_anchors": []
+            },
+            {
+              "name": "av_buffersink_set_frame_size",
+              "defined_in": "libavfilter/buffersink.c",
+              "kind": "symbol",
+              "source_kind": "function_exported",
+              "layer": 3,
+              "loc": 9,
+              "deps": {
+                "types": [
+                  {
+                    "name": "AVFilterContext",
+                    "defined_in": "libavfilter/avfilter.h",
+                    "scope": "wrap"
+                  }
+                ],
+                "symbols": []
+              },
+              "fallback": [],
+              "back_fill": [],
+              "generates": [],
+              "field_anchors": []
+            },
+            {
+              "name": "av_buffersrc_add_frame",
+              "defined_in": "libavfilter/buffersrc.c",
+              "kind": "symbol",
+              "source_kind": "function_exported",
+              "layer": 3,
+              "loc": 3,
+              "deps": {
+                "types": [
+                  {
+                    "name": "AVFilterContext",
+                    "defined_in": "libavfilter/avfilter.h",
+                    "scope": "wrap"
+                  },
+                  {
+                    "name": "AVFrame",
+                    "defined_in": "libavutil/frame.h",
+                    "scope": "wrap"
+                  }
+                ],
+                "symbols": []
+              },
+              "fallback": [],
+              "back_fill": [],
+              "generates": [],
+              "field_anchors": []
+            },
+            {
+              "name": "av_buffersrc_add_frame_flags",
+              "defined_in": "libavfilter/buffersrc.c",
+              "kind": "symbol",
+              "source_kind": "function_exported",
+              "layer": 3,
+              "loc": 79,
+              "deps": {
+                "types": [
+                  {
+                    "name": "AVFilterContext",
+                    "defined_in": "libavfilter/avfilter.h",
+                    "scope": "wrap"
+                  },
+                  {
+                    "name": "AVFrame",
+                    "defined_in": "libavutil/frame.h",
+                    "scope": "wrap"
+                  }
+                ],
+                "symbols": []
+              },
+              "fallback": [],
+              "back_fill": [],
+              "generates": [],
+              "field_anchors": []
+            },
+            {
+              "name": "av_buffersrc_close",
+              "defined_in": "libavfilter/buffersrc.c",
+              "kind": "symbol",
+              "source_kind": "function_exported",
+              "layer": 3,
+              "loc": 7,
+              "deps": {
+                "types": [
+                  {
+                    "name": "AVFilterContext",
+                    "defined_in": "libavfilter/avfilter.h",
+                    "scope": "wrap"
+                  }
+                ],
+                "symbols": []
+              },
+              "fallback": [],
+              "back_fill": [],
+              "generates": [],
+              "field_anchors": []
+            },
+            {
+              "name": "av_buffersrc_get_nb_failed_requests",
+              "defined_in": "libavfilter/buffersrc.c",
+              "kind": "symbol",
+              "source_kind": "function_exported",
+              "layer": 3,
+              "loc": 3,
+              "deps": {
+                "types": [
+                  {
+                    "name": "AVFilterContext",
+                    "defined_in": "libavfilter/avfilter.h",
+                    "scope": "wrap"
+                  }
+                ],
+                "symbols": []
+              },
+              "fallback": [],
+              "back_fill": [],
+              "generates": [],
+              "field_anchors": []
+            },
+            {
+              "name": "av_buffersrc_get_status",
+              "defined_in": "libavfilter/buffersrc.c",
+              "kind": "symbol",
+              "source_kind": "function_exported",
+              "layer": 3,
+              "loc": 8,
+              "deps": {
+                "types": [
+                  {
+                    "name": "AVFilterContext",
+                    "defined_in": "libavfilter/avfilter.h",
+                    "scope": "wrap"
+                  }
+                ],
+                "symbols": []
+              },
+              "fallback": [],
+              "back_fill": [],
+              "generates": [],
+              "field_anchors": []
+            },
+            {
+              "name": "av_buffersrc_parameters_set",
+              "defined_in": "libavfilter/buffersrc.c",
+              "kind": "symbol",
+              "source_kind": "function_exported",
+              "layer": 3,
+              "loc": 61,
+              "deps": {
+                "types": [
+                  {
+                    "name": "AVBufferSrcParameters",
+                    "defined_in": "libavfilter/buffersrc.h",
+                    "scope": "wrap"
+                  },
+                  {
+                    "name": "AVFilterContext",
+                    "defined_in": "libavfilter/avfilter.h",
+                    "scope": "wrap"
+                  }
+                ],
+                "symbols": []
+              },
+              "fallback": [],
+              "back_fill": [],
+              "generates": [],
+              "field_anchors": []
+            }
+          ]
+        },
+        {
+          "kind": "symbol",
+          "source_file": null,
+          "items": [
+            {
+              "name": "av_buffersrc_write_frame",
+              "defined_in": "libavfilter/buffersrc.c",
+              "kind": "symbol",
+              "source_kind": "function_exported",
+              "layer": 3,
+              "loc": 4,
+              "deps": {
+                "types": [
+                  {
+                    "name": "AVFilterContext",
+                    "defined_in": "libavfilter/avfilter.h",
+                    "scope": "wrap"
+                  },
+                  {
+                    "name": "AVFrame",
+                    "defined_in": "libavutil/frame.h",
+                    "scope": "wrap"
+                  }
+                ],
+                "symbols": []
+              },
+              "fallback": [],
+              "back_fill": [],
+              "generates": [],
+              "field_anchors": []
+            },
+            {
+              "name": "avfilter_action_func",
+              "defined_in": "libavfilter/avfilter.h",
+              "kind": "callback",
+              "source_kind": "callback",
+              "layer": 3,
+              "loc": 0,
+              "deps": {
+                "types": [
+                  {
+                    "name": "AVFilterContext",
+                    "defined_in": "libavfilter/avfilter.h",
+                    "scope": "wrap"
+                  }
+                ],
+                "symbols": []
+              },
+              "fallback": [],
+              "back_fill": [],
+              "generates": [],
+              "field_anchors": []
+            },
+            {
+              "name": "avfilter_free",
+              "defined_in": "libavfilter/avfilter.c",
+              "kind": "symbol",
+              "source_kind": "function_exported",
+              "layer": 3,
+              "loc": 44,
+              "deps": {
+                "types": [
+                  {
+                    "name": "AVFilterContext",
+                    "defined_in": "libavfilter/avfilter.h",
+                    "scope": "wrap"
+                  }
+                ],
+                "symbols": []
+              },
+              "fallback": [],
+              "back_fill": [],
+              "generates": [],
+              "field_anchors": []
+            },
+            {
+              "name": "avfilter_init_dict",
+              "defined_in": "libavfilter/avfilter.c",
+              "kind": "symbol",
+              "source_kind": "function_exported",
+              "layer": 3,
+              "loc": 39,
+              "deps": {
+                "types": [
+                  {
+                    "name": "AVDictionary",
+                    "defined_in": "libavutil/dict.c",
+                    "scope": "wrap"
+                  },
+                  {
+                    "name": "AVFilterContext",
+                    "defined_in": "libavfilter/avfilter.h",
+                    "scope": "wrap"
+                  }
+                ],
+                "symbols": []
+              },
+              "fallback": [],
+              "back_fill": [],
+              "generates": [],
+              "field_anchors": []
+            },
+            {
+              "name": "avfilter_init_str",
+              "defined_in": "libavfilter/avfilter.c",
+              "kind": "symbol",
+              "source_kind": "function_exported",
+              "layer": 3,
+              "loc": 26,
+              "deps": {
+                "types": [
+                  {
+                    "name": "AVFilterContext",
+                    "defined_in": "libavfilter/avfilter.h",
+                    "scope": "wrap"
+                  }
+                ],
+                "symbols": []
+              },
+              "fallback": [],
+              "back_fill": [],
+              "generates": [],
+              "field_anchors": []
+            },
+            {
+              "name": "avfilter_link",
+              "defined_in": "libavfilter/avfilter.c",
+              "kind": "symbol",
+              "source_kind": "function_exported",
+              "layer": 3,
+              "loc": 46,
+              "deps": {
+                "types": [
+                  {
+                    "name": "AVFilterContext",
+                    "defined_in": "libavfilter/avfilter.h",
+                    "scope": "wrap"
+                  }
+                ],
+                "symbols": []
+              },
+              "fallback": [],
+              "back_fill": [],
+              "generates": [],
+              "field_anchors": []
+            },
+            {
+              "name": "avfilter_process_command",
+              "defined_in": "libavfilter/avfilter.c",
+              "kind": "symbol",
+              "source_kind": "function_exported",
+              "layer": 3,
+              "loc": 19,
+              "deps": {
+                "types": [
+                  {
+                    "name": "AVFilterContext",
+                    "defined_in": "libavfilter/avfilter.h",
+                    "scope": "wrap"
+                  }
+                ],
+                "symbols": []
+              },
+              "fallback": [],
+              "back_fill": [],
+              "generates": [],
+              "field_anchors": []
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "unit_count": 20,
+      "batches": [
+        {
+          "kind": "type",
+          "source_file": "libavfilter/avfilter.h",
+          "items": [
+            {
+              "name": "AVFilterChain",
+              "defined_in": "libavfilter/avfilter.h",
+              "kind": "type",
+              "source_kind": "struct",
+              "layer": 4,
+              "loc": 2,
+              "deps": {
+                "types": [
+                  {
+                    "name": "AVFilterParams",
+                    "defined_in": "libavfilter/avfilter.h",
+                    "scope": "wrap"
+                  }
+                ],
+                "symbols": []
+              },
+              "fallback": [],
+              "back_fill": [],
+              "generates": [],
+              "field_anchors": [
+                "filters",
+                "nb_filters"
+              ]
+            }
+          ]
+        },
+        {
+          "kind": "symbol",
+          "source_file": null,
+          "items": [
+            {
+              "name": "avfilter_execute_func",
+              "defined_in": "libavfilter/avfilter.h",
+              "kind": "callback",
+              "source_kind": "callback",
+              "layer": 4,
+              "loc": 0,
+              "deps": {
+                "types": [
+                  {
+                    "name": "AVFilterContext",
+                    "defined_in": "libavfilter/avfilter.h",
+                    "scope": "wrap"
+                  }
+                ],
+                "symbols": [
+                  {
+                    "name": "avfilter_action_func",
+                    "defined_in": "libavfilter/avfilter.h",
+                    "scope": "wrap"
+                  }
+                ]
+              },
+              "fallback": [],
+              "back_fill": [
+                {
+                  "name": "AVFilterGraph",
+                  "defined_in": "libavfilter/avfilter.h",
+                  "scope": "wrap"
+                }
+              ],
+              "generates": [],
+              "field_anchors": []
+            },
+            {
+              "name": "avfilter_graph_alloc",
+              "defined_in": "libavfilter/avfiltergraph.c",
+              "kind": "symbol",
+              "source_kind": "function_exported",
+              "layer": 4,
+              "loc": 14,
+              "deps": {
+                "types": [
+                  {
+                    "name": "AVFilterGraph",
+                    "defined_in": "libavfilter/avfilter.h",
+                    "scope": "wrap"
+                  }
+                ],
+                "symbols": []
+              },
+              "fallback": [],
+              "back_fill": [],
+              "generates": [],
+              "field_anchors": []
+            },
+            {
+              "name": "avfilter_graph_alloc_filter",
+              "defined_in": "libavfilter/avfiltergraph.c",
+              "kind": "symbol",
+              "source_kind": "function_exported",
+              "layer": 4,
+              "loc": 31,
+              "deps": {
+                "types": [
+                  {
+                    "name": "AVFilter",
+                    "defined_in": "libavfilter/avfilter.h",
+                    "scope": "wrap"
+                  },
+                  {
+                    "name": "AVFilterContext",
+                    "defined_in": "libavfilter/avfilter.h",
+                    "scope": "wrap"
+                  },
+                  {
+                    "name": "AVFilterGraph",
+                    "defined_in": "libavfilter/avfilter.h",
+                    "scope": "wrap"
+                  }
+                ],
+                "symbols": []
+              },
+              "fallback": [],
+              "back_fill": [],
+              "generates": [],
+              "field_anchors": []
+            },
+            {
+              "name": "avfilter_graph_config",
+              "defined_in": "libavfilter/avfiltergraph.c",
+              "kind": "symbol",
+              "source_kind": "function_exported",
+              "layer": 4,
+              "loc": 18,
+              "deps": {
+                "types": [
+                  {
+                    "name": "AVFilterGraph",
+                    "defined_in": "libavfilter/avfilter.h",
+                    "scope": "wrap"
+                  }
+                ],
+                "symbols": []
+              },
+              "fallback": [],
+              "back_fill": [],
+              "generates": [],
+              "field_anchors": []
+            },
+            {
+              "name": "avfilter_graph_create_filter",
+              "defined_in": "libavfilter/avfiltergraph.c",
+              "kind": "symbol",
+              "source_kind": "function_exported",
+              "layer": 4,
+              "loc": 18,
+              "deps": {
+                "types": [
+                  {
+                    "name": "AVFilter",
+                    "defined_in": "libavfilter/avfilter.h",
+                    "scope": "wrap"
+                  },
+                  {
+                    "name": "AVFilterContext",
+                    "defined_in": "libavfilter/avfilter.h",
+                    "scope": "wrap"
+                  },
+                  {
+                    "name": "AVFilterGraph",
+                    "defined_in": "libavfilter/avfilter.h",
+                    "scope": "wrap"
+                  }
+                ],
+                "symbols": []
+              },
+              "fallback": [],
+              "back_fill": [],
+              "generates": [],
+              "field_anchors": []
+            },
+            {
+              "name": "avfilter_graph_dump",
+              "defined_in": "libavfilter/graphdump.c",
+              "kind": "symbol",
+              "source_kind": "function_exported",
+              "layer": 4,
+              "loc": 13,
+              "deps": {
+                "types": [
+                  {
+                    "name": "AVFilterGraph",
+                    "defined_in": "libavfilter/avfilter.h",
+                    "scope": "wrap"
+                  }
+                ],
+                "symbols": []
+              },
+              "fallback": [],
+              "back_fill": [],
+              "generates": [],
+              "field_anchors": []
+            },
+            {
+              "name": "avfilter_graph_free",
+              "defined_in": "libavfilter/avfiltergraph.c",
+              "kind": "symbol",
+              "source_kind": "function_exported",
+              "layer": 4,
+              "loc": 19,
+              "deps": {
+                "types": [
+                  {
+                    "name": "AVFilterGraph",
+                    "defined_in": "libavfilter/avfilter.h",
+                    "scope": "wrap"
+                  }
+                ],
+                "symbols": []
+              },
+              "fallback": [],
+              "back_fill": [],
+              "generates": [],
+              "field_anchors": []
+            },
+            {
+              "name": "avfilter_graph_get_filter",
+              "defined_in": "libavfilter/avfiltergraph.c",
+              "kind": "symbol",
+              "source_kind": "function_exported",
+              "layer": 4,
+              "loc": 9,
+              "deps": {
+                "types": [
+                  {
+                    "name": "AVFilterContext",
+                    "defined_in": "libavfilter/avfilter.h",
+                    "scope": "wrap"
+                  },
+                  {
+                    "name": "AVFilterGraph",
+                    "defined_in": "libavfilter/avfilter.h",
+                    "scope": "wrap"
+                  }
+                ],
+                "symbols": []
+              },
+              "fallback": [],
+              "back_fill": [],
+              "generates": [],
+              "field_anchors": []
+            },
+            {
+              "name": "avfilter_graph_parse",
+              "defined_in": "libavfilter/graphparser.c",
+              "kind": "symbol",
+              "source_kind": "function_exported",
+              "layer": 4,
+              "loc": 59,
+              "deps": {
+                "types": [
+                  {
+                    "name": "AVFilterGraph",
+                    "defined_in": "libavfilter/avfilter.h",
+                    "scope": "wrap"
+                  },
+                  {
+                    "name": "AVFilterInOut",
+                    "defined_in": "libavfilter/avfilter.h",
+                    "scope": "wrap"
+                  }
+                ],
+                "symbols": []
+              },
+              "fallback": [],
+              "back_fill": [],
+              "generates": [],
+              "field_anchors": []
+            },
+            {
+              "name": "avfilter_graph_parse2",
+              "defined_in": "libavfilter/graphparser.c",
+              "kind": "symbol",
+              "source_kind": "function_exported",
+              "layer": 4,
+              "loc": 22,
+              "deps": {
+                "types": [
+                  {
+                    "name": "AVFilterGraph",
+                    "defined_in": "libavfilter/avfilter.h",
+                    "scope": "wrap"
+                  },
+                  {
+                    "name": "AVFilterInOut",
+                    "defined_in": "libavfilter/avfilter.h",
+                    "scope": "wrap"
+                  }
+                ],
+                "symbols": []
+              },
+              "fallback": [],
+              "back_fill": [],
+              "generates": [],
+              "field_anchors": []
+            },
+            {
+              "name": "avfilter_graph_parse_ptr",
+              "defined_in": "libavfilter/graphparser.c",
+              "kind": "symbol",
+              "source_kind": "function_exported",
+              "layer": 4,
+              "loc": 120,
+              "deps": {
+                "types": [
+                  {
+                    "name": "AVFilterGraph",
+                    "defined_in": "libavfilter/avfilter.h",
+                    "scope": "wrap"
+                  },
+                  {
+                    "name": "AVFilterInOut",
+                    "defined_in": "libavfilter/avfilter.h",
+                    "scope": "wrap"
+                  }
+                ],
+                "symbols": []
+              },
+              "fallback": [],
+              "back_fill": [],
+              "generates": [],
+              "field_anchors": []
+            },
+            {
+              "name": "avfilter_graph_queue_command",
+              "defined_in": "libavfilter/avfiltergraph.c",
+              "kind": "symbol",
+              "source_kind": "function_exported",
+              "layer": 4,
+              "loc": 30,
+              "deps": {
+                "types": [
+                  {
+                    "name": "AVFilterGraph",
+                    "defined_in": "libavfilter/avfilter.h",
+                    "scope": "wrap"
+                  }
+                ],
+                "symbols": []
+              },
+              "fallback": [],
+              "back_fill": [],
+              "generates": [],
+              "field_anchors": []
+            },
+            {
+              "name": "avfilter_graph_request_oldest",
+              "defined_in": "libavfilter/avfiltergraph.c",
+              "kind": "symbol",
+              "source_kind": "function_exported",
+              "layer": 4,
+              "loc": 47,
+              "deps": {
+                "types": [
+                  {
+                    "name": "AVFilterGraph",
+                    "defined_in": "libavfilter/avfilter.h",
+                    "scope": "wrap"
+                  }
+                ],
+                "symbols": []
+              },
+              "fallback": [],
+              "back_fill": [],
+              "generates": [],
+              "field_anchors": []
+            },
+            {
+              "name": "avfilter_graph_send_command",
+              "defined_in": "libavfilter/avfiltergraph.c",
+              "kind": "symbol",
+              "source_kind": "function_exported",
+              "layer": 4,
+              "loc": 28,
+              "deps": {
+                "types": [
+                  {
+                    "name": "AVFilterGraph",
+                    "defined_in": "libavfilter/avfilter.h",
+                    "scope": "wrap"
+                  }
+                ],
+                "symbols": []
+              },
+              "fallback": [],
+              "back_fill": [],
+              "generates": [],
+              "field_anchors": []
+            },
+            {
+              "name": "avfilter_graph_set_auto_convert",
+              "defined_in": "libavfilter/avfiltergraph.c",
+              "kind": "symbol",
+              "source_kind": "function_exported",
+              "layer": 4,
+              "loc": 3,
+              "deps": {
+                "types": [
+                  {
+                    "name": "AVFilterGraph",
+                    "defined_in": "libavfilter/avfilter.h",
+                    "scope": "wrap"
+                  }
+                ],
+                "symbols": []
+              },
+              "fallback": [],
+              "back_fill": [],
+              "generates": [],
+              "field_anchors": []
+            },
+            {
+              "name": "avfilter_inout_alloc",
+              "defined_in": "libavfilter/graphparser.c",
+              "kind": "symbol",
+              "source_kind": "function_exported",
+              "layer": 4,
+              "loc": 3,
+              "deps": {
+                "types": [
+                  {
+                    "name": "AVFilterInOut",
+                    "defined_in": "libavfilter/avfilter.h",
+                    "scope": "wrap"
+                  }
+                ],
+                "symbols": []
+              },
+              "fallback": [],
+              "back_fill": [],
+              "generates": [],
+              "field_anchors": []
+            },
+            {
+              "name": "avfilter_inout_free",
+              "defined_in": "libavfilter/graphparser.c",
+              "kind": "symbol",
+              "source_kind": "function_exported",
+              "layer": 4,
+              "loc": 8,
+              "deps": {
+                "types": [
+                  {
+                    "name": "AVFilterInOut",
+                    "defined_in": "libavfilter/avfilter.h",
+                    "scope": "wrap"
+                  }
+                ],
+                "symbols": []
+              },
+              "fallback": [],
+              "back_fill": [],
+              "generates": [],
+              "field_anchors": []
+            },
+            {
+              "name": "avfilter_insert_filter",
+              "defined_in": "libavfilter/avfilter.c",
+              "kind": "symbol",
+              "source_kind": "function_exported",
+              "layer": 4,
+              "loc": 43,
+              "deps": {
+                "types": [
+                  {
+                    "name": "AVFilterContext",
+                    "defined_in": "libavfilter/avfilter.h",
+                    "scope": "wrap"
+                  },
+                  {
+                    "name": "AVFilterLink",
+                    "defined_in": "libavfilter/avfilter.h",
+                    "scope": "wrap"
+                  }
+                ],
+                "symbols": []
+              },
+              "fallback": [],
+              "back_fill": [],
+              "generates": [],
+              "field_anchors": []
+            },
+            {
+              "name": "avfilter_link_get_hw_frames_ctx",
+              "defined_in": "libavfilter/avfilter.c",
+              "kind": "symbol",
+              "source_kind": "function_exported",
+              "layer": 4,
+              "loc": 7,
+              "deps": {
+                "types": [
+                  {
+                    "name": "AVBufferRef",
+                    "defined_in": "libavutil/buffer.h",
+                    "scope": "wrap"
+                  },
+                  {
+                    "name": "AVFilterLink",
+                    "defined_in": "libavfilter/avfilter.h",
+                    "scope": "wrap"
+                  }
+                ],
+                "symbols": []
+              },
+              "fallback": [],
+              "back_fill": [],
+              "generates": [],
+              "field_anchors": []
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "unit_count": 1,
+      "batches": [
+        {
+          "kind": "type",
+          "source_file": "libavfilter/avfilter.h",
+          "items": [
+            {
+              "name": "AVFilterGraphSegment",
+              "defined_in": "libavfilter/avfilter.h",
+              "kind": "type",
+              "source_kind": "struct",
+              "layer": 5,
+              "loc": 4,
+              "deps": {
+                "types": [
+                  {
+                    "name": "AVFilterChain",
+                    "defined_in": "libavfilter/avfilter.h",
+                    "scope": "wrap"
+                  },
+                  {
+                    "name": "AVFilterGraph",
+                    "defined_in": "libavfilter/avfilter.h",
+                    "scope": "wrap"
+                  }
+                ],
+                "symbols": []
+              },
+              "fallback": [],
+              "back_fill": [],
+              "generates": [],
+              "field_anchors": [
+                "graph",
+                "scale_sws_opts",
+                "nb_chains",
+                "chains"
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "unit_count": 7,
+      "batches": [
+        {
+          "kind": "symbol",
+          "source_file": null,
+          "items": [
+            {
+              "name": "avfilter_graph_segment_apply",
+              "defined_in": "libavfilter/graphparser.c",
+              "kind": "symbol",
+              "source_kind": "function_exported",
+              "layer": 6,
+              "loc": 34,
+              "deps": {
+                "types": [
+                  {
+                    "name": "AVFilterGraphSegment",
+                    "defined_in": "libavfilter/avfilter.h",
+                    "scope": "wrap"
+                  },
+                  {
+                    "name": "AVFilterInOut",
+                    "defined_in": "libavfilter/avfilter.h",
+                    "scope": "wrap"
+                  }
+                ],
+                "symbols": []
+              },
+              "fallback": [],
+              "back_fill": [],
+              "generates": [],
+              "field_anchors": []
+            },
+            {
+              "name": "avfilter_graph_segment_apply_opts",
+              "defined_in": "libavfilter/graphparser.c",
+              "kind": "symbol",
+              "source_kind": "function_exported",
+              "layer": 6,
+              "loc": 28,
+              "deps": {
+                "types": [
+                  {
+                    "name": "AVFilterGraphSegment",
+                    "defined_in": "libavfilter/avfilter.h",
+                    "scope": "wrap"
+                  }
+                ],
+                "symbols": []
+              },
+              "fallback": [],
+              "back_fill": [],
+              "generates": [],
+              "field_anchors": []
+            },
+            {
+              "name": "avfilter_graph_segment_create_filters",
+              "defined_in": "libavfilter/graphparser.c",
+              "kind": "symbol",
+              "source_kind": "function_exported",
+              "layer": 6,
+              "loc": 59,
+              "deps": {
+                "types": [
+                  {
+                    "name": "AVFilterGraphSegment",
+                    "defined_in": "libavfilter/avfilter.h",
+                    "scope": "wrap"
+                  }
+                ],
+                "symbols": []
+              },
+              "fallback": [],
+              "back_fill": [],
+              "generates": [],
+              "field_anchors": []
+            },
+            {
+              "name": "avfilter_graph_segment_free",
+              "defined_in": "libavfilter/graphparser.c",
+              "kind": "symbol",
+              "source_kind": "function_exported",
+              "layer": 6,
+              "loc": 14,
+              "deps": {
+                "types": [
+                  {
+                    "name": "AVFilterGraphSegment",
+                    "defined_in": "libavfilter/avfilter.h",
+                    "scope": "wrap"
+                  }
+                ],
+                "symbols": []
+              },
+              "fallback": [],
+              "back_fill": [],
+              "generates": [],
+              "field_anchors": []
+            },
+            {
+              "name": "avfilter_graph_segment_init",
+              "defined_in": "libavfilter/graphparser.c",
+              "kind": "symbol",
+              "source_kind": "function_exported",
+              "layer": 6,
+              "loc": 25,
+              "deps": {
+                "types": [
+                  {
+                    "name": "AVFilterGraphSegment",
+                    "defined_in": "libavfilter/avfilter.h",
+                    "scope": "wrap"
+                  }
+                ],
+                "symbols": []
+              },
+              "fallback": [],
+              "back_fill": [],
+              "generates": [],
+              "field_anchors": []
+            },
+            {
+              "name": "avfilter_graph_segment_link",
+              "defined_in": "libavfilter/graphparser.c",
+              "kind": "symbol",
+              "source_kind": "function_exported",
+              "layer": 6,
+              "loc": 38,
+              "deps": {
+                "types": [
+                  {
+                    "name": "AVFilterGraphSegment",
+                    "defined_in": "libavfilter/avfilter.h",
+                    "scope": "wrap"
+                  },
+                  {
+                    "name": "AVFilterInOut",
+                    "defined_in": "libavfilter/avfilter.h",
+                    "scope": "wrap"
+                  }
+                ],
+                "symbols": []
+              },
+              "fallback": [],
+              "back_fill": [],
+              "generates": [],
+              "field_anchors": []
+            },
+            {
+              "name": "avfilter_graph_segment_parse",
+              "defined_in": "libavfilter/graphparser.c",
+              "kind": "symbol",
+              "source_kind": "function_exported",
+              "layer": 6,
+              "loc": 53,
+              "deps": {
+                "types": [
+                  {
+                    "name": "AVFilterGraph",
+                    "defined_in": "libavfilter/avfilter.h",
+                    "scope": "wrap"
+                  },
+                  {
+                    "name": "AVFilterGraphSegment",
+                    "defined_in": "libavfilter/avfilter.h",
+                    "scope": "wrap"
+                  }
+                ],
+                "symbols": []
+              },
+              "fallback": [],
+              "back_fill": [],
+              "generates": [],
+              "field_anchors": []
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

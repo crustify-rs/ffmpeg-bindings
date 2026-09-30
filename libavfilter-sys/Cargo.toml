@@ -1,0 +1,25 @@
+[package]
+name = "libavfilter-sys"
+description = "Raw FFI bindings to FFmpeg's libavfilter"
+links = "avfilter"
+build = "build.rs"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+publish.workspace = true
+
+[lib]
+# C doc comments carry C code blocks that are not Rust doctests.
+doctest = false
+
+[dependencies]
+libswscale-sys.workspace = true
+libavformat-sys.workspace = true
+libavcodec-sys.workspace = true
+libswresample-sys.workspace = true
+libavutil-sys.workspace = true
+
+[build-dependencies]
+bindgen.workspace = true
+cc.workspace = true
+serde_json.workspace = true

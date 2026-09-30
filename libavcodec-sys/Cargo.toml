@@ -1,0 +1,22 @@
+[package]
+name = "libavcodec-sys"
+description = "Raw FFI bindings to FFmpeg's libavcodec"
+links = "avcodec"
+build = "build.rs"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+publish.workspace = true
+
+[lib]
+# C doc comments carry C code blocks that are not Rust doctests.
+doctest = false
+
+[dependencies]
+libswresample-sys.workspace = true
+libavutil-sys.workspace = true
+
+[build-dependencies]
+bindgen.workspace = true
+cc.workspace = true
+serde_json.workspace = true

@@ -1,0 +1,1582 @@
+{
+  "schema_version": 3,
+  "oracle_config": {
+    "path": "crustify/wavefront/configs/libavcodec/utils/wavefront-config.json",
+    "sha256": "2b4c805111dd0e58e6803e400ae5696bf485729f746f6560d75cdadc25bf0493"
+  },
+  "api_headers_only": true,
+  "budgets": {
+    "max_syms": 25,
+    "max_loc": 500,
+    "max_types": 2,
+    "min_fields": 20
+  },
+  "summary": {
+    "unit_count": 62,
+    "layer_count": 3,
+    "batch_count": 17,
+    "file_count": 8
+  },
+  "waves": [
+    {
+      "unit_count": 26,
+      "batches": [
+        {
+          "kind": "type",
+          "source_file": "libavutil/buffer.h",
+          "items": [
+            {
+              "name": "AVBufferRef",
+              "defined_in": "libavutil/buffer.h",
+              "kind": "type",
+              "source_kind": "struct",
+              "layer": 0,
+              "loc": 3,
+              "deps": {
+                "types": [],
+                "symbols": []
+              },
+              "fallback": [],
+              "back_fill": [],
+              "generates": [],
+              "field_anchors": []
+            },
+            {
+              "name": "AVClass",
+              "defined_in": "libavutil/log.h",
+              "kind": "type",
+              "source_kind": "struct",
+              "layer": 0,
+              "loc": 12,
+              "deps": {
+                "types": [],
+                "symbols": []
+              },
+              "fallback": [],
+              "back_fill": [],
+              "generates": [],
+              "field_anchors": []
+            }
+          ]
+        },
+        {
+          "kind": "type",
+          "source_file": "libavutil/pixfmt.h",
+          "items": [
+            {
+              "name": "AVColorPrimaries",
+              "defined_in": "libavutil/pixfmt.h",
+              "kind": "type",
+              "source_kind": "enum",
+              "layer": 0,
+              "loc": 0,
+              "deps": {
+                "types": [],
+                "symbols": []
+              },
+              "fallback": [],
+              "back_fill": [],
+              "generates": [],
+              "field_anchors": []
+            },
+            {
+              "name": "AVColorRange",
+              "defined_in": "libavutil/pixfmt.h",
+              "kind": "type",
+              "source_kind": "enum",
+              "layer": 0,
+              "loc": 0,
+              "deps": {
+                "types": [],
+                "symbols": []
+              },
+              "fallback": [],
+              "back_fill": [],
+              "generates": [],
+              "field_anchors": []
+            }
+          ]
+        },
+        {
+          "kind": "type",
+          "source_file": "libavutil/pixfmt.h",
+          "items": [
+            {
+              "name": "AVColorSpace",
+              "defined_in": "libavutil/pixfmt.h",
+              "kind": "type",
+              "source_kind": "enum",
+              "layer": 0,
+              "loc": 0,
+              "deps": {
+                "types": [],
+                "symbols": []
+              },
+              "fallback": [],
+              "back_fill": [],
+              "generates": [],
+              "field_anchors": []
+            },
+            {
+              "name": "AVColorTransferCharacteristic",
+              "defined_in": "libavutil/pixfmt.h",
+              "kind": "type",
+              "source_kind": "enum",
+              "layer": 0,
+              "loc": 0,
+              "deps": {
+                "types": [],
+                "symbols": []
+              },
+              "fallback": [],
+              "back_fill": [],
+              "generates": [],
+              "field_anchors": []
+            }
+          ]
+        },
+        {
+          "kind": "type",
+          "source_file": "libavutil/dict.c",
+          "items": [
+            {
+              "name": "AVDictionary",
+              "defined_in": "libavutil/dict.c",
+              "kind": "type",
+              "source_kind": "struct",
+              "layer": 0,
+              "loc": 2,
+              "deps": {
+                "types": [],
+                "symbols": []
+              },
+              "fallback": [],
+              "back_fill": [],
+              "generates": [],
+              "field_anchors": []
+            },
+            {
+              "name": "AVExifHeaderMode",
+              "defined_in": "libavcodec/exif.h",
+              "kind": "type",
+              "source_kind": "enum",
+              "layer": 0,
+              "loc": 0,
+              "deps": {
+                "types": [],
+                "symbols": []
+              },
+              "fallback": [],
+              "back_fill": [],
+              "generates": [],
+              "field_anchors": []
+            }
+          ]
+        },
+        {
+          "kind": "type",
+          "source_file": "libavcodec/exif.h",
+          "items": [
+            {
+              "name": "AVExifMetadata",
+              "defined_in": "libavcodec/exif.h",
+              "kind": "type",
+              "source_kind": "struct",
+              "layer": 0,
+              "loc": 3,
+              "deps": {
+                "types": [],
+                "symbols": []
+              },
+              "fallback": [
+                {
+                  "name": "AVExifEntry",
+                  "defined_in": "libavcodec/exif.h",
+                  "scope": "wrap"
+                }
+              ],
+              "back_fill": [],
+              "generates": [],
+              "field_anchors": [
+                "count",
+                "size",
+                "entries"
+              ]
+            },
+            {
+              "name": "AVPacket",
+              "defined_in": "libavcodec/packet.h",
+              "kind": "type",
+              "source_kind": "struct",
+              "layer": 0,
+              "loc": 14,
+              "deps": {
+                "types": [],
+                "symbols": []
+              },
+              "fallback": [],
+              "back_fill": [],
+              "generates": [],
+              "field_anchors": []
+            }
+          ]
+        },
+        {
+          "kind": "type",
+          "source_file": "libavutil/pixfmt.h",
+          "items": [
+            {
+              "name": "AVPixelFormat",
+              "defined_in": "libavutil/pixfmt.h",
+              "kind": "type",
+              "source_kind": "enum",
+              "layer": 0,
+              "loc": 0,
+              "deps": {
+                "types": [],
+                "symbols": []
+              },
+              "fallback": [],
+              "back_fill": [],
+              "generates": [],
+              "field_anchors": []
+            },
+            {
+              "name": "AVRational",
+              "defined_in": "libavutil/rational.h",
+              "kind": "type",
+              "source_kind": "struct",
+              "layer": 0,
+              "loc": 2,
+              "deps": {
+                "types": [],
+                "symbols": []
+              },
+              "fallback": [],
+              "back_fill": [],
+              "generates": [],
+              "field_anchors": []
+            }
+          ]
+        },
+        {
+          "kind": "type",
+          "source_file": "libavcodec/smpte_436m.h",
+          "items": [
+            {
+              "name": "AVSmpte291mAnc8bit",
+              "defined_in": "libavcodec/smpte_436m.h",
+              "kind": "type",
+              "source_kind": "struct",
+              "layer": 0,
+              "loc": 5,
+              "deps": {
+                "types": [],
+                "symbols": []
+              },
+              "fallback": [],
+              "back_fill": [],
+              "generates": [],
+              "field_anchors": [
+                "payload",
+                "checksum",
+                "data_count",
+                "sdid_or_dbn",
+                "did"
+              ]
+            },
+            {
+              "name": "AVSmpte436mAncIterator",
+              "defined_in": "libavcodec/smpte_436m.h",
+              "kind": "type",
+              "source_kind": "struct",
+              "layer": 0,
+              "loc": 3,
+              "deps": {
+                "types": [],
+                "symbols": []
+              },
+              "fallback": [],
+              "back_fill": [],
+              "generates": [],
+              "field_anchors": [
+                "size_left",
+                "data_left",
+                "anc_packets_left"
+              ]
+            }
+          ]
+        },
+        {
+          "kind": "type",
+          "source_file": "libavcodec/smpte_436m.h",
+          "items": [
+            {
+              "name": "AVSmpte436mPayloadSampleCoding",
+              "defined_in": "libavcodec/smpte_436m.h",
+              "kind": "type",
+              "source_kind": "enum",
+              "layer": 0,
+              "loc": 0,
+              "deps": {
+                "types": [],
+                "symbols": []
+              },
+              "fallback": [],
+              "back_fill": [],
+              "generates": [],
+              "field_anchors": []
+            },
+            {
+              "name": "AVSmpte436mWrappingType",
+              "defined_in": "libavcodec/smpte_436m.h",
+              "kind": "type",
+              "source_kind": "enum",
+              "layer": 0,
+              "loc": 0,
+              "deps": {
+                "types": [],
+                "symbols": []
+              },
+              "fallback": [],
+              "back_fill": [],
+              "generates": [],
+              "field_anchors": []
+            }
+          ]
+        },
+        {
+          "kind": "type",
+          "source_file": "libavcodec/exif.h",
+          "items": [
+            {
+              "name": "AVTiffDataType",
+              "defined_in": "libavcodec/exif.h",
+              "kind": "type",
+              "source_kind": "enum",
+              "layer": 0,
+              "loc": 0,
+              "deps": {
+                "types": [],
+                "symbols": []
+              },
+              "fallback": [],
+              "back_fill": [],
+              "generates": [],
+              "field_anchors": []
+            },
+            {
+              "name": "AVVorbisParseContext",
+              "defined_in": "libavcodec/vorbis_parser_internal.h",
+              "kind": "type",
+              "source_kind": "struct",
+              "layer": 0,
+              "loc": 9,
+              "deps": {
+                "types": [],
+                "symbols": []
+              },
+              "fallback": [],
+              "back_fill": [],
+              "generates": [],
+              "field_anchors": []
+            }
+          ]
+        },
+        {
+          "kind": "type",
+          "source_file": "libavcodec/dirac.h",
+          "items": [
+            {
+              "name": "DiracParseCodes",
+              "defined_in": "libavcodec/dirac.h",
+              "kind": "type",
+              "source_kind": "enum",
+              "layer": 0,
+              "loc": 0,
+              "deps": {
+                "types": [],
+                "symbols": []
+              },
+              "fallback": [],
+              "back_fill": [],
+              "generates": [],
+              "field_anchors": []
+            },
+            {
+              "name": "DiracVersionInfo",
+              "defined_in": "libavcodec/dirac.h",
+              "kind": "type",
+              "source_kind": "struct",
+              "layer": 0,
+              "loc": 2,
+              "deps": {
+                "types": [],
+                "symbols": []
+              },
+              "fallback": [],
+              "back_fill": [],
+              "generates": [],
+              "field_anchors": [
+                "major",
+                "minor"
+              ]
+            }
+          ]
+        },
+        {
+          "kind": "symbol",
+          "source_file": null,
+          "items": [
+            {
+              "name": "av_ac3_parse_header",
+              "defined_in": "libavcodec/ac3_parser.c",
+              "kind": "symbol",
+              "source_kind": "function_exported",
+              "layer": 0,
+              "loc": 21,
+              "deps": {
+                "types": [],
+                "symbols": []
+              },
+              "fallback": [],
+              "back_fill": [],
+              "generates": [],
+              "field_anchors": []
+            },
+            {
+              "name": "av_adts_header_parse",
+              "defined_in": "libavcodec/adts_parser.c",
+              "kind": "symbol",
+              "source_kind": "function_exported",
+              "layer": 0,
+              "loc": 18,
+              "deps": {
+                "types": [],
+                "symbols": []
+              },
+              "fallback": [],
+              "back_fill": [],
+              "generates": [],
+              "field_anchors": []
+            },
+            {
+              "name": "av_exif_get_tag_id",
+              "defined_in": "libavcodec/exif.c",
+              "kind": "symbol",
+              "source_kind": "function_exported",
+              "layer": 0,
+              "loc": 11,
+              "deps": {
+                "types": [],
+                "symbols": []
+              },
+              "fallback": [],
+              "back_fill": [],
+              "generates": [],
+              "field_anchors": []
+            },
+            {
+              "name": "av_exif_get_tag_name",
+              "defined_in": "libavcodec/exif.c",
+              "kind": "symbol",
+              "source_kind": "function_exported",
+              "layer": 0,
+              "loc": 8,
+              "deps": {
+                "types": [],
+                "symbols": []
+              },
+              "fallback": [],
+              "back_fill": [],
+              "generates": [],
+              "field_anchors": []
+            },
+            {
+              "name": "av_exif_matrix_to_orientation",
+              "defined_in": "libavcodec/exif.c",
+              "kind": "symbol",
+              "source_kind": "function_exported",
+              "layer": 0,
+              "loc": 11,
+              "deps": {
+                "types": [],
+                "symbols": []
+              },
+              "fallback": [],
+              "back_fill": [],
+              "generates": [],
+              "field_anchors": []
+            },
+            {
+              "name": "av_exif_orientation_to_matrix",
+              "defined_in": "libavcodec/exif.c",
+              "kind": "symbol",
+              "source_kind": "function_exported",
+              "layer": 0,
+              "loc": 36,
+              "deps": {
+                "types": [],
+                "symbols": []
+              },
+              "fallback": [],
+              "back_fill": [],
+              "generates": [],
+              "field_anchors": []
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "unit_count": 24,
+      "batches": [
+        {
+          "kind": "type",
+          "source_file": "libavcodec/avdct.h",
+          "items": [
+            {
+              "name": "AVDCT",
+              "defined_in": "libavcodec/avdct.h",
+              "kind": "type",
+              "source_kind": "struct",
+              "layer": 1,
+              "loc": 9,
+              "deps": {
+                "types": [
+                  {
+                    "name": "AVClass",
+                    "defined_in": "libavutil/log.h",
+                    "scope": "wrap"
+                  }
+                ],
+                "symbols": []
+              },
+              "fallback": [],
+              "back_fill": [],
+              "generates": [],
+              "field_anchors": [
+                "av_class",
+                "idct_algo",
+                "dct_algo",
+                "idct",
+                "idct_permutation",
+                "bits_per_sample",
+                "get_pixels",
+                "fdct",
+                "get_pixels_unaligned"
+              ]
+            },
+            {
+              "name": "AVDVProfile",
+              "defined_in": "libavcodec/dv_profile.h",
+              "kind": "type",
+              "source_kind": "struct",
+              "layer": 1,
+              "loc": 17,
+              "deps": {
+                "types": [
+                  {
+                    "name": "AVPixelFormat",
+                    "defined_in": "libavutil/pixfmt.h",
+                    "scope": "wrap"
+                  },
+                  {
+                    "name": "AVRational",
+                    "defined_in": "libavutil/rational.h",
+                    "scope": "wrap"
+                  }
+                ],
+                "symbols": []
+              },
+              "fallback": [],
+              "back_fill": [],
+              "generates": [],
+              "field_anchors": [
+                "height",
+                "frame_size",
+                "time_base",
+                "width",
+                "pix_fmt",
+                "sar",
+                "dsf",
+                "bpm",
+                "audio_shuffle",
+                "audio_samples_dist",
+                "audio_min_samples",
+                "audio_stride",
+                "block_sizes",
+                "ltc_divisor",
+                "n_difchan",
+                "difseg_size",
+                "video_stype"
+              ]
+            }
+          ]
+        },
+        {
+          "kind": "type",
+          "source_file": "libavcodec/dirac.h",
+          "items": [
+            {
+              "name": "AVDiracSeqHeader",
+              "defined_in": "libavcodec/dirac.h",
+              "kind": "type",
+              "source_kind": "struct",
+              "layer": 1,
+              "loc": 24,
+              "deps": {
+                "types": [
+                  {
+                    "name": "AVColorPrimaries",
+                    "defined_in": "libavutil/pixfmt.h",
+                    "scope": "wrap"
+                  },
+                  {
+                    "name": "AVColorRange",
+                    "defined_in": "libavutil/pixfmt.h",
+                    "scope": "wrap"
+                  },
+                  {
+                    "name": "AVColorSpace",
+                    "defined_in": "libavutil/pixfmt.h",
+                    "scope": "wrap"
+                  },
+                  {
+                    "name": "AVColorTransferCharacteristic",
+                    "defined_in": "libavutil/pixfmt.h",
+                    "scope": "wrap"
+                  },
+                  {
+                    "name": "AVPixelFormat",
+                    "defined_in": "libavutil/pixfmt.h",
+                    "scope": "wrap"
+                  },
+                  {
+                    "name": "AVRational",
+                    "defined_in": "libavutil/rational.h",
+                    "scope": "wrap"
+                  },
+                  {
+                    "name": "DiracVersionInfo",
+                    "defined_in": "libavcodec/dirac.h",
+                    "scope": "wrap"
+                  }
+                ],
+                "symbols": []
+              },
+              "fallback": [],
+              "back_fill": [],
+              "generates": [],
+              "field_anchors": [
+                "height",
+                "level",
+                "width",
+                "sample_aspect_ratio",
+                "profile",
+                "pix_fmt",
+                "framerate",
+                "color_range",
+                "colorspace",
+                "color_trc",
+                "color_primaries",
+                "bit_depth",
+                "version",
+                "top_field_first",
+                "interlaced",
+                "chroma_format",
+                "color_spec_index",
+                "pixel_range_index",
+                "clean_right_offset",
+                "clean_left_offset",
+                "clean_height",
+                "clean_width",
+                "aspect_ratio_index",
+                "frame_rate_index"
+              ]
+            }
+          ]
+        },
+        {
+          "kind": "type",
+          "source_file": "libavcodec/exif.h",
+          "items": [
+            {
+              "name": "AVExifEntry",
+              "defined_in": "libavcodec/exif.h",
+              "kind": "type",
+              "source_kind": "struct",
+              "layer": 1,
+              "loc": 15,
+              "deps": {
+                "types": [
+                  {
+                    "name": "AVExifMetadata",
+                    "defined_in": "libavcodec/exif.h",
+                    "scope": "wrap"
+                  },
+                  {
+                    "name": "AVRational",
+                    "defined_in": "libavutil/rational.h",
+                    "scope": "wrap"
+                  },
+                  {
+                    "name": "AVTiffDataType",
+                    "defined_in": "libavcodec/exif.h",
+                    "scope": "wrap"
+                  }
+                ],
+                "symbols": []
+              },
+              "fallback": [],
+              "back_fill": [
+                {
+                  "name": "AVExifMetadata",
+                  "defined_in": "libavcodec/exif.h",
+                  "scope": "wrap"
+                }
+              ],
+              "generates": [],
+              "field_anchors": [
+                "value",
+                "type",
+                "count",
+                "id",
+                "ifd_lead",
+                "ifd_offset",
+                "value.uint",
+                "value.ifd",
+                "value.ptr",
+                "value.sint",
+                "value.rat",
+                "value.dbl",
+                "value.ubytes",
+                "value.sbytes",
+                "value.str"
+              ]
+            },
+            {
+              "name": "AVSmpte436mCodedAnc",
+              "defined_in": "libavcodec/smpte_436m.h",
+              "kind": "type",
+              "source_kind": "struct",
+              "layer": 1,
+              "loc": 6,
+              "deps": {
+                "types": [
+                  {
+                    "name": "AVSmpte436mPayloadSampleCoding",
+                    "defined_in": "libavcodec/smpte_436m.h",
+                    "scope": "wrap"
+                  },
+                  {
+                    "name": "AVSmpte436mWrappingType",
+                    "defined_in": "libavcodec/smpte_436m.h",
+                    "scope": "wrap"
+                  }
+                ],
+                "symbols": []
+              },
+              "fallback": [],
+              "back_fill": [],
+              "generates": [],
+              "field_anchors": [
+                "payload",
+                "wrapping_type",
+                "line_number",
+                "payload_sample_coding",
+                "payload_array_length",
+                "payload_sample_count"
+              ]
+            }
+          ]
+        },
+        {
+          "kind": "symbol",
+          "source_file": null,
+          "items": [
+            {
+              "name": "av_exif_clone_ifd",
+              "defined_in": "libavcodec/exif.c",
+              "kind": "symbol",
+              "source_kind": "function_exported",
+              "layer": 1,
+              "loc": 30,
+              "deps": {
+                "types": [
+                  {
+                    "name": "AVExifMetadata",
+                    "defined_in": "libavcodec/exif.h",
+                    "scope": "wrap"
+                  }
+                ],
+                "symbols": []
+              },
+              "fallback": [],
+              "back_fill": [],
+              "generates": [],
+              "field_anchors": []
+            },
+            {
+              "name": "av_exif_free",
+              "defined_in": "libavcodec/exif.c",
+              "kind": "symbol",
+              "source_kind": "function_exported",
+              "layer": 1,
+              "loc": 16,
+              "deps": {
+                "types": [
+                  {
+                    "name": "AVExifMetadata",
+                    "defined_in": "libavcodec/exif.h",
+                    "scope": "wrap"
+                  }
+                ],
+                "symbols": []
+              },
+              "fallback": [],
+              "back_fill": [],
+              "generates": [],
+              "field_anchors": []
+            },
+            {
+              "name": "av_exif_ifd_to_dict",
+              "defined_in": "libavcodec/exif.c",
+              "kind": "symbol",
+              "source_kind": "function_exported",
+              "layer": 1,
+              "loc": 3,
+              "deps": {
+                "types": [
+                  {
+                    "name": "AVDictionary",
+                    "defined_in": "libavutil/dict.c",
+                    "scope": "wrap"
+                  },
+                  {
+                    "name": "AVExifMetadata",
+                    "defined_in": "libavcodec/exif.h",
+                    "scope": "wrap"
+                  }
+                ],
+                "symbols": []
+              },
+              "fallback": [],
+              "back_fill": [],
+              "generates": [],
+              "field_anchors": []
+            },
+            {
+              "name": "av_exif_parse_buffer",
+              "defined_in": "libavcodec/exif.c",
+              "kind": "symbol",
+              "source_kind": "function_exported",
+              "layer": 1,
+              "loc": 78,
+              "deps": {
+                "types": [
+                  {
+                    "name": "AVExifHeaderMode",
+                    "defined_in": "libavcodec/exif.h",
+                    "scope": "wrap"
+                  },
+                  {
+                    "name": "AVExifMetadata",
+                    "defined_in": "libavcodec/exif.h",
+                    "scope": "wrap"
+                  }
+                ],
+                "symbols": []
+              },
+              "fallback": [],
+              "back_fill": [],
+              "generates": [],
+              "field_anchors": []
+            },
+            {
+              "name": "av_exif_remove_entry",
+              "defined_in": "libavcodec/exif.c",
+              "kind": "symbol",
+              "source_kind": "function_exported",
+              "layer": 1,
+              "loc": 3,
+              "deps": {
+                "types": [
+                  {
+                    "name": "AVExifMetadata",
+                    "defined_in": "libavcodec/exif.h",
+                    "scope": "wrap"
+                  }
+                ],
+                "symbols": []
+              },
+              "fallback": [],
+              "back_fill": [],
+              "generates": [],
+              "field_anchors": []
+            },
+            {
+              "name": "av_exif_set_entry",
+              "defined_in": "libavcodec/exif.c",
+              "kind": "symbol",
+              "source_kind": "function_exported",
+              "layer": 1,
+              "loc": 54,
+              "deps": {
+                "types": [
+                  {
+                    "name": "AVExifMetadata",
+                    "defined_in": "libavcodec/exif.h",
+                    "scope": "wrap"
+                  },
+                  {
+                    "name": "AVTiffDataType",
+                    "defined_in": "libavcodec/exif.h",
+                    "scope": "wrap"
+                  }
+                ],
+                "symbols": []
+              },
+              "fallback": [],
+              "back_fill": [],
+              "generates": [],
+              "field_anchors": []
+            },
+            {
+              "name": "av_exif_write",
+              "defined_in": "libavcodec/exif.c",
+              "kind": "symbol",
+              "source_kind": "function_exported",
+              "layer": 1,
+              "loc": 127,
+              "deps": {
+                "types": [
+                  {
+                    "name": "AVBufferRef",
+                    "defined_in": "libavutil/buffer.h",
+                    "scope": "wrap"
+                  },
+                  {
+                    "name": "AVExifHeaderMode",
+                    "defined_in": "libavcodec/exif.h",
+                    "scope": "wrap"
+                  },
+                  {
+                    "name": "AVExifMetadata",
+                    "defined_in": "libavcodec/exif.h",
+                    "scope": "wrap"
+                  }
+                ],
+                "symbols": []
+              },
+              "fallback": [],
+              "back_fill": [],
+              "generates": [],
+              "field_anchors": []
+            },
+            {
+              "name": "av_smpte_291m_anc_8bit_decode",
+              "defined_in": "libavcodec/smpte_436m.c",
+              "kind": "symbol",
+              "source_kind": "function_exported",
+              "layer": 1,
+              "loc": 36,
+              "deps": {
+                "types": [
+                  {
+                    "name": "AVSmpte291mAnc8bit",
+                    "defined_in": "libavcodec/smpte_436m.h",
+                    "scope": "wrap"
+                  },
+                  {
+                    "name": "AVSmpte436mPayloadSampleCoding",
+                    "defined_in": "libavcodec/smpte_436m.h",
+                    "scope": "wrap"
+                  }
+                ],
+                "symbols": []
+              },
+              "fallback": [],
+              "back_fill": [],
+              "generates": [],
+              "field_anchors": []
+            },
+            {
+              "name": "av_smpte_291m_anc_8bit_extract_cta_708",
+              "defined_in": "libavcodec/smpte_436m.c",
+              "kind": "symbol",
+              "source_kind": "function_exported",
+              "layer": 1,
+              "loc": 42,
+              "deps": {
+                "types": [
+                  {
+                    "name": "AVSmpte291mAnc8bit",
+                    "defined_in": "libavcodec/smpte_436m.h",
+                    "scope": "wrap"
+                  }
+                ],
+                "symbols": []
+              },
+              "fallback": [],
+              "back_fill": [],
+              "generates": [],
+              "field_anchors": []
+            },
+            {
+              "name": "av_smpte_291m_anc_8bit_fill_checksum",
+              "defined_in": "libavcodec/smpte_436m.c",
+              "kind": "symbol",
+              "source_kind": "function_exported",
+              "layer": 1,
+              "loc": 7,
+              "deps": {
+                "types": [
+                  {
+                    "name": "AVSmpte291mAnc8bit",
+                    "defined_in": "libavcodec/smpte_436m.h",
+                    "scope": "wrap"
+                  }
+                ],
+                "symbols": []
+              },
+              "fallback": [],
+              "back_fill": [],
+              "generates": [],
+              "field_anchors": []
+            },
+            {
+              "name": "av_smpte_291m_anc_8bit_get_sample_count",
+              "defined_in": "libavcodec/smpte_436m.c",
+              "kind": "symbol",
+              "source_kind": "function_exported",
+              "layer": 1,
+              "loc": 25,
+              "deps": {
+                "types": [
+                  {
+                    "name": "AVSmpte291mAnc8bit",
+                    "defined_in": "libavcodec/smpte_436m.h",
+                    "scope": "wrap"
+                  },
+                  {
+                    "name": "AVSmpte436mPayloadSampleCoding",
+                    "defined_in": "libavcodec/smpte_436m.h",
+                    "scope": "wrap"
+                  }
+                ],
+                "symbols": []
+              },
+              "fallback": [],
+              "back_fill": [],
+              "generates": [],
+              "field_anchors": []
+            },
+            {
+              "name": "av_smpte_436m_anc_iter_init",
+              "defined_in": "libavcodec/smpte_436m.c",
+              "kind": "symbol",
+              "source_kind": "function_exported",
+              "layer": 1,
+              "loc": 14,
+              "deps": {
+                "types": [
+                  {
+                    "name": "AVSmpte436mAncIterator",
+                    "defined_in": "libavcodec/smpte_436m.h",
+                    "scope": "wrap"
+                  }
+                ],
+                "symbols": []
+              },
+              "fallback": [],
+              "back_fill": [],
+              "generates": [],
+              "field_anchors": []
+            },
+            {
+              "name": "av_smpte_436m_coded_anc_payload_size",
+              "defined_in": "libavcodec/smpte_436m.c",
+              "kind": "symbol",
+              "source_kind": "function_exported",
+              "layer": 1,
+              "loc": 28,
+              "deps": {
+                "types": [
+                  {
+                    "name": "AVSmpte436mPayloadSampleCoding",
+                    "defined_in": "libavcodec/smpte_436m.h",
+                    "scope": "wrap"
+                  }
+                ],
+                "symbols": []
+              },
+              "fallback": [],
+              "back_fill": [],
+              "generates": [],
+              "field_anchors": []
+            },
+            {
+              "name": "av_vorbis_parse_frame",
+              "defined_in": "libavcodec/vorbis_parser.c",
+              "kind": "symbol",
+              "source_kind": "function_exported",
+              "layer": 1,
+              "loc": 3,
+              "deps": {
+                "types": [
+                  {
+                    "name": "AVVorbisParseContext",
+                    "defined_in": "libavcodec/vorbis_parser_internal.h",
+                    "scope": "wrap"
+                  }
+                ],
+                "symbols": []
+              },
+              "fallback": [],
+              "back_fill": [],
+              "generates": [],
+              "field_anchors": []
+            }
+          ]
+        },
+        {
+          "kind": "symbol",
+          "source_file": null,
+          "items": [
+            {
+              "name": "av_vorbis_parse_frame_flags",
+              "defined_in": "libavcodec/vorbis_parser.c",
+              "kind": "symbol",
+              "source_kind": "function_exported",
+              "layer": 1,
+              "loc": 49,
+              "deps": {
+                "types": [
+                  {
+                    "name": "AVVorbisParseContext",
+                    "defined_in": "libavcodec/vorbis_parser_internal.h",
+                    "scope": "wrap"
+                  }
+                ],
+                "symbols": []
+              },
+              "fallback": [],
+              "back_fill": [],
+              "generates": [],
+              "field_anchors": []
+            },
+            {
+              "name": "av_vorbis_parse_free",
+              "defined_in": "libavcodec/vorbis_parser.c",
+              "kind": "symbol",
+              "source_kind": "function_exported",
+              "layer": 1,
+              "loc": 3,
+              "deps": {
+                "types": [
+                  {
+                    "name": "AVVorbisParseContext",
+                    "defined_in": "libavcodec/vorbis_parser_internal.h",
+                    "scope": "wrap"
+                  }
+                ],
+                "symbols": []
+              },
+              "fallback": [],
+              "back_fill": [],
+              "generates": [],
+              "field_anchors": []
+            },
+            {
+              "name": "av_vorbis_parse_init",
+              "defined_in": "libavcodec/vorbis_parser.c",
+              "kind": "symbol",
+              "source_kind": "function_exported",
+              "layer": 1,
+              "loc": 15,
+              "deps": {
+                "types": [
+                  {
+                    "name": "AVVorbisParseContext",
+                    "defined_in": "libavcodec/vorbis_parser_internal.h",
+                    "scope": "wrap"
+                  }
+                ],
+                "symbols": []
+              },
+              "fallback": [],
+              "back_fill": [],
+              "generates": [],
+              "field_anchors": []
+            },
+            {
+              "name": "av_vorbis_parse_reset",
+              "defined_in": "libavcodec/vorbis_parser.c",
+              "kind": "symbol",
+              "source_kind": "function_exported",
+              "layer": 1,
+              "loc": 4,
+              "deps": {
+                "types": [
+                  {
+                    "name": "AVVorbisParseContext",
+                    "defined_in": "libavcodec/vorbis_parser_internal.h",
+                    "scope": "wrap"
+                  }
+                ],
+                "symbols": []
+              },
+              "fallback": [],
+              "back_fill": [],
+              "generates": [],
+              "field_anchors": []
+            },
+            {
+              "name": "avcodec_dct_get_class",
+              "defined_in": "libavcodec/avdct.c",
+              "kind": "symbol",
+              "source_kind": "function_exported",
+              "layer": 1,
+              "loc": 3,
+              "deps": {
+                "types": [
+                  {
+                    "name": "AVClass",
+                    "defined_in": "libavutil/log.h",
+                    "scope": "wrap"
+                  }
+                ],
+                "symbols": []
+              },
+              "fallback": [],
+              "back_fill": [],
+              "generates": [],
+              "field_anchors": []
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "unit_count": 12,
+      "batches": [
+        {
+          "kind": "symbol",
+          "source_file": null,
+          "items": [
+            {
+              "name": "av_dirac_parse_sequence_header",
+              "defined_in": "libavcodec/dirac.c",
+              "kind": "symbol",
+              "source_kind": "function_exported",
+              "layer": 2,
+              "loc": 73,
+              "deps": {
+                "types": [
+                  {
+                    "name": "AVDiracSeqHeader",
+                    "defined_in": "libavcodec/dirac.h",
+                    "scope": "wrap"
+                  }
+                ],
+                "symbols": []
+              },
+              "fallback": [],
+              "back_fill": [],
+              "generates": [],
+              "field_anchors": []
+            },
+            {
+              "name": "av_dv_codec_profile",
+              "defined_in": "libavcodec/dv_profile.c",
+              "kind": "symbol",
+              "source_kind": "function_exported",
+              "layer": 2,
+              "loc": 7,
+              "deps": {
+                "types": [
+                  {
+                    "name": "AVDVProfile",
+                    "defined_in": "libavcodec/dv_profile.h",
+                    "scope": "wrap"
+                  },
+                  {
+                    "name": "AVPixelFormat",
+                    "defined_in": "libavutil/pixfmt.h",
+                    "scope": "wrap"
+                  }
+                ],
+                "symbols": []
+              },
+              "fallback": [],
+              "back_fill": [],
+              "generates": [],
+              "field_anchors": []
+            },
+            {
+              "name": "av_dv_codec_profile2",
+              "defined_in": "libavcodec/dv_profile.c",
+              "kind": "symbol",
+              "source_kind": "function_exported",
+              "layer": 2,
+              "loc": 22,
+              "deps": {
+                "types": [
+                  {
+                    "name": "AVDVProfile",
+                    "defined_in": "libavcodec/dv_profile.h",
+                    "scope": "wrap"
+                  },
+                  {
+                    "name": "AVPixelFormat",
+                    "defined_in": "libavutil/pixfmt.h",
+                    "scope": "wrap"
+                  },
+                  {
+                    "name": "AVRational",
+                    "defined_in": "libavutil/rational.h",
+                    "scope": "wrap"
+                  }
+                ],
+                "symbols": []
+              },
+              "fallback": [],
+              "back_fill": [],
+              "generates": [],
+              "field_anchors": []
+            },
+            {
+              "name": "av_dv_frame_profile",
+              "defined_in": "libavcodec/dv_profile.c",
+              "kind": "symbol",
+              "source_kind": "function_exported",
+              "layer": 2,
+              "loc": 3,
+              "deps": {
+                "types": [
+                  {
+                    "name": "AVDVProfile",
+                    "defined_in": "libavcodec/dv_profile.h",
+                    "scope": "wrap"
+                  }
+                ],
+                "symbols": []
+              },
+              "fallback": [],
+              "back_fill": [],
+              "generates": [],
+              "field_anchors": []
+            },
+            {
+              "name": "av_exif_get_entry",
+              "defined_in": "libavcodec/exif.c",
+              "kind": "symbol",
+              "source_kind": "function_exported",
+              "layer": 2,
+              "loc": 3,
+              "deps": {
+                "types": [
+                  {
+                    "name": "AVExifEntry",
+                    "defined_in": "libavcodec/exif.h",
+                    "scope": "wrap"
+                  },
+                  {
+                    "name": "AVExifMetadata",
+                    "defined_in": "libavcodec/exif.h",
+                    "scope": "wrap"
+                  }
+                ],
+                "symbols": []
+              },
+              "fallback": [],
+              "back_fill": [],
+              "generates": [],
+              "field_anchors": []
+            },
+            {
+              "name": "av_smpte_291m_anc_8bit_encode",
+              "defined_in": "libavcodec/smpte_436m.c",
+              "kind": "symbol",
+              "source_kind": "function_exported",
+              "layer": 2,
+              "loc": 51,
+              "deps": {
+                "types": [
+                  {
+                    "name": "AVSmpte291mAnc8bit",
+                    "defined_in": "libavcodec/smpte_436m.h",
+                    "scope": "wrap"
+                  },
+                  {
+                    "name": "AVSmpte436mCodedAnc",
+                    "defined_in": "libavcodec/smpte_436m.h",
+                    "scope": "wrap"
+                  },
+                  {
+                    "name": "AVSmpte436mPayloadSampleCoding",
+                    "defined_in": "libavcodec/smpte_436m.h",
+                    "scope": "wrap"
+                  },
+                  {
+                    "name": "AVSmpte436mWrappingType",
+                    "defined_in": "libavcodec/smpte_436m.h",
+                    "scope": "wrap"
+                  }
+                ],
+                "symbols": []
+              },
+              "fallback": [],
+              "back_fill": [],
+              "generates": [],
+              "field_anchors": []
+            },
+            {
+              "name": "av_smpte_436m_anc_append",
+              "defined_in": "libavcodec/smpte_436m.c",
+              "kind": "symbol",
+              "source_kind": "function_exported",
+              "layer": 2,
+              "loc": 31,
+              "deps": {
+                "types": [
+                  {
+                    "name": "AVPacket",
+                    "defined_in": "libavcodec/packet.h",
+                    "scope": "wrap"
+                  },
+                  {
+                    "name": "AVSmpte436mCodedAnc",
+                    "defined_in": "libavcodec/smpte_436m.h",
+                    "scope": "wrap"
+                  }
+                ],
+                "symbols": []
+              },
+              "fallback": [],
+              "back_fill": [],
+              "generates": [],
+              "field_anchors": []
+            },
+            {
+              "name": "av_smpte_436m_anc_encode",
+              "defined_in": "libavcodec/smpte_436m.c",
+              "kind": "symbol",
+              "source_kind": "function_exported",
+              "layer": 2,
+              "loc": 26,
+              "deps": {
+                "types": [
+                  {
+                    "name": "AVSmpte436mCodedAnc",
+                    "defined_in": "libavcodec/smpte_436m.h",
+                    "scope": "wrap"
+                  }
+                ],
+                "symbols": []
+              },
+              "fallback": [],
+              "back_fill": [],
+              "generates": [],
+              "field_anchors": []
+            },
+            {
+              "name": "av_smpte_436m_anc_iter_next",
+              "defined_in": "libavcodec/smpte_436m.c",
+              "kind": "symbol",
+              "source_kind": "function_exported",
+              "layer": 2,
+              "loc": 13,
+              "deps": {
+                "types": [
+                  {
+                    "name": "AVSmpte436mAncIterator",
+                    "defined_in": "libavcodec/smpte_436m.h",
+                    "scope": "wrap"
+                  },
+                  {
+                    "name": "AVSmpte436mCodedAnc",
+                    "defined_in": "libavcodec/smpte_436m.h",
+                    "scope": "wrap"
+                  }
+                ],
+                "symbols": []
+              },
+              "fallback": [],
+              "back_fill": [],
+              "generates": [],
+              "field_anchors": []
+            },
+            {
+              "name": "av_smpte_436m_coded_anc_validate",
+              "defined_in": "libavcodec/smpte_436m.c",
+              "kind": "symbol",
+              "source_kind": "function_exported",
+              "layer": 2,
+              "loc": 16,
+              "deps": {
+                "types": [
+                  {
+                    "name": "AVSmpte436mCodedAnc",
+                    "defined_in": "libavcodec/smpte_436m.h",
+                    "scope": "wrap"
+                  }
+                ],
+                "symbols": []
+              },
+              "fallback": [],
+              "back_fill": [],
+              "generates": [],
+              "field_anchors": []
+            },
+            {
+              "name": "avcodec_dct_alloc",
+              "defined_in": "libavcodec/avdct.c",
+              "kind": "symbol",
+              "source_kind": "function_exported",
+              "layer": 2,
+              "loc": 11,
+              "deps": {
+                "types": [
+                  {
+                    "name": "AVDCT",
+                    "defined_in": "libavcodec/avdct.h",
+                    "scope": "wrap"
+                  }
+                ],
+                "symbols": []
+              },
+              "fallback": [],
+              "back_fill": [],
+              "generates": [],
+              "field_anchors": []
+            },
+            {
+              "name": "avcodec_dct_init",
+              "defined_in": "libavcodec/avdct.c",
+              "kind": "symbol",
+              "source_kind": "function_exported",
+              "layer": 2,
+              "loc": 42,
+              "deps": {
+                "types": [
+                  {
+                    "name": "AVDCT",
+                    "defined_in": "libavcodec/avdct.h",
+                    "scope": "wrap"
+                  }
+                ],
+                "symbols": []
+              },
+              "fallback": [],
+              "back_fill": [],
+              "generates": [],
+              "field_anchors": []
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}
