@@ -22,7 +22,7 @@
 
 5. **Do you want agentic review after translated work lands? If so, which
    model and billing should perform each review?** (`id: review-agent`)
-   - Answer: `openrouter/openai/gpt-5.6, api`, after each sub-campaign
+   - Answer: `openrouter/openai/gpt-5.6-sol, api`, after each sub-campaign
 
 6. **Should I run fully autonomously end to end?** (`id: autonomy`)
    - Answer: `no`
