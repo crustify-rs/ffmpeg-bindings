@@ -20,7 +20,7 @@
                       "defined_in": null,
                       "kind": "raw-lifetime",
                       "field_anchors": [],
-                      "home": "crustify/rust/ffmpeg/libavutil/raw.rs"
+                      "home": "crustify/rust/ffmpeg/libavutil/mem.rs"
                     }
                   ]
                 }
@@ -43,7 +43,7 @@
                       "defined_in": null,
                       "kind": "raw-lifetime",
                       "field_anchors": [],
-                      "home": "crustify/rust/ffmpeg/libavutil/raw.rs"
+                      "home": "crustify/rust/ffmpeg/libavutil/mem.rs"
                     }
                   ]
                 }
@@ -2192,9 +2192,7 @@
                         "opaque",
                         "nb_channels",
                         "order",
-                        "u",
-                        "u.mask",
-                        "u.map"
+                        "u"
                       ],
                       "home": "crustify/rust/ffmpeg/libavutil/channel_layout.rs"
                     },
@@ -5946,9 +5944,7 @@
                         "subsampling_x",
                         "subsampling_y",
                         "bit_depth_luma",
-                        "bit_depth_chroma",
-                        "codec.aom",
-                        "codec.h274"
+                        "bit_depth_chroma"
                       ],
                       "home": "crustify/rust/ffmpeg/libavutil/film_grain_params.rs"
                     }
@@ -6408,20 +6404,19 @@
                       "defined_in": "libavutil/dovi_meta.h",
                       "kind": "type",
                       "field_anchors": [
-                        "(unknown field)",
                         "level",
-                        "(unknown field).l8",
-                        "(unknown field).l9",
-                        "(unknown field).l10",
-                        "(unknown field).l3",
-                        "(unknown field).l11",
-                        "(unknown field).l254",
-                        "(unknown field).l1",
-                        "(unknown field).l2",
-                        "(unknown field).l4",
-                        "(unknown field).l5",
-                        "(unknown field).l6",
-                        "(unknown field).l255"
+                        "l8",
+                        "l9",
+                        "l10",
+                        "l3",
+                        "l11",
+                        "l254",
+                        "l1",
+                        "l2",
+                        "l4",
+                        "l5",
+                        "l6",
+                        "l255"
                       ],
                       "home": "crustify/rust/ffmpeg/libavutil/dovi_meta.rs"
                     }
@@ -6532,8 +6527,7 @@
                         "codec",
                         "black_level",
                         "white_level",
-                        "wb_cct",
-                        "codec.prores_raw"
+                        "wb_cct"
                       ],
                       "home": "crustify/rust/ffmpeg/libavutil/raw_color_params.rs"
                     }
@@ -10059,16 +10053,7 @@
                         "count",
                         "id",
                         "ifd_lead",
-                        "ifd_offset",
-                        "value.uint",
-                        "value.ifd",
-                        "value.ptr",
-                        "value.sint",
-                        "value.rat",
-                        "value.dbl",
-                        "value.ubytes",
-                        "value.sbytes",
-                        "value.str"
+                        "ifd_offset"
                       ],
                       "home": "crustify/rust/ffmpeg/libavcodec/exif.rs"
                     },
@@ -11627,12 +11612,10 @@
                       "defined_in": "libavformat/avformat.h",
                       "kind": "type",
                       "field_anchors": [
-                        "(unknown field)",
                         "height",
                         "av_class",
                         "width",
-                        "(unknown field).el_index",
-                        "(unknown field).lcevc_index"
+                        "el_index"
                       ],
                       "home": "crustify/rust/ffmpeg/libavformat/avformat.rs"
                     }
@@ -11798,13 +11781,7 @@
                         "av_class",
                         "disposition",
                         "params",
-                        "index",
-                        "params.iamf_audio_element",
-                        "params.iamf_mix_presentation",
-                        "params.tile_grid",
-                        "params.layered_video",
-                        "params.lcevc",
-                        "params.tref"
+                        "index"
                       ],
                       "home": "crustify/rust/ffmpeg/libavformat/avformat.rs"
                     }

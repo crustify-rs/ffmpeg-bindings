@@ -16,10 +16,10 @@ Copy this template into the campaign checkout, then fill it as work lands.
 - **`--max-syms`** — `25`
 - **`--max-loc`** — `500`
 - **`--min-fields`** — `20`
-- **orchestrator parallelism** — `8` concurrent batch processes
-- **branch** — `crustify/campaigns/20260930-163841`, tip `<sha>`
-- **deps** — crustify `26365e8` (`main`), ffibox `ce5d44e` (`main`)
-- **build version** — `2`
+- **orchestrator parallelism** — `10` concurrent batch processes
+- **branch** — `crustify/campaigns/20261005`, tip `<sha>`
+- **deps** — crustify `26365e8` (`main`)
+- **build version** — `3`
 - **C test baseline** — `5437/5437, 0 skipped, and no disabled tests`
 
 ## Review pass
@@ -33,7 +33,7 @@ Thin batches with `"objective": "review"`, LLM-as-a-Judge over each landed wave.
 - **`--max-syms`** — `25`
 - **`--max-loc`** — `500`
 - **`--min-fields`** — `20`
-- **orchestrator parallelism** — `8` concurrent batch processes
+- **orchestrator parallelism** — `10` concurrent batch processes
 - **branch** — `<branch>`, tip `<sha>`
 - **agents** — `<n>`, over `<n>` wave(s)
 
@@ -333,13 +333,46 @@ which units a review schedule dropped and why; which sub-campaigns the Overview
 lists but no table details, and the cost that leaves unaccounted; and any column
 a campaign could not fill, said once rather than left as a field of em-dashes.
 
-### Sanitizer variants: TSan and BSan unavailable on this host
+### Sanitizer variants
 
-`crustify/build.json` carries `plain`, `coverage` and `asan-ubsan` only. This container denies
-`personality(ADDR_NO_RANDOMIZE)` and runs with `vm.mmap_rnd_bits=32`, so every TSan runtime
-(clang 20, gcc 14) and the bsan shadow runtime abort at startup, before `main`. `/proc/sys` is
-read-only here; restoring them needs `sysctl vm.mmap_rnd_bits=28` on the host or a seccomp
-profile that allows `personality`. No race or BorrowSanitizer instrument ran.
+`crustify/build.json` (version 3) carries `plain`, `coverage`, `asan-ubsan`, `tsan` and `bsan`.
+The first container denied `personality(ADDR_NO_RANDOMIZE)`, so every TSan runtime and the
+bsan shadow runtime aborted at startup; after the container was restarted with seccomp
+unconfined, the `tsan` and `bsan` variants were added.
+
+FATE under `tsan` (clang 20, `TSAN_OPTIONS=halt_on_error=0`): 5637/5639. The 202 tests beyond
+the `plain` baseline's 5437 are `filter-pixdesc` variants that FATE enables under this clang
+configuration and not the gcc `plain` one. `fate-api-h264-slice` reports a pre-existing data
+race in slice-threaded H.264 CABAC decoding (`h264_cabac.c:2392` write against
+`decode_cabac_field_decoding_flag`'s read at `h264_cabac.c:1299`, on the shared per-picture
+state). Race tests that drive libavcodec's slice threads can hit it without any Rust defect.
+`fate-source` fails for a campaign reason: see the next subsection.
+
+The `bsan` variant links the runtime once, into executables only, and exports it
+(`-rdynamic`); linking it into every shared library gave each library its own shadow mapping,
+and the second one aborted. Its runtime (bsan 0.1.0, `3f210d63ae`) reports a false
+use-after-free when `realloc(NULL, n)` runs in a non-inlined function and the result is freed
+later. This correct program reproduces it:
+
+```c
+#include <stdlib.h>
+__attribute__((noinline)) void *wrap(void *p, size_t n){ return realloc(p, n); }
+int main(void){ char *p = wrap(NULL, 8); p[0] = 1; int r = p[0]; free(p); return r - 1; }
+```
+
+`av_realloc` hits it, so the instrumented C executables (`ffmpeg`, FATE tools) abort and no bsan
+FATE run exists. Rust test binaries under `cargo bsan` with `CRUSTIFY_FFMPEG_VARIANT=bsan` run
+clean against it, `av_strdup` → `av_realloc(NULL, n)` included. Rust TSan runs need nightly:
+`CRUSTIFY_FFMPEG_VARIANT=tsan RUSTFLAGS=-Zsanitizer=thread cargo +nightly test -Zbuild-std
+--target x86_64-unknown-linux-gnu`.
+
+### `fate-source` regression from the `-sys` scaffolding
+
+FFmpeg's `fate-source` requires every tracked `.c`/`.h` file to carry a licence header and
+every header a path-derived include guard. The scaffolded `crustify/rust/*-sys/shim.c`,
+`shim.h` and `wrapper.h` have neither: `shim.h` guards on `CRUSTIFY_LIBAVUTIL_SHIM_H` instead of
+`CRUSTIFY_RUST_LIBAVUTIL_SYS_SHIM_H`, and `wrapper.h` has no guard. The `plain` baseline (5437/5437)
+ran before they were committed, so `fate-source` fails against the current tree.
 
 ### Deprecated API exclusion
 
@@ -365,7 +398,7 @@ repo, and reach Rust only through bindgen.
 `make -k -j48 fate` against the `plain` build with the full fate-suite samples: 5437/5437
 pass, none disabled. `fate-list` enumerates 5438; the extra `fate-hwdevice` belongs to
 `fate-hw` only, not `fate`. The shared-library build needs `LD_LIBRARY_PATH` over its `lib*/`
-dirs, which is why `build.json` is at version 2.
+dirs, which is why `build.json` reached version 2; the `tsan` and `bsan` variants took it to 3.
 
 ### Subsystem decomposition and cycle cuts
 
@@ -403,10 +436,14 @@ header-level inclusions, not link dependencies.
 ### Planned shape
 
 `schedule.json`: 20 sub-campaigns (2 raw-lifetime, 18 subsystems), 70 waves, 273 batches:
-290 types with 1410 field anchors, 1119 symbols, 7 callbacks, homed in 107 `.rs` files. Each
+290 types with 1387 field anchors, 1119 symbols, 7 callbacks, homed in 106 `.rs` files. Each
 per-subsystem wavefront schedule used `--file <api_headers + TUs> --transitive
 --api-headers-only`. Items that `--transitive` pulled into more than one sub-campaign (120)
 stay with the first scheduled one. Out-of-tree libc types (`tm`, `_IO_FILE`) were dropped.
+Field anchors are C field identifiers: a member path through a named nested aggregate
+(`u.mask`) anchors on its top-level field (`u`), and a C11 unnamed member adds no segment
+(`(unknown field).l1` is `l1`). The `void` and `string` raw lifetimes home in
+`libavutil/mem.rs`, beside the primitives their strategies call.
 Wavefront was `557055d` (`scheduling/campaign-default-caps`).
 
 ### Bindgen type ownership
