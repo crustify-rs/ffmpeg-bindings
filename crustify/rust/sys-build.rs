@@ -106,6 +106,10 @@ pub fn build(lib: &str, deps: &[&str]) {
             b = b.blocklist_type(pat);
         }
     }
+    // bindgen writes static_fns.c only when the allowlist reaches a static
+    // inline function, so drop a previous build's copy rather than compile it.
+    let static_fns = out.join("static_fns.c");
+    let _ = std::fs::remove_file(&static_fns);
     b.generate()
         .expect("bindgen")
         .write_to_file(out.join("bindings.rs"))
@@ -116,7 +120,6 @@ pub fn build(lib: &str, deps: &[&str]) {
         .includes(&includes)
         .include(&manifest)
         .warnings(false);
-    let static_fns = out.join("static_fns.c");
     if static_fns.exists() {
         cc.file(&static_fns);
     }
