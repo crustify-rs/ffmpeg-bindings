@@ -2,7 +2,9 @@
 
 mod avstring;
 mod avutil;
+mod bprint;
 mod intfloat;
 mod intreadwrite;
 mod log;
+mod mathematics;
 mod mem;

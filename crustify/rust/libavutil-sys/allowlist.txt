@@ -36,3 +36,13 @@ function av_double2int
 # `AVEscapeMode`, which observe the encodings in equivalence tests.
 function av_get_media_type_string
 function av_escape
+
+# libavutil/mathematics.h: the AVRounding consumer whose INT64_MIN return
+# rejects invalid roundings, which equivalence tests compare against.
+function av_rescale_rnd
+
+# libavutil/bprint.h: automatic-storage init and fill, which observe the
+# FF_PAD_STRUCTURE size of AVBPrint in equivalence tests.
+function av_bprint_init
+function av_bprint_chars
+var AV_BPRINT_SIZE_AUTOMATIC
