@@ -1,0 +1,8 @@
+error[E0515]: cannot return value referencing local variable `a`
+ --> tests/ub_safe/compile_fail/intreadwrite_ref_outlives_value.rs
+  |
+  |     a.as_ref()
+  |     -^^^^^^^^^
+  |     |
+  |     returns a value referencing data owned by the current function
+  |     `a` is borrowed here

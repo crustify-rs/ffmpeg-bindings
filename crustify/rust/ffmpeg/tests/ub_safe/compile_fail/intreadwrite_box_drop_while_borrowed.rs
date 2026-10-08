@@ -1,0 +1,10 @@
+// A C-allocated `Alias32` cannot be freed while a handle to it is live.
+use ffmpeg::libavutil::intreadwrite::Alias32;
+use ffmpeg::libavutil::mem::HeapBox;
+
+fn main() {
+    let b = HeapBox::<Alias32>::new_zeroed().unwrap();
+    let r = b.as_ref();
+    drop(b);
+    println!("{}", r.u32());
+}

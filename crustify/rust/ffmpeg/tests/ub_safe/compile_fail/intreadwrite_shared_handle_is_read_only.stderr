@@ -1,0 +1,5 @@
+error[E0599]: no method named `set_u32` found for struct `Alias32Ref<'a>` in the current scope
+ --> tests/ub_safe/compile_fail/intreadwrite_shared_handle_is_read_only.rs
+  |
+  |     a.as_ref().set_u32(2);
+  |                ^^^^^^^ method not found in `Alias32Ref<'_>`
