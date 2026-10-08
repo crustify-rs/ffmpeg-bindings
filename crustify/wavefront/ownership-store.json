@@ -135,6 +135,29 @@
    ]
   },
   {
+   "name": "AVPictureType",
+   "defined_in": "libavutil/avutil.h",
+   "_comment_agent": "C enum (NONE=0, I, P, B, S, SI, SP, BI), no fields and no lifecycle. Stored as an int in public struct fields C users write directly (AVFrame.pict_type, AVCodecParserContext.pict_type, ...), so any int value may appear; av_get_picture_type_char maps unknown values to '?'. Wrapped as a transparent newtype PictureType accepting every value, with named associated constants.",
+   "fields": []
+  },
+  {
+   "name": "AVRational",
+   "defined_in": "libavutil/rational.h",
+   "_comment_agent": "Plain by-value pair of ints; no pointer fields, no heap lifecycle. C passes and returns it by value (av_mul_q, av_d2q, ...) and embeds it by value in public structs (AVCodecContext.time_base, AVStream.time_base, AVFrame.sample_aspect_ratio, ...), or in caller arrays terminated by {0,0} (av_find_nearest_q_idx, AVCodec.supported_framerates). Its only constructor is the header inline av_make_q (by value, so it has no pointer-return lifetime record); copying is a byte copy and no routine drops, disposes or clones it. 0/0 is a value C itself produces (zeroed contexts, av_cmp_q's INT_MIN case) and every reader tolerates, so all-zero is a valid value. Wrapped as the ffibox layout type Rational (CZeroable, Copy, Send + Sync as plain data) with RationalRef/RationalMut num/den accessors.",
+   "fields": [
+    {
+     "name": "den",
+     "refcount": false,
+     "locked_by": null
+    },
+    {
+     "name": "num",
+     "refcount": false,
+     "locked_by": null
+    }
+   ]
+  },
+  {
    "name": "AVRounding",
    "defined_in": "libavutil/mathematics.h",
    "_comment_agent": "By-value only: AVRounding is never stored in a field, returned, or passed to a callback; it flows Rust->C as the `rnd` argument of av_rescale_rnd / av_rescale_q_rnd (and libswscale's static ops helper). av_rescale_rnd accepts a method in {0,1,2,3,5}, alone or ORed with AV_ROUND_PASS_MINMAX (8192); any other value returns INT64_MIN (av_assert2 is compiled out: ASSERT_LEVEL is undefined in every campaign build). Wrapped as the validity-preserving newtype `mathematics::Rounding` (repr(transparent), private field, TryFrom rejects the rest). No lifecycle.",

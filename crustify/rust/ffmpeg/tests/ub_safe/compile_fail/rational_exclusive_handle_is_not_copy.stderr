@@ -1,0 +1,10 @@
+error[E0382]: borrow of moved value: `a`
+ --> tests/ub_safe/compile_fail/rational_exclusive_handle_is_not_copy.rs
+  |
+  |     let mut a = q.as_mut();
+  |         ----- move occurs because `a` has type `RationalMut<'_>`, which does not implement the `Copy` trait
+  |     let mut b = a;
+  |                 - value moved here
+  |     b.set_num(3);
+  |     a.set_num(4);
+  |     ^ value borrowed here after move

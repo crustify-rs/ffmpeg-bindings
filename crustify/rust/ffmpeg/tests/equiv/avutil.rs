@@ -1,11 +1,12 @@
-//! Equivalence of `libavutil/avutil.h`'s [`MediaType`] with the C enum, as C
-//! observes it: through `av_get_media_type_string` and through C-allocated
-//! storage holding the values.
+//! Equivalence of `libavutil/avutil.h`'s [`MediaType`] and [`PictureType`]
+//! with the C enums, as C observes them: through `av_get_media_type_string`
+//! and `av_get_picture_type_char`, and through C-allocated storage holding
+//! the values.
 
 use core::ffi::{CStr, c_int, c_void};
 use core::mem::size_of;
 
-use ffmpeg::libavutil::avutil::MediaType;
+use ffmpeg::libavutil::avutil::{MediaType, PictureType};
 use ffmpeg::libavutil::ffi;
 use ffmpeg::libavutil::mem::{HeapVec, alloc_array_zeroed};
 
@@ -213,4 +214,128 @@ fn clone_copies_the_c_encoding() {
     }
     assert_eq!(rust_as_c(&copy), c_values(&c));
     assert_eq!(rust_as_c(&rust), rust_as_c(&copy));
+}
+
+/// Every named picture type beside its C enumerator and C letter.
+const PICTURE_NAMED: [(PictureType, ffi::AVPictureType, u8); 8] = [
+    (
+        PictureType::NONE,
+        ffi::AVPictureType::AV_PICTURE_TYPE_NONE,
+        b'?',
+    ),
+    (PictureType::I, ffi::AVPictureType::AV_PICTURE_TYPE_I, b'I'),
+    (PictureType::P, ffi::AVPictureType::AV_PICTURE_TYPE_P, b'P'),
+    (PictureType::B, ffi::AVPictureType::AV_PICTURE_TYPE_B, b'B'),
+    (PictureType::S, ffi::AVPictureType::AV_PICTURE_TYPE_S, b'S'),
+    (
+        PictureType::SI,
+        ffi::AVPictureType::AV_PICTURE_TYPE_SI,
+        b'i',
+    ),
+    (
+        PictureType::SP,
+        ffi::AVPictureType::AV_PICTURE_TYPE_SP,
+        b'p',
+    ),
+    (
+        PictureType::BI,
+        ffi::AVPictureType::AV_PICTURE_TYPE_BI,
+        b'b',
+    ),
+];
+
+/// Values C may store in an `enum AVPictureType` though it names none of
+/// them, negative `int`s included as their unsigned encoding.
+const PICTURE_UNNAMED: [u32; 6] = [8, 9, 1 << 20, 1 << 31, u32::MAX - 1, u32::MAX];
+
+/// The letter C gives `t`: `av_get_picture_type_char`.
+fn c_letter(t: ffi::AVPictureType) -> u8 {
+    // SAFETY: `av_get_picture_type_char` takes the enum by value and maps
+    // every value, `'?'` for those it does not name.
+    unsafe { ffi::av_get_picture_type_char(t) as u8 }
+}
+
+/// Every picture type the tests compare, named first.
+fn picture_values() -> Vec<ffi::AVPictureType> {
+    PICTURE_NAMED
+        .iter()
+        .map(|&(_, c, _)| c)
+        .chain(PICTURE_UNNAMED.map(ffi::AVPictureType))
+        .collect()
+}
+
+#[test]
+fn picture_type_constants_are_the_c_enumerators() {
+    for (t, c, letter) in PICTURE_NAMED {
+        assert_eq!(t.into_raw(), c);
+        assert_eq!(PictureType::from_raw(c), t);
+        assert_eq!(c_letter(t.into_raw()), c_letter(c));
+        assert_eq!(c_letter(t.into_raw()), letter);
+    }
+    for raw in PICTURE_UNNAMED {
+        let t = PictureType::from_raw(ffi::AVPictureType(raw));
+        assert!(PICTURE_NAMED.iter().all(|&(n, _, _)| n != t));
+        assert_eq!(c_letter(t.into_raw()), b'?', "raw {raw}");
+        assert_eq!(t.into_raw().0, raw);
+    }
+}
+
+#[test]
+fn picture_type_zeroed_storage_reads_as_c_zeroed_storage() {
+    const LEN: usize = 8;
+    let rust = alloc_array_zeroed::<PictureType>(LEN).unwrap();
+    // SAFETY: `av_calloc` takes its sizes by value.
+    let c = unsafe { ffi::av_calloc(LEN, size_of::<ffi::AVPictureType>()) }
+        .cast::<ffi::AVPictureType>();
+    assert!(!c.is_null());
+    for (i, t) in rust.as_slice().iter().enumerate() {
+        // SAFETY: `i` is in bounds of the live, zero-filled C block.
+        let ci = unsafe { c.add(i).read() };
+        assert_eq!(t.into_raw(), ci);
+        assert_eq!(c_letter(t.into_raw()), c_letter(ci));
+    }
+    // A zero-filled C struct's picture type is `AV_PICTURE_TYPE_NONE`.
+    assert!(rust.as_slice().iter().all(|&t| t == PictureType::NONE));
+    // SAFETY: `c` is the live `av_calloc` block allocated above.
+    unsafe { ffi::av_free(c.cast::<c_void>()) };
+}
+
+#[test]
+fn picture_type_writes_through_each_side_agree_after_every_step() {
+    let values = picture_values();
+    let len = values.len();
+    let mut rust = alloc_array_zeroed::<PictureType>(len).unwrap();
+    // SAFETY: `av_calloc` takes its sizes by value.
+    let c = unsafe { ffi::av_calloc(len, size_of::<ffi::AVPictureType>()) }
+        .cast::<ffi::AVPictureType>();
+    assert!(!c.is_null());
+    for (step, &v) in values.iter().enumerate() {
+        // Each step writes slot `step` and rotates an earlier one.
+        let back = (step * 5) % len;
+        let w = values[(step + 3) % len];
+        rust.as_mut_slice()[step] = PictureType::from_raw(v);
+        rust.as_mut_slice()[back] = w.into();
+        // SAFETY: `step` and `back` are in bounds of the live C block, owned
+        // here.
+        unsafe {
+            c.add(step).write(v);
+            c.add(back).write(w);
+        }
+        for i in 0..len {
+            // SAFETY: `i` is in bounds of the live, initialised C block.
+            let ci = unsafe { c.add(i).read() };
+            let ri = rust.as_slice()[i];
+            assert_eq!(ri.into_raw(), ci, "step {step} slot {i}");
+            assert_eq!(c_letter(ri.into_raw()), c_letter(ci));
+        }
+    }
+    // A clone is `av_memdup`'s copy of the same encodings.
+    let copy = rust.clone();
+    for i in 0..len {
+        // SAFETY: as above.
+        let ci = unsafe { c.add(i).read() };
+        assert_eq!(copy.as_slice()[i].into_raw(), ci);
+    }
+    // SAFETY: `c` is the live `av_calloc` block allocated above.
+    unsafe { ffi::av_free(c.cast::<c_void>()) };
 }

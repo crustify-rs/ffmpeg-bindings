@@ -9,3 +9,4 @@ mod log;
 mod mathematics;
 mod mem;
 mod opt;
+mod rational;

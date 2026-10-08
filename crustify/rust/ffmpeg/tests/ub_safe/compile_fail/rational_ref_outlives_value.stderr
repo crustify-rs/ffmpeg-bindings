@@ -1,0 +1,8 @@
+error[E0515]: cannot return value referencing local variable `q`
+ --> tests/ub_safe/compile_fail/rational_ref_outlives_value.rs
+  |
+  |     q.as_ref()
+  |     -^^^^^^^^^
+  |     |
+  |     returns a value referencing data owned by the current function
+  |     `q` is borrowed here
