@@ -4,7 +4,7 @@
 //! `IntFloat32` with `union av_intfloat32`, through `av_int2float` and
 //! `av_float2int`; and of the free conversion functions with those four.
 
-use core::mem::{align_of, offset_of, size_of};
+use core::mem::{align_of, offset_of, size_of, size_of_val};
 
 use ffibox::CZeroable;
 use ffmpeg::libavutil::ffi;
@@ -334,5 +334,40 @@ fn conversions_agree_with_the_unions() {
             float_from_bits(bits).to_bits(),
             IntFloat32::from_bits(bits).as_ref().float().to_bits()
         );
+    }
+}
+
+// Review 20261005 libavutil/core wave-0 batch-7: the array owner's clone
+// against the C copy it stands for.
+
+/// `HeapVec<IntFloat64>::clone` is `av_memdup` of the block: after every
+/// write step, the Rust clone holds the same words as a C `av_memdup` of the
+/// C array, element by element.
+#[test]
+fn heap_array_clone_matches_c_memdup_after_each_step() {
+    let mut a = alloc_cell_array_zeroed::<IntFloat64>(BITS.len()).unwrap();
+    let mut c = [ffi::av_intfloat64::default(); BITS.len()];
+    for (i, step) in steps().enumerate().take(2 * BITS.len()) {
+        let slot = i % BITS.len();
+        apply(
+            &mut a.as_handles_mut().get_mut(slot).unwrap(),
+            &mut c[slot],
+            step,
+        );
+        let copy = a.clone();
+        // SAFETY: `c` is `BITS.len()` initialised unions, so `av_memdup`
+        // reads exactly their bytes into a fresh `av_malloc` block, which
+        // `av_free` releases below after the last read of it.
+        let c_copy = unsafe { ffi::av_memdup(c.as_ptr().cast(), size_of_val(&c)) };
+        assert!(!c_copy.is_null());
+        let c_copy = c_copy.cast::<ffi::av_intfloat64>();
+        assert_eq!(copy.len(), c.len());
+        for (j, r) in copy.as_handles().iter().enumerate() {
+            // SAFETY: `j < BITS.len()`, inside the block copied above.
+            let cj = unsafe { c_copy.add(j).read() };
+            compare(r, &cj, step);
+        }
+        // SAFETY: the block came from `av_memdup` and is not read again.
+        unsafe { ffi::av_free(c_copy.cast()) };
     }
 }

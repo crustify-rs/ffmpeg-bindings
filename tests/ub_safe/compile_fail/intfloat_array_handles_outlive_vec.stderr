@@ -1,0 +1,11 @@
+error[E0597]: `a` does not live long enough
+ --> tests/ub_safe/compile_fail/intfloat_array_handles_outlive_vec.rs
+  |
+  |     let run = {
+  |         --- borrow later stored here
+  |         let a = alloc_cell_array_zeroed::<IntFloat64>(2).unwrap();
+  |             - binding `a` declared here
+  |         a.as_handles()
+  |         ^ borrowed value does not live long enough
+  |     };
+  |     - `a` dropped here while still borrowed
