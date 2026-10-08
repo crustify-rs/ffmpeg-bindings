@@ -1,2 +1,10 @@
 # Agent-owned bindgen allowlist for libavutil.
 # One `<function|type|var|item> <regex>` per line; add only the FFI items a batch needs.
+
+# libavutil/mem.h: the av_malloc family's void lifecycle (raw-lifetime void).
+function av_free
+function av_malloc
+function av_mallocz
+function av_malloc_array
+function av_calloc
+function av_memdup

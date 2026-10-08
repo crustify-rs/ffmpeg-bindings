@@ -21,6 +21,7 @@ libavfilter = ["dep:libavfilter-sys", "libswscale", "libavformat", "libavcodec",
 libavdevice = ["dep:libavdevice-sys", "libavfilter", "libavformat", "libavcodec", "libavutil"]
 
 [dependencies]
+ffibox.workspace = true
 libavutil-sys = { workspace = true, optional = true }
 libswresample-sys = { workspace = true, optional = true }
 libswscale-sys = { workspace = true, optional = true }

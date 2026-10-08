@@ -1,0 +1,16 @@
+error[E0505]: cannot move out of `a` because it is borrowed
+ --> tests/ub_safe/compile_fail/mem_drop_while_borrowed.rs
+  |
+  |     let a = HeapVec::<u32>::from_slice(&[1, 2, 3]).unwrap();
+  |         - binding `a` declared here
+  |     let s = a.as_slice();
+  |             - borrow of `a` occurs here
+  |     drop(a);
+  |          ^ move out of `a` occurs here
+  |     println!("{}", s[0]);
+  |                    ---- borrow later used here
+  |
+help: consider cloning the value if the performance cost is acceptable
+  |
+6 |     let s = a.clone().as_slice();
+  |              ++++++++

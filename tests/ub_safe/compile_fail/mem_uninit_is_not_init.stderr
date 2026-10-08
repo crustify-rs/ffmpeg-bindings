@@ -1,0 +1,10 @@
+error[E0308]: mismatched types
+ --> tests/ub_safe/compile_fail/mem_uninit_is_not_init.rs
+  |
+  |     let s: &[u8] = a.as_slice();
+  |            -----   ^^^^^^^^^^^^ expected `&[u8]`, found `&[MaybeUninit<u8>]`
+  |            |
+  |            expected due to this
+  |
+  = note: expected reference `&[u8]`
+             found reference `&[MaybeUninit<u8>]`
