@@ -1,0 +1,11 @@
+error[E0597]: `s` does not live long enough
+ --> tests/ub_safe/compile_fail/avstring_rest_outlives_string.rs
+  |
+  |         let s = CString::new("key=value").unwrap();
+  |             - binding `s` declared here
+  |         rest = strip_prefix(&s, c"key=").unwrap();
+  |                             ^^ borrowed value does not live long enough
+  |     }
+  |     - `s` dropped here while still borrowed
+  |     println!("{rest:?}");
+  |                ---- borrow later used here

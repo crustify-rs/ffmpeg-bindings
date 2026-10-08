@@ -142,3 +142,52 @@ fn picture_type_arrays_cross_and_are_shared_between_threads() {
     .unwrap();
     assert_eq!(back.iter().rev().copied().collect::<Vec<_>>(), values);
 }
+
+/// The version strings and `av_x_if_null`'s borrows.
+mod version_and_x_if_null {
+    use std::thread;
+
+    use ffmpeg::libavutil::avutil::{
+        configuration, license, version, version_info, x_if_null, x_if_null_mut,
+    };
+
+    #[test]
+    fn static_strings_read_whole_and_cross_threads() {
+        let lens = |_| {
+            (
+                version_info().count_bytes(),
+                configuration().count_bytes(),
+                license().count_bytes(),
+            )
+        };
+        let theirs = thread::spawn(move || (0..100).map(lens).collect::<Vec<_>>())
+            .join()
+            .unwrap();
+        assert!(theirs.iter().all(|&l| l == lens(0)));
+        let strings: &'static [u8] = version_info().to_bytes();
+        assert!(!strings.is_empty() && version() > 0);
+    }
+
+    #[test]
+    fn x_if_null_results_borrow_their_sources() {
+        let a = Box::new([1u64; 4]);
+        let b = Box::new([2u64; 4]);
+        let r = x_if_null(None, Some(&*b)).unwrap();
+        assert_eq!(r, &[2; 4]);
+        let r = x_if_null(Some(&*a), Some(&*b)).unwrap();
+        assert_eq!(r, &[1; 4]);
+        drop((a, b));
+    }
+
+    #[test]
+    fn x_if_null_mut_results_write_their_source_only() {
+        let mut a = Box::new([0u8; 8]);
+        let mut b = Box::new([0u8; 8]);
+        x_if_null_mut(None, Some(&mut *b)).unwrap().fill(1);
+        x_if_null_mut(Some(&mut *a), Some(&mut *b)).unwrap()[7] = 9;
+        assert_eq!((*a, *b), ([0, 0, 0, 0, 0, 0, 0, 9], [1; 8]));
+        let mut zst = ();
+        assert!(x_if_null_mut(Some(&mut zst), None).is_some());
+        assert!(x_if_null::<String>(None, None).is_none());
+    }
+}

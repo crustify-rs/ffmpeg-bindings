@@ -1,0 +1,11 @@
+error[E0597]: `buf` does not live long enough
+ --> tests/ub_safe/compile_fail/avstring_token_outlives_buffer.rs
+  |
+  |         let mut buf = *b"a b\0";
+  |             ------- binding `buf` declared here
+  |         first = tokens(&mut buf, c" ").unwrap().next().unwrap();
+  |                        ^^^^^^^^ borrowed value does not live long enough
+  |     }
+  |     - `buf` dropped here while still borrowed
+  |     println!("{first:?}");
+  |                ----- borrow later used here

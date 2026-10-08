@@ -4,12 +4,15 @@
 mod avstring;
 mod avutil;
 mod bprint;
+mod common;
 mod intfloat;
 mod intreadwrite;
 mod log;
 mod mathematics;
 mod mem;
 mod rational;
+mod time;
+mod timestamp;
 
 /// Programs under `compile_fail/` must be rejected by the compiler.
 #[test]

@@ -1,0 +1,11 @@
+error[E0597]: `delim` does not live long enough
+ --> tests/ub_safe/compile_fail/avstring_delimiters_outlive_iterator.rs
+  |
+  |     let mut it = {
+  |         ------ borrow later stored here
+  |         let delim = CString::new(",").unwrap();
+  |             ----- binding `delim` declared here
+  |         tokens(&mut buf, &delim).unwrap()
+  |                          ^^^^^^ borrowed value does not live long enough
+  |     };
+  |     - `delim` dropped here while still borrowed

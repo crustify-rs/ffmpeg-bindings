@@ -4,7 +4,7 @@
 //! by value and never allocates or frees them, so each is a `Copy` newtype over
 //! its raw enum with no handles or owner.
 
-use core::ffi::c_uint;
+use core::ffi::{CStr, c_int, c_uint, c_void};
 use core::fmt;
 use core::ops::{BitAnd, BitAndAssign, BitOr, BitOrAssign, Sub, SubAssign};
 
@@ -324,6 +324,58 @@ impl From<ClassStateFlags> for ffi::AVClassStateFlags {
     fn from(flags: ClassStateFlags) -> Self {
         flags.0
     }
+}
+
+/// Wraps: av_vlog
+///
+/// Sends `message` to the general log, with no context, at `level`: an
+/// `ffi::AV_LOG_*` level, optionally with `AV_LOG_C` colour bits. It goes
+/// to the installed log callback; the default one prints it to stderr when
+/// `level` is within `av_log_get_level()`. `message` is logged verbatim:
+/// `%` in it is not a format directive.
+pub fn log(level: c_int, message: &CStr) {
+    // SAFETY: a NULL context selects the general log, which `av_vlog` and the
+    // default callback accept from any thread, as `av_log_set_callback`
+    // requires of any other; the format `%s` consumes exactly one argument,
+    // `message`, a live NUL-terminated string.
+    unsafe {
+        ffi::crustify_av_vlog(
+            core::ptr::null_mut(),
+            level,
+            c"%s".as_ptr(),
+            message.as_ptr(),
+        )
+    }
+}
+
+/// Wraps: av_vlog
+///
+/// Sends `message` to the log at `level` in the context of `obj`, as
+/// [`log`] does without one. When `obj`'s class is recent enough (version
+/// 50.15.2 or later) and has a `log_level_offset_offset`, the `int` at that
+/// offset in `obj` is added to any `level` at or above `AV_LOG_FATAL`. The
+/// default callback prefixes the line with the object's name, and its
+/// parent's.
+///
+/// # Safety
+///
+/// `obj` must be NULL or address a live `AVClass`-enabled object: a struct
+/// whose first member is a `const AVClass *` that is NULL or addresses a
+/// live class with a valid `class_name` string. The class's `item_name` and
+/// `get_category` callbacks, when set, must be callable with `obj`. When the
+/// class's version is 50.15.2 or later and its `log_level_offset_offset` is
+/// non-zero, `obj` must hold at that offset an `int` whose sum with `level`
+/// does not overflow, for a `level` at or above `AV_LOG_FATAL`. When its
+/// `parent_log_context_offset` is non-zero, `obj` must hold at that offset a
+/// pointer that is NULL or addresses a parent: another `AVClass`-enabled
+/// object, whose class pointer may be NULL, with a class meeting the same
+/// requirements for the parent. No thread may
+/// write any of these during the call. A callback installed with
+/// `av_log_set_callback` may require more of `obj`.
+pub unsafe fn log_with_context(obj: *mut c_void, level: c_int, message: &CStr) {
+    // SAFETY: the caller vouches for `obj`, which `av_vlog` and the default
+    // callback only read; the format is as for `log`.
+    unsafe { ffi::crustify_av_vlog(obj, level, c"%s".as_ptr(), message.as_ptr()) }
 }
 
 #[cfg(test)]
