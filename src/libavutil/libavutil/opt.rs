@@ -38,6 +38,30 @@ define_ctype!(
     ffi::AVOption
 );
 
+// SAFETY: an `AVOption` is plain data (integers, doubles, an `enum`) and
+// pointers into immutable statics: its strings are literals and `arr` a
+// `static const AVOptionArrayDef`, all of program lifetime and tied to no
+// thread. No C path writes an option table once it is published through an
+// `AVClass`, and C itself reads one table from any thread (`av_opt_set`,
+// `av_opt_find` on a shared context), so a value or an exclusive handle moves
+// between threads as a `[u8; N]` with `&'static CStr` fields does.
+unsafe impl Send for OptionDef {}
+// SAFETY: as for `OptionDef`: `OptionDefMut` has no setters, so it reaches
+// only the same immutable bytes.
+unsafe impl Send for OptionDefMut<'_> {}
+
+// SAFETY: nothing reachable through a shared handle writes: `OptionDefRef`
+// has getters only, the struct has no interior mutability, and no C path
+// writes a table, so concurrent shared access reads unchanging bytes.
+unsafe impl Sync for OptionDef {}
+// SAFETY: as for `Sync for OptionDef`: copies of a shared handle only read.
+unsafe impl Send for OptionDefRef<'_> {}
+// SAFETY: as above.
+unsafe impl Sync for OptionDefRef<'_> {}
+// SAFETY: `&OptionDefMut` reaches the option only through `as_ref`, a shared
+// handle, and the exclusive handle has no setters either.
+unsafe impl Sync for OptionDefMut<'_> {}
+
 /// The NUL-terminated string at `ptr`, or `None` for NULL.
 ///
 /// # Safety
@@ -74,6 +98,15 @@ pub enum OptionDefault<'a> {
     /// An option type libavutil reads no default for.
     Unsupported,
 }
+
+// SAFETY: the only non-`Send` member is `Array`'s raw pointer, which is NULL
+// or addresses a `static const AVOptionArrayDef` of the option table (see
+// [`OptionDefRef::default_value`]): immutable, of program lifetime and read
+// by C from any thread. The other variants are plain values and `&'a CStr`.
+unsafe impl Send for OptionDefault<'_> {}
+// SAFETY: as above: every variant is read-only data with no interior
+// mutability.
+unsafe impl Sync for OptionDefault<'_> {}
 
 impl<'a> OptionDefRef<'a> {
     /// Field: AVOption.name
@@ -226,9 +259,36 @@ define_ctype!(
     ffi::AVOptionRanges
 );
 
+// SAFETY: a list, its `range` array, the ranges and their `str` are
+// `av_malloc` blocks that `av_opt_freep_ranges` releases through `av_free`,
+// which any thread may call; the query hands the whole tree over to the
+// caller and C keeps no pointer to it (`av_opt_query_ranges` writes
+// `nb_components` before returning, and `opt_list`, the only in-tree reader,
+// frees what it queried). Nothing in it is tied to a thread, so the sole
+// owner, or an exclusive handle, moves between threads as a `Box<[Box<T>]>`
+// does.
+unsafe impl Send for OptionRanges {}
+// SAFETY: as for `OptionRanges`: `OptionRangesMut` has no setters, so it
+// reaches only the same bytes, read-only.
+unsafe impl Send for OptionRangesMut<'_> {}
+
+// SAFETY: nothing reachable through a shared handle writes: `OptionRangesRef`
+// has getters only, the list has no interior mutability, and no C path writes
+// a list after its query returns, so concurrent shared access reads
+// unchanging bytes.
+unsafe impl Sync for OptionRanges {}
+// SAFETY: as for `Sync for OptionRanges`: copies of a shared handle only read.
+unsafe impl Send for OptionRangesRef<'_> {}
+// SAFETY: as above.
+unsafe impl Sync for OptionRangesRef<'_> {}
+// SAFETY: `&OptionRangesMut` reaches the list only through `as_ref`, a shared
+// handle, and the exclusive handle has no setters either.
+unsafe impl Sync for OptionRangesMut<'_> {}
+
 /// `av_opt_freep_ranges`, as the policy of an owned [`OptionRanges`].
 ///
-/// Thread-agnostic: it releases through `av_free`, which any thread may call.
+/// Thread-agnostic: it releases through `av_free`, which any thread may call,
+/// so an [`OptionRangesBox`] is `Send` and `Sync`.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash)]
 pub struct OptionRangesFree;
 
@@ -316,8 +376,9 @@ impl OptionRanges {
     ///
     /// # Safety
     ///
-    /// As [`query`](Self::query), except that the class pointer may be NULL
-    /// (the query then fails with `AVERROR(ENOMEM)`) and the class's
+    /// As [`query`](Self::query), except that `obj` itself, or the class
+    /// pointer it addresses, may be NULL (the query then fails with
+    /// `AVERROR(ENOMEM)` without reading further), and the class's
     /// `query_ranges` callback is not called.
     pub unsafe fn query_default(
         obj: *mut c_void,
@@ -350,8 +411,11 @@ impl<'a> OptionRangesRef<'a> {
 
     /// Field: AVOptionRanges.nb_components
     ///
-    /// The number of components: 1, or more for a multi-component query of a
-    /// type such as `IMAGE_SIZE` (pixel count, width, height).
+    /// The number of components: 1 from the default ranges, and whatever a
+    /// class's `query_ranges` callback returned for a query with
+    /// `AV_OPT_MULTI_COMPONENT_RANGE`, such as 3 for an `IMAGE_SIZE` (pixel
+    /// count, width, height); 1 without that flag, whatever the callback
+    /// built.
     pub fn component_count(&self) -> usize {
         // SAFETY: a read of a projected field through the shared handle.
         let n = unsafe { addr_of!((*self.as_ptr()).nb_components).read() };
@@ -686,13 +750,6 @@ mod unit_tests {
     /// `av_realloc` block.
     #[test]
     fn grown_defaults_agree_with_av_opt_set_defaults() {
-        // BSan's runtime reports a use-after-free inside `av_realloc` when
-        // `av_opt_set_defaults2` builds these defaults, with no Rust code
-        // involved; ASan finds none on the same path. `crustify/build.json`
-        // records the runtime's false reports on `av_realloc`.
-        if std::env::var("CRUSTIFY_FFMPEG_VARIANT").as_deref() == Ok("bsan") {
-            return;
-        }
         let d = Defaults::new(fixture::GROWS);
         let ctx = &d.0;
         assert_eq!(text(c"dict"), Some(c"k=v"));
@@ -713,6 +770,41 @@ mod unit_tests {
         assert!(ctx.empty_array.is_null() && ctx.empty_array_len == 0);
         // The other options were left alone.
         assert!(ctx.int == 0 && ctx.string.is_null());
+    }
+
+    /// The option types, their handles and a read default cross threads; a
+    /// shared handle is read from several at once.
+    #[test]
+    fn options_and_defaults_are_send_and_sync() {
+        fn send_sync<T: Send + Sync>() {}
+        send_sync::<OptionDef>();
+        send_sync::<OptionDefRef<'static>>();
+        send_sync::<OptionDefMut<'static>>();
+        send_sync::<OptionDefault<'static>>();
+        send_sync::<OptionRanges>();
+        send_sync::<OptionRangesRef<'static>>();
+        send_sync::<OptionRangesMut<'static>>();
+        send_sync::<OptionRangesBox>();
+
+        let o = entry(0);
+        let default = o.default_value();
+        std::thread::scope(|s| {
+            for _ in 0..4 {
+                s.spawn(move || {
+                    for _ in 0..64 {
+                        assert_eq!(o.name(), Some(c"int"));
+                        assert_eq!(o.default_value(), default);
+                        assert_eq!(
+                            named(c"string").default_value(),
+                            OptionDefault::Str(text(c"string"))
+                        );
+                    }
+                });
+            }
+            // Another thread's copy of the handle keeps borrowing the table.
+            let sent = s.spawn(move || named(c"q")).join().unwrap();
+            assert_eq!(sent.default_value(), OptionDefault::Double(0.5));
+        });
     }
 
     #[test]

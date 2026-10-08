@@ -2,6 +2,7 @@
 //! queries, on independently owned lists of the shared test class.
 
 use core::ffi::{CStr, c_int, c_void};
+use core::mem::size_of;
 use std::ffi::CString;
 
 use ffmpeg::libavutil::ffi;
@@ -206,6 +207,78 @@ fn null_class_agrees_with_the_default_query() {
     let fake = fixture::FakeObj(core::ptr::null());
     let obj = (&raw const fake).cast_mut().cast();
     both(Via::Default, obj, c"int", FAKE_OBJ);
+}
+
+/// The default query rejects a NULL object before reading it, with or
+/// without the fake-object flag.
+#[test]
+fn null_object_agrees_with_the_default_query() {
+    for key in [c"int", c"missing"] {
+        for flags in [0, FAKE_OBJ, MULTI, CHILDREN | FAKE_OBJ] {
+            both(Via::Default, core::ptr::null_mut(), key, flags);
+        }
+    }
+}
+
+/// Set in the child process an isolated test re-runs itself in.
+const ISOLATED: &str = "CRUSTIFY_EQUIV_ISOLATED";
+
+/// The default query allocates the list, its one-slot array and its range
+/// before looking the option up, and fails with `AVERROR(ENOMEM)` when any of
+/// them does; both sides agree at every `av_max_alloc` limit around their
+/// sizes. The limit is process-global, so this lowers it only in a child
+/// process running nothing else, and passes when the child does.
+#[test]
+fn allocation_failure_at_the_av_max_alloc_limit_agrees() {
+    if std::env::var_os(ISOLATED).is_none() {
+        let status = std::process::Command::new(std::env::current_exe().unwrap())
+            .args([
+                "--exact",
+                "opt::allocation_failure_at_the_av_max_alloc_limit_agrees",
+            ])
+            .args(["--test-threads=1", "--nocapture"])
+            .env(ISOLATED, "1")
+            .status()
+            .unwrap();
+        assert!(status.success(), "isolated run failed: {status}");
+        return;
+    }
+
+    let list = size_of::<ffi::AVOptionRanges>();
+    let slot = size_of::<*mut ffi::AVOptionRange>();
+    let range = size_of::<ffi::AVOptionRange>();
+    let largest = list.max(slot).max(range);
+    let mut ctx = Ctx::new(&CLASS);
+    let obj = ctx.as_obj();
+    // A list built before the limit drops stays valid and releasable.
+    let (c_before, rust_before) = both(Via::Default, obj, c"int", 0);
+
+    for limit in [
+        0,
+        list - 1,
+        list,
+        slot,
+        range - 1,
+        largest - 1,
+        largest,
+        largest + 1,
+    ] {
+        // SAFETY: `av_max_alloc` takes a size by value; nothing else runs in
+        // this process.
+        unsafe { ffi::av_max_alloc(limit) };
+        for via in [Via::Callback, Via::Default] {
+            for key in [c"int", c"size", c"missing", c"flags"] {
+                let (c, rust) = both(via, obj, key, MULTI);
+                let expect_ok = limit >= largest && RANGED.contains(&key);
+                assert_eq!(rust.is_some(), expect_ok, "{via:?} {key:?} limit={limit}");
+                assert_eq!(c.0.is_null(), !expect_ok, "{via:?} {key:?} limit={limit}");
+            }
+        }
+    }
+    // SAFETY: as above; restores the default limit.
+    unsafe { ffi::av_max_alloc(i32::MAX as usize) };
+    both(Via::Default, obj, c"int", 0);
+    drop((c_before, rust_before));
 }
 
 /// Lists stay independent: each later query, and each drop, leaves every live
