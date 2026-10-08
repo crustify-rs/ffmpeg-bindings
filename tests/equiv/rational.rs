@@ -9,7 +9,7 @@ use core::mem::{align_of, offset_of, size_of};
 
 use ffibox::CZeroable;
 use ffmpeg::libavutil::ffi;
-use ffmpeg::libavutil::mem::{HeapBox, alloc_cell_array_zeroed};
+use ffmpeg::libavutil::mem::{HeapBox, HeapVec, alloc_array_from_fn, alloc_cell_array_zeroed};
 use ffmpeg::libavutil::rational::{Rational, RationalMut, RationalRef};
 
 /// Pairs at the edges C stores: `0/0`, the infinities, signs on either part,
@@ -231,6 +231,69 @@ fn zeroed_arrays_read_as_c_zeroed_storage() {
         );
     }
     // SAFETY: `c` is the live `av_calloc` block allocated above.
+    unsafe { ffi::av_free(c.cast::<c_void>()) };
+}
+
+#[test]
+fn copies_of_a_run_match_c_memdup_after_every_step() {
+    // Rust copies a run of rationals two ways: a Rust slice into an
+    // `av_malloc` block, and a borrowed run element by element into another;
+    // C copies the same `AVRational[]` with `av_memdup`. Each side then
+    // writes one slot of its copy per step, and all three copies read alike
+    // while the sources stay as they were.
+    let values: Vec<Rational> = PAIRS.iter().map(|&(n, d)| Rational::new(n, d)).collect();
+    let raw: Vec<ffi::AVRational> = PAIRS.iter().map(|&(n, d)| c_make(n, d)).collect();
+    let mut from_slice = HeapVec::from_slice(&values).unwrap();
+    let run = from_slice.as_handles();
+    let mut from_run = alloc_array_from_fn(run.len(), |i| run.get(i).unwrap().get()).unwrap();
+    let bytes = raw.len() * size_of::<ffi::AVRational>();
+    // SAFETY: `raw` is `bytes` readable bytes for the call, which `av_memdup`
+    // only reads; the result is a fresh block of the same size.
+    let c = unsafe { ffi::av_memdup(raw.as_ptr().cast(), bytes) }.cast::<ffi::AVRational>();
+    assert!(!c.is_null());
+    let len = raw.len();
+    for step in 0..len {
+        let slot = (step * 7) % len;
+        let next = c_make(raw[(step + 1) % len].den, raw[step].num.wrapping_neg());
+        from_slice
+            .as_handles_mut()
+            .get_mut(slot)
+            .unwrap()
+            .set(next.into());
+        from_run
+            .as_handles_mut()
+            .get_mut(slot)
+            .unwrap()
+            .set_num(next.num);
+        from_run
+            .as_handles_mut()
+            .get_mut(slot)
+            .unwrap()
+            .set_den(next.den);
+        // SAFETY: `slot` is in bounds of the live C block, owned here.
+        unsafe { c.add(slot).write(next) };
+        for i in 0..len {
+            // SAFETY: `i` is in bounds of the live, initialised C block.
+            let ci = unsafe { c.add(i).read() };
+            let expect = c_reads(ci);
+            assert_eq!(
+                rust_reads(from_slice.as_handles().get(i).unwrap()),
+                expect,
+                "step {step} slot {i}"
+            );
+            assert_eq!(
+                rust_reads(from_run.as_handles().get(i).unwrap()),
+                expect,
+                "step {step} slot {i}"
+            );
+            assert_eq!(
+                rust_reads(values[i].as_ref()),
+                c_reads(raw[i]),
+                "step {step} source {i}"
+            );
+        }
+    }
+    // SAFETY: `c` is the live `av_memdup` block allocated above.
     unsafe { ffi::av_free(c.cast::<c_void>()) };
 }
 
