@@ -104,6 +104,56 @@
    }
   },
   {
+   "name": "av_bprint_finalize",
+   "defined_in": "libavutil/bprint.c",
+   "lifetime": {
+    "for": "buf",
+    "is_dropper": false,
+    "is_disposer": true,
+    "is_cloner": null,
+    "is_constructor": null
+   },
+   "ptr_args": [
+    {
+     "name": "buf",
+     "ptr": {
+      "scalar": {
+       "by_val": true
+      },
+      "array": null,
+      "string": false,
+      "owned": false,
+      "borrowed": {
+       "lifetime": "arg:buf"
+      },
+      "nullable": false,
+      "mutable": true,
+      "note": "The AVBPrint being finalized, borrowed: its heap str (when av_bprint_is_allocated) is av_freep'd when ret_str is NULL, or handed to *ret_str and buf->str cleared; buf->size is set to the final size. The struct's own storage is kept (caller-provided)."
+     }
+    },
+    {
+     "name": "ret_str",
+     "ptr": {
+      "scalar": {
+       "by_ref": {
+        "owned": true,
+        "borrowed": null
+       }
+      },
+      "array": null,
+      "string": false,
+      "owned": false,
+      "borrowed": {
+       "lifetime": "arg:ret_str"
+      },
+      "nullable": true,
+      "mutable": true,
+      "note": "Optional out slot for the string, an alloc-constructor output (av_free releases it): the shrunk av_realloc heap buffer (or the unshrunk one when that realloc fails), else av_memdup(buf->str, min(len + 1, size)) for an internal/user buffer, NULL with AVERROR(ENOMEM) when that copy fails. NULL slot discards the string. C DEFECT: for an AV_BPRINT_SIZE_COUNT_ONLY buffer (av_bprint_init(.., 0, AV_BPRINT_SIZE_COUNT_ONLY), or av_bprint_init_for_buffer with size 0) size is 0, so the result is av_memdup(str, 0) = a 1-byte av_malloc block that is never written: NOT NUL-terminated (ASan: heap-buffer-overflow in strlen). A wrapper must not adopt that result as an owned string (HeapString). The lifecycle role below is the AVBPrint teardown; the string output is recorded here because the schema carries one role per symbol."
+     }
+    }
+   ]
+  },
+  {
    "name": "av_calloc",
    "defined_in": "libavutil/mem.c",
    "lifetime": {
@@ -132,6 +182,125 @@
      "note": "Array of nmemb elements of size bytes, ZEROED (av_mallocz); also one zeroed object when nmemb is 1 (av_calloc(1, sizeof(RNNModel)) in libavfilter/af_arnndn.c, av_calloc(1, sizeof(*fc->ft)) in libavcodec/vvc/thread.c). NULL also when nmemb*size overflows size_t. Fresh av_malloc storage: posix_memalign(ALIGN) with ALIGN = 64/32/16 by SIMD config (16 is the floor); size 0 yields a 1-byte block, so NULL means failure: size > max_alloc_size (INT_MAX by default, av_max_alloc) or OOM. Released by av_free/av_freep."
     }
    }
+  },
+  {
+   "name": "av_dict_get_string",
+   "defined_in": "libavutil/dict.c",
+   "lifetime": {
+    "for": "buffer",
+    "is_dropper": false,
+    "is_disposer": false,
+    "is_cloner": null,
+    "is_constructor": {
+     "alloc": true,
+     "init": false
+    }
+   },
+   "ptr_args": [
+    {
+     "name": "buffer",
+     "ptr": {
+      "scalar": {
+       "by_ref": {
+        "owned": true,
+        "borrowed": null
+       }
+      },
+      "array": null,
+      "string": false,
+      "owned": false,
+      "borrowed": {
+       "lifetime": "arg:buffer"
+      },
+      "nullable": true,
+      "mutable": true,
+      "note": "Out slot for the serialized dictionary: an empty dictionary gets av_strdup(\"\"), any other av_bprint_finalize's out-string (an av_realloc or av_memdup block); NUL-terminated, released by av_free. NULL slot is rejected with AVERROR(EINVAL), as are invalid separators, before anything is written; *buffer is NULL on ENOMEM."
+     }
+    },
+    {
+     "name": "m",
+     "ptr": {
+      "scalar": {
+       "by_val": true
+      },
+      "array": null,
+      "string": false,
+      "owned": false,
+      "borrowed": {
+       "lifetime": "arg:m"
+      },
+      "nullable": true,
+      "mutable": false,
+      "note": "Dictionary iterated read-only for the call (av_dict_count, av_dict_iterate); NULL counts as empty and yields \"\"."
+     }
+    }
+   ]
+  },
+  {
+   "name": "av_escape",
+   "defined_in": "libavutil/avstring.c",
+   "lifetime": {
+    "for": "dst",
+    "is_dropper": false,
+    "is_disposer": false,
+    "is_cloner": null,
+    "is_constructor": {
+     "alloc": true,
+     "init": false
+    }
+   },
+   "ptr_args": [
+    {
+     "name": "dst",
+     "ptr": {
+      "scalar": {
+       "by_ref": {
+        "owned": true,
+        "borrowed": null
+       }
+      },
+      "array": null,
+      "string": false,
+      "owned": false,
+      "borrowed": {
+       "lifetime": "arg:dst"
+      },
+      "nullable": false,
+      "mutable": true,
+      "note": "Out slot for the escaped string, written only on success or a failed copy: *dst receives av_bprint_finalize's out-string (av_bprint_init(&b, 1, INT_MAX), so an av_realloc block, or an av_memdup block if it never grew), NUL-terminated and released by av_free; NULL with AVERROR(ENOMEM) when that copy fails. Left untouched when the buffer is truncated (ENOMEM before finalize). Must not be NULL."
+     }
+    },
+    {
+     "name": "special_chars",
+     "ptr": {
+      "scalar": null,
+      "array": null,
+      "string": true,
+      "owned": false,
+      "borrowed": {
+       "lifetime": "arg:special_chars"
+      },
+      "nullable": true,
+      "mutable": false,
+      "note": "Extra characters to escape, read with strchr for the call only; NULL means none (bprint.c checks `special_chars &&`)."
+     }
+    },
+    {
+     "name": "src",
+     "ptr": {
+      "scalar": null,
+      "array": null,
+      "string": true,
+      "owned": false,
+      "borrowed": {
+       "lifetime": "arg:src"
+      },
+      "nullable": false,
+      "mutable": false,
+      "note": "String to escape, read up to its NUL by av_bprint_escape for the call only. Must not be NULL."
+     }
+    }
+   ]
   },
   {
    "name": "av_free",
@@ -401,6 +570,235 @@
    }
   },
   {
+   "name": "av_opt_get",
+   "defined_in": "libavutil/opt.c",
+   "lifetime": {
+    "for": "out_val",
+    "is_dropper": false,
+    "is_disposer": false,
+    "is_cloner": null,
+    "is_constructor": {
+     "alloc": true,
+     "init": false
+    }
+   },
+   "ptr_args": [
+    {
+     "name": "name",
+     "ptr": {
+      "scalar": null,
+      "array": null,
+      "string": true,
+      "owned": false,
+      "borrowed": {
+       "lifetime": "arg:name"
+      },
+      "nullable": false,
+      "mutable": false,
+      "note": "Option name, compared with strcmp for the call only. Must not be NULL."
+     }
+    },
+    {
+     "name": "obj",
+     "ptr": {
+      "scalar": {
+       "by_val": true
+      },
+      "array": null,
+      "string": false,
+      "owned": false,
+      "borrowed": {
+       "lifetime": "arg:obj"
+      },
+      "nullable": true,
+      "mutable": false,
+      "note": "AVClass-bearing object, read for the call (av_opt_find2, then the option's field at its offset); NULL yields AVERROR_OPTION_NOT_FOUND."
+     }
+    },
+    {
+     "name": "out_val",
+     "ptr": {
+      "scalar": {
+       "by_ref": {
+        "owned": true,
+        "borrowed": null
+       }
+      },
+      "array": null,
+      "string": false,
+      "owned": false,
+      "borrowed": {
+       "lifetime": "arg:out_val"
+      },
+      "nullable": false,
+      "mutable": true,
+      "note": "Out slot (uint8_t **, but every value is text): on success the option's value as a fresh NUL-terminated string released by av_free -- av_strdup of the formatted scalar or of a string option, an av_malloc hex dump for BINARY, av_dict_get_string's string for DICT, an av_reallocp-grown buffer for array options (av_strdup(\"\") for an empty array). *out_val is NULL on success only with AV_OPT_ALLOW_NULL and an unset string/binary/array option. Untouched on most errors. Must not be NULL."
+     }
+    }
+   ]
+  },
+  {
+   "name": "av_opt_get_key_value",
+   "defined_in": "libavutil/opt.c",
+   "lifetime": {
+    "for": "rkey",
+    "is_dropper": false,
+    "is_disposer": false,
+    "is_cloner": null,
+    "is_constructor": {
+     "alloc": true,
+     "init": false
+    }
+   },
+   "ptr_args": [
+    {
+     "name": "key_val_sep",
+     "ptr": {
+      "scalar": null,
+      "array": null,
+      "string": true,
+      "owned": false,
+      "borrowed": {
+       "lifetime": "arg:key_val_sep"
+      },
+      "nullable": false,
+      "mutable": false,
+      "note": "Set of key/value separator characters, read with strchr for the call only."
+     }
+    },
+    {
+     "name": "pairs_sep",
+     "ptr": {
+      "scalar": null,
+      "array": null,
+      "string": true,
+      "owned": false,
+      "borrowed": {
+       "lifetime": "arg:pairs_sep"
+      },
+      "nullable": false,
+      "mutable": false,
+      "note": "Set of pair separator characters, read by av_get_token for the call only."
+     }
+    },
+    {
+     "name": "rkey",
+     "ptr": {
+      "scalar": {
+       "by_ref": {
+        "owned": true,
+        "borrowed": null
+       }
+      },
+      "array": null,
+      "string": false,
+      "owned": false,
+      "borrowed": {
+       "lifetime": "arg:rkey"
+      },
+      "nullable": false,
+      "mutable": true,
+      "note": "Out slot for the key: an av_malloc block holding the NUL-terminated key (get_key), released by av_free; NULL on success when AV_OPT_FLAG_IMPLICIT_KEY is set and no key was found. Written only on success. The lifecycle role names this slot; rval below is a second string this call constructs the same way."
+     }
+    },
+    {
+     "name": "ropts",
+     "ptr": {
+      "scalar": {
+       "by_ref": {
+        "owned": false,
+        "borrowed": {
+         "lifetime": "other"
+        }
+       }
+      },
+      "array": null,
+      "string": false,
+      "owned": false,
+      "borrowed": {
+       "lifetime": "arg:ropts"
+      },
+      "nullable": false,
+      "mutable": false,
+      "note": "In/out cursor slot (const char **): *ropts is a caller-owned NUL-terminated string, read from and advanced past the parsed pair on success only. Must not be NULL."
+     }
+    },
+    {
+     "name": "rval",
+     "ptr": {
+      "scalar": {
+       "by_ref": {
+        "owned": true,
+        "borrowed": null
+       }
+      },
+      "array": null,
+      "string": false,
+      "owned": false,
+      "borrowed": {
+       "lifetime": "arg:rval"
+      },
+      "nullable": false,
+      "mutable": true,
+      "note": "Out slot for the value: av_get_token's fresh av_realloc string, NUL-terminated, released by av_free; never NULL on success. Written only on success. Also a string constructor output (the schema's single `for` names rkey)."
+     }
+    }
+   ]
+  },
+  {
+   "name": "av_opt_serialize",
+   "defined_in": "libavutil/opt.c",
+   "lifetime": {
+    "for": "buffer",
+    "is_dropper": false,
+    "is_disposer": false,
+    "is_cloner": null,
+    "is_constructor": {
+     "alloc": true,
+     "init": false
+    }
+   },
+   "ptr_args": [
+    {
+     "name": "buffer",
+     "ptr": {
+      "scalar": {
+       "by_ref": {
+        "owned": true,
+        "borrowed": null
+       }
+      },
+      "array": null,
+      "string": false,
+      "owned": false,
+      "borrowed": {
+       "lifetime": "arg:buffer"
+      },
+      "nullable": true,
+      "mutable": true,
+      "note": "Out slot: set to NULL first, then to av_bprint_finalize's out-string (an av_realloc or av_memdup block), NUL-terminated, released by av_free. Stays NULL when serialization fails. NULL slot is rejected with AVERROR(EINVAL)."
+     }
+    },
+    {
+     "name": "obj",
+     "ptr": {
+      "scalar": {
+       "by_val": true
+      },
+      "array": null,
+      "string": false,
+      "owned": false,
+      "borrowed": {
+       "lifetime": "arg:obj"
+      },
+      "nullable": true,
+      "mutable": false,
+      "note": "AVClass-bearing object (first member an AVClass *), read for the call: options walked with av_opt_next / av_opt_get, children with av_opt_child_next. NULL is rejected with AVERROR(EINVAL)."
+     }
+    }
+   ]
+  },
+  {
    "name": "av_realloc",
    "defined_in": "libavutil/mem.c",
    "ptr_args": [
@@ -478,7 +876,7 @@
      "borrowed": null,
      "nullable": true,
      "mutable": true,
-     "note": "Fresh av_realloc(NULL, strlen(s) + 1) block holding a NUL-terminated copy of s (deep clone), released by av_free. NULL when s is NULL, when the length exceeds av_max_alloc (INT_MAX by default) or on allocation failure. Not av_malloc-aligned (av_realloc)."
+     "note": "Fresh av_realloc(NULL, strlen(s) + 1) block holding a NUL-terminated copy of s (deep clone), released by av_free. NULL when s is NULL, when strlen(s) + 1 exceeds av_max_alloc (INT_MAX by default; a string of exactly the limit's length already fails), or on allocation failure. Not av_malloc-aligned (av_realloc)."
     }
    }
   },
