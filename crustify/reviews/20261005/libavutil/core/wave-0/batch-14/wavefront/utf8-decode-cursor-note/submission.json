@@ -1,0 +1,9 @@
+{
+  "ptr_args": {
+    "0": {"ptr": {"scalar": {"by_val": true}, "array": null, "string": false, "owned": false, "borrowed": {"lifetime": "arg:codep"}, "nullable": false, "mutable": true, "note": "Out slot, written only once a sequence is well-formed and below 2^31 (also when the flag range checks then fail); untouched for an empty buffer, a malformed or overlong sequence. [Symbol: Returns 0 on success (and for an empty buffer, without consuming), AVERROR(EILSEQ) otherwise.]"}},
+    "1": {"ptr": {"scalar": {"by_ref": {"owned": false, "borrowed": {"lifetime": "other"}}}, "array": null, "string": false, "owned": false, "borrowed": {"lifetime": "arg:bufp"}, "nullable": false, "mutable": false, "note": "In/out cursor into the caller's byte buffer [*bufp, buf_end): advanced by exactly 1 byte for an invalid lead byte, for a tail byte that is not 10xxxxxx (even when earlier tail bytes were fine: E2 82 41 consumes only E2) and for a sequence cut short by buf_end (E2 82 at the end consumes only E2); by the whole sequence otherwise, overlong and >= 2^31 encodings included (E0 80 80 consumes 3 with *codep untouched); unchanged only for an empty buffer. The inner pointer borrows that buffer. (The cursor slot itself is written; mutable is false because the innermost pointee, uint8_t, is const.)"}},
+    "2": {"ptr": {"scalar": null, "array": {"by_val": true}, "string": false, "owned": false, "borrowed": {"lifetime": "arg:buf_end"}, "nullable": false, "mutable": false, "note": "One past the buffer's last byte: compared against the cursor before every read, never dereferenced."}}
+  },
+  "ptr_ret": null,
+  "lifetime": null
+}
