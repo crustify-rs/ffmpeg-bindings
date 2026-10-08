@@ -1,10 +1,14 @@
-//! Equivalence of `libavutil/intreadwrite.h`'s `Unaligned64` with C's
-//! `union unaligned_64`, on independently owned buffers.
+//! Equivalence of `libavutil/intreadwrite.h`'s `unaligned_N` wrappers with
+//! C's `union unaligned_N`, on independently owned buffers.
 //!
-//! The C reference is `av_memcpy_backptr` with a 4-byte period, whose `fill32`
-//! stores each 32-byte block as four `AV_WN64` writes through the union at
-//! whatever alignment `dst` has, and the `AV_RN64` / `AV_WN64` expressions
-//! themselves over the raw `ffi::unaligned_64` layout.
+//! The unions have no C routine of their own: `AV_RN(N, p)` / `AV_WN(N, p, v)`
+//! expand inline to a cast of a byte pointer to `union unaligned_N *` and a
+//! read or store of `l`. The C references are those expressions over the raw
+//! `ffi::unaligned_N` layouts, and `av_memcpy_backptr`, whose fills and short
+//! copies go through the unions at whatever alignment `dst` has: `fill32`'s
+//! 32-byte blocks through `AV_WN64`; `fill16` (`AV_RN16`, then `AV_WN32`),
+//! `fill24` (`AV_WN32`), `fill32`'s tail (`AV_RN32`, `AV_WN32`) and the short
+//! copy (`AV_COPY32U` / `AV_COPY16U`) through the 16- and 32-bit unions.
 //!
 //! The `av_alias*` wrappers are compared with the raw C unions: the same
 //! write sequence applied to an independent raw union and to the safe value,
@@ -15,7 +19,8 @@ use core::mem::{align_of, offset_of, size_of};
 use ffibox::CZeroable;
 use ffmpeg::libavutil::ffi;
 use ffmpeg::libavutil::intreadwrite::{
-    Alias16, Alias16Ref, Alias32, Alias32Ref, Unaligned64, Unaligned64Mut, Unaligned64Ref,
+    Alias16, Alias16Ref, Alias32, Alias32Ref, Unaligned16, Unaligned16Mut, Unaligned16Ref,
+    Unaligned32, Unaligned32Mut, Unaligned32Ref, Unaligned64, Unaligned64Mut, Unaligned64Ref,
 };
 use ffmpeg::libavutil::mem::HeapBox;
 
@@ -395,4 +400,331 @@ fn heap_box_clone_matches_av_memdup() {
     // SAFETY: `dup` is a live `av_malloc`-family block we own.
     unsafe { ffi::av_free(dup) };
     assert_eq!(safe32(boxed.clone().as_ref()), c_copy);
+}
+
+// `Unaligned16` and `Unaligned32`.
+
+/// `AV_RN(16, p)`.
+fn c_rn16(buf: &[u8], off: usize) -> u16 {
+    assert!(off + 2 <= buf.len());
+    // SAFETY: `off + 2 <= buf.len()`, so the 2-byte, align-1 union lies in
+    // `buf`; reading a packed field by value copies it unaligned.
+    unsafe { (*buf.as_ptr().add(off).cast::<ffi::unaligned_16>()).l }
+}
+
+/// `AV_WN(16, p, v)`.
+fn c_wn16(buf: &mut [u8], off: usize, v: u16) {
+    assert!(off + 2 <= buf.len());
+    // SAFETY: as `c_rn16`, through the exclusive borrow; assigning a packed
+    // field stores it unaligned.
+    unsafe { (*buf.as_mut_ptr().add(off).cast::<ffi::unaligned_16>()).l = v }
+}
+
+/// `AV_RN(32, p)`.
+fn c_rn32(buf: &[u8], off: usize) -> u32 {
+    assert!(off + 4 <= buf.len());
+    // SAFETY: as `c_rn16`, for the 4-byte union.
+    unsafe { (*buf.as_ptr().add(off).cast::<ffi::unaligned_32>()).l }
+}
+
+/// `AV_WN(32, p, v)`.
+fn c_wn32(buf: &mut [u8], off: usize, v: u32) {
+    assert!(off + 4 <= buf.len());
+    // SAFETY: as `c_wn16`, for the 4-byte union.
+    unsafe { (*buf.as_mut_ptr().add(off).cast::<ffi::unaligned_32>()).l = v }
+}
+
+fn rs_rn16(buf: &[u8], off: usize) -> u16 {
+    Unaligned16Ref::from_bytes(buf[off..].first_chunk().unwrap()).value()
+}
+
+fn rs_wn16(buf: &mut [u8], off: usize, v: u16) {
+    Unaligned16Mut::from_bytes(buf[off..].first_chunk_mut().unwrap()).set_value(v)
+}
+
+fn rs_rn32(buf: &[u8], off: usize) -> u32 {
+    Unaligned32Ref::from_bytes(buf[off..].first_chunk().unwrap()).value()
+}
+
+fn rs_wn32(buf: &mut [u8], off: usize, v: u32) {
+    Unaligned32Mut::from_bytes(buf[off..].first_chunk_mut().unwrap()).set_value(v)
+}
+
+/// The bytes of a raw union value, as C lays them out.
+fn c_bytes<T: Copy, const N: usize>(v: T) -> [u8; N] {
+    assert_eq!(size_of::<T>(), N);
+    // SAFETY: `T` is one of the packed unions, `N` bytes with every byte
+    // initialised by its integer member.
+    unsafe { core::mem::transmute_copy(&v) }
+}
+
+const VALUES_16: [u16; 6] = [0, 1, 0x00ff, 0xff00, 0x1234, u16::MAX];
+const VALUES_32: [u32; 7] = [0, 1, 0xff, 0xff00_0000, 0x0102_0304, 0x8000_0001, u32::MAX];
+
+#[test]
+fn layout_matches_the_c_unions() {
+    assert_eq!(size_of::<Unaligned16>(), size_of::<ffi::unaligned_16>());
+    assert_eq!(align_of::<Unaligned16>(), align_of::<ffi::unaligned_16>());
+    assert_eq!(size_of::<Unaligned32>(), size_of::<ffi::unaligned_32>());
+    assert_eq!(align_of::<Unaligned32>(), align_of::<ffi::unaligned_32>());
+    assert_eq!(
+        (size_of::<Unaligned16>(), align_of::<Unaligned16>()),
+        (2, 1)
+    );
+    assert_eq!(
+        (size_of::<Unaligned32>(), align_of::<Unaligned32>()),
+        (4, 1)
+    );
+}
+
+#[test]
+fn values_hold_the_c_bytes() {
+    for v in VALUES_16 {
+        let c: [u8; 2] = c_bytes(ffi::unaligned_16 { l: v });
+        let r: [u8; 2] = c_bytes(Unaligned16::new(v));
+        assert_eq!(r, c, "{v:#x}");
+        assert_eq!(c_bytes::<_, 2>(Unaligned16::from(v)), c);
+    }
+    for v in VALUES_32 {
+        let c: [u8; 4] = c_bytes(ffi::unaligned_32 { l: v });
+        let r: [u8; 4] = c_bytes(Unaligned32::new(v));
+        assert_eq!(r, c, "{v:#x}");
+        assert_eq!(c_bytes::<_, 4>(Unaligned32::from(v)), c);
+    }
+    assert_eq!(
+        c_bytes::<_, 2>(Unaligned16::default()),
+        c_bytes::<_, 2>(ffi::unaligned_16::default())
+    );
+    assert_eq!(
+        c_bytes::<_, 4>(Unaligned32::default()),
+        c_bytes::<_, 4>(ffi::unaligned_32::default())
+    );
+}
+
+#[test]
+fn reads_match_at_every_offset_of_the_same_bytes() {
+    let buf: Vec<u8> = (0..23u8).map(|i| i.wrapping_mul(37) ^ 0x5a).collect();
+    for off in 0..=buf.len() - 2 {
+        assert_eq!(rs_rn16(&buf, off), c_rn16(&buf, off), "offset {off}");
+    }
+    for off in 0..=buf.len() - 4 {
+        assert_eq!(rs_rn32(&buf, off), c_rn32(&buf, off), "offset {off}");
+    }
+}
+
+#[test]
+fn write_sequences_leave_twin_buffers_identical_after_each_step() {
+    let mut c = vec![0xa5u8; 19];
+    let mut r = c.clone();
+    let mut step = 0u32;
+    for round in 0..3 {
+        for off in (0..=c.len() - 4).rev() {
+            let v = VALUES_32[(off + round) % VALUES_32.len()] ^ step;
+            c_wn32(&mut c, off, v);
+            rs_wn32(&mut r, off, v);
+            assert_eq!(r, c, "wn32 step {step} offset {off}");
+            assert_eq!(rs_rn32(&r, off), c_rn32(&c, off));
+            step += 1;
+        }
+        for off in 0..=c.len() - 2 {
+            let v = VALUES_16[(off + round) % VALUES_16.len()] ^ step as u16;
+            c_wn16(&mut c, off, v);
+            rs_wn16(&mut r, off, v);
+            assert_eq!(r, c, "wn16 step {step} offset {off}");
+            // Each side reads what the other's store left.
+            assert_eq!(rs_rn16(&c, off), c_rn16(&r, off));
+            assert_eq!(
+                rs_rn32(&c, off.min(c.len() - 4)),
+                c_rn32(&r, off.min(c.len() - 4))
+            );
+            step += 1;
+        }
+    }
+}
+
+#[test]
+fn a_store_through_one_side_reads_back_through_the_other() {
+    let mut buf = [0u8; 9];
+    for (off, v) in VALUES_32
+        .iter()
+        .copied()
+        .enumerate()
+        .map(|(i, v)| (i % 6, v))
+    {
+        rs_wn32(&mut buf, off, v);
+        assert_eq!(c_rn32(&buf, off), v);
+        c_wn32(&mut buf, off, !v);
+        assert_eq!(rs_rn32(&buf, off), !v);
+    }
+    for (off, v) in VALUES_16.iter().copied().enumerate() {
+        rs_wn16(&mut buf, off, v);
+        assert_eq!(c_rn16(&buf, off), v);
+        c_wn16(&mut buf, off + 1, v.rotate_left(4));
+        assert_eq!(rs_rn16(&buf, off + 1), v.rotate_left(4));
+    }
+}
+
+#[test]
+fn inline_values_match_the_c_union_field() {
+    let mut r = Unaligned32::new(0);
+    let mut c = ffi::unaligned_32 { l: 0 };
+    for v in VALUES_32 {
+        r.as_mut().set_value(v);
+        c.l = v;
+        // SAFETY: `l` is the union's only member, initialised just above.
+        let cl = unsafe { c.l };
+        assert_eq!(r.as_ref().value(), cl);
+        assert_eq!(c_bytes::<_, 4>(r), c_bytes::<_, 4>(c));
+    }
+    let mut r = Unaligned16::new(0);
+    let mut c = ffi::unaligned_16 { l: 0 };
+    for v in VALUES_16 {
+        r.as_mut().set_value(v);
+        c.l = v;
+        // SAFETY: `l` is the union's only member, initialised just above.
+        let cl = unsafe { c.l };
+        assert_eq!(u16::from(r), cl);
+        assert_eq!(c_bytes::<_, 2>(r), c_bytes::<_, 2>(c));
+    }
+}
+
+/// Rust: `av_memcpy_backptr` at the periods whose C goes through the 16- and
+/// 32-bit unions, each read and store through `Unaligned16*` /
+/// `Unaligned32*` where C uses the union: `fill16` (period 2), `fill24`
+/// (period 3), `fill32` below its 64-bit blocks (period 4, under 32 bytes),
+/// and the short copy (period 5 or more, under 16 bytes).
+fn rust_backptr_narrow(buf: &mut [u8], dst: usize, back: usize, cnt: usize) {
+    let (mut d, mut len) = (dst, cnt);
+    match back {
+        2 | 4 => {
+            let v = if back == 2 {
+                let v = u32::from(rs_rn16(buf, dst - 2));
+                v | v << 16
+            } else {
+                assert!(cnt < 32, "fill32 stores 32-byte blocks through AV_WN64");
+                rs_rn32(buf, dst - 4)
+            };
+            while len >= 4 {
+                rs_wn32(buf, d, v);
+                d += 4;
+                len -= 4;
+            }
+            for i in d..d + len {
+                buf[i] = buf[i - back];
+            }
+        }
+        3 => {
+            // `fill24`'s seed is `AV_RL24`, a byte-wise read; its stores go
+            // through the union. The little-endian rotations, as on this
+            // build (`HAVE_BIGENDIAN` 0).
+            let v = u32::from_le_bytes([buf[dst - 3], buf[dst - 2], buf[dst - 1], 0]);
+            let (a, b, c) = (v | v << 24, v >> 8 | v << 16, v >> 16 | v << 8);
+            while len >= 12 {
+                rs_wn32(buf, d, a);
+                rs_wn32(buf, d + 4, b);
+                rs_wn32(buf, d + 8, c);
+                d += 12;
+                len -= 12;
+            }
+            for word in [a, b] {
+                if len >= 4 {
+                    rs_wn32(buf, d, word);
+                    d += 4;
+                    len -= 4;
+                }
+            }
+            for i in d..d + len {
+                buf[i] = buf[i - 3];
+            }
+        }
+        5.. => {
+            assert!(cnt < 16, "longer copies are memcpy blocks");
+            let mut s = dst - back;
+            if len >= 8 {
+                let v = rs_rn32(buf, s);
+                rs_wn32(buf, d, v);
+                let v = rs_rn32(buf, s + 4);
+                rs_wn32(buf, d + 4, v);
+                (s, d, len) = (s + 8, d + 8, len - 8);
+            }
+            if len >= 4 {
+                let v = rs_rn32(buf, s);
+                rs_wn32(buf, d, v);
+                (s, d, len) = (s + 4, d + 4, len - 4);
+            }
+            if len >= 2 {
+                let v = rs_rn16(buf, s);
+                rs_wn16(buf, d, v);
+                (s, d, len) = (s + 2, d + 2, len - 2);
+            }
+            if len > 0 {
+                buf[d] = buf[s];
+            }
+        }
+        _ => unreachable!("periods 0 and 1 never reach the unions"),
+    }
+}
+
+#[test]
+fn backptr_narrow_paths_match_rust_views_at_every_alignment() {
+    for (back, counts) in [
+        (2, 0..40),
+        (3, 0..40),
+        (4, 0..32),
+        (5, 0..16),
+        (6, 0..16),
+        (7, 0..16),
+        (8, 0..16),
+        (11, 0..16),
+        (15, 0..16),
+    ] {
+        for cnt in counts {
+            for dst in back..back + 8 {
+                let mut c = pattern(dst + cnt + 3);
+                let mut rust = c.clone();
+                c_backptr(&mut c, dst, back, cnt);
+                rust_backptr_narrow(&mut rust, dst, back, cnt);
+                assert_eq!(c, rust, "back {back} cnt {cnt} at {dst}");
+            }
+        }
+    }
+}
+
+#[test]
+fn c_fills_read_rust_seeds_and_rust_reads_c_fills() {
+    let mut c = pattern(64);
+    let mut rust = c.clone();
+
+    // 1. Rust seeds a period-2 fill at an odd offset on both sides.
+    for buf in [&mut c, &mut rust] {
+        rs_wn16(buf, 3, 0xbeef);
+    }
+    assert_eq!(c, rust);
+
+    // 2. C fills from the seed; Rust mirrors it.
+    c_backptr(&mut c, 5, 2, 23);
+    rust_backptr_narrow(&mut rust, 5, 2, 23);
+    assert_eq!(c, rust);
+    for off in 3..5 + 23 - 2 {
+        assert_eq!(rs_rn16(&c, off), c_rn16(&rust, off), "offset {off}");
+    }
+    let [lo, hi] = 0xbeef_u16.to_ne_bytes();
+    assert_eq!(rs_rn32(&c, 7), u32::from_ne_bytes([lo, hi, lo, hi]));
+
+    // 3. Rust overwrites a word that seeds a period-4 fill, then C fills on.
+    for buf in [&mut c, &mut rust] {
+        rs_wn32(buf, 29, 0x0102_0304);
+    }
+    c_backptr(&mut c, 33, 4, 27);
+    rust_backptr_narrow(&mut rust, 33, 4, 27);
+    assert_eq!(c, rust);
+    for off in (33..33 + 24).step_by(4) {
+        assert_eq!(rs_rn32(&c, off), 0x0102_0304, "offset {off}");
+    }
+
+    // 4. A short copy reads back across what both fills wrote.
+    c_backptr(&mut c, 60, 9, 4);
+    rust_backptr_narrow(&mut rust, 60, 9, 4);
+    assert_eq!(c, rust);
+    assert_eq!(rs_rn32(&c, 60), c_rn32(&c, 51));
 }

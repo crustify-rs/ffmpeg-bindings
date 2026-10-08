@@ -1,0 +1,11 @@
+error[E0599]: no method named `set_value` found for struct `Unaligned32Ref<'a>` in the current scope
+ --> tests/ub_safe/compile_fail/intreadwrite_shared_view_has_no_setter.rs
+  |
+  |     Unaligned32Ref::from_bytes(&bytes).set_value(1);
+  |                                        ^^^^^^^^^
+  |
+help: there is a method `value` with a similar name, but with different arguments
+ --> libavutil/intreadwrite.rs
+  |
+  |     pub fn value(&self) -> u32 {
+  |     ^^^^^^^^^^^^^^^^^^^^^^^^^^

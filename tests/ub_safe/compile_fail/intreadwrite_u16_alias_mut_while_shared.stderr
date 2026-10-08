@@ -1,0 +1,9 @@
+error[E0502]: cannot borrow `bytes` as mutable because it is also borrowed as immutable
+ --> tests/ub_safe/compile_fail/intreadwrite_u16_alias_mut_while_shared.rs
+  |
+  |     let shared = Unaligned16Ref::from_bytes(&bytes);
+  |                                             ------ immutable borrow occurs here
+  |     Unaligned16Mut::from_bytes(&mut bytes).set_value(1);
+  |                                ^^^^^^^^^^ mutable borrow occurs here
+  |     println!("{}", shared.value());
+  |                    ------ immutable borrow later used here

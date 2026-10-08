@@ -1,18 +1,22 @@
 //! Safe wrappers over `libavutil/intreadwrite.h`.
 //!
-//! [`Unaligned64`] is `union unaligned_64`, the packed (align 1) view that
-//! `AV_RN64` / `AV_WN64` cast a byte pointer to for one native-endian 64-bit
-//! access at any address. C never allocates, stores or frees one: it is a
-//! plain value, or a borrowed view over 8 bytes the caller owns. Both reach
-//! the same handles:
+//! The header's `unaligned_N` unions are packed (align 1), single-member
+//! `uintN_t` containers: `AV_RN(N, p)` / `AV_WN(N, p, v)` cast any byte
+//! pointer to one and read or store its member `l` in native byte order,
+//! whatever the address's alignment. C never allocates, stores or frees one,
+//! and none has a lifecycle routine: each is a plain value, or a borrowed
+//! view over bytes the caller owns. Both reach the same handles:
 //!
-//! - a value: [`Unaligned64::new`] (or `Unaligned64::zeroed()`), then
-//!   `as_ref()` / `as_mut()`;
-//! - 8 bytes anywhere in a buffer: [`Unaligned64Ref::from_bytes`] and
-//!   [`Unaligned64Mut::from_bytes`], as `AV_RN64(p)` and `AV_WN64(p, v)` do.
+//! - a value: [`Unaligned16::new`], [`Unaligned32::new`],
+//!   [`Unaligned64::new`] (or `zeroed()`), then `as_ref()` / `as_mut()`;
+//! - `N / 8` bytes anywhere in a buffer: `from_bytes` on the shared or the
+//!   exclusive handle ([`Unaligned32Ref::from_bytes`],
+//!   [`Unaligned32Mut::from_bytes`]), as `AV_RN` and `AV_WN` do.
 //!
-//! [`Unaligned64Ref::value`] reads and [`Unaligned64Mut::set_value`] writes the
-//! `l` field without assuming alignment.
+//! The shared handles read `l` ([`Unaligned32Ref::value`]) and the exclusive
+//! ones store it ([`Unaligned32Mut::set_value`]), without assuming alignment.
+//! An `av_malloc`-family block of one is a [`HeapBox`](super::mem::HeapBox),
+//! zeroed and `Clone` like any plain value.
 //!
 //! The `av_alias*` unions view one aligned machine word as an integer, as
 //! narrower integer lanes, as bytes, or as a float: the type punning the
@@ -30,13 +34,263 @@
 //! views share one storage. A C-allocated one is a
 //! [`HeapBox`](super::mem::HeapBox), and an array a
 //! [`HeapVec`](super::mem::HeapVec), reached through the same handles.
+//!
+//! ```
+//! use ffmpeg::libavutil::intreadwrite::{Unaligned32Mut, Unaligned32Ref};
+//!
+//! let mut buf = [0u8; 7];
+//! let at = buf[3..].first_chunk_mut::<4>().unwrap(); // misaligned for `u32`
+//! Unaligned32Mut::from_bytes(at).set_value(0x0102_0304);
+//! assert_eq!(buf[3..], 0x0102_0304u32.to_ne_bytes());
+//! assert_eq!(Unaligned32Ref::from_bytes(buf[3..].first_chunk().unwrap()).value(), 0x0102_0304);
+//! ```
 
 use core::fmt;
+use core::hash::{Hash, Hasher};
+use core::marker::PhantomData;
 use core::ptr::{self, addr_of, addr_of_mut};
 
 use ffibox::{CZeroable, define_ctype};
 
 use super::ffi;
+
+/// The standard value traits of an `unaligned_N` layout type, all through its
+/// integer: `Debug`, `Default`, `PartialEq`, `Eq`, `Hash`, and `From` both
+/// ways.
+macro_rules! impl_value_traits {
+    ($name:ident, $int:ty) => {
+        impl fmt::Debug for $name {
+            fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+                f.debug_tuple(stringify!($name))
+                    .field(&self.as_ref().value())
+                    .finish()
+            }
+        }
+
+        impl Default for $name {
+            #[inline]
+            fn default() -> Self {
+                Self::zeroed()
+            }
+        }
+
+        impl PartialEq for $name {
+            #[inline]
+            fn eq(&self, other: &Self) -> bool {
+                self.as_ref().value() == other.as_ref().value()
+            }
+        }
+
+        impl Eq for $name {}
+
+        impl Hash for $name {
+            #[inline]
+            fn hash<H: Hasher>(&self, state: &mut H) {
+                self.as_ref().value().hash(state)
+            }
+        }
+
+        impl From<$int> for $name {
+            #[inline]
+            fn from(value: $int) -> Self {
+                Self::new(value)
+            }
+        }
+
+        impl From<$name> for $int {
+            #[inline]
+            fn from(value: $name) -> Self {
+                value.as_ref().value()
+            }
+        }
+    };
+}
+
+define_ctype!(
+    /// Wraps: unaligned_16
+    ///
+    /// A native-endian `u16` at any alignment: 2 bytes, aligned to 1.
+    #[derive(Clone, Copy)]
+    Unaligned16,
+    Unaligned16Ref,
+    Unaligned16Mut,
+    ffi::unaligned_16
+);
+
+// SAFETY: all-zero is `l == 0`, a valid `u16` every accessor accepts, and
+// there is no teardown.
+unsafe impl CZeroable for Unaligned16 {}
+
+// SAFETY: an `Unaligned16` is two bytes of plain data: no pointer, no
+// C-side identity or shared state, and no interior mutability. Moving it or
+// its exclusive handle (a `&mut [u8; 2]` in effect) to another thread moves
+// sole access to those bytes; the shared handle only reads, so concurrent
+// shared access is race-free, as for `&u16`.
+unsafe impl Send for Unaligned16 {}
+// SAFETY: as above.
+unsafe impl Sync for Unaligned16 {}
+// SAFETY: as above.
+unsafe impl Send for Unaligned16Mut<'_> {}
+// SAFETY: as above; a shared `&Unaligned16Mut` reaches only the getters.
+unsafe impl Sync for Unaligned16Mut<'_> {}
+// SAFETY: as above.
+unsafe impl Send for Unaligned16Ref<'_> {}
+// SAFETY: as above.
+unsafe impl Sync for Unaligned16Ref<'_> {}
+
+impl Unaligned16 {
+    /// A union holding `value`.
+    #[inline]
+    #[must_use]
+    pub const fn new(value: u16) -> Self {
+        Self(ffi::unaligned_16 { l: value }, PhantomData)
+    }
+}
+
+impl_value_traits!(Unaligned16, u16);
+
+impl<'a> Unaligned16Ref<'a> {
+    /// Views two bytes at any address as the union, the cast `AV_RN(16, p)`
+    /// reads through.
+    #[inline]
+    #[must_use]
+    pub fn from_bytes(bytes: &'a [u8; 2]) -> Self {
+        // SAFETY: `bytes` is a live, initialised 2-byte place borrowed for
+        // `'a`; `unaligned_16` is 2 bytes aligned to 1, for which every bit
+        // pattern is valid. The shared handle never writes through the
+        // pointer.
+        unsafe { Self::from_ptr(ptr::from_ref(bytes).cast_mut().cast()) }
+            .expect("a reference is non-null")
+    }
+
+    /// Field: unaligned_16.l
+    ///
+    /// The `u16` the union holds, in native byte order.
+    #[inline]
+    #[must_use]
+    pub fn value(&self) -> u16 {
+        // SAFETY: a read of the projected field through the shared handle's
+        // live pointer; the union is packed, so the read is unaligned.
+        unsafe { addr_of!((*self.as_ptr()).l).read_unaligned() }
+    }
+}
+
+impl<'a> Unaligned16Mut<'a> {
+    /// Views two bytes at any address as the union, the cast `AV_WN(16, p, v)`
+    /// stores through.
+    #[inline]
+    #[must_use]
+    pub fn from_bytes(bytes: &'a mut [u8; 2]) -> Self {
+        // SAFETY: `bytes` is a live, initialised 2-byte place exclusively
+        // borrowed for `'a`, so this is the only handle to it; `unaligned_16`
+        // is 2 bytes aligned to 1, for which every bit pattern is valid.
+        unsafe { Self::from_ptr(ptr::from_mut(bytes).cast()) }.expect("a reference is non-null")
+    }
+
+    /// Field: unaligned_16.l
+    ///
+    /// Stores `value` in native byte order.
+    #[inline]
+    pub fn set_value(&mut self, value: u16) {
+        // SAFETY: a write of the projected field through the exclusive
+        // handle's live pointer; the union is packed, so the write is
+        // unaligned.
+        unsafe { addr_of_mut!((*self.as_mut_ptr()).l).write_unaligned(value) }
+    }
+}
+
+define_ctype!(
+    /// Wraps: unaligned_32
+    ///
+    /// A native-endian `u32` at any alignment: 4 bytes, aligned to 1.
+    #[derive(Clone, Copy)]
+    Unaligned32,
+    Unaligned32Ref,
+    Unaligned32Mut,
+    ffi::unaligned_32
+);
+
+// SAFETY: all-zero is `l == 0`, a valid `u32` every accessor accepts, and
+// there is no teardown.
+unsafe impl CZeroable for Unaligned32 {}
+
+// SAFETY: an `Unaligned32` is four bytes of plain data: no pointer, no
+// C-side identity or shared state, and no interior mutability. Moving it or
+// its exclusive handle (a `&mut [u8; 4]` in effect) to another thread moves
+// sole access to those bytes; the shared handle only reads, so concurrent
+// shared access is race-free, as for `&u32`.
+unsafe impl Send for Unaligned32 {}
+// SAFETY: as above.
+unsafe impl Sync for Unaligned32 {}
+// SAFETY: as above.
+unsafe impl Send for Unaligned32Mut<'_> {}
+// SAFETY: as above; a shared `&Unaligned32Mut` reaches only the getters.
+unsafe impl Sync for Unaligned32Mut<'_> {}
+// SAFETY: as above.
+unsafe impl Send for Unaligned32Ref<'_> {}
+// SAFETY: as above.
+unsafe impl Sync for Unaligned32Ref<'_> {}
+
+impl Unaligned32 {
+    /// A union holding `value`.
+    #[inline]
+    #[must_use]
+    pub const fn new(value: u32) -> Self {
+        Self(ffi::unaligned_32 { l: value }, PhantomData)
+    }
+}
+
+impl_value_traits!(Unaligned32, u32);
+
+impl<'a> Unaligned32Ref<'a> {
+    /// Views four bytes at any address as the union, the cast `AV_RN(32, p)`
+    /// reads through.
+    #[inline]
+    #[must_use]
+    pub fn from_bytes(bytes: &'a [u8; 4]) -> Self {
+        // SAFETY: `bytes` is a live, initialised 4-byte place borrowed for
+        // `'a`; `unaligned_32` is 4 bytes aligned to 1, for which every bit
+        // pattern is valid. The shared handle never writes through the
+        // pointer.
+        unsafe { Self::from_ptr(ptr::from_ref(bytes).cast_mut().cast()) }
+            .expect("a reference is non-null")
+    }
+
+    /// Field: unaligned_32.l
+    ///
+    /// The `u32` the union holds, in native byte order.
+    #[inline]
+    #[must_use]
+    pub fn value(&self) -> u32 {
+        // SAFETY: a read of the projected field through the shared handle's
+        // live pointer; the union is packed, so the read is unaligned.
+        unsafe { addr_of!((*self.as_ptr()).l).read_unaligned() }
+    }
+}
+
+impl<'a> Unaligned32Mut<'a> {
+    /// Views four bytes at any address as the union, the cast
+    /// `AV_WN(32, p, v)` stores through.
+    #[inline]
+    #[must_use]
+    pub fn from_bytes(bytes: &'a mut [u8; 4]) -> Self {
+        // SAFETY: `bytes` is a live, initialised 4-byte place exclusively
+        // borrowed for `'a`, so this is the only handle to it; `unaligned_32`
+        // is 4 bytes aligned to 1, for which every bit pattern is valid.
+        unsafe { Self::from_ptr(ptr::from_mut(bytes).cast()) }.expect("a reference is non-null")
+    }
+
+    /// Field: unaligned_32.l
+    ///
+    /// Stores `value` in native byte order.
+    #[inline]
+    pub fn set_value(&mut self, value: u32) {
+        // SAFETY: a write of the projected field through the exclusive
+        // handle's live pointer; the union is packed, so the write is
+        // unaligned.
+        unsafe { addr_of_mut!((*self.as_mut_ptr()).l).write_unaligned(value) }
+    }
+}
 
 define_ctype!(
     /// Wraps: unaligned_64
@@ -457,6 +711,7 @@ impl Alias32Mut<'_> {
 mod unit_tests {
     use super::*;
     use core::mem::{align_of, size_of};
+    use std::collections::hash_map::DefaultHasher;
 
     #[test]
     fn layout_matches_the_c_union() {
@@ -587,5 +842,110 @@ mod unit_tests {
         assert_eq!(lanes, [5, 6]);
         // SAFETY: a null pointer is accepted and yields no handle.
         assert!(unsafe { Alias16Ref::from_ptr(core::ptr::null_mut()) }.is_none());
+    }
+
+    fn hash_of<T: Hash>(v: &T) -> u64 {
+        let mut h = DefaultHasher::new();
+        v.hash(&mut h);
+        h.finish()
+    }
+
+    #[test]
+    fn layout_is_the_packed_c_union() {
+        assert_eq!(size_of::<Unaligned16>(), 2);
+        assert_eq!(align_of::<Unaligned16>(), 1);
+        assert_eq!(size_of::<Unaligned32>(), 4);
+        assert_eq!(align_of::<Unaligned32>(), 1);
+        // One pointer wide, as `define_ctype!` promises.
+        assert_eq!(size_of::<Unaligned16Ref<'_>>(), size_of::<*const u8>());
+        assert_eq!(size_of::<Unaligned32Mut<'_>>(), size_of::<*const u8>());
+    }
+
+    #[test]
+    fn new_and_conversions_round_trip() {
+        const C16: Unaligned16 = Unaligned16::new(0xbeef);
+        const C32: Unaligned32 = Unaligned32::new(0xdead_beef);
+        assert_eq!(C16.as_ref().value(), 0xbeef);
+        assert_eq!(C32.as_ref().value(), 0xdead_beef);
+        for v in [0, 1, 0x00ff, 0xff00, u16::MAX] {
+            assert_eq!(u16::from(Unaligned16::from(v)), v);
+        }
+        for v in [0, 1, 0x0000_ffff, 0xffff_0000, u32::MAX] {
+            assert_eq!(u32::from(Unaligned32::from(v)), v);
+        }
+    }
+
+    #[test]
+    fn default_is_zeroed_and_zero() {
+        assert_eq!(Unaligned16::default(), Unaligned16::zeroed());
+        assert_eq!(Unaligned16::default().as_ref().value(), 0);
+        assert_eq!(Unaligned32::default(), Unaligned32::zeroed());
+        assert_eq!(Unaligned32::default().as_ref().value(), 0);
+    }
+
+    #[test]
+    fn value_traits_follow_the_integer() {
+        let a = Unaligned32::new(7);
+        let b = a; // `Copy`
+        #[allow(clippy::clone_on_copy)]
+        let c = a.clone();
+        assert_eq!(a, b);
+        assert_eq!(a, c);
+        assert_ne!(a, Unaligned32::new(8));
+        assert_eq!(hash_of(&a), hash_of(&7u32));
+        assert_eq!(hash_of(&Unaligned16::new(9)), hash_of(&9u16));
+        assert_eq!(
+            format!("{:?}", Unaligned16::new(0x1234)),
+            "Unaligned16(4660)"
+        );
+        assert_eq!(format!("{:?}", Unaligned32::new(5)), "Unaligned32(5)");
+        assert_ne!(Unaligned16::new(1), Unaligned16::new(2));
+    }
+
+    #[test]
+    fn handles_on_a_value_read_and_write_it() {
+        let mut v = Unaligned16::new(1);
+        let mut m = v.as_mut();
+        m.set_value(2);
+        assert_eq!(m.as_ref().value(), 2);
+        m.as_mut().set_value(3); // a reborrow keeps `m`
+        m.set_value(4);
+        assert_eq!(v.as_ref().value(), 4);
+
+        let mut w = Unaligned32::new(1);
+        w.as_mut().set_value(u32::MAX);
+        assert_eq!(w.as_ref().value(), u32::MAX);
+    }
+
+    #[test]
+    fn byte_views_are_native_endian_at_every_offset() {
+        let mut buf = [0u8; 11];
+        for off in 0..=buf.len() - 4 {
+            let v = 0x0a0b_0c0d_u32.rotate_left(off as u32 * 8);
+            Unaligned32Mut::from_bytes(buf[off..].first_chunk_mut().unwrap()).set_value(v);
+            assert_eq!(buf[off..off + 4], v.to_ne_bytes());
+            assert_eq!(
+                Unaligned32Ref::from_bytes(buf[off..].first_chunk().unwrap()).value(),
+                v
+            );
+        }
+        for off in 0..=buf.len() - 2 {
+            let v = 0x0102_u16.wrapping_mul(off as u16 + 1);
+            Unaligned16Mut::from_bytes(buf[off..].first_chunk_mut().unwrap()).set_value(v);
+            assert_eq!(buf[off..off + 2], v.to_ne_bytes());
+            assert_eq!(
+                Unaligned16Ref::from_bytes(buf[off..].first_chunk().unwrap()).value(),
+                v
+            );
+        }
+    }
+
+    #[test]
+    fn a_byte_view_writes_only_its_own_bytes() {
+        let mut buf = [0xa5u8; 8];
+        Unaligned16Mut::from_bytes(buf[3..].first_chunk_mut().unwrap()).set_value(0);
+        assert_eq!(buf, [0xa5, 0xa5, 0xa5, 0, 0, 0xa5, 0xa5, 0xa5]);
+        Unaligned32Mut::from_bytes(buf[4..].first_chunk_mut().unwrap()).set_value(u32::MAX);
+        assert_eq!(buf, [0xa5, 0xa5, 0xa5, 0, 0xff, 0xff, 0xff, 0xff]);
     }
 }
