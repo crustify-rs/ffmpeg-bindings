@@ -1,0 +1,12 @@
+error[E0597]: `a` does not live long enough
+ --> tests/ub_safe/compile_fail/mem_dynarray_slice_outlives_array.rs
+  |
+  |     let s = {
+  |         - borrow later stored here
+  |         let mut a = DynArray::<u32>::new();
+  |             ----- binding `a` declared here
+  |         let _ = a.push_or_clear(1);
+  |         a.as_slice()
+  |         ^ borrowed value does not live long enough
+  |     };
+  |     - `a` dropped here while still borrowed

@@ -1,12 +1,13 @@
-//! UB tests for `libavutil/mem.h`'s `av_malloc`-family owners, through the
-//! safe API only.
+//! UB tests for `libavutil/mem.h`'s `av_malloc`-family owners, its dynamic
+//! arrays and its reusable buffers, through the safe API only.
 
 use core::mem::MaybeUninit;
 use std::panic::{AssertUnwindSafe, catch_unwind};
 
+use ffmpeg::libavutil::intfloat::IntFloat64;
 use ffmpeg::libavutil::mem::{
-    Heap, HeapString, HeapVec, StringHeap, alloc_array, alloc_array_from_fn, alloc_array_zeroed,
-    string_from_bytes_until_nul, string_from_c_str,
+    DynArray, FastBuffer, Heap, HeapString, HeapVec, StringHeap, ZeroedFastBuffer, alloc_array,
+    alloc_array_from_fn, alloc_array_zeroed, string_from_bytes_until_nul, string_from_c_str,
 };
 
 #[test]
@@ -269,4 +270,180 @@ fn optional_strings_and_debug_are_sound() {
     let p = format!("{:p}", some.as_ref().unwrap());
     assert!(p.starts_with("0x"));
     assert_eq!(format!("{StringHeap:?}"), "StringHeap");
+}
+
+#[test]
+fn dynarray_grows_through_every_doubling() {
+    let mut a = DynArray::<u8>::new();
+    assert_eq!(a.as_slice(), &[] as &[u8]);
+    for i in 0..4096usize {
+        assert!(a.push_or_clear(i as u8));
+        assert_eq!(a.len(), i + 1);
+        // Viewed at each doubling only: BSan retags the whole slice per view.
+        if i.is_power_of_two() {
+            assert_eq!(a.as_slice()[i], i as u8);
+        }
+    }
+    let want: Vec<u8> = (0..4096).map(|i| i as u8).collect();
+    assert_eq!(a.as_slice(), &want[..]);
+    a.as_mut_slice().fill(7);
+    assert_eq!(a.as_slice(), &[7; 4096][..]);
+    let r = catch_unwind(AssertUnwindSafe(|| a.as_mut_slice()[4096] = 1));
+    assert!(
+        r.is_err(),
+        "an out-of-bounds index panics instead of writing"
+    );
+    let v = a.into_vec();
+    assert_eq!(v.len(), 4096);
+}
+
+#[test]
+fn dynarray_takes_every_element_shape() {
+    let mut odd = DynArray::<[u8; 3]>::new();
+    let mut wide = DynArray::<f64>::new();
+    let mut ptrs = DynArray::<*const u64>::default();
+    for i in 0..300 {
+        assert!(odd.push_or_clear([i as u8; 3]));
+        assert!(wide.push_or_clear(i as f64 / 3.0));
+        assert!(ptrs.push_or_clear(core::ptr::null()));
+    }
+    assert_eq!(odd.as_slice()[299], [43; 3]);
+    assert_eq!(wide.as_slice().len(), 300);
+    assert!(ptrs.as_slice().iter().all(|p| p.is_null()));
+    assert!(!format!("{odd:?}").is_empty());
+}
+
+#[test]
+fn pointer_arrays_store_dangling_pointers_without_following_them() {
+    let mut a = DynArray::<*const String>::new();
+    let mut b = DynArray::<*mut u8>::new();
+    {
+        let s = String::from("gone soon");
+        let mut byte = 0u8;
+        for _ in 0..100 {
+            assert!(a.push_ptr_or_clear(&s));
+            assert_eq!(b.try_push_ptr(&mut byte), Ok(()));
+        }
+    }
+    // The pointees are gone; the array still owns only its block.
+    assert_eq!((a.len(), b.len()), (100, 100));
+    assert!(a.as_slice().windows(2).all(|w| w[0] == w[1]));
+    drop(a);
+    drop(b);
+}
+
+#[test]
+fn cell_elements_are_reached_through_handles() {
+    let mut a = DynArray::<IntFloat64>::new();
+    for i in 0..65u64 {
+        assert!(a.push_or_clear(IntFloat64::from_bits(i)));
+    }
+    assert_eq!(a.as_handles().len(), 65);
+    for mut h in a.as_handles_mut().iter_mut() {
+        let b = h.as_ref().bits();
+        h.set_bits(b * 2);
+    }
+    let bits: Vec<u64> = a.as_handles().iter().map(|h| h.bits()).collect();
+    assert_eq!(bits, (0..65).map(|i| i * 2).collect::<Vec<_>>());
+    assert!(a.as_handles().get(65).is_none());
+}
+
+#[test]
+fn dynarrays_cross_and_share_threads() {
+    let mut a = DynArray::<u32>::new();
+    assert!(a.push_or_clear(1));
+    let mut a = std::thread::spawn(move || {
+        for i in 2..=1000 {
+            assert!(a.push_or_clear(i));
+        }
+        a
+    })
+    .join()
+    .unwrap();
+    std::thread::scope(|s| {
+        for _ in 0..4 {
+            s.spawn(|| assert_eq!(a.as_slice().iter().sum::<u32>(), 500_500));
+        }
+    });
+    std::thread::scope(|s| {
+        s.spawn(|| a.as_mut_slice().fill(3));
+    });
+    std::thread::spawn(move || drop(a)).join().unwrap();
+}
+
+/// Requested sizes around every branch, with failures above `UINT_MAX`;
+/// successes stay at or under 4 KiB, for BSan.
+const FAST_SIZES: [usize; 11] = [
+    0,
+    1,
+    33,
+    33,
+    34,
+    2000,
+    7,
+    u32::MAX as usize + 1,
+    4000,
+    usize::MAX,
+    0,
+];
+
+#[test]
+fn fast_buffers_are_writable_end_to_end_after_every_regrowth() {
+    let (mut keep, mut discard, mut zeroed) = (
+        FastBuffer::new(),
+        FastBuffer::default(),
+        ZeroedFastBuffer::new(),
+    );
+    for min in FAST_SIZES {
+        let old = keep.capacity();
+        let ok = keep.reserve(min);
+        assert!(keep.capacity() >= if ok { min } else { old });
+        // One slice-wide write: BSan retags per reference.
+        keep.as_mut_slice().fill(MaybeUninit::new(0x5a));
+
+        let ok = discard.reserve_discarding(min);
+        assert_eq!(ok, discard.capacity() >= min);
+        assert!(ok || discard.capacity() == 0);
+        discard.as_mut_slice().fill(MaybeUninit::new(1));
+
+        let ok = zeroed.reserve_discarding(min);
+        assert_eq!(ok, zeroed.capacity() >= min);
+        // Fresh: zero; reused: the last fill. Compared whole, not per byte,
+        // which BSan retags.
+        let s = zeroed.as_slice();
+        let first = s.first().copied().unwrap_or(0);
+        assert!(first == 0 || first == 9);
+        assert_eq!(s, &vec![first; s.len()][..]);
+        zeroed.as_mut_slice().fill(9);
+    }
+    assert_eq!(zeroed.into_vec().len(), 0);
+    assert!(!format!("{keep:?}{discard:?}").is_empty());
+    let v = keep.into_vec();
+    assert!(v.len() >= 4000);
+}
+
+#[test]
+fn fast_buffers_cross_and_share_threads() {
+    let mut keep = FastBuffer::new();
+    assert!(keep.reserve(100));
+    let mut zeroed = ZeroedFastBuffer::new();
+    assert!(zeroed.reserve_discarding(3000));
+    let (keep, zeroed) = std::thread::spawn(move || {
+        assert!(keep.capacity() >= 100);
+        (keep, zeroed)
+    })
+    .join()
+    .unwrap();
+    std::thread::scope(|s| {
+        for _ in 0..4 {
+            s.spawn(|| assert_eq!(zeroed.as_slice(), &vec![0; zeroed.capacity()][..]));
+        }
+    });
+    let mut zeroed = zeroed;
+    std::thread::scope(|s| {
+        s.spawn(|| assert!(zeroed.reserve_discarding(4000)));
+    });
+    std::thread::spawn(move || drop((keep, zeroed)))
+        .join()
+        .unwrap();
 }

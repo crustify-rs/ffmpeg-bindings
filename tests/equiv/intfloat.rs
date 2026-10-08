@@ -2,13 +2,16 @@
 //! `union av_intfloat64`, whose reinterpretation `av_int2double` and
 //! `av_double2int` perform in C, on independently owned values; and of its
 //! `IntFloat32` with `union av_intfloat32`, through `av_int2float` and
-//! `av_float2int`.
+//! `av_float2int`; and of the free conversion functions with those four.
 
 use core::mem::{align_of, offset_of, size_of};
 
 use ffibox::CZeroable;
 use ffmpeg::libavutil::ffi;
-use ffmpeg::libavutil::intfloat::{IntFloat32, IntFloat64, IntFloat64Mut, IntFloat64Ref};
+use ffmpeg::libavutil::intfloat::{
+    IntFloat32, IntFloat64, IntFloat64Mut, IntFloat64Ref, double_from_bits, double_to_bits,
+    float_from_bits, float_to_bits,
+};
 use ffmpeg::libavutil::mem::{HeapBox, alloc_cell_array_zeroed};
 
 /// Bit patterns at every class edge of a `double`, NaN payloads included, and
@@ -287,5 +290,49 @@ fn intfloat32_alternating_writes_match_c_after_each_step() {
             let copy = IntFloat32::from_float(r.float());
             assert_eq!(copy.as_ref().bits(), c_bits, "step {step}");
         }
+    }
+}
+
+#[test]
+fn double_conversions_match_c_on_every_class() {
+    for bits in BITS {
+        assert_eq!(
+            double_from_bits(bits).to_bits(),
+            c_int2double(bits).to_bits(),
+            "{bits:#x}"
+        );
+        let f = f64::from_bits(bits);
+        assert_eq!(double_to_bits(f), c_double2int(f), "{bits:#x}");
+        assert_eq!(double_to_bits(double_from_bits(bits)), bits, "{bits:#x}");
+    }
+}
+
+#[test]
+fn float_conversions_match_c_on_every_class() {
+    for bits in inputs32() {
+        assert_eq!(
+            float_from_bits(bits).to_bits(),
+            c_int2float(bits),
+            "{bits:#x}"
+        );
+        let f = f32::from_bits(bits);
+        assert_eq!(float_to_bits(f), c_float2int(f), "{bits:#x}");
+        assert_eq!(float_to_bits(float_from_bits(bits)), bits, "{bits:#x}");
+    }
+}
+
+#[test]
+fn conversions_agree_with_the_unions() {
+    for bits in BITS {
+        assert_eq!(
+            double_from_bits(bits).to_bits(),
+            IntFloat64::from_bits(bits).as_ref().float().to_bits()
+        );
+    }
+    for bits in inputs32() {
+        assert_eq!(
+            float_from_bits(bits).to_bits(),
+            IntFloat32::from_bits(bits).as_ref().float().to_bits()
+        );
     }
 }

@@ -3,8 +3,8 @@
 //! [`Rounding`] is the rounding argument of the rescaling functions: one of
 //! five methods, optionally with the pass-through of `i64::MIN` / `i64::MAX`.
 //!
-//! [`compare_mod`] and [`bessel_i0`] are plain numeric functions over the C
-//! implementations.
+//! [`compare_mod`], [`bessel_i0`] and [`gcd`] (the integer greatest common
+//! divisor) are plain numeric functions over the C implementations.
 
 use core::fmt;
 
@@ -150,6 +150,18 @@ pub fn bessel_i0(x: f64) -> f64 {
     // SAFETY: `av_bessel_i0` takes and returns a double by value and reads
     // only its own constant tables.
     unsafe { ffi::av_bessel_i0(x) }
+}
+
+/// Wraps: av_gcd
+///
+/// The greatest common divisor of `a` and `b`, up to sign: non-negative when
+/// both are, `b` when `a` is 0 and `a` when `b` is 0 (so `gcd(0, 0) == 0`). A
+/// divisor of `2^63` comes back as `i64::MIN`, its bit pattern: `gcd(i64::MIN,
+/// i64::MIN)` is `i64::MIN`.
+#[must_use]
+pub fn gcd(a: i64, b: i64) -> i64 {
+    // SAFETY: `av_gcd` takes its arguments by value and has no preconditions.
+    unsafe { ffi::av_gcd(a, b) }
 }
 
 #[cfg(test)]

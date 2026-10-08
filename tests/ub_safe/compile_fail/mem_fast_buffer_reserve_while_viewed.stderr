@@ -1,0 +1,9 @@
+error[E0502]: cannot borrow `b` as mutable because it is also borrowed as immutable
+ --> tests/ub_safe/compile_fail/mem_fast_buffer_reserve_while_viewed.rs
+  |
+  |     let s = b.as_slice();
+  |             - immutable borrow occurs here
+  |     let _ = b.reserve_discarding(4096);
+  |             ^^^^^^^^^^^^^^^^^^^^^^^^^^ mutable borrow occurs here
+  |     println!("{}", s[0]);
+  |                    ---- immutable borrow later used here

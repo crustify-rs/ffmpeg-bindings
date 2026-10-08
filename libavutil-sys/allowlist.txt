@@ -150,3 +150,42 @@ function av_clipl_int32_c
 function av_log2
 function av_get_cpu_flags
 function av_force_cpu_flags
+
+# Core wave 0, batch 11: avstring.h path and token helpers, and the ASCII digit
+# test (static inline, compiled by bindgen's wrap_static_fns).
+function av_dirname
+function av_get_token
+function av_isdigit
+
+# Core wave 0, batch 11: mem.h's dynamic arrays, reusable buffers and the
+# slot-clearing free.
+function av_dynarray_add
+function av_dynarray_add_nofree
+function av_dynarray2_add
+function av_fast_malloc
+function av_fast_mallocz
+function av_fast_realloc
+function av_freep
+
+# Core wave 0, batch 11: file.h's map/unmap pair; EINVAL is the error a log
+# offset is rejected with when it would overflow AV_LOG_ERROR (above), the
+# level av_file_map logs its failures at.
+function av_file_map
+function av_file_unmap
+var EINVAL
+
+# Core wave 0, batch 11: cpu.h's flag detection and override, with the flag
+# constants that read them.
+function av_force_cpu_flags
+function av_get_cpu_flags
+var AV_CPU_FLAG_.*
+
+# Core wave 0, batch 11: avutil.h's FourCC formatter and its buffer size,
+# mathematics.h's gcd, random_seed.h and time.h.
+function av_fourcc_make_string
+var AV_FOURCC_MAX_STRING_SIZE
+function av_gcd
+function av_get_random_seed
+function av_gettime
+function av_gettime_relative
+function av_gettime_relative_is_monotonic

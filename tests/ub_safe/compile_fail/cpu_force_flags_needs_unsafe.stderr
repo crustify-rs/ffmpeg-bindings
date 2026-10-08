@@ -1,0 +1,7 @@
+error[E0133]: call to unsafe function `force_cpu_flags` is unsafe and requires unsafe block
+ --> tests/ub_safe/compile_fail/cpu_force_flags_needs_unsafe.rs
+  |
+  |     ffmpeg::libavutil::cpu::force_cpu_flags(-1);
+  |     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ call to unsafe function
+  |
+  = note: consult the function's documentation for information on how to avoid undefined behavior

@@ -132,3 +132,34 @@ mod numeric {
         });
     }
 }
+
+/// `gcd` on every sign and extreme.
+mod greatest_common_divisor {
+    use ffmpeg::libavutil::mathematics::gcd;
+
+    #[test]
+    fn gcd_takes_every_sign_and_extreme() {
+        let edges = [
+            0,
+            1,
+            -1,
+            2,
+            i64::MAX,
+            i64::MIN,
+            i64::MIN + 1,
+            1 << 62,
+            -(1 << 62),
+            3 << 61,
+        ];
+        for a in edges {
+            for b in edges {
+                let g = gcd(a, b);
+                if g != 0 && g != i64::MIN {
+                    assert_eq!((a % g, b % g), (0, 0), "gcd({a}, {b}) = {g}");
+                }
+            }
+        }
+        assert_eq!(gcd(i64::MIN, i64::MIN), i64::MIN);
+        assert_eq!(gcd(0, 0), 0);
+    }
+}

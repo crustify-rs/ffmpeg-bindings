@@ -1,9 +1,13 @@
-//! Equivalence of `libavutil/cpu.h`'s safe CPU queries with the raw C
-//! functions, across the process-global overrides each side sets.
+//! Equivalence of `libavutil/cpu.h`'s safe CPU queries, and of its unsafe
+//! `force_cpu_flags`, with the raw C functions, across the process-global
+//! overrides each side sets.
 
+use core::ffi::c_int;
 use std::process::Command;
 
-use ffmpeg::libavutil::cpu::{cpu_count, cpu_max_align, force_cpu_count};
+use ffmpeg::libavutil::cpu::{
+    cpu_count, cpu_flags, cpu_max_align, force_cpu_count, force_cpu_flags,
+};
 use ffmpeg::libavutil::ffi;
 
 /// Set in the child process an isolated test re-runs itself in.
@@ -87,4 +91,78 @@ fn max_align_follows_the_forced_cpu_flags() {
     // SAFETY: as above; -1 restores detection.
     unsafe { ffi::av_force_cpu_flags(-1) };
     assert_eq!((cpu_max_align(), c_align()), (detected, detected));
+}
+
+/// Both sides' reading of the flag set.
+fn read_both() -> (c_int, c_int) {
+    // SAFETY: `av_get_cpu_flags` takes no arguments and reads C atomics.
+    (cpu_flags(), unsafe { ffi::av_get_cpu_flags() })
+}
+
+/// The flags the running CPU supports, detected afresh.
+fn detected_flags() -> c_int {
+    // SAFETY: `-1` names no extension and restores detection; nothing else
+    // runs in the isolated child that calls this.
+    unsafe { force_cpu_flags(-1) };
+    cpu_flags()
+}
+
+/// The CPU flags are process-global, so the flag tests force them only in a
+/// child process running nothing else.
+#[test]
+fn detected_flags_read_alike() {
+    if !isolated("cpu::detected_flags_read_alike") {
+        return;
+    }
+    let d = detected_flags();
+    assert_eq!(read_both(), (d, d));
+    assert_ne!(d, -1);
+}
+
+#[test]
+fn forced_flag_subsets_read_alike_after_every_step() {
+    if !isolated("cpu::forced_flag_subsets_read_alike_after_every_step") {
+        return;
+    }
+    let d = detected_flags();
+    let mmx = ffi::AV_CPU_FLAG_MMX as c_int;
+    let masks = [0, 1, 3, 0xff, 0x7fff, !0x10, !0, 0x5555_5555, 0x2aaa_aaaa];
+    for (step, mask) in masks.into_iter().enumerate() {
+        let want = d & mask;
+        // SAFETY: `want` names only extensions the running CPU reported, and
+        // nothing else runs in this process.
+        unsafe { force_cpu_flags(want) };
+        let (r, c) = read_both();
+        assert_eq!(r, c, "step {step}");
+        // C adds MMX to a set with a later x86 extension and no MMX.
+        assert_eq!(r & !mmx, want & !mmx, "step {step}");
+
+        // The same set forced through C reads back alike.
+        // SAFETY: as above.
+        unsafe { ffi::av_force_cpu_flags(want) };
+        assert_eq!(read_both(), (r, r), "step {step}: C side");
+    }
+    // SAFETY: `-1` restores detection.
+    unsafe { force_cpu_flags(-1) };
+    assert_eq!(read_both(), (d, d));
+}
+
+#[test]
+fn mmx_is_implied_alike() {
+    if !isolated("cpu::mmx_is_implied_alike") {
+        return;
+    }
+    let d = detected_flags();
+    let (mmx, sse) = (ffi::AV_CPU_FLAG_MMX as c_int, ffi::AV_CPU_FLAG_SSE as c_int);
+    if cfg!(target_arch = "x86_64") && d & (mmx | sse) == mmx | sse {
+        // SAFETY: SSE is supported (and MMX, which C adds back); nothing else
+        // runs in this process.
+        unsafe { force_cpu_flags(sse) };
+        assert_eq!(cpu_flags(), sse | mmx);
+        // SAFETY: as above.
+        unsafe { ffi::av_force_cpu_flags(sse) };
+        assert_eq!(cpu_flags(), sse | mmx);
+    }
+    // SAFETY: `-1` restores detection.
+    unsafe { force_cpu_flags(-1) };
 }

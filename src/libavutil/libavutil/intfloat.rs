@@ -21,6 +21,11 @@
 //! Both members span all 4 bytes and every bit pattern is a valid value of
 //! each, so either member reads back whatever was last written through the
 //! other, bit for bit, as in C.
+//!
+//! The header's conversion functions are the same punning as free functions:
+//! [`float_from_bits`] / [`float_to_bits`] (`av_int2float` / `av_float2int`)
+//! and [`double_from_bits`] / [`double_to_bits`] (`av_int2double` /
+//! `av_double2int`).
 
 use core::fmt;
 use core::ptr::{addr_of, addr_of_mut};
@@ -261,6 +266,48 @@ impl IntFloat32Mut<'_> {
         // SAFETY: as `set_bits`, for an `f32`.
         unsafe { addr_of_mut!((*self.as_mut_ptr()).f).write(v) }
     }
+}
+
+/// Wraps: av_int2float
+///
+/// The `f32` whose bit pattern is `bits`, as [`f32::from_bits`] gives it, NaN
+/// payloads included.
+#[must_use]
+pub fn float_from_bits(bits: u32) -> f32 {
+    // SAFETY: `av_int2float` takes its argument by value and has no
+    // preconditions.
+    unsafe { ffi::av_int2float(bits) }
+}
+
+/// Wraps: av_float2int
+///
+/// The bit pattern of `value`, as [`f32::to_bits`] gives it.
+#[must_use]
+pub fn float_to_bits(value: f32) -> u32 {
+    // SAFETY: `av_float2int` takes its argument by value and has no
+    // preconditions.
+    unsafe { ffi::av_float2int(value) }
+}
+
+/// Wraps: av_int2double
+///
+/// The `f64` whose bit pattern is `bits`, as [`f64::from_bits`] gives it, NaN
+/// payloads included.
+#[must_use]
+pub fn double_from_bits(bits: u64) -> f64 {
+    // SAFETY: `av_int2double` takes its argument by value and has no
+    // preconditions.
+    unsafe { ffi::av_int2double(bits) }
+}
+
+/// Wraps: av_double2int
+///
+/// The bit pattern of `value`, as [`f64::to_bits`] gives it.
+#[must_use]
+pub fn double_to_bits(value: f64) -> u64 {
+    // SAFETY: `av_double2int` takes its argument by value and has no
+    // preconditions.
+    unsafe { ffi::av_double2int(value) }
 }
 
 #[cfg(test)]

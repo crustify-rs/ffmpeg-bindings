@@ -6,7 +6,8 @@ use std::thread;
 
 use ffibox::CZeroable;
 use ffmpeg::libavutil::intfloat::{
-    IntFloat32, IntFloat32Mut, IntFloat64, IntFloat64Mut, IntFloat64Ref,
+    IntFloat32, IntFloat32Mut, IntFloat64, IntFloat64Mut, IntFloat64Ref, double_from_bits,
+    double_to_bits, float_from_bits, float_to_bits,
 };
 use ffmpeg::libavutil::mem::{HeapBox, alloc_cell_array_zeroed};
 
@@ -229,4 +230,28 @@ fn intfloat32_handles_and_owners_cross_threads() {
     });
     assert_eq!(b.as_ref().bits(), 5);
     thread::spawn(move || drop(b)).join().unwrap();
+}
+
+#[test]
+fn conversions_take_every_class_edge() {
+    for bits in BITS {
+        assert_eq!(double_to_bits(double_from_bits(bits)), bits);
+    }
+    for bits in [
+        0,
+        1,
+        0x007f_ffff,
+        0x0080_0000,
+        0x7f7f_ffff,
+        0x7f80_0000,
+        0x7f80_0001,
+        0x7fc0_0000,
+        u32::MAX,
+    ] {
+        assert_eq!(float_to_bits(float_from_bits(bits)), bits);
+    }
+    let back = thread::spawn(|| double_to_bits(f64::NEG_INFINITY))
+        .join()
+        .unwrap();
+    assert_eq!(back, f64::NEG_INFINITY.to_bits());
 }

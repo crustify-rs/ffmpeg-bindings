@@ -3,6 +3,14 @@
 //! The CPU count override is one process-wide C atomic, read and written with
 //! relaxed ordering, so every thread may query or force it; a forced count
 //! applies to every later [`cpu_count`] in the process, C callers included.
+//!
+//! FFmpeg also picks its optimized code paths, and the data alignment they
+//! need, from one process-wide set of CPU extension flags (`ffi::AV_CPU_FLAG_*`).
+//! [`cpu_flags`] reads it, detecting the running CPU on first use;
+//! [`force_cpu_flags`] overrides it, and is `unsafe` because both what it
+//! enables and when it changes the set bear on memory safety.
+
+use core::ffi::c_int;
 
 use super::ffi;
 
@@ -40,6 +48,46 @@ pub fn cpu_max_align() -> usize {
     // SAFETY: `av_cpu_max_align` takes no arguments and reads the CPU flags
     // through `av_get_cpu_flags`, whose cache is a C atomic.
     unsafe { ffi::av_cpu_max_align() }
+}
+
+/// Wraps: av_get_cpu_flags
+///
+/// The CPU extensions FFmpeg's optimized code may use, as `AV_CPU_FLAG_*`
+/// bits: those detected on the running CPU at the first call, or the set
+/// [`force_cpu_flags`] last forced.
+///
+/// The set is one relaxed atomic, so concurrent calls are race-free; two
+/// first calls may both run detection and store the same value.
+#[must_use]
+pub fn cpu_flags() -> c_int {
+    // SAFETY: `av_get_cpu_flags` takes no arguments and accesses only its
+    // atomic flag set.
+    unsafe { ffi::av_get_cpu_flags() }
+}
+
+/// Wraps: av_force_cpu_flags
+///
+/// Replaces the CPU flags [`cpu_flags`] reports with `flags`, or, for `-1`, makes
+/// the next [`cpu_flags`] detect the running CPU again. On x86 a set naming an
+/// SSE-or-later extension without `AV_CPU_FLAG_MMX` gets it added, with a
+/// warning logged.
+///
+/// # Safety
+///
+/// - Every extension `flags` names must be supported by the running CPU
+///   (`-1` always qualifies). Code selected for an unsupported extension may
+///   fault, or decode as other instructions and compute wrong offsets.
+/// - No FFmpeg state that chose its code paths or buffer alignment under the
+///   previous set may meet code or buffers chosen under the new one: the
+///   alignment FFmpeg allocates with ([`cpu_max_align`], e.g. 32 bytes for
+///   AVX) changes with the set, and code selected for a wider extension
+///   assumes it. Force the flags before using any other FFmpeg facility, as
+///   FFmpeg's own tools do.
+pub unsafe fn force_cpu_flags(flags: c_int) {
+    // SAFETY: `av_force_cpu_flags` takes its argument by value and stores it
+    // into its atomic flag set; the caller upholds what the new set implies
+    // for later FFmpeg calls.
+    unsafe { ffi::av_force_cpu_flags(flags) }
 }
 
 #[cfg(test)]

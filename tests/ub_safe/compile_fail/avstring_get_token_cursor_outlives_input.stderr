@@ -1,0 +1,12 @@
+error[E0597]: `input` does not live long enough
+ --> tests/ub_safe/compile_fail/avstring_get_token_cursor_outlives_input.rs
+  |
+  |         let input = CString::new("a,b").unwrap();
+  |             ----- binding `input` declared here
+  |         let mut c = input.as_c_str();
+  |                     ^^^^^ borrowed value does not live long enough
+...
+  |     }
+  |     - `input` dropped here while still borrowed
+  |     println!("{cursor:?}");
+  |                ------ borrow later used here

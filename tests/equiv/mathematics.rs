@@ -229,3 +229,56 @@ mod numeric {
         }
     }
 }
+
+/// `av_gcd` against the safe `gcd`.
+mod greatest_common_divisor {
+    use ffmpeg::libavutil::ffi;
+    use ffmpeg::libavutil::mathematics::gcd;
+
+    /// Operands around `av_gcd`'s branches: zero, signs, powers of two (the
+    /// trailing-zero shift), odd primes and composites, and the extremes.
+    const GCD: [i64; 20] = [
+        0,
+        1,
+        -1,
+        2,
+        -2,
+        6,
+        -9,
+        12,
+        17,
+        1 << 20,
+        3 << 40,
+        -(5 << 33),
+        1_000_000_007,
+        600_851_475_143,
+        i64::MAX,
+        i64::MAX - 1,
+        i64::MIN,
+        i64::MIN + 1,
+        i64::MIN / 2,
+        -(1 << 62),
+    ];
+
+    #[test]
+    fn gcd_matches_av_gcd_on_every_pair() {
+        for a in GCD {
+            for b in GCD {
+                // SAFETY: `av_gcd` takes integers by value and reads no memory.
+                let c = unsafe { ffi::av_gcd(a, b) };
+                assert_eq!(gcd(a, b), c, "gcd({a}, {b})");
+            }
+        }
+    }
+
+    #[test]
+    fn chained_gcds_agree_after_every_step() {
+        let (mut rust, mut c) = (0i64, 0i64);
+        for x in GCD.iter().rev().chain(&[360, 84, 18, 7]) {
+            rust = gcd(rust, *x);
+            // SAFETY: as above.
+            c = unsafe { ffi::av_gcd(c, *x) };
+            assert_eq!(rust, c, "after {x}");
+        }
+    }
+}

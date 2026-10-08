@@ -372,3 +372,119 @@ mod paths_and_format {
         });
     }
 }
+
+/// `dirname`, `get_token` and `is_ascii_digit` on every input shape.
+mod paths_and_tokens {
+    use std::thread;
+
+    use ffmpeg::libavutil::avstring::{dirname, get_token, is_ascii_digit};
+
+    #[test]
+    fn dirname_takes_any_buffer() {
+        let long: Vec<u8> = b"d/"
+            .iter()
+            .copied()
+            .cycle()
+            .take(4000)
+            .chain([0])
+            .collect();
+        let mut inputs: Vec<Vec<u8>> = [
+            &b""[..],
+            b"\0",
+            b"/\0",
+            b"no-nul/at/all",
+            b"a/\0/b\0",
+            b"\xff\xfe/\0",
+        ]
+        .map(<[u8]>::to_vec)
+        .into();
+        inputs.push(long);
+        for mut buf in inputs {
+            let len = buf.len();
+            let out = dirname(&mut buf).map(|d| d.to_bytes().to_vec());
+            // A cut inside the buffer, or C's static `"."`.
+            assert!(out.is_none_or(|d| d.len() < len || d == b"."));
+            assert_eq!(buf.len(), len);
+        }
+    }
+
+    #[test]
+    fn dirname_walks_up_to_the_root() {
+        let mut buf = b"/a/bb/ccc/dddd\0".to_vec();
+        let mut seen = 0;
+        while let Some(d) = dirname(&mut buf) {
+            if d.is_empty() || d == c"." {
+                break;
+            }
+            seen += 1;
+            assert!(seen < 10);
+        }
+        assert_eq!(seen, 3);
+        assert_eq!(&buf[..2], b"\0a");
+    }
+
+    #[test]
+    fn get_token_consumes_any_input_to_its_end() {
+        let long = std::ffi::CString::new("x\\,y 'q,q' , ".repeat(60)).unwrap();
+        let inputs = [
+            c"",
+            c" ",
+            c"\\",
+            c"'",
+            c"'unterminated",
+            c"a\\",
+            c" , , ,",
+            c"\\\\\\'",
+            long.as_c_str(),
+        ];
+        for input in inputs {
+            for term in [c",", c"", c" ", c"',\\"] {
+                let mut cursor = input;
+                for _ in 0..=input.count_bytes() {
+                    let token = get_token(&mut cursor, term).unwrap();
+                    assert!(token.as_bytes().len() <= input.count_bytes());
+                    match cursor.to_bytes_with_nul().get(1..) {
+                        Some(rest) if !rest.is_empty() => {
+                            cursor = std::ffi::CStr::from_bytes_with_nul(rest).unwrap()
+                        }
+                        _ => break,
+                    }
+                }
+            }
+        }
+    }
+
+    #[test]
+    fn tokens_outlive_their_input_and_cross_threads() {
+        let tokens = {
+            let input = std::ffi::CString::new("one,two,three").unwrap();
+            let mut cursor = input.as_c_str();
+            let mut out = Vec::new();
+            loop {
+                out.push(get_token(&mut cursor, c",").unwrap());
+                if cursor.is_empty() {
+                    break;
+                }
+                cursor =
+                    std::ffi::CStr::from_bytes_with_nul(&cursor.to_bytes_with_nul()[1..]).unwrap();
+            }
+            out
+        };
+        let back = thread::spawn(move || {
+            tokens
+                .iter()
+                .map(|t| t.to_str().unwrap().len())
+                .collect::<Vec<_>>()
+        })
+        .join()
+        .unwrap();
+        assert_eq!(back, [3, 3, 5]);
+    }
+
+    #[test]
+    fn is_digit_takes_every_int_edge() {
+        for c in [i32::MIN, -129, -1, 0, 47, 48, 57, 58, 255, 256, i32::MAX] {
+            assert_eq!(is_ascii_digit(c), (48..=57).contains(&c));
+        }
+    }
+}

@@ -1,0 +1,18 @@
+error[E0506]: cannot assign to `path[_]` because it is borrowed
+ --> tests/ub_safe/compile_fail/avstring_dirname_result_outlives_path.rs
+  |
+  |     let d = dirname(&mut path).unwrap();
+  |                     --------- `path[_]` is borrowed here
+  |     path[0] = b'x';
+  |     ^^^^^^^^^^^^^^ `path[_]` is assigned to here but it was already borrowed
+  |     println!("{d:?}");
+  |                - borrow later used here
+
+warning: value assigned to `path` is never read
+ --> tests/ub_safe/compile_fail/avstring_dirname_result_outlives_path.rs
+  |
+  |     path[0] = b'x';
+  |     ^^^^^^^^^^^^^^
+  |
+  = help: maybe it is overwritten before being read?
+  = note: `#[warn(unused_assignments)]` (part of `#[warn(unused)]`) on by default
