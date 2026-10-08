@@ -1,6 +1,19 @@
 {
  "_comment": "Authored analysis: ownership, lifecycle, refcount and locking judgements that no composer can derive, keyed to the C entities they describe. The structural half of each record (field layout, signatures, footprints, casts) is composed from the CodeQL tables on demand and merged in at read time, so a re-extract rewrites nothing here. Written only by `wavefront <repo> <target> query {types,symbols} --update`; read through wavefront.manifests. Hand-edit at your own risk: `--update` validates a submission against the composed skeleton (unknown field, wrong kind, ptr-invariant violation) and this file does not.",
- "types": [],
+ "types": [
+  {
+   "name": "AVClassCategory",
+   "defined_in": "libavutil/log.h",
+   "_comment_agent": "Field-less enum with no lifecycle: a plain unsigned value (bindgen c_uint). C stores it by value in AVClass.category and returns it from AVClass.get_category / av_default_get_category, unchecked, so any unsigned value can reach Rust (log.c get_category guards >= AV_CLASS_CATEGORY_NB). AV_CLASS_CATEGORY_NB is documented as not part of ABI/API. Wrapped as an open Copy newtype, not a closed Rust enum.",
+   "fields": []
+  },
+  {
+   "name": "AVClassStateFlags",
+   "defined_in": "libavutil/log.h",
+   "_comment_agent": "Field-less bit-flag enum with no lifecycle. Never stored as the enum type: callers combine AV_CLASS_STATE_INITIALIZED into an unsigned state_flags member (FFBitStreamFilterContext, FFFilterContext) located through AVClass.state_flags_offset; opt.c reads it to reject non-runtime options on initialized objects. Any unsigned bit pattern is valid. Wrapped as a Copy bit-set newtype.",
+   "fields": []
+  }
+ ],
  "symbols": [
   {
    "name": "av_append_path_component",
