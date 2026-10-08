@@ -34,8 +34,8 @@ Thin batches with `"objective": "review"`, LLM-as-a-Judge over each landed wave.
 - **`--max-loc`** — `500`
 - **`--min-fields`** — `20`
 - **orchestrator parallelism** — `10` concurrent batch processes
-- **branch** — `<branch>`, tip `<sha>`
-- **agents** — `<n>`, over `<n>` wave(s)
+- **branch** — `crustify/reviews/20261005/libavutil/raw-lifetime-void/wave-0`, tip `9cdb9f2a73`
+- **agents** — `1`, over `1` wave(s)
 
 `rv`-prefixed columns below carry the review pass; the unprefixed ones remain
 the campaign's.
@@ -133,7 +133,7 @@ Implementation `openrouter/anthropic/claude-opus-5.5` via `claude`; review
 
 | sub-campaign | nr types | nr symbols | sub-campaign wall | batch | review | total | $/type | $/sym |
 |---|---:|---:|---|---:|---:|---:|---:|---:|
-| `raw-lifetime-void` | `0` | `<n>` | `<n>m<n>s` | `$<n>` | `$<n>` | `$<n>` | — | `$<n>` |
+| `raw-lifetime-void` | `0` | `6` | `78m48s` | `$8.46` | `$4.69` | `$13.15` | — | `$2.19` |
 | `raw-lifetime-string` | `0` | `<n>` | `<n>m<n>s` | `$<n>` | `$<n>` | `$<n>` | — | `$<n>` |
 | `<link-unit>/<subsystem>` | `<n>` | `<n>` | `<n>h<n>m<n>s` | `$<n>` | `$<n>` | `$<n>` | `$<n>` | `$<n>` |
 | orchestrator | `<n>` | `<n>` | — | — | — | `$<n>`+ | — | — |
@@ -145,7 +145,7 @@ Implementation `openrouter/anthropic/claude-opus-5.5` via `claude`; review
 
 | tier | strategies emitted | $ | wall |
 |---|---|---|---|
-| void | `<n>` | `$<n>` | `<n>m<n>s` |
+| void | `3` | `$8.46` | `57m23s` |
 | string | `<n>` | `$<n>` | `<n>m<n>s` |
 | **Σ** | **`<n>`** | **`$<n>`** | **`<n>m<n>s`** |
 
@@ -155,7 +155,7 @@ Implementation `openrouter/anthropic/claude-opus-5.5` via `claude`; review
 
 | tier | rv loc | rv $ | rv wall |
 |---|---|---|---|
-| void | `+<n>/-<n>` | `$<n>` | `<n>m<n>s` |
+| void | `+241/-4` | `$4.69` | `17m36s` |
 | string | `+<n>/-<n>` | `$<n>` | `<n>m<n>s` |
 | **Σ** | **`+<n>/-<n>`** | **`$<n>`** | **`<n>m<n>s`** |
 
@@ -459,3 +459,49 @@ from parallel batches.
 Review uses `openrouter/anthropic/claude-opus-5.5` via `claude` instead of the `openrouter/openai/gpt-5.6-sol`
 named in `crustify/TASK.md`, at the user's direction: the provider's cybersecurity content
 filter stops the `codex` reviewer on this workload.
+
+### `raw-lifetime-void`
+
+The translation batch (`77473b8574`, `+775/-0` `.rs`) bound `av_free` as the release policy
+`Heap` for single objects (`CDrop`) and arrays (`impl_clendrop!`), and `av_memdup` as the
+array clone strategy (`impl_clenclone!`): the 3 strategies counted above. It also bound the
+allocators `av_malloc` (`CAlloc`), `av_mallocz` (`CAllocZeroed`), `av_malloc_array` and
+`av_calloc`, behind `HeapBox`/`HeapVec` and the safe `alloc_array`, `alloc_array_from_fn`,
+`alloc_array_zeroed` and `alloc_cell_array_zeroed`, declaring the 16-byte alignment `mem.c`
+guarantees in every configuration and rejecting over-aligned element types at compile time.
+`av_freep` got no wrapper, since dropping the owner does its job, and `av_realloc` no lifecycle role.
+It added 10 unit, 9 equivalence and 15 `ub_safe` tests (4 of them trybuild rejections) and 2
+`compile_fail` doctests, and submitted the primitives' ownership findings to wavefront. The
+`symbols` count of the Overview row is the 6 primitives it anchored.
+
+The scheduled workset name `void` names no C entity, so `scan-unsafe --name void` matches no
+site; both batch dirs keep that output (`scan-unsafe.void.txt`) and a scan seeded with the 6
+anchored primitives (`scan-unsafe.json`). Against the empty base, the translation batch moved
+the `unsafe fn` smell by `+5` and the raw-pointer smell by `+5`, and the review by `+1` and `0`.
+The scan's `unsafe_fns_pub` (3, then 4) counts the `unsafe fn` methods of ffibox's unsafe
+policy traits implemented on `Heap`; neither batch added public unsafe API. The two raw-pointer
+positions are the private `free_len`/`memdup` adapters whose signatures ffibox's macros fix.
+
+Under `bsan`, freeing an `av_calloc` block after a Rust byte view of 32 KiB or more was taken
+over it grew the process without bound (about 180 GB in 12 minutes), while 4 KiB views ran
+clean; the translator attributes it to the bsan runtime, and the equivalence tests keep
+successful allocations at 4 KiB or less.
+
+The review (`72abd2c241`, `9cdb9f2a73`) filed three defects, all confirmed on rerun:
+
+- `lifecycle/void`: `av_memdup` was bound only as the array cloner, so `HeapBox<T>` could not
+  be cloned although FFmpeg copies single objects with it (`dnxhdenc.c`, `mpegvideo.c`). Fixed
+  with a `CDupClone` for `T: CCell + Copy`, under the same 16-byte alignment bound.
+- `wavefront/av-calloc-av-memdup-scalar-paths`: the `av_calloc` return and the `av_memdup`
+  source and return were recorded as arrays only; resubmitted with their single-object paths.
+- `ub_unsafe/ffibox-cvec-clone-ignores-align`: ffibox's `CVec::clone` copies through
+  `CLenClone::c_clone_len` without the `align_of::<T>() <= ALIGN` check that `from_slice` and
+  `to_cvec` apply, so safe `clone()` + `as_slice()` forms a misaligned `&[u32]` from a buffer
+  adopted within `from_raw_parts`'s contract. Rerun: the debug build aborts (exit 134) and Miri
+  reports the unaligned reference; against the ffibox patch branch the reproducer is rejected at
+  compile time (`E0080`). The crate's `Heap` declares `ALIGN = 16` and bounds every safe
+  `HeapVec` element by it, so its safe surface does not reach the bug. The fix awaits merge into
+  ffibox `main`.
+
+No reproducer was rejected. The promoted tip passes `clippy`, the plain test suites and the
+`asan-ubsan` suites.
