@@ -806,6 +806,13 @@ impl PartialEq for Alias64 {
 
 impl Eq for Alias64 {}
 
+/// Hashes the `u64` view, consistent with the bitwise [`PartialEq`].
+impl Hash for Alias64 {
+    fn hash<H: Hasher>(&self, state: &mut H) {
+        self.as_ref().u64().hash(state)
+    }
+}
+
 impl fmt::Debug for Alias64 {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         self.as_ref().fmt(f)
@@ -1307,5 +1314,32 @@ mod unit_tests {
         assert_eq!(lanes, [5, 6, 7, 8]);
         // SAFETY: a null pointer is accepted and yields no handle.
         assert!(unsafe { Alias64Ref::from_ptr(core::ptr::null_mut()) }.is_none());
+    }
+
+    #[test]
+    fn alias64_hash_follows_the_bitwise_equality() {
+        fn eq_hash<T: Eq + Hash>() {}
+        eq_hash::<Alias64>();
+
+        let a = Alias64::from_u64(ALIAS64_BITS);
+        assert_eq!(hash_of(&a), hash_of(&ALIAS64_BITS));
+        assert_eq!(hash_of(&Alias64::from_f64(-0.0)), hash_of(&(1u64 << 63)));
+        assert_eq!(
+            hash_of(&Alias64::from_u8x8(ALIAS64_BITS.to_ne_bytes())),
+            hash_of(&a)
+        );
+        let mut seen = std::collections::HashSet::new();
+        for v in [
+            Alias64::from_u64(0),
+            Alias64::from_f64(0.0),
+            Alias64::from_f64(-0.0),
+            Alias64::from_f64(f64::NAN),
+            Alias64::from_f64(f64::NAN),
+            a,
+        ] {
+            seen.insert(v);
+        }
+        assert_eq!(seen.len(), 4);
+        assert!(seen.contains(&Alias64::from_u8x8(ALIAS64_BITS.to_ne_bytes())));
     }
 }

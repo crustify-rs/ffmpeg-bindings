@@ -20,7 +20,9 @@
 //! `ffi::av_alias64`, laid out as clang lays out the C union (bindgen asserts
 //! its size, alignment and member offsets at compile time): each step writes
 //! the same member of the raw union and of independent `Alias64` values, and
-//! every member and every byte is compared after it.
+//! every member and every byte is compared after it. The accessor macros
+//! themselves, compiled by the C compiler as `crustify_AV_*64A` / `_COPY64` /
+//! `_SWAP64` / `_ZERO64` shims, drive the C side in [`alias64_c_accessors`].
 
 use core::mem::{align_of, offset_of, size_of};
 
@@ -898,5 +900,212 @@ fn alias64_write_sequences_match_c_after_each_step() {
         let copy = Alias64::from_u8x8(boxed.as_ref().u8x8());
         assert_eq!(alias64_read_rust(copy.as_ref()), expect, "step {step}");
         assert_eq!(copy, rust, "step {step}");
+    }
+}
+
+/// `av_alias64` against the aligned accessors C compiles over it.
+///
+/// `AV_RN64A` / `AV_WN64A` / `AV_COPY64` / `AV_SWAP64` / `AV_ZERO64` are the
+/// header's uses of `av_alias64`: member accesses on a pointer cast to the
+/// union. The `-sys` crate compiles each as a `crustify_<NAME>` shim, so here
+/// C itself reads and writes the storage a Rust owner holds (a
+/// [`HeapBox<Alias64>`] or the elements of a [`HeapVec<Alias64>`]), and every
+/// Rust view is compared with C's reads, and with an independent C-side union
+/// driven the same way, after each step.
+mod alias64_c_accessors {
+    use ffmpeg::libavutil::ffi;
+    use ffmpeg::libavutil::intreadwrite::{Alias64, Alias64Mut};
+    use ffmpeg::libavutil::mem::{HeapBox, HeapVec, alloc_cell_array_zeroed};
+
+    use super::{Alias64Write, alias64_read_c, alias64_read_rust, alias64_write_c, alias64_writes};
+
+    /// `AV_RN64A(p)`, run by C.
+    fn c_rn64a(p: *const ffi::av_alias64) -> u64 {
+        // SAFETY: every caller passes a pointer to a live, initialised,
+        // 8-byte-aligned `av_alias64` that nothing else accesses during the
+        // call.
+        unsafe { ffi::crustify_AV_RN64A(p.cast()) }
+    }
+
+    /// `AV_WN64A(p, v)`, run by C.
+    fn c_wn64a(p: *mut ffi::av_alias64, v: u64) {
+        // SAFETY: as `c_rn64a`, for a writable union.
+        unsafe { ffi::crustify_AV_WN64A(p.cast(), v) }
+    }
+
+    /// `AV_COPY64(d, s)`, run by C.
+    fn c_copy64(d: *mut ffi::av_alias64, s: *const ffi::av_alias64) {
+        // SAFETY: as `c_rn64a`, for two distinct unions, `d` writable.
+        unsafe { ffi::crustify_AV_COPY64(d.cast(), s.cast()) }
+    }
+
+    /// `AV_SWAP64(a, b)`, run by C.
+    fn c_swap64(a: *mut ffi::av_alias64, b: *mut ffi::av_alias64) {
+        // SAFETY: as `c_rn64a`, for two distinct writable unions.
+        unsafe { ffi::crustify_AV_SWAP64(a.cast(), b.cast()) }
+    }
+
+    /// `AV_ZERO64(d)`, run by C.
+    fn c_zero64(d: *mut ffi::av_alias64) {
+        // SAFETY: as `c_rn64a`, for a writable union.
+        unsafe { ffi::crustify_AV_ZERO64(d.cast()) }
+    }
+
+    /// Writes `w` through the Rust setter it names.
+    fn write_rust(mut m: Alias64Mut<'_>, w: Alias64Write) {
+        match w {
+            Alias64Write::U64(v) => m.set_u64(v),
+            Alias64Write::U32(v) => m.set_u32x2(v),
+            Alias64Write::U16(v) => m.set_u16x4(v),
+            Alias64Write::U8(v) => m.set_u8x8(v),
+            Alias64Write::F64(v) => m.set_f64(v),
+            Alias64Write::F32(v) => m.set_f32x2(v),
+        }
+    }
+
+    /// The C reference: an `av_alias64` C alone reads and writes, through
+    /// the macros or its members, never through a Rust handle.
+    #[derive(Default)]
+    struct CSide(ffi::av_alias64);
+
+    impl CSide {
+        fn ptr(&mut self) -> *mut ffi::av_alias64 {
+            &raw mut self.0
+        }
+    }
+
+    #[test]
+    fn heap_box_views_track_c_aligned_accesses_after_each_step() {
+        let mut c = CSide::default();
+        let mut boxed = HeapBox::<Alias64>::new_zeroed().unwrap();
+        assert_eq!(c_rn64a(boxed.as_c_ptr()), 0);
+        for (step, w) in alias64_writes().into_iter().enumerate() {
+            if step % 2 == 0 {
+                // C writes the member's bit pattern into both storages
+                // through `AV_WN64A`; every Rust view must decode it as C's
+                // members do.
+                let mut want = ffi::av_alias64::default();
+                alias64_write_c(&mut want, w);
+                let bits = c_rn64a(&raw const want);
+                c_wn64a(c.ptr(), bits);
+                c_wn64a(boxed.as_c_ptr(), bits);
+            } else {
+                // Rust writes through the setter; C sees the same word
+                // through `AV_RN64A` as it does on its own union.
+                write_rust(boxed.as_mut(), w);
+                alias64_write_c(&mut c.0, w);
+            }
+            assert_eq!(
+                c_rn64a(boxed.as_c_ptr()),
+                c_rn64a(c.ptr()),
+                "step {step}: {w:?}"
+            );
+            assert_eq!(
+                alias64_read_rust(boxed.as_ref()),
+                alias64_read_c(&c.0),
+                "step {step}: {w:?}"
+            );
+            assert_eq!(boxed.as_ref().u64(), c_rn64a(c.ptr()), "step {step}: {w:?}");
+        }
+    }
+
+    #[test]
+    fn c_copy_swap_and_zero_between_heap_boxes_match_the_views() {
+        let mut src = HeapBox::<Alias64>::new_zeroed().unwrap();
+        let dst = HeapBox::<Alias64>::new_zeroed().unwrap();
+        let mut c_src = CSide::default();
+        let mut c_dst = CSide::default();
+        for (step, w) in alias64_writes().into_iter().enumerate().take(64) {
+            write_rust(src.as_mut(), w);
+            alias64_write_c(&mut c_src.0, w);
+            let before = alias64_read_rust(dst.as_ref());
+
+            c_copy64(dst.as_c_ptr(), src.as_c_ptr());
+            c_copy64(c_dst.ptr(), c_src.ptr());
+            assert_eq!(
+                alias64_read_rust(dst.as_ref()),
+                alias64_read_c(&c_dst.0),
+                "copy {step}"
+            );
+            assert_eq!(
+                alias64_read_rust(dst.as_ref()),
+                alias64_read_rust(src.as_ref())
+            );
+            assert_eq!(dst.as_ref().u64(), c_rn64a(c_src.ptr()), "copy {step}");
+
+            // Swap with a box holding the previous value, then swap back.
+            let mut other = HeapBox::<Alias64>::new_zeroed().unwrap();
+            write_rust(other.as_mut(), Alias64Write::U8(before.u8));
+            c_swap64(dst.as_c_ptr(), other.as_c_ptr());
+            assert_eq!(alias64_read_rust(dst.as_ref()), before, "swap {step}");
+            assert_eq!(
+                alias64_read_rust(other.as_ref()),
+                alias64_read_c(&c_dst.0),
+                "swap {step}"
+            );
+            c_swap64(other.as_c_ptr(), dst.as_c_ptr());
+            assert_eq!(
+                alias64_read_rust(dst.as_ref()),
+                alias64_read_c(&c_dst.0),
+                "swap {step}"
+            );
+            assert_eq!(alias64_read_rust(other.as_ref()), before, "swap {step}");
+
+            c_zero64(other.as_c_ptr());
+            assert_eq!(
+                alias64_read_rust(other.as_ref()),
+                alias64_read_rust(Alias64::default().as_ref())
+            );
+            assert_eq!(c_rn64a(other.as_c_ptr()), 0, "zero {step}");
+        }
+        // The owners still release through `av_free` after C's writes.
+        drop((src, dst));
+    }
+
+    #[test]
+    fn c_accesses_on_heap_array_elements_stay_in_their_slot() {
+        const N: usize = 6;
+        let mut v: HeapVec<Alias64> = alloc_cell_array_zeroed(N).unwrap();
+        let mut c: [CSide; N] = Default::default();
+        let elem = |v: &HeapVec<Alias64>, i: usize| -> *mut ffi::av_alias64 {
+            assert!(i < N);
+            // Element `i` of a live `HeapVec` of `N` elements; `Alias64` is
+            // `#[repr(transparent)]` over `ffi::av_alias64`.
+            v.as_ptr().wrapping_add(i).cast()
+        };
+        let writes = alias64_writes();
+        for (i, w) in writes.iter().take(N).enumerate() {
+            write_rust(v.as_handles_mut().get_mut(i).unwrap(), *w);
+            alias64_write_c(&mut c[i].0, *w);
+        }
+        // Rotate the array one slot to the right with C: copy through a
+        // zeroed temporary, swap neighbours, and zero the first slot.
+        let tmp = HeapBox::<Alias64>::new_zeroed().unwrap();
+        c_copy64(tmp.as_c_ptr(), elem(&v, N - 1));
+        let mut c_tmp = CSide::default();
+        c_copy64(c_tmp.ptr(), c[N - 1].ptr());
+        for i in (1..N).rev() {
+            c_swap64(elem(&v, i), elem(&v, i - 1));
+            let (lo, hi) = c.split_at_mut(i);
+            c_swap64(hi[0].ptr(), lo[i - 1].ptr());
+        }
+        c_zero64(elem(&v, 0));
+        c_zero64(c[0].ptr());
+        c_copy64(elem(&v, 0), tmp.as_c_ptr());
+        c_copy64(c[0].ptr(), c_tmp.ptr());
+
+        let got: Vec<_> = v.as_handles().iter().map(alias64_read_rust).collect();
+        let want: Vec<_> = c.iter().map(|e| alias64_read_c(&e.0)).collect();
+        assert_eq!(got, want);
+        for (i, w) in writes.iter().take(N).enumerate() {
+            let mut expect = ffi::av_alias64::default();
+            alias64_write_c(&mut expect, *w);
+            assert_eq!(
+                got[(i + 1) % N],
+                alias64_read_c(&expect),
+                "slot {i} moved right"
+            );
+            assert_eq!(c_rn64a(elem(&v, (i + 1) % N)), c_rn64a(&raw const expect));
+        }
     }
 }
