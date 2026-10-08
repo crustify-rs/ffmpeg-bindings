@@ -1,0 +1,29 @@
+Test `Union` before `Struct` when classifying a user type.
+
+In CodeQL's C/C++ library `Union` is a subclass of `Struct`, so a union
+satisfies `t instanceof Struct` first and the `union` branches are dead.
+
+--- a/src/entities/types.ql
++++ b/src/entities/types.ql
+@@ -110,8 +110,8 @@
+ }
+ 
+ string kindOf(UserType t) {
+-  if t instanceof Struct then result = "struct"
+-  else if t instanceof Union then result = "union"
++  if t instanceof Union then result = "union"
++  else if t instanceof Struct then result = "struct"
+   else if t instanceof Enum then result = "enum"
+   else if t instanceof TypedefType then result = "typedef"
+   else result = "other"
+@@ -178,8 +178,8 @@
+     exists(UserType b |
+       unwrappedUserType(td.getBaseType(), b) and
+       b.getName().prefix(1) = "(" |
+-      if b instanceof Struct then result = "struct_anonymous"
+-      else if b instanceof Union then result = "union_anonymous"
++      if b instanceof Union then result = "union_anonymous"
++      else if b instanceof Struct then result = "struct_anonymous"
+       else if b instanceof Enum then result = "enum_anonymous"
+       else result = "other_anonymous"
+     )
