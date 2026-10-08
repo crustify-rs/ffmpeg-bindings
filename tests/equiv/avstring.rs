@@ -943,3 +943,508 @@ mod paths_and_tokens {
         unsafe { ffi::av_max_alloc(i32::MAX as usize) };
     }
 }
+
+// ---- case-insensitive search and replace, and av_sscanf ----
+
+mod search_and_scan {
+    use core::ffi::{CStr, c_char, c_void};
+    use core::ptr::addr_of_mut;
+
+    use ffmpeg::libavutil::avstring::{
+        ScanArg, cmp_ignore_ascii_case, find_ignore_ascii_case, replace_ignore_ascii_case, scan,
+        strip_prefix_ignore_ascii_case,
+    };
+    use ffmpeg::libavutil::ffi;
+
+    /// Strings that differ in case, length, and bytes outside ASCII.
+    const WORDS: [&CStr; 14] = [
+        c"",
+        c"a",
+        c"A",
+        c"abc",
+        c"ABC",
+        c"abd",
+        c"ab",
+        c"aBcD",
+        c"Z",
+        c"[",
+        c"`",
+        c"\xc3\xa9t\xc3\xa9",
+        c"\xc3\x89T\xc3\x89",
+        c"\x7f\x80\xff",
+    ];
+
+    #[test]
+    fn compare_matches_av_strcasecmp() {
+        for a in WORDS {
+            for b in WORDS {
+                // SAFETY: both are live NUL-terminated strings, only read.
+                let c = unsafe { ffi::av_strcasecmp(a.as_ptr(), b.as_ptr()) };
+                assert_eq!(cmp_ignore_ascii_case(a, b), c.cmp(&0), "{a:?} vs {b:?}");
+            }
+        }
+    }
+
+    #[test]
+    fn strip_prefix_matches_av_stristart() {
+        for s in WORDS {
+            for p in WORDS {
+                let mut rest: *const c_char = core::ptr::null();
+                // SAFETY: both are live NUL-terminated strings, only read,
+                // and `rest` a writable local.
+                let c = unsafe { ffi::av_stristart(s.as_ptr(), p.as_ptr(), &mut rest) };
+                let r = strip_prefix_ignore_ascii_case(s, p);
+                assert_eq!(r.is_some(), c != 0, "{s:?} by {p:?}");
+                // The suffix starts where C points, inside `s`.
+                assert_eq!(
+                    r.map_or(core::ptr::null(), CStr::as_ptr),
+                    rest,
+                    "{s:?} by {p:?}"
+                );
+            }
+        }
+    }
+
+    #[test]
+    fn find_matches_av_stristr() {
+        let hay = [
+            c"",
+            c"Hello, World",
+            c"aaab",
+            c"xAbCabc",
+            c"abcABC",
+            c"\xc3\xa9t\xc3\xa9 E",
+        ];
+        for h in hay.into_iter().chain(WORDS) {
+            for n in WORDS
+                .into_iter()
+                .chain([c"WORLD", c"o, w", c"aab", c"cab", c"t\xc3\xa9 e"])
+            {
+                // SAFETY: both are live NUL-terminated strings, only read.
+                let c = unsafe { ffi::av_stristr(h.as_ptr(), n.as_ptr()) };
+                let c = (!c.is_null()).then(|| c as usize - h.as_ptr() as usize);
+                assert_eq!(find_ignore_ascii_case(h, n), c, "{n:?} in {h:?}");
+            }
+        }
+    }
+
+    #[test]
+    fn replace_matches_av_strireplace_step_by_step() {
+        let steps: [(&CStr, &CStr); 6] = [
+            (c"world", c"There"),
+            (c"THERE", c"x"),
+            (c"l", c"LL"),
+            (c"ll", c""),
+            (c"h", c"hh"),
+            (c"\xc3\xa9", c"e"),
+        ];
+        let mut c_cur = b"Hello, World! hello world \xc3\xa9".to_vec();
+        let mut r_cur = c_cur.clone();
+        for (from, to) in steps {
+            let cs = std::ffi::CString::new(c_cur.clone()).unwrap();
+            // SAFETY: all three are live NUL-terminated strings, and `from`
+            // is not empty, so C's search advances.
+            let p = unsafe { ffi::av_strireplace(cs.as_ptr(), from.as_ptr(), to.as_ptr()) };
+            assert!(!p.is_null());
+            // SAFETY: `p` is a fresh NUL-terminated string we own.
+            c_cur = unsafe { CStr::from_ptr(p) }.to_bytes().to_vec();
+            // SAFETY: as above; freed once.
+            unsafe { ffi::av_free(p.cast()) };
+
+            let rs = std::ffi::CString::new(r_cur).unwrap();
+            r_cur = replace_ignore_ascii_case(&rs, from, to)
+                .unwrap()
+                .as_bytes()
+                .to_vec();
+            assert_eq!(r_cur, c_cur, "{from:?} -> {to:?}");
+        }
+    }
+
+    /// Every destination type, on each side.
+    #[derive(Debug, Default)]
+    struct Dest {
+        i0: i32,
+        i1: i32,
+        i2: i32,
+        u: u32,
+        hh: i8,
+        uhh: u8,
+        h: i16,
+        uh: u16,
+        ll: i64,
+        ull: u64,
+        z: usize,
+        zs: isize,
+        f: f32,
+        d: f64,
+        p: usize,
+        b0: [u8; 12],
+        b1: [u8; 12],
+    }
+
+    #[derive(Clone, Copy)]
+    enum F {
+        I0,
+        I1,
+        I2,
+        U,
+        Hh,
+        Uhh,
+        H,
+        Uh,
+        Ll,
+        Ull,
+        Z,
+        Zs,
+        Fl,
+        D,
+        P,
+        B0,
+        B1,
+    }
+
+    impl Dest {
+        /// Each field as a destination, in `F` order.
+        fn args(&mut self) -> [Option<ScanArg<'_>>; 17] {
+            let Dest {
+                i0,
+                i1,
+                i2,
+                u,
+                hh,
+                uhh,
+                h,
+                uh,
+                ll,
+                ull,
+                z,
+                zs,
+                f,
+                d,
+                p,
+                b0,
+                b1,
+            } = self;
+            [
+                Some(i0.into()),
+                Some(i1.into()),
+                Some(i2.into()),
+                Some(u.into()),
+                Some(hh.into()),
+                Some(uhh.into()),
+                Some(h.into()),
+                Some(uh.into()),
+                Some(ll.into()),
+                Some(ull.into()),
+                Some(z.into()),
+                Some(zs.into()),
+                Some(f.into()),
+                Some(d.into()),
+                Some(p.into()),
+                Some(b0.into()),
+                Some(b1.into()),
+            ]
+        }
+
+        /// Each field's address, for C.
+        fn c_ptr(this: *mut Dest, f: F) -> *mut c_void {
+            // SAFETY: `this` points at a live `Dest`; only addresses are taken.
+            unsafe {
+                match f {
+                    F::I0 => addr_of_mut!((*this).i0).cast(),
+                    F::I1 => addr_of_mut!((*this).i1).cast(),
+                    F::I2 => addr_of_mut!((*this).i2).cast(),
+                    F::U => addr_of_mut!((*this).u).cast(),
+                    F::Hh => addr_of_mut!((*this).hh).cast(),
+                    F::Uhh => addr_of_mut!((*this).uhh).cast(),
+                    F::H => addr_of_mut!((*this).h).cast(),
+                    F::Uh => addr_of_mut!((*this).uh).cast(),
+                    F::Ll => addr_of_mut!((*this).ll).cast(),
+                    F::Ull => addr_of_mut!((*this).ull).cast(),
+                    F::Z => addr_of_mut!((*this).z).cast(),
+                    F::Zs => addr_of_mut!((*this).zs).cast(),
+                    F::Fl => addr_of_mut!((*this).f).cast(),
+                    F::D => addr_of_mut!((*this).d).cast(),
+                    F::P => addr_of_mut!((*this).p).cast(),
+                    F::B0 => addr_of_mut!((*this).b0).cast(),
+                    F::B1 => addr_of_mut!((*this).b1).cast(),
+                }
+            }
+        }
+    }
+
+    /// Inputs and formats across every conversion, width, set form, `%n`,
+    /// suppression, literal and failure path, with their destinations.
+    const CASES: &[(&CStr, &CStr, &[F])] = &[
+        (c"42", c"%d", &[F::I0]),
+        (c"-17 0x1f 077", c"%d %x %o", &[F::I0, F::U, F::I1]),
+        (c"0x1F 017 -0", c"%i %i %i", &[F::I0, F::I1, F::I2]),
+        (c"300 200", c"%hhd %hhu", &[F::Hh, F::Uhh]),
+        (c"65537", c"%hd", &[F::H]),
+        (c"70000 -3", c"%hu %hx", &[F::Uh, F::H]),
+        (c"-42 0x10", c"%zd %ti", &[F::Zs, F::Z]),
+        (c"99999999999999999999", c"%lld", &[F::Ll]),
+        (c"18446744073709551615", c"%llu", &[F::Ull]),
+        (c"123 -5", c"%zu %jd", &[F::Z, F::Ll]),
+        (c"12345", c"%3d%d", &[F::I0, F::I1]),
+        (c"3.5e2", c"%f", &[F::Fl]),
+        (c"0x1.8p1", c"%la", &[F::D]),
+        (c"inf -nan", c"%lf %f", &[F::D, F::Fl]),
+        (c"1e400 1e-400", c"%lg %G", &[F::D, F::Fl]),
+        (c"-.5", c"%le", &[F::D]),
+        (c"hello world", c"%11s %11s", &[F::B0, F::B1]),
+        (c"abcdef", c"%3s%11s", &[F::B0, F::B1]),
+        (c"abc", c"%2c", &[F::B0]),
+        (c"a", c"%3c", &[F::B0]),
+        (c"key=value;", c"%11[^=]=%11[^;]", &[F::B0, F::B1]),
+        (c"]x-y.", c"%11[]x-y]", &[F::B0]),
+        (c"--a!", c"%11[-a]%c", &[F::B0, F::B1]),
+        (c"12 34", c"%d%n %d", &[F::I0, F::I1, F::I2]),
+        (c"12 34", c"%*d %d", &[F::I0]),
+        (c"7 8", c"%d %*s%n", &[F::I0, F::I1]),
+        (c"0xdeadbeef", c"%p", &[F::P]),
+        (c"", c"%d", &[F::I0]),
+        (c"   ", c"%d", &[F::I0]),
+        (c"abc", c"%d", &[F::I0]),
+        (c"12 abc", c"%d %d", &[F::I0, F::I1]),
+        (c"12", c"%d %d", &[F::I0, F::I1]),
+        (c"100%", c"%d%%", &[F::I0]),
+        (c"100 %  5", c"%d %% %d", &[F::I0, F::I1]),
+        (c"x", c"y%d", &[F::I0]),
+        (c"", c"x%d", &[F::I0]),
+        (c"\t\n 9", c" %d", &[F::I0]),
+        (c"5x", c"%dx%n", &[F::I0, F::I1]),
+        (c"5", c"%*5c", &[]),
+        (c"abc", c"%hhn%n", &[F::Hh, F::I0]),
+    ];
+
+    #[test]
+    fn sscanf_matches_av_sscanf_case_by_case_and_in_sequence() {
+        // One pair of destinations, carried through every case: unassigned
+        // destinations must keep earlier values on both sides alike.
+        let (mut c, mut r) = (Dest::default(), Dest::default());
+        for &(input, format, fields) in CASES.iter().chain(CASES.iter().rev()) {
+            let cp = &raw mut c;
+            let mut p = [core::ptr::null_mut::<c_void>(); 16];
+            for (slot, &f) in p.iter_mut().zip(fields) {
+                *slot = Dest::c_ptr(cp, f);
+            }
+            // SAFETY: `format` has one conversion per address in `p`, each a
+            // live field of `c` of the type the conversion stores (every
+            // `%s` / `%[` / `%c` width fits the 12-byte buffers); the NULL
+            // padding is never read.
+            let cret = unsafe {
+                ffi::av_sscanf(
+                    input.as_ptr(),
+                    format.as_ptr(),
+                    p[0],
+                    p[1],
+                    p[2],
+                    p[3],
+                    p[4],
+                    p[5],
+                    p[6],
+                    p[7],
+                    p[8],
+                    p[9],
+                    p[10],
+                    p[11],
+                    p[12],
+                    p[13],
+                    p[14],
+                    p[15],
+                )
+            };
+
+            let mut all = r.args();
+            let mut args: Vec<ScanArg<'_>> = fields
+                .iter()
+                .map(|&f| all[f as usize].take().unwrap())
+                .collect();
+            let rret = scan(input, format, &mut args).unwrap();
+            drop(args);
+            assert_eq!(
+                rret.map_or(-1, |n| n as i32),
+                cret,
+                "{input:?} by {format:?}"
+            );
+            assert_eq!(
+                format!("{r:?}"),
+                format!("{c:?}"),
+                "{input:?} by {format:?}"
+            );
+        }
+    }
+
+    /// Numeric inputs across C's integer and floating-point scanners: bases,
+    /// prefixes, overflow, long mantissas, rounding halfway cases, denormals,
+    /// hex floats, and partial `inf` / `nan` spellings.
+    const NUMBERS: [&CStr; 48] = [
+        c"0",
+        c"123",
+        c"-0",
+        c"+7",
+        c"0x",
+        c"0xg",
+        c"0X1fG",
+        c"077",
+        c"08",
+        c"-",
+        c"+",
+        c"18446744073709551616",
+        c"-9223372036854775809",
+        c"42",
+        c"0.1",
+        c"123456789012",
+        c"1234567890123456789012345",
+        c"1.0000000000000000000000001",
+        c"0.000001e-300",
+        c"2.2250738585072011e-308",
+        c"4.9e-324",
+        c"1e-320",
+        c"2e-324",
+        c"123456789e-5",
+        c"9007199254740993",
+        c"9007199254740995",
+        c"0.500000000000000166533453693773481063544750213623046875",
+        c"1.7976931348623157e308",
+        c"1.8e308",
+        c"00000.0001",
+        c".",
+        c"1e",
+        c"1e+",
+        c"0x1p99999",
+        c"0x0.0001p0",
+        c"0x.p1",
+        c"0x1p-1070",
+        c"0x1.fffffffffffff8p1023",
+        c"0x123456789abcdef0123p0",
+        c"0x1.000000000000081p0",
+        c"infinity",
+        c"infinit",
+        c"INF",
+        c"nan(123)",
+        c"nan(",
+        c"nan(x y",
+        c"NaN",
+        c"1e400",
+    ];
+
+    #[test]
+    fn sscanf_numbers_match_av_sscanf() {
+        let formats: [(&CStr, F); 9] = [
+            (c"%d", F::I0),
+            (c"%i", F::I1),
+            (c"%x", F::U),
+            (c"%o", F::I2),
+            (c"%lli", F::Ll),
+            (c"%f", F::Fl),
+            (c"%lf", F::D),
+            (c"%la", F::D),
+            (c"%3lg", F::D),
+        ];
+        let (mut c, mut r) = (Dest::default(), Dest::default());
+        for input in NUMBERS {
+            for (format, field) in formats {
+                let p = Dest::c_ptr(&raw mut c, field);
+                let n = core::ptr::null_mut::<c_void>();
+                // SAFETY: `format` has one conversion, whose destination is
+                // the live field of `c` at `p`, of the type it stores; the
+                // NULL padding is never read.
+                let cret = unsafe {
+                    ffi::av_sscanf(
+                        input.as_ptr(),
+                        format.as_ptr(),
+                        p,
+                        n,
+                        n,
+                        n,
+                        n,
+                        n,
+                        n,
+                        n,
+                        n,
+                        n,
+                        n,
+                        n,
+                        n,
+                        n,
+                        n,
+                        n,
+                    )
+                };
+                let mut all = r.args();
+                let arg = all[field as usize].take().unwrap();
+                let rret = scan(input, format, &mut [arg]).unwrap();
+                assert_eq!(
+                    rret.map_or(-1, |n| n as i32),
+                    cret,
+                    "{input:?} by {format:?}"
+                );
+                assert_eq!(
+                    format!("{r:?}"),
+                    format!("{c:?}"),
+                    "{input:?} by {format:?}"
+                );
+            }
+        }
+    }
+
+    /// Set in the child process an isolated test re-runs itself in.
+    const ISOLATED: &str = "CRUSTIFY_EQUIV_ISOLATED";
+
+    /// The `av_max_alloc` limit is process-global, so this test lowers it only
+    /// in a child process running nothing else, and passes when the child
+    /// does.
+    #[test]
+    fn replace_failure_at_the_av_max_alloc_limit_matches_c() {
+        const NAME: &str =
+            "avstring::search_and_scan::replace_failure_at_the_av_max_alloc_limit_matches_c";
+        if std::env::var_os(ISOLATED).is_none() {
+            let status = std::process::Command::new(std::env::current_exe().unwrap())
+                .args(["--exact", NAME, "--test-threads=1", "--nocapture"])
+                .env(ISOLATED, "1")
+                .status()
+                .unwrap();
+            assert!(status.success(), "isolated run failed: {status}");
+            return;
+        }
+
+        // The result is copied out of `AVBPrint`'s internal buffer with
+        // `av_memdup(len + 1)`, or grown past it with `av_realloc`; both
+        // respect the limit. The last case outgrows the internal buffer, so
+        // C's search stops with an incomplete `AVBPrint`.
+        const LIMIT: usize = 16;
+        // SAFETY: `av_max_alloc` takes a size by value; nothing else runs in
+        // this process.
+        unsafe { ffi::av_max_alloc(LIMIT) };
+        let long = std::ffi::CString::new("ab".repeat(600)).unwrap();
+        let mut outcomes = Vec::new();
+        for (src, from, to) in [
+            (c"abc", c"b", c"x"),
+            (c"0123456789abcd", c"a", c"A"),
+            (c"0123456789abcde", c"a", c"A"),
+            (c"0123456789abcdef", c"a", c"A"),
+            (c"ab", c"b", c"bbbbbbbbbbbbbbbbbbbb"),
+            (long.as_c_str(), c"a", c"xyz"),
+        ] {
+            // SAFETY: all three are live NUL-terminated strings, and `from`
+            // is not empty.
+            let p = unsafe { ffi::av_strireplace(src.as_ptr(), from.as_ptr(), to.as_ptr()) };
+            let c = (!p.is_null()).then(|| {
+                // SAFETY: `p` is a fresh NUL-terminated string we own.
+                let bytes = unsafe { CStr::from_ptr(p) }.to_bytes().to_vec();
+                // SAFETY: as above; freed once.
+                unsafe { ffi::av_free(p.cast()) };
+                bytes
+            });
+            let r = replace_ignore_ascii_case(src, from, to).map(|s| s.as_bytes().to_vec());
+            assert_eq!(r, c, "{src:?}: {from:?} -> {to:?}");
+            outcomes.push(r.is_some());
+        }
+        // Both the fitting and the failing side were exercised.
+        assert_eq!(outcomes, [true, true, true, false, false, false]);
+        // SAFETY: as above; the default limit again.
+        unsafe { ffi::av_max_alloc(i32::MAX as usize) };
+    }
+}

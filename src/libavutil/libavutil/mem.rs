@@ -21,6 +21,14 @@
 //! or [`string_from_bytes_until_nul`] (`av_strndup`), `Clone` through
 //! `av_strdup`, and released by `av_free`.
 //!
+//! The `av_realloc` family resizes those arrays: [`realloc_array`] and
+//! [`realloc_bytes`] hand the array back on failure, [`realloc_array_or_free`]
+//! frees it, and [`realloc_array_in_place`] / [`realloc_bytes_in_place`]
+//! resize the array in a slot, leaving it empty on failure.
+//! [`resize_array_with`] resizes an initialised array, filling what it adds.
+//! A resized block keeps `realloc`'s alignment, not `av_malloc`'s.
+//! [`checked_size_mul`] is the overflow-checked size product they compute.
+//!
 //! Two growable owners keep C's in-place growth protocols:
 //!
 //! - [`DynArray<T>`] is the `av_dynarray` family's `(tab, nb)` pair, grown by
@@ -748,6 +756,220 @@ impl ZeroedFastBuffer {
     }
 }
 
+/// Wraps: av_size_mult
+///
+/// `a * b`, or `None` when the product overflows `usize`.
+#[must_use]
+pub fn checked_size_mul(a: usize, b: usize) -> Option<usize> {
+    let mut r = 0;
+    // SAFETY: `r` is a live, writable local, which C writes only on success
+    // and does not keep.
+    let ret = unsafe { ffi::av_size_mult(a, b, &mut r) };
+    (ret == 0).then_some(r)
+}
+
+/// Adopts a block `av_realloc` returned, of `len` elements of `T`.
+///
+/// # Safety
+///
+/// `ptr` must be a fresh, uniquely-owned `av_realloc`-family block of at
+/// least `len * size_of::<T>()` bytes, aligned for `T`.
+unsafe fn adopt_realloc<T>(ptr: NonNull<core::ffi::c_void>, len: usize) -> HeapVec<MaybeUninit<T>> {
+    // SAFETY: per the caller, `ptr` is a uniquely-owned block of `len`
+    // elements, aligned for `T`, which `av_free` releases; every bit pattern is
+    // a valid `MaybeUninit<T>`.
+    match unsafe { HeapVec::from_raw_parts(ptr.as_ptr().cast(), len) } {
+        Some(array) => array,
+        None => unreachable!("a non-NULL block adopts"),
+    }
+}
+
+/// Wraps: av_realloc
+///
+/// The byte block `block` resized to `size` bytes, in place or moved: its
+/// first `min(block.len(), size)` bytes carry over and the rest are
+/// uninitialised. `Err` hands `block` back untouched when C cannot resize it:
+/// `size` exceeds the `av_max_alloc` limit, or the allocation fails.
+///
+/// An empty `block` (`HeapVec::empty()`) allocates afresh, and a zero `size`
+/// still owns a 1-byte block, as C's `realloc(ptr, size + !size)` does. The
+/// result has `realloc`'s alignment, not `av_malloc`'s.
+pub fn realloc_bytes(
+    block: HeapVec<MaybeUninit<u8>>,
+    size: usize,
+) -> Result<HeapVec<MaybeUninit<u8>>, HeapVec<MaybeUninit<u8>>> {
+    // SAFETY: `block`'s pointer is NULL or a live `av_malloc`-family block it
+    // owns; `av_realloc` either releases it and returns a block of `size`
+    // bytes, or returns NULL and leaves it untouched and owned by `block`.
+    let ptr = unsafe { ffi::av_realloc(block.as_ptr().cast(), size) };
+    let Some(ptr) = NonNull::new(ptr) else {
+        return Err(block);
+    };
+    // C released the old block: disarm its owner without freeing.
+    let _ = block.into_raw_parts();
+    // SAFETY: `ptr` is a fresh, uniquely-owned `realloc` block of `size`
+    // bytes (one for zero), which `u8` needs no alignment for.
+    Ok(unsafe { adopt_realloc(ptr, size) })
+}
+
+/// Wraps: av_realloc_array
+///
+/// `array` resized to `len` elements, in place or moved: its first
+/// `min(array.len(), len)` elements carry over and the rest are
+/// uninitialised. `Err` hands `array` back untouched when C cannot resize it:
+/// `len * size_of::<T>()` overflows or exceeds the `av_max_alloc` limit, or
+/// the allocation fails.
+///
+/// An empty `array` (`HeapVec::empty()`) allocates afresh. The result has
+/// `realloc`'s alignment; types aligned beyond it are rejected
+/// at compile time:
+///
+/// ```compile_fail,E0080
+/// use ffmpeg::libavutil::mem::{HeapVec, realloc_array};
+/// #[repr(align(32))]
+/// struct Wide([u8; 32]);
+/// let _ = realloc_array::<Wide>(HeapVec::empty(), 1);
+/// ```
+pub fn realloc_array<T>(
+    array: HeapVec<MaybeUninit<T>>,
+    len: usize,
+) -> Result<HeapVec<MaybeUninit<T>>, HeapVec<MaybeUninit<T>>> {
+    const {
+        assert!(
+            align_of::<T>() <= REALLOC_ALIGN,
+            "av_realloc cannot align T"
+        )
+    };
+    // SAFETY: `array`'s pointer is NULL or a live `av_malloc`-family block it
+    // owns; `av_realloc_array` either releases it and returns a block of
+    // `len * size_of::<T>()` bytes, or returns NULL and leaves it untouched
+    // and owned by `array`.
+    let ptr = unsafe { ffi::av_realloc_array(array.as_ptr().cast(), len, size_of::<T>()) };
+    let Some(ptr) = NonNull::new(ptr) else {
+        return Err(array);
+    };
+    // C released the old block: disarm its owner without freeing.
+    let _ = array.into_raw_parts();
+    // SAFETY: `ptr` is a fresh, uniquely-owned `realloc` block of `len`
+    // elements (the product did not overflow, or C would have returned
+    // NULL), aligned to `REALLOC_ALIGN`, which bounds `align_of::<T>()`.
+    Ok(unsafe { adopt_realloc(ptr, len) })
+}
+
+/// Wraps: av_realloc_array
+///
+/// The initialised `array` resized to `len` elements: its first
+/// `min(array.len(), len)` elements carry over, and each added element `i` is
+/// `f(i)`. `Err` hands `array` back untouched, as [`realloc_array`].
+///
+/// Elements are never dropped, as for every [`HeapVec`]: shrinking discards
+/// the tail, and a panic in `f` frees the storage and leaks the elements.
+pub fn resize_array_with<T>(
+    array: HeapVec<T>,
+    len: usize,
+    mut f: impl FnMut(usize) -> T,
+) -> Result<HeapVec<T>, HeapVec<T>> {
+    const {
+        assert!(
+            align_of::<T>() <= REALLOC_ALIGN,
+            "av_realloc cannot align T"
+        )
+    };
+    let kept = array.len().min(len);
+    // SAFETY: as in `realloc_array`.
+    let ptr = unsafe { ffi::av_realloc_array(array.as_ptr().cast(), len, size_of::<T>()) };
+    let Some(ptr) = NonNull::new(ptr) else {
+        return Err(array);
+    };
+    // C released the old block: disarm its owner without freeing.
+    let _ = array.into_raw_parts();
+    // SAFETY: as in `realloc_array`.
+    let mut resized = unsafe { adopt_realloc::<T>(ptr, len) };
+    for (i, slot) in resized.as_mut_slice().iter_mut().enumerate().skip(kept) {
+        slot.write(f(i));
+    }
+    // SAFETY: `realloc` carried the first `kept` elements over from the
+    // initialised `array`, and the loop wrote the rest.
+    Ok(unsafe { resized.assume_init() })
+}
+
+/// Wraps: av_realloc_f
+///
+/// `array` resized to `len` elements, as [`realloc_array`], except that a
+/// failure frees `array` and returns `None`.
+pub fn realloc_array_or_free<T>(
+    array: HeapVec<MaybeUninit<T>>,
+    len: usize,
+) -> Option<HeapVec<MaybeUninit<T>>> {
+    const {
+        assert!(
+            align_of::<T>() <= REALLOC_ALIGN,
+            "av_realloc cannot align T"
+        )
+    };
+    let (ptr, _) = array.into_raw_parts();
+    // SAFETY: `ptr` is NULL or a live `av_malloc`-family block whose ownership
+    // passes to C: `av_realloc_f` releases it and returns a block of
+    // `len * size_of::<T>()` bytes, or frees it and returns NULL.
+    let ptr = unsafe { ffi::av_realloc_f(ptr.cast(), len, size_of::<T>()) };
+    // SAFETY: as in `realloc_array`.
+    NonNull::new(ptr).map(|ptr| unsafe { adopt_realloc(ptr, len) })
+}
+
+/// Wraps: av_reallocp
+///
+/// Resizes the byte block in `slot` to `size` bytes in place, as
+/// [`realloc_bytes`], except that:
+///
+/// - a zero `size` frees the block and leaves `slot` empty;
+/// - a failure frees the block, leaves `slot` empty, and returns C's
+///   `AVERROR(ENOMEM)`.
+pub fn realloc_bytes_in_place(slot: &mut HeapVec<MaybeUninit<u8>>, size: usize) -> Result<(), i32> {
+    let (mut ptr, _) = core::mem::take(slot).into_raw_parts();
+    // SAFETY: `ptr` is a live local slot holding NULL or a live
+    // `av_malloc`-family block whose ownership passes to C: `av_reallocp`
+    // stores the resized block of `size` bytes there, or frees the old one
+    // and stores NULL.
+    let ret = unsafe { ffi::av_reallocp((&raw mut ptr).cast(), size) };
+    // SAFETY: `ptr` is NULL, or a fresh, uniquely-owned `realloc` block of
+    // `size` bytes, which `u8` needs no alignment for.
+    *slot = unsafe { HeapVec::from_raw_parts_or_empty(ptr, if ptr.is_null() { 0 } else { size }) }
+        .unwrap_or_default();
+    if ret < 0 { Err(ret) } else { Ok(()) }
+}
+
+/// Wraps: av_reallocp_array
+///
+/// Resizes the array in `slot` to `len` elements in place, as
+/// [`realloc_array`], except that a failure frees the array, leaves `slot`
+/// empty, and returns C's `AVERROR(ENOMEM)`. A zero `len` still owns a 1-byte
+/// block, as for [`realloc_array`].
+pub fn realloc_array_in_place<T>(
+    slot: &mut HeapVec<MaybeUninit<T>>,
+    len: usize,
+) -> Result<(), i32> {
+    const {
+        assert!(
+            align_of::<T>() <= REALLOC_ALIGN,
+            "av_realloc cannot align T"
+        )
+    };
+    let (mut ptr, _) = core::mem::take(slot).into_raw_parts();
+    // SAFETY: `ptr` is a live local slot holding NULL or a live
+    // `av_malloc`-family block whose ownership passes to C:
+    // `av_reallocp_array` stores the resized block of `len * size_of::<T>()`
+    // bytes there, or frees the old one and stores NULL.
+    let ret = unsafe { ffi::av_reallocp_array((&raw mut ptr).cast(), len, size_of::<T>()) };
+    // A NULL slot after a zero-byte resize (whose 1-byte block C failed to
+    // allocate, yet reports success for) holds no elements.
+    let len = if ptr.is_null() { 0 } else { len };
+    // SAFETY: `ptr` is NULL, or a fresh, uniquely-owned `realloc` block of
+    // `len` elements aligned to `REALLOC_ALIGN`, which bounds
+    // `align_of::<T>()`.
+    *slot = unsafe { HeapVec::from_raw_parts_or_empty(ptr, len) }.unwrap_or_default();
+    if ret < 0 { Err(ret) } else { Ok(()) }
+}
+
 #[cfg(test)]
 mod unit_tests {
     use super::*;
@@ -1110,5 +1332,81 @@ mod unit_tests {
         let mut b = FastBuffer::default();
         assert!(b.reserve_discarding(0) && b.capacity() == 0);
         assert!(!b.reserve_discarding(c_uint::MAX as usize + 1));
+    }
+
+    #[test]
+    fn adopt_realloc_owns_the_block() {
+        // SAFETY: `av_realloc(NULL, n)` allocates and has no preconditions.
+        let p = unsafe { ffi::av_realloc(core::ptr::null_mut(), 12) };
+        let p = NonNull::new(p).unwrap();
+        // SAFETY: `p` is a fresh, uniquely-owned 12-byte `realloc` block,
+        // aligned for `u32`.
+        let mut a = unsafe { adopt_realloc::<u32>(p, 3) };
+        assert_eq!(
+            (a.len(), a.as_ptr().cast(), a.byte_len()),
+            (3, p.as_ptr(), 12)
+        );
+        a.as_mut_slice().fill(MaybeUninit::new(7));
+        // Dropping `a` frees the block through `av_free`.
+    }
+
+    #[test]
+    fn resized_arrays_keep_their_prefix() {
+        let a = alloc_array_from_fn(4, |i| i as u16).unwrap();
+        let a = resize_array_with(a, 6, |i| 100 + i as u16).unwrap();
+        assert_eq!(a.as_slice(), &[0, 1, 2, 3, 104, 105]);
+        let a = resize_array_with(a, 2, |_| unreachable!()).unwrap();
+        assert_eq!(a.as_slice(), &[0, 1]);
+        let mut b = alloc_array::<u16>(1).unwrap();
+        b.as_mut_slice()[0].write(9);
+        let b = realloc_array(b, 3).unwrap();
+        // SAFETY: element 0 carried over from the write above.
+        assert_eq!(unsafe { b.as_slice()[0].assume_init() }, 9);
+    }
+
+    #[test]
+    fn failed_resizes_hand_the_array_back_or_free_it() {
+        let a = alloc_array_from_fn(2, |i| i as u64).unwrap();
+        let p = a.as_ptr();
+        let a = resize_array_with(a, usize::MAX, |_| 0).unwrap_err();
+        assert_eq!((a.as_ptr(), a.as_slice()), (p, &[0u64, 1][..]));
+        let b = realloc_array(alloc_array::<u64>(2).unwrap(), usize::MAX / 4).unwrap_err();
+        assert_eq!(b.len(), 2);
+        let c = realloc_bytes(alloc_array::<u8>(2).unwrap(), i32::MAX as usize + 1).unwrap_err();
+        assert_eq!(c.len(), 2);
+        assert!(realloc_array_or_free(b, usize::MAX).is_none());
+    }
+
+    #[test]
+    fn in_place_resizes_empty_the_slot_on_zero_or_failure() {
+        let mut slot = HeapVec::<MaybeUninit<u8>>::empty();
+        realloc_bytes_in_place(&mut slot, 5).unwrap();
+        assert_eq!(slot.len(), 5);
+        realloc_bytes_in_place(&mut slot, 0).unwrap();
+        assert!(slot.is_empty() && slot.as_ptr().is_null());
+        realloc_bytes_in_place(&mut slot, 3).unwrap();
+        assert_eq!(realloc_bytes_in_place(&mut slot, usize::MAX), Err(-12));
+        assert!(slot.is_empty() && slot.as_ptr().is_null());
+
+        let mut slot = HeapVec::<MaybeUninit<u32>>::empty();
+        realloc_array_in_place(&mut slot, 0).unwrap();
+        assert!(slot.is_empty() && !slot.as_ptr().is_null());
+        realloc_array_in_place(&mut slot, 9).unwrap();
+        assert_eq!(slot.len(), 9);
+        assert_eq!(realloc_array_in_place(&mut slot, usize::MAX / 2), Err(-12));
+        assert!(slot.is_empty() && slot.as_ptr().is_null());
+    }
+
+    #[test]
+    fn size_mult_is_checked_mul() {
+        for (a, b) in [
+            (0, usize::MAX),
+            (3, 7),
+            (usize::MAX, 1),
+            (usize::MAX, 2),
+            (1 << 32, 1 << 32),
+        ] {
+            assert_eq!(checked_size_mul(a, b), a.checked_mul(b), "{a} * {b}");
+        }
     }
 }

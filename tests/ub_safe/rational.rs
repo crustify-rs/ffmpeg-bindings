@@ -213,3 +213,66 @@ fn inline_handles_cross_threads() {
     let moved = thread::spawn(move || values).join().unwrap();
     assert_eq!(parts(moved[3].as_ref()), (3, i32::MIN));
 }
+
+// ---- av_reduce ----
+
+/// UB tests of `libavutil/rational.h`'s [`reduce`]: the arguments that
+/// overflow in C (`INT64_MIN` terms, negative or out-of-`int` bounds) are
+/// refused before the call, and every other extreme reduces without
+/// overflow, across threads.
+mod reduce {
+    use ffmpeg::libavutil::rational::reduce;
+
+    const TERMS: [i64; 11] = [
+        i64::MIN,
+        i64::MIN + 1,
+        -(1 << 31),
+        -1,
+        0,
+        1,
+        i32::MAX as i64,
+        1 << 31,
+        1 << 32,
+        i64::MAX - 1,
+        i64::MAX,
+    ];
+
+    const BOUNDS: [i32; 7] = [i32::MIN, -1, 0, 1, 1 << 16, i32::MAX - 1, i32::MAX];
+
+    #[test]
+    fn every_extreme_is_refused_or_reduced_in_range() {
+        for num in TERMS {
+            for den in TERMS {
+                for max in BOUNDS {
+                    let r = reduce(num, den, max);
+                    let refused = max < 0 || num == i64::MIN || den == i64::MIN;
+                    assert_eq!(r.is_none(), refused, "{num}/{den} within {max}");
+                    if let Some(r) = r {
+                        // A zero bound still yields terms of up to 1, as in C.
+                        let bound = max.max(1);
+                        assert!(
+                            r.value.as_ref().num().unsigned_abs() <= bound as u32
+                                && r.value.as_ref().den() <= bound,
+                            "{r:?}"
+                        );
+                        assert!(r.value.as_ref().den() >= 0);
+                    }
+                }
+            }
+        }
+    }
+
+    #[test]
+    fn concurrent_reductions_do_not_race() {
+        std::thread::scope(|scope| {
+            for t in 0..8i64 {
+                scope.spawn(move || {
+                    for i in 1..2000 {
+                        let r = reduce(i * 7 + t, i64::MAX - i, i32::MAX).unwrap();
+                        assert!(r.value.as_ref().den() >= 0);
+                    }
+                });
+            }
+        });
+    }
+}

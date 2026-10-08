@@ -1,0 +1,9 @@
+error[E0502]: cannot borrow `n` as immutable because it is also borrowed as mutable
+ --> tests/ub_safe/compile_fail/avstring_scan_destination_read_while_bound.rs
+  |
+  |     let mut args: [ScanArg<'_>; 1] = [(&mut n).into()];
+  |                                       -------- mutable borrow occurs here
+  |     println!("{n}");
+  |                ^ immutable borrow occurs here
+  |     let _ = scan(c"1", c"%d", &mut args);
+  |                               --------- mutable borrow later used here

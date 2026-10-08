@@ -447,3 +447,117 @@ fn fast_buffers_cross_and_share_threads() {
         .join()
         .unwrap();
 }
+
+// ---- the av_realloc family ----
+
+mod realloc {
+    use core::mem::MaybeUninit;
+    use std::panic::{AssertUnwindSafe, catch_unwind};
+
+    use ffmpeg::libavutil::mem::{
+        HeapVec, alloc_array, alloc_array_from_fn, checked_size_mul, realloc_array,
+        realloc_array_in_place, realloc_array_or_free, realloc_bytes, realloc_bytes_in_place,
+        resize_array_with,
+    };
+
+    /// Writes every element: ASan flags a length longer than the block.
+    fn touch<T: Copy>(a: &mut HeapVec<MaybeUninit<T>>, v: T) {
+        for slot in a.as_mut_slice() {
+            slot.write(v);
+        }
+    }
+
+    #[test]
+    fn grow_shrink_cycles_stay_in_bounds() {
+        let mut a = realloc_array::<u32>(HeapVec::empty(), 1).unwrap();
+        for len in [1, 7, 64, 3, 0, 1000, 2, 4096, 1] {
+            a = realloc_array(a, len).unwrap();
+            assert_eq!(a.len(), len);
+            touch(&mut a, len as u32);
+        }
+        let mut b = realloc_bytes(HeapVec::empty(), 0).unwrap();
+        for size in [1, 33, 0, 4096, 5] {
+            b = realloc_bytes(b, size).unwrap();
+            touch(&mut b, 0xEE);
+        }
+    }
+
+    #[test]
+    fn failures_leave_a_usable_array_or_free_it() {
+        let mut a = alloc_array::<u64>(4).unwrap();
+        touch(&mut a, 1);
+        for len in [usize::MAX, usize::MAX / 8, i32::MAX as usize] {
+            a = realloc_array(a, len).unwrap_err();
+            assert_eq!(a.len(), 4);
+            touch(&mut a, 2);
+        }
+        let b = realloc_bytes(alloc_array::<u8>(3).unwrap(), usize::MAX).unwrap_err();
+        assert_eq!(b.len(), 3);
+        assert!(realloc_array_or_free(b, usize::MAX).is_none());
+        let c = realloc_array_or_free(alloc_array::<u16>(2).unwrap(), 9).unwrap();
+        assert_eq!(c.len(), 9);
+        let d = alloc_array_from_fn(3, |i| i as u8).unwrap();
+        let d = resize_array_with(d, usize::MAX, |_| 0).unwrap_err();
+        assert_eq!(d.as_slice(), &[0, 1, 2]);
+    }
+
+    #[test]
+    fn initialised_resizes_never_expose_uninit_elements() {
+        let mut a = alloc_array_from_fn(0, |_| 0u64).unwrap();
+        for len in [5, 1, 300, 0, 17] {
+            a = resize_array_with(a, len, |i| i as u64 * 3).unwrap();
+            let sum: u64 = a.as_slice().iter().sum();
+            assert_eq!(a.len(), len);
+            assert!(sum < u64::MAX);
+        }
+    }
+
+    #[test]
+    fn panicking_fill_frees_the_storage() {
+        // Plain elements: owning ones would leak, as `HeapVec` never drops
+        // its elements, which LeakSanitizer reports.
+        let a = alloc_array_from_fn(2, |i| [i as u8; 3]).unwrap();
+        let r = catch_unwind(AssertUnwindSafe(|| {
+            resize_array_with(a, 6, |i| if i == 4 { panic!("stop") } else { [i as u8; 3] })
+        }));
+        assert!(r.is_err());
+    }
+
+    #[test]
+    fn zero_sized_and_empty_arrays_are_sound() {
+        let z = realloc_array::<()>(HeapVec::empty(), 1_000_000).unwrap();
+        assert_eq!(z.len(), 1_000_000);
+        let z = realloc_array(z, 0).unwrap();
+        assert!(z.is_empty());
+        let mut slot = HeapVec::<MaybeUninit<()>>::empty();
+        realloc_array_in_place(&mut slot, 77).unwrap();
+        assert_eq!(slot.len(), 77);
+        let e = resize_array_with(HeapVec::<u8>::empty(), 0, |_| 0).unwrap();
+        assert!(e.is_empty());
+    }
+
+    #[test]
+    fn in_place_slots_survive_every_transition() {
+        let mut slot = HeapVec::<MaybeUninit<u8>>::empty();
+        for size in [0, 9, usize::MAX, 0, 3, 4096, 0, 1] {
+            let _ = realloc_bytes_in_place(&mut slot, size);
+            touch(&mut slot, 1);
+        }
+        let mut slot = HeapVec::<MaybeUninit<u32>>::empty();
+        for len in [2, 0, usize::MAX / 2, 5, 1024, 1] {
+            let _ = realloc_array_in_place(&mut slot, len);
+            touch(&mut slot, 7);
+        }
+    }
+
+    #[test]
+    fn arrays_resize_and_free_on_other_threads() {
+        let a = alloc_array_from_fn(8, |i| i as u32).unwrap();
+        let a = std::thread::spawn(move || resize_array_with(a, 64, |i| i as u32).unwrap())
+            .join()
+            .unwrap();
+        assert_eq!(a.as_slice()[63], 63);
+        std::thread::spawn(move || drop(a)).join().unwrap();
+        assert_eq!(checked_size_mul(usize::MAX, 2), None);
+    }
+}

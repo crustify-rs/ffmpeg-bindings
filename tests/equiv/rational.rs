@@ -233,3 +233,93 @@ fn zeroed_arrays_read_as_c_zeroed_storage() {
     // SAFETY: `c` is the live `av_calloc` block allocated above.
     unsafe { ffi::av_free(c.cast::<c_void>()) };
 }
+
+// ---- av_reduce ----
+
+/// Equivalence of `libavutil/rational.h`'s [`reduce`] with `av_reduce`, on
+/// every argument the wrapper passes on.
+mod reduce {
+    use ffmpeg::libavutil::ffi;
+    use ffmpeg::libavutil::rational::reduce;
+
+    /// `av_reduce` in C, on its own out-parameters: the numerator,
+    /// denominator and exactness.
+    fn c_reduce(num: i64, den: i64, max: i64) -> (i32, i32, bool) {
+        let (mut n, mut d) = (i32::MIN, i32::MIN);
+        // SAFETY: both out-parameters are live locals; the tests pass `num` and
+        // `den` other than `INT64_MIN` and `max` in `0..=INT_MAX`, for which C's
+        // arithmetic does not overflow.
+        let exact = unsafe { ffi::av_reduce(&mut n, &mut d, num, den, max) };
+        (n, d, exact != 0)
+    }
+
+    /// The same parts of the wrapper's result.
+    fn rust_reduce(num: i64, den: i64, max: i32) -> (i32, i32, bool) {
+        let r = reduce(num, den, max).unwrap();
+        (r.value.as_ref().num(), r.value.as_ref().den(), r.exact)
+    }
+
+    /// Terms at every magnitude class C branches on.
+    const TERMS: [i64; 18] = [
+        -i64::MAX,
+        -(1 << 62) - 1,
+        -(1 << 40),
+        -1_000_003,
+        -6,
+        -1,
+        0,
+        1,
+        2,
+        3,
+        6,
+        1001,
+        30000,
+        i32::MAX as i64,
+        i32::MAX as i64 + 1,
+        3_141_592_653_589_793,
+        (1 << 62) + 1,
+        i64::MAX,
+    ];
+
+    /// Bounds from none to `INT_MAX`.
+    const MAX: [i32; 8] = [0, 1, 2, 255, 1000, 65535, 1 << 30, i32::MAX];
+
+    #[test]
+    fn every_term_pair_and_bound_matches_c() {
+        for num in TERMS {
+            for den in TERMS {
+                for max in MAX {
+                    let r = rust_reduce(num, den, max);
+                    assert_eq!(
+                        r,
+                        c_reduce(num, den, max.into()),
+                        "{num}/{den} within {max}"
+                    );
+                }
+            }
+        }
+    }
+
+    #[test]
+    fn pseudo_random_fractions_match_c() {
+        let mut s = 0x9E37_79B9_7F4A_7C15u64;
+        let mut next = || {
+            s ^= s << 13;
+            s ^= s >> 7;
+            s ^= s << 17;
+            s
+        };
+        for _ in 0..5_000 {
+            let (a, b, m) = (next(), next(), next());
+            let num = (a as i64 >> (a % 63)).max(-i64::MAX);
+            let den = (b as i64 >> (b % 63)).max(-i64::MAX);
+            let max = (m % (i32::MAX as u64 + 1)) as i32 >> (m % 31);
+            let r = rust_reduce(num, den, max);
+            assert_eq!(
+                r,
+                c_reduce(num, den, max.into()),
+                "{num}/{den} within {max}"
+            );
+        }
+    }
+}

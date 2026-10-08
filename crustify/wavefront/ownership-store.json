@@ -1956,6 +1956,75 @@
    ]
   },
   {
+   "name": "av_parse_cpu_caps",
+   "defined_in": "libavutil/cpu.c",
+   "ptr_args": [
+    {
+     "name": "flags",
+     "ptr": {
+      "scalar": {
+       "by_val": true
+      },
+      "array": null,
+      "string": false,
+      "owned": false,
+      "borrowed": {
+       "lifetime": "arg:flags"
+      },
+      "nullable": false,
+      "mutable": true,
+      "note": "In/out flag word, borrowed for the call: set_string_number reads *flags for '+'/'-' tokens and writes each token's result in turn (write_number), so a failing later token leaves earlier writes. Must not be NULL. C reaches UB (float-cast-overflow) for '+'/'-' operands outside int64_t (opt.c (int64_t)d) and for expression tokens such as ld(1e300) (eval.c av_clip of a double); the Rust wrapper restricts tokens to [A-Za-z0-9_.], evaluates each unprefixed and combines the bits itself."
+     }
+    },
+    {
+     "name": "s",
+     "ptr": {
+      "scalar": null,
+      "array": null,
+      "string": true,
+      "owned": false,
+      "borrowed": {
+       "lifetime": "arg:s"
+      },
+      "nullable": false,
+      "mutable": false,
+      "note": "Flags string, read for the call only, split at '+'/'-' into <=255-byte tokens, each a const name or an av_expr expression. Must not be NULL."
+     }
+    }
+   ]
+  },
+  {
+   "name": "av_popcount64_c",
+   "defined_in": "libavutil/common.h"
+  },
+  {
+   "name": "av_popcount_c",
+   "defined_in": "libavutil/common.h"
+  },
+  {
+   "name": "av_random_bytes",
+   "defined_in": "libavutil/random_seed.c",
+   "ptr_args": [
+    {
+     "name": "buf",
+     "ptr": {
+      "scalar": null,
+      "array": {
+       "by_val": true
+      },
+      "string": false,
+      "owned": false,
+      "borrowed": {
+       "lifetime": "arg:buf"
+      },
+      "nullable": false,
+      "mutable": true,
+      "note": "Caller buffer of len bytes, write-only (fread from /dev/urandom on this build); fully written on success, possibly partly on failure. Not retained. Must be valid even for len 0 (passed to fread)."
+     }
+    }
+   ]
+  },
+  {
    "name": "av_realloc",
    "defined_in": "libavutil/mem.c",
    "ptr_args": [
@@ -1993,6 +2062,299 @@
      "note": "Resized block; NULL on failure or size > max_alloc_size. realloc-style: releases and reallocates the same slot, so not a constructor (schema); no lifecycle role. The raw-lifetime void tier binds av_free/av_malloc*/av_memdup instead."
     }
    }
+  },
+  {
+   "name": "av_realloc_array",
+   "defined_in": "libavutil/mem.c",
+   "ptr_args": [
+    {
+     "name": "ptr",
+     "ptr": {
+      "scalar": {
+       "by_val": true
+      },
+      "array": {
+       "by_val": true
+      },
+      "string": false,
+      "owned": true,
+      "borrowed": null,
+      "nullable": true,
+      "mutable": true,
+      "note": "Old block, ownership taken on success: av_realloc(ptr, nmemb*size) after an overflow check. On failure (overflow, max_alloc, or realloc failure) returns NULL and the old block is untouched and still the caller's. NULL allocates."
+     }
+    }
+   ],
+   "ptr_ret": {
+    "ptr": {
+     "scalar": {
+      "by_val": true
+     },
+     "array": {
+      "by_val": true
+     },
+     "string": false,
+     "owned": true,
+     "borrowed": null,
+     "nullable": true,
+     "mutable": true,
+     "note": "Resized block of nmemb*size bytes (1 byte for 0), malloc alignment only (max_align_t), not ALIGN; NULL on failure. realloc-style, so no constructor role; released by av_free."
+    }
+   }
+  },
+  {
+   "name": "av_realloc_f",
+   "defined_in": "libavutil/mem.c",
+   "ptr_args": [
+    {
+     "name": "ptr",
+     "ptr": {
+      "scalar": {
+       "by_val": true
+      },
+      "array": {
+       "by_val": true
+      },
+      "string": false,
+      "owned": true,
+      "borrowed": null,
+      "nullable": true,
+      "mutable": true,
+      "note": "Old block, ownership always taken: resized on success, av_free'd on failure (size overflow or allocation failure). NULL allocates."
+     }
+    }
+   ],
+   "ptr_ret": {
+    "ptr": {
+     "scalar": {
+      "by_val": true
+     },
+     "array": {
+      "by_val": true
+     },
+     "string": false,
+     "owned": true,
+     "borrowed": null,
+     "nullable": true,
+     "mutable": true,
+     "note": "Resized block of nelem*elsize bytes (1 for 0), malloc alignment; NULL on failure, the input then freed. Released by av_free. realloc-style, no constructor role."
+    }
+   }
+  },
+  {
+   "name": "av_reallocp",
+   "defined_in": "libavutil/mem.c",
+   "ptr_args": [
+    {
+     "name": "ptr",
+     "ptr": {
+      "scalar": {
+       "by_ref": {
+        "owned": true,
+        "borrowed": null
+       }
+      },
+      "array": null,
+      "string": false,
+      "owned": false,
+      "borrowed": {
+       "lifetime": "arg:ptr"
+      },
+      "nullable": false,
+      "mutable": true,
+      "note": "Declared void* but a T** slot (memcpy'd), borrowed and non-NULL. The pointee's ownership transfers in and back out: size 0 av_freep()s it (slot NULL, returns 0); on success the slot holds the resized block; on failure the old block is freed, the slot set NULL, AVERROR(ENOMEM) returned. A NULL pointee allocates."
+     }
+    }
+   ]
+  },
+  {
+   "name": "av_reallocp_array",
+   "defined_in": "libavutil/mem.c",
+   "ptr_args": [
+    {
+     "name": "ptr",
+     "ptr": {
+      "scalar": {
+       "by_ref": {
+        "owned": true,
+        "borrowed": null
+       }
+      },
+      "array": null,
+      "string": false,
+      "owned": false,
+      "borrowed": {
+       "lifetime": "arg:ptr"
+      },
+      "nullable": false,
+      "mutable": true,
+      "note": "Declared void* but a T** slot (memcpy'd), borrowed and non-NULL. The pointee goes through av_realloc_f: on success the slot holds the resized block of nmemb*size bytes (1 byte for 0); on failure the old block is freed, the slot set NULL, and AVERROR(ENOMEM) returned unless nmemb or size is 0. A NULL pointee allocates."
+     }
+    }
+   ]
+  },
+  {
+   "name": "av_reduce",
+   "defined_in": "libavutil/rational.c",
+   "ptr_args": [
+    {
+     "name": "dst_den",
+     "ptr": {
+      "scalar": {
+       "by_val": true
+      },
+      "array": null,
+      "string": false,
+      "owned": false,
+      "borrowed": {
+       "lifetime": "arg:dst_den"
+      },
+      "nullable": false,
+      "mutable": true,
+      "note": "Out-parameter, written once, never read. Must not be NULL."
+     }
+    },
+    {
+     "name": "dst_num",
+     "ptr": {
+      "scalar": {
+       "by_val": true
+      },
+      "array": null,
+      "string": false,
+      "owned": false,
+      "borrowed": {
+       "lifetime": "arg:dst_num"
+      },
+      "nullable": false,
+      "mutable": true,
+      "note": "Out-parameter, written once, never read. Must not be NULL. C overflows (UB) negating a result term of INT_MIN, reachable with max > INT_MAX or negative, and FFABS(INT64_MIN) of num/den."
+     }
+    }
+   ]
+  },
+  {
+   "name": "av_rescale",
+   "defined_in": "libavutil/mathematics.c"
+  },
+  {
+   "name": "av_sat_add32_c",
+   "defined_in": "libavutil/common.h"
+  },
+  {
+   "name": "av_sat_add64_c",
+   "defined_in": "libavutil/common.h"
+  },
+  {
+   "name": "av_sat_dadd32_c",
+   "defined_in": "libavutil/common.h"
+  },
+  {
+   "name": "av_sat_dsub32_c",
+   "defined_in": "libavutil/common.h"
+  },
+  {
+   "name": "av_sat_sub32_c",
+   "defined_in": "libavutil/common.h"
+  },
+  {
+   "name": "av_sat_sub64_c",
+   "defined_in": "libavutil/common.h"
+  },
+  {
+   "name": "av_size_mult",
+   "defined_in": "libavutil/mem.c",
+   "ptr_args": [
+    {
+     "name": "r",
+     "ptr": {
+      "scalar": {
+       "by_val": true
+      },
+      "array": null,
+      "string": false,
+      "owned": false,
+      "borrowed": {
+       "lifetime": "arg:r"
+      },
+      "nullable": false,
+      "mutable": true,
+      "note": "Out-parameter, written only on success (no overflow); untouched on AVERROR(EINVAL). Must not be NULL."
+     }
+    }
+   ]
+  },
+  {
+   "name": "av_sscanf",
+   "defined_in": "libavutil/avsscanf.c",
+   "ptr_args": [
+    {
+     "name": "format",
+     "ptr": {
+      "scalar": null,
+      "array": null,
+      "string": true,
+      "owned": false,
+      "borrowed": {
+       "lifetime": "arg:format"
+      },
+      "nullable": false,
+      "mutable": false,
+      "note": "Format, read for the call only; its conversions decide the type and count of the variadic destinations (int sizes by hh/h/l/ll/j/z/t, float/double, byte buffers for c/s/[, void* for p). Width digits overflow int (UB); %s/%[ without width and %ms write unbounded; positional %n$ is supported via arg_n."
+     }
+    },
+    {
+     "name": "string",
+     "ptr": {
+      "scalar": null,
+      "array": null,
+      "string": true,
+      "owned": false,
+      "borrowed": {
+       "lifetime": "arg:string"
+      },
+      "nullable": false,
+      "mutable": false,
+      "note": "Input, read for the call only through a fake FILE (memchr up to the NUL). Must not be NULL."
+     }
+    }
+   ]
+  },
+  {
+   "name": "av_strcasecmp",
+   "defined_in": "libavutil/avstring.c",
+   "ptr_args": [
+    {
+     "name": "a",
+     "ptr": {
+      "scalar": null,
+      "array": null,
+      "string": true,
+      "owned": false,
+      "borrowed": {
+       "lifetime": "arg:a"
+      },
+      "nullable": false,
+      "mutable": false,
+      "note": "Read for the call only, up to the first difference or NUL. Must not be NULL."
+     }
+    },
+    {
+     "name": "b",
+     "ptr": {
+      "scalar": null,
+      "array": null,
+      "string": true,
+      "owned": false,
+      "borrowed": {
+       "lifetime": "arg:b"
+      },
+      "nullable": false,
+      "mutable": false,
+      "note": "Read for the call only. Must not be NULL."
+     }
+    }
+   ]
   },
   {
    "name": "av_strdup",
@@ -2038,6 +2400,29 @@
    }
   },
   {
+   "name": "av_strerror",
+   "defined_in": "libavutil/error.c",
+   "ptr_args": [
+    {
+     "name": "errbuf",
+     "ptr": {
+      "scalar": null,
+      "array": {
+       "by_val": true
+      },
+      "string": true,
+      "owned": false,
+      "borrowed": {
+       "lifetime": "arg:errbuf"
+      },
+      "nullable": false,
+      "mutable": true,
+      "note": "Caller buffer of errbuf_size bytes, written with a NUL-terminated (truncated) description via av_strlcpy/strerror_r/snprintf; nothing written when errbuf_size is 0. Not retained."
+     }
+    }
+   ]
+  },
+  {
    "name": "av_strireplace",
    "defined_in": "libavutil/avstring.c",
    "lifetime": {
@@ -2063,7 +2448,7 @@
       },
       "nullable": false,
       "mutable": false,
-      "note": "Needle, matched case-insensitively (av_stristr), read for the call only. Must not be NULL (strlen)."
+      "note": "Needle, matched case-insensitively (av_stristr), read for the call only. Must not be NULL (strlen). An empty `from` loops forever (av_stristr matches it at the same position without advancing); the Rust wrapper returns a copy of `str` instead."
      }
     },
     {
@@ -2107,6 +2492,114 @@
      "nullable": true,
      "mutable": true,
      "note": "Fresh NUL-terminated string from av_bprint_finalize (av_malloc / av_realloc storage, or av_memdup of the internal buffer); released by av_free. NULL when the AVBPrint ran out of memory (incomplete) or finalize fails."
+    }
+   }
+  },
+  {
+   "name": "av_stristart",
+   "defined_in": "libavutil/avstring.c",
+   "ptr_args": [
+    {
+     "name": "pfx",
+     "ptr": {
+      "scalar": null,
+      "array": null,
+      "string": true,
+      "owned": false,
+      "borrowed": {
+       "lifetime": "arg:pfx"
+      },
+      "nullable": false,
+      "mutable": false,
+      "note": "Read for the call only. Must not be NULL."
+     }
+    },
+    {
+     "name": "ptr",
+     "ptr": {
+      "scalar": {
+       "by_ref": {
+        "owned": null,
+        "borrowed": {
+         "lifetime": "arg:str"
+        }
+       }
+      },
+      "array": null,
+      "string": false,
+      "owned": false,
+      "borrowed": {
+       "lifetime": "arg:ptr"
+      },
+      "nullable": true,
+      "mutable": false,
+      "note": "Optional out-slot; on a match receives a pointer into str just past the prefix (borrowed from str). Untouched otherwise. (C writes the slot itself; its char pointee is const, so `mutable` is false per the schema.)"
+     }
+    },
+    {
+     "name": "str",
+     "ptr": {
+      "scalar": null,
+      "array": null,
+      "string": true,
+      "owned": false,
+      "borrowed": {
+       "lifetime": "arg:str"
+      },
+      "nullable": false,
+      "mutable": false,
+      "note": "Read for the call only. Must not be NULL."
+     }
+    }
+   ]
+  },
+  {
+   "name": "av_stristr",
+   "defined_in": "libavutil/avstring.c",
+   "ptr_args": [
+    {
+     "name": "s1",
+     "ptr": {
+      "scalar": null,
+      "array": null,
+      "string": true,
+      "owned": false,
+      "borrowed": {
+       "lifetime": "arg:s1"
+      },
+      "nullable": false,
+      "mutable": false,
+      "note": "Haystack, read for the call only. Must not be NULL."
+     }
+    },
+    {
+     "name": "s2",
+     "ptr": {
+      "scalar": null,
+      "array": null,
+      "string": true,
+      "owned": false,
+      "borrowed": {
+       "lifetime": "arg:s2"
+      },
+      "nullable": false,
+      "mutable": false,
+      "note": "Needle, read for the call only. Must not be NULL; empty matches at s1."
+     }
+    }
+   ],
+   "ptr_ret": {
+    "ptr": {
+     "scalar": null,
+     "array": null,
+     "string": true,
+     "owned": false,
+     "borrowed": {
+      "lifetime": "arg:s1"
+     },
+     "nullable": true,
+     "mutable": false,
+     "note": "Pointer into s1 at the first case-insensitive match (const cast away; callers must not write), or NULL."
     }
    }
   },

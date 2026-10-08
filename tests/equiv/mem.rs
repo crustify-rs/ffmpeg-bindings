@@ -886,3 +886,268 @@ fn zeroed_reserve_matches_av_fast_mallocz_after_every_step() {
         c.fill(step as u8);
     }
 }
+
+// ---- the av_realloc family ----
+
+mod realloc {
+    use core::ffi::c_void;
+    use core::mem::{MaybeUninit, size_of};
+
+    use ffmpeg::libavutil::ffi;
+    use ffmpeg::libavutil::mem::{
+        HeapVec, alloc_array, alloc_array_from_fn, checked_size_mul, realloc_array,
+        realloc_array_in_place, realloc_array_or_free, realloc_bytes, realloc_bytes_in_place,
+        resize_array_with,
+    };
+
+    use super::CBlock;
+
+    /// Sizes around the `av_max_alloc` limit (`INT_MAX`) and overflow, with
+    /// successes of at most 4 KiB.
+    const LENS: [usize; 9] = [
+        0,
+        1,
+        5,
+        64,
+        4096,
+        i32::MAX as usize + 1,
+        usize::MAX / 2 + 1,
+        usize::MAX - 1,
+        usize::MAX,
+    ];
+
+    /// `len` bytes counting up from `seed`, in an `av_malloc` block on each
+    /// side.
+    fn filled(len: usize, seed: u8) -> (CBlock, HeapVec<MaybeUninit<u8>>) {
+        // SAFETY: `av_malloc` has no preconditions.
+        let c = CBlock(unsafe { ffi::av_malloc(len) });
+        let mut r = alloc_array::<u8>(len).unwrap();
+        for (i, b) in r.as_mut_slice().iter_mut().enumerate() {
+            b.write(seed.wrapping_add(i as u8));
+        }
+        // SAFETY: `c` holds `len` writable bytes, filled like `r`.
+        let cb = unsafe { core::slice::from_raw_parts_mut(c.0.cast::<u8>(), len) };
+        for (i, b) in cb.iter_mut().enumerate() {
+            *b = seed.wrapping_add(i as u8);
+        }
+        (c, r)
+    }
+
+    /// The first `n` bytes of `r`, which must be initialised.
+    fn prefix(r: &HeapVec<MaybeUninit<u8>>, n: usize) -> Vec<u8> {
+        // SAFETY: per each caller, the first `n` bytes were written.
+        r.as_slice()[..n]
+            .iter()
+            .map(|b| unsafe { b.assume_init() })
+            .collect()
+    }
+
+    #[test]
+    fn realloc_bytes_matches_av_realloc_step_by_step() {
+        let (mut c, mut r) = filled(16, 3);
+        let mut kept = 16;
+        for size in [32, 8, 0, 1, 4000, i32::MAX as usize + 1, 100, usize::MAX] {
+            // SAFETY: `c.0` is a live block we own, which `av_realloc`
+            // releases on success and leaves alone on failure.
+            let cp = unsafe { ffi::av_realloc(c.0, size) };
+            let rr = realloc_bytes(r, size);
+            assert_eq!(rr.is_ok(), !cp.is_null(), "size {size}");
+            r = match rr {
+                Ok(r) => {
+                    c.0 = cp;
+                    kept = kept.min(size);
+                    assert_eq!(r.len(), size);
+                    r
+                }
+                Err(r) => r,
+            };
+            // The surviving bytes agree on both sides after every step.
+            assert_eq!(prefix(&r, kept), c.bytes(kept), "size {size}");
+            assert_eq!(c.0 as usize % align_of::<ffi::max_align_t>(), 0);
+            assert_eq!(r.as_ptr() as usize % align_of::<ffi::max_align_t>(), 0);
+        }
+    }
+
+    #[test]
+    fn realloc_array_matches_av_realloc_array() {
+        fn check<T>() {
+            for n in LENS {
+                // SAFETY: `av_realloc_array(NULL, ...)` allocates.
+                let c = CBlock(unsafe {
+                    ffi::av_realloc_array(core::ptr::null_mut(), n, size_of::<T>())
+                });
+                let r = realloc_array::<T>(HeapVec::empty(), n);
+                assert_eq!(
+                    r.is_ok(),
+                    !c.0.is_null(),
+                    "n = {n}, size = {}",
+                    size_of::<T>()
+                );
+                if let Ok(r) = r {
+                    assert_eq!(r.len(), n);
+                    assert!(!r.as_ptr().is_null());
+                } else {
+                    assert!(r.unwrap_err().is_empty());
+                }
+            }
+        }
+        check::<u8>();
+        check::<u32>();
+        check::<[u64; 3]>();
+        check::<()>();
+    }
+
+    #[test]
+    fn resize_array_with_keeps_what_av_realloc_array_keeps() {
+        let mut r = alloc_array_from_fn(4, |i| i as u32 * 10).unwrap();
+        // SAFETY: `av_malloc_array` has no preconditions.
+        let mut c = CBlock(unsafe { ffi::av_malloc_array(4, 4) });
+        // SAFETY: `c` holds 4 writable `u32`.
+        unsafe { c.0.cast::<[u32; 4]>().write([0, 10, 20, 30]) };
+        let mut len = 4;
+        for n in [6, 2, 2, 9, usize::MAX / 4, 1] {
+            // SAFETY: `c.0` is a live block we own.
+            let cp = unsafe { ffi::av_realloc_array(c.0, n, 4) };
+            let rr = resize_array_with(r, n, |i| i as u32 * 10);
+            assert_eq!(rr.is_ok(), !cp.is_null(), "n = {n}");
+            r = match rr {
+                Ok(r) => {
+                    c.0 = cp;
+                    // C's added tail is uninitialised; write it as `f` does.
+                    for i in len.min(n)..n {
+                        // SAFETY: `c` holds `n` writable `u32`.
+                        unsafe { c.0.cast::<u32>().add(i).write(i as u32 * 10) };
+                    }
+                    len = n;
+                    r
+                }
+                Err(r) => r,
+            };
+            assert_eq!(r.len(), len);
+            let bytes = c.bytes(len * 4);
+            let cvals: Vec<u32> = bytes
+                .chunks(4)
+                .map(|b| u32::from_ne_bytes(b.try_into().unwrap()))
+                .collect();
+            assert_eq!(r.as_slice(), &cvals[..], "n = {n}");
+        }
+    }
+
+    #[test]
+    fn realloc_array_or_free_matches_av_realloc_f() {
+        for n in LENS {
+            let (c, r) = filled(8, 1);
+            let c = core::mem::ManuallyDrop::new(c);
+            // SAFETY: `c.0` is a live block whose ownership passes to C,
+            // which frees it on failure.
+            let cp = CBlock(unsafe { ffi::av_realloc_f(c.0, n, 2) });
+            let rr = realloc_array_or_free(
+                // The same 8 bytes as 4 two-byte elements.
+                {
+                    let (p, _) = r.into_raw_parts();
+                    // SAFETY: the 8-byte `av_malloc` block holds 4 `u16`.
+                    unsafe { HeapVec::<MaybeUninit<u16>>::from_raw_parts(p.cast(), 4) }.unwrap()
+                },
+                n,
+            );
+            assert_eq!(rr.is_some(), !cp.0.is_null(), "n = {n}");
+            if let Some(rr) = rr {
+                assert_eq!(rr.len(), n);
+                let kept = (4 * 2).min(n * 2);
+                let rb: Vec<u8> = rr.as_slice()[..kept / 2]
+                    .iter()
+                    // SAFETY: the first `kept` bytes carried over.
+                    .flat_map(|v| unsafe { v.assume_init() }.to_ne_bytes())
+                    .collect();
+                assert_eq!(rb, cp.bytes(kept), "n = {n}");
+            }
+        }
+    }
+
+    #[test]
+    fn realloc_bytes_in_place_matches_av_reallocp() {
+        let mut cslot: *mut c_void = core::ptr::null_mut();
+        let mut r = HeapVec::<MaybeUninit<u8>>::empty();
+        let mut kept = 0usize;
+        for size in [8, 24, 0, 0, 3, i32::MAX as usize + 1, 5, usize::MAX, 2] {
+            // SAFETY: `cslot` is a live slot holding NULL or a block we own.
+            let cret = unsafe { ffi::av_reallocp((&raw mut cslot).cast(), size) };
+            let rret = realloc_bytes_in_place(&mut r, size);
+            assert_eq!(rret.err().unwrap_or(0), cret, "size {size}");
+            assert_eq!(r.as_ptr().is_null(), cslot.is_null(), "size {size}");
+            let len = if cslot.is_null() { 0 } else { size };
+            assert_eq!(r.len(), len, "size {size}");
+            // Fill the new tail identically, then compare everything.
+            kept = kept.min(len);
+            for i in kept..len {
+                r.as_mut_slice()[i].write(i as u8 ^ 0x5A);
+                // SAFETY: `cslot` holds `len` writable bytes.
+                unsafe { cslot.cast::<u8>().add(i).write(i as u8 ^ 0x5A) };
+            }
+            kept = len;
+            if len > 0 {
+                let c = core::mem::ManuallyDrop::new(CBlock(cslot));
+                assert_eq!(prefix(&r, len), c.bytes(len));
+            }
+        }
+        drop(CBlock(cslot));
+    }
+
+    #[test]
+    fn realloc_array_in_place_matches_av_reallocp_array() {
+        fn check<T>() {
+            let mut cslot: *mut c_void = core::ptr::null_mut();
+            let mut r = HeapVec::<MaybeUninit<T>>::empty();
+            for n in [3, 0, 7, i32::MAX as usize, 2, usize::MAX, 1, 0] {
+                // SAFETY: `cslot` is a live slot holding NULL or a block we
+                // own.
+                let cret =
+                    unsafe { ffi::av_reallocp_array((&raw mut cslot).cast(), n, size_of::<T>()) };
+                let rret = realloc_array_in_place(&mut r, n);
+                assert_eq!(
+                    rret.err().unwrap_or(0),
+                    cret,
+                    "n = {n}, size = {}",
+                    size_of::<T>()
+                );
+                assert_eq!(r.as_ptr().is_null(), cslot.is_null(), "n = {n}");
+                assert_eq!(r.len(), if cslot.is_null() { 0 } else { n });
+            }
+            drop(CBlock(cslot));
+        }
+        check::<u8>();
+        check::<u64>();
+        check::<()>();
+    }
+
+    #[test]
+    fn size_mult_matches_av_size_mult() {
+        let v = [
+            0,
+            1,
+            2,
+            3,
+            1 << 31,
+            1 << 32,
+            (1 << 32) + 1,
+            usize::MAX / 2,
+            usize::MAX / 2 + 1,
+            usize::MAX,
+        ];
+        for a in v {
+            for b in v {
+                let mut cr = 0xDEAD;
+                // SAFETY: `cr` is a live, writable local.
+                let cret = unsafe { ffi::av_size_mult(a, b, &mut cr) };
+                assert_eq!(
+                    checked_size_mul(a, b).ok_or(cret),
+                    if cret == 0 { Ok(cr) } else { Err(cret) }
+                );
+                if cret != 0 {
+                    // C leaves the out-parameter alone on overflow.
+                    assert_eq!(cr, 0xDEAD);
+                }
+            }
+        }
+    }
+}

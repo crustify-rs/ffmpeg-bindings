@@ -173,3 +173,122 @@ fn chained_zero_extends_agree_after_every_step() {
         assert_eq!(mine, theirs, "{p}");
     }
 }
+
+// ---- count_ones and the saturating arithmetic ----
+
+/// Equivalence of `libavutil/common.h`'s native bit-count and saturating
+/// arithmetic with the C `static inline` bodies they replace.
+mod count_and_saturate {
+    use ffmpeg::libavutil::common::{
+        count_ones, count_ones64, saturating_add_doubled32, saturating_add32, saturating_add64,
+        saturating_sub_doubled32, saturating_sub32, saturating_sub64,
+    };
+    use ffmpeg::libavutil::ffi;
+
+    /// 32-bit operands at and around every saturation edge.
+    const I32: [i32; 13] = [
+        i32::MIN,
+        i32::MIN + 1,
+        i32::MIN / 2 - 1,
+        i32::MIN / 2,
+        -2,
+        -1,
+        0,
+        1,
+        2,
+        i32::MAX / 2,
+        i32::MAX / 2 + 1,
+        i32::MAX - 1,
+        i32::MAX,
+    ];
+
+    /// 64-bit operands at and around every saturation edge.
+    const I64: [i64; 11] = [
+        i64::MIN,
+        i64::MIN + 1,
+        i64::MIN / 2,
+        -(1 << 40),
+        -1,
+        0,
+        1,
+        1 << 40,
+        i64::MAX / 2 + 1,
+        i64::MAX - 1,
+        i64::MAX,
+    ];
+
+    /// A deterministic xorshift stream, for operands between the edges.
+    fn xorshift(mut s: u64) -> impl Iterator<Item = u64> {
+        core::iter::from_fn(move || {
+            s ^= s << 13;
+            s ^= s >> 7;
+            s ^= s << 17;
+            Some(s)
+        })
+    }
+
+    #[test]
+    fn popcount_matches_c() {
+        let edges = [
+            0u64,
+            1,
+            0x8000_0000,
+            0xFFFF_FFFF,
+            1 << 32,
+            u64::MAX,
+            0x5555_5555_AAAA_AAAA,
+        ];
+        for x in edges.into_iter().chain(xorshift(7).take(10_000)) {
+            let lo = x as u32;
+            // SAFETY: the C bodies take integers by value and read no memory.
+            let (c32, c64) = unsafe { (ffi::av_popcount_c(lo), ffi::av_popcount64_c(x)) };
+            assert_eq!(count_ones(lo) as i32, c32, "{lo:#x}");
+            assert_eq!(count_ones64(x) as i32, c64, "{x:#x}");
+        }
+    }
+
+    #[test]
+    fn saturating_32_matches_c() {
+        let random = xorshift(11).take(600).map(|x| x as i32);
+        let ops: Vec<i32> = I32.into_iter().chain(random).collect();
+        for &a in &ops {
+            for &b in I32.iter().chain(&ops[..64]) {
+                // SAFETY: the C bodies take integers by value, read no memory,
+                // and widen to 64 bits before saturating, so no input overflows.
+                let c = unsafe {
+                    [
+                        ffi::av_sat_add32_c(a, b),
+                        ffi::av_sat_sub32_c(a, b),
+                        ffi::av_sat_dadd32_c(a, b),
+                        ffi::av_sat_dsub32_c(a, b),
+                    ]
+                };
+                let r = [
+                    saturating_add32(a, b),
+                    saturating_sub32(a, b),
+                    saturating_add_doubled32(a, b),
+                    saturating_sub_doubled32(a, b),
+                ];
+                assert_eq!(r, c, "a = {a}, b = {b}");
+            }
+        }
+    }
+
+    #[test]
+    fn saturating_64_matches_c() {
+        let random = xorshift(13).take(600).map(|x| x as i64);
+        let ops: Vec<i64> = I64.into_iter().chain(random).collect();
+        for &a in &ops {
+            for &b in I64.iter().chain(&ops[..64]) {
+                // SAFETY: the C bodies take integers by value, read no memory,
+                // and detect overflow with `__builtin_{add,sub}_overflow`.
+                let c = unsafe { [ffi::av_sat_add64_c(a, b), ffi::av_sat_sub64_c(a, b)] };
+                assert_eq!(
+                    [saturating_add64(a, b), saturating_sub64(a, b)],
+                    c,
+                    "a = {a}, b = {b}"
+                );
+            }
+        }
+    }
+}

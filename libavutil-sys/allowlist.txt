@@ -189,3 +189,34 @@ function av_get_random_seed
 function av_gettime
 function av_gettime_relative
 function av_gettime_relative_is_monotonic
+
+# libavutil core wave 0, batch 13: the safe wrappers' FFI calls.
+function av_parse_cpu_caps
+function av_random_bytes
+function av_realloc
+function av_realloc_array
+function av_realloc_f
+function av_reallocp
+function av_reallocp_array
+function av_size_mult
+function av_rescale
+function av_sscanf
+function av_strcasecmp
+function av_strerror
+function av_strireplace
+function av_stristart
+function av_stristr
+# The alignment `av_realloc` blocks keep (it calls plain `realloc`), which
+# equivalence tests check.
+type max_align_t
+# libavutil/common.h: the C references for the native popcount and saturating
+# arithmetic (equivalence tests; static inline, compiled by bindgen's
+# wrap_static_fns).
+function av_popcount_c
+function av_popcount64_c
+function av_sat_add32_c
+function av_sat_add64_c
+function av_sat_dadd32_c
+function av_sat_dsub32_c
+function av_sat_sub32_c
+function av_sat_sub64_c

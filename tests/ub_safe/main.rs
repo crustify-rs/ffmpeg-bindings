@@ -7,6 +7,7 @@ mod bprint;
 mod bswap;
 mod common;
 mod cpu;
+mod error;
 mod file;
 mod intfloat;
 mod intreadwrite;

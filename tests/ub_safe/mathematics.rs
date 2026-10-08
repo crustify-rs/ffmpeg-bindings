@@ -163,3 +163,34 @@ mod greatest_common_divisor {
         assert_eq!(gcd(0, 0), 0);
     }
 }
+
+// ---- av_rescale ----
+
+#[test]
+fn rescale_every_extreme_is_sound() {
+    use ffmpeg::libavutil::mathematics::rescale;
+    let v = [
+        i64::MIN,
+        i64::MIN + 1,
+        -(1 << 40),
+        -1,
+        0,
+        1,
+        i32::MAX as i64,
+        1 << 40,
+        i64::MAX,
+    ];
+    for a in v {
+        for b in v {
+            for c in v {
+                if let Some(r) = rescale(a, b, c) {
+                    assert_ne!(r, i64::MIN);
+                }
+            }
+        }
+    }
+    let r = std::thread::spawn(|| rescale(i64::MAX, i64::MAX, 3))
+        .join()
+        .unwrap();
+    assert_eq!(r, None);
+}

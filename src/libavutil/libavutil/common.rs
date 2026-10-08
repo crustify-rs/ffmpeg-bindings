@@ -14,6 +14,12 @@
 //! inherited from C: they never panic, returning `min` for `a < min` and
 //! otherwise `max` for `a > max` even when `min > max`, and the float ones
 //! return `min` for a NaN `a`.
+//!
+//! The bit-count and saturating-arithmetic helpers (`av_popcount_c`,
+//! `av_sat_add32_c` and their siblings) each have an exact counterpart in
+//! Rust's integer methods, which [`count_ones`], [`count_ones64`] and the
+//! `saturating_*` functions use directly instead of the C bodies; the
+//! equivalence tests compare them with those bodies.
 
 use core::ffi::c_int;
 
@@ -171,6 +177,80 @@ pub fn ceil_log2(x: i32) -> i32 {
     unsafe { ffi::av_ceil_log2_c(x) }
 }
 
+/// Replaces: av_popcount_c
+///
+/// The number of bits set in `x`, as [`u32::count_ones`].
+#[inline]
+#[must_use]
+pub const fn count_ones(x: u32) -> u32 {
+    x.count_ones()
+}
+
+/// Replaces: av_popcount64_c
+///
+/// The number of bits set in `x`, as [`u64::count_ones`].
+#[inline]
+#[must_use]
+pub const fn count_ones64(x: u64) -> u32 {
+    x.count_ones()
+}
+
+/// Replaces: av_sat_add32_c
+///
+/// `a + b`, saturated to the `i32` range.
+#[inline]
+#[must_use]
+pub const fn saturating_add32(a: i32, b: i32) -> i32 {
+    a.saturating_add(b)
+}
+
+/// Replaces: av_sat_sub32_c
+///
+/// `a - b`, saturated to the `i32` range.
+#[inline]
+#[must_use]
+pub const fn saturating_sub32(a: i32, b: i32) -> i32 {
+    a.saturating_sub(b)
+}
+
+/// Replaces: av_sat_dadd32_c
+///
+/// `a + 2 * b`, saturating both the doubling and the sum to the `i32` range:
+/// `sat(a + sat(2 * b))`.
+#[inline]
+#[must_use]
+pub const fn saturating_add_doubled32(a: i32, b: i32) -> i32 {
+    a.saturating_add(b.saturating_add(b))
+}
+
+/// Replaces: av_sat_dsub32_c
+///
+/// `a - 2 * b`, saturating both the doubling and the difference to the `i32`
+/// range: `sat(a - sat(2 * b))`.
+#[inline]
+#[must_use]
+pub const fn saturating_sub_doubled32(a: i32, b: i32) -> i32 {
+    a.saturating_sub(b.saturating_add(b))
+}
+
+/// Replaces: av_sat_add64_c
+///
+/// `a + b`, saturated to the `i64` range.
+#[inline]
+#[must_use]
+pub const fn saturating_add64(a: i64, b: i64) -> i64 {
+    a.saturating_add(b)
+}
+
+/// Replaces: av_sat_sub64_c
+///
+/// `a - b`, saturated to the `i64` range.
+#[inline]
+#[must_use]
+pub const fn saturating_sub64(a: i64, b: i64) -> i64 {
+    a.saturating_sub(b)
+}
+
 #[cfg(test)]
 mod unit_tests {
     use super::*;
@@ -269,5 +349,50 @@ mod unit_tests {
         for p in [32, 33, 64, u32::MAX] {
             assert_eq!(zero_extend(u32::MAX, p), None);
         }
+    }
+
+    #[test]
+    fn popcount_counts_set_bits() {
+        assert_eq!(count_ones(0), 0);
+        assert_eq!(count_ones(1), 1);
+        assert_eq!(count_ones(0x8000_0001), 2);
+        assert_eq!(count_ones(u32::MAX), 32);
+        assert_eq!(count_ones64(0), 0);
+        assert_eq!(count_ones64(u64::MAX), 64);
+        assert_eq!(count_ones64(0xF000_0000_0000_000F), 8);
+        const { assert!(count_ones(0xFF) == 8) };
+    }
+
+    #[test]
+    fn saturating_32_clamps_at_both_ends() {
+        assert_eq!(saturating_add32(i32::MAX, 1), i32::MAX);
+        assert_eq!(saturating_add32(i32::MIN, -1), i32::MIN);
+        assert_eq!(saturating_add32(-5, 3), -2);
+        assert_eq!(saturating_sub32(i32::MIN, 1), i32::MIN);
+        assert_eq!(saturating_sub32(i32::MAX, -1), i32::MAX);
+        assert_eq!(saturating_sub32(0, i32::MIN), i32::MAX);
+        assert_eq!(saturating_sub32(5, 7), -2);
+    }
+
+    #[test]
+    fn doubled_forms_saturate_the_doubling_first() {
+        // 2 * b saturates to i32::MIN, then a + i32::MIN does not overflow.
+        assert_eq!(saturating_add_doubled32(10, i32::MIN), i32::MIN + 10);
+        assert_eq!(saturating_add_doubled32(1, 3), 7);
+        assert_eq!(saturating_add_doubled32(i32::MAX, 1), i32::MAX);
+        // 2 * b saturates to i32::MAX, then -1 - i32::MAX is exactly i32::MIN.
+        assert_eq!(saturating_sub_doubled32(-1, i32::MAX), i32::MIN);
+        assert_eq!(saturating_sub_doubled32(0, i32::MIN), i32::MAX);
+        assert_eq!(saturating_sub_doubled32(7, 3), 1);
+    }
+
+    #[test]
+    fn saturating_64_clamps_at_both_ends() {
+        assert_eq!(saturating_add64(i64::MAX, 1), i64::MAX);
+        assert_eq!(saturating_add64(i64::MIN, i64::MIN), i64::MIN);
+        assert_eq!(saturating_add64(-5, 3), -2);
+        assert_eq!(saturating_sub64(i64::MIN, 1), i64::MIN);
+        assert_eq!(saturating_sub64(0, i64::MIN), i64::MAX);
+        assert_eq!(saturating_sub64(5, 7), -2);
     }
 }
