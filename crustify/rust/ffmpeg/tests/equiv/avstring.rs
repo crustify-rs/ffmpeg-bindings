@@ -792,14 +792,18 @@ mod paths_and_format {
             assert_eq!(bytes(&r), c.bytes(), "{text:?}");
             assert_eq!(r.is_some(), text.count_bytes() < LIMIT, "{text:?}");
         }
-        // Joins of 6, 7 and 8 bytes, through `av_malloc` and, with an empty
-        // side, through `av_strdup`.
-        let joins: [(&CStr, &CStr); 6] = [
+        // Joins around the limit. C allocates `path + component + 2` bytes
+        // whatever the join, so a join that merges or omits the slash fails
+        // one byte before its text and NUL would have exceeded the limit.
+        let joins: [(&CStr, &CStr); 9] = [
             (c"abc", c"de"),
             (c"abc", c"def"),
             (c"abcd", c"efg"),
+            (c"", c"abcdef"),
             (c"", c"abcdefg"),
             (c"abcdefgh", c""),
+            (c"ab/", c"cd"),
+            (c"abc/", c"def"),
             (c"abc/", c"/defg"),
         ];
         for (path, component) in joins {
@@ -809,6 +813,8 @@ mod paths_and_format {
             });
             let r = append_path_component(path, component);
             assert_eq!(bytes(&r), c.bytes(), "{path:?} + {component:?}");
+            let asked = path.count_bytes() + component.count_bytes() + 2;
+            assert_eq!(r.is_some(), asked <= LIMIT, "{path:?} + {component:?}");
         }
 
         // SAFETY: as above; the default limit again.

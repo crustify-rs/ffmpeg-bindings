@@ -837,6 +837,31 @@ mod item_name {
     }
 
     #[test]
+    fn class_pointer_slot_inside_a_larger_object() {
+        /// An object whose class pointer is an aligned member, but not its
+        /// allocation's first byte: the context points at the member.
+        #[repr(C)]
+        struct Outer {
+            prefix: [u8; 24],
+            class: *const ffi::AVClass,
+            payload: u64,
+        }
+
+        let outer = Box::new(Outer {
+            prefix: [0x5a; 24],
+            class: &NAMED.0,
+            payload: 7,
+        });
+        let ctx: *const c_void = (&raw const outer.class).cast();
+        // SAFETY: `ctx` is the aligned `class` member of the live `outer`,
+        // holding a non-NULL pointer to the static class whose name is a
+        // literal; no other thread writes either.
+        let name = unsafe { default_item_name(ctx) };
+        assert_eq!(name, Some(c"ub-unsafe-class"));
+        assert_eq!((outer.prefix[0], outer.payload), (0x5a, 7));
+    }
+
+    #[test]
     fn null_class_name_reads_as_none() {
         let cls = ffi::AVClass {
             class_name: null(),

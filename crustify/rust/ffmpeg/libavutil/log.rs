@@ -22,6 +22,7 @@
 use core::ffi::{CStr, c_char, c_int, c_uint, c_void};
 use core::fmt;
 use core::marker::PhantomData;
+use core::mem::align_of;
 use core::ops::{BitAnd, BitAndAssign, BitOr, BitOrAssign, Sub, SubAssign};
 use core::ptr;
 use std::ffi::CString;
@@ -1003,15 +1004,22 @@ pub fn clear_callback() {
 ///
 /// # Safety
 ///
-/// `ctx` must address a live `AVClass`-enabled object: readable memory that
-/// starts with a non-NULL `const AVClass *` to a live class. The class's
-/// `class_name`, when non-NULL, must be a NUL-terminated string that stays
-/// alive and unmodified for `'a`; a string literal, which every FFmpeg class
-/// stores, satisfies any `'a`. No other thread may write the object's class
-/// pointer or the class's `class_name` during the call.
+/// `ctx` must address a live `AVClass`-enabled object: a `const AVClass *`
+/// first member, readable and aligned for a pointer (C loads it as
+/// `*(AVClass **) ctx`, so a byte offset into a buffer does not qualify),
+/// holding a non-NULL pointer to a live class. The class's `class_name`, when
+/// non-NULL, must be a NUL-terminated string that stays alive and unmodified
+/// for `'a`; a string literal, which every FFmpeg class stores, satisfies any
+/// `'a`. No other thread may write the object's class pointer or the class's
+/// `class_name` during the call.
 pub unsafe fn default_item_name<'a>(ctx: *const c_void) -> Option<&'a CStr> {
-    // SAFETY: the caller vouches that `ctx` starts with a valid class pointer
-    // to a live class; `av_default_item_name` only reads both.
+    debug_assert!(
+        ctx.addr().is_multiple_of(align_of::<*const ffi::AVClass>()),
+        "context {ctx:p} is not aligned for its class pointer"
+    );
+    // SAFETY: the caller vouches that `ctx` is an aligned, readable class
+    // pointer slot holding a valid pointer to a live class;
+    // `av_default_item_name` only reads both.
     let name = unsafe { ffi::av_default_item_name(ctx.cast_mut()) };
     // SAFETY: a non-NULL `name` is the class's `class_name`, a NUL-terminated
     // string the caller guarantees alive and unmodified for `'a`.
@@ -1046,6 +1054,30 @@ mod unit_tests {
         let obj: *const ffi::AVClass = &nameless;
         // SAFETY: as above; the class stores NULL as its name.
         assert_eq!(unsafe { default_item_name((&raw const obj).cast()) }, None);
+    }
+
+    /// A context whose class pointer slot is misaligned is outside the
+    /// contract; the debug assertion reports it before C loads the pointer,
+    /// so no misaligned read happens.
+    #[cfg(debug_assertions)]
+    #[test]
+    #[should_panic(expected = "not aligned for its class pointer")]
+    fn default_item_name_rejects_a_misaligned_context_before_c() {
+        #[repr(C, align(8))]
+        struct Buf([u8; 16]);
+
+        let named = class(Some(c"unit-class"));
+        let mut buf = Buf([0; 16]);
+        let slot = buf
+            .0
+            .as_mut_ptr()
+            .wrapping_add(1)
+            .cast::<*const ffi::AVClass>();
+        // SAFETY: `slot` addresses bytes 1..9 of `buf`, inside the buffer.
+        unsafe { slot.write_unaligned(&raw const named) };
+        // SAFETY: `slot` breaks the alignment obligation on purpose; the
+        // debug assertion panics before the FFI call, so C never reads it.
+        let _ = unsafe { default_item_name(slot.cast()) };
     }
 
     #[test]
