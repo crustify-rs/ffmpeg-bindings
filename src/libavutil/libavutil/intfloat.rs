@@ -17,10 +17,10 @@
 //!
 //! [`IntFloat32`] is the header's 4-byte union of a `u32` and an `f32`, which
 //! C uses to reinterpret one as the other. It owns nothing and C has no
-//! routine that allocates, copies or frees one, so it is a plain `Copy` value.
-//! Both members span all 4 bytes and every bit pattern is a valid value of
-//! each, so either member reads back whatever was last written through the
-//! other, bit for bit, as in C.
+//! routine that allocates, copies or frees one, so it is a plain `Copy` value
+//! that compares and hashes bitwise. Both members span all 4 bytes and every
+//! bit pattern is a valid value of each, so either member reads back whatever
+//! was last written through the other, bit for bit, as in C.
 //!
 //! The header's conversion functions are the same punning as free functions:
 //! [`float_from_bits`] / [`float_to_bits`] (`av_int2float` / `av_float2int`)
@@ -28,6 +28,7 @@
 //! `av_double2int`).
 
 use core::fmt;
+use core::hash::{Hash, Hasher};
 use core::ptr::{addr_of, addr_of_mut};
 
 use ffibox::{CZeroable, define_ctype};
@@ -168,7 +169,7 @@ define_ctype!(
     /// [`IntFloat32::default`] (all zero), [`IntFloat32::from_bits`] or
     /// [`IntFloat32::from_float`], read it through
     /// [`as_ref`](IntFloat32::as_ref) and write it through
-    /// [`as_mut`](IntFloat32::as_mut).
+    /// [`as_mut`](IntFloat32::as_mut). Equality and hashing are bitwise.
     #[derive(Clone, Copy)]
     IntFloat32,
     IntFloat32Ref,
@@ -216,6 +217,23 @@ impl Default for IntFloat32 {
     /// All zero: `0` and `+0.0`.
     fn default() -> Self {
         Self::zeroed()
+    }
+}
+
+/// Bitwise equality, as C's `memcmp` of the two words: a NaN equals itself,
+/// and `0.0` differs from `-0.0`.
+impl PartialEq for IntFloat32 {
+    fn eq(&self, other: &Self) -> bool {
+        self.as_ref().bits() == other.as_ref().bits()
+    }
+}
+
+impl Eq for IntFloat32 {}
+
+/// Hashes the bits, consistent with the bitwise [`PartialEq`].
+impl Hash for IntFloat32 {
+    fn hash<H: Hasher>(&self, state: &mut H) {
+        self.as_ref().bits().hash(state)
     }
 }
 
@@ -488,5 +506,41 @@ mod unit_tests {
         let c = a;
         a.as_mut().set_float(1.0);
         assert_eq!((c.as_ref().bits(), a.as_ref().float()), (0x7f80_0001, 1.0));
+    }
+
+    fn hash_of<T: Hash>(v: &T) -> u64 {
+        use std::hash::{BuildHasher, RandomState};
+        // One fixed state for the whole test, as in `HashMap` lookups.
+        thread_local!(static STATE: RandomState = RandomState::new());
+        STATE.with(|s| s.hash_one(v))
+    }
+
+    #[test]
+    fn intfloat32_equality_and_hash_are_bitwise() {
+        fn eq_hash<T: Eq + Hash>() {}
+        eq_hash::<IntFloat32>();
+
+        let nan = IntFloat32::from_bits(0x7fc0_1234);
+        assert_eq!(nan, nan);
+        assert_eq!(nan, IntFloat32::from_float(f32::from_bits(0x7fc0_1234)));
+        assert_ne!(nan, IntFloat32::from_bits(0x7fc0_1235));
+        assert_ne!(IntFloat32::from_float(0.0), IntFloat32::from_float(-0.0));
+        assert_eq!(
+            IntFloat32::from_float(1.5),
+            IntFloat32::from_bits(0x3fc0_0000)
+        );
+        assert_eq!(IntFloat32::default(), IntFloat32::zeroed());
+
+        assert_eq!(hash_of(&nan), hash_of(&0x7fc0_1234u32));
+        assert_eq!(
+            hash_of(&IntFloat32::from_float(-0.0)),
+            hash_of(&(1u32 << 31))
+        );
+        let mut seen = std::collections::HashSet::new();
+        for bits in [0, 1, 1 << 31, 0x7fc0_1234, u32::MAX, 0, 1] {
+            seen.insert(IntFloat32::from_bits(bits));
+        }
+        assert_eq!(seen.len(), 5);
+        assert!(seen.contains(&IntFloat32::from_float(f32::from_bits(u32::MAX))));
     }
 }
