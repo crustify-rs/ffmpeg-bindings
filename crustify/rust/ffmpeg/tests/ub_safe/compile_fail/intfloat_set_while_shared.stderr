@@ -1,0 +1,9 @@
+error[E0502]: cannot borrow `m` as mutable because it is also borrowed as immutable
+ --> tests/ub_safe/compile_fail/intfloat_set_while_shared.rs
+  |
+  |     let r = m.as_ref();
+  |             - immutable borrow occurs here
+  |     m.set_bits(2);
+  |     ^^^^^^^^^^^^^ mutable borrow occurs here
+  |     println!("{}", r.bits());
+  |                    - immutable borrow later used here

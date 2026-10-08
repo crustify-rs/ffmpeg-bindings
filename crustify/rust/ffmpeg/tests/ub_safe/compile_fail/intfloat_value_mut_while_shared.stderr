@@ -1,0 +1,9 @@
+error[E0502]: cannot borrow `v` as mutable because it is also borrowed as immutable
+ --> tests/ub_safe/compile_fail/intfloat_value_mut_while_shared.rs
+  |
+  |     let r = v.as_ref();
+  |             - immutable borrow occurs here
+  |     v.as_mut().set_float(2.0);
+  |     ^^^^^^^^^^ mutable borrow occurs here
+  |     println!("{}", r.float());
+  |                    - immutable borrow later used here
