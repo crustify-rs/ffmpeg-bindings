@@ -49,3 +49,18 @@ function av_rescale_rnd
 function av_bprint_init
 function av_bprint_chars
 var AV_BPRINT_SIZE_AUTOMATIC
+
+# libavutil/opt.h: AVOptionRanges' lifecycle (core wave 0, AVOption / AVOptionRanges).
+function av_opt_query_ranges
+function av_opt_query_ranges_default
+function av_opt_freep_ranges
+var AV_OPT_SEARCH_CHILDREN
+var AV_OPT_SEARCH_FAKE_OBJ
+var AV_OPT_MULTI_COMPONENT_RANGE
+
+# libavutil/opt.h: option lookup and defaults, which the AVOption tests compare
+# the safe getters against.
+function av_opt_find
+function av_opt_next
+function av_opt_set_defaults2
+function av_opt_free

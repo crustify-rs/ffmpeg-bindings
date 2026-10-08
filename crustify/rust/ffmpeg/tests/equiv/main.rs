@@ -8,3 +8,4 @@ mod intreadwrite;
 mod log;
 mod mathematics;
 mod mem;
+mod opt;

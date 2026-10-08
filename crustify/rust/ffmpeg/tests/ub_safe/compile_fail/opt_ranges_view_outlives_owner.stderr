@@ -1,0 +1,8 @@
+error[E0515]: cannot return value referencing function parameter `b`
+ --> tests/ub_safe/compile_fail/opt_ranges_view_outlives_owner.rs
+  |
+  |     b.as_ref().ranges()
+  |     -^^^^^^^^^^^^^^^^^^
+  |     |
+  |     returns a value referencing data owned by the current function
+  |     `b` is borrowed here

@@ -1,0 +1,7 @@
+error: lifetime may not live long enough
+ --> tests/ub_safe/compile_fail/opt_option_string_outlives_handle.rs
+  |
+  | fn name<'a>(o: OptionDefRef<'a>) -> &'static CStr {
+  |         -- lifetime `'a` defined here
+  |     o.name().unwrap()
+  |     ^^^^^^^^^^^^^^^^^ returning this value requires that `'a` must outlive `'static`
