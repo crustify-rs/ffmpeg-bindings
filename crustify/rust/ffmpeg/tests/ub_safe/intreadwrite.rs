@@ -1,14 +1,22 @@
-//! UB tests for `libavutil/intreadwrite.h`'s `Unaligned64` and `av_alias*`
+//! UB tests for `libavutil/intreadwrite.h`'s `unaligned_N` and `av_alias*`
 //! values, through the safe API only. Tests named `heap_*` reach the C
 //! allocator; the rest are FFI-free and run under Miri.
+//!
+//! The `unaligned_N` views are swept over every misaligned address up to the
+//! end of exactly sized Rust and C buffers, as inline values embedded at odd
+//! offsets, as `av_malloc`-family blocks, and across threads for the asserted
+//! `Send` / `Sync`.
 //!
 //! The `av_alias*` values have every view read after every write, on
 //! Rust-owned values, handles and reborrows, on C-allocated owners, and across
 //! threads.
 
+use std::thread;
+
 use ffibox::CZeroable;
 use ffmpeg::libavutil::intreadwrite::{
-    Alias16, Alias16Mut, Alias32, Alias32Mut, Unaligned64, Unaligned64Mut, Unaligned64Ref,
+    Alias16, Alias16Mut, Alias32, Alias32Mut, Unaligned16, Unaligned16Mut, Unaligned16Ref,
+    Unaligned32, Unaligned32Mut, Unaligned32Ref, Unaligned64, Unaligned64Mut, Unaligned64Ref,
 };
 use ffmpeg::libavutil::mem::{HeapBox, HeapVec, alloc_array_zeroed, alloc_cell_array_zeroed};
 
@@ -373,4 +381,217 @@ fn heap_exclusive_handles_write_on_another_thread() {
     assert_eq!((h.get(0).unwrap().u32(), h.get(1).unwrap().u32()), (1, 2));
     assert_eq!(a.as_ref().f32().to_bits(), 0xff80_0000);
     assert_eq!(b.as_ref().u8x2(), [0xff, 0x00]);
+}
+
+// `Unaligned16` and `Unaligned32`.
+
+/// Writes then reads back through views at every offset of `buf`, the last
+/// one ending on its final byte.
+fn sweep(buf: &mut [u8]) {
+    for off in 0..=buf.len() - 2 {
+        let v = 0xa000 | off as u16;
+        Unaligned16Mut::from_bytes(buf[off..].first_chunk_mut().unwrap()).set_value(v);
+        assert_eq!(
+            Unaligned16Ref::from_bytes(buf[off..].first_chunk().unwrap()).value(),
+            v
+        );
+    }
+    for off in 0..=buf.len() - 4 {
+        let v = 0xb000_0000 | off as u32;
+        Unaligned32Mut::from_bytes(buf[off..].first_chunk_mut().unwrap()).set_value(v);
+        assert_eq!(
+            Unaligned32Ref::from_bytes(buf[off..].first_chunk().unwrap()).value(),
+            v
+        );
+    }
+}
+
+#[test]
+fn byte_views_stay_in_bounds_of_an_exact_rust_buffer() {
+    for len in [4, 5, 7, 8, 13] {
+        let mut buf = vec![0u8; len].into_boxed_slice();
+        sweep(&mut buf);
+    }
+}
+
+#[test]
+fn heap_byte_views_stay_in_bounds_of_an_exact_c_buffer() {
+    for len in [4, 5, 7, 8, 13] {
+        let mut buf = alloc_array_zeroed::<u8>(len).unwrap();
+        sweep(buf.as_mut_slice());
+    }
+}
+
+#[test]
+fn byte_views_cover_exactly_their_array() {
+    // Views over the two bytes, or four, that end a 4-byte allocation: the
+    // array type fixes the width, so no read or write runs past it.
+    let mut buf = vec![0u8; 4].into_boxed_slice();
+    let tail = buf.last_chunk_mut::<2>().unwrap();
+    Unaligned16Mut::from_bytes(tail).set_value(u16::MAX);
+    assert_eq!(
+        Unaligned16Ref::from_bytes(buf.last_chunk().unwrap()).value(),
+        u16::MAX
+    );
+    assert_eq!(buf[..2], [0, 0]);
+    let whole = buf.first_chunk_mut::<4>().unwrap();
+    Unaligned32Mut::from_bytes(whole).set_value(0);
+    assert!(buf.iter().all(|&b| b == 0));
+}
+
+#[test]
+fn inline_values_at_odd_offsets_read_and_write_unaligned() {
+    // Align 1, so each field lands on an odd address for its integer.
+    #[derive(Default)]
+    struct Packed {
+        _pad: u8,
+        a: Unaligned32,
+        _pad2: u8,
+        b: Unaligned16,
+        c: [Unaligned32; 3],
+    }
+    let mut p = Box::<Packed>::default();
+    p.a.as_mut().set_value(u32::MAX);
+    p.b.as_mut().set_value(0x1234);
+    for (i, c) in p.c.iter_mut().enumerate() {
+        c.as_mut().set_value(i as u32 + 1);
+    }
+    assert_eq!(p.a.as_ref().value(), u32::MAX);
+    assert_eq!(p.b.as_ref().value(), 0x1234);
+    assert_eq!(p.c.map(u32::from), [1, 2, 3]);
+}
+
+#[test]
+fn heap_boxes_allocate_clone_and_free() {
+    let mut a = HeapBox::<Unaligned16>::new_zeroed().unwrap();
+    assert_eq!(a.as_ref().value(), 0);
+    a.as_mut().set_value(0xbeef);
+    let b = a.clone();
+    a.as_mut().set_value(1);
+    assert_eq!(b.as_ref().value(), 0xbeef);
+    assert_eq!(a.as_ref().value(), 1);
+
+    let mut c = HeapBox::<Unaligned32>::new_zeroed().unwrap();
+    c.as_mut().set_value(u32::MAX);
+    let d = c.clone();
+    drop(c);
+    assert_eq!(d.as_ref().value(), u32::MAX);
+}
+
+#[test]
+fn heap_arrays_hand_out_handles_in_bounds() {
+    let mut a = alloc_cell_array_zeroed::<Unaligned32>(5).unwrap();
+    let mut h = a.as_handles_mut();
+    for i in 0..5 {
+        h.get_mut(i).unwrap().set_value(i as u32 * 3);
+    }
+    assert!(h.get_mut(5).is_none());
+    let s = a.as_handles();
+    assert_eq!(
+        s.iter().map(|r| r.value()).collect::<Vec<_>>(),
+        [0, 3, 6, 9, 12]
+    );
+    assert!(s.get(5).is_none());
+
+    let b = alloc_cell_array_zeroed::<Unaligned16>(3).unwrap();
+    assert!(b.as_handles().iter().all(|r| r.value() == 0));
+}
+
+#[test]
+fn shared_views_read_concurrently() {
+    let bytes = [0x11u8, 0x22, 0x33, 0x44, 0x55];
+    let r32 = Unaligned32Ref::from_bytes(bytes[1..].first_chunk().unwrap());
+    let r16 = Unaligned16Ref::from_bytes(bytes[3..].first_chunk().unwrap());
+    let want = (r32.value(), r16.value());
+    let value = Unaligned32::new(9);
+    thread::scope(|s| {
+        let readers: Vec<_> = (0..4)
+            .map(|_| s.spawn(move || (0..100).all(|_| (r32.value(), r16.value()) == want)))
+            .collect();
+        for t in readers {
+            assert!(t.join().unwrap());
+        }
+        // `&Unaligned32Ref` and a shared `&Unaligned32` cross too.
+        let (rr, vr) = (&r32, &value);
+        s.spawn(move || assert_eq!((rr.value(), vr.as_ref().value()), (want.0, 9)));
+    });
+}
+
+#[test]
+fn exclusive_views_write_disjoint_chunks_on_other_threads() {
+    let mut buf = vec![0u8; 4 * 8 + 1].into_boxed_slice();
+    thread::scope(|s| {
+        // Offset 1: every chunk is misaligned for `u32`.
+        for (i, chunk) in buf[1..].as_chunks_mut::<4>().0.iter_mut().enumerate() {
+            let mut m = Unaligned32Mut::from_bytes(chunk);
+            s.spawn(move || {
+                for k in 0..100 {
+                    m.set_value(i as u32 * 1000 + k);
+                }
+                // A shared `&Unaligned32Mut` reaches the getter from more
+                // threads, once the writes are done.
+                let shared = &m;
+                thread::scope(|s| {
+                    for _ in 0..2 {
+                        s.spawn(move || assert_eq!(shared.as_ref().value(), i as u32 * 1000 + 99));
+                    }
+                });
+            });
+        }
+    });
+    for (i, chunk) in buf[1..].as_chunks::<4>().0.iter().enumerate() {
+        assert_eq!(
+            Unaligned32Ref::from_bytes(chunk).value(),
+            i as u32 * 1000 + 99
+        );
+    }
+    assert_eq!(buf[0], 0);
+}
+
+#[test]
+fn values_and_their_handles_move_between_threads() {
+    let v = Unaligned16::new(7);
+    let back = thread::spawn(move || {
+        let mut v = v;
+        v.as_mut().set_value(8);
+        v
+    })
+    .join()
+    .unwrap();
+    assert_eq!(back.as_ref().value(), 8);
+
+    let mut w = Unaligned32::new(0);
+    let mut wm = w.as_mut();
+    thread::scope(|s| {
+        s.spawn(|| wm.set_value(5));
+    });
+    assert_eq!(w.as_ref().value(), 5);
+
+    let mut x = Unaligned16::new(0);
+    thread::scope(|s| {
+        let m = x.as_mut();
+        s.spawn(move || {
+            let mut m = m;
+            m.set_value(3);
+        });
+    });
+    assert_eq!(x.as_ref().value(), 3);
+}
+
+#[test]
+fn heap_boxes_cross_threads() {
+    let mut b = HeapBox::<Unaligned32>::new_zeroed().unwrap();
+    b.as_mut().set_value(42);
+    let b = thread::spawn(move || {
+        let c = b.clone();
+        drop(b);
+        c
+    })
+    .join()
+    .unwrap();
+    thread::scope(|s| {
+        let r = b.as_ref();
+        s.spawn(move || assert_eq!(r.value(), 42));
+        s.spawn(move || assert_eq!(r.value(), 42));
+    });
 }

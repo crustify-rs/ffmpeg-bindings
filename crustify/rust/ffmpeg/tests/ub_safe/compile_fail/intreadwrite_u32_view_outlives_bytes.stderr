@@ -1,0 +1,11 @@
+error[E0597]: `bytes` does not live long enough
+ --> tests/ub_safe/compile_fail/intreadwrite_u32_view_outlives_bytes.rs
+  |
+  |     let view = {
+  |         ---- borrow later stored here
+  |         let bytes = [1u8, 2, 3, 4];
+  |             ----- binding `bytes` declared here
+  |         Unaligned32Ref::from_bytes(&bytes)
+  |                                    ^^^^^^ borrowed value does not live long enough
+  |     };
+  |     - `bytes` dropped here while still borrowed

@@ -1,0 +1,15 @@
+error[E0597]: `bytes` does not live long enough
+ --> tests/ub_safe/compile_fail/intreadwrite_view_sent_past_bytes.rs
+  |
+  |     let bytes = [0u8; 2];
+  |         ----- binding `bytes` declared here
+  |     let view = Unaligned16Ref::from_bytes(&bytes);
+  |                                           ^^^^^^ borrowed value does not live long enough
+  |     let t = std::thread::spawn(move || view.value());
+  |             ---------------------------------------- argument requires that `bytes` is borrowed for `'static`
+  |     t.join().unwrap();
+  | }
+  | - `bytes` dropped here while still borrowed
+  |
+note: requirement that the value outlives `'static` introduced here
+ --> $RUST/std/src/thread/functions.rs

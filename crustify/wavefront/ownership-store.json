@@ -83,6 +83,30 @@
    ]
   },
   {
+   "name": "unaligned_16",
+   "defined_in": "libavutil/intreadwrite.h",
+   "_comment_agent": "Packed (align 1), may_alias single-member union { uint16_t l; } declared only under __GNUC__/__clang__ (the composer records it as a struct). It owns nothing, has no lifecycle routine, and is never allocated or passed by pointer by any function: its sole use is the AV_RN(16, p) / AV_WN(16, p, v) macros (and AV_COPY16U built on them, e.g. mem.c fill16/fill32/av_memcpy_backptr), which cast an arbitrary (possibly misaligned) byte pointer to (const) union unaligned_16 * and read or store `l` in native byte order for one expression. Field `l` is a by-value scalar: any bit pattern is valid, all-zero included, no lock guards it (callers synchronise the byte buffer they cast).",
+   "fields": [
+    {
+     "name": "l",
+     "refcount": false,
+     "locked_by": null
+    }
+   ]
+  },
+  {
+   "name": "unaligned_32",
+   "defined_in": "libavutil/intreadwrite.h",
+   "_comment_agent": "Packed (align 1), may_alias single-member union { uint32_t l; } declared only under __GNUC__/__clang__ (the composer records it as a struct). It owns nothing, has no lifecycle routine, and is never allocated or passed by pointer by any function: its sole use is the AV_RN(32, p) / AV_WN(32, p, v) macros (and AV_COPY32U built on them, e.g. mem.c fill16/fill32/av_memcpy_backptr), which cast an arbitrary (possibly misaligned) byte pointer to (const) union unaligned_32 * and read or store `l` in native byte order for one expression. Field `l` is a by-value scalar: any bit pattern is valid, all-zero included, no lock guards it (callers synchronise the byte buffer they cast).",
+   "fields": [
+    {
+     "name": "l",
+     "refcount": false,
+     "locked_by": null
+    }
+   ]
+  },
+  {
    "name": "unaligned_64",
    "defined_in": "libavutil/intreadwrite.h",
    "_comment_agent": "Packed (align 1, size 8), may_alias (av_alias) union over one uint64_t; no pointer fields and no lifecycle routine. C never allocates or frees it: AV_RN(64,p)/AV_WN(64,p,v) cast an arbitrary byte pointer to `union unaligned_64 *` and read/write `->l` for one native-endian unaligned 64-bit access (the GCC/clang branch of intreadwrite.h). Every toucher (e.g. mem.c fill32, aes.c addkey_*, adler32.c av_adler32_update) does exactly that on caller-owned byte buffers for the duration of one expression; nothing stores or retains the pointer and nothing synchronizes it. Ownership is therefore the byte storage's: a by-value plain datum, or a transient borrowed view over 8 bytes. All-zero and every bit pattern are valid.",
