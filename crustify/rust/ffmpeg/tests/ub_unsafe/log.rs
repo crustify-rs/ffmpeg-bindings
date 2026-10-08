@@ -65,8 +65,9 @@ unsafe extern "C" fn get_category(_: *mut c_void) -> ffi::AVClassCategory {
 }
 
 /// The classes the contexts use: plain, with callbacks, with a category C
-/// rejects (`NB` and above), and too old for offsets and categories.
-fn classes() -> [ffi::AVClass; 4] {
+/// rejects (`NB` and above), too old for offsets and categories, and of a
+/// release (micro 100) too old for categories, which C checks apart.
+fn classes() -> [ffi::AVClass; 5] {
     let base = ffi::AVClass {
         class_name: c"plain".as_ptr(),
         version: VERSION,
@@ -93,6 +94,11 @@ fn classes() -> [ffi::AVClass; 4] {
             version: 50 << 16,
             ..base
         },
+        ffi::AVClass {
+            class_name: c"old-release".as_ptr(),
+            version: 50 << 16 | 100,
+            ..base
+        },
     ]
 }
 
@@ -110,7 +116,7 @@ const OFFSETS: [(c_int, &[c_int]); 5] = [
 /// class without a parent, with a parent of each class, and with a parent
 /// whose class is NULL. Returned with the parents, which must outlive them;
 /// neither vector grows after it is built, so the addresses stay put.
-fn contexts(classes: &[ffi::AVClass; 4], offset: c_int) -> (Vec<Ctx>, Vec<Ctx>) {
+fn contexts(classes: &[ffi::AVClass; 5], offset: c_int) -> (Vec<Ctx>, Vec<Ctx>) {
     let mut parents: Vec<Ctx> = classes
         .iter()
         .map(|c| Ctx {

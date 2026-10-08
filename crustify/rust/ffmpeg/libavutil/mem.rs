@@ -1019,13 +1019,57 @@ impl std::error::Error for BackReferenceError {}
 ///
 /// Fails without touching `buf` when the source would start before it, the
 /// destination would end past it, or `back` or `len` exceeds `c_int::MAX`.
+///
+/// The longest runs at a distance above 4 are filled by several C calls of
+/// shorter runs: `av_memcpy_backptr` copies such a run in blocks doubling
+/// from `back` bytes in an `int`, which overflows once a block of 2^30 bytes
+/// or more leaves part of the run to copy (a run longer than the distance,
+/// for distances of 2^30 and more), and then copies with the wrapped length.
 pub fn copy_back_reference(
     buf: &mut [u8],
     dst: usize,
     back: usize,
     len: usize,
 ) -> Result<(), BackReferenceError> {
-    let (Ok(c_back), Ok(c_len)) = (c_int::try_from(back), c_int::try_from(len)) else {
+    // A distance beyond `c_int` is rejected below; its bound is never used.
+    let max_run = max_back_reference_run(back.min(c_int::MAX as usize));
+    copy_back_reference_in_runs(buf, dst, back, len, max_run)
+}
+
+/// The block length from which `av_memcpy_backptr`'s doubling block copy
+/// (`back > 4`, a run of 16 bytes or more) can no longer double within an
+/// `int`.
+const BACK_REFERENCE_BLOCK_LIMIT: usize = 1 << 30;
+
+/// The longest run `av_memcpy_backptr` fills at distance `back`, a distance
+/// within `c_int`, without overflowing its block length.
+///
+/// For `back > 4` and a run of at least 16 bytes, C doubles a block from
+/// `back` bytes as long as the rest of the run exceeds the block, then copies
+/// the rest; the block reaching `2^30` first, `B`, is doubled only when the
+/// run exceeds `2 * B - back`, and that doubling overflows `int`. The other
+/// distances copy without a block length.
+fn max_back_reference_run(back: usize) -> usize {
+    if back <= 4 {
+        return c_int::MAX as usize;
+    }
+    let mut block = back;
+    while block < BACK_REFERENCE_BLOCK_LIMIT {
+        block <<= 1;
+    }
+    2 * block - back
+}
+
+/// [`copy_back_reference`] through C calls of at most `max_run` bytes each,
+/// which fill the same bytes: every run reads only bytes before it.
+fn copy_back_reference_in_runs(
+    buf: &mut [u8],
+    dst: usize,
+    back: usize,
+    len: usize,
+    max_run: usize,
+) -> Result<(), BackReferenceError> {
+    let (Ok(c_back), Ok(_)) = (c_int::try_from(back), c_int::try_from(len)) else {
         return Err(BackReferenceError::TooLong);
     };
     if dst.checked_add(len).is_none_or(|end| end > buf.len()) {
@@ -1034,16 +1078,29 @@ pub fn copy_back_reference(
     if back > dst {
         return Err(BackReferenceError::BeforeStart);
     }
-    // SAFETY: `dst <= buf.len()`, so the offset stays within (or one past)
-    // `buf`, and the pointer derives from the whole mutable slice.
-    let at = unsafe { buf.as_mut_ptr().add(dst) };
-    // SAFETY: C reads `buf[dst - back..dst + len - back]` and writes
-    // `buf[dst..dst + len]`, both inside `buf` since `back <= dst` and
-    // `dst + len <= buf.len()`; even the empty copy's reads of up to
-    // `min(back, 4)` bytes before `dst` stay at or after `buf[0]`. Nothing
-    // else accesses `buf` while the exclusive borrow lasts.
-    unsafe { ffi::av_memcpy_backptr(at, c_back, c_len) };
-    Ok(())
+    debug_assert!(max_run >= 1, "a run must make progress");
+    let mut done = 0;
+    loop {
+        let run = (len - done).min(max_run);
+        // `run <= len`, which fits a `c_int`.
+        let c_run = run as c_int;
+        // SAFETY: `dst + done <= dst + len <= buf.len()`, so the offset stays
+        // within (or one past) `buf`, and the pointer derives from the whole
+        // mutable slice.
+        let at = unsafe { buf.as_mut_ptr().add(dst + done) };
+        // SAFETY: C reads `buf[dst + done - back..dst + done + run - back]`
+        // and writes `buf[dst + done..dst + done + run]`, both inside `buf`
+        // since `back <= dst` and `dst + done + run <= dst + len <=
+        // buf.len()`; even the empty copy's reads of up to `min(back, 4)`
+        // bytes before `dst` stay at or after `buf[0]`. `run` is within
+        // `max_back_reference_run(back)`, so C's block length never overflows.
+        // Nothing else accesses `buf` while the exclusive borrow lasts.
+        unsafe { ffi::av_memcpy_backptr(at, c_back, c_run) };
+        done += run;
+        if done == len {
+            return Ok(());
+        }
+    }
 }
 
 #[cfg(test)]
@@ -1165,6 +1222,102 @@ mod unit_tests {
         copy_back_reference(&mut one, 0, 0, 1).unwrap();
         copy_back_reference(&mut one, 1, 1, 0).unwrap();
         assert_eq!(one, [9]);
+    }
+
+    /// `av_memcpy_backptr`'s doubling block copy, as C runs it in `int`
+    /// arithmetic: whether the block length overflows for a run of `len` at
+    /// distance `back`.
+    fn c_block_overflows(back: usize, len: usize) -> bool {
+        if back <= 4 || len < 16 {
+            return false;
+        }
+        let (mut block, mut rest) = (back as i64, len as i64);
+        while rest > block {
+            rest -= block;
+            block <<= 1;
+            if block > i64::from(c_int::MAX) {
+                return true;
+            }
+        }
+        false
+    }
+
+    #[test]
+    fn max_back_reference_run_is_the_last_run_c_copies_without_overflow() {
+        let max = c_int::MAX as usize;
+        for back in [0, 1, 4] {
+            assert_eq!(max_back_reference_run(back), max, "{back}");
+            assert!(!c_block_overflows(back, max), "{back}");
+        }
+        // Distances whose first block of 2^30 or more leaves room for every
+        // run up to `INT_MAX`.
+        for back in [5, 6, 7, (1 << 30) - 1] {
+            assert!(max_back_reference_run(back) >= max, "{back}");
+            assert!(!c_block_overflows(back, max), "{back}");
+        }
+        // Distances whose first block of 2^30 or more is their double.
+        for (back, block) in [(1 << 29, 1 << 30), ((1 << 29) + 1, (1 << 30) + 2)] {
+            assert_eq!(max_back_reference_run(back), 2 * block - back, "{back}");
+        }
+        // Distances of 2^30 and more: the run may be as long as the distance.
+        for back in [1 << 30, (1 << 30) + 1, (3 << 29) + 7, max - 1, max] {
+            let run = max_back_reference_run(back);
+            assert_eq!(run, back, "{back}");
+            assert!(!c_block_overflows(back, run), "{back}");
+            if run < max {
+                assert!(c_block_overflows(back, run + 1), "{back}");
+            }
+        }
+        // Around the smallest distance whose bound is below `INT_MAX`.
+        for back in (5..64).chain(((1 << 29) - 3)..((1 << 29) + 3)) {
+            let run = max_back_reference_run(back);
+            assert!(!c_block_overflows(back, run.min(max)), "{back}");
+            if run < max {
+                assert!(c_block_overflows(back, run + 1), "{back}");
+            }
+        }
+    }
+
+    #[test]
+    fn back_references_in_short_runs_expand_byte_by_byte() {
+        // Every run bound down to one byte, over every fill path, against
+        // the one-call expansion.
+        for back in [0, 1, 2, 3, 4, 5, 6, 9, 16, 17, 20] {
+            for len in [0, 1, 7, 15, 16, 17, 31, 33, 64, 100] {
+                for max_run in [1, 2, 3, 5, 7, 16, 17, 64, 99, 100, usize::MAX] {
+                    let mut want: Vec<u8> = (0..200).map(|i| i as u8 ^ 0x5a).collect();
+                    let mut got = want.clone();
+                    let dst = 24;
+                    expand(&mut want, dst, back, len);
+                    copy_back_reference_in_runs(&mut got, dst, back, len, max_run).unwrap();
+                    assert_eq!(got, want, "back {back} len {len} runs of {max_run}");
+                }
+            }
+        }
+    }
+
+    #[test]
+    fn back_references_in_runs_reject_before_the_first_call() {
+        use BackReferenceError::*;
+        let mut buf = [7u8; 8];
+        assert_eq!(
+            copy_back_reference_in_runs(&mut buf, 4, 5, 1, 1),
+            Err(BeforeStart)
+        );
+        assert_eq!(
+            copy_back_reference_in_runs(&mut buf, 4, 1, 5, 1),
+            Err(PastEnd)
+        );
+        let big = c_int::MAX as usize + 1;
+        assert_eq!(
+            copy_back_reference_in_runs(&mut buf, 4, big, 1, 1),
+            Err(TooLong)
+        );
+        assert_eq!(
+            copy_back_reference_in_runs(&mut buf, 4, 1, big, 1),
+            Err(TooLong)
+        );
+        assert_eq!(buf, [7; 8]);
     }
 
     #[test]

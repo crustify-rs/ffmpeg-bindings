@@ -671,6 +671,29 @@ fn oversized_back_references_are_rejected() {
     );
 }
 
+/// A run long enough for C's doubling block copy to double a block of 2^30
+/// bytes: the distance 2^30 and one byte more than it, in a buffer of
+/// 2 GiB + 1 whose first and last source bytes are marked. Only the written
+/// gibibyte is ever touched; the source stays on zero pages. Not under BSan
+/// or TSan, whose shadow of a 2 GiB buffer is impractical.
+#[test]
+fn back_references_past_the_doubling_bound_stay_inside() {
+    let variant = std::env::var("CRUSTIFY_FFMPEG_VARIANT");
+    if matches!(variant.as_deref(), Ok("bsan") | Ok("tsan")) {
+        return;
+    }
+    let back = 1usize << 30;
+    let len = back + 1;
+    let mut buf = vec![0u8; back + len];
+    buf[0] = 1;
+    buf[back - 1] = 2;
+    copy_back_reference(&mut buf, back, back, len).unwrap();
+    assert_eq!(buf[back], 1);
+    assert_eq!(buf[2 * back - 1], 2);
+    assert_eq!(buf[2 * back], 1);
+    assert_eq!(buf[back + 1], 0);
+}
+
 #[test]
 fn back_references_run_concurrently_on_separate_buffers() {
     let handles: Vec<_> = (1..=4)

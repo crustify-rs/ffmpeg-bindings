@@ -1,6 +1,6 @@
 //! Safe wrappers over `libavutil/avstring.h`.
 //!
-//! [`format`] and [`append_path_component`] return a [`HeapString`]: an
+//! [`format()`] and [`append_path_component`] return a [`HeapString`]: an
 //! `av_malloc`-family string the caller owns, released by `av_free`.
 //! [`basename`] borrows from its argument instead.
 //!
