@@ -1,12 +1,14 @@
 //! Equivalence of `libavutil/intfloat.h`'s `IntFloat64` with C's
 //! `union av_intfloat64`, whose reinterpretation `av_int2double` and
-//! `av_double2int` perform in C, on independently owned values.
+//! `av_double2int` perform in C, on independently owned values; and of its
+//! `IntFloat32` with `union av_intfloat32`, through `av_int2float` and
+//! `av_float2int`.
 
 use core::mem::{align_of, offset_of, size_of};
 
 use ffibox::CZeroable;
 use ffmpeg::libavutil::ffi;
-use ffmpeg::libavutil::intfloat::{IntFloat64, IntFloat64Mut, IntFloat64Ref};
+use ffmpeg::libavutil::intfloat::{IntFloat32, IntFloat64, IntFloat64Mut, IntFloat64Ref};
 use ffmpeg::libavutil::mem::{HeapBox, alloc_cell_array_zeroed};
 
 /// Bit patterns at every class edge of a `double`, NaN payloads included, and
@@ -189,4 +191,101 @@ fn copies_diverge_as_c_copies_do() {
     apply(&mut a.as_mut(), &mut ca, Step::Float(BITS[5]));
     compare(a.as_ref(), &ca, Step::Float(BITS[5]));
     compare(b.as_ref(), &cb, Step::Bits(BITS[7]));
+}
+
+/// Zeros, subnormals, normals, infinities, quiet and signalling NaNs with
+/// payloads, in both signs.
+const EDGES32: [u32; 16] = [
+    0x0000_0000,
+    0x8000_0000,
+    0x0000_0001,
+    0x807f_ffff,
+    0x0080_0000,
+    0x3f80_0000,
+    0xbf80_0000,
+    0x7f7f_ffff,
+    0x7f80_0000,
+    0xff80_0000,
+    0x7fc0_0000,
+    0xffc0_0001,
+    0x7f80_0001,
+    0xffbf_ffff,
+    0x5555_5555,
+    0xffff_ffff,
+];
+
+/// The edges, then a deterministic sweep of the whole range.
+fn inputs32() -> impl Iterator<Item = u32> {
+    let mut x = 0x2545_f491_u32;
+    EDGES32.into_iter().chain((0..4096).map(move |_| {
+        // xorshift32
+        x ^= x << 13;
+        x ^= x >> 17;
+        x ^= x << 5;
+        x
+    }))
+}
+
+fn c_int2float(bits: u32) -> u32 {
+    // SAFETY: `av_int2float` takes its argument by value and has no
+    // preconditions.
+    let f = unsafe { ffi::av_int2float(bits) };
+    f.to_bits()
+}
+
+fn c_float2int(f: f32) -> u32 {
+    // SAFETY: as `c_int2float`.
+    unsafe { ffi::av_float2int(f) }
+}
+
+#[test]
+fn intfloat32_layout_matches_the_c_union() {
+    assert_eq!(size_of::<IntFloat32>(), size_of::<ffi::av_intfloat32>());
+    assert_eq!(align_of::<IntFloat32>(), align_of::<ffi::av_intfloat32>());
+}
+
+#[test]
+fn intfloat32_bits_read_as_float_match_av_int2float() {
+    for bits in inputs32() {
+        let rust = IntFloat32::from_bits(bits).as_ref().float().to_bits();
+        assert_eq!(rust, c_int2float(bits), "bits {bits:#010x}");
+    }
+}
+
+#[test]
+fn intfloat32_float_read_as_bits_matches_av_float2int() {
+    for bits in inputs32() {
+        let f = f32::from_bits(bits);
+        let rust = IntFloat32::from_float(f).as_ref().bits();
+        assert_eq!(rust, c_float2int(f), "float bits {bits:#010x}");
+    }
+}
+
+#[test]
+fn intfloat32_alternating_writes_match_c_after_each_step() {
+    // One Rust value written through alternating members, against the same
+    // chain of C reinterpretations, compared after every step.
+    let mut rust = IntFloat32::default();
+    let mut boxed = HeapBox::<IntFloat32>::new_zeroed().unwrap();
+    let mut c_bits = c_float2int(0.0);
+    assert_eq!(rust.as_ref().bits(), c_bits);
+    for (step, bits) in inputs32().take(512).enumerate() {
+        if step % 2 == 0 {
+            rust.as_mut().set_bits(bits);
+            boxed.as_mut().set_bits(bits);
+            c_bits = bits;
+        } else {
+            let f = f32::from_bits(bits);
+            rust.as_mut().set_float(f);
+            boxed.as_mut().set_float(f);
+            c_bits = c_float2int(f);
+        }
+        let c_float = c_int2float(c_bits);
+        for r in [rust.as_ref(), boxed.as_ref()] {
+            assert_eq!(r.bits(), c_bits, "step {step}");
+            assert_eq!(r.float().to_bits(), c_float, "step {step}");
+            let copy = IntFloat32::from_float(r.float());
+            assert_eq!(copy.as_ref().bits(), c_bits, "step {step}");
+        }
+    }
 }

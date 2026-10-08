@@ -27,10 +27,13 @@ function av_opt_set_int
 # `Unaligned64` equivalence tests.
 function av_memcpy_backptr
 
-# libavutil/intfloat.h: the C reference for av_intfloat64's punning
-# (equivalence tests; static inline, compiled by bindgen's wrap_static_fns).
+# libavutil/intfloat.h: the C reference for av_intfloat64's and
+# av_intfloat32's punning (equivalence tests; static inline, compiled by
+# bindgen's wrap_static_fns).
 function av_int2double
 function av_double2int
+function av_int2float
+function av_float2int
 
 # libavutil/avutil.h and avstring.h: C consumers of `AVMediaType` and
 # `AVEscapeMode`, which observe the encodings in equivalence tests.

@@ -1,0 +1,9 @@
+error[E0499]: cannot borrow `a` as mutable more than once at a time
+ --> tests/ub_safe/compile_fail/intreadwrite_alias64_two_exclusive_handles.rs
+  |
+  |     let mut m1 = a.as_mut();
+  |                  - first mutable borrow occurs here
+  |     let mut m2 = a.as_mut();
+  |                  ^ second mutable borrow occurs here
+  |     m1.set_u64(1);
+  |     -- first borrow later used here

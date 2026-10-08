@@ -1,0 +1,11 @@
+error[E0597]: `a` does not live long enough
+ --> tests/ub_safe/compile_fail/intreadwrite_alias64_handle_outlives_value.rs
+  |
+  |         let a = Alias64::from_u64(1);
+  |             - binding `a` declared here
+  |         r = a.as_ref();
+  |             ^ borrowed value does not live long enough
+  |     }
+  |     - `a` dropped here while still borrowed
+  |     println!("{}", r.u64());
+  |                    - borrow later used here

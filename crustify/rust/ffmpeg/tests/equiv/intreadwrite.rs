@@ -13,14 +13,23 @@
 //! The `av_alias*` wrappers are compared with the raw C unions: the same
 //! write sequence applied to an independent raw union and to the safe value,
 //! every view compared after each step.
+//!
+//! C has no routine over `av_alias64`: its behaviour is its layout, which C
+//! code reaches through members (`AV_RN64A` / `AV_WN64A` and friends are
+//! member accesses on a cast pointer). The reference is therefore the raw
+//! `ffi::av_alias64`, laid out as clang lays out the C union (bindgen asserts
+//! its size, alignment and member offsets at compile time): each step writes
+//! the same member of the raw union and of independent `Alias64` values, and
+//! every member and every byte is compared after it.
 
 use core::mem::{align_of, offset_of, size_of};
 
 use ffibox::CZeroable;
 use ffmpeg::libavutil::ffi;
 use ffmpeg::libavutil::intreadwrite::{
-    Alias16, Alias16Ref, Alias32, Alias32Ref, Unaligned16, Unaligned16Mut, Unaligned16Ref,
-    Unaligned32, Unaligned32Mut, Unaligned32Ref, Unaligned64, Unaligned64Mut, Unaligned64Ref,
+    Alias16, Alias16Ref, Alias32, Alias32Ref, Alias64, Alias64Ref, Unaligned16, Unaligned16Mut,
+    Unaligned16Ref, Unaligned32, Unaligned32Mut, Unaligned32Ref, Unaligned64, Unaligned64Mut,
+    Unaligned64Ref,
 };
 use ffmpeg::libavutil::mem::HeapBox;
 
@@ -727,4 +736,167 @@ fn c_fills_read_rust_seeds_and_rust_reads_c_fills() {
     rust_backptr_narrow(&mut rust, 60, 9, 4);
     assert_eq!(c, rust);
     assert_eq!(rs_rn32(&c, 60), c_rn32(&c, 51));
+}
+
+/// One write through one member.
+#[derive(Clone, Copy, Debug)]
+enum Alias64Write {
+    U64(u64),
+    U32([u32; 2]),
+    U16([u16; 4]),
+    U8([u8; 8]),
+    F64(f64),
+    F32([f32; 2]),
+}
+
+/// Every member's view of a value, compared bit for bit.
+#[derive(Debug, PartialEq, Eq)]
+struct Alias64Members {
+    u64: u64,
+    u32: [u32; 2],
+    u16: [u16; 4],
+    u8: [u8; 8],
+    f64: u64,
+    f32: [u32; 2],
+}
+
+fn alias64_write_c(c: &mut ffi::av_alias64, w: Alias64Write) {
+    match w {
+        Alias64Write::U64(v) => c.u64_ = v,
+        Alias64Write::U32(v) => c.u32_ = v,
+        Alias64Write::U16(v) => c.u16_ = v,
+        Alias64Write::U8(v) => c.u8_ = v,
+        Alias64Write::F64(v) => c.f64_ = v,
+        Alias64Write::F32(v) => c.f32_ = v,
+    }
+}
+
+fn alias64_read_c(c: &ffi::av_alias64) -> Alias64Members {
+    // SAFETY: every member spans the whole initialised 8-byte union, and
+    // every bit pattern is a valid value of each.
+    unsafe {
+        Alias64Members {
+            u64: c.u64_,
+            u32: c.u32_,
+            u16: c.u16_,
+            u8: c.u8_,
+            f64: c.f64_.to_bits(),
+            f32: c.f32_.map(f32::to_bits),
+        }
+    }
+}
+
+fn alias64_read_rust(r: Alias64Ref<'_>) -> Alias64Members {
+    Alias64Members {
+        u64: r.u64(),
+        u32: r.u32x2(),
+        u16: r.u16x4(),
+        u8: r.u8x8(),
+        f64: r.f64().to_bits(),
+        f32: r.f32x2().map(f32::to_bits),
+    }
+}
+
+fn alias64_construct(w: Alias64Write) -> Alias64 {
+    match w {
+        Alias64Write::U64(v) => Alias64::from_u64(v),
+        Alias64Write::U32(v) => Alias64::from_u32x2(v),
+        Alias64Write::U16(v) => Alias64::from_u16x4(v),
+        Alias64Write::U8(v) => Alias64::from_u8x8(v),
+        Alias64Write::F64(v) => Alias64::from_f64(v),
+        Alias64Write::F32(v) => Alias64::from_f32x2(v),
+    }
+}
+
+/// A deterministic sequence covering every member, with NaN payloads.
+fn alias64_writes() -> Vec<Alias64Write> {
+    let mut x = 0x9e37_79b9_7f4a_7c15_u64;
+    let mut out = vec![
+        Alias64Write::U64(0),
+        Alias64Write::F64(-0.0),
+        Alias64Write::F64(f64::from_bits(0x7ff0_0000_0000_0001)),
+        Alias64Write::F32([f32::from_bits(0x7f80_0001), f32::from_bits(0xffc0_0001)]),
+        Alias64Write::U8([0xff; 8]),
+        Alias64Write::U16([0, 0xffff, 1, 0x8000]),
+        Alias64Write::U32([u32::MAX, 0]),
+        Alias64Write::U64(u64::MAX),
+    ];
+    for i in 0..600 {
+        // xorshift64
+        x ^= x << 13;
+        x ^= x >> 7;
+        x ^= x << 17;
+        let b = x.to_ne_bytes();
+        let half = |o: usize| u32::from_ne_bytes(b[o..o + 4].try_into().unwrap());
+        out.push(match i % 6 {
+            0 => Alias64Write::U64(x),
+            1 => Alias64Write::U32([half(0), half(4)]),
+            2 => Alias64Write::U16(core::array::from_fn(|j| {
+                u16::from_ne_bytes([b[2 * j], b[2 * j + 1]])
+            })),
+            3 => Alias64Write::U8(b),
+            4 => Alias64Write::F64(f64::from_bits(x)),
+            _ => Alias64Write::F32([f32::from_bits(half(0)), f32::from_bits(half(4))]),
+        });
+    }
+    out
+}
+
+#[test]
+fn alias64_layout_matches_the_c_union() {
+    assert_eq!(size_of::<Alias64>(), size_of::<ffi::av_alias64>());
+    assert_eq!(align_of::<Alias64>(), align_of::<ffi::av_alias64>());
+    let c = ffi::av_alias64::default();
+    assert_eq!(
+        alias64_read_rust(Alias64::default().as_ref()),
+        alias64_read_c(&c)
+    );
+}
+
+#[test]
+fn alias64_constructors_match_a_c_member_write() {
+    for w in alias64_writes() {
+        let mut c = ffi::av_alias64::default();
+        alias64_write_c(&mut c, w);
+        assert_eq!(
+            alias64_read_rust(alias64_construct(w).as_ref()),
+            alias64_read_c(&c),
+            "{w:?}"
+        );
+    }
+}
+
+#[test]
+fn alias64_write_sequences_match_c_after_each_step() {
+    let mut c = ffi::av_alias64::default();
+    let mut rust = Alias64::default();
+    let mut boxed = HeapBox::<Alias64>::new_zeroed().unwrap();
+    for (step, w) in alias64_writes().into_iter().enumerate() {
+        alias64_write_c(&mut c, w);
+        for mut m in [rust.as_mut(), boxed.as_mut()] {
+            match w {
+                Alias64Write::U64(v) => m.set_u64(v),
+                Alias64Write::U32(v) => m.set_u32x2(v),
+                Alias64Write::U16(v) => m.set_u16x4(v),
+                Alias64Write::U8(v) => m.set_u8x8(v),
+                Alias64Write::F64(v) => m.set_f64(v),
+                Alias64Write::F32(v) => m.set_f32x2(v),
+            }
+        }
+        let expect = alias64_read_c(&c);
+        assert_eq!(
+            alias64_read_rust(rust.as_ref()),
+            expect,
+            "step {step}: {w:?}"
+        );
+        assert_eq!(
+            alias64_read_rust(boxed.as_ref()),
+            expect,
+            "step {step}: {w:?}"
+        );
+        // A copy rebuilt from either side's bytes carries the same value.
+        let copy = Alias64::from_u8x8(boxed.as_ref().u8x8());
+        assert_eq!(alias64_read_rust(copy.as_ref()), expect, "step {step}");
+        assert_eq!(copy, rust, "step {step}");
+    }
 }

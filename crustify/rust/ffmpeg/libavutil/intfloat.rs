@@ -14,6 +14,13 @@
 //! through `av_memdup`), and an array of them a
 //! [`HeapVec<IntFloat64>`](super::mem::HeapVec) from
 //! [`alloc_cell_array_zeroed`](super::mem::alloc_cell_array_zeroed).
+//!
+//! [`IntFloat32`] is the header's 4-byte union of a `u32` and an `f32`, which
+//! C uses to reinterpret one as the other. It owns nothing and C has no
+//! routine that allocates, copies or frees one, so it is a plain `Copy` value.
+//! Both members span all 4 bytes and every bit pattern is a valid value of
+//! each, so either member reads back whatever was last written through the
+//! other, bit for bit, as in C.
 
 use core::fmt;
 use core::ptr::{addr_of, addr_of_mut};
@@ -149,6 +156,113 @@ impl IntFloat64Mut<'_> {
     }
 }
 
+define_ctype!(
+    /// Wraps: av_intfloat32
+    ///
+    /// A 32-bit value viewed as a `u32` or an `f32`. Build one with
+    /// [`IntFloat32::default`] (all zero), [`IntFloat32::from_bits`] or
+    /// [`IntFloat32::from_float`], read it through
+    /// [`as_ref`](IntFloat32::as_ref) and write it through
+    /// [`as_mut`](IntFloat32::as_mut).
+    #[derive(Clone, Copy)]
+    IntFloat32,
+    IntFloat32Ref,
+    IntFloat32Mut,
+    ffi::av_intfloat32
+);
+
+// SAFETY: both members span all 4 bytes and every bit pattern is a valid
+// `u32` and `f32`, so all-zero is a valid union that every accessor accepts;
+// there is no teardown to accept it.
+unsafe impl CZeroable for IntFloat32 {}
+
+// SAFETY: an `IntFloat32` is 4 bytes of plain data, with no pointer, thread
+// affinity or interior mutability: moving one, or exclusive access to one, to
+// another thread is moving those bytes.
+unsafe impl Send for IntFloat32 {}
+// SAFETY: as above.
+unsafe impl Send for IntFloat32Mut<'_> {}
+// SAFETY: every operation on `IntFloat32Ref` only reads, so concurrent shared
+// access is concurrent reads of plain data; writes need `IntFloat32Mut`,
+// which the borrow excludes while any shared handle lives.
+unsafe impl Sync for IntFloat32 {}
+// SAFETY: as for `Sync for IntFloat32`: a shared handle only reads.
+unsafe impl Send for IntFloat32Ref<'_> {}
+// SAFETY: as above.
+unsafe impl Sync for IntFloat32Ref<'_> {}
+// SAFETY: a shared `&IntFloat32Mut` reaches only `as_ref`, which reads.
+unsafe impl Sync for IntFloat32Mut<'_> {}
+
+impl IntFloat32 {
+    /// The value whose integer member is `bits`.
+    #[must_use]
+    pub fn from_bits(bits: u32) -> Self {
+        Self(ffi::av_intfloat32 { i: bits }, core::marker::PhantomData)
+    }
+
+    /// The value whose float member is `v`, bit for bit.
+    #[must_use]
+    pub fn from_float(v: f32) -> Self {
+        Self(ffi::av_intfloat32 { f: v }, core::marker::PhantomData)
+    }
+}
+
+impl Default for IntFloat32 {
+    /// All zero: `0` and `+0.0`.
+    fn default() -> Self {
+        Self::zeroed()
+    }
+}
+
+impl fmt::Debug for IntFloat32 {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        self.as_ref().fmt(f)
+    }
+}
+
+impl fmt::Debug for IntFloat32Ref<'_> {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.debug_struct("IntFloat32")
+            .field("bits", &format_args!("{:#010x}", self.bits()))
+            .field("float", &self.float())
+            .finish()
+    }
+}
+
+impl IntFloat32Ref<'_> {
+    /// Field: av_intfloat32.i
+    #[must_use]
+    pub fn bits(&self) -> u32 {
+        // SAFETY: a read of a projected member through the shared handle; it
+        // spans the whole initialised union, and every bit pattern is a `u32`.
+        unsafe { addr_of!((*self.as_ptr()).i).read() }
+    }
+
+    /// Field: av_intfloat32.f
+    ///
+    /// The bits read as an `f32`, NaN payloads included.
+    #[must_use]
+    pub fn float(&self) -> f32 {
+        // SAFETY: as `bits`; every bit pattern is an `f32`.
+        unsafe { addr_of!((*self.as_ptr()).f).read() }
+    }
+}
+
+impl IntFloat32Mut<'_> {
+    /// Field: av_intfloat32.i
+    pub fn set_bits(&mut self, bits: u32) {
+        // SAFETY: a write of a projected member through the exclusive handle;
+        // it spans the whole union, which the other member then reads.
+        unsafe { addr_of_mut!((*self.as_mut_ptr()).i).write(bits) }
+    }
+
+    /// Field: av_intfloat32.f
+    pub fn set_float(&mut self, v: f32) {
+        // SAFETY: as `set_bits`, for an `f32`.
+        unsafe { addr_of_mut!((*self.as_mut_ptr()).f).write(v) }
+    }
+}
+
 #[cfg(test)]
 mod unit_tests {
     use super::*;
@@ -263,5 +377,69 @@ mod unit_tests {
         // SAFETY: the write above initialised the whole union.
         let c = unsafe { slot.assume_init() };
         assert_eq!(c.as_ref().bits(), (-1.0f64).to_bits());
+    }
+
+    #[test]
+    fn intfloat32_layout_matches_the_c_union() {
+        assert_eq!(size_of::<IntFloat32>(), size_of::<ffi::av_intfloat32>());
+        assert_eq!(align_of::<IntFloat32>(), align_of::<ffi::av_intfloat32>());
+        assert_eq!((size_of::<IntFloat32>(), align_of::<IntFloat32>()), (4, 4));
+        assert_eq!(size_of::<IntFloat32Ref<'_>>(), size_of::<*const ()>());
+        assert_eq!(size_of::<IntFloat32Mut<'_>>(), size_of::<*const ()>());
+    }
+
+    #[test]
+    fn intfloat32_plain_value_traits() {
+        fn send_sync<T: Send + Sync>() {}
+        send_sync::<IntFloat32>();
+        send_sync::<IntFloat32Ref<'_>>();
+        send_sync::<IntFloat32Mut<'_>>();
+
+        let d = IntFloat32::default();
+        assert_eq!((d.as_ref().bits(), d.as_ref().float()), (0, 0.0));
+        assert!(d.as_ref().float().is_sign_positive());
+        assert_eq!(IntFloat32::zeroed().as_ref().bits(), 0);
+        assert_eq!(
+            format!("{d:?}"),
+            "IntFloat32 { bits: 0x00000000, float: 0.0 }"
+        );
+        let one = IntFloat32::from_float(1.0);
+        assert_eq!(
+            format!("{one:?}"),
+            "IntFloat32 { bits: 0x3f800000, float: 1.0 }"
+        );
+        assert_eq!(format!("{:?}", one.as_ref()), format!("{one:?}"));
+    }
+
+    #[test]
+    fn intfloat32_members_reinterpret_each_other() {
+        for bits in [
+            0,
+            1,
+            0x3f80_0000,
+            0x8000_0000,
+            0x7f80_0000,
+            0x7fc0_0000,
+            0x7f80_0001,
+            u32::MAX,
+        ] {
+            let a = IntFloat32::from_bits(bits);
+            assert_eq!(a.as_ref().float().to_bits(), bits);
+            let b = IntFloat32::from_float(f32::from_bits(bits));
+            assert_eq!(b.as_ref().bits(), bits);
+        }
+    }
+
+    #[test]
+    fn intfloat32_setters_and_copies() {
+        let mut a = IntFloat32::default();
+        let mut m = a.as_mut();
+        m.set_float(-2.5);
+        assert_eq!(m.as_ref().bits(), (-2.5f32).to_bits());
+        m.set_bits(0x7f80_0001);
+        assert_eq!(m.as_ref().float().to_bits(), 0x7f80_0001);
+        let c = a;
+        a.as_mut().set_float(1.0);
+        assert_eq!((c.as_ref().bits(), a.as_ref().float()), (0x7f80_0001, 1.0));
     }
 }
