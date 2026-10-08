@@ -1,11 +1,13 @@
-//! UB tests for `libavutil/intfloat.h`'s `IntFloat64`, through the safe API
-//! only: inline values, `av_malloc`-family owners and arrays of them, every
-//! handle form, and the asserted `Send` / `Sync`.
+//! UB tests for `libavutil/intfloat.h`'s `IntFloat64` and `IntFloat32`,
+//! through the safe API only: inline values, `av_malloc`-family owners and
+//! arrays of them, every handle form, and the asserted `Send` / `Sync`.
 
 use std::thread;
 
 use ffibox::CZeroable;
-use ffmpeg::libavutil::intfloat::{IntFloat64, IntFloat64Mut, IntFloat64Ref};
+use ffmpeg::libavutil::intfloat::{
+    IntFloat32, IntFloat32Mut, IntFloat64, IntFloat64Mut, IntFloat64Ref,
+};
 use ffmpeg::libavutil::mem::{HeapBox, alloc_cell_array_zeroed};
 
 /// Bit patterns at every class edge of a `double`: zeros, subnormals, the
@@ -161,4 +163,69 @@ fn exclusive_handles_write_on_other_threads() {
     let bits: Vec<u64> = values.iter().map(|v| v.as_ref().bits()).collect();
     assert_eq!(bits, [0, 1, 2, 3]);
     assert_eq!(boxed.as_ref().bits(), 1 << 63);
+}
+
+/// Write each member in turn through `m`, reading both back after each write.
+fn cycle_intfloat32_members(mut m: IntFloat32Mut<'_>, bits: u32) {
+    m.set_bits(bits);
+    assert_eq!(m.as_ref().float().to_bits(), bits);
+    m.set_float(f32::from_bits(!bits));
+    assert_eq!(m.as_ref().bits(), !bits);
+    let copy = IntFloat32::from_bits(m.as_ref().bits());
+    m.set_bits(bits);
+    assert_eq!((m.as_ref().bits(), copy.as_ref().bits()), (bits, !bits));
+}
+
+#[test]
+fn intfloat32_value_takes_every_member() {
+    let mut a = IntFloat32::default();
+    cycle_intfloat32_members(a.as_mut(), 0x7f80_0001);
+    let mut m = a.as_mut();
+    cycle_intfloat32_members(m.as_mut(), 0);
+    cycle_intfloat32_members(m.as_mut(), u32::MAX);
+    assert_eq!(a.as_ref().bits(), u32::MAX);
+}
+
+#[test]
+fn intfloat32_heap_box_takes_every_member_and_clones() {
+    let mut b = HeapBox::<IntFloat32>::new_zeroed().unwrap();
+    assert_eq!(b.as_ref().float(), 0.0);
+    cycle_intfloat32_members(b.as_mut(), 0x3f80_0000);
+    let c = b.clone();
+    b.as_mut().set_bits(1);
+    drop(b);
+    assert_eq!(c.as_ref().float(), 1.0);
+    drop(HeapBox::<IntFloat32>::new_uninit().unwrap());
+}
+
+#[test]
+fn intfloat32_heap_array_elements_stay_in_bounds() {
+    let mut v = alloc_cell_array_zeroed::<IntFloat32>(3).unwrap();
+    {
+        let mut h = v.as_handles_mut();
+        for i in 0..3 {
+            cycle_intfloat32_members(h.get_mut(i).unwrap(), i as u32);
+        }
+        assert!(h.get_mut(3).is_none());
+    }
+    let r = v.as_handles();
+    assert!(r.get(3).is_none());
+    assert_eq!(r.iter().map(|e| e.bits()).collect::<Vec<_>>(), [0, 1, 2]);
+}
+
+#[test]
+fn intfloat32_handles_and_owners_cross_threads() {
+    let a = IntFloat32::from_float(0.5);
+    let mut b = HeapBox::<IntFloat32>::new_zeroed().unwrap();
+    let ra = a.as_ref();
+    thread::scope(|s| {
+        for _ in 0..4 {
+            s.spawn(move || assert_eq!(ra.float(), 0.5));
+            s.spawn(|| assert_eq!(a.as_ref().bits(), 0x3f00_0000));
+        }
+        let mb = b.as_mut();
+        s.spawn(move || cycle_intfloat32_members(mb, 5));
+    });
+    assert_eq!(b.as_ref().bits(), 5);
+    thread::spawn(move || drop(b)).join().unwrap();
 }

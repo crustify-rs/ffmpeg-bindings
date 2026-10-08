@@ -1,0 +1,10 @@
+error[E0382]: borrow of moved value: `m`
+ --> tests/ub_safe/compile_fail/intfloat_exclusive_handle_is_not_copy.rs
+  |
+  |     let mut m = a.as_mut();
+  |         ----- move occurs because `m` has type `IntFloat32Mut<'_>`, which does not implement the `Copy` trait
+  |     let mut moved = m;
+  |                     - value moved here
+  |     moved.set_bits(1);
+  |     m.set_bits(2);
+  |     ^ value borrowed here after move

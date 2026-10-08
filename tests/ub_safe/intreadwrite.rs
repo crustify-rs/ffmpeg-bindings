@@ -15,8 +15,9 @@ use std::thread;
 
 use ffibox::CZeroable;
 use ffmpeg::libavutil::intreadwrite::{
-    Alias16, Alias16Mut, Alias32, Alias32Mut, Unaligned16, Unaligned16Mut, Unaligned16Ref,
-    Unaligned32, Unaligned32Mut, Unaligned32Ref, Unaligned64, Unaligned64Mut, Unaligned64Ref,
+    Alias16, Alias16Mut, Alias32, Alias32Mut, Alias64, Alias64Mut, Alias64Ref, Unaligned16,
+    Unaligned16Mut, Unaligned16Ref, Unaligned32, Unaligned32Mut, Unaligned32Ref, Unaligned64,
+    Unaligned64Mut, Unaligned64Ref,
 };
 use ffmpeg::libavutil::mem::{HeapBox, HeapVec, alloc_array_zeroed, alloc_cell_array_zeroed};
 
@@ -594,4 +595,100 @@ fn heap_boxes_cross_threads() {
         s.spawn(move || assert_eq!(r.value(), 42));
         s.spawn(move || assert_eq!(r.value(), 42));
     });
+}
+
+/// Write every member in turn through `m`, reading every member back after
+/// each write.
+fn cycle_alias64_members(mut m: Alias64Mut<'_>, seed: u64) {
+    fn read_all(r: Alias64Ref<'_>) -> u64 {
+        let _ = (r.u32x2(), r.u16x4(), r.u8x8(), r.f64(), r.f32x2());
+        r.u64()
+    }
+    m.set_u64(seed);
+    assert_eq!(read_all(m.as_ref()), seed);
+    m.set_u32x2([seed as u32, (seed >> 32) as u32]);
+    m.set_u16x4([1, 2, 3, 4]);
+    assert_eq!(m.as_ref().u16x4(), [1, 2, 3, 4]);
+    m.set_u8x8(seed.to_ne_bytes());
+    assert_eq!(read_all(m.as_ref()), seed);
+    m.set_f64(f64::from_bits(seed));
+    m.set_f32x2([f32::from_bits(seed as u32), f32::NAN]);
+    m.set_u8x8(Alias64::from_u64(seed).as_ref().u8x8());
+    assert_eq!(read_all(m.as_ref()), seed);
+}
+
+#[test]
+fn alias64_value_takes_every_member() {
+    let mut a = Alias64::default();
+    cycle_alias64_members(a.as_mut(), 0x0102_0304_0506_0708);
+    // Reborrows of one exclusive handle, then a shared one.
+    let mut m = a.as_mut();
+    cycle_alias64_members(m.as_mut(), u64::MAX);
+    cycle_alias64_members(m.as_mut(), 0);
+    assert_eq!(a.as_ref().u64(), 0);
+}
+
+#[test]
+fn heap_alias64_box_takes_every_member_and_clones() {
+    let mut b = HeapBox::<Alias64>::new_zeroed().unwrap();
+    assert_eq!(b.as_ref().u8x8(), [0; 8]);
+    cycle_alias64_members(b.as_mut(), 0xdead_beef_cafe_f00d);
+    let c = b.clone();
+    b.as_mut().set_u64(1);
+    drop(b);
+    assert_eq!(c.as_ref().u64(), 0xdead_beef_cafe_f00d);
+
+    drop(HeapBox::<Alias64>::new_uninit().unwrap());
+}
+
+#[test]
+fn heap_alias64_array_elements_stay_in_bounds() {
+    let mut v = alloc_cell_array_zeroed::<Alias64>(5).unwrap();
+    {
+        let mut h = v.as_handles_mut();
+        for i in 0..5 {
+            cycle_alias64_members(h.get_mut(i).unwrap(), i as u64 * 0x1111);
+        }
+        assert!(h.get_mut(5).is_none());
+    }
+    let r = v.as_handles();
+    assert!(r.get(5).is_none());
+    let sums: u64 = r.iter().map(|e| e.u64()).sum();
+    assert_eq!(sums, 0x1111 * 10);
+}
+
+#[test]
+fn heap_alias64_handles_read_concurrently() {
+    let a = Alias64::from_u64(42);
+    let b = HeapBox::<Alias64>::new_zeroed().unwrap();
+    let (ra, rb) = (a.as_ref(), b.as_ref());
+    thread::scope(|s| {
+        for _ in 0..4 {
+            s.spawn(move || {
+                for _ in 0..100 {
+                    assert_eq!(ra.u64(), 42);
+                    assert_eq!(rb.u64(), 0);
+                }
+            });
+            s.spawn(|| assert_eq!(a.as_ref().f64().to_bits(), 42));
+        }
+    });
+}
+
+#[test]
+fn heap_alias64_handles_and_owners_move_across_threads() {
+    let mut a = Alias64::default();
+    let mut b = HeapBox::<Alias64>::new_zeroed().unwrap();
+    let (ma, mb) = (a.as_mut(), b.as_mut());
+    thread::scope(|s| {
+        s.spawn(move || cycle_alias64_members(ma, 7));
+        s.spawn(move || cycle_alias64_members(mb, 9));
+    });
+    assert_eq!((a.as_ref().u64(), b.as_ref().u64()), (7, 9));
+
+    // The value and its owner move, and the box is freed on another thread.
+    let t = thread::spawn(move || (a.as_ref().u64(), b));
+    let (x, b) = t.join().unwrap();
+    assert_eq!((x, b.as_ref().u64()), (7, 9));
+    thread::spawn(move || drop(b)).join().unwrap();
 }

@@ -26,7 +26,9 @@
 //!
 //! - [`Alias16`] (`av_alias16`): a `u16`, or two bytes;
 //! - [`Alias32`] (`av_alias32`): a `u32`, two `u16` lanes, four bytes, or an
-//!   `f32`.
+//!   `f32`;
+//! - [`Alias64`] (`av_alias64`): a `u64`, two `u32` lanes, four `u16` lanes,
+//!   eight bytes, an `f64`, or two `f32` lanes.
 //!
 //! Build one with `zeroed()` / `default()` or a `from_*` constructor, read the
 //! views on its shared handle and write them on its exclusive one. Lanes and
@@ -707,6 +709,233 @@ impl Alias32Mut<'_> {
     }
 }
 
+define_ctype!(
+    /// Wraps: av_alias64
+    ///
+    /// Eight bytes viewed as a native-endian `u64`, two `u32` lanes, four
+    /// `u16` lanes, bytes, an `f64`, or two `f32` lanes. Every view covers all
+    /// eight bytes, so a write through one is wholly visible through the
+    /// others.
+    #[derive(Clone, Copy)]
+    Alias64,
+    Alias64Ref,
+    Alias64Mut,
+    ffi::av_alias64
+);
+
+// SAFETY: every view of `av_alias64` is a plain integer, float or array of
+// them, so all-zero is a valid value of each, and no teardown or C routine is
+// paired with it.
+unsafe impl CZeroable for Alias64 {}
+
+// SAFETY: `av_alias64` is plain data: no pointer, no interior mutability, no
+// thread-affine C state, so moving it, or an exclusive handle to it, to
+// another thread moves nothing a thread owns.
+unsafe impl Send for Alias64 {}
+// SAFETY: as above.
+unsafe impl Send for Alias64Mut<'_> {}
+// SAFETY: the only operations on a shared `Alias64`, `Alias64Ref` or
+// `&Alias64Mut` are reads; every write needs `Alias64Mut` through `&mut`, so
+// shared access from several threads never races.
+unsafe impl Sync for Alias64 {}
+// SAFETY: as above.
+unsafe impl Send for Alias64Ref<'_> {}
+// SAFETY: as above.
+unsafe impl Sync for Alias64Ref<'_> {}
+// SAFETY: as above.
+unsafe impl Sync for Alias64Mut<'_> {}
+
+impl Alias64 {
+    /// A value whose `u64` view is `v`.
+    #[must_use]
+    pub fn from_u64(v: u64) -> Self {
+        let mut a = Self::zeroed();
+        a.as_mut().set_u64(v);
+        a
+    }
+
+    /// A value whose `u32` lanes are `v`.
+    #[must_use]
+    pub fn from_u32x2(v: [u32; 2]) -> Self {
+        let mut a = Self::zeroed();
+        a.as_mut().set_u32x2(v);
+        a
+    }
+
+    /// A value whose `u16` lanes are `v`.
+    #[must_use]
+    pub fn from_u16x4(v: [u16; 4]) -> Self {
+        let mut a = Self::zeroed();
+        a.as_mut().set_u16x4(v);
+        a
+    }
+
+    /// A value whose byte view is `v`.
+    #[must_use]
+    pub fn from_u8x8(v: [u8; 8]) -> Self {
+        let mut a = Self::zeroed();
+        a.as_mut().set_u8x8(v);
+        a
+    }
+
+    /// A value whose `f64` view is `v`, bit for bit.
+    #[must_use]
+    pub fn from_f64(v: f64) -> Self {
+        let mut a = Self::zeroed();
+        a.as_mut().set_f64(v);
+        a
+    }
+
+    /// A value whose `f32` lanes are `v`, bit for bit.
+    #[must_use]
+    pub fn from_f32x2(v: [f32; 2]) -> Self {
+        let mut a = Self::zeroed();
+        a.as_mut().set_f32x2(v);
+        a
+    }
+}
+
+impl Default for Alias64 {
+    /// All-zero.
+    fn default() -> Self {
+        Self::zeroed()
+    }
+}
+
+/// Bitwise equality: a NaN equals itself, and `0.0` differs from `-0.0`.
+impl PartialEq for Alias64 {
+    fn eq(&self, other: &Self) -> bool {
+        self.as_ref().u64() == other.as_ref().u64()
+    }
+}
+
+impl Eq for Alias64 {}
+
+impl fmt::Debug for Alias64 {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        self.as_ref().fmt(f)
+    }
+}
+
+impl fmt::Debug for Alias64Ref<'_> {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.debug_struct("Alias64")
+            .field("u8x8", &self.u8x8())
+            .finish()
+    }
+}
+
+impl Alias64Ref<'_> {
+    /// Field: av_alias64.u64
+    ///
+    /// All eight bytes as a native-endian `u64`.
+    #[must_use]
+    pub fn u64(&self) -> u64 {
+        // SAFETY: the handle addresses a live, initialised `av_alias64`, and
+        // `u64` covers all of its bytes, any pattern of which is a `u64`.
+        unsafe { addr_of!((*self.as_ptr()).u64_).read() }
+    }
+
+    /// Field: av_alias64.u32
+    ///
+    /// The two native-endian `u32` lanes, in memory order.
+    #[must_use]
+    pub fn u32x2(&self) -> [u32; 2] {
+        // SAFETY: as `u64`, through the `u32` lane view.
+        unsafe { addr_of!((*self.as_ptr()).u32_).read() }
+    }
+
+    /// Field: av_alias64.u16
+    ///
+    /// The four native-endian `u16` lanes, in memory order.
+    #[must_use]
+    pub fn u16x4(&self) -> [u16; 4] {
+        // SAFETY: as `u64`, through the `u16` lane view.
+        unsafe { addr_of!((*self.as_ptr()).u16_).read() }
+    }
+
+    /// Field: av_alias64.u8
+    ///
+    /// All eight bytes, in memory order.
+    #[must_use]
+    pub fn u8x8(&self) -> [u8; 8] {
+        // SAFETY: as `u64`, through the byte view.
+        unsafe { addr_of!((*self.as_ptr()).u8_).read() }
+    }
+
+    /// Field: av_alias64.f64
+    ///
+    /// All eight bytes as an `f64`, bit for bit (`f64::from_bits(self.u64())`).
+    #[must_use]
+    pub fn f64(&self) -> f64 {
+        // SAFETY: as `u64`, through the float view; every bit pattern is an
+        // `f64`.
+        unsafe { addr_of!((*self.as_ptr()).f64_).read() }
+    }
+
+    /// Field: av_alias64.f32
+    ///
+    /// The two `f32` lanes, in memory order, bit for bit.
+    #[must_use]
+    pub fn f32x2(&self) -> [f32; 2] {
+        // SAFETY: as `u64`, through the `f32` lane view; every bit pattern is
+        // a pair of `f32`.
+        unsafe { addr_of!((*self.as_ptr()).f32_).read() }
+    }
+}
+
+impl Alias64Mut<'_> {
+    /// Field: av_alias64.u64
+    ///
+    /// Stores `v` over all eight bytes, in native byte order.
+    pub fn set_u64(&mut self, v: u64) {
+        // SAFETY: a write of the whole object through the exclusive handle's
+        // pointer to a live `av_alias64`.
+        unsafe { addr_of_mut!((*self.as_mut_ptr()).u64_).write(v) }
+    }
+
+    /// Field: av_alias64.u32
+    ///
+    /// Stores both `u32` lanes, in memory order.
+    pub fn set_u32x2(&mut self, v: [u32; 2]) {
+        // SAFETY: as `set_u64`, through the `u32` lane view.
+        unsafe { addr_of_mut!((*self.as_mut_ptr()).u32_).write(v) }
+    }
+
+    /// Field: av_alias64.u16
+    ///
+    /// Stores all four `u16` lanes, in memory order.
+    pub fn set_u16x4(&mut self, v: [u16; 4]) {
+        // SAFETY: as `set_u64`, through the `u16` lane view.
+        unsafe { addr_of_mut!((*self.as_mut_ptr()).u16_).write(v) }
+    }
+
+    /// Field: av_alias64.u8
+    ///
+    /// Stores all eight bytes, in memory order.
+    pub fn set_u8x8(&mut self, v: [u8; 8]) {
+        // SAFETY: as `set_u64`, through the byte view.
+        unsafe { addr_of_mut!((*self.as_mut_ptr()).u8_).write(v) }
+    }
+
+    /// Field: av_alias64.f64
+    ///
+    /// Stores `v`'s bits over all eight bytes; a NaN keeps its payload.
+    pub fn set_f64(&mut self, v: f64) {
+        // SAFETY: as `set_u64`, through the float view.
+        unsafe { addr_of_mut!((*self.as_mut_ptr()).f64_).write(v) }
+    }
+
+    /// Field: av_alias64.f32
+    ///
+    /// Stores both `f32` lanes' bits, in memory order; a NaN keeps its
+    /// payload.
+    pub fn set_f32x2(&mut self, v: [f32; 2]) {
+        // SAFETY: as `set_u64`, through the `f32` lane view.
+        unsafe { addr_of_mut!((*self.as_mut_ptr()).f32_).write(v) }
+    }
+}
+
 #[cfg(test)]
 mod unit_tests {
     use super::*;
@@ -947,5 +1176,126 @@ mod unit_tests {
         assert_eq!(buf, [0xa5, 0xa5, 0xa5, 0, 0, 0xa5, 0xa5, 0xa5]);
         Unaligned32Mut::from_bytes(buf[4..].first_chunk_mut().unwrap()).set_value(u32::MAX);
         assert_eq!(buf, [0xa5, 0xa5, 0xa5, 0, 0xff, 0xff, 0xff, 0xff]);
+    }
+
+    const ALIAS64_BITS: u64 = 0x0123_4567_89ab_cdef;
+
+    #[test]
+    fn alias64_layout_matches_the_c_union() {
+        assert_eq!(size_of::<Alias64>(), size_of::<ffi::av_alias64>());
+        assert_eq!(align_of::<Alias64>(), align_of::<ffi::av_alias64>());
+        assert_eq!((size_of::<Alias64>(), align_of::<Alias64>()), (8, 8));
+        assert_eq!(size_of::<Alias64Ref<'_>>(), size_of::<*const ()>());
+        assert_eq!(size_of::<Alias64Mut<'_>>(), size_of::<*const ()>());
+    }
+
+    #[test]
+    fn alias64_plain_value_traits() {
+        fn send_sync<T: Send + Sync>() {}
+        send_sync::<Alias64>();
+        send_sync::<Alias64Ref<'_>>();
+        send_sync::<Alias64Mut<'_>>();
+
+        assert_eq!(Alias64::default().as_ref().u64(), 0);
+        assert_eq!(Alias64::zeroed(), Alias64::default());
+        let a = Alias64::from_u8x8([1, 2, 3, 4, 5, 6, 7, 8]);
+        let shown = "Alias64 { u8x8: [1, 2, 3, 4, 5, 6, 7, 8] }";
+        assert_eq!(format!("{a:?}"), shown);
+        assert_eq!(format!("{:?}", a.as_ref()), shown);
+    }
+
+    #[test]
+    fn alias64_equality_is_bitwise() {
+        let nan = Alias64::from_f64(f64::NAN);
+        assert_eq!(nan, nan);
+        assert_ne!(Alias64::from_f64(0.0), Alias64::from_f64(-0.0));
+        assert_ne!(Alias64::from_u64(1), Alias64::from_u64(2));
+        assert_eq!(
+            Alias64::from_u64(ALIAS64_BITS),
+            Alias64::from_u8x8(ALIAS64_BITS.to_ne_bytes())
+        );
+    }
+
+    #[test]
+    fn alias64_every_constructor_sets_its_view() {
+        let ne = ALIAS64_BITS.to_ne_bytes();
+        let u32x2 = [
+            u32::from_ne_bytes(ne[..4].try_into().unwrap()),
+            u32::from_ne_bytes(ne[4..].try_into().unwrap()),
+        ];
+        let u16x4 = core::array::from_fn(|i| u16::from_ne_bytes([ne[2 * i], ne[2 * i + 1]]));
+        let f32x2 = u32x2.map(f32::from_bits);
+        for a in [
+            Alias64::from_u64(ALIAS64_BITS),
+            Alias64::from_u32x2(u32x2),
+            Alias64::from_u16x4(u16x4),
+            Alias64::from_u8x8(ne),
+            Alias64::from_f64(f64::from_bits(ALIAS64_BITS)),
+            Alias64::from_f32x2(f32x2),
+        ] {
+            let r = a.as_ref();
+            assert_eq!(r.u64(), ALIAS64_BITS);
+            assert_eq!(r.u32x2(), u32x2);
+            assert_eq!(r.u16x4(), u16x4);
+            assert_eq!(r.u8x8(), ne);
+            assert_eq!(r.f64().to_bits(), ALIAS64_BITS);
+            assert_eq!(r.f32x2().map(f32::to_bits), u32x2);
+        }
+    }
+
+    #[test]
+    fn alias64_setters_overwrite_all_eight_bytes() {
+        let mut a = Alias64::from_u64(u64::MAX);
+        let mut m = a.as_mut();
+        m.set_u8x8([0; 8]);
+        assert_eq!(m.as_ref().u64(), 0);
+        m.set_u16x4([1, 2, 3, 4]);
+        assert_eq!(m.as_ref().u16x4(), [1, 2, 3, 4]);
+        m.set_u32x2([5, 6]);
+        assert_eq!(m.as_ref().u32x2(), [5, 6]);
+        m.set_f32x2([1.5, -2.0]);
+        assert_eq!(m.as_ref().f32x2(), [1.5, -2.0]);
+        m.set_f64(-0.0);
+        assert_eq!(m.as_ref().u64(), 1 << 63);
+        m.set_u64(ALIAS64_BITS);
+        assert_eq!(a.as_ref().u64(), ALIAS64_BITS);
+    }
+
+    #[test]
+    fn alias64_nan_payloads_survive_both_ways() {
+        // A signalling NaN with a payload, in each lane and in the whole.
+        let snan64 = 0x7ff0_0000_0000_0001_u64;
+        let snan32 = 0x7f80_0001_u32;
+        let mut a = Alias64::default();
+        a.as_mut().set_f64(f64::from_bits(snan64));
+        assert_eq!(a.as_ref().u64(), snan64);
+        assert_eq!(a.as_ref().f64().to_bits(), snan64);
+        a.as_mut()
+            .set_f32x2([f32::from_bits(snan32), f32::from_bits(!snan32)]);
+        assert_eq!(a.as_ref().f32x2().map(f32::to_bits), [snan32, !snan32]);
+        assert_eq!(a.as_ref().u32x2(), [snan32, !snan32]);
+    }
+
+    #[test]
+    fn alias64_copies_are_independent() {
+        let a = Alias64::from_u64(1);
+        let mut b = a;
+        b.as_mut().set_u64(2);
+        assert_eq!((a.as_ref().u64(), b.as_ref().u64()), (1, 2));
+    }
+
+    #[test]
+    fn alias64_handles_over_a_c_pointer_read_and_write_it() {
+        let mut raw = ffi::av_alias64 { u64_: ALIAS64_BITS };
+        // SAFETY: `raw` is a live, initialised `av_alias64` that outlives the
+        // handle, and nothing else touches it while the handle lives.
+        let mut m = unsafe { Alias64Mut::from_ptr(&raw mut raw) }.unwrap();
+        assert_eq!(m.as_ref().u64(), ALIAS64_BITS);
+        m.set_u16x4([5, 6, 7, 8]);
+        // SAFETY: the handle is gone; every field of `raw` covers its bytes.
+        let lanes = unsafe { raw.u16_ };
+        assert_eq!(lanes, [5, 6, 7, 8]);
+        // SAFETY: a null pointer is accepted and yields no handle.
+        assert!(unsafe { Alias64Ref::from_ptr(core::ptr::null_mut()) }.is_none());
     }
 }

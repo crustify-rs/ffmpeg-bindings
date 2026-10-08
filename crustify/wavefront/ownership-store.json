@@ -44,6 +44,18 @@
    "fields": []
   },
   {
+   "name": "av_alias64",
+   "defined_in": "libavutil/intreadwrite.h",
+   "_comment_agent": "Plain-data type-punning union (u64 / u32[2] / u16[4] / u8[8] / f64 / f32[2], 8 bytes, align 8, may_alias). No pointer fields, no refcount, no lock. No lifecycle routine exists: every C user holds it inline as a local or reaches it by casting a naturally aligned buffer pointer (AV_RNA/AV_WNA/AV_COPY/AV_SWAP/AV_ZERO in intreadwrite.h, aes_ctr.c, h264/vp8/vp9 predictors); nothing allocates, frees, clones or disposes it beyond a byte copy. Every member spans all 8 bytes and every bit pattern is valid for each, so all-zero is a valid value and any member may be read after any write. Wrapped as a Copy value type (Rust-owned inline storage) with by-value getters/setters per member.",
+   "fields": []
+  },
+  {
+   "name": "av_intfloat32",
+   "defined_in": "libavutil/intfloat.h",
+   "_comment_agent": "Plain-data union { uint32_t i; float f; } (4 bytes) used only as a local to reinterpret bits (av_int2float / av_float2int, aac, sbrdsp, exr, vf_lut3d). No pointer fields, no refcount, no lock, no lifecycle routine; every bit pattern is valid for both members, so all-zero is valid and either member may be read after writing the other. Wrapped as a Copy value type with by-value getters/setters.",
+   "fields": []
+  },
+  {
    "name": "av_intfloat64",
    "defined_in": "libavutil/intfloat.h",
    "_comment_agent": "C `union av_intfloat64 { uint64_t i; double f; }` (the record's kind says struct; the definition is a union). A type-punning union: no discriminator, both members cover all 8 bytes and every bit pattern is a valid value of each, so either view is always readable after a write to the other (av_int2double writes i and reads f; av_double2int the reverse). No pointer fields, no sub-allocations and no lifecycle routine: C only creates it as an automatic local or a const initializer ({.i = ...} in libavcodec/mips/constants.c, mips-only); copied by value, never freed. All-zero is valid (i = 0, f = +0.0). No shared state or lock: plain data, Send/Sync like u64.",
