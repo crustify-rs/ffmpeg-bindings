@@ -1,0 +1,73 @@
+{
+  "crate_path": "/target/crustify/.worktrees/orchestrator/core-wave-0-gate/crustify/rust",
+  "counts": {
+    "unsafe_blocks": 214,
+    "unsafe_block_stmts": 0,
+    "unsafe_block_lines": 228,
+    "unsafe_block_code_lines": 223,
+    "unsafe_blocks_wrapper_impl": 133,
+    "unsafe_blocks_ffi_export": 0,
+    "unsafe_fns": 47,
+    "unsafe_fns_seam": 33,
+    "unsafe_fns_pub": 11,
+    "unsafe_impls": 85,
+    "unsafe_traits": 0,
+    "ffi_calls": 63,
+    "wrapper_newtypes": 11,
+    "wrapper_newtypes_declared": 11,
+    "wrapper_declared_nonconformant": 0,
+    "wrapper_newtypes_undeclared": 0,
+    "raw_ptr_args": 42,
+    "raw_ptr_rets": 45,
+    "raw_ptr_seam": 77,
+    "raw_ptr_wrapped": 0,
+    "raw_ptr_in_wrapper": 2,
+    "ref_to_type_wrapper": 51,
+    "field_ref_wrapped": 0,
+    "field_proj_wrapped": 57,
+    "field_proj_outside_impl": 0,
+    "void_ptr_sanctioned": 33,
+    "void_ptr_smell": 4,
+    "raw_ptr_derefs": 57,
+    "raw_ptr_derefs_outside_impl": 0,
+    "total_stmts": 238,
+    "code_lines": 1470,
+    "raw_ptr_sites": [],
+    "void_ptr_sites": [
+      {
+        "file": "ffmpeg/libavutil/log.rs",
+        "count": 2,
+        "lines": [
+          378,
+          398
+        ]
+      },
+      {
+        "file": "ffmpeg/libavutil/opt.rs",
+        "count": 2,
+        "lines": [
+          293,
+          322
+        ]
+      }
+    ],
+    "field_proj_sites": [],
+    "field_ref_sites": [],
+    "raw_deref_sites": []
+  },
+  "counts_unavailable": null,
+  "undocumented_unsafe": {
+    "sites": 0,
+    "documented": 0,
+    "undocumented": 0,
+    "per_file": {}
+  },
+  "derived": {
+    "unsafe_fn_pub_ratio": 0.234,
+    "unsafe_fn_smell": 14,
+    "raw_ptr_smell": 10,
+    "raw_ptr_seam_ratio": 0.8851,
+    "unsafe_loc_ratio": 0.1517,
+    "loc_per_unsafe_block": 6.9
+  }
+}
