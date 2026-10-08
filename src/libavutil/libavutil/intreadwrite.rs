@@ -57,15 +57,21 @@ use ffibox::{CZeroable, define_ctype};
 use super::ffi;
 
 /// The standard value traits of an `unaligned_N` layout type, all through its
-/// integer: `Debug`, `Default`, `PartialEq`, `Eq`, `Hash`, and `From` both
-/// ways.
+/// integer: `Debug` (on the value and its shared handle), `Default`,
+/// `PartialEq`, `Eq`, `Hash`, and `From` both ways.
 macro_rules! impl_value_traits {
-    ($name:ident, $int:ty) => {
-        impl fmt::Debug for $name {
+    ($name:ident, $rf:ident, $int:ty) => {
+        impl fmt::Debug for $rf<'_> {
             fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
                 f.debug_tuple(stringify!($name))
-                    .field(&self.as_ref().value())
+                    .field(&self.value())
                     .finish()
+            }
+        }
+
+        impl fmt::Debug for $name {
+            fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+                self.as_ref().fmt(f)
             }
         }
 
@@ -149,11 +155,17 @@ impl Unaligned16 {
     }
 }
 
-impl_value_traits!(Unaligned16, u16);
+impl_value_traits!(Unaligned16, Unaligned16Ref, u16);
 
 impl<'a> Unaligned16Ref<'a> {
     /// Views two bytes at any address as the union, the cast `AV_RN(16, p)`
-    /// reads through.
+    /// reads through. The array type fixes the width, so a view over fewer
+    /// or more bytes does not compile:
+    ///
+    /// ```compile_fail,E0308
+    /// use ffmpeg::libavutil::intreadwrite::Unaligned16Ref;
+    /// let _ = Unaligned16Ref::from_bytes(&[0u8; 4]);
+    /// ```
     #[inline]
     #[must_use]
     pub fn from_bytes(bytes: &'a [u8; 2]) -> Self {
@@ -242,7 +254,7 @@ impl Unaligned32 {
     }
 }
 
-impl_value_traits!(Unaligned32, u32);
+impl_value_traits!(Unaligned32, Unaligned32Ref, u32);
 
 impl<'a> Unaligned32Ref<'a> {
     /// Views four bytes at any address as the union, the cast `AV_RN(32, p)`
@@ -272,7 +284,14 @@ impl<'a> Unaligned32Ref<'a> {
 
 impl<'a> Unaligned32Mut<'a> {
     /// Views four bytes at any address as the union, the cast
-    /// `AV_WN(32, p, v)` stores through.
+    /// `AV_WN(32, p, v)` stores through. The array type fixes the width, so
+    /// a view over fewer bytes does not compile:
+    ///
+    /// ```compile_fail,E0308
+    /// use ffmpeg::libavutil::intreadwrite::Unaligned32Mut;
+    /// let mut b = [0u8; 2];
+    /// Unaligned32Mut::from_bytes(&mut b).set_value(1);
+    /// ```
     #[inline]
     #[must_use]
     pub fn from_bytes(bytes: &'a mut [u8; 4]) -> Self {
@@ -337,7 +356,7 @@ impl Unaligned64 {
     }
 }
 
-impl_value_traits!(Unaligned64, u64);
+impl_value_traits!(Unaligned64, Unaligned64Ref, u64);
 
 impl<'a> Unaligned64Ref<'a> {
     /// A view of `bytes` as an `Unaligned64`, at whatever alignment they have:
@@ -1146,6 +1165,39 @@ mod unit_tests {
         );
         assert_eq!(format!("{:?}", Unaligned32::new(5)), "Unaligned32(5)");
         assert_ne!(Unaligned16::new(1), Unaligned16::new(2));
+    }
+
+    #[test]
+    fn shared_handles_debug_as_their_value() {
+        // A view is printable on its own, over a value or over bytes, and a
+        // consumer struct holding one derives `Debug`.
+        #[derive(Debug)]
+        struct Header<'a> {
+            tag: Unaligned16Ref<'a>,
+            len: Unaligned32Ref<'a>,
+        }
+        let bytes = [0x34u8, 0x12, 0xef, 0xbe, 0xad, 0xde];
+        let h = Header {
+            tag: Unaligned16Ref::from_bytes(bytes.first_chunk().unwrap()),
+            len: Unaligned32Ref::from_bytes(bytes[2..].first_chunk().unwrap()),
+        };
+        let (tag, len) = (
+            u16::from_ne_bytes([0x34, 0x12]),
+            u32::from_ne_bytes([0xef, 0xbe, 0xad, 0xde]),
+        );
+        assert_eq!(format!("{:?}", h.tag), format!("Unaligned16({tag})"));
+        assert_eq!(
+            format!("{:#x?}", h.len),
+            format!("Unaligned32(\n    {len:#x},\n)")
+        );
+        assert_eq!(
+            format!("{h:?}"),
+            format!("Header {{ tag: Unaligned16({tag}), len: Unaligned32({len}) }}")
+        );
+        let v = Unaligned32::new(7);
+        let mut m = Unaligned32::new(8);
+        assert_eq!(format!("{:?}", v.as_ref()), format!("{v:?}"));
+        assert_eq!(format!("{:?}", m.as_mut().as_ref()), "Unaligned32(8)");
     }
 
     #[test]
