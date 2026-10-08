@@ -8,3 +8,7 @@ function av_mallocz
 function av_malloc_array
 function av_calloc
 function av_memdup
+
+# libavutil/mem.h: the av_malloc family's string lifecycle (raw-lifetime string).
+function av_strdup
+function av_strndup
