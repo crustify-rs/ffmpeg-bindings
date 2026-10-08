@@ -1,0 +1,16 @@
+error[E0505]: cannot move out of `b` because it is borrowed
+ --> tests/ub_safe/compile_fail/intreadwrite_handle_outlives_heap_box.rs
+  |
+  |     let b = HeapBox::<Unaligned64>::new_zeroed().unwrap();
+  |         - binding `b` declared here
+  |     let r = b.as_ref();
+  |             - borrow of `b` occurs here
+  |     drop(b);
+  |          ^ move out of `b` occurs here
+  |     println!("{}", r.value());
+  |                    - borrow later used here
+  |
+help: consider cloning the value if the performance cost is acceptable
+  |
+8 |     let r = b.clone().as_ref();
+  |              ++++++++
