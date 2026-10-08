@@ -72,8 +72,13 @@ the campaign's.
   symbols it was scheduled for; `—` where it was scheduled for none
 - `+LoC` — the landed batch's Rust-source insertions/deletions relative to its
   wave's base
-- `+UB safe tests` / `+UB unsafe tests` / `+equiv tests` / `+unit tests` — tests
-  added by that landed batch; each parenthesized pair is its C/Rust
+- `cov (C/Rust)` — in a `Batches` table, the absolute line coverage right after
+  that batch landed, from ONE run of all four test workloads together (their
+  union): C over the sub-campaign link unit's TUs in the `coverage` prebuild,
+  Rust over the authored non-test sources. Its **Σ** cell is the coverage at the
+  table's last landing, not a sum
+- `+UB safe tests` / `+UB unsafe tests` / `+equiv tests` / `+unit tests` — in a
+  `Batches …: tests` table, the tests added by that landed batch; each parenthesized pair is its C/Rust
   line-coverage change in percentage points. Negative coverage deltas are valid
   when the landed source adds more executable lines than the new tests cover
 - `+lifecycle` … `+misc` — in a `Batches — review: PoC + reports` table, the
@@ -165,37 +170,73 @@ Implementation `openrouter/anthropic/claude-opus-5.5` via `claude`; review
 
 `openrouter/anthropic/claude-opus-5.5` via `claude`.
 
-| wave | batch | types | fields | +LoC | +UB safe tests (+C/+Rust pp) | +UB unsafe tests (+C/+Rust pp) | +equiv tests (+C/+Rust pp) | +unit tests (+C/+Rust pp) | +unsafe fn smell | +raw-ptr smell | $ | wall | $/type | $/field |
-|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|
-|`0`|`0`| `2` | `0` |`+649/-0`|`+3` (`+0.00`/`+12.03` pp)|`+0` (`+0.00`/`+0.00` pp)|`+3` (`+1.69`/`-29.59` pp)|`+9` (`+0.00`/`-0.59` pp)| `0` | `0` | `$2.13` | `10m25s` | `$1.06` | `—` |
-|`0`|`1`| `2` | `0` |`+569/-0`|`+8` (`+0.00`/`-0.93` pp)|`+0` (`+0.00`/`+0.00` pp)|`+11` (`+0.57`/`-2.30` pp)|`+9` (`+0.00`/`+0.07` pp)| `0` | `0` | `$2.77` | `16m06s` | `$1.39` | `—` |
-|`0`|`2`| `2` | `0` |`+1154/-0`|`+0` (`+0.00`/`-20.74` pp)|`+10` (`+1.10`/`+6.13` pp)|`+5` (`+0.74`/`-13.82` pp)|`+12` (`+5.51`/`-15.47` pp)| `+4` | `+3` | `$7.87` | `32m39s` | `$3.94` | `—` |
-|`0`|`3`| `2` | `2` |`+848/-2`|`+14` (`+0.00`/`+3.17` pp)|`+0` (`+0.00`/`-0.52` pp)|`+10` (`+0.37`/`-0.37` pp)|`+15` (`+0.00`/`+0.97` pp)| `0` | `0` | `$4.39` | `28m48s` | `$2.19` | `$2.19` |
-|`0`|`4`| `2` | `0` |`+504/-0`|`+4` (`+0.00`/`+1.78` pp)|`+0` (`+0.00`/`+0.00` pp)|`+9` (`+0.37`/`-1.69` pp)|`+8` (`+0.00`/`+0.03` pp)| `0` | `0` | `$4.53` | `23m25s` | `$2.27` | `—` |
-|`0`|`5`| `2` | `6` |`+650/-2`|`+9` (`+0.00`/`-1.08` pp)|`+0` (`+0.00`/`+0.00` pp)|`+6` (`+0.00`/`+0.85` pp)|`+7` (`+0.00`/`+0.10` pp)| `0` | `0` | `$3.35` | `20m31s` | `$1.68` | `$0.56` |
-|`0`|`6`| `2` | `8` |`+773/-6`|`+9` (`+0.00`/`-4.18` pp)|`+0` (`+0.00`/`+0.00` pp)|`+7` (`+0.00`/`+2.75` pp)|`+12` (`+0.00`/`+0.04` pp)| `0` | `0` | `$6.15` | `29m17s` | `$3.08` | `$0.77` |
-|`0`|`7`| `1` | `2` |`+494/-0`|`+9` (`+0.00`/`-3.59` pp)|`+0` (`+0.00`/`+0.00` pp)|`+8` (`+0.00`/`+0.19` pp)|`+9` (`+0.00`/`+0.08` pp)| `0` | `0` | `$2.61` | `14m49s` | `$2.61` | `$1.30` |
-|`0`|`8`| `2` | `2` |`+741/-2`|`+10` (`+0.00`/`-1.32` pp)|`+0` (`+0.00`/`+0.00` pp)|`+8` (`+0.43`/`+1.09` pp)|`+7` (`+0.00`/`+0.03` pp)| `0` | `0` | `$5.48` | `25m56s` | `$2.74` | `$2.74` |
-|`0`|`9`| `1` | `1` |`+396/-0`|`+10` (`+0.00`/`+9.78` pp)|`+0` (`+0.00`/`+0.00` pp)|`+5` (`+0.18`/`+1.84` pp)|`+4` (`+0.00`/`+0.07` pp)| `0` | `0` | `$2.95` | `12m24s` | `$2.95` | `$2.95` |
-| **Σ** |  | **`18`** | **`21`** | **`+6778/-12`** | **`+76` (`+0.00`/`-5.09` pp)** | **`+10` (`+1.10`/`+5.61` pp)** | **`+72` (`+4.34`/`-41.05` pp)** | **`+92` (`+5.51`/`-14.68` pp)** | **`+4`** | **`+3`** | **`$42.23`** | — | **`$2.35`** | **`$2.01`** |
+| wave | batch | types | fields | +LoC | cov (C/Rust) | +unsafe fn smell | +raw-ptr smell | $ | wall | $/type | $/field |
+|---|---|---|---|---|---|---|---|---|---|---|---|
+|`0`|`0`| `2` | `0` |`+649/-0`| `2.18`% / `99.41`% | `0` | `0` | `$2.13` | `10m25s` | `$1.06` | `—` |
+|`0`|`1`| `2` | `0` |`+569/-0`| `2.92`% / `99.63`% | `0` | `0` | `$2.77` | `16m06s` | `$1.39` | `—` |
+|`0`|`2`| `2` | `0` |`+1154/-0`| `9.10`% / `86.96`% | `+4` | `+3` | `$7.87` | `32m39s` | `$3.94` | `—` |
+|`0`|`3`| `2` | `2` |`+848/-2`| `9.22`% / `88.07`% | `0` | `0` | `$4.39` | `28m48s` | `$2.19` | `$2.19` |
+|`0`|`4`| `2` | `0` |`+504/-0`| `3.29`% / `99.75`% | `0` | `0` | `$4.53` | `23m25s` | `$2.27` | `—` |
+|`0`|`5`| `2` | `6` |`+650/-2`| `2.92`% / `99.72`% | `0` | `0` | `$3.35` | `20m31s` | `$1.68` | `$0.56` |
+|`0`|`6`| `2` | `8` |`+773/-6`| `3.72`% / `99.82`% | `0` | `0` | `$6.15` | `29m17s` | `$3.08` | `$0.77` |
+|`0`|`7`| `1` | `2` |`+494/-0`| `2.36`% / `99.56`% | `0` | `0` | `$2.61` | `14m49s` | `$2.61` | `$1.30` |
+|`0`|`8`| `2` | `2` |`+741/-2`| `3.72`% / `99.78`% | `0` | `0` | `$5.48` | `25m56s` | `$2.74` | `$2.74` |
+|`0`|`9`| `1` | `1` |`+396/-0`| `2.36`% / `99.48`% | `0` | `0` | `$2.95` | `12m24s` | `$2.95` | `$2.95` |
+| **Σ** |  | **`18`** | **`21`** | **`+6778/-12`** | **`9.22`% / `88.07`%** | **`+4`** | **`+3`** | **`$42.23`** | — | **`$2.35`** | **`$2.01`** |
+
+### Batches — wrap: tests
+
+`openrouter/anthropic/claude-opus-5.5` via `claude`.
+
+| wave | batch | +UB safe tests (+C/+Rust pp) | +UB unsafe tests (+C/+Rust pp) | +equiv tests (+C/+Rust pp) | +unit tests (+C/+Rust pp) |
+|---|---|---|---|---|---|
+|`0`|`0`|`+3` (`+0.00`/`+12.03` pp)|`+0` (`+0.00`/`+0.00` pp)|`+3` (`+1.69`/`-29.59` pp)|`+9` (`+0.00`/`-0.59` pp)|
+|`0`|`1`|`+8` (`+0.00`/`-0.93` pp)|`+0` (`+0.00`/`+0.00` pp)|`+11` (`+0.57`/`-2.30` pp)|`+9` (`+0.00`/`+0.07` pp)|
+|`0`|`2`|`+0` (`+0.00`/`-20.74` pp)|`+10` (`+1.10`/`+6.13` pp)|`+5` (`+0.74`/`-13.82` pp)|`+12` (`+5.51`/`-15.47` pp)|
+|`0`|`3`|`+14` (`+0.00`/`+3.17` pp)|`+0` (`+0.00`/`-0.52` pp)|`+10` (`+0.37`/`-0.37` pp)|`+15` (`+0.00`/`+0.97` pp)|
+|`0`|`4`|`+4` (`+0.00`/`+1.78` pp)|`+0` (`+0.00`/`+0.00` pp)|`+9` (`+0.37`/`-1.69` pp)|`+8` (`+0.00`/`+0.03` pp)|
+|`0`|`5`|`+9` (`+0.00`/`-1.08` pp)|`+0` (`+0.00`/`+0.00` pp)|`+6` (`+0.00`/`+0.85` pp)|`+7` (`+0.00`/`+0.10` pp)|
+|`0`|`6`|`+9` (`+0.00`/`-4.18` pp)|`+0` (`+0.00`/`+0.00` pp)|`+7` (`+0.00`/`+2.75` pp)|`+12` (`+0.00`/`+0.04` pp)|
+|`0`|`7`|`+9` (`+0.00`/`-3.59` pp)|`+0` (`+0.00`/`+0.00` pp)|`+8` (`+0.00`/`+0.19` pp)|`+9` (`+0.00`/`+0.08` pp)|
+|`0`|`8`|`+10` (`+0.00`/`-1.32` pp)|`+0` (`+0.00`/`+0.00` pp)|`+8` (`+0.43`/`+1.09` pp)|`+7` (`+0.00`/`+0.03` pp)|
+|`0`|`9`|`+10` (`+0.00`/`+9.78` pp)|`+0` (`+0.00`/`+0.00` pp)|`+5` (`+0.18`/`+1.84` pp)|`+4` (`+0.00`/`+0.07` pp)|
+| **Σ** |  | **`+76` (`+0.00`/`-5.09` pp)** | **`+10` (`+1.10`/`+5.61` pp)** | **`+72` (`+4.34`/`-41.05` pp)** | **`+92` (`+5.51`/`-14.68` pp)** |
 
 ### Batches — port
 
 `<provider>/<model>` via `<backend>`.
 
-| wave | batch | types | fields | +LoC | +UB safe tests (+C/+Rust pp) | +UB unsafe tests (+C/+Rust pp) | +equiv tests (+C/+Rust pp) | +unit tests (+C/+Rust pp) | +unsafe fn smell | +raw-ptr smell | $ | wall | $/type | $/field |
-|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|
-|`<n>`|`<n>`| `<n>` | `<n>` |`+<n>/-<n>`|`+<n>` (`+<n>`/`+<n>` pp)|`+<n>` (`+<n>`/`+<n>` pp)|`+<n>` (`+<n>`/`+<n>` pp)|`+<n>` (`+<n>`/`+<n>` pp)| `±<n>` | `±<n>` | `$<n>` | `<n>m<n>s` | `$<n>` | `$<n>` |
-| **Σ** |  | **`<n>`** | **`<n>`** | **`+<n>/-<n>`** | **`+<n>` (`+<n>`/`+<n>` pp)** | **`+<n>` (`+<n>`/`+<n>` pp)** | **`+<n>` (`+<n>`/`+<n>` pp)** | **`+<n>` (`+<n>`/`+<n>` pp)** | **`±<n>`** | **`±<n>`** | **`$<n>`** | — | **`$<n>`** | **`$<n>`** |
+| wave | batch | types | fields | +LoC | cov (C/Rust) | +unsafe fn smell | +raw-ptr smell | $ | wall | $/type | $/field |
+|---|---|---|---|---|---|---|---|---|---|---|---|
+|`<n>`|`<n>`| `<n>` | `<n>` |`+<n>/-<n>`| `<n>`% / `<n>`% | `±<n>` | `±<n>` | `$<n>` | `<n>m<n>s` | `$<n>` | `$<n>` |
+| **Σ** |  | **`<n>`** | **`<n>`** | **`+<n>/-<n>`** | **`<n>`% / `<n>`%** | **`±<n>`** | **`±<n>`** | **`$<n>`** | — | **`$<n>`** | **`$<n>`** |
+
+### Batches — port: tests
+
+`<provider>/<model>` via `<backend>`.
+
+| wave | batch | +UB safe tests (+C/+Rust pp) | +UB unsafe tests (+C/+Rust pp) | +equiv tests (+C/+Rust pp) | +unit tests (+C/+Rust pp) |
+|---|---|---|---|---|---|
+|`<n>`|`<n>`|`+<n>` (`+<n>`/`+<n>` pp)|`+<n>` (`+<n>`/`+<n>` pp)|`+<n>` (`+<n>`/`+<n>` pp)|`+<n>` (`+<n>`/`+<n>` pp)|
+| **Σ** |  | **`+<n>` (`+<n>`/`+<n>` pp)** | **`+<n>` (`+<n>`/`+<n>` pp)** | **`+<n>` (`+<n>`/`+<n>` pp)** | **`+<n>` (`+<n>`/`+<n>` pp)** |
 
 ### Batches — review
 
 `<provider>/<model>` via `<backend>`.
 
-| wave | batch | types | +LoC | +UB safe tests (+C/+Rust pp) | +UB unsafe tests (+C/+Rust pp) | +equiv tests (+C/+Rust pp) | +unit tests (+C/+Rust pp) | +unsafe fn smell | +raw-ptr smell | rv loc | rv $ | rv wall | rv $/type |
-|---|---|---|---|---|---|---|---|---|---|---|---|---|---|
-|`<n>`|`<n>`| `<n>` |`+<n>/-<n>`|`+<n>` (`+<n>`/`+<n>` pp)|`+<n>` (`+<n>`/`+<n>` pp)|`+<n>` (`+<n>`/`+<n>` pp)|`+<n>` (`+<n>`/`+<n>` pp)| `±<n>` | `±<n>` | `+<n>/-<n>` | `$<n>` | `<n>m<n>s` | `$<n>` |
-| **Σ** |  | **`<n>`** | **`+<n>/-<n>`** | **`+<n>` (`+<n>`/`+<n>` pp)** | **`+<n>` (`+<n>`/`+<n>` pp)** | **`+<n>` (`+<n>`/`+<n>` pp)** | **`+<n>` (`+<n>`/`+<n>` pp)** | **`±<n>`** | **`±<n>`** | **`+<n>/-<n>`** | **`$<n>`** | — | **`$<n>`** |
+| wave | batch | types | +LoC | cov (C/Rust) | +unsafe fn smell | +raw-ptr smell | rv loc | rv $ | rv wall | rv $/type |
+|---|---|---|---|---|---|---|---|---|---|---|
+|`<n>`|`<n>`| `<n>` |`+<n>/-<n>`| `<n>`% / `<n>`% | `±<n>` | `±<n>` | `+<n>/-<n>` | `$<n>` | `<n>m<n>s` | `$<n>` |
+| **Σ** |  | **`<n>`** | **`+<n>/-<n>`** | **`<n>`% / `<n>`%** | **`±<n>`** | **`±<n>`** | **`+<n>/-<n>`** | **`$<n>`** | — | **`$<n>`** |
+
+### Batches — review: tests
+
+`<provider>/<model>` via `<backend>`.
+
+| wave | batch | +UB safe tests (+C/+Rust pp) | +UB unsafe tests (+C/+Rust pp) | +equiv tests (+C/+Rust pp) | +unit tests (+C/+Rust pp) |
+|---|---|---|---|---|---|
+|`<n>`|`<n>`|`+<n>` (`+<n>`/`+<n>` pp)|`+<n>` (`+<n>`/`+<n>` pp)|`+<n>` (`+<n>`/`+<n>` pp)|`+<n>` (`+<n>`/`+<n>` pp)|
+| **Σ** |  | **`+<n>` (`+<n>`/`+<n>` pp)** | **`+<n>` (`+<n>`/`+<n>` pp)** | **`+<n>` (`+<n>`/`+<n>` pp)** | **`+<n>` (`+<n>`/`+<n>` pp)** |
 
 ### Batches — review: PoC + reports
 
@@ -212,23 +253,45 @@ Implementation `openrouter/anthropic/claude-opus-5.5` via `claude`; review
 
 `openrouter/anthropic/claude-opus-5.5` via `claude`.
 
-| wave | batch | objective | symbols | loc | +LoC | +UB safe tests (+C/+Rust pp) | +UB unsafe tests (+C/+Rust pp) | +equiv tests (+C/+Rust pp) | +unit tests (+C/+Rust pp) | +unsafe fn smell | +raw-ptr smell | $ | wall | $/symbol | $/loc |
-|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|
-|`0`|`10`| wrap | `25` | `1283` |`+1283/-3`|`+16` (`+0.82`/`+2.63` pp)|`+6` (`+0.02`/`-0.08` pp)|`+21` (`+0.85`/`+2.96` pp)|`+18` (`+0.79`/`+1.65` pp)| `+1` | `+1` | `$17.79` | `86m15s` | `$0.71` | `$0.014` |
-|`0`|`11`| wrap | `25` | `1877` |`+1877/-14`|`+20` (`+1.27`/`+2.84` pp)|`+7` (`+0.53`/`+1.20` pp)|`+29` (`+1.49`/`+3.35` pp)|`+13` (`+0.74`/`-1.55` pp)| `+4` | `+7` | `$28.38` | `124m29s` | `$1.14` | `$0.015` |
-|`0`|`12`| wrap | `25` | `2896` |`+2896/-176`|`+20` (`+1.66`/`-0.46` pp)|`+13` (`+0.45`/`+6.11` pp)|`+21` (`+0.90`/`+0.47` pp)|`+22` (`+1.07`/`-0.12` pp)| `+2` | `+3` | `$45.49` | `178m41s` | `$1.82` | `$0.016` |
-|`0`|`13`| wrap | `25` | `2611` |`+2611/-3`|`+27` (`+6.37`/`+3.54` pp)|`+0` (`+0.00`/`-1.35` pp)|`+27` (`+6.86`/`+4.73` pp)|`+37` (`+1.83`/`+0.77` pp)| `+1` | `0` | `$27.60` | `155m09s` | `$1.10` | `$0.011` |
-|`0`|`14`| wrap | `21` | `1561` |`+1561/-1`|`+20` (`+2.05`/`+4.45` pp)|`+5` (`+1.19`/`-0.57` pp)|`+26` (`+1.05`/`+5.47` pp)|`+12` (`+0.46`/`-4.07` pp)| `+1` | `+1` | `$11.38` | `62m02s` | `$0.54` | `$0.007` |
-| **Σ** |  |  | **`121`** | **`10228`** | **`+10228/-197`** | **`+103` (`+12.18`/`+13.00` pp)** | **`+31` (`+2.18`/`+5.31` pp)** | **`+124` (`+11.15`/`+16.97` pp)** | **`+102` (`+4.89`/`-3.31` pp)** | **`+9`** | **`+12`** | **`$130.64`** | — | **`$1.08`** | **`$0.013`** |
+| wave | batch | objective | symbols | loc | +LoC | cov (C/Rust) | +unsafe fn smell | +raw-ptr smell | $ | wall | $/symbol | $/loc |
+|---|---|---|---|---|---|---|---|---|---|---|---|---|
+|`0`|`10`| wrap | `25` | `1283` |`+1283/-3`| `11.21`% / `90.81`% | `+1` | `+1` | `$17.79` | `86m15s` | `$0.71` | `$0.014` |
+|`0`|`11`| wrap | `25` | `1877` |`+1877/-14`| `12.54`% / `92.30`% | `+4` | `+7` | `$28.38` | `124m29s` | `$1.14` | `$0.015` |
+|`0`|`12`| wrap | `25` | `2896` |`+2896/-176`| `18.96`% / `94.70`% | `+2` | `+3` | `$45.49` | `178m41s` | `$1.82` | `$0.016` |
+|`0`|`13`| wrap | `25` | `2611` |`+2611/-3`| `18.00`% / `93.86`% | `+1` | `0` | `$27.60` | `155m09s` | `$1.10` | `$0.011` |
+|`0`|`14`| wrap | `21` | `1561` |`+1561/-1`| `10.37`% / `89.92`% | `+1` | `+1` | `$11.38` | `62m02s` | `$0.54` | `$0.007` |
+| **Σ** |  |  | **`121`** | **`10228`** | **`+10228/-197`** | **`18.96`% / `94.70`%** | **`+9`** | **`+12`** | **`$130.64`** | — | **`$1.08`** | **`$0.013`** |
+
+### Batches: tests
+
+`openrouter/anthropic/claude-opus-5.5` via `claude`.
+
+| wave | batch | +UB safe tests (+C/+Rust pp) | +UB unsafe tests (+C/+Rust pp) | +equiv tests (+C/+Rust pp) | +unit tests (+C/+Rust pp) |
+|---|---|---|---|---|---|
+|`0`|`10`|`+16` (`+0.82`/`+2.63` pp)|`+6` (`+0.02`/`-0.08` pp)|`+21` (`+0.85`/`+2.96` pp)|`+18` (`+0.79`/`+1.65` pp)|
+|`0`|`11`|`+20` (`+1.27`/`+2.84` pp)|`+7` (`+0.53`/`+1.20` pp)|`+29` (`+1.49`/`+3.35` pp)|`+13` (`+0.74`/`-1.55` pp)|
+|`0`|`12`|`+20` (`+1.66`/`-0.46` pp)|`+13` (`+0.45`/`+6.11` pp)|`+21` (`+0.90`/`+0.47` pp)|`+22` (`+1.07`/`-0.12` pp)|
+|`0`|`13`|`+27` (`+6.37`/`+3.54` pp)|`+0` (`+0.00`/`-1.35` pp)|`+27` (`+6.86`/`+4.73` pp)|`+37` (`+1.83`/`+0.77` pp)|
+|`0`|`14`|`+20` (`+2.05`/`+4.45` pp)|`+5` (`+1.19`/`-0.57` pp)|`+26` (`+1.05`/`+5.47` pp)|`+12` (`+0.46`/`-4.07` pp)|
+| **Σ** |  | **`+103` (`+12.18`/`+13.00` pp)** | **`+31` (`+2.18`/`+5.31` pp)** | **`+124` (`+11.15`/`+16.97` pp)** | **`+102` (`+4.89`/`-3.31` pp)** |
 
 ### Batches — review
 
 `<provider>/<model>` via `<backend>`.
 
-| wave | batch | symbols | +LoC | +UB safe tests (+C/+Rust pp) | +UB unsafe tests (+C/+Rust pp) | +equiv tests (+C/+Rust pp) | +unit tests (+C/+Rust pp) | +unsafe fn smell | +raw-ptr smell | rv loc | rv $ | rv wall | rv $/symbol |
-|---|---|---|---|---|---|---|---|---|---|---|---|---|---|
-|`<n>`|`<n>`| `<n>` |`+<n>/-<n>`|`+<n>` (`+<n>`/`+<n>` pp)|`+<n>` (`+<n>`/`+<n>` pp)|`+<n>` (`+<n>`/`+<n>` pp)|`+<n>` (`+<n>`/`+<n>` pp)| `±<n>` | `±<n>` | `+<n>/-<n>` | `$<n>` | `<n>m<n>s` | `$<n>` |
-| **Σ** |  | **`<n>`** | **`+<n>/-<n>`** | **`+<n>` (`+<n>`/`+<n>` pp)** | **`+<n>` (`+<n>`/`+<n>` pp)** | **`+<n>` (`+<n>`/`+<n>` pp)** | **`+<n>` (`+<n>`/`+<n>` pp)** | **`±<n>`** | **`±<n>`** | **`+<n>/-<n>`** | **`$<n>`** | — | **`$<n>`** |
+| wave | batch | symbols | +LoC | cov (C/Rust) | +unsafe fn smell | +raw-ptr smell | rv loc | rv $ | rv wall | rv $/symbol |
+|---|---|---|---|---|---|---|---|---|---|---|
+|`<n>`|`<n>`| `<n>` |`+<n>/-<n>`| `<n>`% / `<n>`% | `±<n>` | `±<n>` | `+<n>/-<n>` | `$<n>` | `<n>m<n>s` | `$<n>` |
+| **Σ** |  | **`<n>`** | **`+<n>/-<n>`** | **`<n>`% / `<n>`%** | **`±<n>`** | **`±<n>`** | **`+<n>/-<n>`** | **`$<n>`** | — | **`$<n>`** |
+
+### Batches — review: tests
+
+`<provider>/<model>` via `<backend>`.
+
+| wave | batch | +UB safe tests (+C/+Rust pp) | +UB unsafe tests (+C/+Rust pp) | +equiv tests (+C/+Rust pp) | +unit tests (+C/+Rust pp) |
+|---|---|---|---|---|---|
+|`<n>`|`<n>`|`+<n>` (`+<n>`/`+<n>` pp)|`+<n>` (`+<n>`/`+<n>` pp)|`+<n>` (`+<n>`/`+<n>` pp)|`+<n>` (`+<n>`/`+<n>` pp)|
+| **Σ** |  | **`+<n>` (`+<n>`/`+<n>` pp)** | **`+<n>` (`+<n>`/`+<n>` pp)** | **`+<n>` (`+<n>`/`+<n>` pp)** | **`+<n>` (`+<n>`/`+<n>` pp)** |
 
 ### Batches — review: PoC + reports
 
@@ -604,7 +667,11 @@ parent, so it is that batch's own change. The toolchain commit below has no row.
   workloads share one denominator per commit.
 - Each workload ran alone, on the plain build: unit is `--lib`, the others their test binary,
   all with `--skip compile_fail`.
-- Σ coverage cells add the per-row deltas. Denominators grow with every landing, so a Σ is
+- `cov (C/Rust)` is the all-workloads run (the union) at the landing commit, over the same
+  C and Rust denominators. It is cumulative in landing order, not row order: the type batches
+  landed as 0, 9, 7, 1, 5, 4, 8, 6, 2, then 3 after the resume, and the symbol batches as 14,
+  10, 11, 13, 12. Each Σ `cov` is the table's last landing (batch 3, batch 12).
+- Σ coverage cells in the `: tests` tables add the per-row deltas. Denominators grow with every landing, so a Σ is
   not the wave-level change, and negative Rust deltas mark landings whose new lines a given
   workload does not reach.
 - Smell deltas come from unseeded scans (`scan-unsafe.tree.json`) at the landing commit and
