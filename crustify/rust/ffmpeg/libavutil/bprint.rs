@@ -24,6 +24,15 @@ mod sealed {
 /// puts it, and C may use those bytes (`AVBPrint`'s internal buffer runs from
 /// `reserved_internal_buffer` through the padding to the end).
 ///
+/// "The end" is byte `SIZE - 1`, not the last element of `reserved_padding`:
+/// `offset_of!(reserved_padding) + PADDING_LEN` is only rounded up to `SIZE`
+/// by the structure's trailing alignment, and C writes into those bytes too
+/// (`AVBPrint`'s automatic buffer puts its NUL at byte 1023, past
+/// `reserved_padding`'s end at 1020). Rust treats them as padding, which a
+/// typed copy (a move, `ptr::read`) need not preserve, so an instance C has
+/// initialised must stay in place and be reached through its address; the
+/// pointer `AVBPrint.str` keeps into the structure forbids moving it anyway.
+///
 /// Sealed: implemented for each instance the generator defines, with the
 /// constants checked against the instance's binding at compile time. Outside
 /// the crate, a type cannot claim them:
@@ -92,5 +101,10 @@ mod unit_tests {
             offset_of!(T, reserved_internal_buffer) + 1
         );
         assert!(offset_of!(T, reserved_padding) < <T as PaddedStruct>::FIELDS_SIZE);
+        // The padding ends 3 bytes before the structure does: its trailing
+        // alignment, which C's automatic buffer covers as well.
+        let padding_end = offset_of!(T, reserved_padding) + <T as PaddedStruct>::PADDING_LEN;
+        assert_eq!(padding_end, 1021);
+        assert_eq!(<T as PaddedStruct>::SIZE - padding_end, 3);
     }
 }
