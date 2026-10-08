@@ -120,6 +120,108 @@ impl From<MediaType> for ffi::AVMediaType {
 // whole of it.
 unsafe impl CPlainElem for MediaType {}
 
+/// Wraps: AVPictureType
+/// Handwritten
+///
+/// The coding type of a video picture: intra, predicted, bidirectionally
+/// predicted, and the rarer MPEG-4 and H.264 kinds.
+///
+/// A newtype over the C enum rather than a Rust `enum`, as [`MediaType`] is:
+/// C stores the value in public struct fields its users write directly
+/// (`AVFrame.pict_type`), so it may hold any value, and a Rust view of that
+/// memory must accept every one. Match on the associated constants, with a
+/// `_` arm for the values C does not name:
+///
+/// ```
+/// use ffmpeg::libavutil::avutil::PictureType;
+/// fn is_intra(t: PictureType) -> bool {
+///     matches!(t, PictureType::I | PictureType::SI | PictureType::BI)
+/// }
+/// assert!(is_intra(PictureType::I));
+/// assert!(!is_intra(PictureType::NONE));
+/// ```
+///
+/// No ffibox primitive covers a C enum: it owns nothing, has no handles, and
+/// is `Send + Sync` as the integer it is.
+#[repr(transparent)]
+#[derive(Clone, Copy, PartialEq, Eq, Hash)]
+pub struct PictureType(ffi::AVPictureType);
+
+impl PictureType {
+    /// Undefined; the value of a zero-filled field.
+    pub const NONE: Self = Self(ffi::AVPictureType::AV_PICTURE_TYPE_NONE);
+    /// Intra.
+    pub const I: Self = Self(ffi::AVPictureType::AV_PICTURE_TYPE_I);
+    /// Predicted.
+    pub const P: Self = Self(ffi::AVPictureType::AV_PICTURE_TYPE_P);
+    /// Bidirectionally predicted.
+    pub const B: Self = Self(ffi::AVPictureType::AV_PICTURE_TYPE_B);
+    /// S(GMC)-VOP, MPEG-4.
+    pub const S: Self = Self(ffi::AVPictureType::AV_PICTURE_TYPE_S);
+    /// Switching intra.
+    pub const SI: Self = Self(ffi::AVPictureType::AV_PICTURE_TYPE_SI);
+    /// Switching predicted.
+    pub const SP: Self = Self(ffi::AVPictureType::AV_PICTURE_TYPE_SP);
+    /// BI type.
+    pub const BI: Self = Self(ffi::AVPictureType::AV_PICTURE_TYPE_BI);
+
+    /// The picture type C encodes as `raw`, whatever its value.
+    #[inline]
+    pub const fn from_raw(raw: ffi::AVPictureType) -> Self {
+        Self(raw)
+    }
+
+    /// The C encoding of this picture type.
+    #[inline]
+    pub const fn into_raw(self) -> ffi::AVPictureType {
+        self.0
+    }
+
+    /// The name of the constant this value equals, if any.
+    const fn name(self) -> Option<&'static str> {
+        Some(match self {
+            Self::NONE => "NONE",
+            Self::I => "I",
+            Self::P => "P",
+            Self::B => "B",
+            Self::S => "S",
+            Self::SI => "SI",
+            Self::SP => "SP",
+            Self::BI => "BI",
+            _ => return None,
+        })
+    }
+}
+
+impl fmt::Debug for PictureType {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self.name() {
+            Some(name) => f.write_str(name),
+            None => f.debug_tuple("PictureType").field(&self.0.0).finish(),
+        }
+    }
+}
+
+impl From<ffi::AVPictureType> for PictureType {
+    #[inline]
+    fn from(raw: ffi::AVPictureType) -> Self {
+        Self::from_raw(raw)
+    }
+}
+
+impl From<PictureType> for ffi::AVPictureType {
+    #[inline]
+    fn from(t: PictureType) -> Self {
+        t.into_raw()
+    }
+}
+
+// SAFETY: `PictureType` is `#[repr(transparent)]` over `ffi::AVPictureType`,
+// itself `#[repr(transparent)]` over a `c_uint`, so every bit pattern is a
+// valid value, and it is a value with no C-side identity: a copy read out of C
+// memory is the whole of it.
+unsafe impl CPlainElem for PictureType {}
+
 #[cfg(test)]
 mod unit_tests {
     use super::*;
@@ -193,6 +295,58 @@ mod unit_tests {
             for (b, _) in &NAMED[i + 1..] {
                 assert_ne!(a, b);
             }
+        }
+    }
+
+    const PICTURE_NAMED: [(PictureType, &str); 8] = [
+        (PictureType::NONE, "NONE"),
+        (PictureType::I, "I"),
+        (PictureType::P, "P"),
+        (PictureType::B, "B"),
+        (PictureType::S, "S"),
+        (PictureType::SI, "SI"),
+        (PictureType::SP, "SP"),
+        (PictureType::BI, "BI"),
+    ];
+
+    #[test]
+    fn picture_type_layout_matches_the_c_enum() {
+        assert_eq!(size_of::<PictureType>(), size_of::<ffi::AVPictureType>());
+        assert_eq!(align_of::<PictureType>(), align_of::<ffi::AVPictureType>());
+        assert_eq!(size_of::<PictureType>(), size_of::<c_int>());
+    }
+
+    #[test]
+    fn picture_type_debug_names_the_constants() {
+        for (t, name) in PICTURE_NAMED {
+            assert_eq!(format!("{t:?}"), name);
+        }
+    }
+
+    #[test]
+    fn picture_type_debug_shows_unnamed_values_raw() {
+        for raw in [8, 9, 1 << 20, u32::MAX - 1, u32::MAX] {
+            let t = PictureType::from_raw(ffi::AVPictureType(raw));
+            assert_eq!(format!("{t:?}"), format!("PictureType({raw})"));
+        }
+    }
+
+    #[test]
+    fn picture_type_constants_are_distinct_and_ordered() {
+        for (i, (t, _)) in PICTURE_NAMED.iter().enumerate() {
+            assert_eq!(t.into_raw().0 as usize, i);
+            for (u, _) in &PICTURE_NAMED[i + 1..] {
+                assert_ne!(t, u);
+            }
+        }
+    }
+
+    #[test]
+    fn picture_type_raw_conversions_round_trip_every_value() {
+        for raw in [0, 1, 7, 8, 1 << 31, u32::MAX] {
+            let c = ffi::AVPictureType(raw);
+            assert_eq!(PictureType::from(c).into_raw(), c);
+            assert_eq!(ffi::AVPictureType::from(PictureType::from_raw(c)), c);
         }
     }
 }

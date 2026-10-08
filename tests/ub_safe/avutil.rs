@@ -1,9 +1,10 @@
-//! UB tests for `libavutil/avutil.h`'s [`MediaType`], through the safe API
-//! only: as a value, and as the plain element of `av_malloc`-family arrays.
+//! UB tests for `libavutil/avutil.h`'s [`MediaType`] and [`PictureType`],
+//! through the safe API only: as values, and as the plain elements of
+//! `av_malloc`-family arrays.
 
 use std::thread;
 
-use ffmpeg::libavutil::avutil::MediaType;
+use ffmpeg::libavutil::avutil::{MediaType, PictureType};
 use ffmpeg::libavutil::ffi;
 use ffmpeg::libavutil::mem::{HeapVec, alloc_array, alloc_array_from_fn, alloc_array_zeroed};
 
@@ -76,6 +77,62 @@ fn arrays_cross_and_are_shared_between_threads() {
         }
     });
     // Moved to another thread, written and freed there.
+    let back = thread::spawn(move || {
+        let mut a = a;
+        a.as_mut_slice().reverse();
+        a.as_slice().to_vec()
+    })
+    .join()
+    .unwrap();
+    assert_eq!(back.iter().rev().copied().collect::<Vec<_>>(), values);
+}
+
+/// Named picture types and values C may store unnamed, `u32::MAX` included.
+fn picture_sample() -> Vec<PictureType> {
+    [0, 1, 2, 3, 4, 5, 6, 7, 8, 1 << 31, u32::MAX]
+        .map(|raw| PictureType::from_raw(ffi::AVPictureType(raw)))
+        .into()
+}
+
+#[test]
+fn picture_type_debug_and_conversions_accept_every_value() {
+    for t in picture_sample() {
+        assert!(!format!("{t:?}").is_empty());
+        let raw: ffi::AVPictureType = t.into();
+        assert_eq!(PictureType::from(raw), t);
+    }
+}
+
+#[test]
+fn picture_type_arrays_fill_clone_and_free() {
+    let values = picture_sample();
+    let mut a = alloc_array_zeroed::<PictureType>(values.len()).unwrap();
+    assert!(a.as_slice().iter().all(|&t| t == PictureType::NONE));
+    a.as_mut_slice().copy_from_slice(&values);
+    assert!(a.as_slice().get(values.len()).is_none());
+    let mut u = alloc_array::<PictureType>(values.len()).unwrap();
+    for (slot, &t) in u.as_mut_slice().iter_mut().zip(&values) {
+        slot.write(t);
+    }
+    drop(u);
+    let f = alloc_array_from_fn(values.len(), |i| values[i]).unwrap();
+    let b = a.clone();
+    a.as_mut_slice().fill(PictureType::BI);
+    drop(a);
+    assert_eq!(b.as_slice(), &values[..]);
+    assert_eq!(f.as_slice(), &values[..]);
+    drop(alloc_array_zeroed::<PictureType>(0).unwrap());
+}
+
+#[test]
+fn picture_type_arrays_cross_and_are_shared_between_threads() {
+    let values = picture_sample();
+    let a = HeapVec::from_slice(&values).unwrap();
+    thread::scope(|s| {
+        for _ in 0..4 {
+            s.spawn(|| assert_eq!(a.as_slice(), &values[..]));
+        }
+    });
     let back = thread::spawn(move || {
         let mut a = a;
         a.as_mut_slice().reverse();

@@ -9,6 +9,7 @@ mod intreadwrite;
 mod log;
 mod mathematics;
 mod mem;
+mod rational;
 
 /// Programs under `compile_fail/` must be rejected by the compiler.
 #[test]

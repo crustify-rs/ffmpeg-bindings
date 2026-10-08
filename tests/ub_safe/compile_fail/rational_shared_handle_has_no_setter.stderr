@@ -1,0 +1,5 @@
+error[E0599]: no method named `set_num` found for struct `RationalRef<'a>` in the current scope
+ --> tests/ub_safe/compile_fail/rational_shared_handle_has_no_setter.rs
+  |
+  |     q.as_ref().set_num(3);
+  |                ^^^^^^^ method not found in `RationalRef<'_>`

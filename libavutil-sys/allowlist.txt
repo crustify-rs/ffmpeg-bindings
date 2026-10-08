@@ -64,3 +64,16 @@ function av_opt_find
 function av_opt_next
 function av_opt_set_defaults2
 function av_opt_free
+
+# libavutil/rational.h: AVRational's constructor (static inline, compiled by
+# bindgen's wrap_static_fns), and the C readers and writers of its fields
+# that equivalence tests compare the safe accessors against.
+function av_make_q
+function av_inv_q
+function av_q2d
+function av_cmp_q
+function av_reduce
+
+# libavutil/avutil.h: the C consumer of `AVPictureType`, which observes its
+# encoding in equivalence tests.
+function av_get_picture_type_char
