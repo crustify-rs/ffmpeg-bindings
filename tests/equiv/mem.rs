@@ -888,6 +888,103 @@ fn zeroed_reserve_matches_av_fast_mallocz_after_every_step() {
     }
 }
 
+/// The `av_fast` family's other failure: `realloc` or `av_malloc` refusing a
+/// request within the `av_max_alloc` limit. Only an exhausted address space
+/// reaches it, so this test re-runs itself in a child process under a 512 MiB
+/// `ulimit -v` and asks for 1 GiB; it passes when the child does. The
+/// sanitizer runtimes reserve shadow memory far beyond any such limit and
+/// abort on a refused allocation, so those variants skip it.
+#[test]
+fn fast_buffer_failure_without_address_space_matches_c() {
+    const NAME: &str = "mem::fast_buffer_failure_without_address_space_matches_c";
+    if std::env::var_os(ISOLATED).is_none() {
+        if !cfg!(unix)
+            || matches!(
+                std::env::var("CRUSTIFY_FFMPEG_VARIANT").as_deref(),
+                Ok("asan-ubsan" | "tsan" | "bsan")
+            )
+        {
+            return;
+        }
+        let exe = std::env::current_exe().unwrap();
+        let status = std::process::Command::new("sh")
+            .arg("-c")
+            .arg("ulimit -v 524288 && exec \"$0\" \"$@\"")
+            .arg(exe)
+            .args(["--exact", NAME, "--test-threads=1", "--nocapture"])
+            .env(ISOLATED, "1")
+            .status()
+            .unwrap();
+        assert!(status.success(), "isolated run failed: {status}");
+        return;
+    }
+
+    const HUGE: usize = 1 << 30;
+    let (mut r, mut c) = (FastBuffer::new(), CFast::new());
+    assert!(r.reserve(100));
+    let fill = pattern_uninit(r.capacity(), 3);
+    r.as_mut_slice().copy_from_slice(&fill);
+    let mut size = 0;
+    // SAFETY: `av_fast_realloc` takes NULL with a size of 0.
+    c.ptr = unsafe { ffi::av_fast_realloc(core::ptr::null_mut(), &mut size, 100) }.cast();
+    c.size = size;
+    c.fill(3);
+    let kept = c.bytes().to_vec();
+    assert_eq!(r.capacity(), kept.len());
+
+    // `realloc` fails: C reports a size of 0 and leaves the block to its
+    // caller; the buffer keeps it, with its size and bytes.
+    let mut size = c.size;
+    // SAFETY: `c.ptr` is a block of `c.size` bytes we own; on failure it is
+    // still ours.
+    let new = unsafe { ffi::av_fast_realloc(c.ptr.cast(), &mut size, HUGE) };
+    assert_eq!((new, size), (core::ptr::null_mut(), 0));
+    assert!(!r.reserve(HUGE));
+    assert_eq!(r.capacity(), kept.len());
+    // SAFETY: the first `kept.len()` bytes were written above and kept.
+    let rb = unsafe { core::slice::from_raw_parts(r.as_slice().as_ptr().cast::<u8>(), kept.len()) };
+    assert_eq!((rb, c.bytes()), (&kept[..], &kept[..]));
+    // Both go on to grow normally.
+    size = c.size;
+    // SAFETY: as above.
+    let new = unsafe { ffi::av_fast_realloc(c.ptr.cast(), &mut size, 200) };
+    assert!(!new.is_null());
+    (c.ptr, c.size) = (new.cast(), size);
+    assert!(r.reserve(200));
+    assert_eq!(r.capacity(), c.size as usize);
+
+    // `av_malloc` fails: both sides free the old block and end up empty.
+    for zeroed in [false, true] {
+        let mut slot = c.ptr.cast::<c_void>();
+        if zeroed {
+            // SAFETY: the slot holds a block of `c.size` bytes we own.
+            unsafe { ffi::av_fast_mallocz((&raw mut slot).cast(), &mut c.size, HUGE) };
+        } else {
+            // SAFETY: as above.
+            unsafe { ffi::av_fast_malloc((&raw mut slot).cast(), &mut c.size, HUGE) };
+        }
+        c.ptr = slot.cast();
+        assert_eq!((c.ptr, c.size), (core::ptr::null_mut(), 0));
+        if zeroed {
+            let mut z = ZeroedFastBuffer::new();
+            assert!(z.reserve_discarding(50));
+            assert!(!z.reserve_discarding(HUGE));
+            assert_eq!((z.capacity(), z.as_slice()), (0, &[][..]));
+            assert!(z.reserve_discarding(60));
+            assert_eq!(z.as_slice(), &[0; 60 + 60 / 16 + 32][..]);
+        } else {
+            assert!(!r.reserve_discarding(HUGE));
+            assert_eq!(r.capacity(), 0);
+            assert!(r.reserve_discarding(60));
+            assert_eq!(r.capacity(), 60 + 60 / 16 + 32);
+        }
+        // SAFETY: NULL with a size of 0 is an empty pair.
+        unsafe { ffi::av_fast_malloc((&raw mut slot).cast(), &mut c.size, 60) };
+        c.ptr = slot.cast();
+        assert_eq!(c.size as usize, 60 + 60 / 16 + 32);
+    }
+}
+
 // ---- the av_realloc family ----
 
 mod realloc {
