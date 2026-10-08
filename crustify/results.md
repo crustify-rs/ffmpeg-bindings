@@ -18,7 +18,7 @@ Copy this template into the campaign checkout, then fill it as work lands.
 - **`--min-fields`** — `20`
 - **orchestrator parallelism** — `10` concurrent batch processes
 - **branch** — `crustify/campaigns/20261005`, tip `<sha>`
-- **deps** — crustify `c6fb5c6` (`main`, plus an uncommitted prompt edit), ffibox `508e478` (`main`)
+- **deps** — crustify `c6fb5c6` (`main`, plus an uncommitted prompt edit), ffibox `695d52d` (`main`)
 - **build version** — `3`
 - **C test baseline** — `5437/5437, 0 skipped, and no disabled tests`
 
@@ -500,8 +500,7 @@ The review (`72abd2c241`, `9cdb9f2a73`) filed three defects, all confirmed on re
   adopted within `from_raw_parts`'s contract. Rerun: the debug build aborts (exit 134) and Miri
   reports the unaligned reference; against the ffibox patch branch the reproducer is rejected at
   compile time (`E0080`). The crate's `Heap` declares `ALIGN = 16` and bounds every safe
-  `HeapVec` element by it, so its safe surface does not reach the bug. The fix awaits merge into
-  ffibox `main`.
+  `HeapVec` element by it, so its safe surface does not reach the bug.
 
 No reproducer was rejected. The promoted tip passes `clippy`, the plain test suites and the
 `asan-ubsan` suites.
@@ -542,3 +541,10 @@ returns a string with no NUL: the buffer's `size` is 0, so `real_size` is 0 and
 heap-buffer-overflow in `strlen` on the `asan-ubsan` build, and recorded the case in the
 function's wavefront note for the batch that wraps it. The promoted tip passes `clippy`, the
 plain test suites and the `asan-ubsan` suites.
+
+### ffibox `695d52d`
+
+Both raw-lifetime tiers were translated and reviewed against ffibox `508e478`. After the
+string tier, ffibox `main` took the `CVec::clone` alignment fix (`695d52d`), and the gates were
+rerun at `050c2adfa0` against it: `clippy` clean, and the plain, `asan-ubsan`, `tsan` and `bsan`
+suites pass. The void review's reproducer no longer compiles (`E0080`).
