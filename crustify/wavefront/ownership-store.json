@@ -26,6 +26,12 @@
    "fields": []
   },
   {
+   "name": "AVRounding",
+   "defined_in": "libavutil/mathematics.h",
+   "_comment_agent": "By-value only: AVRounding is never stored in a field, returned, or passed to a callback; it flows Rust->C as the `rnd` argument of av_rescale_rnd / av_rescale_q_rnd (and libswscale's static ops helper). av_rescale_rnd accepts a method in {0,1,2,3,5}, alone or ORed with AV_ROUND_PASS_MINMAX (8192); any other value returns INT64_MIN (av_assert2 is compiled out: ASSERT_LEVEL is undefined in every campaign build). Wrapped as the validity-preserving newtype `mathematics::Rounding` (repr(transparent), private field, TryFrom rejects the rest). No lifecycle.",
+   "fields": []
+  },
+  {
    "name": "av_alias16",
    "defined_in": "libavutil/intreadwrite.h",
    "_comment_agent": "A union (the composer reports kind=struct for the anonymous typedef'd union) declared __attribute__((may_alias)) for type punning in the AV_RN/AV_WN/AV_COPY/AV_SWAP/AV_ZERO macros. Fields u16 and u8[2] are plain scalars that both cover all 2 bytes, so every bit pattern is valid for every field and reading any field of an initialised object is defined. No pointer fields, no allocation, no teardown, no clone routine: C only ever casts existing storage to av_alias16* (opaque_in footprint) or holds it by value. Lifecycle: none; a by-value, trivially copyable value type, all-zero valid.",
@@ -51,6 +57,28 @@
      "name": "i",
      "refcount": false,
      "locked_by": null
+    }
+   ]
+  },
+  {
+   "name": "ff_pad_helper_AVBPrint",
+   "defined_in": "libavutil/bprint.h",
+   "_comment_agent": "FF_PAD_STRUCTURE sizing witness: only sizeof(struct ff_pad_helper_AVBPrint) (24) is used, to size AVBPrint.reserved_padding (1000) so that sizeof(AVBPrint) is 1024. No code path creates, stores, or frees one. Its trailing alignment (bytes 21..24) overlaps AVBPrint.reserved_padding, so the generator's padding cannot be modelled as a generic {fields, padding} Rust layout; bprint.c uses those bytes and the whole padding as AVBPrint's internal buffer (size_auto = 1024 - offsetof(reserved_internal_buffer) = 1004), and it also covers AVBPrint's own 3 trailing alignment bytes (1021..1024) in its Rust binding. Wrapped as the sealed trait `bprint::PaddedStruct`.",
+   "fields": [
+    {
+     "name": "str",
+     "ptr": {
+      "scalar": null,
+      "array": {
+       "by_val": true
+      },
+      "string": true,
+      "owned": true,
+      "borrowed": null,
+      "nullable": true,
+      "mutable": true,
+      "note": "Mirrors AVBPrint.str; the helper itself is never instantiated (FF_PAD_STRUCTURE uses it only in sizeof). On AVBPrint the buffer is owned (av_realloc, freed by av_bprint_finalize) only while it is not reserved_internal_buffer; it otherwise borrows the struct itself (automatic storage) or a caller buffer (av_bprint_init_for_buffer), and av_bprint_finalize(buf, &ret) leaves it NULL."
+     }
     }
    ]
   },

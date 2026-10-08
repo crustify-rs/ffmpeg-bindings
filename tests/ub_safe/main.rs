@@ -3,9 +3,11 @@
 
 mod avstring;
 mod avutil;
+mod bprint;
 mod intfloat;
 mod intreadwrite;
 mod log;
+mod mathematics;
 mod mem;
 
 /// Programs under `compile_fail/` must be rejected by the compiler.
