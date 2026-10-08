@@ -352,6 +352,36 @@ mod unit_tests {
     }
 
     #[test]
+    fn c_fills_an_inline_value_through_the_exclusive_handle() {
+        // The path a wrapper over an `AVRational *` out-parameter takes
+        // (`av_opt_get_q`, `av_parse_ratio`): C stores into Rust's inline
+        // storage through the exclusive handle's pointer, and the handles
+        // read it back afterwards.
+        let mut q = Rational::zeroed();
+        let mut m = q.as_mut();
+        // SAFETY: both fields are projected from the exclusive handle's
+        // pointer to a live `AVRational` nothing else accesses during the
+        // call; `av_reduce` stores one `int` through each, and the terms
+        // are within `int` with a positive bound, so none of its arithmetic
+        // overflows.
+        let exact = unsafe {
+            ffi::av_reduce(
+                addr_of_mut!((*m.as_mut_ptr()).num),
+                addr_of_mut!((*m.as_mut_ptr()).den),
+                60000,
+                2002,
+                i32::MAX.into(),
+            )
+        };
+        assert_eq!(exact, 1);
+        assert_eq!((m.as_ref().num(), m.as_ref().den()), (30000, 1001));
+        let num = m.as_ref().num();
+        m.set_num(-num);
+        assert_eq!((q.as_ref().num(), q.as_ref().den()), (-30000, 1001));
+        assert_eq!(q.as_ref().get().into_raw().den, 1001);
+    }
+
+    #[test]
     fn heap_boxed_rational_reads_writes_and_clones() {
         let mut a = HeapBox::<Rational>::new_zeroed().unwrap();
         assert_eq!((a.as_ref().num(), a.as_ref().den()), (0, 0));

@@ -7,7 +7,7 @@ use std::thread;
 
 use ffibox::CZeroable;
 use ffmpeg::libavutil::ffi;
-use ffmpeg::libavutil::mem::{HeapBox, alloc_cell_array_zeroed};
+use ffmpeg::libavutil::mem::{HeapBox, HeapVec, alloc_array_from_fn, alloc_cell_array_zeroed};
 use ffmpeg::libavutil::rational::{Rational, RationalMut, RationalRef};
 
 /// Pairs at every edge: zero and infinite forms, both signs on either part,
@@ -212,6 +212,79 @@ fn inline_handles_cross_threads() {
     });
     let moved = thread::spawn(move || values).join().unwrap();
     assert_eq!(parts(moved[3].as_ref()), (3, i32::MIN));
+}
+
+#[test]
+fn rust_slices_copy_into_heap_arrays_and_back() {
+    let values: Vec<Rational> = PAIRS.iter().map(|&(num, den)| q(num, den)).collect();
+    // A Rust slice copied into an `av_malloc` block (`av_memdup`).
+    let a = HeapVec::from_slice(&values).unwrap();
+    assert_eq!(a.len(), PAIRS.len());
+    assert_eq!(a.as_handles().iter().map(parts).collect::<Vec<_>>(), PAIRS);
+    // A borrowed run copied element by element into its own block, which
+    // outlives the source.
+    let run = a.as_handles();
+    let b = alloc_array_from_fn(run.len(), |i| run.get(i).unwrap().get()).unwrap();
+    drop(a);
+    assert_eq!(b.as_handles().iter().map(parts).collect::<Vec<_>>(), PAIRS);
+    // Built element by element into uninitialised storage.
+    let c = alloc_array_from_fn(PAIRS.len(), |i| Rational::new(PAIRS[i].0, PAIRS[i].1)).unwrap();
+    assert_eq!(c.as_handles().iter().map(parts).collect::<Vec<_>>(), PAIRS);
+    // Moved to another thread and freed there.
+    let (b, c) = thread::spawn(move || (b, c)).join().unwrap();
+    assert_eq!(
+        parts(b.as_handles().get(9).unwrap()),
+        parts(c.as_handles().get(9).unwrap())
+    );
+    thread::spawn(move || drop((b, c))).join().unwrap();
+    // Empty runs: nothing to copy, nothing to free.
+    drop(HeapVec::<Rational>::from_slice(&[]).unwrap());
+    drop(alloc_array_from_fn(0, |_| Rational::zeroed()).unwrap());
+}
+
+#[test]
+fn exclusive_array_views_split_and_iterate_without_aliasing() {
+    let mut a = alloc_cell_array_zeroed::<Rational>(PAIRS.len()).unwrap();
+    let mut all = a.as_handles_mut();
+    assert!(all.split_at_mut(PAIRS.len() + 1).is_none());
+    assert!(all.slice_mut(..=PAIRS.len()).is_none());
+    {
+        // Disjoint halves written together, through a reborrow and a copy.
+        let (mut lo, mut hi) = all.split_at_mut(4).unwrap();
+        for (i, mut h) in lo.iter_mut().enumerate() {
+            h.set(q(i as i32, 1));
+        }
+        for (i, mut h) in hi.iter_mut().enumerate() {
+            h.set_den(-(i as i32) - 1);
+        }
+        hi.get_mut(0).unwrap().set_num(i32::MIN);
+        assert_eq!(parts(lo.as_ref().get(3).unwrap()), (3, 1));
+        assert_eq!(parts(hi.as_ref().get(0).unwrap()), (i32::MIN, -1));
+    }
+    {
+        let mut tail = all.slice_mut(8..).unwrap();
+        assert_eq!(tail.as_ref().iter().count(), 2);
+        tail.as_mut().get_mut(1).unwrap().set_num(7);
+        tail.into_mut(0).unwrap().set(q(5, 5));
+    }
+    let last = all.into_mut(PAIRS.len() - 1).unwrap();
+    assert_eq!(parts(last.as_ref()), (7, -6));
+    let read: Vec<(i32, i32)> = a.as_handles().iter().map(parts).collect();
+    assert_eq!(
+        read,
+        [
+            (0, 1),
+            (1, 1),
+            (2, 1),
+            (3, 1),
+            (i32::MIN, -1),
+            (0, -2),
+            (0, -3),
+            (0, -4),
+            (5, 5),
+            (7, -6),
+        ]
+    );
 }
 
 // ---- av_reduce ----
