@@ -452,9 +452,11 @@ pub fn basename(path: &CStr) -> &CStr {
 /// `path` and `component` joined by a `'/'`: one is added when neither side
 /// has one at the join, and when both do, one of the two is dropped (so
 /// `"a//"` and `"//b"` join as `"a///b"`). When either side is empty, the
-/// result is a copy of the other. `None` when the string cannot be allocated,
-/// which includes a result whose length plus its NUL exceeds the
-/// `av_max_alloc` limit (`INT_MAX` by default).
+/// result is a copy of the other. `None` when the string cannot be
+/// allocated: C asks for `path.count_bytes() + component.count_bytes() + 2`
+/// bytes whatever the join, so that sum exceeding the `av_max_alloc` limit
+/// (`INT_MAX` by default) fails even when the joined text and its NUL would
+/// fit.
 ///
 /// (C also accepts NULL for either side, treated as an empty string except
 /// that two NULLs yield NULL.)
