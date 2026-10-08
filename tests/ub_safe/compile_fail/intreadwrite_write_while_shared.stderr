@@ -1,0 +1,9 @@
+error[E0502]: cannot borrow `a` as mutable because it is also borrowed as immutable
+ --> tests/ub_safe/compile_fail/intreadwrite_write_while_shared.rs
+  |
+  |     let r = a.as_ref();
+  |             - immutable borrow occurs here
+  |     a.as_mut().set_u16(2);
+  |     ^^^^^^^^^^ mutable borrow occurs here
+  |     println!("{}", r.u16());
+  |                    - immutable borrow later used here

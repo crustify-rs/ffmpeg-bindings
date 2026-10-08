@@ -5,11 +5,19 @@
 //! stores each 32-byte block as four `AV_WN64` writes through the union at
 //! whatever alignment `dst` has, and the `AV_RN64` / `AV_WN64` expressions
 //! themselves over the raw `ffi::unaligned_64` layout.
+//!
+//! The `av_alias*` wrappers are compared with the raw C unions: the same
+//! write sequence applied to an independent raw union and to the safe value,
+//! every view compared after each step.
 
 use core::mem::{align_of, offset_of, size_of};
 
+use ffibox::CZeroable;
 use ffmpeg::libavutil::ffi;
-use ffmpeg::libavutil::intreadwrite::{Unaligned64, Unaligned64Mut, Unaligned64Ref};
+use ffmpeg::libavutil::intreadwrite::{
+    Alias16, Alias16Ref, Alias32, Alias32Ref, Unaligned64, Unaligned64Mut, Unaligned64Ref,
+};
+use ffmpeg::libavutil::mem::HeapBox;
 
 /// The 8-byte window of `buf` at `off`.
 fn window(buf: &[u8], off: usize) -> Unaligned64Ref<'_> {
@@ -160,4 +168,231 @@ fn c_fills_and_rust_writes_interleave() {
     let v2 = u64::from(seed) * 0x1_0000_0001;
     assert_eq!(window(&c, 75).value(), v2);
     assert_eq!(window(&c, 75 + 64).value(), v2);
+}
+
+/// Every view of a raw `av_alias16`.
+fn raw16(a: &ffi::av_alias16) -> (u16, [u8; 2]) {
+    // SAFETY: both fields cover all bytes of an initialised union, and any
+    // bit pattern is valid for each.
+    unsafe { (a.u16_, a.u8_) }
+}
+
+/// Every view of a raw `av_alias32`; the float as its bits, so NaNs compare.
+fn raw32(a: &ffi::av_alias32) -> (u32, [u16; 2], [u8; 4], u32) {
+    // SAFETY: every field covers all bytes of an initialised union, and any
+    // bit pattern is valid for each.
+    unsafe { (a.u32_, a.u16_, a.u8_, a.f32_.to_bits()) }
+}
+
+fn safe16(a: Alias16Ref<'_>) -> (u16, [u8; 2]) {
+    (a.u16(), a.u8x2())
+}
+
+fn safe32(a: Alias32Ref<'_>) -> (u32, [u16; 2], [u8; 4], u32) {
+    (a.u32(), a.u16x2(), a.u8x4(), a.f32().to_bits())
+}
+
+#[derive(Clone, Copy, Debug)]
+enum Write32 {
+    U32(u32),
+    U16(usize, u16),
+    U8(usize, u8),
+    F32(f32),
+}
+
+/// A write sequence through every view, each lane and byte singly, and the
+/// float's special values.
+const STEPS32: &[Write32] = &[
+    Write32::U32(0x0102_0304),
+    Write32::U16(0, 0xaaaa),
+    Write32::U8(3, 0x55),
+    Write32::F32(-1.0),
+    Write32::U8(0, 0x01),
+    Write32::U16(1, 0x7fc0),
+    Write32::F32(f32::INFINITY),
+    Write32::U8(1, 0xff),
+    Write32::U8(2, 0x00),
+    Write32::F32(f32::MIN_POSITIVE),
+    Write32::U32(0),
+    Write32::F32(-0.0),
+];
+
+#[derive(Clone, Copy, Debug)]
+enum Write16 {
+    U16(u16),
+    U8(usize, u8),
+}
+
+/// A write sequence through both views, each byte singly.
+const STEPS16: &[Write16] = &[
+    Write16::U16(0x1234),
+    Write16::U8(0, 0xff),
+    Write16::U8(1, 0x00),
+    Write16::U16(u16::MAX),
+    Write16::U8(1, 0x80),
+    Write16::U16(0),
+];
+
+#[test]
+fn layouts_match() {
+    assert_eq!(size_of::<Alias16>(), size_of::<ffi::av_alias16>());
+    assert_eq!(align_of::<Alias16>(), align_of::<ffi::av_alias16>());
+    assert_eq!(size_of::<Alias32>(), size_of::<ffi::av_alias32>());
+    assert_eq!(align_of::<Alias32>(), align_of::<ffi::av_alias32>());
+}
+
+#[test]
+fn zeroed_matches_a_zeroed_union() {
+    assert_eq!(
+        safe16(Alias16::zeroed().as_ref()),
+        raw16(&ffi::av_alias16::default())
+    );
+    assert_eq!(
+        safe32(Alias32::default().as_ref()),
+        raw32(&ffi::av_alias32::default())
+    );
+}
+
+#[test]
+fn alias32_write_sequence_matches_the_union() {
+    let mut raw = ffi::av_alias32::default();
+    let mut value = Alias32::zeroed();
+    let mut boxed = HeapBox::<Alias32>::new_zeroed().unwrap();
+    for (i, &step) in STEPS32.iter().enumerate() {
+        // Read-modify-write the lanes and bytes as the C macros would, the
+        // union field by field and the wrappers through their array views.
+        match step {
+            Write32::U32(v) => {
+                raw.u32_ = v;
+                value.as_mut().set_u32(v);
+                boxed.as_mut().set_u32(v);
+            }
+            Write32::U16(lane, v) => {
+                // SAFETY: the lane view covers all bytes of an initialised union.
+                unsafe { raw.u16_[lane] = v };
+                for mut m in [value.as_mut(), boxed.as_mut()] {
+                    let mut lanes = m.as_ref().u16x2();
+                    lanes[lane] = v;
+                    m.set_u16x2(lanes);
+                }
+            }
+            Write32::U8(byte, v) => {
+                // SAFETY: the byte view covers all bytes of an initialised union.
+                unsafe { raw.u8_[byte] = v };
+                for mut m in [value.as_mut(), boxed.as_mut()] {
+                    let mut bytes = m.as_ref().u8x4();
+                    bytes[byte] = v;
+                    m.set_u8x4(bytes);
+                }
+            }
+            Write32::F32(v) => {
+                raw.f32_ = v;
+                value.as_mut().set_f32(v);
+                boxed.as_mut().set_f32(v);
+            }
+        }
+        let want = raw32(&raw);
+        assert_eq!(
+            safe32(value.as_ref()),
+            want,
+            "value after step {i}: {step:?}"
+        );
+        assert_eq!(safe32(boxed.as_ref()), want, "box after step {i}: {step:?}");
+    }
+}
+
+#[test]
+fn alias16_write_sequence_matches_the_union() {
+    let mut raw = ffi::av_alias16::default();
+    let mut value = Alias16::zeroed();
+    let mut boxed = HeapBox::<Alias16>::new_zeroed().unwrap();
+    for (i, &step) in STEPS16.iter().enumerate() {
+        match step {
+            Write16::U16(v) => {
+                raw.u16_ = v;
+                value.as_mut().set_u16(v);
+                boxed.as_mut().set_u16(v);
+            }
+            Write16::U8(byte, v) => {
+                // SAFETY: the byte view covers all bytes of an initialised union.
+                unsafe { raw.u8_[byte] = v };
+                for mut m in [value.as_mut(), boxed.as_mut()] {
+                    let mut bytes = m.as_ref().u8x2();
+                    bytes[byte] = v;
+                    m.set_u8x2(bytes);
+                }
+            }
+        }
+        let want = raw16(&raw);
+        assert_eq!(
+            safe16(value.as_ref()),
+            want,
+            "value after step {i}: {step:?}"
+        );
+        assert_eq!(safe16(boxed.as_ref()), want, "box after step {i}: {step:?}");
+    }
+}
+
+#[test]
+fn constructors_match_a_union_written_through_the_same_field() {
+    for v in [0, 1, 0x8000_0001, u32::MAX] {
+        assert_eq!(
+            safe32(Alias32::from_u32(v).as_ref()),
+            raw32(&ffi::av_alias32 { u32_: v })
+        );
+    }
+    for v in [[0, 0], [1, 0xffff], [0x1234, 0x5678]] {
+        assert_eq!(
+            safe32(Alias32::from_u16x2(v).as_ref()),
+            raw32(&ffi::av_alias32 { u16_: v })
+        );
+    }
+    for v in [[0; 4], [1, 2, 3, 4], [0xff, 0, 0x80, 0x7f]] {
+        assert_eq!(
+            safe32(Alias32::from_u8x4(v).as_ref()),
+            raw32(&ffi::av_alias32 { u8_: v })
+        );
+    }
+    for v in [
+        0.0,
+        -0.0,
+        1.5,
+        f32::NAN,
+        f32::NEG_INFINITY,
+        f32::from_bits(1),
+    ] {
+        assert_eq!(
+            safe32(Alias32::from_f32(v).as_ref()),
+            raw32(&ffi::av_alias32 { f32_: v })
+        );
+    }
+    for v in [0, 0x00ff, u16::MAX] {
+        assert_eq!(
+            safe16(Alias16::from_u16(v).as_ref()),
+            raw16(&ffi::av_alias16 { u16_: v })
+        );
+    }
+    for v in [[0, 0], [0xff, 0x01]] {
+        assert_eq!(
+            safe16(Alias16::from_u8x2(v).as_ref()),
+            raw16(&ffi::av_alias16 { u8_: v })
+        );
+    }
+}
+
+#[test]
+fn heap_box_clone_matches_av_memdup() {
+    let mut boxed = HeapBox::<Alias32>::new_zeroed().unwrap();
+    boxed.as_mut().set_u32(0xcafe_f00d);
+    let raw = ffi::av_alias32 { u32_: 0xcafe_f00d };
+    // SAFETY: `raw` is readable for its size; `av_memdup` only reads it and
+    // returns a fresh block or NULL.
+    let dup = unsafe { ffi::av_memdup((&raw const raw).cast(), size_of::<ffi::av_alias32>()) };
+    assert!(!dup.is_null());
+    // SAFETY: a non-NULL `dup` holds a byte copy of an initialised union,
+    // aligned by `av_malloc`.
+    let c_copy = raw32(&unsafe { dup.cast::<ffi::av_alias32>().read() });
+    // SAFETY: `dup` is a live `av_malloc`-family block we own.
+    unsafe { ffi::av_free(dup) };
+    assert_eq!(safe32(boxed.clone().as_ref()), c_copy);
 }
