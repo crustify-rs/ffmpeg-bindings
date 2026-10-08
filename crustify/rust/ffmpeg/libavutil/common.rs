@@ -139,12 +139,13 @@ pub fn clamp_to_unsigned_pow2(a: i32, p: u32) -> Option<u32> {
 /// `a` with every bit from position `p` up cleared, keeping its `p` low bits
 /// (`av_zero_extend`). `None` when `p > 31`, for which C's shift is
 /// undefined.
+#[inline]
 pub fn zero_extend(a: u32, p: u32) -> Option<u32> {
-    if p > 31 {
+    if p > MAX_POW2 {
         return None;
     }
-    // SAFETY: `av_zero_extend_c` computes on its arguments only, and `p` is
-    // within the `0..=31` its `1U << p` requires.
+    // SAFETY: `av_zero_extend_c` computes on its arguments only, and
+    // `p <= 31` keeps its `1U << p` defined.
     Some(unsafe { ffi::av_zero_extend_c(a, p) })
 }
 

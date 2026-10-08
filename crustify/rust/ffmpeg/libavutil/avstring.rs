@@ -6,9 +6,10 @@
 //!
 //! Locale-independent string helpers. The case-insensitive ones fold ASCII
 //! letters only, among them [`cmp_ignore_ascii_case`],
-//! [`strip_prefix_ignore_ascii_case`], [`find_ignore_ascii_case`] and
-//! [`replace_ignore_ascii_case`]; [`scan`] is C's `sscanf` with each
-//! destination checked against the format before the call.
+//! [`cmp_n_ignore_ascii_case`], [`strip_prefix_ignore_ascii_case`],
+//! [`find_ignore_ascii_case`] and [`replace_ignore_ascii_case`]; [`scan`] is
+//! C's `sscanf` with each destination checked against the format before the
+//! call.
 
 use core::cmp::Ordering;
 use core::ffi::{CStr, c_char, c_int, c_long, c_longlong, c_short, c_uint, c_void};
@@ -78,6 +79,7 @@ impl From<EscapeMode> for ffi::AVEscapeMode {
 ///
 /// The rest of `s` after `prefix`, or `None` when `s` does not start with
 /// `prefix`. An empty prefix matches every string.
+#[must_use]
 pub fn strip_prefix<'a>(s: &'a CStr, prefix: &CStr) -> Option<&'a CStr> {
     let mut rest: *const c_char = ptr::null();
     // SAFETY: `s` and `prefix` are live NUL-terminated strings, which
@@ -98,6 +100,7 @@ pub fn strip_prefix<'a>(s: &'a CStr, prefix: &CStr) -> Option<&'a CStr> {
 /// The offset of the first occurrence of `needle` in `haystack`, or `None`
 /// when it has none; an empty `needle` matches at 0. The whole slice is
 /// searched, NUL bytes included: pass a sub-slice to search a prefix.
+#[must_use]
 pub fn find(haystack: &[u8], needle: &CStr) -> Option<usize> {
     let base: *const c_char = haystack.as_ptr().cast();
     // SAFETY: `av_strnstr` reads `needle`, a live NUL-terminated string, and
@@ -185,6 +188,7 @@ pub(crate) fn text_until_nul(args: fmt::Arguments<'_>) -> CString {
 ///
 /// The number of bytes of `s` before its first NUL, or `s.len()` when it has
 /// none.
+#[must_use]
 pub fn strnlen(s: &[u8]) -> usize {
     // SAFETY: `av_strnlen` reads at most `s.len()` bytes of `s`, stopping at
     // the first NUL, and writes nothing.
@@ -193,10 +197,13 @@ pub fn strnlen(s: &[u8]) -> usize {
 
 /// Wraps: av_strncasecmp
 ///
-/// Compares at most the first `n` bytes of `a` and `b`, ASCII letters
+/// Compares at most the first `n` bytes of `a` and `b`, as
+/// [`cmp_ignore_ascii_case`] compares whole strings: ASCII letters
 /// regardless of case, locale-independently; bytes are ordered as unsigned
-/// after lowercasing, and a string orders before its extensions.
-pub fn strncasecmp(a: &CStr, b: &CStr, n: usize) -> Ordering {
+/// after lowercasing, and a string orders before its extensions. With `n`
+/// of 0 everything is equal.
+#[must_use]
+pub fn cmp_n_ignore_ascii_case(a: &CStr, b: &CStr, n: usize) -> Ordering {
     // SAFETY: `a` and `b` are live NUL-terminated strings; `av_strncasecmp`
     // reads them in step and stops at the first NUL of either, a difference,
     // or after `n` bytes, and writes nothing.
@@ -280,6 +287,7 @@ impl FusedIterator for Tokens<'_> {}
 ///
 /// `c` with an ASCII lowercase letter mapped to uppercase, locale-independently;
 /// any other value, `EOF` and bytes above 127 included, is returned as is.
+#[must_use]
 pub fn to_ascii_uppercase(c: c_int) -> c_int {
     // SAFETY: `av_toupper` takes and returns a value, touching no memory.
     unsafe { ffi::av_toupper(c) }
@@ -289,6 +297,7 @@ pub fn to_ascii_uppercase(c: c_int) -> c_int {
 ///
 /// `c` with an ASCII uppercase letter mapped to lowercase, locale-independently;
 /// any other value, `EOF` and bytes above 127 included, is returned as is.
+#[must_use]
 pub fn to_ascii_lowercase(c: c_int) -> c_int {
     // SAFETY: `av_tolower` takes and returns a value, touching no memory.
     unsafe { ffi::av_tolower(c) }
@@ -334,10 +343,17 @@ impl std::error::Error for Utf8Error {}
 /// `None` when `buf` is empty.
 ///
 /// The decoder accepts the original sequences of up to six bytes, so a code
-/// point may exceed U+10FFFF (but not `i32::MAX`) when
-/// `AV_UTF8_FLAG_ACCEPT_INVALID_BIG_CODES` allows it. On a malformed
-/// sequence it consumes up to the offending byte; on a well-formed one that
-/// `flags` rejects, the whole sequence.
+/// point may exceed U+10FFFF, up to `i32::MAX`, when
+/// `AV_UTF8_FLAG_ACCEPT_INVALID_BIG_CODES` allows it.
+///
+/// What is consumed follows C, not the sequence's length: exactly one byte
+/// for an invalid lead byte, for a tail byte that is not `10xxxxxx` (however
+/// many tail bytes before it were fine: `E2 82 41` consumes only `E2`, and
+/// the next call starts at `82`), and for a sequence `buf` cuts short
+/// (`E2 82` at its end consumes only `E2`); the whole sequence otherwise,
+/// for an overlong encoding (no code point) as for a well-formed one that
+/// `flags` rejects (its code point).
+#[must_use]
 pub fn utf8_decode(buf: &[u8], flags: c_uint) -> Option<(Result<u32, Utf8Error>, usize)> {
     let range = buf.as_ptr_range();
     let mut p = range.start;
