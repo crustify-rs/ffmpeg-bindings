@@ -13,7 +13,14 @@ use ffmpeg::libavutil::mem::{
 /// The alignment `av_malloc` guarantees in every configuration.
 const ALIGN: usize = 16;
 
-define_ctype!(Rational, RationalRef, RationalMut, ffi::AVRational);
+// `AVRational` owns nothing, so its bytes copy as a value (`HeapBox::clone`).
+define_ctype!(
+    #[derive(Clone, Copy)]
+    Rational,
+    RationalRef,
+    RationalMut,
+    ffi::AVRational
+);
 // SAFETY: 0/0 is a valid `AVRational` for these tests, which only compare its
 // bytes.
 unsafe impl CZeroable for Rational {}
@@ -220,6 +227,53 @@ fn new_uninit_box_matches_av_malloc_and_fills_in_place() {
         rust_bytes(&r, r.as_c_ptr(), 1),
         c.bytes(size_of::<ffi::AVRational>())
     );
+}
+
+#[test]
+fn box_clone_matches_av_memdup_step_by_step() {
+    let size = size_of::<ffi::AVRational>();
+    let value = ffi::AVRational { num: 7, den: -9 };
+
+    // Step 1: one source each, holding the same value.
+    // SAFETY: `av_malloc` has no preconditions.
+    let c0 = CBlock(unsafe { ffi::av_malloc(size) });
+    assert!(!c0.0.is_null());
+    let mut r0 = HeapBox::<Rational>::new_zeroed().unwrap();
+    // SAFETY: both blocks are aligned and `AVRational`-sized, owned here.
+    unsafe {
+        c0.0.cast::<ffi::AVRational>().write(value);
+        r0.as_mut().as_mut_ptr().write(value);
+    }
+    assert_eq!(rust_bytes(&r0, r0.as_c_ptr(), 1), c0.bytes(size));
+
+    // Step 2: one copy each.
+    // SAFETY: `c0.0` holds `size` initialised bytes.
+    let c1 = CBlock(unsafe { ffi::av_memdup(c0.0, size) });
+    let r1 = r0.clone();
+    assert_eq!(rust_bytes(&r1, r1.as_c_ptr(), 1), c1.bytes(size));
+    assert_eq!(
+        (r1.as_ptr() as usize % ALIGN, c1.0 as usize % ALIGN),
+        (0, 0)
+    );
+    assert_ne!(r1.as_ptr(), r0.as_ptr());
+
+    // Step 3: the sources change; the copies do not.
+    let other = ffi::AVRational { num: 1, den: 1 };
+    // SAFETY: as in step 1.
+    unsafe {
+        c0.0.cast::<ffi::AVRational>().write(other);
+        r0.as_mut().as_mut_ptr().write(other);
+    }
+    assert_eq!(rust_bytes(&r0, r0.as_c_ptr(), 1), c0.bytes(size));
+    assert_eq!(rust_bytes(&r1, r1.as_c_ptr(), 1), c1.bytes(size));
+
+    // Step 4: copy the copies after the sources are gone.
+    drop((c0, r0));
+    // SAFETY: `c1.0` holds `size` initialised bytes.
+    let c2 = CBlock(unsafe { ffi::av_memdup(c1.0, size) });
+    let r2 = r1.try_clone().unwrap();
+    drop((c1, r1));
+    assert_eq!(rust_bytes(&r2, r2.as_c_ptr(), 1), c2.bytes(size));
 }
 
 #[test]
