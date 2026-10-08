@@ -192,6 +192,14 @@ function av_gettime_relative_is_monotonic
 
 # libavutil core wave 0, batch 13: the safe wrappers' FFI calls.
 function av_parse_cpu_caps
+# libavutil/eval.h: how C's option evaluator reads a `+`/`-` operand of
+# av_parse_cpu_caps (a number, or one of the evaluator's constants), which
+# cpu.rs needs to truncate the operand as C does.
+function av_strtod
+var M_E
+var M_PI
+var M_PHI
+var FF_QP2LAMBDA
 function av_random_bytes
 function av_realloc
 function av_realloc_array

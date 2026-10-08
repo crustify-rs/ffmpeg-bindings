@@ -2451,7 +2451,7 @@
       },
       "nullable": false,
       "mutable": true,
-      "note": "In/out flag word, borrowed for the call: set_string_number reads *flags for '+'/'-' tokens and writes each token's result in turn (write_number), so a failing later token leaves earlier writes. Must not be NULL. C reaches UB (float-cast-overflow) for '+'/'-' operands outside int64_t (opt.c (int64_t)d) and for expression tokens such as ld(1e300) (eval.c av_clip of a double); the Rust wrapper restricts tokens to [A-Za-z0-9_.], evaluates each unprefixed and combines the bits itself."
+      "note": "In/out flag word, borrowed for the call: set_string_number reads *flags for '+'/'-' tokens and writes each token's result in turn (write_number), so a failing later token leaves earlier writes. Must not be NULL. C reaches UB (float-cast-overflow) for '+'/'-' operands at or beyond 2^63 in magnitude (opt.c (int64_t)d: max, inf, 1e300) and for expression tokens such as ld(1e300) (eval.c av_clip of a double). A '+'/'-' operand is truncated, not rounded, and only the combination is range-checked, so fractional operands (+2.5, -0.999) are valid input. The Rust wrapper restricts tokens to [A-Za-z0-9_.], reads a '+'/'-' operand's value through av_strtod (or the evaluators' constants) and truncates and combines it as C does, refusing the overflowing conversion; a CPU-flag name or anything else goes through C's own unprefixed evaluation."
      }
     },
     {
