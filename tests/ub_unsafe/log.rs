@@ -202,3 +202,141 @@ fn one_context_logged_from_many_threads() {
     drop(unsafe { Box::from_raw(addr as *mut Ctx) });
     drop(cls);
 }
+
+/// UB tests for `libavutil/log.h`'s unsafe `default_item_name`, called within
+/// its `# Safety` contract: static and heap classes, NULL names, objects
+/// larger than their class pointer, and concurrent readers.
+mod item_name {
+    use core::ffi::{CStr, c_void};
+    use core::ptr::null;
+    use std::ffi::CString;
+
+    use ffmpeg::libavutil::ffi;
+    use ffmpeg::libavutil::log::default_item_name;
+
+    /// A class, `Sync` to live in a `static`.
+    struct Class(ffi::AVClass);
+    // SAFETY: the class is immutable and its name is a string literal.
+    unsafe impl Sync for Class {}
+
+    static NAMED: Class = Class(ffi::AVClass {
+        class_name: c"ub-unsafe-class".as_ptr(),
+        // SAFETY: every other member is an integer, a nullable pointer or an
+        // `Option` of a function pointer, for which all-zero is valid (NULL).
+        ..unsafe { core::mem::zeroed() }
+    });
+
+    /// An `AVClass`-enabled object with a payload after its class pointer.
+    #[repr(C)]
+    struct Obj {
+        class: *const ffi::AVClass,
+        payload: [u8; 64],
+    }
+
+    impl Obj {
+        fn new(class: *const ffi::AVClass) -> Self {
+            Self {
+                class,
+                payload: [0xa5; 64],
+            }
+        }
+
+        fn ctx(&self) -> *const c_void {
+            (self as *const Self).cast()
+        }
+    }
+
+    #[test]
+    fn static_class_name_lives_for_static() {
+        let name: &'static CStr = {
+            let obj = Obj::new(&NAMED.0);
+            // SAFETY: `obj` starts with a non-NULL pointer to the live static
+            // class, whose name is a literal, so any lifetime holds.
+            unsafe { default_item_name(obj.ctx()) }.unwrap()
+        };
+        // The name outlives the object that reached it.
+        assert_eq!(name, c"ub-unsafe-class");
+    }
+
+    #[test]
+    fn bare_class_pointer_is_the_smallest_object() {
+        let fake: *const ffi::AVClass = &NAMED.0;
+        // SAFETY: `fake` is readable memory starting with a non-NULL class
+        // pointer to the live static class.
+        let name = unsafe { default_item_name((&raw const fake).cast()) };
+        assert_eq!(name, Some(c"ub-unsafe-class"));
+    }
+
+    #[test]
+    fn null_class_name_reads_as_none() {
+        let cls = ffi::AVClass {
+            class_name: null(),
+            ..Default::default()
+        };
+        let obj = Obj::new(&cls);
+        // SAFETY: `obj` starts with a non-NULL pointer to the live `cls`, which
+        // stores NULL as its name.
+        assert_eq!(unsafe { default_item_name(obj.ctx()) }, None);
+    }
+
+    #[test]
+    fn heap_name_is_read_within_its_owner() {
+        for text in ["", "h", "heap-allocated-class-name", &"n".repeat(4000)] {
+            let name = CString::new(text).unwrap();
+            let cls = Box::new(ffi::AVClass {
+                class_name: name.as_ptr(),
+                ..Default::default()
+            });
+            let obj = Box::new(Obj::new(&*cls));
+            {
+                // SAFETY: `obj` starts with a non-NULL pointer to the live `cls`,
+                // whose name `name` stays alive and unmodified for this block.
+                let read = unsafe { default_item_name(obj.ctx()) }.unwrap();
+                assert_eq!(read.to_bytes(), text.as_bytes());
+            }
+            drop(obj);
+            drop(cls);
+            drop(name);
+        }
+    }
+
+    #[test]
+    fn object_class_switches_between_calls() {
+        let other = ffi::AVClass {
+            class_name: c"other".as_ptr(),
+            ..Default::default()
+        };
+        let mut obj = Obj::new(&NAMED.0);
+        for (i, cls) in [&NAMED.0, &other, &NAMED.0].into_iter().enumerate() {
+            obj.class = cls;
+            // SAFETY: `obj` starts with a non-NULL pointer to a live class whose
+            // name is a literal; no other thread writes `obj`.
+            let name = unsafe { default_item_name(obj.ctx()) }.unwrap();
+            assert_eq!(name.as_ptr(), cls.class_name, "step {i}");
+        }
+        assert_eq!(obj.payload, [0xa5; 64]);
+    }
+
+    #[test]
+    fn concurrent_readers_share_an_object() {
+        /// An object, `Sync` to share across threads.
+        struct Shared(Obj);
+        // SAFETY: the threads below only read the object and its static class.
+        unsafe impl Sync for Shared {}
+
+        let shared = Shared(Obj::new(&NAMED.0));
+        std::thread::scope(|s| {
+            for _ in 0..4 {
+                let shared = &shared;
+                s.spawn(move || {
+                    for _ in 0..1_000 {
+                        // SAFETY: the object starts with a non-NULL pointer to the
+                        // static class; every thread only reads it.
+                        let name = unsafe { default_item_name(shared.0.ctx()) };
+                        assert_eq!(name, Some(c"ub-unsafe-class"));
+                    }
+                });
+            }
+        });
+    }
+}

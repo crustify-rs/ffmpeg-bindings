@@ -235,3 +235,140 @@ mod helpers {
         }
     }
 }
+
+/// `basename`, `append_path_component` and `format`: borrowed views, owned
+/// results moved across threads, and formatting that panics part-way.
+mod paths_and_format {
+    use core::ffi::CStr;
+    use core::fmt;
+    use std::ffi::CString;
+    use std::panic::{AssertUnwindSafe, catch_unwind};
+
+    use ffmpeg::libavutil::avstring::{append_path_component, basename, format};
+    use ffmpeg::libavutil::mem::HeapString;
+
+    /// A path of up to 512 bytes of `n`-byte components, NUL-terminated.
+    /// Small enough that BSan's runtime, whose memory grows with every byte
+    /// view of a C string it later frees, stays bounded.
+    fn long_path(n: usize) -> CString {
+        let mut s = String::new();
+        while s.len() + n < 512 {
+            s.push_str(&"c".repeat(n));
+            s.push('/');
+        }
+        CString::new(s).unwrap()
+    }
+
+    #[test]
+    fn basename_views_stay_inside_their_path() {
+        let paths = [
+            long_path(1),
+            long_path(7),
+            long_path(511),
+            CString::default(),
+        ];
+        for path in &paths {
+            let base = basename(path);
+            let range = path.as_bytes_with_nul().as_ptr_range();
+            if !path.is_empty() {
+                assert!(range.contains(&base.as_ptr().cast()), "{base:?}");
+            }
+            // Reading the whole view stays in bounds.
+            let _ = base.to_bytes().iter().map(|&b| u32::from(b)).sum::<u32>();
+        }
+        // An empty path's view is the library's static ".".
+        let base: &'static CStr = basename(c"");
+        assert_eq!(base, c".");
+    }
+
+    #[test]
+    fn joins_of_long_and_edge_paths_are_owned_and_bounded() {
+        let parts = [
+            long_path(3),
+            long_path(511),
+            CString::default(),
+            CString::from(c"/"),
+            CString::from(c"//"),
+        ];
+        for a in &parts {
+            for b in &parts {
+                let joined = append_path_component(a, b).unwrap();
+                assert!(joined.as_bytes().len() <= a.as_bytes().len() + b.as_bytes().len() + 1);
+                let copy = joined.clone();
+                drop(joined);
+                assert!(copy.as_bytes().iter().all(|&c| c != 0));
+            }
+        }
+    }
+
+    #[test]
+    fn format_handles_long_text_and_nuls_anywhere() {
+        let long = "x".repeat(1000);
+        let s = format(format_args!("{long}{}", 7)).unwrap();
+        assert_eq!(s.as_bytes().len(), 1001);
+        for nul in [0, 1, 500, 1000] {
+            let mut text = long.clone();
+            text.insert(nul, '\0');
+            let s = format(format_args!("{text}")).unwrap();
+            assert_eq!(s.as_bytes().len(), nul);
+        }
+    }
+
+    /// Writes `n` pieces, then panics.
+    struct PanicsAfter(usize);
+
+    impl fmt::Display for PanicsAfter {
+        fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+            for _ in 0..self.0 {
+                f.write_str("piece")?;
+            }
+            panic!("formatting failed");
+        }
+    }
+
+    #[test]
+    fn a_panicking_display_unwinds_before_c_allocates() {
+        for n in [0, 1, 100] {
+            let r = catch_unwind(AssertUnwindSafe(|| {
+                format(format_args!("{}", PanicsAfter(n)))
+            }));
+            assert!(r.is_err());
+        }
+        // The next call is unaffected.
+        assert_eq!(format(format_args!("ok")).unwrap().to_str(), Ok("ok"));
+    }
+
+    #[test]
+    fn owned_results_move_and_drop_on_other_threads() {
+        let made: Vec<HeapString> = (0..64)
+            .map(|i| match i % 2 {
+                0 => format(format_args!("item-{i}")).unwrap(),
+                _ => append_path_component(c"dir", c"file").unwrap(),
+            })
+            .collect();
+        let handles: Vec<_> = made
+            .into_iter()
+            .map(|s| std::thread::spawn(move || (s.clone(), s.as_bytes().len())))
+            .collect();
+        for h in handles {
+            let (copy, len) = h.join().unwrap();
+            assert_eq!(copy.as_bytes().len(), len);
+        }
+    }
+
+    #[test]
+    fn builders_run_concurrently() {
+        std::thread::scope(|s| {
+            for t in 0..4 {
+                s.spawn(move || {
+                    let mut path = format(format_args!("root{t}")).unwrap();
+                    for i in 0..200 {
+                        let part = format(format_args!("p{i}")).unwrap();
+                        path = append_path_component(path.as_c_str(), part.as_c_str()).unwrap();
+                        assert_eq!(basename(path.as_c_str()), part.as_c_str());
+                    }
+                });
+            }
+        });
+    }
+}

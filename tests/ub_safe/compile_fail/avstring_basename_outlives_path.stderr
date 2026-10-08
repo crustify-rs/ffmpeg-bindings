@@ -1,0 +1,11 @@
+error[E0597]: `path` does not live long enough
+ --> tests/ub_safe/compile_fail/avstring_basename_outlives_path.rs
+  |
+  |         let path = std::ffi::CString::new("dir/file").unwrap();
+  |             ---- binding `path` declared here
+  |         base = basename(&path);
+  |                         ^^^^^ borrowed value does not live long enough
+  |     }
+  |     - `path` dropped here while still borrowed
+  |     println!("{base:?}");
+  |                ---- borrow later used here

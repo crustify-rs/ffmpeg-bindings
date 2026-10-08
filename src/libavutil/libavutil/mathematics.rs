@@ -2,6 +2,9 @@
 //!
 //! [`Rounding`] is the rounding argument of the rescaling functions: one of
 //! five methods, optionally with the pass-through of `i64::MIN` / `i64::MAX`.
+//!
+//! [`compare_mod`] and [`bessel_i0`] are plain numeric functions over the C
+//! implementations.
 
 use core::fmt;
 
@@ -121,6 +124,34 @@ impl fmt::Display for InvalidRounding {
 
 impl std::error::Error for InvalidRounding {}
 
+/// Wraps: av_compare_mod
+///
+/// Compares `a % m` with `b % m` for a power-of-two `m`: the wrapped
+/// difference of the low `log2(m)` bits of `a` and `b`, read as a signed
+/// value in `1 - m / 2..=m / 2`, so it is negative, zero or positive as `a`
+/// lags, matches or leads `b` modulo `m` (as sequence numbers that wrap).
+///
+/// A modulus that is not a power of two gives a meaningless but defined
+/// result, as in C; `m == 0` compares the whole 64 bits.
+#[inline]
+pub fn compare_mod(a: u64, b: u64, m: u64) -> i64 {
+    // SAFETY: `av_compare_mod` takes and returns integers by value and
+    // touches no memory; its arithmetic is unsigned, defined for every input.
+    unsafe { ffi::av_compare_mod(a, b, m) }
+}
+
+/// Wraps: av_bessel_i0
+///
+/// The zeroth-order modified Bessel function of the first kind, `I0(x)`,
+/// from C's minimax rational approximations. Even in `x`; NaN yields NaN and
+/// a large `|x|` overflows to infinity.
+#[inline]
+pub fn bessel_i0(x: f64) -> f64 {
+    // SAFETY: `av_bessel_i0` takes and returns a double by value and reads
+    // only its own constant tables.
+    unsafe { ffi::av_bessel_i0(x) }
+}
+
 #[cfg(test)]
 mod unit_tests {
     use super::*;
@@ -226,6 +257,33 @@ mod unit_tests {
             );
         }
         assert_eq!(fmt::write(&mut Budget(3), format_args!("{r:?}")), Ok(()));
+    }
+
+    #[test]
+    fn compare_mod_orders_wrapped_residues() {
+        assert!(compare_mod(0x11, 0x02, 0x10) < 0);
+        assert!(compare_mod(0x11, 0x02, 0x20) > 0);
+        assert_eq!(compare_mod(0x1234, 0x5634, 0x100), 0);
+        // Sequence numbers across the wrap: 1 follows 0xffff by 2.
+        assert_eq!(compare_mod(1, 0xffff, 0x1_0000), 2);
+        assert_eq!(compare_mod(0xffff, 1, 0x1_0000), -2);
+        // Half the modulus away stays positive.
+        assert_eq!(compare_mod(8, 0, 16), 8);
+        assert_eq!(compare_mod(9, 0, 16), -7);
+        assert_eq!(compare_mod(0, u64::MAX, 0), 1);
+    }
+
+    #[test]
+    fn bessel_i0_is_even_and_grows() {
+        assert_eq!(bessel_i0(0.0), 1.0);
+        assert_eq!(bessel_i0(-0.0), 1.0);
+        for x in [0.5, 1.0, 14.9, 15.0, 15.1, 100.0] {
+            assert_eq!(bessel_i0(x), bessel_i0(-x));
+            assert!(bessel_i0(x) > 1.0);
+        }
+        assert!((bessel_i0(1.0) - 1.266_065_877_752_008_4).abs() < 1e-12);
+        assert!(bessel_i0(f64::NAN).is_nan());
+        assert_eq!(bessel_i0(1e4), f64::INFINITY);
     }
 
     #[test]

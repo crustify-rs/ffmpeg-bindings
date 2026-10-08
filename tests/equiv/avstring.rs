@@ -498,3 +498,264 @@ mod helpers {
         }
     }
 }
+
+/// `basename`, `append_path_component` and `format` against `av_basename`,
+/// `av_append_path_component` and `av_asprintf`, on independently owned
+/// strings.
+mod paths_and_format {
+    use core::ffi::{CStr, c_char, c_double, c_int};
+    use core::ptr::null;
+    use std::process::Command;
+
+    use ffmpeg::libavutil::avstring::{append_path_component, basename, format};
+    use ffmpeg::libavutil::ffi;
+    use ffmpeg::libavutil::mem::HeapString;
+
+    /// A string C returned, freed with `av_free` on drop.
+    struct CString(*mut c_char);
+
+    impl CString {
+        fn bytes(&self) -> Option<&[u8]> {
+            // SAFETY: `self.0` is NULL or a live NUL-terminated string we own.
+            (!self.0.is_null()).then(|| unsafe { CStr::from_ptr(self.0) }.to_bytes())
+        }
+    }
+
+    impl Drop for CString {
+        fn drop(&mut self) {
+            // SAFETY: `self.0` is NULL or a live `av_malloc`-family string we
+            // own.
+            unsafe { ffi::av_free(self.0.cast()) }
+        }
+    }
+
+    /// The bytes of a Rust-owned result, as `CString::bytes`.
+    fn bytes(s: &Option<HeapString>) -> Option<&[u8]> {
+        s.as_ref().map(HeapString::as_bytes)
+    }
+
+    const PATHS: [&CStr; 14] = [
+        c"",
+        c"/",
+        c"//",
+        c"a",
+        c"a/",
+        c"/a",
+        c"a/b",
+        c"a//b",
+        c"/a/b/",
+        c"./file.mkv",
+        c"C:\\dir\\file",
+        c"dir/C:file",
+        c"\xc3\xbc/\xc3\xb1",
+        c"very/long/path/with/many/components/at/the/end.txt",
+    ];
+
+    #[test]
+    fn basename_points_where_c_points() {
+        for path in PATHS {
+            // SAFETY: `path` is a live NUL-terminated string, only read.
+            let c = unsafe { ffi::av_basename(path.as_ptr()) };
+            let r = basename(path);
+            if path.is_empty() {
+                // Both return the library's static ".".
+                assert_eq!(r, c".");
+            }
+            assert_eq!(r.as_ptr(), c, "{path:?}");
+        }
+        // C's NULL path reads as Rust's empty one.
+        // SAFETY: `av_basename` accepts NULL.
+        let c = unsafe { ffi::av_basename(null()) };
+        assert_eq!(basename(c"").as_ptr(), c);
+    }
+
+    #[test]
+    fn appended_paths_match_c_for_every_pair() {
+        for path in PATHS {
+            for component in PATHS {
+                // SAFETY: both are live NUL-terminated strings, only read.
+                let c = CString(unsafe {
+                    ffi::av_append_path_component(path.as_ptr(), component.as_ptr())
+                });
+                let r = append_path_component(path, component);
+                assert_eq!(bytes(&r), c.bytes(), "{path:?} + {component:?}");
+            }
+        }
+    }
+
+    #[test]
+    fn c_null_sides_read_as_rust_empty_ones() {
+        for s in PATHS {
+            // SAFETY: `s` is a live NUL-terminated string; NULL is accepted
+            // on either side.
+            let (left, right) = unsafe {
+                (
+                    CString(ffi::av_append_path_component(null(), s.as_ptr())),
+                    CString(ffi::av_append_path_component(s.as_ptr(), null())),
+                )
+            };
+            assert_eq!(bytes(&append_path_component(c"", s)), left.bytes());
+            assert_eq!(bytes(&append_path_component(s, c"")), right.bytes());
+        }
+        // Two NULLs are C's only NULL result outside allocation failure.
+        // SAFETY: as above.
+        let both = CString(unsafe { ffi::av_append_path_component(null(), null()) });
+        assert_eq!(both.bytes(), None);
+    }
+
+    #[test]
+    fn paths_built_step_by_step_stay_equal() {
+        // Each side extends its own previous result, compared after each step.
+        let steps = [c"/", c"usr/", c"/lib", c"", c"x86_64", c"//libavutil.so"];
+        let mut c = CString(core::ptr::null_mut());
+        let mut r: Option<HeapString> = None;
+        for (i, step) in steps.into_iter().enumerate() {
+            // SAFETY: `c.0` is NULL or the live string of the previous step,
+            // and `step` a live string; both only read.
+            let next = CString(unsafe { ffi::av_append_path_component(c.0, step.as_ptr()) });
+            c = next;
+            r = append_path_component(r.as_ref().map_or(c"", HeapString::as_c_str), step);
+            assert_eq!(bytes(&r), c.bytes(), "step {i}");
+            let base = basename(r.as_ref().unwrap().as_c_str());
+            // SAFETY: `c.0` is the live string of this step.
+            let c_base = unsafe { CStr::from_ptr(ffi::av_basename(c.0)) };
+            assert_eq!(base, c_base, "step {i}");
+        }
+        // Only the single slashes at a join are merged; a doubled one stays.
+        assert_eq!(bytes(&r), Some(&b"/usr/lib/x86_64//libavutil.so"[..]));
+    }
+
+    #[test]
+    fn format_matches_av_asprintf_with_the_same_conversions() {
+        // SAFETY: each format's conversions match the arguments that follow.
+        let cases = unsafe {
+            [
+                (
+                    CString(ffi::av_asprintf(c"plain".as_ptr())),
+                    format(format_args!("plain")),
+                ),
+                (
+                    CString(ffi::av_asprintf(c"".as_ptr())),
+                    format(format_args!("")),
+                ),
+                (
+                    CString(ffi::av_asprintf(
+                        c"%d-%s-%05.2f".as_ptr(),
+                        -7 as c_int,
+                        c"x".as_ptr(),
+                        1.23456 as c_double,
+                    )),
+                    format(format_args!("{}-{}-{:05.2}", -7, "x", 1.23456)),
+                ),
+                (
+                    CString(ffi::av_asprintf(
+                        c"%x/%X %%".as_ptr(),
+                        255 as c_int,
+                        4096 as c_int,
+                    )),
+                    format(format_args!("{:x}/{:X} %", 255, 4096)),
+                ),
+                (
+                    CString(ffi::av_asprintf(
+                        c"%s".as_ptr(),
+                        c"\xc3\xbcnicode %s %n".as_ptr(),
+                    )),
+                    format(format_args!("ünicode %s %n")),
+                ),
+                (
+                    CString(ffi::av_asprintf(
+                        c"%.3s|%-4s|".as_ptr(),
+                        c"abcdef".as_ptr(),
+                        c"z".as_ptr(),
+                    )),
+                    format(format_args!("{:.3}|{:<4}|", "abcdef", "z")),
+                ),
+            ]
+        };
+        for (i, (c, r)) in cases.iter().enumerate() {
+            assert_eq!(bytes(r), c.bytes(), "case {i}");
+        }
+    }
+
+    #[test]
+    fn format_of_a_nul_matches_c_reading_the_same_text() {
+        // C's `%s` stops at the NUL; so does the Rust result.
+        let text = c"before";
+        // SAFETY: `%s` takes the live string `text`.
+        let c = CString(unsafe { ffi::av_asprintf(c"%s".as_ptr(), text.as_ptr()) });
+        let r = format(format_args!("before\0after"));
+        assert_eq!(bytes(&r), c.bytes());
+    }
+
+    #[test]
+    fn chained_formats_stay_equal() {
+        // Each side formats its own previous result into the next.
+        // SAFETY: a format without conversions takes no arguments.
+        let mut c = CString(unsafe { ffi::av_asprintf(c"0".as_ptr()) });
+        let mut r = format(format_args!("0"));
+        for i in 1..=24_i32 {
+            // SAFETY: `%s` takes the live previous string, `%d` the int.
+            let next = CString(unsafe { ffi::av_asprintf(c"%s,%d".as_ptr(), c.0, i) });
+            c = next;
+            r = format(format_args!("{},{}", r.unwrap().to_str().unwrap(), i));
+            assert_eq!(bytes(&r), c.bytes(), "step {i}");
+        }
+    }
+
+    /// Set in the child process an isolated test re-runs itself in.
+    const ISOLATED: &str = "CRUSTIFY_EQUIV_ISOLATED";
+
+    /// The `av_max_alloc` limit is process-global, so this test lowers it only
+    /// in a child process running nothing else, and passes when the child
+    /// does.
+    #[test]
+    fn failures_at_the_av_max_alloc_limit_match_c() {
+        const NAME: &str = "avstring::paths_and_format::failures_at_the_av_max_alloc_limit_match_c";
+        if std::env::var_os(ISOLATED).is_none() {
+            let status = Command::new(std::env::current_exe().unwrap())
+                .args(["--exact", NAME, "--test-threads=1", "--nocapture"])
+                .env(ISOLATED, "1")
+                .status()
+                .unwrap();
+            assert!(status.success(), "isolated run failed: {status}");
+            return;
+        }
+
+        // A string of `n` bytes takes `n + 1`, so 7 bytes fit an 8-byte limit
+        // and 8 do not.
+        const LIMIT: usize = 8;
+        // SAFETY: `av_max_alloc` takes a size by value; nothing else runs in
+        // this process.
+        unsafe { ffi::av_max_alloc(LIMIT) };
+
+        for text in [c"", c"0123456", c"01234567", c"012345678"] {
+            // SAFETY: `%s` takes the live string `text`.
+            let c = CString(unsafe { ffi::av_asprintf(c"%s".as_ptr(), text.as_ptr()) });
+            let r = format(format_args!("{}", text.to_str().unwrap()));
+            assert_eq!(bytes(&r), c.bytes(), "{text:?}");
+            assert_eq!(r.is_some(), text.count_bytes() < LIMIT, "{text:?}");
+        }
+        // Joins of 6, 7 and 8 bytes, through `av_malloc` and, with an empty
+        // side, through `av_strdup`.
+        let joins: [(&CStr, &CStr); 6] = [
+            (c"abc", c"de"),
+            (c"abc", c"def"),
+            (c"abcd", c"efg"),
+            (c"", c"abcdefg"),
+            (c"abcdefgh", c""),
+            (c"abc/", c"/defg"),
+        ];
+        for (path, component) in joins {
+            // SAFETY: both are live NUL-terminated strings, only read.
+            let c = CString(unsafe {
+                ffi::av_append_path_component(path.as_ptr(), component.as_ptr())
+            });
+            let r = append_path_component(path, component);
+            assert_eq!(bytes(&r), c.bytes(), "{path:?} + {component:?}");
+        }
+
+        // SAFETY: as above; the default limit again.
+        unsafe { ffi::av_max_alloc(i32::MAX as usize) };
+        assert!(format(format_args!("01234567")).is_some());
+    }
+}

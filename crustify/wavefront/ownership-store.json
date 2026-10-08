@@ -366,6 +366,45 @@
    }
   },
   {
+   "name": "av_basename",
+   "defined_in": "libavutil/avstring.c",
+   "ptr_args": [
+    {
+     "name": "path",
+     "ptr": {
+      "scalar": null,
+      "array": null,
+      "string": true,
+      "owned": false,
+      "borrowed": {
+       "lifetime": "arg:path"
+      },
+      "nullable": true,
+      "mutable": false,
+      "note": "Path, only read (strrchr). NULL and the empty string both yield the static \".\"."
+     }
+    }
+   ],
+   "ptr_ret": {
+    "ptr": {
+     "scalar": null,
+     "array": null,
+     "string": true,
+     "owned": false,
+     "borrowed": {
+      "lifetime": "arg:path"
+     },
+     "nullable": false,
+     "mutable": false,
+     "note": "Never NULL: a pointer into `path` (just past its last '/', or `path` itself) or, for a NULL or empty path, the string literal \".\" (static). Either way it lives at least as long as `path`."
+    }
+   }
+  },
+  {
+   "name": "av_bessel_i0",
+   "defined_in": "libavutil/mathematics.c"
+  },
+  {
    "name": "av_bprint_finalize",
    "defined_in": "libavutil/bprint.c",
    "lifetime": {
@@ -416,6 +455,18 @@
    ]
   },
   {
+   "name": "av_bswap16",
+   "defined_in": "libavutil/bswap.h"
+  },
+  {
+   "name": "av_bswap32",
+   "defined_in": "libavutil/bswap.h"
+  },
+  {
+   "name": "av_bswap64",
+   "defined_in": "libavutil/bswap.h"
+  },
+  {
    "name": "av_calloc",
    "defined_in": "libavutil/mem.c",
    "lifetime": {
@@ -442,6 +493,112 @@
      "nullable": true,
      "mutable": true,
      "note": "Array of nmemb elements of size bytes, ZEROED (av_mallocz); also one zeroed object when nmemb is 1 (av_calloc(1, sizeof(RNNModel)) in libavfilter/af_arnndn.c, av_calloc(1, sizeof(*fc->ft)) in libavcodec/vvc/thread.c). NULL also when nmemb*size overflows size_t. Fresh av_malloc storage: posix_memalign(ALIGN) with ALIGN = 64/32/16 by SIMD config (16 is the floor); size 0 yields a 1-byte block, so NULL means failure: size > max_alloc_size (INT_MAX by default, av_max_alloc) or OOM. Released by av_free/av_freep."
+    }
+   }
+  },
+  {
+   "name": "av_ceil_log2_c",
+   "defined_in": "libavutil/common.h"
+  },
+  {
+   "name": "av_clip64_c",
+   "defined_in": "libavutil/common.h"
+  },
+  {
+   "name": "av_clip_c",
+   "defined_in": "libavutil/common.h"
+  },
+  {
+   "name": "av_clip_int16_c",
+   "defined_in": "libavutil/common.h"
+  },
+  {
+   "name": "av_clip_int8_c",
+   "defined_in": "libavutil/common.h"
+  },
+  {
+   "name": "av_clip_intp2_c",
+   "defined_in": "libavutil/common.h"
+  },
+  {
+   "name": "av_clip_uint16_c",
+   "defined_in": "libavutil/common.h"
+  },
+  {
+   "name": "av_clip_uint8_c",
+   "defined_in": "libavutil/common.h"
+  },
+  {
+   "name": "av_clip_uintp2_c",
+   "defined_in": "libavutil/common.h"
+  },
+  {
+   "name": "av_clipd_c",
+   "defined_in": "libavutil/common.h"
+  },
+  {
+   "name": "av_clipf_c",
+   "defined_in": "libavutil/common.h"
+  },
+  {
+   "name": "av_clipl_int32_c",
+   "defined_in": "libavutil/common.h"
+  },
+  {
+   "name": "av_compare_mod",
+   "defined_in": "libavutil/mathematics.c"
+  },
+  {
+   "name": "av_cpu_count",
+   "defined_in": "libavutil/cpu.c"
+  },
+  {
+   "name": "av_cpu_force_count",
+   "defined_in": "libavutil/cpu.c"
+  },
+  {
+   "name": "av_cpu_max_align",
+   "defined_in": "libavutil/cpu.c"
+  },
+  {
+   "name": "av_default_item_name",
+   "defined_in": "libavutil/log.c",
+   "ptr_args": [
+    {
+     "name": "ptr",
+     "ptr": {
+      "scalar": {
+       "by_ref": {
+        "owned": false,
+        "borrowed": {
+         "lifetime": "static"
+        }
+       }
+      },
+      "array": null,
+      "string": false,
+      "owned": false,
+      "borrowed": {
+       "lifetime": "arg:ptr"
+      },
+      "nullable": false,
+      "mutable": false,
+      "note": "An AVClass-enabled object: dereferenced as `AVClass **` (the struct's first member is its `const AVClass *`), read only. The inner AVClass is borrowed, static in every in-tree class. Must be non-NULL, as must the class pointer it holds."
+     }
+    }
+   ],
+   "ptr_ret": {
+    "ptr": {
+     "scalar": null,
+     "array": null,
+     "string": true,
+     "owned": false,
+     "borrowed": {
+      "lifetime": "static"
+     },
+     "nullable": true,
+     "mutable": false,
+     "note": "The class's `class_name`, returned as stored: it lives as long as the AVClass (a string literal in every in-tree class). NULL only for a class that stores NULL there (none in tree)."
     }
    }
   },
