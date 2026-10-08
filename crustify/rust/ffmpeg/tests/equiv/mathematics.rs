@@ -161,3 +161,71 @@ fn methods_round_halves_as_c_documents() {
         );
     }
 }
+
+/// `compare_mod` and `bessel_i0` against `av_compare_mod` and `av_bessel_i0`.
+mod numeric {
+    use ffmpeg::libavutil::ffi;
+    use ffmpeg::libavutil::mathematics::{bessel_i0, compare_mod};
+
+    /// Operands around zero, the wrap point of each width, and the limits.
+    const OPERANDS: [u64; 12] = [
+        0,
+        1,
+        2,
+        0x7f,
+        0x80,
+        0xffff,
+        0x1_0000,
+        0x8000_0000,
+        u32::MAX as u64,
+        1 << 63,
+        u64::MAX - 1,
+        u64::MAX,
+    ];
+
+    #[test]
+    fn compare_mod_matches_c_for_every_modulus_shape() {
+        // Every power of two, then zero and moduli that are not powers of two,
+        // which C accepts with a defined result.
+        let moduli = (0..64).map(|b| 1u64 << b).chain([0, 3, 10, u64::MAX]);
+        for m in moduli {
+            for a in OPERANDS {
+                for b in OPERANDS {
+                    // SAFETY: `av_compare_mod` takes and returns integers by
+                    // value.
+                    let c = unsafe { ffi::av_compare_mod(a, b, m) };
+                    assert_eq!(compare_mod(a, b, m), c, "{a:#x} {b:#x} {m:#x}");
+                }
+            }
+        }
+    }
+
+    #[test]
+    fn bessel_i0_matches_c_bit_for_bit() {
+        let mut xs = vec![
+            0.0,
+            -0.0,
+            f64::MIN_POSITIVE,
+            1e-300,
+            15.0,
+            15.0 + f64::EPSILON * 16.0,
+            700.0,
+            710.0,
+            1e308,
+            f64::INFINITY,
+            f64::NEG_INFINITY,
+            f64::NAN,
+        ];
+        // Both approximation intervals, densely.
+        xs.extend((0..=400).map(|i| f64::from(i) * 0.1 - 20.0));
+        for x in xs {
+            // SAFETY: `av_bessel_i0` takes and returns a double by value.
+            let c = unsafe { ffi::av_bessel_i0(x) };
+            let r = bessel_i0(x);
+            assert!(
+                r.to_bits() == c.to_bits() || (r.is_nan() && c.is_nan()),
+                "{x}: {r} != {c}"
+            );
+        }
+    }
+}

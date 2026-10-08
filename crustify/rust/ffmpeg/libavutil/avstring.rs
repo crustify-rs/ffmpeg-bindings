@@ -1,4 +1,8 @@
 //! Safe wrappers over `libavutil/avstring.h`.
+//!
+//! [`format`] and [`append_path_component`] return a [`HeapString`]: an
+//! `av_malloc`-family string the caller owns, released by `av_free`.
+//! [`basename`] borrows from its argument instead.
 
 use core::cmp::Ordering;
 use core::ffi::{CStr, c_char, c_int, c_uint};
@@ -6,9 +10,11 @@ use core::fmt;
 use core::iter::FusedIterator;
 use core::marker::PhantomData;
 use core::ptr;
+use std::borrow::Cow;
 use std::ffi::CString;
 
 use super::ffi;
+use super::mem::HeapString;
 
 /// Wraps: AVEscapeMode
 /// Handwritten
@@ -350,6 +356,100 @@ pub fn utf8_decode(buf: &[u8], flags: c_uint) -> Option<(Result<u32, Utf8Error>,
     Some((result, consumed))
 }
 
+/// Wraps: av_asprintf
+///
+/// The text `args` formats, as a new C string; build `args` with
+/// [`format_args!`]. `None` when it cannot be allocated, which includes text
+/// of `c_int::MAX` bytes or more and text whose length plus its NUL exceeds
+/// the `av_max_alloc` limit (`INT_MAX` by default).
+///
+/// Rust formats the text, since C's `printf` arguments have no safe Rust
+/// form; `av_asprintf` then measures it, allocates the string and copies it
+/// in through a `"%.*s"` conversion. A C string ends at its first NUL, so the
+/// result holds the text before the first NUL `args` produces.
+///
+/// ```
+/// use ffmpeg::libavutil::avstring::format;
+/// let s = format(format_args!("{}x{}", 1920, 1080)).unwrap();
+/// assert_eq!(s.to_str(), Ok("1920x1080"));
+/// ```
+pub fn format(args: fmt::Arguments<'_>) -> Option<HeapString> {
+    let text = args
+        .as_str()
+        .map_or_else(|| Cow::Owned(args.to_string()), Cow::Borrowed);
+    let bytes = text.as_bytes();
+    let bytes = bytes
+        .iter()
+        .position(|&b| b == 0)
+        .map_or(bytes, |nul| &bytes[..nul]);
+    // `av_asprintf` sizes its buffer as the `int` length plus one, which
+    // overflows at `INT_MAX`; longer text does not fit the precision.
+    let len = c_int::try_from(bytes.len())
+        .ok()
+        .filter(|&n| n < c_int::MAX)?;
+    // An empty slice's pointer is dangling, which `%s` may not receive.
+    let src = if bytes.is_empty() {
+        c"".as_ptr()
+    } else {
+        bytes.as_ptr().cast()
+    };
+    // SAFETY: the format is a literal whose one conversion, `%.*s`, takes the
+    // `int` precision `len` and the `char *` `src`, which is valid for reads of
+    // `len` bytes, all `vsnprintf` reads: it stops at the precision. `len` is
+    // below `INT_MAX`, so the buffer size `len + 1` does not overflow.
+    let ptr = unsafe { ffi::av_asprintf(c"%.*s".as_ptr(), len, src) };
+    // SAFETY: a non-NULL `ptr` is a fresh, uniquely-owned, NUL-terminated
+    // `av_malloc` block, which `av_free` releases.
+    unsafe { HeapString::from_raw(ptr) }
+}
+
+/// Wraps: av_basename
+///
+/// The last component of `path`: the part after its last `'/'`, which is
+/// empty when `path` ends in one, or `path` itself when it has none; `"."`
+/// for an empty `path` (as C returns for NULL too).
+///
+/// ```
+/// use ffmpeg::libavutil::avstring::basename;
+/// assert_eq!(basename(c"/usr/lib/libavutil.so"), c"libavutil.so");
+/// assert_eq!(basename(c""), c".");
+/// ```
+pub fn basename(path: &CStr) -> &CStr {
+    // SAFETY: `path` is a live NUL-terminated string, which `av_basename`
+    // only reads.
+    let base = unsafe { ffi::av_basename(path.as_ptr()) };
+    // SAFETY: `av_basename` never returns NULL: it returns a pointer to the
+    // NUL-terminated tail of `path`, which the borrow keeps alive and
+    // unchanged, or to the static literal `"."`, which outlives it.
+    unsafe { CStr::from_ptr(base) }
+}
+
+/// Wraps: av_append_path_component
+///
+/// `path` and `component` joined by a `'/'`: one is added when neither side
+/// has one at the join, and when both do, one of the two is dropped (so
+/// `"a//"` and `"//b"` join as `"a///b"`). When either side is empty, the
+/// result is a copy of the other. `None` when the string cannot be allocated,
+/// which includes a result whose length plus its NUL exceeds the
+/// `av_max_alloc` limit (`INT_MAX` by default).
+///
+/// (C also accepts NULL for either side, treated as an empty string except
+/// that two NULLs yield NULL.)
+///
+/// ```
+/// use ffmpeg::libavutil::avstring::append_path_component;
+/// let p = append_path_component(c"/tmp/", c"/out.mkv").unwrap();
+/// assert_eq!(p.to_str(), Ok("/tmp/out.mkv"));
+/// ```
+pub fn append_path_component(path: &CStr, component: &CStr) -> Option<HeapString> {
+    // SAFETY: both are live NUL-terminated strings, which
+    // `av_append_path_component` only reads.
+    let ptr = unsafe { ffi::av_append_path_component(path.as_ptr(), component.as_ptr()) };
+    // SAFETY: a non-NULL `ptr` is a fresh, uniquely-owned, NUL-terminated
+    // `av_malloc` (or `av_strdup`) block, which `av_free` releases.
+    unsafe { HeapString::from_raw(ptr) }
+}
+
 #[cfg(test)]
 mod unit_tests {
     use super::*;
@@ -377,6 +477,61 @@ mod unit_tests {
             for b in &ALL[i + 1..] {
                 assert_ne!(a.into_raw(), b.into_raw());
             }
+        }
+    }
+
+    #[test]
+    fn format_copies_static_and_formatted_text() {
+        let s = format(format_args!("static")).unwrap();
+        assert_eq!(s.to_str(), Ok("static"));
+        let s = format(format_args!("{}-{:03}", "n", 7)).unwrap();
+        assert_eq!(s.to_str(), Ok("n-007"));
+        let s = format(format_args!("")).unwrap();
+        assert!(s.is_empty() && !s.as_ptr().is_null());
+    }
+
+    #[test]
+    fn format_stops_at_the_first_nul() {
+        let s = format(format_args!("ab{}cd", '\0')).unwrap();
+        assert_eq!(s.as_bytes(), b"ab");
+        let s = format(format_args!("\0tail")).unwrap();
+        assert!(s.is_empty());
+    }
+
+    #[test]
+    fn format_passes_percent_signs_through() {
+        let s = format(format_args!("100% %s %n %{}", 'd')).unwrap();
+        assert_eq!(s.to_str(), Ok("100% %s %n %d"));
+    }
+
+    #[test]
+    fn basename_borrows_the_last_component() {
+        let path = c"a/b/c.txt";
+        let base = basename(path);
+        assert_eq!(base, c"c.txt");
+        // A view into `path`, not a copy.
+        assert_eq!(base.as_ptr(), path.as_ptr().wrapping_add(4));
+        assert_eq!(basename(c"plain"), c"plain");
+        assert_eq!(basename(c"dir/"), c"");
+        assert_eq!(basename(c"/"), c"");
+        assert_eq!(basename(c""), c".");
+    }
+
+    #[test]
+    fn append_path_component_merges_the_join() {
+        let cases: [(&CStr, &CStr, &str); 8] = [
+            (c"a", c"b", "a/b"),
+            (c"a/", c"b", "a/b"),
+            (c"a", c"/b", "a/b"),
+            (c"a/", c"/b", "a/b"),
+            (c"a//", c"//b", "a///b"),
+            (c"", c"b", "b"),
+            (c"a", c"", "a"),
+            (c"", c"", ""),
+        ];
+        for (path, component, joined) in cases {
+            let p = append_path_component(path, component).unwrap();
+            assert_eq!(p.to_str(), Ok(joined), "{path:?} + {component:?}");
         }
     }
 

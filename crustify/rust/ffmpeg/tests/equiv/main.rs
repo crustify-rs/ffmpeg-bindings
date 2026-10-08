@@ -3,7 +3,9 @@
 mod avstring;
 mod avutil;
 mod bprint;
+mod bswap;
 mod common;
+mod cpu;
 mod intfloat;
 mod intreadwrite;
 mod log;

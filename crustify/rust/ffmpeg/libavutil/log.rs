@@ -3,6 +3,9 @@
 //! [`ClassCategory`] and [`ClassStateFlags`] are plain values: C stores them
 //! by value and never allocates or frees them, so each is a `Copy` newtype over
 //! its raw enum with no handles or owner.
+//!
+//! A raw seam remains where the dependency is wrapped by a later batch:
+//! [`default_item_name`] takes the `AVClass`-enabled object as a `void *`.
 
 use core::ffi::{CStr, c_int, c_uint, c_void};
 use core::fmt;
@@ -378,10 +381,58 @@ pub unsafe fn log_with_context(obj: *mut c_void, level: c_int, message: &CStr) {
     unsafe { ffi::crustify_av_vlog(obj, level, c"%s".as_ptr(), message.as_ptr()) }
 }
 
+/// Wraps: av_default_item_name
+///
+/// The `class_name` of the `AVClass` that the object `ctx` points to: the
+/// name `av_log` prints for an object whose class has no `item_name`
+/// callback. `None` when the class stores NULL there.
+///
+/// # Safety
+///
+/// `ctx` must address a live `AVClass`-enabled object: readable memory that
+/// starts with a non-NULL `const AVClass *` to a live class. The class's
+/// `class_name`, when non-NULL, must be a NUL-terminated string that stays
+/// alive and unmodified for `'a`; a string literal, which every FFmpeg class
+/// stores, satisfies any `'a`. No other thread may write the object's class
+/// pointer or the class's `class_name` during the call.
+pub unsafe fn default_item_name<'a>(ctx: *const c_void) -> Option<&'a CStr> {
+    // SAFETY: the caller vouches that `ctx` starts with a valid class pointer
+    // to a live class; `av_default_item_name` only reads both.
+    let name = unsafe { ffi::av_default_item_name(ctx.cast_mut()) };
+    // SAFETY: a non-NULL `name` is the class's `class_name`, a NUL-terminated
+    // string the caller guarantees alive and unmodified for `'a`.
+    (!name.is_null()).then(|| unsafe { CStr::from_ptr(name) })
+}
+
 #[cfg(test)]
 mod unit_tests {
     use super::*;
     use core::mem::{align_of, size_of};
+
+    /// A class named `name`, every other member zero.
+    fn class(name: Option<&'static CStr>) -> ffi::AVClass {
+        ffi::AVClass {
+            class_name: name.map_or(core::ptr::null(), CStr::as_ptr),
+            ..Default::default()
+        }
+    }
+
+    #[test]
+    fn default_item_name_reads_the_class_name() {
+        let named = class(Some(c"unit-class"));
+        let obj: *const ffi::AVClass = &named;
+        // SAFETY: `obj` is a live object starting with a non-NULL class
+        // pointer to `named`, whose name is a literal.
+        let name = unsafe { default_item_name((&raw const obj).cast()) };
+        assert_eq!(name, Some(c"unit-class"));
+        // The name is the class's own string, not a copy.
+        assert_eq!(name.unwrap().as_ptr(), named.class_name);
+
+        let nameless = class(None);
+        let obj: *const ffi::AVClass = &nameless;
+        // SAFETY: as above; the class stores NULL as its name.
+        assert_eq!(unsafe { default_item_name((&raw const obj).cast()) }, None);
+    }
 
     #[test]
     fn layouts_match_the_c_enums() {

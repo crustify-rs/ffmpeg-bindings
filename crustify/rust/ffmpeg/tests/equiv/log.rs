@@ -466,3 +466,87 @@ mod vlog {
         }
     }
 }
+
+/// `default_item_name` against `av_default_item_name` on the same objects.
+mod item_name {
+    use core::ffi::{CStr, c_void};
+    use core::ptr::null;
+
+    use ffmpeg::libavutil::ffi;
+    use ffmpeg::libavutil::log::default_item_name;
+
+    /// A class named `name`, every other member zero.
+    fn class(name: Option<&'static CStr>) -> ffi::AVClass {
+        ffi::AVClass {
+            class_name: name.map_or(null(), CStr::as_ptr),
+            ..Default::default()
+        }
+    }
+
+    /// An `AVClass`-enabled object: its class pointer, then a payload.
+    #[repr(C)]
+    struct Obj {
+        class: *const ffi::AVClass,
+        payload: [u64; 3],
+    }
+
+    /// Both sides' readings of `obj`'s item name.
+    fn both(obj: &Obj) -> (*const core::ffi::c_char, Option<&'static CStr>) {
+        let ctx: *const c_void = (obj as *const Obj).cast();
+        // SAFETY: `obj` starts with a non-NULL class pointer to a live class,
+        // which `av_default_item_name` only reads.
+        let c = unsafe { ffi::av_default_item_name(ctx.cast_mut()) };
+        // SAFETY: as above; every class here stores a literal or NULL, so the
+        // name lives for `'static`.
+        let r = unsafe { default_item_name(ctx) };
+        (c, r)
+    }
+
+    #[test]
+    fn names_read_alike_as_the_class_changes() {
+        let classes = [
+            class(Some(c"first")),
+            class(None),
+            class(Some(c"")),
+            class(Some(c"second-class")),
+        ];
+        let mut obj = Obj {
+            class: &classes[0],
+            payload: [1, 2, 3],
+        };
+        // The same object, switched between classes, compared after each.
+        for (i, cls) in classes.iter().chain([&classes[0]]).enumerate() {
+            obj.class = cls;
+            let (c, r) = both(&obj);
+            assert_eq!(r.map_or(null(), CStr::as_ptr), c, "step {i}");
+            if let Some(name) = r {
+                // SAFETY: a non-NULL `c` is the class's literal name.
+                assert_eq!(name, unsafe { CStr::from_ptr(c) }, "step {i}");
+            }
+        }
+        assert_eq!(obj.payload, [1, 2, 3]);
+    }
+
+    #[test]
+    fn heap_class_and_name_read_alike() {
+        // A class and name that live on the heap, not in statics: the name
+        // borrows for the scope that keeps them alive.
+        let name = std::ffi::CString::new("heap-class").unwrap();
+        let cls = Box::new(ffi::AVClass {
+            class_name: name.as_ptr(),
+            ..Default::default()
+        });
+        let obj = Box::new(Obj {
+            class: &*cls,
+            payload: [0; 3],
+        });
+        let ctx: *const c_void = (&*obj as *const Obj).cast();
+        // SAFETY: `ctx` addresses a live object whose class pointer reaches
+        // `cls`, which `av_default_item_name` only reads.
+        let c = unsafe { ffi::av_default_item_name(ctx.cast_mut()) };
+        // SAFETY: as above; `name` outlives every use of the result below.
+        let r = unsafe { default_item_name(ctx) }.unwrap();
+        assert_eq!(r.as_ptr(), c);
+        assert_eq!(r, name.as_c_str());
+    }
+}

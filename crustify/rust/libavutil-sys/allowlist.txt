@@ -114,3 +114,39 @@ function av_log
 function av_log_set_callback
 function av_log_default_callback
 function av_log_format_line2
+
+# libavutil/avstring.h, mathematics.h, cpu.h, log.h: core wave 0 batch 10's
+# exported symbols.
+function av_append_path_component
+function av_asprintf
+function av_basename
+function av_bessel_i0
+function av_compare_mod
+function av_cpu_count
+function av_cpu_force_count
+function av_cpu_max_align
+function av_default_item_name
+
+# libavutil/bswap.h, common.h: core wave 0 batch 10's header inlines (static
+# inline, compiled by bindgen's wrap_static_fns).
+function av_bswap16
+function av_bswap32
+function av_bswap64
+function av_ceil_log2_c
+function av_clip64_c
+function av_clip_c
+function av_clip_int16_c
+function av_clip_int8_c
+function av_clip_intp2_c
+function av_clip_uint16_c
+function av_clip_uint8_c
+function av_clip_uintp2_c
+function av_clipd_c
+function av_clipf_c
+function av_clipl_int32_c
+
+# libavutil/common.h, cpu.h: the C references av_ceil_log2_c and
+# av_cpu_max_align are compared against in batch 10's equivalence tests.
+function av_log2
+function av_get_cpu_flags
+function av_force_cpu_flags
