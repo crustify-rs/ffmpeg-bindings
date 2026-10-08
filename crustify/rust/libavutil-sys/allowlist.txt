@@ -16,3 +16,8 @@ function av_strndup
 # libavutil/mem.h: the allocation limit, which drives the string tier's
 # failure paths in equivalence tests.
 function av_max_alloc
+
+# libavutil/log.h, libavutil/opt.h: C readers of AVClassCategory and
+# AVClassStateFlags values, which drive the log.h type tier's equivalence tests.
+function av_default_get_category
+function av_opt_set_int
