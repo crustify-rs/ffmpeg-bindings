@@ -255,3 +255,72 @@ fn conversions_take_every_class_edge() {
         .unwrap();
     assert_eq!(back, f64::NEG_INFINITY.to_bits());
 }
+
+// Review 20261005 libavutil/core wave-0 batch-7: `av_intfloat64`'s array
+// owner and its views, which the suites above never cloned or shared.
+
+/// The array owner's clone is `av_memdup` of the whole block: every word is
+/// copied, each copy frees its own block, and they go in any order.
+#[test]
+fn heap_array_of_words_clones_and_outlives_its_source() {
+    let mut a = alloc_cell_array_zeroed::<IntFloat64>(BITS.len()).unwrap();
+    for (mut h, bits) in a.as_handles_mut().iter_mut().zip(BITS) {
+        h.set_bits(bits);
+    }
+    let b = a.clone();
+    let c = b.try_clone().unwrap();
+    a.as_handles_mut().get_mut(0).unwrap().set_float(1.0);
+    drop(a);
+    assert_eq!(b.len(), BITS.len());
+    assert!(b.as_handles().iter().map(|h| h.bits()).eq(BITS));
+    drop(b);
+    assert!(c.as_handles().iter().map(|h| h.float().to_bits()).eq(BITS));
+
+    let empty = alloc_cell_array_zeroed::<IntFloat64>(0).unwrap();
+    let copy = empty.clone();
+    drop(empty);
+    assert!(copy.is_empty());
+    assert!(copy.as_handles().get(0).is_none());
+}
+
+/// A shared run over the array is read by several threads at once, and
+/// disjoint exclusive halves are written by two threads, while the owner
+/// stays on this one.
+#[test]
+fn array_views_cross_threads() {
+    let mut a = alloc_cell_array_zeroed::<IntFloat64>(BITS.len()).unwrap();
+    for (mut h, bits) in a.as_handles_mut().iter_mut().zip(BITS) {
+        h.set_bits(bits);
+    }
+    let run = a.as_handles();
+    thread::scope(|s| {
+        for _ in 0..4 {
+            s.spawn(move || {
+                for (h, bits) in run.iter().zip(BITS) {
+                    assert_eq!(h.float().to_bits(), bits);
+                }
+            });
+        }
+    });
+
+    let half = BITS.len() / 2;
+    let mut handles = a.as_handles_mut();
+    let (lo, hi) = handles.split_at_mut(half).unwrap();
+    thread::scope(|s| {
+        s.spawn(move || {
+            let mut lo = lo;
+            for mut h in lo.iter_mut() {
+                h.set_bits(1);
+            }
+        });
+        s.spawn(move || {
+            let mut hi = hi;
+            for mut h in hi.iter_mut() {
+                h.set_float(2.0);
+            }
+        });
+    });
+    let words: Vec<u64> = a.as_handles().iter().map(|h| h.bits()).collect();
+    assert!(words[..half].iter().all(|&w| w == 1));
+    assert!(words[half..].iter().all(|&w| w == 2.0f64.to_bits()));
+}
