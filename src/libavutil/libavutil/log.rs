@@ -379,7 +379,9 @@ type VaList = *mut ffi::__va_list_tag;
 /// above the low byte of a non-negative level as a colour tint
 /// (`AV_LOG_C`), so the associated constants name only the plain levels.
 /// The order is C's: a message is printed by the default callback when its
-/// level is at most [`level()`].
+/// level is at most [`level()`], the default callback comparing a
+/// non-negative level with its tint bits cleared (`level & 0xff`), which the
+/// derived order does not.
 #[repr(transparent)]
 #[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct Level(c_int);

@@ -1499,8 +1499,8 @@ const LOG_VIA: &str = "CRUSTIFY_EQUIV_LOG_VIA";
 /// The script both children run: settings and messages that reach every
 /// branch of the default callback a context-free message can: level
 /// filtering, colourless output, the level prefix, repeat collapsing (the
-/// `\n` report, as stderr is no terminal), `\r` lines and control-character
-/// sanitizing.
+/// `\n` report, as stderr is no terminal), empty lines, `\r` lines and
+/// control-character sanitizing.
 fn default_callback_script() {
     log::set_level(Level::VERBOSE);
     log::set_flags(Flags::SKIP_REPEATED | Flags::PRINT_LEVEL);
@@ -1518,6 +1518,12 @@ fn default_callback_script() {
     log::set_flags(Flags::empty());
     log::log(Level::FATAL, c"plain\n");
     log::log(Level::FATAL, c"plain\n");
+    // Repeated empty lines are not collapsed.
+    log::set_flags(Flags::SKIP_REPEATED);
+    log::log(Level::INFO, c"");
+    log::log(Level::INFO, c"");
+    log::log(Level::INFO, c"after empty\n");
+    log::set_flags(Flags::empty());
     log::log_once(Level::INFO, Level::DEBUG, &mut false, c"once\n");
     log::set_level(Level::QUIET);
     log::log(Level::PANIC, c"quiet\n");
