@@ -1,6 +1,7 @@
 //! UB tests against the safe public API.
 #![forbid(unsafe_code)]
 
+mod intreadwrite;
 mod log;
 mod mem;
 

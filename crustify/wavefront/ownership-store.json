@@ -12,6 +12,18 @@
    "defined_in": "libavutil/log.h",
    "_comment_agent": "Field-less bit-flag enum with no lifecycle. Never stored as the enum type: callers combine AV_CLASS_STATE_INITIALIZED into an unsigned state_flags member (FFBitStreamFilterContext, FFFilterContext) located through AVClass.state_flags_offset; opt.c reads it to reject non-runtime options on initialized objects. Any unsigned bit pattern is valid. Wrapped as a Copy bit-set newtype.",
    "fields": []
+  },
+  {
+   "name": "unaligned_64",
+   "defined_in": "libavutil/intreadwrite.h",
+   "_comment_agent": "Packed (align 1, size 8), may_alias (av_alias) union over one uint64_t; no pointer fields and no lifecycle routine. C never allocates or frees it: AV_RN(64,p)/AV_WN(64,p,v) cast an arbitrary byte pointer to `union unaligned_64 *` and read/write `->l` for one native-endian unaligned 64-bit access (the GCC/clang branch of intreadwrite.h). Every toucher (e.g. mem.c fill32, aes.c addkey_*, adler32.c av_adler32_update) does exactly that on caller-owned byte buffers for the duration of one expression; nothing stores or retains the pointer and nothing synchronizes it. Ownership is therefore the byte storage's: a by-value plain datum, or a transient borrowed view over 8 bytes. All-zero and every bit pattern are valid.",
+   "fields": [
+    {
+     "name": "l",
+     "refcount": false,
+     "locked_by": null
+    }
+   ]
   }
  ],
  "symbols": [

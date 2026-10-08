@@ -1,0 +1,11 @@
+error[E0597]: `v` does not live long enough
+ --> tests/ub_safe/compile_fail/intreadwrite_value_dropped_while_borrowed.rs
+  |
+  |         let mut v = Unaligned64::new(1);
+  |             ----- binding `v` declared here
+  |         m = v.as_mut();
+  |             ^ borrowed value does not live long enough
+  |     }
+  |     - `v` dropped here while still borrowed
+  |     let _ = m;
+  |             - borrow later used here

@@ -1,0 +1,11 @@
+error[E0597]: `bytes` does not live long enough
+ --> tests/ub_safe/compile_fail/intreadwrite_view_outlives_bytes.rs
+  |
+  |         let bytes = [0u8; 8];
+  |             ----- binding `bytes` declared here
+  |         view = Unaligned64Ref::from_bytes(&bytes);
+  |                                           ^^^^^^ borrowed value does not live long enough
+  |     }
+  |     - `bytes` dropped here while still borrowed
+  |     println!("{}", view.value());
+  |                    ---- borrow later used here

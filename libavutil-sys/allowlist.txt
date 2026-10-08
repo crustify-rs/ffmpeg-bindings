@@ -21,3 +21,8 @@ function av_max_alloc
 # AVClassStateFlags values, which drive the log.h type tier's equivalence tests.
 function av_default_get_category
 function av_opt_set_int
+
+# libavutil/mem.h: av_memcpy_backptr's 4-byte-period fill writes through
+# `union unaligned_64` (AV_WN64), the C reference for intreadwrite's
+# `Unaligned64` equivalence tests.
+function av_memcpy_backptr
