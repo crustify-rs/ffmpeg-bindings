@@ -35,7 +35,11 @@
 //! bytes are in native order, as `to_ne_bytes` lays them out, because the
 //! views share one storage. A C-allocated one is a
 //! [`HeapBox`](super::mem::HeapBox), and an array a
-//! [`HeapVec`](super::mem::HeapVec), reached through the same handles.
+//! [`HeapVec`](super::mem::HeapVec), reached through the same handles. Bytes
+//! the caller already holds at the union's alignment are viewed in place, as
+//! the cast in `AV_RN16A` / `AV_WN32A` / `AV_COPY32` views them, through
+//! `from_bytes` on the handles ([`Alias16Ref::from_bytes`],
+//! [`Alias32Mut::from_bytes`]), which is `None` at a misaligned address.
 //!
 //! ```
 //! use ffmpeg::libavutil::intreadwrite::{Unaligned32Mut, Unaligned32Ref};
@@ -495,6 +499,13 @@ impl PartialEq for Alias16 {
 
 impl Eq for Alias16 {}
 
+/// Hashes the `u16` view, consistent with the bitwise equality.
+impl Hash for Alias16 {
+    fn hash<H: Hasher>(&self, state: &mut H) {
+        self.as_ref().u16().hash(state)
+    }
+}
+
 impl fmt::Debug for Alias16 {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         self.as_ref().fmt(f)
@@ -506,6 +517,26 @@ impl fmt::Debug for Alias16Ref<'_> {
         f.debug_struct("Alias16")
             .field("u8x2", &self.u8x2())
             .finish()
+    }
+}
+
+impl<'a> Alias16Ref<'a> {
+    /// Views two bytes at a 2-aligned address as the union, the cast
+    /// `AV_RN16A(p)` reads through. `None` when `bytes` is not so aligned:
+    /// that is the caller obligation the C macro leaves unchecked, and the
+    /// unaligned view is [`Unaligned16Ref::from_bytes`].
+    #[inline]
+    #[must_use]
+    pub fn from_bytes(bytes: &'a [u8; 2]) -> Option<Self> {
+        let ptr = ptr::from_ref(bytes).cast_mut().cast::<ffi::av_alias16>();
+        if !ptr.is_aligned() {
+            return None;
+        }
+        // SAFETY: `ptr` addresses 2 initialised bytes, borrowed shared for
+        // `'a`, and is aligned to `av_alias16` (checked above), whose size is
+        // 2 and for which every bit pattern is valid. The shared handle never
+        // writes, so the `cast_mut` grants no write.
+        unsafe { Self::from_ptr(ptr) }
     }
 }
 
@@ -527,6 +558,25 @@ impl Alias16Ref<'_> {
     pub fn u8x2(&self) -> [u8; 2] {
         // SAFETY: as `u16`, through the byte view.
         unsafe { addr_of!((*self.as_ptr()).u8_).read() }
+    }
+}
+
+impl<'a> Alias16Mut<'a> {
+    /// Views two bytes at a 2-aligned address as the union, the cast
+    /// `AV_WN16A(p, v)` stores through. `None` when `bytes` is not so
+    /// aligned; the unaligned view is [`Unaligned16Mut::from_bytes`].
+    #[inline]
+    #[must_use]
+    pub fn from_bytes(bytes: &'a mut [u8; 2]) -> Option<Self> {
+        let ptr = ptr::from_mut(bytes).cast::<ffi::av_alias16>();
+        if !ptr.is_aligned() {
+            return None;
+        }
+        // SAFETY: `ptr` addresses 2 initialised bytes, borrowed exclusively
+        // for `'a`, so no other handle reaches them while this one lives; it
+        // is aligned to `av_alias16` (checked above), whose size is 2 and for
+        // which every bit pattern is valid.
+        unsafe { Self::from_ptr(ptr) }
     }
 }
 
@@ -634,6 +684,13 @@ impl PartialEq for Alias32 {
 
 impl Eq for Alias32 {}
 
+/// Hashes the `u32` view, consistent with the bitwise equality.
+impl Hash for Alias32 {
+    fn hash<H: Hasher>(&self, state: &mut H) {
+        self.as_ref().u32().hash(state)
+    }
+}
+
 impl fmt::Debug for Alias32 {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         self.as_ref().fmt(f)
@@ -645,6 +702,26 @@ impl fmt::Debug for Alias32Ref<'_> {
         f.debug_struct("Alias32")
             .field("u8x4", &self.u8x4())
             .finish()
+    }
+}
+
+impl<'a> Alias32Ref<'a> {
+    /// Views four bytes at a 4-aligned address as the union, the cast
+    /// `AV_RN32A(p)` reads through. `None` when `bytes` is not so aligned:
+    /// that is the caller obligation the C macro leaves unchecked, and the
+    /// unaligned view is [`Unaligned32Ref::from_bytes`].
+    #[inline]
+    #[must_use]
+    pub fn from_bytes(bytes: &'a [u8; 4]) -> Option<Self> {
+        let ptr = ptr::from_ref(bytes).cast_mut().cast::<ffi::av_alias32>();
+        if !ptr.is_aligned() {
+            return None;
+        }
+        // SAFETY: `ptr` addresses 4 initialised bytes, borrowed shared for
+        // `'a`, and is aligned to `av_alias32` (checked above), whose size is
+        // 4 and for which every bit pattern is valid. The shared handle never
+        // writes, so the `cast_mut` grants no write.
+        unsafe { Self::from_ptr(ptr) }
     }
 }
 
@@ -685,6 +762,25 @@ impl Alias32Ref<'_> {
         // SAFETY: as `u32`, through the float view; every bit pattern is an
         // `f32`.
         unsafe { addr_of!((*self.as_ptr()).f32_).read() }
+    }
+}
+
+impl<'a> Alias32Mut<'a> {
+    /// Views four bytes at a 4-aligned address as the union, the cast
+    /// `AV_WN32A(p, v)` stores through. `None` when `bytes` is not so
+    /// aligned; the unaligned view is [`Unaligned32Mut::from_bytes`].
+    #[inline]
+    #[must_use]
+    pub fn from_bytes(bytes: &'a mut [u8; 4]) -> Option<Self> {
+        let ptr = ptr::from_mut(bytes).cast::<ffi::av_alias32>();
+        if !ptr.is_aligned() {
+            return None;
+        }
+        // SAFETY: `ptr` addresses 4 initialised bytes, borrowed exclusively
+        // for `'a`, so no other handle reaches them while this one lives; it
+        // is aligned to `av_alias32` (checked above), whose size is 4 and for
+        // which every bit pattern is valid.
+        unsafe { Self::from_ptr(ptr) }
     }
 }
 
@@ -1351,6 +1447,86 @@ mod unit_tests {
         let mut b = a;
         b.as_mut().set_u64(2);
         assert_eq!((a.as_ref().u64(), b.as_ref().u64()), (1, 2));
+    }
+
+    #[test]
+    fn alias_layouts_are_the_aligned_c_unions() {
+        assert_eq!((size_of::<Alias16>(), align_of::<Alias16>()), (2, 2));
+        assert_eq!((size_of::<Alias32>(), align_of::<Alias32>()), (4, 4));
+        assert_eq!(size_of::<Alias16Ref<'_>>(), size_of::<*const ()>());
+        assert_eq!(size_of::<Alias32Mut<'_>>(), size_of::<*const ()>());
+        fn send_sync<T: Send + Sync>() {}
+        send_sync::<Alias16>();
+        send_sync::<Alias16Ref<'_>>();
+        send_sync::<Alias16Mut<'_>>();
+        send_sync::<Alias32>();
+        send_sync::<Alias32Ref<'_>>();
+        send_sync::<Alias32Mut<'_>>();
+    }
+
+    #[test]
+    fn alias_hash_follows_the_integer_view() {
+        assert_eq!(hash_of(&Alias16::from_u16(7)), hash_of(&7u16));
+        assert_eq!(
+            hash_of(&Alias16::from_u8x2(7u16.to_ne_bytes())),
+            hash_of(&Alias16::from_u16(7))
+        );
+        assert_eq!(hash_of(&Alias32::from_u32(9)), hash_of(&9u32));
+        assert_eq!(
+            hash_of(&Alias32::from_f32(1.5)),
+            hash_of(&1.5f32.to_bits())
+        );
+        let mut set = std::collections::HashSet::new();
+        assert!(set.insert(Alias32::from_f32(0.0)));
+        assert!(set.insert(Alias32::from_f32(-0.0)));
+        assert!(!set.insert(Alias32::from_u32(0)));
+    }
+
+    #[test]
+    fn alias_byte_views_need_the_union_alignment() {
+        // An 8-aligned buffer: offsets 0, 2, 4, 6 fit an `Alias16`, 0 and 4 an
+        // `Alias32`; every other offset is refused, not read misaligned.
+        #[repr(C, align(8))]
+        struct Aligned([u8; 8]);
+        let mut aligned = Aligned(0x0807_0605_0403_0201u64.to_ne_bytes());
+        let buf = &mut aligned.0;
+        for off in 0..=6 {
+            let at: &[u8; 2] = buf[off..].first_chunk().unwrap();
+            let view = Alias16Ref::from_bytes(at);
+            assert_eq!(view.is_some(), off % 2 == 0, "offset {off}");
+            if let Some(v) = view {
+                assert_eq!(v.u8x2(), *at);
+                assert_eq!(v.u16(), u16::from_ne_bytes(*at));
+            }
+        }
+        for off in 0..=4 {
+            let at: &[u8; 4] = buf[off..].first_chunk().unwrap();
+            let view = Alias32Ref::from_bytes(at);
+            assert_eq!(view.is_some(), off % 4 == 0, "offset {off}");
+            if let Some(v) = view {
+                assert_eq!(v.u8x4(), *at);
+                assert_eq!(v.u32(), u32::from_ne_bytes(*at));
+                assert_eq!(v.f32().to_bits(), u32::from_ne_bytes(*at));
+            }
+        }
+        assert!(Alias16Mut::from_bytes(buf[1..].first_chunk_mut().unwrap()).is_none());
+        assert!(Alias32Mut::from_bytes(buf[2..].first_chunk_mut().unwrap()).is_none());
+        Alias16Mut::from_bytes(buf[6..].first_chunk_mut().unwrap())
+            .unwrap()
+            .set_u16(0xbeef);
+        Alias32Mut::from_bytes(buf[0..].first_chunk_mut().unwrap())
+            .unwrap()
+            .set_f32(1.0);
+        let mut want = 0x0807_0605_0403_0201u64.to_ne_bytes();
+        want[6..].copy_from_slice(&0xbeefu16.to_ne_bytes());
+        want[..4].copy_from_slice(&1.0f32.to_bits().to_ne_bytes());
+        assert_eq!(*buf, want);
+        // The same address is accepted by both handles and by `from_ptr`.
+        let p = buf.as_ptr();
+        let r = Alias32Ref::from_bytes(buf[..4].try_into().unwrap()).unwrap();
+        assert_eq!(r.as_ptr().cast(), p);
+        let mut m = Alias32Mut::from_bytes((&mut buf[..4]).try_into().unwrap()).unwrap();
+        assert_eq!(m.as_mut_ptr().cast_const().cast(), p);
     }
 
     #[test]

@@ -48,3 +48,43 @@ int crustify_AV_IS_OUTPUT_DEVICE(AVClassCategory category)
 {
     return AV_IS_OUTPUT_DEVICE(category);
 }
+
+uint16_t crustify_AV_RN16A(const void *p)
+{
+    return AV_RN16A(p);
+}
+
+void crustify_AV_WN16A(void *p, uint16_t v)
+{
+    AV_WN16A(p, v);
+}
+
+void crustify_AV_COPY16(void *d, const void *s)
+{
+    AV_COPY16(d, s);
+}
+
+void crustify_AV_ZERO16(void *d)
+{
+    AV_ZERO16(d);
+}
+
+uint32_t crustify_AV_RN32A(const void *p)
+{
+    return AV_RN32A(p);
+}
+
+void crustify_AV_WN32A(void *p, uint32_t v)
+{
+    AV_WN32A(p, v);
+}
+
+void crustify_AV_COPY32(void *d, const void *s)
+{
+    AV_COPY32(d, s);
+}
+
+void crustify_AV_ZERO32(void *d)
+{
+    AV_ZERO32(d);
+}
