@@ -18,7 +18,7 @@ Copy this template into the campaign checkout, then fill it as work lands.
 - **`--min-fields`** — `20`
 - **orchestrator parallelism** — `10` concurrent batch processes
 - **branch** — `crustify/campaigns/20261005`, tip `<sha>`
-- **deps** — crustify `26365e8` (`main`)
+- **deps** — crustify `c6fb5c6` (`main`, plus an uncommitted prompt edit), ffibox `508e478` (`main`)
 - **build version** — `3`
 - **C test baseline** — `5437/5437, 0 skipped, and no disabled tests`
 
@@ -26,8 +26,8 @@ Copy this template into the campaign checkout, then fill it as work lands.
 
 Thin batches with `"objective": "review"`, LLM-as-a-Judge over each landed wave.
 
-- **agent backend** — `codex`
-- **model** — `openrouter/openai/gpt-5.6-sol`
+- **agent backend** — `claude`
+- **model** — `openrouter/anthropic/claude-opus-5.5`
 - **`--billing`** — `api`
 - **`--max-types`** — `2`
 - **`--max-syms`** — `25`
@@ -128,8 +128,8 @@ in Notes.
 - **wrapped types** — `<n>`
 - **wrapped symbols** — `<n>`
 
-Implementation `<provider>/<model>` via `<backend>`; review
-`<provider>/<model>` via `<backend>`.
+Implementation `openrouter/anthropic/claude-opus-5.5` via `claude`; review
+`openrouter/anthropic/claude-opus-5.5` via `claude`.
 
 | sub-campaign | nr types | nr symbols | sub-campaign wall | batch | review | total | $/type | $/sym |
 |---|---:|---:|---|---:|---:|---:|---:|---:|
@@ -141,7 +141,7 @@ Implementation `<provider>/<model>` via `<backend>`; review
 
 ## Raw lifetime discovery
 
-`<provider>/<model>` via `<backend>`.
+`openrouter/anthropic/claude-opus-5.5` via `claude`.
 
 | tier | strategies emitted | $ | wall |
 |---|---|---|---|
@@ -151,7 +151,7 @@ Implementation `<provider>/<model>` via `<backend>`; review
 
 ### Review
 
-`<provider>/<model>` via `<backend>`.
+`openrouter/anthropic/claude-opus-5.5` via `claude`.
 
 | tier | rv loc | rv $ | rv wall |
 |---|---|---|---|
@@ -229,7 +229,7 @@ Implementation `<provider>/<model>` via `<backend>`; review
 
 ## Safety audit
 
-Deterministic `crustify <workdir> audit unsafe`; no model.
+Deterministic `crustify scan-unsafe <workdir>`; no model.
 
 ### Final tally overview
 
@@ -453,3 +453,9 @@ orchestrator-owned `api-types.txt`, and blocklists its dependencies' headers and
 so each C type has one Rust type. Functions and constants remain agent-owned in
 `allowlist.txt`. Without this, upper link units would have to edit lower crates' allowlists
 from parallel batches.
+
+### Review model
+
+Review uses `openrouter/anthropic/claude-opus-5.5` via `claude` instead of the `openrouter/openai/gpt-5.6-sol`
+named in `crustify/TASK.md`, at the user's direction: the provider's cybersecurity content
+filter stops the `codex` reviewer on this workload.
