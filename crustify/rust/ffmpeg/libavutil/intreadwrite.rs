@@ -297,8 +297,8 @@ impl<'a> Unaligned32Mut<'a> {
 define_ctype!(
     /// Wraps: unaligned_64
     ///
-    /// A native-endian `u64` stored with alignment 1. It owns nothing, so it
-    /// copies as a value.
+    /// A native-endian `u64` at any alignment: 8 bytes, aligned to 1. It owns
+    /// nothing, so it copies as a value.
     #[derive(Clone, Copy)]
     Unaligned64,
     Unaligned64Ref,
@@ -329,20 +329,15 @@ unsafe impl Sync for Unaligned64Ref<'_> {}
 unsafe impl Sync for Unaligned64Mut<'_> {}
 
 impl Unaligned64 {
-    /// A value holding `value`.
+    /// A union holding `value`.
     #[inline]
     #[must_use]
     pub const fn new(value: u64) -> Self {
-        Self(ffi::unaligned_64 { l: value }, core::marker::PhantomData)
+        Self(ffi::unaligned_64 { l: value }, PhantomData)
     }
 }
 
-impl From<u64> for Unaligned64 {
-    #[inline]
-    fn from(value: u64) -> Self {
-        Self::new(value)
-    }
-}
+impl_value_traits!(Unaligned64, u64);
 
 impl<'a> Unaligned64Ref<'a> {
     /// A view of `bytes` as an `Unaligned64`, at whatever alignment they have:
@@ -985,6 +980,21 @@ mod unit_tests {
             let window: &[u8; 8] = buf[off..off + 8].try_into().unwrap();
             assert_eq!(Unaligned64Ref::from_bytes(window).value(), v);
         }
+    }
+
+    #[test]
+    fn unaligned64_value_traits_follow_the_integer() {
+        let a = Unaligned64::new(0x0123_4567_89ab_cdef);
+        assert_eq!(a, Unaligned64::from(0x0123_4567_89ab_cdef));
+        assert_ne!(a, Unaligned64::new(0));
+        assert_eq!(u64::from(a), 0x0123_4567_89ab_cdef);
+        assert_eq!(hash_of(&a), hash_of(&0x0123_4567_89ab_cdef_u64));
+        assert_eq!(Unaligned64::default(), Unaligned64::zeroed());
+        assert_eq!(Unaligned64::default().as_ref().value(), 0);
+        assert_eq!(format!("{:?}", Unaligned64::new(5)), "Unaligned64(5)");
+        let distinct: std::collections::HashSet<Unaligned64> =
+            [a, a, Unaligned64::new(1)].into_iter().collect();
+        assert_eq!(distinct.len(), 2);
     }
 
     #[test]
