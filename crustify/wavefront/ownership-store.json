@@ -26,6 +26,115 @@
    "fields": []
   },
   {
+   "name": "AVOption",
+   "defined_in": "libavutil/opt.h",
+   "_comment_agent": "Every AVOption lives in a static const table (no C path writes or allocates one), reached through AVClass.option, av_opt_next, av_opt_find/av_opt_find2: a shared borrow with no lifecycle. default_val is a union discriminated by type: FLAG_ARRAY->arr; CONST, BOOL, FLAGS, INT, UINT, INT64, UINT64, DURATION, PIXEL_FMT, SAMPLE_FMT->i64; DOUBLE, FLOAT, RATIONAL->dbl; string-parsed types->str; q is never read.",
+   "fields": [
+    {
+     "name": "default_val.arr",
+     "ptr": {
+      "string": false,
+      "scalar": {
+       "by_val": true
+      },
+      "array": null,
+      "owned": false,
+      "borrowed": {
+       "lifetime": "static"
+      },
+      "mutable": false,
+      "nullable": true,
+      "note": "Union member, read only when type has AV_OPT_TYPE_FLAG_ARRAY; points at a static const AVOptionArrayDef or is NULL (opt.c: opt_array_sep, av_opt_set_defaults2)."
+     }
+    },
+    {
+     "name": "default_val.str",
+     "ptr": {
+      "string": true,
+      "scalar": null,
+      "array": null,
+      "owned": false,
+      "borrowed": {
+       "lifetime": "static"
+      },
+      "mutable": false,
+      "nullable": true,
+      "note": "Union member, read only when type is STRING, COLOR, IMAGE_SIZE, VIDEO_RATE, BINARY, CHLAYOUT or DICT (av_opt_set_defaults2, av_opt_is_set_to_default); NULL means no default."
+     }
+    },
+    {
+     "name": "help",
+     "ptr": {
+      "string": true,
+      "scalar": null,
+      "array": null,
+      "owned": false,
+      "borrowed": {
+       "lifetime": "static"
+      },
+      "mutable": false,
+      "nullable": true,
+      "note": "String literal in a static const option table; NULL when an option has no help text."
+     }
+    },
+    {
+     "name": "name",
+     "ptr": {
+      "string": true,
+      "scalar": null,
+      "array": null,
+      "owned": false,
+      "borrowed": {
+       "lifetime": "static"
+      },
+      "mutable": false,
+      "nullable": true,
+      "note": "String literal in a static const option table; NULL only in the table's terminating entry, which av_opt_next never returns."
+     }
+    },
+    {
+     "name": "unit",
+     "ptr": {
+      "string": true,
+      "scalar": null,
+      "array": null,
+      "owned": false,
+      "borrowed": {
+       "lifetime": "static"
+      },
+      "mutable": false,
+      "nullable": true,
+      "note": "String literal in a static const option table; NULL when the option belongs to no unit."
+     }
+    }
+   ]
+  },
+  {
+   "name": "AVOptionRanges",
+   "defined_in": "libavutil/opt.h",
+   "_comment_agent": "Allocated by av_opt_query_ranges / av_opt_query_ranges_default (or an AVClass.query_ranges callback, none in tree) through an out-parameter, released by av_opt_freep_ranges. No dup routine. nb_ranges and nb_components bound the release loop, so no setter may change them or range.",
+   "fields": [
+    {
+     "name": "range",
+     "ptr": {
+      "string": false,
+      "scalar": null,
+      "array": {
+       "by_ref": {
+        "owned": true,
+        "borrowed": null
+       }
+      },
+      "owned": true,
+      "borrowed": null,
+      "mutable": true,
+      "nullable": true,
+      "note": "av_mallocz'd array of nb_ranges * nb_components AVOptionRange pointers, laid out component-major (range[nb_ranges * component + index]). Each element is an owned av_mallocz'd AVOptionRange (its str an owned av_malloc string) or NULL; av_opt_freep_ranges av_freep's every element's str, the element, then the array, writing NULL into each slot. NULL only for an empty (zeroed) list."
+     }
+    }
+   ]
+  },
+  {
    "name": "AVRounding",
    "defined_in": "libavutil/mathematics.h",
    "_comment_agent": "By-value only: AVRounding is never stored in a field, returned, or passed to a callback; it flows Rust->C as the `rnd` argument of av_rescale_rnd / av_rescale_q_rnd (and libswscale's static ops helper). av_rescale_rnd accepts a method in {0,1,2,3,5}, alone or ORed with AV_ROUND_PASS_MINMAX (8192); any other value returns INT64_MIN (av_assert2 is compiled out: ASSERT_LEVEL is undefined in every campaign build). Wrapped as the validity-preserving newtype `mathematics::Rounding` (repr(transparent), private field, TryFrom rejects the rest). No lifecycle.",
@@ -700,6 +809,37 @@
    }
   },
   {
+   "name": "av_opt_freep_ranges",
+   "defined_in": "libavutil/opt.c",
+   "lifetime": {
+    "for": "rangesp",
+    "is_dropper": true,
+    "is_disposer": false,
+    "is_cloner": null,
+    "is_constructor": null
+   },
+   "ptr_args": [
+    {
+     "name": "rangesp",
+     "ptr": {
+      "string": false,
+      "scalar": {
+       "by_ref": {
+        "owned": true,
+        "borrowed": null
+       }
+      },
+      "array": null,
+      "owned": true,
+      "borrowed": null,
+      "mutable": true,
+      "nullable": false,
+      "note": "Caller's slot holding an owned AVOptionRanges (or NULL, a no-op). Frees each of the nb_ranges * nb_components range elements (and their str), the range array, then the list, and writes NULL into the slot."
+     }
+    }
+   ]
+  },
+  {
    "name": "av_opt_get",
    "defined_in": "libavutil/opt.c",
    "lifetime": {
@@ -871,6 +1011,142 @@
       "nullable": false,
       "mutable": true,
       "note": "Out slot for the value: av_get_token's fresh av_realloc string, NUL-terminated, released by av_free; never NULL on success. Written only on success. Also a string constructor output (the schema's single `for` names rkey)."
+     }
+    }
+   ]
+  },
+  {
+   "name": "av_opt_query_ranges",
+   "defined_in": "libavutil/opt.c",
+   "lifetime": {
+    "for": "ranges_arg",
+    "is_dropper": false,
+    "is_disposer": false,
+    "is_cloner": null,
+    "is_constructor": {
+     "alloc": true,
+     "init": false
+    }
+   },
+   "ptr_args": [
+    {
+     "name": "key",
+     "ptr": {
+      "string": true,
+      "scalar": null,
+      "array": null,
+      "owned": false,
+      "borrowed": {
+       "lifetime": "other"
+      },
+      "mutable": false,
+      "nullable": false,
+      "note": "Option name, read for the call only."
+     }
+    },
+    {
+     "name": "obj",
+     "ptr": {
+      "string": false,
+      "scalar": {
+       "by_val": true
+      },
+      "array": null,
+      "owned": false,
+      "borrowed": {
+       "lifetime": "other"
+      },
+      "mutable": false,
+      "nullable": false,
+      "note": "AVClass-enabled object (first member a const AVClass *), or with AV_OPT_SEARCH_FAKE_OBJ a const AVClass **; only read for the call (av_opt_find). The result borrows nothing from it."
+     }
+    },
+    {
+     "name": "ranges_arg",
+     "ptr": {
+      "string": false,
+      "scalar": {
+       "by_ref": {
+        "owned": true,
+        "borrowed": null
+       }
+      },
+      "array": null,
+      "owned": false,
+      "borrowed": {
+       "lifetime": "other"
+      },
+      "mutable": true,
+      "nullable": false,
+      "note": "Out-parameter: receives a fresh owned AVOptionRanges on success (av_opt_freep_ranges releases it); NULL is stored on the default path's failure."
+     }
+    }
+   ]
+  },
+  {
+   "name": "av_opt_query_ranges_default",
+   "defined_in": "libavutil/opt.c",
+   "lifetime": {
+    "for": "ranges_arg",
+    "is_dropper": false,
+    "is_disposer": false,
+    "is_cloner": null,
+    "is_constructor": {
+     "alloc": true,
+     "init": false
+    }
+   },
+   "ptr_args": [
+    {
+     "name": "key",
+     "ptr": {
+      "string": true,
+      "scalar": null,
+      "array": null,
+      "owned": false,
+      "borrowed": {
+       "lifetime": "other"
+      },
+      "mutable": false,
+      "nullable": false,
+      "note": "Option name, read for the call only."
+     }
+    },
+    {
+     "name": "obj",
+     "ptr": {
+      "string": false,
+      "scalar": {
+       "by_val": true
+      },
+      "array": null,
+      "owned": false,
+      "borrowed": {
+       "lifetime": "other"
+      },
+      "mutable": false,
+      "nullable": false,
+      "note": "AVClass-enabled object (first member a const AVClass *), or with AV_OPT_SEARCH_FAKE_OBJ a const AVClass **; only read for the call (av_opt_find). The result borrows nothing from it."
+     }
+    },
+    {
+     "name": "ranges_arg",
+     "ptr": {
+      "string": false,
+      "scalar": {
+       "by_ref": {
+        "owned": true,
+        "borrowed": null
+       }
+      },
+      "array": null,
+      "owned": false,
+      "borrowed": {
+       "lifetime": "other"
+      },
+      "mutable": true,
+      "nullable": false,
+      "note": "Out-parameter: receives a fresh owned AVOptionRanges on success (av_opt_freep_ranges releases it); NULL is stored on the default path's failure."
      }
     }
    ]

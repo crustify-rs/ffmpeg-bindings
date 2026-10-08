@@ -1,0 +1,11 @@
+error[E0505]: cannot move out of `b` because it is borrowed
+ --> tests/ub_safe/compile_fail/opt_ranges_drop_while_viewed.rs
+  |
+  | fn count(b: OptionRangesBox) -> usize {
+  |          - binding `b` declared here
+  |     let view = b.as_ref().ranges();
+  |                - borrow of `b` occurs here
+  |     drop(b);
+  |          ^ move out of `b` occurs here
+  |     view.len()
+  |     ---- borrow later used here
