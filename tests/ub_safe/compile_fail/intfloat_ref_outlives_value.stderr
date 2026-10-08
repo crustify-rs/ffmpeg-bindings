@@ -1,0 +1,8 @@
+error[E0515]: cannot return value referencing local variable `v`
+ --> tests/ub_safe/compile_fail/intfloat_ref_outlives_value.rs
+  |
+  |     v.as_ref()
+  |     -^^^^^^^^^
+  |     |
+  |     returns a value referencing data owned by the current function
+  |     `v` is borrowed here

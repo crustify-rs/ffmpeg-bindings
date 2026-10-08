@@ -1,0 +1,16 @@
+error[E0505]: cannot move out of `b` because it is borrowed
+ --> tests/ub_safe/compile_fail/intfloat_box_drop_while_borrowed.rs
+  |
+  |     let b = HeapBox::<IntFloat64>::new_zeroed().unwrap();
+  |         - binding `b` declared here
+  |     let r = b.as_ref();
+  |             - borrow of `b` occurs here
+  |     drop(b);
+  |          ^ move out of `b` occurs here
+  |     println!("{}", r.float());
+  |                    - borrow later used here
+  |
+help: consider cloning the value if the performance cost is acceptable
+  |
+7 |     let r = b.clone().as_ref();
+  |              ++++++++

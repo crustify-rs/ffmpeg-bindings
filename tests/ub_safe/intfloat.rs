@@ -1,0 +1,164 @@
+//! UB tests for `libavutil/intfloat.h`'s `IntFloat64`, through the safe API
+//! only: inline values, `av_malloc`-family owners and arrays of them, every
+//! handle form, and the asserted `Send` / `Sync`.
+
+use std::thread;
+
+use ffibox::CZeroable;
+use ffmpeg::libavutil::intfloat::{IntFloat64, IntFloat64Mut, IntFloat64Ref};
+use ffmpeg::libavutil::mem::{HeapBox, alloc_cell_array_zeroed};
+
+/// Bit patterns at every class edge of a `double`: zeros, subnormals, the
+/// finite extremes, infinities, and quiet and signalling NaNs with payloads.
+const BITS: [u64; 12] = [
+    0,
+    1 << 63,
+    1,
+    0x000f_ffff_ffff_ffff,
+    0x0010_0000_0000_0000,
+    0x7fef_ffff_ffff_ffff,
+    0x7ff0_0000_0000_0000,
+    0xfff0_0000_0000_0000,
+    0x7ff0_0000_0000_0001,
+    0x7ff8_0000_0000_0000,
+    0xfff8_dead_beef_0001,
+    u64::MAX,
+];
+
+#[test]
+fn every_bit_pattern_reads_through_both_views() {
+    for bits in BITS {
+        let v = IntFloat64::from_bits(bits);
+        let r = v.as_ref();
+        assert_eq!(r.bits(), bits);
+        assert_eq!(r.float().to_bits(), bits);
+        let w = IntFloat64::from_float(f64::from_bits(bits));
+        assert_eq!(w.as_ref().bits(), bits);
+    }
+}
+
+#[test]
+fn shared_handles_copy_and_coexist() {
+    let v = IntFloat64::from_float(0.25);
+    let a = v.as_ref();
+    let b = a;
+    let c = v.as_ref();
+    assert_eq!(
+        (a.bits(), b.float(), c.float()),
+        (0.25f64.to_bits(), 0.25, 0.25)
+    );
+}
+
+fn reset(mut m: IntFloat64Mut<'_>) {
+    m.set_bits(0);
+}
+
+fn read(r: IntFloat64Ref<'_>) -> u64 {
+    r.bits()
+}
+
+#[test]
+fn exclusive_handle_reborrows_without_aliasing() {
+    let mut v = IntFloat64::from_bits(9);
+    let mut m = v.as_mut();
+    reset(m.as_mut());
+    assert_eq!(read(m.as_ref()), 0);
+    m.set_float(1.5);
+    let shared = m.as_ref();
+    assert_eq!(shared.float(), 1.5);
+    m.set_bits(2);
+    assert_eq!(read(v.as_ref()), 2);
+}
+
+#[test]
+fn copies_are_independent_values() {
+    let a = IntFloat64::from_bits(1);
+    let mut b = a;
+    b.as_mut().set_float(-1.0);
+    assert_eq!(a.as_ref().bits(), 1);
+    assert_eq!(b.as_ref().float(), -1.0);
+    let c = Clone::clone(&b);
+    assert_eq!(c.as_ref().bits(), b.as_ref().bits());
+}
+
+#[test]
+fn heap_box_owner_lives_reads_writes_clones_and_frees() {
+    let mut a = HeapBox::<IntFloat64>::new_zeroed().unwrap();
+    for bits in BITS {
+        a.as_mut().set_bits(bits);
+        assert_eq!(a.as_ref().float().to_bits(), bits);
+    }
+    let b = a.clone();
+    let c = b.try_clone().unwrap();
+    // The source may go first; the copies own their own blocks.
+    drop(a);
+    assert_eq!(b.as_ref().bits(), u64::MAX);
+    drop(b);
+    assert_eq!(c.as_ref().bits(), u64::MAX);
+}
+
+#[test]
+fn heap_array_handles_stay_in_bounds() {
+    let mut a = alloc_cell_array_zeroed::<IntFloat64>(BITS.len()).unwrap();
+    {
+        let mut handles = a.as_handles_mut();
+        for (i, bits) in BITS.into_iter().enumerate() {
+            handles.get_mut(i).unwrap().set_bits(bits);
+        }
+        assert!(handles.get_mut(BITS.len()).is_none());
+    }
+    let read: Vec<u64> = a.as_handles().iter().map(|h| h.float().to_bits()).collect();
+    assert_eq!(read, BITS);
+    assert!(a.as_handles().get(BITS.len()).is_none());
+    drop(alloc_cell_array_zeroed::<IntFloat64>(0).unwrap());
+}
+
+#[test]
+fn values_and_owners_move_across_threads() {
+    let v = IntFloat64::from_float(2.0);
+    let b = HeapBox::<IntFloat64>::new_zeroed().unwrap();
+    let (v, b) = thread::spawn(move || {
+        let mut b = b;
+        b.as_mut().set_bits(v.as_ref().bits());
+        (v, b)
+    })
+    .join()
+    .unwrap();
+    assert_eq!(b.as_ref().float(), v.as_ref().float());
+    // Freed on another thread than the one that allocated it.
+    thread::spawn(move || drop(b)).join().unwrap();
+}
+
+#[test]
+fn shared_handles_read_concurrently() {
+    let v = IntFloat64::from_bits(0x4009_21fb_5444_2d18);
+    let boxed = HeapBox::<IntFloat64>::new_zeroed().unwrap();
+    let (vr, br) = (v.as_ref(), boxed.as_ref());
+    thread::scope(|s| {
+        for _ in 0..4 {
+            s.spawn(move || {
+                for _ in 0..1000 {
+                    assert_eq!(vr.float(), core::f64::consts::PI);
+                    assert_eq!(br.bits(), 0);
+                }
+            });
+        }
+    });
+}
+
+#[test]
+fn exclusive_handles_write_on_other_threads() {
+    let mut values = [IntFloat64::zeroed(); 4];
+    let mut boxed = HeapBox::<IntFloat64>::new_zeroed().unwrap();
+    thread::scope(|s| {
+        for (i, v) in values.iter_mut().enumerate() {
+            let mut m = v.as_mut();
+            s.spawn(move || m.set_bits(i as u64));
+        }
+        let mut m = boxed.as_mut();
+        s.spawn(move || m.set_float(-0.0));
+    });
+    let bits: Vec<u64> = values.iter().map(|v| v.as_ref().bits()).collect();
+    assert_eq!(bits, [0, 1, 2, 3]);
+    assert_eq!(boxed.as_ref().bits(), 1 << 63);
+}

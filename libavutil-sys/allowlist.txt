@@ -26,3 +26,8 @@ function av_opt_set_int
 # `union unaligned_64` (AV_WN64), the C reference for intreadwrite's
 # `Unaligned64` equivalence tests.
 function av_memcpy_backptr
+
+# libavutil/intfloat.h: the C reference for av_intfloat64's punning
+# (equivalence tests; static inline, compiled by bindgen's wrap_static_fns).
+function av_int2double
+function av_double2int

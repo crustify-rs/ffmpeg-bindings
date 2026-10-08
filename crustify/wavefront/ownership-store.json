@@ -14,6 +14,23 @@
    "fields": []
   },
   {
+   "name": "av_intfloat64",
+   "defined_in": "libavutil/intfloat.h",
+   "_comment_agent": "C `union av_intfloat64 { uint64_t i; double f; }` (the record's kind says struct; the definition is a union). A type-punning union: no discriminator, both members cover all 8 bytes and every bit pattern is a valid value of each, so either view is always readable after a write to the other (av_int2double writes i and reads f; av_double2int the reverse). No pointer fields, no sub-allocations and no lifecycle routine: C only creates it as an automatic local or a const initializer ({.i = ...} in libavcodec/mips/constants.c, mips-only); copied by value, never freed. All-zero is valid (i = 0, f = +0.0). No shared state or lock: plain data, Send/Sync like u64.",
+   "fields": [
+    {
+     "name": "f",
+     "refcount": false,
+     "locked_by": null
+    },
+    {
+     "name": "i",
+     "refcount": false,
+     "locked_by": null
+    }
+   ]
+  },
+  {
    "name": "unaligned_64",
    "defined_in": "libavutil/intreadwrite.h",
    "_comment_agent": "Packed (align 1, size 8), may_alias (av_alias) union over one uint64_t; no pointer fields and no lifecycle routine. C never allocates or frees it: AV_RN(64,p)/AV_WN(64,p,v) cast an arbitrary byte pointer to `union unaligned_64 *` and read/write `->l` for one native-endian unaligned 64-bit access (the GCC/clang branch of intreadwrite.h). Every toucher (e.g. mem.c fill32, aes.c addkey_*, adler32.c av_adler32_update) does exactly that on caller-owned byte buffers for the duration of one expression; nothing stores or retains the pointer and nothing synchronizes it. Ownership is therefore the byte storage's: a by-value plain datum, or a transient borrowed view over 8 bytes. All-zero and every bit pattern are valid.",
