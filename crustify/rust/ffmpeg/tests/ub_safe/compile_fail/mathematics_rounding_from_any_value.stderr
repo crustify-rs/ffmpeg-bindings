@@ -4,6 +4,7 @@ error[E0423]: cannot initialize a tuple struct which contains private fields
   |     let _ = Rounding(ffi::AVRounding(4));
   |             ^^^^^^^^
   |
+  = note: a struct named `Rounding` exists in another namespace
 note: constructor is not visible here due to private fields
  --> libavutil/mathematics.rs
   |

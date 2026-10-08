@@ -79,6 +79,7 @@ fn copies_are_independent_values() {
     b.as_mut().set_float(-1.0);
     assert_eq!(a.as_ref().bits(), 1);
     assert_eq!(b.as_ref().float(), -1.0);
+    #[allow(clippy::clone_on_copy)] // exercises the explicit `Clone` impl
     let c = Clone::clone(&b);
     assert_eq!(c.as_ref().bits(), b.as_ref().bits());
 }
