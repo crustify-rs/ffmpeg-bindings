@@ -20,6 +20,7 @@ publish = false
 [workspace.dependencies]
 bindgen = { version = "0.73", features = ["experimental"] }
 cc = "1.5"
+ffibox = { path = "/opt/venv/share/ffibox" }
 serde_json = "1"
 trybuild = "1"
 libavutil-sys = { path = "libavutil-sys" }

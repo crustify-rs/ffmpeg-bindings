@@ -1,0 +1,271 @@
+{
+ "_comment": "Authored analysis: ownership, lifecycle, refcount and locking judgements that no composer can derive, keyed to the C entities they describe. The structural half of each record (field layout, signatures, footprints, casts) is composed from the CodeQL tables on demand and merged in at read time, so a re-extract rewrites nothing here. Written only by `wavefront <repo> <target> query {types,symbols} --update`; read through wavefront.manifests. Hand-edit at your own risk: `--update` validates a submission against the composed skeleton (unknown field, wrong kind, ptr-invariant violation) and this file does not.",
+ "types": [],
+ "symbols": [
+  {
+   "name": "av_calloc",
+   "defined_in": "libavutil/mem.c",
+   "lifetime": {
+    "for": "return",
+    "is_dropper": false,
+    "is_disposer": false,
+    "is_cloner": null,
+    "is_constructor": {
+     "alloc": true,
+     "init": false
+    }
+   },
+   "ptr_ret": {
+    "ptr": {
+     "scalar": null,
+     "array": {
+      "by_val": true
+     },
+     "string": false,
+     "owned": true,
+     "borrowed": null,
+     "nullable": true,
+     "mutable": true,
+     "note": "Array of nmemb elements of size bytes, ZEROED (av_mallocz). NULL also when nmemb*size overflows size_t. Fresh av_malloc storage: posix_memalign(ALIGN) with ALIGN = 64/32/16 by SIMD config (16 is the floor); size 0 yields a 1-byte block, so NULL means failure: size > max_alloc_size (INT_MAX by default, av_max_alloc) or OOM. Released by av_free/av_freep."
+    }
+   }
+  },
+  {
+   "name": "av_free",
+   "defined_in": "libavutil/mem.c",
+   "lifetime": {
+    "for": "ptr",
+    "is_dropper": true,
+    "is_disposer": false,
+    "is_cloner": null,
+    "is_constructor": null
+   },
+   "ptr_args": [
+    {
+     "name": "ptr",
+     "ptr": {
+      "scalar": {
+       "by_val": true
+      },
+      "array": {
+       "by_val": true
+      },
+      "string": false,
+      "owned": true,
+      "borrowed": null,
+      "nullable": true,
+      "mutable": true,
+      "note": "Releases any block from the av_malloc family (av_malloc/mallocz/calloc/malloc_array/memdup/realloc*/strdup): free(), or _aligned_free with HAVE_ALIGNED_MALLOC. NULL is a no-op. Type-erased: one object or an array of any element type; never reads the contents."
+     }
+    }
+   ]
+  },
+  {
+   "name": "av_freep",
+   "defined_in": "libavutil/mem.c",
+   "lifetime": {
+    "for": "arg",
+    "is_dropper": false,
+    "is_disposer": true,
+    "is_cloner": null,
+    "is_constructor": null
+   },
+   "ptr_args": [
+    {
+     "name": "arg",
+     "ptr": {
+      "scalar": {
+       "by_ref": {
+        "owned": true,
+        "borrowed": null
+       }
+      },
+      "array": null,
+      "string": false,
+      "owned": false,
+      "borrowed": {
+       "lifetime": "arg:arg"
+      },
+      "nullable": false,
+      "mutable": true,
+      "note": "Declared void* but is a T** slot (memcpy'd through to dodge aliasing). Reads the pointer held in the slot, stores NULL into the slot, then av_free()s the old pointee (NULL pointee is a no-op). The slot itself is borrowed and must be non-NULL; the pointee's ownership transfers in."
+     }
+    }
+   ]
+  },
+  {
+   "name": "av_malloc",
+   "defined_in": "libavutil/mem.c",
+   "lifetime": {
+    "for": "return",
+    "is_dropper": false,
+    "is_disposer": false,
+    "is_cloner": null,
+    "is_constructor": {
+     "alloc": true,
+     "init": false
+    }
+   },
+   "ptr_ret": {
+    "ptr": {
+     "scalar": {
+      "by_val": true
+     },
+     "array": {
+      "by_val": true
+     },
+     "string": false,
+     "owned": true,
+     "borrowed": null,
+     "nullable": true,
+     "mutable": true,
+     "note": "NOT zeroed (uninitialised; poisoned with 0x2a only under CONFIG_MEMORY_POISONING). Fresh av_malloc storage: posix_memalign(ALIGN) with ALIGN = 64/32/16 by SIMD config (16 is the floor); size 0 yields a 1-byte block, so NULL means failure: size > max_alloc_size (INT_MAX by default, av_max_alloc) or OOM. Released by av_free/av_freep."
+    }
+   }
+  },
+  {
+   "name": "av_malloc_array",
+   "defined_in": "libavutil/mem.c",
+   "lifetime": {
+    "for": "return",
+    "is_dropper": false,
+    "is_disposer": false,
+    "is_cloner": null,
+    "is_constructor": {
+     "alloc": true,
+     "init": false
+    }
+   },
+   "ptr_ret": {
+    "ptr": {
+     "scalar": null,
+     "array": {
+      "by_val": true
+     },
+     "string": false,
+     "owned": true,
+     "borrowed": null,
+     "nullable": true,
+     "mutable": true,
+     "note": "Array of nmemb elements of size bytes, NOT zeroed. NULL also when nmemb*size overflows size_t. Fresh av_malloc storage: posix_memalign(ALIGN) with ALIGN = 64/32/16 by SIMD config (16 is the floor); size 0 yields a 1-byte block, so NULL means failure: size > max_alloc_size (INT_MAX by default, av_max_alloc) or OOM. Released by av_free/av_freep."
+    }
+   }
+  },
+  {
+   "name": "av_mallocz",
+   "defined_in": "libavutil/mem.c",
+   "lifetime": {
+    "for": "return",
+    "is_dropper": false,
+    "is_disposer": false,
+    "is_cloner": null,
+    "is_constructor": {
+     "alloc": true,
+     "init": false
+    }
+   },
+   "ptr_ret": {
+    "ptr": {
+     "scalar": {
+      "by_val": true
+     },
+     "array": {
+      "by_val": true
+     },
+     "string": false,
+     "owned": true,
+     "borrowed": null,
+     "nullable": true,
+     "mutable": true,
+     "note": "ZEROED (av_malloc + memset 0). Fresh av_malloc storage: posix_memalign(ALIGN) with ALIGN = 64/32/16 by SIMD config (16 is the floor); size 0 yields a 1-byte block, so NULL means failure: size > max_alloc_size (INT_MAX by default, av_max_alloc) or OOM. Released by av_free/av_freep."
+    }
+   }
+  },
+  {
+   "name": "av_memdup",
+   "defined_in": "libavutil/mem.c",
+   "lifetime": {
+    "for": "p",
+    "is_dropper": false,
+    "is_disposer": false,
+    "is_cloner": {
+     "deep": true,
+     "upref": false
+    },
+    "is_constructor": null
+   },
+   "ptr_args": [
+    {
+     "name": "p",
+     "ptr": {
+      "scalar": null,
+      "array": {
+       "by_val": true
+      },
+      "string": false,
+      "owned": false,
+      "borrowed": {
+       "lifetime": "arg:p"
+      },
+      "nullable": true,
+      "mutable": false,
+      "note": "Read-only source of size bytes, any allocator; only read for the call. NULL source returns NULL."
+     }
+    }
+   ],
+   "ptr_ret": {
+    "ptr": {
+     "scalar": null,
+     "array": {
+      "by_val": true
+     },
+     "string": false,
+     "owned": true,
+     "borrowed": null,
+     "nullable": true,
+     "mutable": true,
+     "note": "Fresh av_malloc(size) block holding a byte copy of p (deep clone). NULL when p is NULL or allocation fails. size 0 yields a 1-byte block. Released by av_free."
+    }
+   }
+  },
+  {
+   "name": "av_realloc",
+   "defined_in": "libavutil/mem.c",
+   "ptr_args": [
+    {
+     "name": "ptr",
+     "ptr": {
+      "scalar": {
+       "by_val": true
+      },
+      "array": {
+       "by_val": true
+      },
+      "string": false,
+      "owned": true,
+      "borrowed": null,
+      "nullable": true,
+      "mutable": true,
+      "note": "Old block, ownership taken: realloc(ptr, size + !size). On failure (NULL return) the old block is NOT freed and stays owned by the caller. Only malloc alignment (16 on glibc x86_64), not ALIGN."
+     }
+    }
+   ],
+   "ptr_ret": {
+    "ptr": {
+     "scalar": {
+      "by_val": true
+     },
+     "array": {
+      "by_val": true
+     },
+     "string": false,
+     "owned": true,
+     "borrowed": null,
+     "nullable": true,
+     "mutable": true,
+     "note": "Resized block; NULL on failure or size > max_alloc_size. realloc-style: releases and reallocates the same slot, so not a constructor (schema); no lifecycle role. The raw-lifetime void tier binds av_free/av_malloc*/av_memdup instead."
+    }
+   }
+  }
+ ]
+}

@@ -1,6 +1,8 @@
 //! UB tests against the safe public API.
 #![forbid(unsafe_code)]
 
+mod mem;
+
 /// Programs under `compile_fail/` must be rejected by the compiler.
 #[test]
 fn compile_fail() {

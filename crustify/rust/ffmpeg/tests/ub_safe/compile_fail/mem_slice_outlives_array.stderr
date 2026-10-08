@@ -1,0 +1,11 @@
+error[E0597]: `a` does not live long enough
+ --> tests/ub_safe/compile_fail/mem_slice_outlives_array.rs
+  |
+  |     let s = {
+  |         - borrow later stored here
+  |         let a = alloc_array_zeroed::<u8>(4).unwrap();
+  |             - binding `a` declared here
+  |         a.as_slice()
+  |         ^ borrowed value does not live long enough
+  |     };
+  |     - `a` dropped here while still borrowed
