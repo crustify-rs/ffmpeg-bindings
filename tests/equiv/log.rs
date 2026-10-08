@@ -226,3 +226,243 @@ fn state_flags_gate_non_runtime_options_as_in_c() {
         );
     }
 }
+
+/// `av_vlog` through [`log`] and [`log_with_context`], against `av_log`
+/// with the format `%s`, as a capturing log callback observes both.
+mod vlog {
+    use core::ffi::{CStr, c_char, c_int, c_void};
+    use core::mem::offset_of;
+    use std::sync::{Mutex, MutexGuard, PoisonError};
+
+    use ffmpeg::libavutil::ffi;
+    use ffmpeg::libavutil::log::{log, log_with_context};
+
+    /// Tags the lines these tests log, so the capture ignores any other test's.
+    const TAG: &[u8] = b"crustify-vlog-equiv";
+
+    /// What the callback saw: the context, the level and the formatted line.
+    type Entry = (usize, c_int, Vec<u8>);
+
+    static CAPTURED: Mutex<Vec<Entry>> = Mutex::new(Vec::new());
+
+    /// Serializes the tests that install [`capture`], a process-wide setting.
+    static INSTALLED: Mutex<()> = Mutex::new(());
+
+    /// A log callback recording each tagged line, prefix included.
+    unsafe extern "C" fn capture(
+        avcl: *mut c_void,
+        level: c_int,
+        fmt: *const c_char,
+        vl: *mut ffi::__va_list_tag,
+    ) {
+        let mut line = [0 as c_char; 1024];
+        let mut print_prefix = 1;
+        // SAFETY: C hands the callback a context `av_log_format_line2` can
+        // read as `av_vlog` did, a format and its `va_list`; `line` is 1024
+        // writable bytes and `print_prefix` a writable `int`.
+        unsafe {
+            ffi::av_log_format_line2(
+                avcl,
+                level,
+                fmt,
+                vl,
+                line.as_mut_ptr(),
+                line.len() as c_int,
+                &mut print_prefix,
+            )
+        };
+        // SAFETY: `av_log_format_line2` NUL-terminates `line`.
+        let bytes = unsafe { CStr::from_ptr(line.as_ptr()) }.to_bytes();
+        if bytes.windows(TAG.len()).any(|w| w == TAG) {
+            let mut captured = CAPTURED.lock().unwrap_or_else(PoisonError::into_inner);
+            captured.push((avcl as usize, level, bytes.to_vec()));
+        }
+    }
+
+    /// [`capture`] installed until drop, which restores the default callback.
+    struct Installed(#[allow(dead_code)] MutexGuard<'static, ()>);
+
+    impl Installed {
+        fn new() -> Self {
+            let guard = INSTALLED.lock().unwrap_or_else(PoisonError::into_inner);
+            CAPTURED
+                .lock()
+                .unwrap_or_else(PoisonError::into_inner)
+                .clear();
+            // SAFETY: `capture` accepts any line from any thread.
+            unsafe { ffi::av_log_set_callback(Some(capture)) };
+            Self(guard)
+        }
+
+        /// The entries captured since the last call.
+        fn take(&self) -> Vec<Entry> {
+            core::mem::take(&mut *CAPTURED.lock().unwrap_or_else(PoisonError::into_inner))
+        }
+    }
+
+    impl Drop for Installed {
+        fn drop(&mut self) {
+            // SAFETY: the default callback is always a valid callback.
+            unsafe { ffi::av_log_set_callback(Some(ffi::av_log_default_callback)) };
+        }
+    }
+
+    /// `av_log(obj, level, "%s", message)`.
+    fn c_log(obj: *mut c_void, level: c_int, message: &CStr) {
+        // SAFETY: `obj` is NULL or a well-formed context (see `Ctx`); `%s`
+        // consumes one live NUL-terminated string.
+        unsafe { ffi::av_log(obj, level, c"%s".as_ptr(), message.as_ptr()) }
+    }
+
+    const QUIET: c_int = ffi::AV_LOG_QUIET;
+    const LEVELS: [c_int; 11] = [
+        QUIET,
+        ffi::AV_LOG_PANIC as c_int,
+        ffi::AV_LOG_FATAL as c_int,
+        ffi::AV_LOG_ERROR as c_int,
+        ffi::AV_LOG_WARNING as c_int,
+        ffi::AV_LOG_INFO as c_int,
+        ffi::AV_LOG_VERBOSE as c_int,
+        ffi::AV_LOG_DEBUG as c_int,
+        ffi::AV_LOG_TRACE as c_int,
+        ffi::AV_LOG_INFO as c_int | 134 << 8,
+        -100,
+    ];
+
+    const MESSAGES: [&CStr; 4] = [
+        c"crustify-vlog-equiv plain\n",
+        c"crustify-vlog-equiv 100% %s %n %d\n",
+        c"crustify-vlog-equiv partial",
+        c"crustify-vlog-equiv \x01\x7f\xff end\n",
+    ];
+
+    #[test]
+    fn general_log_reaches_the_callback_as_av_log() {
+        let cap = Installed::new();
+        for level in LEVELS {
+            for message in MESSAGES {
+                c_log(core::ptr::null_mut(), level, message);
+                let c = cap.take();
+                log(level, message);
+                let rust = cap.take();
+                assert_eq!(c.len(), 1);
+                assert_eq!(rust, c, "{level} {message:?}");
+            }
+        }
+    }
+
+    /// A context whose class has a log level offset and a parent context.
+    #[repr(C)]
+    struct Ctx {
+        class: *const ffi::AVClass,
+        level_offset: c_int,
+        parent: *mut *const ffi::AVClass,
+    }
+
+    /// The class's name, as `av_default_item_name` would give it.
+    unsafe extern "C" fn item_name(ctx: *mut c_void) -> *const c_char {
+        // SAFETY: C passes a live context, whose first member is its class.
+        unsafe { (*ctx.cast::<*const ffi::AVClass>().read()).class_name }
+    }
+
+    /// `bytes` with every occurrence of `from` replaced by `to`.
+    fn replace(bytes: &[u8], from: &[u8], to: &[u8]) -> Vec<u8> {
+        let mut out = Vec::with_capacity(bytes.len());
+        let mut i = 0;
+        while i < bytes.len() {
+            if bytes[i..].starts_with(from) {
+                out.extend_from_slice(to);
+                i += from.len();
+            } else {
+                out.push(bytes[i]);
+                i += 1;
+            }
+        }
+        out
+    }
+
+    fn class(version: c_int, with_offset: bool, with_parent: bool) -> ffi::AVClass {
+        ffi::AVClass {
+            class_name: c"crustify-vlog-ctx".as_ptr(),
+            item_name: Some(item_name),
+            version,
+            log_level_offset_offset: if with_offset {
+                offset_of!(Ctx, level_offset) as c_int
+            } else {
+                0
+            },
+            parent_log_context_offset: if with_parent {
+                offset_of!(Ctx, parent) as c_int
+            } else {
+                0
+            },
+            ..Default::default()
+        }
+    }
+
+    #[test]
+    fn context_log_reaches_the_callback_as_av_log() {
+        let parent_class = class(0, false, false);
+        let mut parent: *const ffi::AVClass = &parent_class;
+        let current = (61 << 16) | (6 << 8) | 100;
+        let classes = [
+            class(current, true, true),
+            class(current, false, false),
+            class((50 << 16) | (15 << 8) | 1, true, false),
+            class((50 << 16) | (15 << 8) | 2, true, false),
+            class(current, true, false),
+        ];
+        let cap = Installed::new();
+        for cls in &classes {
+            for offset in [0, -8, 16, 1000] {
+                let mut mine = Ctx {
+                    class: cls,
+                    level_offset: offset,
+                    parent: &mut parent,
+                };
+                let mut theirs = Ctx {
+                    class: cls,
+                    level_offset: offset,
+                    parent: &mut parent,
+                };
+                for level in LEVELS {
+                    for message in MESSAGES {
+                        c_log((&raw mut theirs).cast(), level, message);
+                        let mut c = cap.take();
+                        // SAFETY: `mine` is a live context whose class names
+                        // itself, its offset `int` stays far from overflow
+                        // and its parent pointer addresses a classed parent.
+                        unsafe { log_with_context((&raw mut mine).cast(), level, message) };
+                        let rust = cap.take();
+                        assert_eq!(c.len(), 1);
+                        // The contexts differ only in address.
+                        let ours = &raw mut mine as usize;
+                        c[0].0 = ours;
+                        let theirs_at = format!("{:p}", &raw const theirs);
+                        let mine_at = format!("{:p}", &raw const mine);
+                        c[0].2 = replace(&c[0].2, theirs_at.as_bytes(), mine_at.as_bytes());
+                        assert_eq!(rust, c, "{level} {offset} {message:?}");
+                        let applies = cls.log_level_offset_offset != 0
+                            && cls.version >= (50 << 16) | (15 << 8) | 2
+                            && level >= ffi::AV_LOG_FATAL as c_int;
+                        assert_eq!(rust[0].1, if applies { level + offset } else { level });
+                    }
+                }
+            }
+        }
+    }
+
+    #[test]
+    fn null_context_is_the_general_log() {
+        let cap = Installed::new();
+        for level in LEVELS {
+            // SAFETY: a NULL context is the general log.
+            unsafe { log_with_context(core::ptr::null_mut(), level, MESSAGES[0]) };
+            let ctx = cap.take();
+            log(level, MESSAGES[0]);
+            assert_eq!(cap.take(), ctx);
+            assert_eq!(ctx.len(), 1);
+            assert_eq!(ctx[0].0, 0);
+        }
+    }
+}

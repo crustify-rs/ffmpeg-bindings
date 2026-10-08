@@ -1,0 +1,10 @@
+error[E0506]: cannot assign to `buf[_]` because it is borrowed
+ --> tests/ub_safe/compile_fail/avstring_buffer_written_while_tokenizing.rs
+  |
+  |     let mut it = tokens(&mut buf, c" ").unwrap();
+  |                         -------- `buf[_]` is borrowed here
+  |     let _ = it.next();
+  |     buf[2] = 0;
+  |     ^^^^^^^^^^ `buf[_]` is assigned to here but it was already borrowed
+  |     let _ = it.next();
+  |             -- borrow later used here

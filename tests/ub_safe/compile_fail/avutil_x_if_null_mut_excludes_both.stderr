@@ -1,0 +1,9 @@
+error[E0502]: cannot borrow `a` as immutable because it is also borrowed as mutable
+ --> tests/ub_safe/compile_fail/avutil_x_if_null_mut_excludes_both.rs
+  |
+  |     let r = x_if_null_mut(Some(&mut a), Some(&mut b)).unwrap();
+  |                                ------ mutable borrow occurs here
+  |     println!("{a}");
+  |                ^ immutable borrow occurs here
+  |     *r += 1;
+  |     ------- mutable borrow later used here

@@ -52,3 +52,78 @@ fn values_cross_threads() {
     assert_eq!(c2, c);
     assert_eq!(f2.bits(), 3);
 }
+
+/// `av_vlog` through the safe general log, with the default callback.
+mod vlog {
+    use core::ffi::c_int;
+    use std::ffi::CString;
+    use std::thread;
+
+    use ffmpeg::libavutil::ffi;
+    use ffmpeg::libavutil::log::log;
+
+    const DEBUG: c_int = ffi::AV_LOG_DEBUG as c_int;
+
+    /// Levels the default callback drops, keeping the output quiet: it masks
+    /// a non-negative level to its low byte, and drops it above the default
+    /// `AV_LOG_INFO`.
+    const DROPPED: [c_int; 7] = [
+        DEBUG,
+        ffi::AV_LOG_TRACE as c_int,
+        DEBUG | 134 << 8,
+        64,
+        255,
+        0x7fff_ff40,
+        c_int::MAX,
+    ];
+
+    #[test]
+    fn any_message_is_accepted() {
+        let long = CString::new(vec![b'%'; 4000]).unwrap();
+        for level in DROPPED {
+            for message in [c"", c"%s%n%p%d", c"no newline", long.as_c_str()] {
+                log(level, message);
+            }
+        }
+    }
+
+    #[test]
+    fn printed_lines_are_formatted_whole() {
+        let long = CString::new(format!("crustify ub_safe vlog: {}\n", "%".repeat(1500))).unwrap();
+        log(
+            ffi::AV_LOG_INFO as c_int,
+            c"crustify ub_safe vlog: 100% %s %n\n",
+        );
+        log(ffi::AV_LOG_INFO as c_int, &long);
+        log(
+            ffi::AV_LOG_INFO as c_int,
+            c"crustify ub_safe vlog: \x01\x7f partial",
+        );
+        log(ffi::AV_LOG_INFO as c_int, c"\n");
+    }
+
+    #[test]
+    fn logging_from_many_threads_at_once() {
+        let workers: Vec<_> = (0..8)
+            .map(|i| {
+                thread::spawn(move || {
+                    let message =
+                        CString::new(format!("crustify ub_safe vlog thread {i}\n")).unwrap();
+                    for j in 0..200 {
+                        log(
+                            if j == 0 {
+                                ffi::AV_LOG_INFO as c_int
+                            } else {
+                                DEBUG
+                            },
+                            &message,
+                        );
+                    }
+                })
+            })
+            .collect();
+        for w in workers {
+            w.join().unwrap();
+        }
+    }
+}

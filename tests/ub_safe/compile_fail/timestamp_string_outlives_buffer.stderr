@@ -1,0 +1,9 @@
+error[E0499]: cannot borrow `buf` as mutable more than once at a time
+ --> tests/ub_safe/compile_fail/timestamp_string_outlives_buffer.rs
+  |
+  |     let first = make_string(&mut buf, 1);
+  |                             -------- first mutable borrow occurs here
+  |     let second = make_string(&mut buf, 2);
+  |                              ^^^^^^^^ second mutable borrow occurs here
+  |     println!("{first:?} {second:?}");
+  |                ----- first borrow later used here

@@ -1383,6 +1383,156 @@
    }
   },
   {
+   "name": "av_strlcat",
+   "defined_in": "libavutil/avstring.c",
+   "ptr_args": [
+    {
+     "name": "dst",
+     "ptr": {
+      "scalar": null,
+      "array": {
+       "by_val": true
+      },
+      "string": true,
+      "owned": false,
+      "borrowed": {
+       "lifetime": "arg:dst"
+      },
+      "nullable": false,
+      "mutable": true,
+      "note": "Destination buffer of `size` bytes holding a NUL-terminated string, borrowed for the call: strlen(dst) is taken WITHOUT a bound, so a buffer with no NUL within size is overread (the safe wrapper rejects it). When size <= strlen(dst) + 1 nothing is written; otherwise av_strlcpy appends at dst + len within size. [Symbol: Returns strlen(dst) + strlen(src) (differs from BSD strlcat when size <= strlen(dst)). No allocation or retention.]"
+     }
+    },
+    {
+     "name": "src",
+     "ptr": {
+      "scalar": null,
+      "array": null,
+      "string": true,
+      "owned": false,
+      "borrowed": {
+       "lifetime": "arg:src"
+      },
+      "nullable": false,
+      "mutable": false,
+      "note": "Source string, read up to its NUL for the call only. Must not be NULL."
+     }
+    }
+   ]
+  },
+  {
+   "name": "av_strlcatf",
+   "defined_in": "libavutil/avstring.c",
+   "ptr_args": [
+    {
+     "name": "dst",
+     "ptr": {
+      "scalar": null,
+      "array": {
+       "by_val": true
+      },
+      "string": true,
+      "owned": false,
+      "borrowed": {
+       "lifetime": "arg:dst"
+      },
+      "nullable": false,
+      "mutable": true,
+      "note": "Destination buffer of `size` bytes holding a NUL-terminated string (unbounded strlen, as av_strlcat); vsnprintf appends within size - len bytes (none when size <= len). [Symbol: Returns strlen(dst) + the untruncated formatted length; a vsnprintf failure (text > INT_MAX) adds (size_t)-1. The safe wrapper formats in Rust and passes it through %s.]"
+     }
+    },
+    {
+     "name": "fmt",
+     "ptr": {
+      "scalar": null,
+      "array": null,
+      "string": true,
+      "owned": false,
+      "borrowed": {
+       "lifetime": "arg:fmt"
+      },
+      "nullable": false,
+      "mutable": false,
+      "note": "printf format, read for the call; the variadic arguments follow it. Must not be NULL."
+     }
+    }
+   ]
+  },
+  {
+   "name": "av_strlcpy",
+   "defined_in": "libavutil/avstring.c",
+   "ptr_args": [
+    {
+     "name": "dst",
+     "ptr": {
+      "scalar": null,
+      "array": {
+       "by_val": true
+      },
+      "string": true,
+      "owned": false,
+      "borrowed": {
+       "lifetime": "arg:dst"
+      },
+      "nullable": false,
+      "mutable": true,
+      "note": "Destination buffer of `size` bytes, borrowed for the call: at most size-1 bytes of src are copied and a NUL written unless size is 0 (then nothing is written, so dst may be any pointer). Bytes after the NUL are untouched. [Symbol: Returns strlen(src); a result >= size means truncation. No allocation or retention.]"
+     }
+    },
+    {
+     "name": "src",
+     "ptr": {
+      "scalar": null,
+      "array": null,
+      "string": true,
+      "owned": false,
+      "borrowed": {
+       "lifetime": "arg:src"
+      },
+      "nullable": false,
+      "mutable": false,
+      "note": "Source string, read up to its NUL (strlen for the return) for the call only. Must not be NULL."
+     }
+    }
+   ]
+  },
+  {
+   "name": "av_strncasecmp",
+   "defined_in": "libavutil/avstring.c",
+   "ptr_args": [
+    {
+     "name": "a",
+     "ptr": {
+      "scalar": null,
+      "array": null,
+      "string": true,
+      "owned": false,
+      "borrowed": {
+       "lifetime": "arg:a"
+      },
+      "nullable": false,
+      "mutable": false,
+      "note": "String compared, read in step with b up to the first NUL of either, a difference, or n bytes. Must not be NULL. [Symbol: Returns the difference of the last compared bytes after ASCII lowercasing, as uint8_t; 0 when n is 0.]"
+     }
+    },
+    {
+     "name": "b",
+     "ptr": {
+      "scalar": null,
+      "array": null,
+      "string": true,
+      "owned": false,
+      "borrowed": {
+       "lifetime": "arg:b"
+      },
+      "nullable": false,
+      "mutable": false,
+      "note": "String compared, as a."
+     }
+    }
+   ]
+  },
+  {
    "name": "av_strndup",
    "defined_in": "libavutil/mem.c",
    "lifetime": {
@@ -1426,6 +1576,486 @@
      "note": "Fresh av_realloc(NULL, n + 1) block, n = min(len, offset of the first NUL), holding those n bytes plus a NUL (deep clone of a prefix), released by av_free. NULL when s is NULL, n + 1 exceeds av_max_alloc, or allocation fails."
     }
    }
+  },
+  {
+   "name": "av_strnlen",
+   "defined_in": "libavutil/avstring.h",
+   "ptr_args": [
+    {
+     "name": "s",
+     "ptr": {
+      "scalar": null,
+      "array": {
+       "by_val": true
+      },
+      "string": true,
+      "owned": false,
+      "borrowed": {
+       "lifetime": "arg:s"
+      },
+      "nullable": false,
+      "mutable": false,
+      "note": "Bytes read up to the first NUL or len bytes, whichever first: any buffer of at least len readable bytes, or a shorter NUL-terminated string. Header inline."
+     }
+    }
+   ]
+  },
+  {
+   "name": "av_strnstr",
+   "defined_in": "libavutil/avstring.c",
+   "ptr_args": [
+    {
+     "name": "haystack",
+     "ptr": {
+      "scalar": null,
+      "array": {
+       "by_val": true
+      },
+      "string": true,
+      "owned": false,
+      "borrowed": {
+       "lifetime": "arg:haystack"
+      },
+      "nullable": false,
+      "mutable": false,
+      "note": "Searched buffer: memcmp windows of strlen(needle) bytes ending within hay_length bytes, read regardless of NULs, so it must have hay_length readable bytes (not merely a string). Not read when needle is empty or longer than hay_length."
+     }
+    },
+    {
+     "name": "needle",
+     "ptr": {
+      "scalar": null,
+      "array": null,
+      "string": true,
+      "owned": false,
+      "borrowed": {
+       "lifetime": "arg:needle"
+      },
+      "nullable": false,
+      "mutable": false,
+      "note": "Searched-for string, read (strlen, memcmp) for the call only. Must not be NULL."
+     }
+    }
+   ],
+   "ptr_ret": {
+    "ptr": {
+     "scalar": null,
+     "array": {
+      "by_val": true
+     },
+     "string": true,
+     "owned": false,
+     "borrowed": {
+      "lifetime": "arg:haystack"
+     },
+     "nullable": true,
+     "mutable": false,
+     "note": "Address of the first match inside haystack (haystack itself for an empty needle), const cast away; NULL when there is none. Writing through it would write the caller's const haystack."
+    }
+   }
+  },
+  {
+   "name": "av_strstart",
+   "defined_in": "libavutil/avstring.c",
+   "ptr_args": [
+    {
+     "name": "pfx",
+     "ptr": {
+      "scalar": null,
+      "array": null,
+      "string": true,
+      "owned": false,
+      "borrowed": {
+       "lifetime": "arg:pfx"
+      },
+      "nullable": false,
+      "mutable": false,
+      "note": "Prefix, read up to its NUL or a mismatch. Must not be NULL."
+     }
+    },
+    {
+     "name": "ptr",
+     "ptr": {
+      "scalar": {
+       "by_ref": {
+        "owned": false,
+        "borrowed": {
+         "lifetime": "arg:str"
+        }
+       }
+      },
+      "array": null,
+      "string": false,
+      "owned": false,
+      "borrowed": {
+       "lifetime": "arg:ptr"
+      },
+      "nullable": true,
+      "mutable": false,
+      "note": "Optional out slot, written only on a match with the address in str just past the prefix (a borrow of str). NULL discards it. (The slot itself is written; mutable is false because the innermost pointee, char, is const.)"
+     }
+    },
+    {
+     "name": "str",
+     "ptr": {
+      "scalar": null,
+      "array": null,
+      "string": true,
+      "owned": false,
+      "borrowed": {
+       "lifetime": "arg:str"
+      },
+      "nullable": false,
+      "mutable": false,
+      "note": "String tested, read in step with pfx until pfx's NUL or a mismatch (stops at str's NUL). Must not be NULL."
+     }
+    }
+   ]
+  },
+  {
+   "name": "av_strtok",
+   "defined_in": "libavutil/avstring.c",
+   "ptr_args": [
+    {
+     "name": "delim",
+     "ptr": {
+      "scalar": null,
+      "array": null,
+      "string": true,
+      "owned": false,
+      "borrowed": {
+       "lifetime": "arg:delim"
+      },
+      "nullable": false,
+      "mutable": false,
+      "note": "Delimiter set, read (strspn/strcspn) for the call only. Must not be NULL."
+     }
+    },
+    {
+     "name": "s",
+     "ptr": {
+      "scalar": null,
+      "array": {
+       "by_val": true
+      },
+      "string": true,
+      "owned": false,
+      "borrowed": {
+       "lifetime": "arg:s"
+      },
+      "nullable": true,
+      "mutable": true,
+      "note": "String to split IN PLACE on the first call (the delimiter ending each token is overwritten with NUL); NULL on later calls, which continue from *saveptr. Reads and writes stay within the string up to its original NUL. [Symbol: strtok_r analogue. Safe wrapper: an iterator borrowing the buffer exclusively for its lifetime and yielding &CStr tokens tied to it.]"
+     }
+    },
+    {
+     "name": "saveptr",
+     "ptr": {
+      "scalar": {
+       "by_ref": {
+        "owned": false,
+        "borrowed": {
+         "lifetime": "arg:s"
+        }
+       }
+      },
+      "array": null,
+      "string": false,
+      "owned": false,
+      "borrowed": {
+       "lifetime": "arg:saveptr"
+      },
+      "nullable": false,
+      "mutable": true,
+      "note": "Caller-kept cursor: read when s is NULL, then set to the byte after the token's delimiter or to NULL at the end of the string. Points into the string the first call received."
+     }
+    }
+   ],
+   "ptr_ret": {
+    "ptr": {
+     "scalar": null,
+     "array": {
+      "by_val": true
+     },
+     "string": true,
+     "owned": false,
+     "borrowed": {
+      "lifetime": "arg:s"
+     },
+     "nullable": true,
+     "mutable": true,
+     "note": "The next token, a NUL-terminated run inside the string the first call received (s, or *saveptr's string later); NULL when no token remains, with *saveptr set to NULL. Later calls only write after its NUL."
+    }
+   }
+  },
+  {
+   "name": "av_tolower",
+   "defined_in": "libavutil/avstring.h"
+  },
+  {
+   "name": "av_toupper",
+   "defined_in": "libavutil/avstring.h"
+  },
+  {
+   "name": "av_ts_make_string",
+   "defined_in": "libavutil/timestamp.h",
+   "ptr_args": [
+    {
+     "name": "buf",
+     "ptr": {
+      "scalar": null,
+      "array": {
+       "by_val": true
+      },
+      "string": true,
+      "owned": false,
+      "borrowed": {
+       "lifetime": "arg:buf"
+      },
+      "nullable": false,
+      "mutable": true,
+      "note": "Caller buffer of at least AV_TS_MAX_STRING_SIZE (32) bytes, filled by snprintf bounded by 32 with the decimal timestamp or NOPTS, NUL-terminated. Header inline."
+     }
+    }
+   ],
+   "ptr_ret": {
+    "ptr": {
+     "scalar": null,
+     "array": {
+      "by_val": true
+     },
+     "string": true,
+     "owned": false,
+     "borrowed": {
+      "lifetime": "arg:buf"
+     },
+     "nullable": false,
+     "mutable": true,
+     "note": "buf itself."
+    }
+   }
+  },
+  {
+   "name": "av_usleep",
+   "defined_in": "libavutil/time.c"
+  },
+  {
+   "name": "av_utf8_decode",
+   "defined_in": "libavutil/avstring.c",
+   "ptr_args": [
+    {
+     "name": "buf_end",
+     "ptr": {
+      "scalar": null,
+      "array": {
+       "by_val": true
+      },
+      "string": false,
+      "owned": false,
+      "borrowed": {
+       "lifetime": "arg:buf_end"
+      },
+      "nullable": false,
+      "mutable": false,
+      "note": "One past the buffer's last byte: compared against the cursor before every read, never dereferenced."
+     }
+    },
+    {
+     "name": "bufp",
+     "ptr": {
+      "scalar": {
+       "by_ref": {
+        "owned": false,
+        "borrowed": {
+         "lifetime": "other"
+        }
+       }
+      },
+      "array": null,
+      "string": false,
+      "owned": false,
+      "borrowed": {
+       "lifetime": "arg:bufp"
+      },
+      "nullable": false,
+      "mutable": false,
+      "note": "In/out cursor into the caller's byte buffer [*bufp, buf_end): advanced past the consumed bytes (1 for an invalid lead or continuation byte, the whole sequence otherwise); unchanged only for an empty buffer. The inner pointer borrows that buffer. (The cursor slot itself is written; mutable is false because the innermost pointee, uint8_t, is const.)"
+     }
+    },
+    {
+     "name": "codep",
+     "ptr": {
+      "scalar": {
+       "by_val": true
+      },
+      "array": null,
+      "string": false,
+      "owned": false,
+      "borrowed": {
+       "lifetime": "arg:codep"
+      },
+      "nullable": false,
+      "mutable": true,
+      "note": "Out slot, written only once a sequence is well-formed and below 2^31 (also when the flag range checks then fail); untouched for an empty buffer, a malformed or overlong sequence. [Symbol: Returns 0 on success (and for an empty buffer, without consuming), AVERROR(EILSEQ) otherwise.]"
+     }
+    }
+   ]
+  },
+  {
+   "name": "av_version_info",
+   "defined_in": "libavutil/version.c",
+   "ptr_ret": {
+    "ptr": {
+     "scalar": null,
+     "array": null,
+     "string": true,
+     "owned": false,
+     "borrowed": {
+      "lifetime": "static"
+     },
+     "nullable": false,
+     "mutable": false,
+     "note": "Address of the string literal FFMPEG_VERSION: NUL-terminated, immutable, never freed, valid for the process lifetime."
+    }
+   }
+  },
+  {
+   "name": "av_vlog",
+   "defined_in": "libavutil/log.c",
+   "ptr_args": [
+    {
+     "name": "avcl",
+     "ptr": {
+      "scalar": {
+       "by_val": true
+      },
+      "array": null,
+      "string": false,
+      "owned": false,
+      "borrowed": {
+       "lifetime": "arg:avcl"
+      },
+      "nullable": true,
+      "mutable": false,
+      "note": "NULL (general log) or an AVClass-enabled context: read as *(AVClass **)avcl; with class version >= 50.15.2 and log_level_offset_offset, the int there is added to levels >= AV_LOG_FATAL. Passed to the callback, which (default one) reads item_name, get_category, parent_log_context_offset. Not retained. [Symbol: Forwards to the atomically loaded log callback (default: av_log_default_callback, mutex-protected). The va_list parameter is unreachable from stable Rust: wrapped through the crustify_av_vlog variadic shim with format %s.]"
+     }
+    },
+    {
+     "name": "fmt",
+     "ptr": {
+      "scalar": null,
+      "array": null,
+      "string": true,
+      "owned": false,
+      "borrowed": {
+       "lifetime": "arg:fmt"
+      },
+      "nullable": false,
+      "mutable": false,
+      "note": "printf format consumed with the va_list by the log callback during the call. Must not be NULL."
+     }
+    }
+   ]
+  },
+  {
+   "name": "av_x_if_null",
+   "defined_in": "libavutil/avutil.h",
+   "ptr_args": [
+    {
+     "name": "p",
+     "ptr": {
+      "scalar": {
+       "by_val": true
+      },
+      "array": null,
+      "string": false,
+      "owned": false,
+      "borrowed": {
+       "lifetime": "arg:p"
+      },
+      "nullable": true,
+      "mutable": false,
+      "note": "Compared with NULL only, never dereferenced; returned when non-NULL."
+     }
+    },
+    {
+     "name": "x",
+     "ptr": {
+      "scalar": {
+       "by_val": true
+      },
+      "array": null,
+      "string": false,
+      "owned": false,
+      "borrowed": {
+       "lifetime": "arg:x"
+      },
+      "nullable": true,
+      "mutable": false,
+      "note": "Never dereferenced; returned when p is NULL."
+     }
+    }
+   ],
+   "ptr_ret": {
+    "ptr": {
+     "scalar": {
+      "by_val": true
+     },
+     "array": null,
+     "string": false,
+     "owned": false,
+     "borrowed": {
+      "lifetime": "other"
+     },
+     "nullable": true,
+     "mutable": false,
+     "note": "p when non-NULL, else x (NULL when both are), const cast away: borrows whichever argument it is. Header inline."
+    }
+   }
+  },
+  {
+   "name": "av_zero_extend_c",
+   "defined_in": "libavutil/common.h"
+  },
+  {
+   "name": "avutil_configuration",
+   "defined_in": "libavutil/version.c",
+   "ptr_ret": {
+    "ptr": {
+     "scalar": null,
+     "array": null,
+     "string": true,
+     "owned": false,
+     "borrowed": {
+      "lifetime": "static"
+     },
+     "nullable": false,
+     "mutable": false,
+     "note": "Address of the string literal FFMPEG_CONFIGURATION: NUL-terminated, immutable, never freed, valid for the process lifetime."
+    }
+   }
+  },
+  {
+   "name": "avutil_license",
+   "defined_in": "libavutil/version.c",
+   "ptr_ret": {
+    "ptr": {
+     "scalar": null,
+     "array": null,
+     "string": true,
+     "owned": false,
+     "borrowed": {
+      "lifetime": "static"
+     },
+     "nullable": false,
+     "mutable": false,
+     "note": "Address of the string literal FFMPEG_LICENSE, past a 'libavutil license: ' prefix of the same literal: NUL-terminated, immutable, never freed, valid for the process lifetime."
+    }
+   }
+  },
+  {
+   "name": "avutil_version",
+   "defined_in": "libavutil/version.c"
   }
  ]
 }

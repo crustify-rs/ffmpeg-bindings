@@ -77,3 +77,40 @@ function av_reduce
 # libavutil/avutil.h: the C consumer of `AVPictureType`, which observes its
 # encoding in equivalence tests.
 function av_get_picture_type_char
+
+# libavutil/avstring.h: string helpers wrapped by core wave 0 (batch 14);
+# AV_UTF8_FLAG_* are av_utf8_decode's flags.
+function av_strlcat
+function av_strlcatf
+function av_strlcpy
+function av_strncasecmp
+function av_strnlen
+function av_strnstr
+function av_strstart
+function av_strtok
+function av_tolower
+function av_toupper
+function av_utf8_decode
+var AV_UTF8_FLAG_.*
+
+# libavutil/timestamp.h, time.h, common.h, avutil.h and version.c (core wave
+# 0, batch 14); the LIBAVUTIL_VERSION_* parts check avutil_version's value.
+function av_ts_make_string
+var AV_TS_MAX_STRING_SIZE
+function av_usleep
+function av_zero_extend_c
+function av_x_if_null
+function av_version_info
+function avutil_configuration
+function avutil_license
+function avutil_version
+var LIBAVUTIL_VERSION_(MAJOR|MINOR|MICRO)
+
+# libavutil/log.h: av_vlog is reached through the crustify_av_vlog shim; the
+# levels are its argument, and av_log, the callback setters and
+# av_log_format_line2 observe it in equivalence tests.
+var AV_LOG_(QUIET|PANIC|FATAL|ERROR|WARNING|INFO|VERBOSE|DEBUG|TRACE|MAX_OFFSET)
+function av_log
+function av_log_set_callback
+function av_log_default_callback
+function av_log_format_line2
