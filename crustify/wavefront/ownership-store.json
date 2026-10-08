@@ -3578,7 +3578,7 @@
       },
       "nullable": false,
       "mutable": false,
-      "note": "In/out cursor into the caller's byte buffer [*bufp, buf_end): advanced past the consumed bytes (1 for an invalid lead or continuation byte, the whole sequence otherwise); unchanged only for an empty buffer. The inner pointer borrows that buffer. (The cursor slot itself is written; mutable is false because the innermost pointee, uint8_t, is const.)"
+      "note": "In/out cursor into the caller's byte buffer [*bufp, buf_end): advanced by exactly 1 byte for an invalid lead byte, for a tail byte that is not 10xxxxxx (even when earlier tail bytes were fine: E2 82 41 consumes only E2) and for a sequence cut short by buf_end (E2 82 at the end consumes only E2); by the whole sequence otherwise, overlong and >= 2^31 encodings included (E0 80 80 consumes 3 with *codep untouched); unchanged only for an empty buffer. The inner pointer borrows that buffer. (The cursor slot itself is written; mutable is false because the innermost pointee, uint8_t, is const.)"
      }
     },
     {

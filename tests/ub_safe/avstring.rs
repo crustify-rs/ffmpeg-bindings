@@ -50,8 +50,8 @@ mod helpers {
     use std::thread;
 
     use ffmpeg::libavutil::avstring::{
-        find, strip_prefix, strlcat, strlcatf, strlcpy, strncasecmp, strnlen, to_ascii_lowercase,
-        to_ascii_uppercase, tokens, utf8_decode,
+        cmp_n_ignore_ascii_case, find, strip_prefix, strlcat, strlcatf, strlcpy, strnlen,
+        to_ascii_lowercase, to_ascii_uppercase, tokens, utf8_decode,
     };
     use ffmpeg::libavutil::ffi;
 
@@ -127,10 +127,10 @@ mod helpers {
         let a = CString::new("ABC").unwrap();
         let b = CString::new("abcdef").unwrap();
         for n in [0, 1, 3, 4, usize::MAX] {
-            let _ = strncasecmp(&a, &b, n);
-            let _ = strncasecmp(&b, &a, n);
+            let _ = cmp_n_ignore_ascii_case(&a, &b, n);
+            let _ = cmp_n_ignore_ascii_case(&b, &a, n);
         }
-        assert!(strncasecmp(&a, &a, usize::MAX).is_eq());
+        assert!(cmp_n_ignore_ascii_case(&a, &a, usize::MAX).is_eq());
     }
 
     #[test]

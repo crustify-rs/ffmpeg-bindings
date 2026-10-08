@@ -136,8 +136,8 @@ mod helpers {
     use core::ptr;
 
     use ffmpeg::libavutil::avstring::{
-        find, strip_prefix, strlcat, strlcatf, strlcpy, strncasecmp, strnlen, to_ascii_lowercase,
-        to_ascii_uppercase, tokens, utf8_decode,
+        cmp_n_ignore_ascii_case, find, strip_prefix, strlcat, strlcatf, strlcpy, strnlen,
+        to_ascii_lowercase, to_ascii_uppercase, tokens, utf8_decode,
     };
     use ffmpeg::libavutil::ffi;
 
@@ -324,17 +324,24 @@ mod helpers {
     }
 
     #[test]
-    fn strncasecmp_orders_as_av_strncasecmp() {
+    fn cmp_n_ignore_ascii_case_orders_as_av_strncasecmp() {
         for a in STRINGS {
             for b in STRINGS {
                 for n in 0..=8 {
                     // SAFETY: live strings, read up to their NULs or `n`.
                     let c = unsafe { ffi::av_strncasecmp(a.as_ptr(), b.as_ptr(), n) };
-                    assert_eq!(strncasecmp(a, b, n), c.cmp(&0), "{a:?} {b:?} {n}");
+                    assert_eq!(
+                        cmp_n_ignore_ascii_case(a, b, n),
+                        c.cmp(&0),
+                        "{a:?} {b:?} {n}"
+                    );
                 }
             }
         }
-        assert_eq!(strncasecmp(c"ABCx", c"abcy", 3), Ordering::Equal);
+        assert_eq!(
+            cmp_n_ignore_ascii_case(c"ABCx", c"abcy", 3),
+            Ordering::Equal
+        );
     }
 
     /// `av_strtok` over `buf` until it returns NULL: each token and where
@@ -484,6 +491,52 @@ mod helpers {
                 );
             }
         }
+    }
+
+    /// The consumption rule the wrapper documents, checked against C on
+    /// each malformed shape: one byte for a bad lead, a bad tail byte after
+    /// good ones, or a sequence the buffer cuts short; the whole sequence
+    /// for an overlong encoding, which yields no code point, and for the
+    /// six-byte maximum, which decodes to `i32::MAX`.
+    #[test]
+    fn utf8_decode_consumes_as_c_on_each_malformed_shape() {
+        let big = ffi::AV_UTF8_FLAG_ACCEPT_INVALID_BIG_CODES;
+        // `AVERROR(EILSEQ)`, as C reports it for a lone continuation byte.
+        let eilseq = c_utf8_steps(b"\x80", 0)[0].0;
+        assert!(eilseq < 0);
+        let inputs: [&[u8]; 7] = [
+            b"\x80",
+            b"\xe2\x82\x41",
+            b"\xe2\x82",
+            b"\xe0\x80\x80",
+            b"\xf4\x90\x80\x80",
+            b"\xfd\xbf\xbf\xbf\xbf\xbf",
+            b"\xfd\xbf\xbf\xbf\xbf\xbf",
+        ];
+        let flags = [0, 0, 0, 0, 0, 0, big];
+        let first_steps = [
+            (eilseq, -1, 1),
+            (eilseq, -1, 1),
+            (eilseq, -1, 1),
+            (eilseq, -1, 3),
+            (eilseq, 0x11_0000, 4),
+            (eilseq, i32::MAX, 6),
+            (0, i32::MAX, 6),
+        ];
+        for ((input, flags), first) in inputs.into_iter().zip(flags).zip(first_steps) {
+            let c = c_utf8_steps(input, flags);
+            assert_eq!(c[0], first, "{input:x?} {flags}");
+            assert_eq!(rust_utf8_steps(input, flags), c, "{input:x?} {flags}");
+        }
+        // After a bad tail byte the next call restarts at it.
+        assert_eq!(
+            rust_utf8_steps(b"\xe2\x82\x41", 0),
+            [(eilseq, -1, 1), (eilseq, -1, 1), (0, 0x41, 1)]
+        );
+        assert_eq!(
+            utf8_decode(b"\xfd\xbf\xbf\xbf\xbf\xbf", big),
+            Some((Ok(i32::MAX as u32), 6))
+        );
     }
 
     #[test]
