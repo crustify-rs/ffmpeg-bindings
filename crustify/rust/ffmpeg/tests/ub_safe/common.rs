@@ -93,3 +93,67 @@ fn zero_extend_is_defined_at_every_position() {
         }
     }
 }
+
+// ---- count_ones and the saturating arithmetic ----
+
+/// UB tests of `libavutil/common.h`'s native bit-count and saturating
+/// arithmetic: every overflow edge, in debug builds where Rust's own
+/// arithmetic overflow would panic, and across threads.
+mod count_and_saturate {
+    use ffmpeg::libavutil::common::{
+        count_ones, count_ones64, saturating_add_doubled32, saturating_add32, saturating_add64,
+        saturating_sub_doubled32, saturating_sub32, saturating_sub64,
+    };
+
+    const I32: [i32; 7] = [i32::MIN, i32::MIN + 1, -1, 0, 1, i32::MAX - 1, i32::MAX];
+    const I64: [i64; 7] = [i64::MIN, i64::MIN + 1, -1, 0, 1, i64::MAX - 1, i64::MAX];
+
+    #[test]
+    fn every_edge_pair_neither_panics_nor_wraps() {
+        for a in I32 {
+            for b in I32 {
+                let wide = |x: i64| x.clamp(i32::MIN.into(), i32::MAX.into()) as i32;
+                let (a64, b64) = (i64::from(a), i64::from(b));
+                assert_eq!(saturating_add32(a, b), wide(a64 + b64));
+                assert_eq!(saturating_sub32(a, b), wide(a64 - b64));
+                assert_eq!(
+                    saturating_add_doubled32(a, b),
+                    wide(a64 + i64::from(wide(2 * b64)))
+                );
+                assert_eq!(
+                    saturating_sub_doubled32(a, b),
+                    wide(a64 - i64::from(wide(2 * b64)))
+                );
+            }
+        }
+        for a in I64 {
+            for b in I64 {
+                let wide = |x: i128| x.clamp(i64::MIN.into(), i64::MAX.into()) as i64;
+                assert_eq!(saturating_add64(a, b), wide(i128::from(a) + i128::from(b)));
+                assert_eq!(saturating_sub64(a, b), wide(i128::from(a) - i128::from(b)));
+            }
+        }
+    }
+
+    #[test]
+    fn popcount_spans_the_whole_word() {
+        for bit in 0..64 {
+            assert_eq!(count_ones64(1 << bit), 1);
+            assert_eq!(count_ones64(!(1u64 << bit)), 63);
+        }
+        for bit in 0..32 {
+            assert_eq!(count_ones(1 << bit), 1);
+        }
+    }
+
+    #[test]
+    fn usable_in_const_and_across_threads() {
+        const P: u32 = count_ones(0xF0F0);
+        const S: i32 = saturating_add32(i32::MAX, 1);
+        assert_eq!((P, S), (8, i32::MAX));
+        let r = std::thread::spawn(|| saturating_sub64(i64::MIN, 1))
+            .join()
+            .unwrap();
+        assert_eq!(r, i64::MIN);
+    }
+}

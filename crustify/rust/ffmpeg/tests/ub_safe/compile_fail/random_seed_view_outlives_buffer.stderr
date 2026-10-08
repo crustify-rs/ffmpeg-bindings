@@ -1,0 +1,9 @@
+error[E0597]: `buf` does not live long enough
+ --> tests/ub_safe/compile_fail/random_seed_view_outlives_buffer.rs
+  |
+  |         let mut buf = [MaybeUninit::<u8>::uninit(); 16];
+  |             ------- binding `buf` declared here
+  |         random_bytes_uninit(&mut buf).unwrap()
+  |                             ^^^^^^^^ borrowed value does not live long enough
+  |     };
+  |     - `buf` dropped here while still borrowed

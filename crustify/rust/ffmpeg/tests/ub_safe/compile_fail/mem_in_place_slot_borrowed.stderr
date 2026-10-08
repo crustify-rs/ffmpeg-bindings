@@ -1,0 +1,9 @@
+error[E0502]: cannot borrow `slot` as mutable because it is also borrowed as immutable
+ --> tests/ub_safe/compile_fail/mem_in_place_slot_borrowed.rs
+  |
+  |     let view = slot.as_slice();
+  |                ---- immutable borrow occurs here
+  |     let _ = realloc_array_in_place(&mut slot, 4096);
+  |                                    ^^^^^^^^^ mutable borrow occurs here
+  |     println!("{}", view.len());
+  |                    ---- immutable borrow later used here

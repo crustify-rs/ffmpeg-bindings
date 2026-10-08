@@ -488,3 +488,154 @@ mod paths_and_tokens {
         }
     }
 }
+
+// ---- case-insensitive search and replace, and av_sscanf ----
+
+mod search_and_scan {
+    use std::ffi::CString;
+
+    use ffmpeg::libavutil::avstring::{
+        SCAN_MAX_ARGS, ScanArg, ScanError, cmp_ignore_ascii_case, find_ignore_ascii_case,
+        replace_ignore_ascii_case, scan, strip_prefix_ignore_ascii_case,
+    };
+
+    #[test]
+    fn matches_stay_inside_their_haystack() {
+        // Heap strings of exact length, so ASan sees any read past them.
+        for h in ["", "a", "Ab", "xxAbAB", "\u{e9}\u{e9}"] {
+            let h = CString::new(h).unwrap();
+            for n in [c"", c"a", c"AB", c"b", c"zz", c"\xc3\xa9"] {
+                if let Some(at) = find_ignore_ascii_case(&h, n) {
+                    assert!(at <= h.count_bytes());
+                    let rest = &h.as_c_str()[at..];
+                    assert!(cmp_ignore_ascii_case(rest, rest).is_eq());
+                }
+                if let Some(rest) = strip_prefix_ignore_ascii_case(&h, n) {
+                    assert_eq!(rest.count_bytes() + n.count_bytes(), h.count_bytes());
+                }
+            }
+        }
+    }
+
+    #[test]
+    fn replacements_of_every_shape_are_sound() {
+        let long = CString::new("aB".repeat(2000)).unwrap();
+        for (s, from, to) in [
+            (c"", c"", c""),
+            (c"abc", c"", c"xyz"),
+            (c"abc", c"ABC", c""),
+            (c"aaaa", c"a", c"aa"),
+            (c"aaaa", c"AA", c"a"),
+            (long.as_c_str(), c"b", c"\xff"),
+            (long.as_c_str(), c"Ab", c""),
+        ] {
+            let r = replace_ignore_ascii_case(s, from, to).unwrap();
+            assert!(r.len() <= s.count_bytes() * (to.count_bytes() + 1) + 1);
+        }
+    }
+
+    #[test]
+    fn scans_fill_exact_buffers_without_overrun() {
+        let input = CString::new("x".repeat(5000)).unwrap();
+        for width in 1..=32usize {
+            // `%Ns` / `%N[x]` need N + 1 bytes, `%Nc` N: exactly that, on
+            // the heap.
+            for (conv, room) in [("s", width + 1), ("[x]", width + 1), ("c", width)] {
+                let format = CString::new(format!("%{width}{conv}")).unwrap();
+                let mut buf = vec![0u8; room].into_boxed_slice();
+                let n = scan(&input, &format, &mut [(&mut buf[..]).into()]).unwrap();
+                assert_eq!(n, Some(1));
+                let mut short = vec![0u8; room - 1].into_boxed_slice();
+                let e = scan(&input, &format, &mut [(&mut short[..]).into()]);
+                assert_eq!(e, Err(ScanError::BufferTooSmall(0)));
+            }
+        }
+    }
+
+    #[test]
+    fn hostile_inputs_and_formats_are_sound() {
+        let mut i = 0i32;
+        let mut l = 0i64;
+        let mut d = 0f64;
+        let mut b = [0u8; 4];
+        let digits = CString::new("9".repeat(10_000)).unwrap();
+        assert_eq!(scan(&digits, c"%d", &mut [(&mut i).into()]), Ok(Some(1)));
+        assert_eq!(scan(&digits, c"%lf", &mut [(&mut d).into()]), Ok(Some(1)));
+        let exp = CString::new(format!("1e{}", "9".repeat(400))).unwrap();
+        assert_eq!(scan(&exp, c"%lf", &mut [(&mut d).into()]), Ok(Some(1)));
+        let hex = CString::new(format!("0x{}p-99999999999", "f".repeat(300))).unwrap();
+        assert_eq!(scan(&hex, c"%la", &mut [(&mut d).into()]), Ok(Some(1)));
+        for input in [
+            c"", c" ", c"-", c"0x", c"+", c"nan(", c"infinit", c".e5", c"1e",
+        ] {
+            let _ = scan(input, c"%lld", &mut [(&mut l).into()]);
+            let _ = scan(input, c"%lf", &mut [(&mut d).into()]);
+            let _ = scan(input, c"%3c", &mut [(&mut b[..3]).into()]);
+        }
+        for format in [
+            c"%99999999999d",
+            c"%1$d",
+            c"%ms",
+            c"%s",
+            c"%[",
+            c"%",
+            c"%Lf",
+            c"%S",
+        ] {
+            assert!(
+                scan(c"1", format, &mut [(&mut i).into()]).is_err(),
+                "{format:?}"
+            );
+            assert!(
+                scan(c"1", format, &mut [(&mut b).into()]).is_err(),
+                "{format:?}"
+            );
+        }
+    }
+
+    #[test]
+    fn the_destination_limit_is_enforced() {
+        let mut many = [0i32; SCAN_MAX_ARGS + 1];
+        let input = CString::new("1 ".repeat(SCAN_MAX_ARGS + 1)).unwrap();
+        let mut args: Vec<ScanArg<'_>> = many.iter_mut().map(ScanArg::from).collect();
+        let full = CString::new("%d".repeat(SCAN_MAX_ARGS + 1)).unwrap();
+        assert_eq!(scan(&input, &full, &mut args), Err(ScanError::TooManyArgs));
+        // BSan's runtime gives some of a long variadic call's stack-passed
+        // pointers the provenance of a dead stack frame and reports C's
+        // writes through them as use-after-free, with no Rust code involved:
+        // `av_sscanf` called directly with 16 live `&raw mut` destinations
+        // fails the same way, while ASan finds nothing and the values arrive.
+        // The first four destinations travel in registers; the other tests
+        // use at most three.
+        if std::env::var("CRUSTIFY_FFMPEG_VARIANT").as_deref() == Ok("bsan") {
+            return;
+        }
+        let max = CString::new("%d".repeat(SCAN_MAX_ARGS)).unwrap();
+        assert_eq!(scan(&input, &max, &mut args[1..]), Ok(Some(SCAN_MAX_ARGS)));
+        drop(args);
+        assert!(many[1..].iter().all(|&v| v == 1));
+    }
+
+    #[test]
+    fn concurrent_calls_do_not_race() {
+        std::thread::scope(|scope| {
+            for t in 0..8 {
+                scope.spawn(move || {
+                    for k in 0..200 {
+                        let text = CString::new(format!("{t} {k} v{k}")).unwrap();
+                        let (mut a, mut b, mut s) = (0i32, 0u32, [0u8; 8]);
+                        let n = scan(
+                            &text,
+                            c"%d %u %7s",
+                            &mut [(&mut a).into(), (&mut b).into(), (&mut s).into()],
+                        );
+                        assert_eq!(n, Ok(Some(3)));
+                        assert_eq!((a, b), (t, k));
+                        let r = replace_ignore_ascii_case(&text, c"V", c"w").unwrap();
+                        assert!(find_ignore_ascii_case(r.as_c_str(), c"W").is_some());
+                    }
+                });
+            }
+        });
+    }
+}

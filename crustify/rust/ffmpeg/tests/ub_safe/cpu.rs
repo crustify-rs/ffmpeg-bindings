@@ -49,3 +49,85 @@ fn cpu_flags_read_concurrently_agree() {
     let all: Vec<i32> = reads.into_iter().flat_map(|h| h.join().unwrap()).collect();
     assert!(all.iter().all(|&f| f == all[0] && f != -1));
 }
+
+// ---- av_parse_cpu_caps ----
+
+/// UB tests of `libavutil/cpu.h`'s [`parse_cpu_caps`]: strings that drive C's
+/// option evaluator into undefined behaviour (out-of-range float-to-integer
+/// conversions) are refused or evaluated without it, and calls run
+/// concurrently.
+mod parse_caps {
+    use core::ffi::CStr;
+
+    use ffmpeg::libavutil::cpu::parse_cpu_caps;
+
+    /// Strings reaching UB in C: expression functions converting a huge double
+    /// to `int` (`ld`, `st`, `bitand`), and `+`/`-` operands C converts to
+    /// `int64_t` out of range (`max`, `1e300`, `inf`), alone and after valid
+    /// tokens.
+    const HOSTILE: [&CStr; 16] = [
+        c"ld(1e300)",
+        c"st(1e300,1)",
+        c"bitand(1e300,1)",
+        c"+1e300",
+        c"-1e300",
+        c"+max",
+        c"-max",
+        c"+inf",
+        c"-INF",
+        c"+nan",
+        c"sse2+1e300",
+        c"sse2-max+mmx",
+        c"+1Y",
+        c"++1e300",
+        c"+-1e300",
+        c"+(1e300)",
+    ];
+
+    #[test]
+    fn hostile_strings_fail_without_ub() {
+        for s in HOSTILE {
+            let mut flags = 0x10;
+            assert!(parse_cpu_caps(&mut flags, s).is_err(), "{s:?}");
+        }
+    }
+
+    #[test]
+    fn token_edges_and_lengths_are_sound() {
+        for len in [0, 1, 254, 255, 256, 1000] {
+            for fill in ["9", "a", ".", "+", "-", "+a", "1-"] {
+                let text = format!("{}\0", fill.repeat(len));
+                let s = CStr::from_bytes_with_nul(text.as_bytes()).unwrap();
+                let mut flags = 0;
+                let _ = parse_cpu_caps(&mut flags, s);
+            }
+        }
+        let mut flags = 0;
+        for s in [
+            c"all",
+            c"none",
+            c"-1",
+            c"4294967295",
+            c"default",
+            c"+sse2",
+            c"-sse2",
+        ] {
+            parse_cpu_caps(&mut flags, s).unwrap();
+        }
+    }
+
+    #[test]
+    fn concurrent_parses_do_not_race() {
+        std::thread::scope(|scope| {
+            for hostile in HOSTILE.into_iter().take(8) {
+                scope.spawn(move || {
+                    let mut flags = 0;
+                    for _ in 0..50 {
+                        parse_cpu_caps(&mut flags, c"sse2+avx-mmx").unwrap();
+                        assert!(parse_cpu_caps(&mut flags, hostile).is_err());
+                    }
+                });
+            }
+        });
+    }
+}

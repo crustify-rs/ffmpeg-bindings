@@ -282,3 +282,33 @@ mod greatest_common_divisor {
         }
     }
 }
+
+// ---- av_rescale ----
+
+#[test]
+fn rescale_matches_av_rescale_on_every_class() {
+    use ffmpeg::libavutil::mathematics::rescale as rescale_near;
+    let bc = BC.into_iter().chain([
+        (0, 1),
+        (-1, 3),
+        (5, 0),
+        (5, -3),
+        (i64::MAX, i64::MAX),
+        (i64::MAX, 1),
+    ]);
+    for (b, c) in bc {
+        for a in A {
+            // SAFETY: `av_rescale` takes integers by value and reads no memory.
+            let cr = unsafe { ffi::av_rescale(a, b, c) };
+            let r = rescale_near(a, b, c);
+            assert_eq!(r.unwrap_or(i64::MIN), cr, "{a} * {b} / {c}");
+            // `None` is exactly C's rejection, and agrees with the general form.
+            assert_eq!(r.is_none(), cr == i64::MIN);
+            assert_eq!(
+                cr,
+                rescale(a, b, c, Rounding::NEAR_INF.into()),
+                "{a} * {b} / {c}"
+            );
+        }
+    }
+}

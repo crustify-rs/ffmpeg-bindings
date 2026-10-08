@@ -4,7 +4,9 @@
 //! five methods, optionally with the pass-through of `i64::MIN` / `i64::MAX`.
 //!
 //! [`compare_mod`], [`bessel_i0`] and [`gcd`] (the integer greatest common
-//! divisor) are plain numeric functions over the C implementations.
+//! divisor) are plain numeric functions over the C implementations, and
+//! [`rescale`] computes `a * b / c` without intermediate overflow, rounding to
+//! nearest.
 
 use core::fmt;
 
@@ -162,6 +164,24 @@ pub fn bessel_i0(x: f64) -> f64 {
 pub fn gcd(a: i64, b: i64) -> i64 {
     // SAFETY: `av_gcd` takes its arguments by value and has no preconditions.
     unsafe { ffi::av_gcd(a, b) }
+}
+
+/// Wraps: av_rescale
+///
+/// `a * b / c`, computed without intermediate overflow and rounded to
+/// nearest, halfway cases away from zero ([`Rounding::NEAR_INF`]).
+///
+/// `None` when C rejects the arguments or the result does not fit an `i64`:
+/// `c <= 0`, `b < 0`, or a quotient beyond the `i64` range. C reports each of
+/// these as `INT64_MIN`, which is never a rescaled value: the smallest result
+/// it returns is `-i64::MAX`.
+#[must_use]
+pub fn rescale(a: i64, b: i64, c: i64) -> Option<i64> {
+    // SAFETY: `av_rescale` takes integers by value, reads no memory and
+    // handles every argument, rejecting with `INT64_MIN` what it cannot
+    // rescale.
+    let r = unsafe { ffi::av_rescale(a, b, c) };
+    (r != i64::MIN).then_some(r)
 }
 
 #[cfg(test)]

@@ -9,8 +9,11 @@
 //! [`cpu_flags`] reads it, detecting the running CPU on first use;
 //! [`force_cpu_flags`] overrides it, and is `unsafe` because both what it
 //! enables and when it changes the set bear on memory safety.
+//!
+//! [`parse_cpu_caps`] updates a set of `AV_CPU_FLAG_*` bits from a flags
+//! string such as `"sse2+avx-mmx"`.
 
-use core::ffi::c_int;
+use core::ffi::{CStr, c_int, c_uint};
 
 use super::ffi;
 
@@ -90,6 +93,86 @@ pub unsafe fn force_cpu_flags(flags: c_int) {
     unsafe { ffi::av_force_cpu_flags(flags) }
 }
 
+/// `AVERROR(EINVAL)`: C's code for a flags string it cannot evaluate.
+const EINVAL: i32 = -22;
+
+/// The longest token C evaluates whole: it splits longer runs into pieces of
+/// 255 bytes (`buf[256]` in `set_string_number`).
+const TOKEN_MAX: usize = 255;
+
+/// Wraps: av_parse_cpu_caps
+///
+/// Applies the flags string `s` to `flags`, token by token: a token names a
+/// set of `AV_CPU_FLAG_*` bits (a CPU feature such as `sse2` or `neon`, a
+/// CPU model such as `k8`, `all`, `none`, or a number), and its prefix says
+/// what to do with them: `+` sets them, `-` clears them, and no prefix
+/// replaces `flags` with them. Tokens split at each `+` and `-`.
+///
+/// `Err` holds C's negative `AVERROR` code for the first token that fails;
+/// the tokens before it have been applied. Beyond C, the wrapper rejects
+/// with `AVERROR(EINVAL)` what would reach undefined behaviour in C's option
+/// evaluator:
+///
+/// - a token of anything but ASCII letters, digits, `_` and `.`: C evaluates
+///   it as an arithmetic expression, whose evaluator converts out-of-range
+///   doubles to integers (`ld(1e300)`);
+/// - an empty token after a `+` or `-` (`"++sse"`, `"sse-"`), which C
+///   evaluates together with the rest of the string as one expression.
+///
+/// A token after `+` or `-` must also denote a 32-bit flag set on its own
+/// (an integer in `-1..=u32::MAX`), or the call fails with C's
+/// `AVERROR(ERANGE)`: C converts its value to an `int64_t` before checking
+/// it, which overflows for `max` or `1e300`. C accepts some such tokens that
+/// clear bits (`-0x100000000` and `+0.5` change nothing); the wrapper
+/// rejects them.
+pub fn parse_cpu_caps(flags: &mut u32, s: &CStr) -> Result<(), i32> {
+    let mut rest = s.to_bytes();
+    if rest.is_empty() {
+        // Nothing to split: C's own result for the empty string.
+        return token_flags(b"").map(|bits| *flags = bits);
+    }
+    while !rest.is_empty() {
+        let (op, body) = match rest {
+            [op @ (b'+' | b'-'), body @ ..] => (Some(*op), body),
+            _ => (None, rest),
+        };
+        let len = body
+            .iter()
+            .take(TOKEN_MAX)
+            .take_while(|&&c| c != b'+' && c != b'-')
+            .count();
+        let token = &body[..len];
+        let valid = |c: &u8| c.is_ascii_alphanumeric() || matches!(c, b'_' | b'.');
+        if token.is_empty() || !token.iter().all(valid) {
+            return Err(EINVAL);
+        }
+        let bits = token_flags(token)?;
+        *flags = match op {
+            Some(b'+') => *flags | bits,
+            Some(_) => *flags & !bits,
+            None => bits,
+        };
+        rest = &body[len..];
+    }
+    Ok(())
+}
+
+/// The flag set C evaluates a lone, unprefixed token to.
+///
+/// Unprefixed, C range-checks the token's value before converting it, so
+/// any value is safe to evaluate; a valid token of at most [`TOKEN_MAX`]
+/// bytes is evaluated whole, with no expression operator in it.
+fn token_flags(token: &[u8]) -> Result<u32, i32> {
+    let mut buf = [0u8; TOKEN_MAX + 1];
+    buf[..token.len()].copy_from_slice(token);
+    let mut bits: c_uint = 0;
+    // SAFETY: `bits` is a live, writable local, which C reads and writes
+    // only for the call. `buf` holds the token NUL-terminated (it is at most
+    // `TOKEN_MAX` bytes and the rest of `buf` is zero), which C only reads.
+    let ret = unsafe { ffi::av_parse_cpu_caps(&mut bits, buf.as_ptr().cast()) };
+    if ret < 0 { Err(ret) } else { Ok(bits) }
+}
+
 #[cfg(test)]
 mod unit_tests {
     use super::*;
@@ -115,5 +198,77 @@ mod unit_tests {
     fn max_align_is_a_power_of_two_of_at_least_8() {
         let a = cpu_max_align();
         assert!(a.is_power_of_two() && (8..=64).contains(&a), "{a}");
+    }
+
+    /// `AVERROR(ERANGE)`.
+    const ERANGE: i32 = -34;
+
+    #[test]
+    fn operator_tokens_rejected_before_c() {
+        for s in [
+            c"(1)",
+            c"1*2",
+            c"ld(1e300)",
+            c"sse2|avx",
+            c"sse 2",
+            c"++sse",
+            c"+",
+        ] {
+            let mut flags = 0x55;
+            assert_eq!(parse_cpu_caps(&mut flags, s), Err(EINVAL), "{s:?}");
+            assert_eq!(flags, 0x55, "{s:?}");
+        }
+    }
+
+    #[test]
+    fn earlier_tokens_stay_applied_on_failure() {
+        let mut flags = 0;
+        assert_eq!(parse_cpu_caps(&mut flags, c"0x10+(1)"), Err(EINVAL));
+        assert_eq!(flags, 0x10);
+        // A trailing operator fails after the token before it, as in C.
+        assert_eq!(parse_cpu_caps(&mut flags, c"0x20-"), Err(EINVAL));
+        assert_eq!(flags, 0x20);
+    }
+
+    #[test]
+    fn out_of_range_operands_fail_without_reaching_c_overflow() {
+        for s in [
+            c"+1e300",
+            c"-1e300",
+            c"+max",
+            c"-inf",
+            c"+0x100000000",
+            c"-0.5",
+        ] {
+            let mut flags = 7;
+            assert_eq!(parse_cpu_caps(&mut flags, s), Err(ERANGE), "{s:?}");
+            assert_eq!(flags, 7, "{s:?}");
+        }
+    }
+
+    #[test]
+    fn numeric_tokens_set_and_clear_bits() {
+        let mut flags = 0;
+        parse_cpu_caps(&mut flags, c"0x11+0x100-0x1").unwrap();
+        assert_eq!(flags, 0x110);
+        parse_cpu_caps(&mut flags, c"-all").unwrap();
+        assert_eq!(flags, 0);
+        parse_cpu_caps(&mut flags, c"all").unwrap();
+        assert_eq!(flags, u32::MAX);
+    }
+
+    #[test]
+    fn long_tokens_split_at_c_bound() {
+        // 255 digits then 1: C evaluates the 255-digit piece (out of range)
+        // first, as the wrapper does.
+        let s = format!("{}1\0", "9".repeat(TOKEN_MAX));
+        let s = CStr::from_bytes_with_nul(s.as_bytes()).unwrap();
+        let mut flags = 0;
+        assert_eq!(parse_cpu_caps(&mut flags, s), Err(ERANGE));
+        // 254 zeros then 1 is one token, 256 bytes split as 255 + 1.
+        let s = format!("{}12\0", "0".repeat(TOKEN_MAX - 1));
+        let s = CStr::from_bytes_with_nul(s.as_bytes()).unwrap();
+        parse_cpu_caps(&mut flags, s).unwrap();
+        assert_eq!(flags, 2);
     }
 }

@@ -1,0 +1,11 @@
+error[E0597]: `s` does not live long enough
+ --> tests/ub_safe/compile_fail/avstring_stripped_rest_outlives_string.rs
+  |
+  |     let rest = {
+  |         ---- borrow later stored here
+  |         let s = CString::new("Prefix-rest").unwrap();
+  |             - binding `s` declared here
+  |         strip_prefix_ignore_ascii_case(&s, c"prefix").unwrap()
+  |                                        ^^ borrowed value does not live long enough
+  |     };
+  |     - `s` dropped here while still borrowed

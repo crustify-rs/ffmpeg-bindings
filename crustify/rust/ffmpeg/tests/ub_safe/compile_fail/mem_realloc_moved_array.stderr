@@ -1,0 +1,14 @@
+error[E0382]: borrow of moved value: `a`
+ --> tests/ub_safe/compile_fail/mem_realloc_moved_array.rs
+  |
+  |     let a = alloc_array::<u32>(4).unwrap();
+  |         - move occurs because `a` has type `ffibox::refs::CVec<MaybeUninit<u32>, Heap>`, which does not implement the `Copy` trait
+  |     let b = realloc_array(a, 8);
+  |                           - value moved here
+  |     println!("{} {}", a.len(), b.is_ok());
+  |                       ^ value borrowed here after move
+  |
+help: consider cloning the value if the performance cost is acceptable
+  |
+7 |     let b = realloc_array(a.clone(), 8);
+  |                            ++++++++

@@ -166,3 +166,94 @@ fn mmx_is_implied_alike() {
     // SAFETY: `-1` restores detection.
     unsafe { force_cpu_flags(-1) };
 }
+
+// ---- av_parse_cpu_caps ----
+
+/// Equivalence of `libavutil/cpu.h`'s [`parse_cpu_caps`] with
+/// `av_parse_cpu_caps`, on independent flag words, for the strings the
+/// wrapper passes on.
+mod parse_caps {
+    use core::ffi::CStr;
+
+    use ffmpeg::libavutil::cpu::parse_cpu_caps;
+    use ffmpeg::libavutil::ffi;
+
+    /// `av_parse_cpu_caps` in C, on its own flag word.
+    fn c_parse(flags: &mut u32, s: &CStr) -> Result<(), i32> {
+        // SAFETY: `flags` is a live, writable word and `s` a live NUL-terminated
+        // string, both only used for the call. Every string the tests pass has
+        // tokens of letters, digits, `_` and `.` whose `+`/`-` operands are
+        // 32-bit flag sets, which C evaluates without overflow.
+        let ret = unsafe { ffi::av_parse_cpu_caps(flags, s.as_ptr()) };
+        if ret < 0 { Err(ret) } else { Ok(()) }
+    }
+
+    /// Flags strings across features, models, keywords, numbers, operators and
+    /// failures, x86 names first.
+    const STRINGS: [&CStr; 24] = [
+        c"sse2",
+        c"+avx",
+        c"-mmx",
+        c"all",
+        c"none",
+        c"+sse4.1-sse2",
+        c"k8",
+        c"pentium4+avx2",
+        c"0x7",
+        c"+0x10",
+        c"bogus",
+        c"+sse2+bogus",
+        c"-all",
+        c"3dnow",
+        c"mmx+",
+        c"",
+        c"1",
+        c"-1",
+        c"+3dnowext-cmov",
+        c"default",
+        c"+min",
+        c"1e3",
+        c"4294967295",
+        c"4294967296",
+    ];
+
+    #[test]
+    fn single_strings_match_c_from_several_starting_words() {
+        for start in [0, 1, 0x10, 0xFFFF, u32::MAX] {
+            for s in STRINGS {
+                let (mut c, mut r) = (start, start);
+                let cret = c_parse(&mut c, s);
+                let rret = parse_cpu_caps(&mut r, s);
+                assert_eq!((rret, r), (cret, c), "{s:?} from {start:#x}");
+            }
+        }
+    }
+
+    #[test]
+    fn sequences_match_c_after_each_step() {
+        for rotate in 0..STRINGS.len() {
+            let (mut c, mut r) = (0x5a5a, 0x5a5a);
+            for s in STRINGS.iter().cycle().skip(rotate).take(STRINGS.len() * 2) {
+                let cret = c_parse(&mut c, s);
+                let rret = parse_cpu_caps(&mut r, s);
+                assert_eq!((rret, r), (cret, c), "{s:?} at rotation {rotate}");
+            }
+        }
+    }
+
+    #[test]
+    fn long_tokens_split_as_in_c() {
+        for len in [254, 255, 256, 300, 511, 600] {
+            for fill in ["0", "9"] {
+                let text = format!("{}3\0", fill.repeat(len));
+                let s = CStr::from_bytes_with_nul(text.as_bytes()).unwrap();
+                let (mut c, mut r) = (1, 1);
+                assert_eq!(
+                    (parse_cpu_caps(&mut r, s), r),
+                    (c_parse(&mut c, s), c),
+                    "{len} x {fill}"
+                );
+            }
+        }
+    }
+}

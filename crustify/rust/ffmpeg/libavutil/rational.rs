@@ -17,6 +17,10 @@
 //! `0/0` for "unset" (a zeroed context's time base), `1/0` and `-1/0` for the
 //! infinities `av_d2q` returns, and unreduced fractions wherever its users
 //! write them, so every accessor takes any pair of `int`s.
+//!
+//! [`reduce`] brings a 64-bit fraction to lowest terms within a bound, as
+//! [`Reduced`]: the closest [`Rational`] whose terms fit, and whether it is
+//! exact.
 
 use core::fmt;
 use core::ptr::{addr_of, addr_of_mut};
@@ -182,6 +186,53 @@ impl RationalMut<'_> {
     }
 }
 
+/// A fraction [`reduce`] brought to lowest terms.
+#[derive(Clone, Copy, Debug)]
+pub struct Reduced {
+    /// The fraction: its numerator carries the sign, and its denominator is
+    /// never negative, 0 for a source with a zero denominator.
+    pub value: Rational,
+    /// Whether `value` is the source fraction itself rather than the closest
+    /// approximation whose terms stay within the bound.
+    pub exact: bool,
+}
+
+/// Wraps: av_reduce
+///
+/// `num / den` in lowest terms, both terms at most `max` in magnitude: the
+/// exact fraction when it fits, and otherwise its closest approximation within
+/// the bound (by continued fractions), with [`Reduced::exact`] cleared. A zero
+/// `max` still yields terms of magnitude up to 1, as in C.
+///
+/// `None` for arguments C cannot reduce without undefined behaviour, which
+/// the call never reaches:
+///
+/// - a negative `max`: C's result terms are `int`, and a negative bound gives
+///   meaningless terms or overflows when negating them;
+/// - `num` or `den` equal to `i64::MIN`, whose absolute value C takes with a
+///   signed negation that overflows.
+///
+/// The bound is an `i32` because each term of the result is one: C narrows
+/// the terms of a wider bound to `int` and overflows negating the result.
+#[must_use]
+pub fn reduce(num: i64, den: i64, max: i32) -> Option<Reduced> {
+    if max < 0 || num == i64::MIN || den == i64::MIN {
+        return None;
+    }
+    let (mut dst_num, mut dst_den) = (0, 0);
+    // SAFETY: both out-parameters are live, writable locals C only stores to.
+    // `num` and `den` are not `INT64_MIN` and `max` lies in `0..=INT_MAX`, so
+    // every term stays within `int` and none of C's arithmetic overflows.
+    let exact = unsafe { ffi::av_reduce(&mut dst_num, &mut dst_den, num, den, max.into()) };
+    Some(Reduced {
+        value: Rational::from_raw(ffi::AVRational {
+            num: dst_num,
+            den: dst_den,
+        }),
+        exact: exact != 0,
+    })
+}
+
 #[cfg(test)]
 mod unit_tests {
     use super::*;
@@ -316,5 +367,42 @@ mod unit_tests {
         // SAFETY: the write above initialised the whole struct.
         let c = unsafe { slot.assume_init() };
         assert_eq!((c.as_ref().num(), c.as_ref().den()), (4, 3));
+    }
+
+    /// A reduction's numerator, denominator and exactness.
+    fn parts(r: Option<Reduced>) -> Option<(i32, i32, bool)> {
+        r.map(|r| (r.value.as_ref().num(), r.value.as_ref().den(), r.exact))
+    }
+
+    #[test]
+    fn arguments_c_would_overflow_on_are_rejected_before_the_call() {
+        assert!(reduce(1, 2, -1).is_none());
+        assert!(reduce(1, 2, i32::MIN).is_none());
+        assert!(reduce(i64::MIN, 3, i32::MAX).is_none());
+        assert!(reduce(3, i64::MIN, i32::MAX).is_none());
+        assert!(reduce(i64::MIN, i64::MIN, 0).is_none());
+    }
+
+    #[test]
+    fn reduces_to_lowest_terms() {
+        assert_eq!(parts(reduce(-6, 4, i32::MAX)), Some((-3, 2, true)));
+        assert_eq!(parts(reduce(6, -4, i32::MAX)), Some((-3, 2, true)));
+        assert_eq!(parts(reduce(-6, -4, i32::MAX)), Some((3, 2, true)));
+    }
+
+    #[test]
+    fn approximates_beyond_the_bound() {
+        // 355/113 is the best approximation of pi with terms <= 1000.
+        let pi = reduce(3_141_592_653_589_793, 1_000_000_000_000_000, 1000);
+        assert_eq!(parts(pi), Some((355, 113, false)));
+        let tiny = parts(reduce(1, i64::MAX, 100)).unwrap();
+        assert_eq!((tiny.0, tiny.2), (0, false));
+    }
+
+    #[test]
+    fn zero_terms_reduce_exactly() {
+        assert_eq!(parts(reduce(0, 5, 10)), Some((0, 1, true)));
+        assert_eq!(parts(reduce(7, 0, 10)), Some((1, 0, true)));
+        assert_eq!(parts(reduce(0, 0, 10)), Some((0, 0, true)));
     }
 }

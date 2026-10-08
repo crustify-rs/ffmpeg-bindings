@@ -1,0 +1,11 @@
+error[E0597]: `buf` does not live long enough
+ --> tests/ub_safe/compile_fail/error_description_outlives_buffer.rs
+  |
+  |     let text = {
+  |         ---- borrow later stored here
+  |         let mut buf = [0u8; 64];
+  |             ------- binding `buf` declared here
+  |         describe(-12, &mut buf).unwrap_or_else(|e| e)
+  |                       ^^^^^^^^ borrowed value does not live long enough
+  |     };
+  |     - `buf` dropped here while still borrowed
