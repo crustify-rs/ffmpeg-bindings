@@ -1,0 +1,15 @@
+[package]
+name = "parse-cpu-caps-prefixed-operand-rounds"
+version = "0.0.0"
+edition = "2024"
+publish = false
+build = "build.rs"
+
+[workspace]
+
+[dependencies]
+ffmpeg = { path = "../../../../../../../../rust/ffmpeg", default-features = false, features = ["libavutil"] }
+# A direct dependency only so that `DEP_AVUTIL_LIB_DIR` reaches `build.rs`,
+# which embeds the prebuilt library's rpath as the ffmpeg crate does for its
+# own tests.
+libavutil-sys = { path = "../../../../../../../../rust/libavutil-sys" }
