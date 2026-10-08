@@ -1,0 +1,11 @@
+error[E0597]: `s` does not live long enough
+ --> tests/ub_safe/compile_fail/mem_string_view_outlives_owner.rs
+  |
+  |     let v = {
+  |         - borrow later stored here
+  |         let s = string_from_c_str(c"gone").unwrap();
+  |             - binding `s` declared here
+  |         s.as_bytes()
+  |         ^ borrowed value does not live long enough
+  |     };
+  |     - `s` dropped here while still borrowed

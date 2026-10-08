@@ -14,12 +14,19 @@
 //!
 //! The policy frees storage only. A wrapped type whose object owns
 //! sub-allocations is released by its own destructor policy instead.
+//!
+//! [`StringHeap`] is the same allocator as a string policy: a NUL-terminated
+//! string from `av_strdup`, `av_strndup` or any other `av_malloc`-family
+//! routine is a [`HeapString`], built by [`string_from_c_str`] (`av_strdup`)
+//! or [`string_from_bytes_until_nul`] (`av_strndup`), `Clone` through
+//! `av_strdup`, and released by `av_free`.
 
+use core::ffi::{CStr, c_char};
 use core::mem::{MaybeUninit, align_of, size_of};
 use core::ptr::NonNull;
 
 use ffibox::{
-    CAlloc, CAllocZeroed, CBox, CCell, CDrop, CDupClone, CPlainElem, CVec, CZeroable,
+    CAlloc, CAllocZeroed, CBox, CCell, CDrop, CDupClone, CPlainElem, CStrBox, CVec, CZeroable,
     impl_clenclone, impl_clendrop,
 };
 
@@ -209,6 +216,81 @@ pub fn alloc_cell_array_zeroed<T: CZeroable>(len: usize) -> Option<HeapVec<T>> {
     // SAFETY: as `alloc_array`, with the block zero-filled, which
     // `T: CZeroable` makes `len` valid `T`.
     unsafe { HeapVec::from_raw_parts(ptr.cast(), len) }
+}
+
+/// The `av_malloc` family's string allocator and `av_free`, as one policy.
+///
+/// A separate policy from [`Heap`] because a C string clones by `strlen`
+/// (`av_strdup`), not by its type's size. Thread-agnostic, as [`Heap`]: a
+/// [`HeapString`] may be freed on any thread.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash)]
+pub struct StringHeap;
+
+/// An owned NUL-terminated string in an `av_malloc`-family block, released by
+/// `av_free`.
+pub type HeapString = CStrBox<StringHeap>;
+
+/// Wraps: av_free
+// SAFETY: `av_free` releases any `av_malloc`- or `av_realloc`-family block,
+// which every string this policy adopts or copies is, exactly once; a string
+// owns no sub-allocations.
+unsafe impl CDrop<c_char> for StringHeap {
+    #[inline]
+    unsafe fn c_drop(&self, ptr: NonNull<c_char>) {
+        // SAFETY: the caller hands over a live `av_malloc`-family string whose
+        // claim it owns; `av_free` releases it once.
+        unsafe { ffi::av_free(ptr.as_ptr().cast()) }
+    }
+}
+
+/// Wraps: av_strdup
+// SAFETY: `av_strdup` copies the `strlen(s) + 1` bytes of a live string into a
+// fresh `av_realloc` block, which `av_free` above releases, or returns NULL on
+// failure. It only reads the source, and a byte copy of a string shares nothing
+// with it.
+unsafe impl CDupClone<c_char> for StringHeap {
+    #[inline]
+    unsafe fn c_dup(&self, ptr: NonNull<c_char>) -> Option<NonNull<c_char>> {
+        // SAFETY: the caller hands a live NUL-terminated string, which
+        // `av_strdup` reads up to its terminator.
+        NonNull::new(unsafe { ffi::av_strdup(ptr.as_ptr()) })
+    }
+}
+
+/// Wraps: av_strdup
+///
+/// A copy of `s`; `None` when it cannot be allocated, which includes a string
+/// longer than the `av_max_alloc` limit (`INT_MAX` bytes by default).
+pub fn string_from_c_str(s: &CStr) -> Option<HeapString> {
+    // SAFETY: `s` is a live NUL-terminated string, which `av_strdup` only
+    // reads.
+    let ptr = unsafe { ffi::av_strdup(s.as_ptr()) };
+    // SAFETY: a non-NULL `ptr` is a fresh, uniquely-owned, NUL-terminated
+    // `av_realloc` block, which `av_free` releases.
+    unsafe { HeapString::from_raw(ptr) }
+}
+
+/// Wraps: av_strndup
+///
+/// A string of the bytes of `bytes` before its first NUL, or of all of them
+/// when it has none, as `strndup` copies; `None` when it cannot be allocated,
+/// as [`string_from_c_str`]. Pass `s.as_bytes()` for a `&str`, and a sub-slice
+/// to copy a prefix.
+pub fn string_from_bytes_until_nul(bytes: &[u8]) -> Option<HeapString> {
+    // An empty slice's pointer is dangling, which C's `memchr` and `memcpy`
+    // may not receive even for a zero length.
+    let src = if bytes.is_empty() {
+        c"".as_ptr()
+    } else {
+        bytes.as_ptr().cast()
+    };
+    // SAFETY: `src` is valid for reads of `bytes.len()` bytes, which is all
+    // `av_strndup` reads: it scans at most that many for a NUL and copies up
+    // to it.
+    let ptr = unsafe { ffi::av_strndup(src, bytes.len()) };
+    // SAFETY: a non-NULL `ptr` is a fresh, uniquely-owned `av_realloc` block,
+    // NUL-terminated by `av_strndup`, which `av_free` releases.
+    unsafe { HeapString::from_raw(ptr) }
 }
 
 #[cfg(test)]
@@ -409,5 +491,78 @@ mod unit_tests {
         a.as_handles_mut().get_mut(1).unwrap().set_num(9);
         let nums: Vec<i32> = a.as_handles().iter().map(|c| c.num()).collect();
         assert_eq!(nums, [0, 9, 0]);
+    }
+
+    #[test]
+    fn string_heap_is_a_zero_sized_send_sync_policy() {
+        fn send_sync<T: Send + Sync>() {}
+        send_sync::<StringHeap>();
+        send_sync::<HeapString>();
+        assert_eq!(size_of::<StringHeap>(), 0);
+        assert_eq!(size_of::<HeapString>(), size_of::<*mut c_char>());
+        assert_eq!(size_of::<Option<HeapString>>(), size_of::<*mut c_char>());
+        assert_eq!(format!("{StringHeap:?}"), "StringHeap");
+    }
+
+    #[test]
+    fn string_policy_plumbing_copies_and_frees() {
+        let src = c"policy";
+        // SAFETY: `src` is a live NUL-terminated string, only read.
+        let copy = unsafe { StringHeap.c_dup(NonNull::from(src).cast()) }.unwrap();
+        assert_ne!(copy.as_ptr().cast_const(), src.as_ptr());
+        // SAFETY: `copy` is a fresh `av_strdup` string.
+        assert_eq!(unsafe { CStr::from_ptr(copy.as_ptr()) }, src);
+        // SAFETY: `copy` is a live `av_strdup` string we own.
+        unsafe { StringHeap.c_drop(copy) };
+    }
+
+    #[test]
+    fn adopted_c_strings_free_through_policy() {
+        // SAFETY: a literal is a live NUL-terminated string.
+        let p = unsafe { ffi::av_strdup(c"adopted".as_ptr()) };
+        // SAFETY: `p` is a fresh `av_strdup` string whose ownership moves into
+        // the owner.
+        let s = unsafe { HeapString::from_raw(p) }.unwrap();
+        assert_eq!(s.to_str(), Ok("adopted"));
+        // The pointer round-trips back out, and in again.
+        let raw = s.into_raw();
+        assert_eq!(raw, p);
+        // SAFETY: `raw` came out of the owner above, still owned and live.
+        let s = unsafe { HeapString::from_raw(raw) }.unwrap();
+        drop(s);
+
+        // An `av_malloc` block filled with a string is one too.
+        // SAFETY: `av_malloc` has no preconditions.
+        let p = unsafe { ffi::av_malloc(3) }.cast::<u8>();
+        assert!(!p.is_null());
+        // SAFETY: `p` is 3 writable bytes.
+        unsafe { p.copy_from_nonoverlapping(c"ok".as_ptr().cast(), 3) };
+        // SAFETY: `p` now holds a NUL-terminated string we own.
+        let s = unsafe { HeapString::from_raw(p.cast()) }.unwrap();
+        assert_eq!(s.as_bytes(), b"ok");
+
+        // SAFETY: NULL is rejected before anything is owned.
+        assert!(unsafe { HeapString::from_raw(core::ptr::null_mut()) }.is_none());
+    }
+
+    #[test]
+    fn owned_string_moves_into_c_and_back() {
+        let s = string_from_c_str(c"handover").unwrap();
+        let raw = s.into_raw();
+        // C frees what Rust handed over.
+        // SAFETY: `raw` is an owned `av_strdup` string, released once here.
+        unsafe { ffi::av_free(raw.cast()) };
+    }
+
+    #[test]
+    fn bytes_constructor_stops_at_the_first_nul() {
+        let s = string_from_bytes_until_nul(b"ab\0cd").unwrap();
+        assert_eq!(s.as_bytes(), b"ab");
+        let s = string_from_bytes_until_nul(b"\0").unwrap();
+        assert!(s.is_empty());
+        let s = string_from_bytes_until_nul(b"").unwrap();
+        assert!(s.is_empty() && !s.as_ptr().is_null());
+        let s = string_from_bytes_until_nul(&b"prefix"[..3]).unwrap();
+        assert_eq!(s.to_str(), Ok("pre"));
     }
 }

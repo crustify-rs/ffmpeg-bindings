@@ -3,6 +3,107 @@
  "types": [],
  "symbols": [
   {
+   "name": "av_append_path_component",
+   "defined_in": "libavutil/avstring.c",
+   "lifetime": {
+    "for": "return",
+    "is_dropper": false,
+    "is_disposer": false,
+    "is_cloner": null,
+    "is_constructor": {
+     "alloc": true,
+     "init": false
+    }
+   },
+   "ptr_args": [
+    {
+     "name": "component",
+     "ptr": {
+      "scalar": null,
+      "array": null,
+      "string": true,
+      "owned": false,
+      "borrowed": {
+       "lifetime": "arg:component"
+      },
+      "nullable": true,
+      "mutable": false,
+      "note": "Trailing component, read for the call only. NULL makes the result av_strdup(path); both NULL yields NULL."
+     }
+    },
+    {
+     "name": "path",
+     "ptr": {
+      "scalar": null,
+      "array": null,
+      "string": true,
+      "owned": false,
+      "borrowed": {
+       "lifetime": "arg:path"
+      },
+      "nullable": true,
+      "mutable": false,
+      "note": "Leading path, read for the call only. NULL makes the result av_strdup(component)."
+     }
+    }
+   ],
+   "ptr_ret": {
+    "ptr": {
+     "scalar": null,
+     "array": null,
+     "string": true,
+     "owned": true,
+     "borrowed": null,
+     "nullable": true,
+     "mutable": true,
+     "note": "Fresh NUL-terminated join of path and component with exactly one '/' between them (av_malloc, or av_strdup when one side is NULL); released by av_free. NULL when both are NULL, on size_t overflow or on allocation failure."
+    }
+   }
+  },
+  {
+   "name": "av_asprintf",
+   "defined_in": "libavutil/avstring.c",
+   "lifetime": {
+    "for": "return",
+    "is_dropper": false,
+    "is_disposer": false,
+    "is_cloner": null,
+    "is_constructor": {
+     "alloc": true,
+     "init": false
+    }
+   },
+   "ptr_args": [
+    {
+     "name": "fmt",
+     "ptr": {
+      "scalar": null,
+      "array": null,
+      "string": true,
+      "owned": false,
+      "borrowed": {
+       "lifetime": "arg:fmt"
+      },
+      "nullable": false,
+      "mutable": false,
+      "note": "printf format, read for the call only (vsnprintf twice); the variadic arguments follow it. Must not be NULL."
+     }
+    }
+   ],
+   "ptr_ret": {
+    "ptr": {
+     "scalar": null,
+     "array": null,
+     "string": true,
+     "owned": true,
+     "borrowed": null,
+     "nullable": true,
+     "mutable": true,
+     "note": "Fresh av_malloc(len + 1) block holding the formatted, NUL-terminated string; released by av_free. NULL when vsnprintf fails or allocation fails."
+    }
+   }
+  },
+  {
    "name": "av_calloc",
    "defined_in": "libavutil/mem.c",
    "lifetime": {
@@ -52,12 +153,12 @@
       "array": {
        "by_val": true
       },
-      "string": false,
+      "string": true,
       "owned": true,
       "borrowed": null,
       "nullable": true,
       "mutable": true,
-      "note": "Releases any block from the av_malloc family (av_malloc/mallocz/calloc/malloc_array/memdup/realloc*/strdup): free(), or _aligned_free with HAVE_ALIGNED_MALLOC. NULL is a no-op. Type-erased: one object or an array of any element type; never reads the contents."
+      "note": "Releases any block from the av_malloc family (av_malloc/mallocz/calloc/malloc_array/memdup/realloc*/strdup): free(), or _aligned_free with HAVE_ALIGNED_MALLOC. NULL is a no-op. Type-erased: one object or an array of any element type; never reads the contents. Also the releaser of every NUL-terminated string the family returns (av_strdup, av_strndup, av_asprintf, av_get_token, av_append_path_component, av_strireplace, av_bprint_finalize's out-string)."
      }
     }
    ]
@@ -94,6 +195,71 @@
      }
     }
    ]
+  },
+  {
+   "name": "av_get_token",
+   "defined_in": "libavutil/avstring.c",
+   "lifetime": {
+    "for": "return",
+    "is_dropper": false,
+    "is_disposer": false,
+    "is_cloner": null,
+    "is_constructor": {
+     "alloc": true,
+     "init": false
+    }
+   },
+   "ptr_args": [
+    {
+     "name": "buf",
+     "ptr": {
+      "scalar": {
+       "by_ref": {
+        "owned": false,
+        "borrowed": {
+         "lifetime": "other"
+        }
+       }
+      },
+      "array": null,
+      "string": false,
+      "owned": false,
+      "borrowed": {
+       "lifetime": "arg:buf"
+      },
+      "nullable": false,
+      "mutable": false,
+      "note": "In/out cursor slot (const char **): *buf is a caller-owned NUL-terminated string, read from and then advanced past the token (*buf = p, pointing into the same string, at the first terminator char or the NUL). The callee writes the slot but never the string; `mutable` is false only because the innermost pointee is const. Neither buf nor *buf may be NULL."
+     }
+    },
+    {
+     "name": "term",
+     "ptr": {
+      "scalar": null,
+      "array": null,
+      "string": true,
+      "owned": false,
+      "borrowed": {
+       "lifetime": "arg:term"
+      },
+      "nullable": false,
+      "mutable": false,
+      "note": "Set of terminator characters (strspn), read for the call only. Must not be NULL."
+     }
+    }
+   ],
+   "ptr_ret": {
+    "ptr": {
+     "scalar": null,
+     "array": null,
+     "string": true,
+     "owned": true,
+     "borrowed": null,
+     "nullable": true,
+     "mutable": true,
+     "note": "Fresh av_realloc block holding the unescaped, whitespace-trimmed token, NUL-terminated (shrunk with av_realloc when possible); released by av_free. NULL only when the initial av_realloc(NULL, strlen(*buf) + 1) fails, in which case *buf is left unchanged."
+    }
+   }
   },
   {
    "name": "av_malloc",
@@ -270,6 +436,167 @@
      "nullable": true,
      "mutable": true,
      "note": "Resized block; NULL on failure or size > max_alloc_size. realloc-style: releases and reallocates the same slot, so not a constructor (schema); no lifecycle role. The raw-lifetime void tier binds av_free/av_malloc*/av_memdup instead."
+    }
+   }
+  },
+  {
+   "name": "av_strdup",
+   "defined_in": "libavutil/mem.c",
+   "lifetime": {
+    "for": "s",
+    "is_dropper": false,
+    "is_disposer": false,
+    "is_cloner": {
+     "deep": true,
+     "upref": false
+    },
+    "is_constructor": null
+   },
+   "ptr_args": [
+    {
+     "name": "s",
+     "ptr": {
+      "scalar": null,
+      "array": null,
+      "string": true,
+      "owned": false,
+      "borrowed": {
+       "lifetime": "arg:s"
+      },
+      "nullable": true,
+      "mutable": false,
+      "note": "Source string, read up to its NUL (strlen + memcpy) for the call only; any allocator. NULL is accepted and yields NULL."
+     }
+    }
+   ],
+   "ptr_ret": {
+    "ptr": {
+     "scalar": null,
+     "array": null,
+     "string": true,
+     "owned": true,
+     "borrowed": null,
+     "nullable": true,
+     "mutable": true,
+     "note": "Fresh av_realloc(NULL, strlen(s) + 1) block holding a NUL-terminated copy of s (deep clone), released by av_free. NULL when s is NULL, when the length exceeds av_max_alloc (INT_MAX by default) or on allocation failure. Not av_malloc-aligned (av_realloc)."
+    }
+   }
+  },
+  {
+   "name": "av_strireplace",
+   "defined_in": "libavutil/avstring.c",
+   "lifetime": {
+    "for": "return",
+    "is_dropper": false,
+    "is_disposer": false,
+    "is_cloner": null,
+    "is_constructor": {
+     "alloc": true,
+     "init": false
+    }
+   },
+   "ptr_args": [
+    {
+     "name": "from",
+     "ptr": {
+      "scalar": null,
+      "array": null,
+      "string": true,
+      "owned": false,
+      "borrowed": {
+       "lifetime": "arg:from"
+      },
+      "nullable": false,
+      "mutable": false,
+      "note": "Needle, matched case-insensitively (av_stristr), read for the call only. Must not be NULL (strlen)."
+     }
+    },
+    {
+     "name": "str",
+     "ptr": {
+      "scalar": null,
+      "array": null,
+      "string": true,
+      "owned": false,
+      "borrowed": {
+       "lifetime": "arg:str"
+      },
+      "nullable": false,
+      "mutable": false,
+      "note": "Haystack, read for the call only. Must not be NULL."
+     }
+    },
+    {
+     "name": "to",
+     "ptr": {
+      "scalar": null,
+      "array": null,
+      "string": true,
+      "owned": false,
+      "borrowed": {
+       "lifetime": "arg:to"
+      },
+      "nullable": false,
+      "mutable": false,
+      "note": "Replacement, read for the call only. Must not be NULL (strlen)."
+     }
+    }
+   ],
+   "ptr_ret": {
+    "ptr": {
+     "scalar": null,
+     "array": null,
+     "string": true,
+     "owned": true,
+     "borrowed": null,
+     "nullable": true,
+     "mutable": true,
+     "note": "Fresh NUL-terminated string from av_bprint_finalize (av_malloc / av_realloc storage, or av_memdup of the internal buffer); released by av_free. NULL when the AVBPrint ran out of memory (incomplete) or finalize fails."
+    }
+   }
+  },
+  {
+   "name": "av_strndup",
+   "defined_in": "libavutil/mem.c",
+   "lifetime": {
+    "for": "s",
+    "is_dropper": false,
+    "is_disposer": false,
+    "is_cloner": {
+     "deep": true,
+     "upref": false
+    },
+    "is_constructor": null
+   },
+   "ptr_args": [
+    {
+     "name": "s",
+     "ptr": {
+      "scalar": null,
+      "array": {
+       "by_val": true
+      },
+      "string": true,
+      "owned": false,
+      "borrowed": {
+       "lifetime": "arg:s"
+      },
+      "nullable": true,
+      "mutable": false,
+      "note": "Source bytes, read for the call only: memchr scans at most len bytes for a NUL and the copy stops there, so s is a NUL-terminated string or any buffer of at least len readable bytes (callers pass sub-ranges of larger strings: get_extension, parse_cookie). NULL is accepted and yields NULL."
+     }
+    }
+   ],
+   "ptr_ret": {
+    "ptr": {
+     "scalar": null,
+     "array": null,
+     "string": true,
+     "owned": true,
+     "borrowed": null,
+     "nullable": true,
+     "mutable": true,
+     "note": "Fresh av_realloc(NULL, n + 1) block, n = min(len, offset of the first NUL), holding those n bytes plus a NUL (deep clone of a prefix), released by av_free. NULL when s is NULL, n + 1 exceeds av_max_alloc, or allocation fails."
     }
    }
   }

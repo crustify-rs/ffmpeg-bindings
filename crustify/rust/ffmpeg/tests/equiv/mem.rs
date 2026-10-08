@@ -1,13 +1,14 @@
 //! Equivalence of `libavutil/mem.h`'s `av_malloc`-family owners with the raw
 //! C allocator, on independently owned blocks.
 
-use core::ffi::c_void;
+use core::ffi::{CStr, c_char, c_void};
 use core::mem::{MaybeUninit, size_of};
 
 use ffibox::{CZeroable, define_ctype};
 use ffmpeg::libavutil::ffi;
 use ffmpeg::libavutil::mem::{
-    HeapBox, HeapVec, alloc_array, alloc_array_from_fn, alloc_array_zeroed, alloc_cell_array_zeroed,
+    HeapBox, HeapString, HeapVec, alloc_array, alloc_array_from_fn, alloc_array_zeroed,
+    alloc_cell_array_zeroed, string_from_bytes_until_nul, string_from_c_str,
 };
 
 /// The alignment `av_malloc` guarantees in every configuration.
@@ -296,4 +297,148 @@ fn ownership_crosses_both_ways_between_av_free_and_drop() {
     let b = HeapBox::<Rational>::new_zeroed().unwrap();
     // SAFETY: the box's live `av_mallocz` block, given up to C.
     unsafe { ffi::av_free(b.into_c().cast()) };
+}
+
+/// A C string, freed with `av_free` on drop.
+struct CString(*mut c_char);
+
+impl CString {
+    /// The bytes before the NUL, or `None` for NULL.
+    fn bytes(&self) -> Option<&[u8]> {
+        // SAFETY: `self.0` is NULL or a live NUL-terminated string we own,
+        // which the borrow keeps alive.
+        (!self.0.is_null()).then(|| unsafe { CStr::from_ptr(self.0) }.to_bytes())
+    }
+}
+
+impl Drop for CString {
+    fn drop(&mut self) {
+        // SAFETY: `self.0` is NULL or a live `av_malloc`-family string we own.
+        unsafe { ffi::av_free(self.0.cast()) }
+    }
+}
+
+/// Byte strings with and without interior NULs, every non-NUL byte value, and
+/// a 4 KiB run; views stay at or under 4 KiB for BSan.
+fn string_samples() -> Vec<Vec<u8>> {
+    vec![
+        Vec::new(),
+        b"\0".to_vec(),
+        b"a".to_vec(),
+        b"crustify".to_vec(),
+        b"ab\0cd".to_vec(),
+        b"trailing\0".to_vec(),
+        (1..=255u8).collect(),
+        vec![b'z'; 4096],
+    ]
+}
+
+#[test]
+fn string_from_c_str_matches_av_strdup() {
+    for sample in string_samples() {
+        let src = CStr::from_bytes_until_nul(&sample)
+            .map(CStr::to_owned)
+            .unwrap_or_else(|_| std::ffi::CString::new(sample.clone()).unwrap());
+        // SAFETY: `src` is a live NUL-terminated string, only read.
+        let c = CString(unsafe { ffi::av_strdup(src.as_ptr()) });
+        let r = string_from_c_str(&src);
+        assert_eq!(r.as_ref().map(HeapString::as_bytes), c.bytes(), "{src:?}");
+        let r = r.unwrap();
+        assert_ne!(r.as_ptr(), src.as_ptr());
+    }
+}
+
+#[test]
+fn string_from_bytes_until_nul_matches_av_strndup_at_every_length() {
+    for sample in string_samples() {
+        // Every length up to and including a terminating NUL; the ends only
+        // of the 4 KiB run.
+        let mut padded = sample.clone();
+        padded.push(0);
+        let max = padded.len();
+        for len in (0..=max).filter(|&l| l < 16 || l + 16 > max) {
+            // SAFETY: `padded` is `max` readable bytes, and `av_strndup` reads
+            // at most `len <= max` of them.
+            let c = CString(unsafe { ffi::av_strndup(padded.as_ptr().cast(), len) });
+            let r = string_from_bytes_until_nul(&padded[..len]);
+            assert_eq!(
+                r.as_ref().map(HeapString::as_bytes),
+                c.bytes(),
+                "len = {len} of {sample:?}"
+            );
+        }
+    }
+}
+
+#[test]
+fn string_prefixes_of_a_c_string_match_av_strndup() {
+    let src = c"0123456789";
+    for n in 0..=src.count_bytes() + 3 {
+        // SAFETY: `src` is NUL-terminated, and `av_strndup` stops at the NUL
+        // or after `n` bytes, whichever comes first.
+        let c = CString(unsafe { ffi::av_strndup(src.as_ptr(), n) });
+        let bytes = src.to_bytes();
+        let r = string_from_bytes_until_nul(&bytes[..n.min(bytes.len())]).unwrap();
+        assert_eq!(Some(r.as_bytes()), c.bytes(), "n = {n}");
+    }
+}
+
+#[test]
+fn string_clone_matches_av_strdup_step_by_step() {
+    // Step 1: one source each.
+    // SAFETY: a literal is a live NUL-terminated string.
+    let c0 = CString(unsafe { ffi::av_strdup(c"step".as_ptr()) });
+    let r0 = string_from_c_str(c"step").unwrap();
+    assert_eq!(Some(r0.as_bytes()), c0.bytes());
+
+    // Step 2: one copy each.
+    // SAFETY: `c0.0` is a live string.
+    let c1 = CString(unsafe { ffi::av_strdup(c0.0) });
+    let r1 = r0.clone();
+    assert_eq!(Some(r1.as_bytes()), c1.bytes());
+    assert_ne!(r1.as_ptr(), r0.as_ptr());
+
+    // Step 3: the C source is overwritten in place (the Rust owner exposes
+    // no write path); the copies keep their bytes.
+    // SAFETY: `c0.0` holds 5 writable bytes.
+    unsafe { c0.0.cast::<u8>().write(b'S') };
+    assert_eq!(c0.bytes(), Some(&b"Step"[..]));
+    assert_eq!(Some(r1.as_bytes()), c1.bytes());
+
+    // Step 4: copy the copies after the sources are gone.
+    drop((c0, r0));
+    // SAFETY: `c1.0` is a live string.
+    let c2 = CString(unsafe { ffi::av_strdup(c1.0) });
+    let r2 = r1.try_clone().unwrap();
+    drop((c1, r1));
+    assert_eq!(Some(r2.as_bytes()), c2.bytes());
+    assert_eq!(r2.to_str(), Ok("step"));
+}
+
+#[test]
+fn null_sources_are_c_only() {
+    // C maps a NULL source to NULL; the safe API takes no NULL, so there is
+    // nothing to compare on the Rust side.
+    // SAFETY: NULL is accepted and yields NULL.
+    assert!(unsafe { ffi::av_strdup(core::ptr::null()) }.is_null());
+    // SAFETY: as above.
+    assert!(unsafe { ffi::av_strndup(core::ptr::null(), 4) }.is_null());
+}
+
+#[test]
+fn string_ownership_crosses_both_ways_between_av_free_and_drop() {
+    // A Rust-built string released by C.
+    let r = string_from_bytes_until_nul(b"to C").unwrap();
+    let p = r.into_raw();
+    // SAFETY: `p` is the live `av_strndup` string `r` gave up.
+    assert_eq!(unsafe { CStr::from_ptr(p) }, c"to C");
+    // SAFETY: as above, released once here.
+    unsafe { ffi::av_free(p.cast()) };
+
+    // A C-built string released by Rust.
+    // SAFETY: a literal is a live NUL-terminated string.
+    let p = unsafe { ffi::av_strdup(c"to Rust".as_ptr()) };
+    // SAFETY: `p` is a fresh `av_strdup` string, owned from here.
+    let r = unsafe { HeapString::from_raw(p) }.unwrap();
+    assert_eq!(r.to_str(), Ok("to Rust"));
 }

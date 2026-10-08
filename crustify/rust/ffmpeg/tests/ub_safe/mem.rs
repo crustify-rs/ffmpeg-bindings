@@ -4,7 +4,10 @@
 use core::mem::MaybeUninit;
 use std::panic::{AssertUnwindSafe, catch_unwind};
 
-use ffmpeg::libavutil::mem::{Heap, HeapVec, alloc_array, alloc_array_from_fn, alloc_array_zeroed};
+use ffmpeg::libavutil::mem::{
+    Heap, HeapString, HeapVec, StringHeap, alloc_array, alloc_array_from_fn, alloc_array_zeroed,
+    string_from_bytes_until_nul, string_from_c_str,
+};
 
 #[test]
 fn uninit_array_is_filled_end_to_end_and_freed() {
@@ -163,4 +166,107 @@ fn policy_is_a_plain_value() {
     let copy = h;
     assert_eq!(h, copy);
     assert_eq!(format!("{h:?}"), "Heap");
+}
+
+/// Every byte value but NUL, then a 4 KiB run: views over C strings stay at or
+/// under 4 KiB (BSan's runtime grows without bound freeing a C block after a
+/// 32 KiB view).
+fn sample_bytes() -> Vec<Vec<u8>> {
+    vec![
+        Vec::new(),
+        b"x".to_vec(),
+        b"crustify".to_vec(),
+        (1..=255u8).collect(),
+        vec![b'z'; 4095],
+    ]
+}
+
+#[test]
+fn strings_are_built_read_and_freed_end_to_end() {
+    for bytes in sample_bytes() {
+        let s = string_from_bytes_until_nul(&bytes).unwrap();
+        assert_eq!(s.as_bytes(), &bytes[..]);
+        assert_eq!(s.len(), bytes.len());
+        assert_eq!(s.is_empty(), bytes.is_empty());
+        assert_eq!(s.as_c_str().to_bytes_with_nul().last(), Some(&0));
+        let t = string_from_c_str(s.as_c_str()).unwrap();
+        assert_eq!(t.as_bytes(), s.as_bytes());
+        assert_ne!(t.as_ptr(), s.as_ptr());
+    }
+}
+
+#[test]
+fn interior_nul_truncates_and_never_reads_past_the_slice() {
+    let s = string_from_bytes_until_nul(b"ab\0cd").unwrap();
+    assert_eq!(s.as_bytes(), b"ab");
+    // No NUL in the slice: the copy stops at its end, not at whatever follows.
+    let backing = b"0123456789";
+    for n in 0..=backing.len() {
+        let s = string_from_bytes_until_nul(&backing[..n]).unwrap();
+        assert_eq!(s.as_bytes(), &backing[..n]);
+    }
+    let s = string_from_bytes_until_nul(&[0; 16]).unwrap();
+    assert!(s.is_empty());
+}
+
+#[test]
+fn non_utf8_is_an_error_not_a_bad_str() {
+    let s = string_from_bytes_until_nul(&[b'a', 0xff, 0xfe]).unwrap();
+    assert!(s.to_str().is_err());
+    assert_eq!(s.as_bytes(), &[b'a', 0xff, 0xfe]);
+    let s = string_from_bytes_until_nul("héllo".as_bytes()).unwrap();
+    assert_eq!(s.to_str(), Ok("héllo"));
+}
+
+#[test]
+fn string_copies_are_independent_through_clone_chains() {
+    let a = string_from_c_str(c"origin").unwrap();
+    let b = a.clone();
+    let c = b.try_clone().unwrap();
+    drop(a);
+    let d = c.clone();
+    drop(c);
+    assert_eq!(b.to_str(), Ok("origin"));
+    assert_eq!(d.to_str(), Ok("origin"));
+    assert_ne!(b.as_ptr(), d.as_ptr());
+    let empty = string_from_c_str(c"").unwrap();
+    assert!(empty.clone().is_empty());
+}
+
+#[test]
+fn strings_drop_on_other_threads() {
+    let s = string_from_c_str(c"travels").unwrap();
+    let t = s.clone();
+    std::thread::spawn(move || {
+        assert_eq!(t.as_bytes(), b"travels");
+        drop(s);
+    })
+    .join()
+    .unwrap();
+}
+
+#[test]
+fn shared_string_is_read_and_cloned_concurrently() {
+    let s = string_from_bytes_until_nul(&[b'q'; 4000]).unwrap();
+    std::thread::scope(|scope| {
+        for _ in 0..4 {
+            let s = &s;
+            scope.spawn(move || {
+                let c = s.clone();
+                assert_eq!(c.as_bytes(), s.as_bytes());
+                assert_eq!(s.len(), 4000);
+            });
+        }
+    });
+}
+
+#[test]
+fn optional_strings_and_debug_are_sound() {
+    let none: Option<HeapString> = None;
+    assert!(none.is_none());
+    let some = Some(string_from_c_str(c"dbg").unwrap());
+    assert_eq!(format!("{:?}", some.as_ref().unwrap()), "CStrBox(\"dbg\")");
+    let p = format!("{:p}", some.as_ref().unwrap());
+    assert!(p.starts_with("0x"));
+    assert_eq!(format!("{StringHeap:?}"), "StringHeap");
 }
