@@ -442,3 +442,74 @@ fn string_ownership_crosses_both_ways_between_av_free_and_drop() {
     let r = unsafe { HeapString::from_raw(p) }.unwrap();
     assert_eq!(r.to_str(), Ok("to Rust"));
 }
+
+/// Set in the child process an isolated test re-runs itself in.
+const ISOLATED: &str = "CRUSTIFY_EQUIV_ISOLATED";
+
+/// The `av_max_alloc` limit is process-global, so this test lowers it only in
+/// a child process running nothing else, and passes when the child does.
+#[test]
+fn string_failure_at_the_av_max_alloc_limit_matches_c() {
+    if std::env::var_os(ISOLATED).is_none() {
+        let status = std::process::Command::new(std::env::current_exe().unwrap())
+            .args([
+                "--exact",
+                "mem::string_failure_at_the_av_max_alloc_limit_matches_c",
+            ])
+            .args(["--test-threads=1", "--nocapture"])
+            .env(ISOLATED, "1")
+            .status()
+            .unwrap();
+        assert!(status.success(), "isolated run failed: {status}");
+        return;
+    }
+
+    // A copy of `n` bytes takes `n + 1`, so 7 bytes fit an 8-byte limit and
+    // 8 do not.
+    const LIMIT: usize = 8;
+    // Built before the limit drops.
+    let fits = string_from_c_str(c"0123456").unwrap();
+    let over = string_from_c_str(c"01234567").unwrap();
+    // SAFETY: `av_max_alloc` takes a size by value; nothing else runs in this
+    // process.
+    unsafe { ffi::av_max_alloc(LIMIT) };
+
+    for src in [c"", c"0123456", c"01234567", c"012345678"] {
+        // SAFETY: `src` is a live NUL-terminated string, only read.
+        let c = CString(unsafe { ffi::av_strdup(src.as_ptr()) });
+        let r = string_from_c_str(src);
+        assert_eq!(r.as_ref().map(HeapString::as_bytes), c.bytes(), "{src:?}");
+        assert_eq!(r.is_some(), src.count_bytes() < LIMIT, "{src:?}");
+    }
+
+    // `av_strndup` sizes its copy by the bytes before the first NUL, not by
+    // `len`: a long buffer with an early NUL still fits.
+    let padded = b"0123\x0056789abcdef";
+    let long = b"0123456789abcdef";
+    for bytes in [&padded[..], &long[..]] {
+        for len in 0..=bytes.len() {
+            // SAFETY: `bytes` is `bytes.len()` readable bytes, and
+            // `av_strndup` reads at most `len` of them.
+            let c = CString(unsafe { ffi::av_strndup(bytes.as_ptr().cast(), len) });
+            let r = string_from_bytes_until_nul(&bytes[..len]);
+            assert_eq!(
+                r.as_ref().map(HeapString::as_bytes),
+                c.bytes(),
+                "len = {len} of {bytes:?}"
+            );
+        }
+    }
+
+    // Clones fail where `av_strdup` of the same source does.
+    for owner in [&fits, &over] {
+        // SAFETY: `owner` keeps its live string alive for the call.
+        let c = CString(unsafe { ffi::av_strdup(owner.as_ptr()) });
+        let r = owner.try_clone();
+        assert_eq!(r.as_ref().map(HeapString::as_bytes), c.bytes());
+    }
+    assert!(over.try_clone().is_none());
+
+    // SAFETY: as above; the default limit again.
+    unsafe { ffi::av_max_alloc(i32::MAX as usize) };
+    assert_eq!(over.clone().as_bytes(), b"01234567");
+}

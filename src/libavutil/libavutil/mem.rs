@@ -27,7 +27,7 @@ use core::ptr::NonNull;
 
 use ffibox::{
     CAlloc, CAllocZeroed, CBox, CCell, CDrop, CDupClone, CPlainElem, CStrBox, CVec, CZeroable,
-    impl_clenclone, impl_clendrop,
+    impl_cdupclone_str, impl_clenclone, impl_clendrop,
 };
 
 use super::ffi;
@@ -231,6 +231,10 @@ pub struct StringHeap;
 pub type HeapString = CStrBox<StringHeap>;
 
 /// Wraps: av_free
+/// Handwritten
+///
+/// `impl_cdrop_str!` would need a raw-pointer adapter only to pass the string
+/// to `av_free` as a `void *`; the trait method takes the `NonNull` directly.
 // SAFETY: `av_free` releases any `av_malloc`- or `av_realloc`-family block,
 // which every string this policy adopts or copies is, exactly once; a string
 // owns no sub-allocations.
@@ -243,24 +247,17 @@ unsafe impl CDrop<c_char> for StringHeap {
     }
 }
 
-/// Wraps: av_strdup
-// SAFETY: `av_strdup` copies the `strlen(s) + 1` bytes of a live string into a
-// fresh `av_realloc` block, which `av_free` above releases, or returns NULL on
-// failure. It only reads the source, and a byte copy of a string shares nothing
-// with it.
-unsafe impl CDupClone<c_char> for StringHeap {
-    #[inline]
-    unsafe fn c_dup(&self, ptr: NonNull<c_char>) -> Option<NonNull<c_char>> {
-        // SAFETY: the caller hands a live NUL-terminated string, which
-        // `av_strdup` reads up to its terminator.
-        NonNull::new(unsafe { ffi::av_strdup(ptr.as_ptr()) })
-    }
-}
+// The clone strategy: `av_strdup` copies the `strlen(s) + 1` bytes of a live
+// string into a fresh `av_realloc` block, which `av_free` above releases, or
+// returns NULL on failure. It only reads the source, and the copy shares
+// nothing with it.
+impl_cdupclone_str!(StringHeap, ffi::av_strdup);
 
 /// Wraps: av_strdup
 ///
 /// A copy of `s`; `None` when it cannot be allocated, which includes a string
-/// longer than the `av_max_alloc` limit (`INT_MAX` bytes by default).
+/// whose `s.count_bytes() + 1` bytes exceed the `av_max_alloc` limit (`INT_MAX`
+/// by default).
 pub fn string_from_c_str(s: &CStr) -> Option<HeapString> {
     // SAFETY: `s` is a live NUL-terminated string, which `av_strdup` only
     // reads.
@@ -274,8 +271,9 @@ pub fn string_from_c_str(s: &CStr) -> Option<HeapString> {
 ///
 /// A string of the bytes of `bytes` before its first NUL, or of all of them
 /// when it has none, as `strndup` copies; `None` when it cannot be allocated,
-/// as [`string_from_c_str`]. Pass `s.as_bytes()` for a `&str`, and a sub-slice
-/// to copy a prefix.
+/// which includes a copy of `n` bytes whose `n + 1` exceed the `av_max_alloc`
+/// limit, as for [`string_from_c_str`]. Pass `s.as_bytes()` for a `&str`, and
+/// a sub-slice to copy a prefix.
 pub fn string_from_bytes_until_nul(bytes: &[u8]) -> Option<HeapString> {
     // An empty slice's pointer is dangling, which C's `memchr` and `memcpy`
     // may not receive even for a zero length.

@@ -12,3 +12,7 @@ function av_memdup
 # libavutil/mem.h: the av_malloc family's string lifecycle (raw-lifetime string).
 function av_strdup
 function av_strndup
+
+# libavutil/mem.h: the allocation limit, which drives the string tier's
+# failure paths in equivalence tests.
+function av_max_alloc
