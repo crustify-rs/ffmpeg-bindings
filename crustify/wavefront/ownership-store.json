@@ -17,7 +17,9 @@
    },
    "ptr_ret": {
     "ptr": {
-     "scalar": null,
+     "scalar": {
+      "by_val": true
+     },
      "array": {
       "by_val": true
      },
@@ -26,7 +28,7 @@
      "borrowed": null,
      "nullable": true,
      "mutable": true,
-     "note": "Array of nmemb elements of size bytes, ZEROED (av_mallocz). NULL also when nmemb*size overflows size_t. Fresh av_malloc storage: posix_memalign(ALIGN) with ALIGN = 64/32/16 by SIMD config (16 is the floor); size 0 yields a 1-byte block, so NULL means failure: size > max_alloc_size (INT_MAX by default, av_max_alloc) or OOM. Released by av_free/av_freep."
+     "note": "Array of nmemb elements of size bytes, ZEROED (av_mallocz); also one zeroed object when nmemb is 1 (av_calloc(1, sizeof(RNNModel)) in libavfilter/af_arnndn.c, av_calloc(1, sizeof(*fc->ft)) in libavcodec/vvc/thread.c). NULL also when nmemb*size overflows size_t. Fresh av_malloc storage: posix_memalign(ALIGN) with ALIGN = 64/32/16 by SIMD config (16 is the floor); size 0 yields a 1-byte block, so NULL means failure: size > max_alloc_size (INT_MAX by default, av_max_alloc) or OOM. Released by av_free/av_freep."
     }
    }
   },
@@ -198,7 +200,9 @@
     {
      "name": "p",
      "ptr": {
-      "scalar": null,
+      "scalar": {
+       "by_val": true
+      },
       "array": {
        "by_val": true
       },
@@ -209,13 +213,15 @@
       },
       "nullable": true,
       "mutable": false,
-      "note": "Read-only source of size bytes, any allocator; only read for the call. NULL source returns NULL."
+      "note": "Read-only source of size bytes, any allocator; only read for the call. NULL source returns NULL. One object as well as an array: av_memdup(ctx, sizeof(DNXHDEncContext)) in libavcodec/dnxhdenc.c and av_memdup(s, slice_size) in libavcodec/mpegvideo.c copy a single context struct."
      }
     }
    ],
    "ptr_ret": {
     "ptr": {
-     "scalar": null,
+     "scalar": {
+      "by_val": true
+     },
      "array": {
       "by_val": true
      },
@@ -224,7 +230,7 @@
      "borrowed": null,
      "nullable": true,
      "mutable": true,
-     "note": "Fresh av_malloc(size) block holding a byte copy of p (deep clone). NULL when p is NULL or allocation fails. size 0 yields a 1-byte block. Released by av_free."
+     "note": "Fresh av_malloc(size) block holding a byte copy of p (deep clone): one object (the per-thread context copies in dnxhdenc.c / mpegvideo.c) or an array. NULL when p is NULL or allocation fails. size 0 yields a 1-byte block. Released by av_free."
     }
    }
   },

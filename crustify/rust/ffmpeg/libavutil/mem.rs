@@ -5,7 +5,8 @@
 //! returns is released by `av_free`. Owners name it as their policy:
 //!
 //! - one object: [`HeapBox<T>`], built by `HeapBox::<T>::new_zeroed()`
-//!   (`av_mallocz`) or `HeapBox::<T>::new_uninit()` (`av_malloc`);
+//!   (`av_mallocz`) or `HeapBox::<T>::new_uninit()` (`av_malloc`), and
+//!   `Clone` (`av_memdup`) when `T: Copy`;
 //! - an array: [`HeapVec<T>`], built by [`alloc_array`] (`av_malloc_array`),
 //!   [`alloc_array_zeroed`] / [`alloc_cell_array_zeroed`] (`av_calloc`),
 //!   [`alloc_array_from_fn`], or `HeapVec::from_slice` and `Clone`
@@ -18,8 +19,8 @@ use core::mem::{MaybeUninit, align_of, size_of};
 use core::ptr::NonNull;
 
 use ffibox::{
-    CAlloc, CAllocZeroed, CBox, CCell, CDrop, CPlainElem, CVec, CZeroable, impl_clenclone,
-    impl_clendrop,
+    CAlloc, CAllocZeroed, CBox, CCell, CDrop, CDupClone, CPlainElem, CVec, CZeroable,
+    impl_clenclone, impl_clendrop,
 };
 
 use super::ffi;
@@ -80,6 +81,36 @@ unsafe fn memdup(ptr: *mut u8, byte_len: usize) -> *mut u8 {
     unsafe { ffi::av_memdup(ptr.cast_const().cast(), byte_len) }.cast()
 }
 impl_clenclone!(Heap, memdup, align = ALIGN);
+
+/// Wraps: av_memdup
+///
+/// The singleton form of the deep copy, giving [`HeapBox<T>`] its `Clone`. A
+/// byte copy is a sound clone only of a `T` whose bytes own nothing, which
+/// `T: Copy` asserts; a wrapped type without it is not cloneable here:
+///
+/// ```compile_fail,E0599
+/// use ffibox::define_ctype;
+/// use ffmpeg::libavutil::{ffi, mem::HeapBox};
+/// define_ctype!(Rational, RationalRef, RationalMut, ffi::AVRational); // not `Copy`
+/// fn copy(b: &HeapBox<Rational>) -> HeapBox<Rational> {
+///     b.clone()
+/// }
+/// ```
+// SAFETY: `av_memdup` returns a fresh `av_malloc(size_of::<T>())` block (one
+// byte for a zero-sized `T`), aligned to `ALIGN`, which the const assertion
+// bounds `align_of::<T>()` by, holding a byte copy of the source, or NULL on
+// failure. `T: Copy` makes that copy an independent, valid `T` that shares no
+// owned state with the source, and `CDrop` above releases it.
+unsafe impl<T: CCell + Copy> CDupClone<T> for Heap {
+    #[inline]
+    unsafe fn c_dup(&self, ptr: NonNull<T>) -> Option<NonNull<T>> {
+        const { assert!(align_of::<T>() <= ALIGN, "av_memdup cannot align T") };
+        // SAFETY: the caller hands a live `T`, so `size_of::<T>()` bytes at
+        // `ptr` are readable; `av_memdup` only reads them.
+        let copy = unsafe { ffi::av_memdup(ptr.as_ptr().cast_const().cast(), size_of::<T>()) };
+        NonNull::new(copy.cast())
+    }
+}
 
 /// Wraps: av_malloc
 // SAFETY: `av_malloc` returns a fresh, uniquely-owned block of `size_of::<T>()`
@@ -191,6 +222,31 @@ mod unit_tests {
     // back.
     unsafe impl CZeroable for Cell {}
 
+    // `AVRational` owns nothing, so its bytes copy as a value.
+    define_ctype!(
+        #[derive(Clone, Copy)]
+        Plain,
+        PlainRef,
+        PlainMut,
+        ffi::AVRational
+    );
+    // SAFETY: as for `Cell`.
+    unsafe impl CZeroable for Plain {}
+
+    impl PlainRef<'_> {
+        fn get(&self) -> (i32, i32) {
+            // SAFETY: a read of the whole object through the shared handle.
+            let r = unsafe { self.as_ptr().read() };
+            (r.num, r.den)
+        }
+    }
+    impl PlainMut<'_> {
+        fn set(&mut self, num: i32, den: i32) {
+            // SAFETY: a write of the whole object through the exclusive handle.
+            unsafe { self.as_mut_ptr().write(ffi::AVRational { num, den }) }
+        }
+    }
+
     impl CellRef<'_> {
         fn num(&self) -> i32 {
             // SAFETY: a read of a projected field through the shared handle.
@@ -237,6 +293,38 @@ mod unit_tests {
         // SAFETY: the write above initialised the whole `AVRational`.
         let b = unsafe { slot.assume_init() };
         assert_eq!(b.as_ref().num(), 3);
+    }
+
+    #[test]
+    fn box_clone_is_an_independent_aligned_av_memdup_copy() {
+        let mut a = HeapBox::<Plain>::new_zeroed().unwrap();
+        a.as_mut().set(3, 4);
+        let b = a.clone();
+        assert_ne!(a.as_ptr(), b.as_ptr());
+        assert_eq!(b.as_ptr() as usize % ALIGN, 0);
+        assert_eq!(b.as_ref().get(), (3, 4));
+
+        // Writes to either side stay on it, and the source may go first.
+        a.as_mut().set(-1, 2);
+        let mut c = b.try_clone().unwrap();
+        c.as_mut().set(5, 6);
+        drop(a);
+        assert_eq!((b.as_ref().get(), c.as_ref().get()), ((3, 4), (5, 6)));
+        drop(b);
+        assert_eq!(c.clone().as_ref().get(), (5, 6));
+    }
+
+    #[test]
+    fn policy_plumbing_duplicates_one_object() {
+        let src = Plain::zeroed();
+        // SAFETY: `src` is a live `Plain`, only read.
+        let copy = unsafe { Heap.c_dup(NonNull::from(&src)) }.unwrap();
+        assert_eq!(copy.as_ptr() as usize % ALIGN, 0);
+        // SAFETY: `copy` is a fresh `av_memdup` block holding a `Plain`.
+        let read = unsafe { copy.as_ptr().cast::<ffi::AVRational>().read() };
+        assert_eq!((read.num, read.den), (0, 0));
+        // SAFETY: `copy` is a live block we own.
+        unsafe { <Heap as CDrop<Plain>>::c_drop(&Heap, copy) };
     }
 
     #[test]
