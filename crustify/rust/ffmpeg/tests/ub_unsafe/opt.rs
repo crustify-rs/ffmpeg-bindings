@@ -122,6 +122,57 @@ mod query {
         drop(b);
     }
 
+    /// A list and its handles cross threads: one is read by several threads
+    /// at once through copies of a shared handle, moved to another thread and
+    /// dropped there, and queried on many threads concurrently (`Send` /
+    /// `Sync` on `OptionRanges`; ThreadSanitizer reports any race).
+    #[test]
+    fn lists_are_read_moved_and_dropped_across_threads() {
+        let b = query(&CB_FAKE, c"size", MULTI).unwrap();
+        let shared: &OptionRangesBox = &b;
+        std::thread::scope(|s| {
+            for _ in 0..4 {
+                s.spawn(move || {
+                    let r = shared.as_ref();
+                    for _ in 0..32 {
+                        assert_eq!(read_all(r), 6);
+                        assert_eq!(read_all(shared.as_ref()), 6);
+                    }
+                });
+            }
+            let r: OptionRangesRef<'_> = b.as_ref();
+            assert_eq!(s.spawn(move || read_all(r)).join().unwrap(), 6);
+        });
+        // Dropped on a thread other than the one that queried it.
+        std::thread::spawn(move || drop(b)).join().unwrap();
+
+        // Built on one thread, read on another, then returned to the first.
+        let back = std::thread::spawn(|| {
+            let sparse = query(&CB_FAKE, c"sparse", 0).unwrap();
+            assert_eq!(read_all(sparse.as_ref()), 3);
+            sparse
+        })
+        .join()
+        .unwrap();
+        assert!(back.as_ref().get(1, 0).unwrap().is_null());
+
+        // Concurrent queries of one shared class, each list owned by its
+        // thread.
+        let totals: Vec<usize> = std::thread::scope(|s| {
+            let workers: Vec<_> = (0..8)
+                .map(|i| {
+                    s.spawn(move || {
+                        let key = [c"size", c"sparse", c"int", c"string"][i % 4];
+                        let b = query(&CB_FAKE, key, if i % 2 == 0 { MULTI } else { 0 }).unwrap();
+                        read_all(b.as_ref())
+                    })
+                })
+                .collect();
+            workers.into_iter().map(|w| w.join().unwrap()).collect()
+        });
+        assert_eq!(totals, [6, 3, 1, 1, 6, 3, 1, 1]);
+    }
+
     #[test]
     fn many_lists_live_at_once() {
         let lists: Vec<_> = (0..64)
@@ -191,6 +242,15 @@ mod query_default {
         // `query_default` admits.
         let r = unsafe { OptionRanges::query_default(ctx.as_obj(), c"int", 0) };
         assert_eq!(r.err(), Some(ENOMEM));
+    }
+
+    #[test]
+    fn null_object_fails_without_a_list() {
+        for flags in [0, FAKE_OBJ, MULTI | CHILDREN, FAKE_OBJ | CHILDREN] {
+            // SAFETY: `query_default` admits a NULL `obj`, with any flags.
+            let r = unsafe { OptionRanges::query_default(core::ptr::null_mut(), c"int", flags) };
+            assert_eq!(r.err(), Some(ENOMEM), "flags={flags:#x}");
+        }
     }
 
     #[test]

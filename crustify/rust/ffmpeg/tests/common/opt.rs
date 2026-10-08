@@ -108,9 +108,8 @@ const fn opt(
 }
 
 /// A flag on the options whose defaults C builds by growing an `av_realloc`
-/// block (`dict`, `array`): BSan's runtime reports a false use-after-free on
-/// that pattern, so their suites select them apart with
-/// `av_opt_set_defaults2`.
+/// block (`dict`, `array`), so that suites can select them apart from the
+/// scalar defaults with `av_opt_set_defaults2`.
 pub const GROWS: c_int = 1 << 30;
 
 /// `o`, flagged [`GROWS`].

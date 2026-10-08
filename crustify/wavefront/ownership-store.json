@@ -2334,7 +2334,7 @@
       },
       "mutable": false,
       "nullable": false,
-      "note": "Option name, read for the call only."
+      "note": "Option name, read for the call only (strcmp in av_opt_find2)."
      }
     },
     {
@@ -2350,8 +2350,8 @@
        "lifetime": "other"
       },
       "mutable": false,
-      "nullable": false,
-      "note": "AVClass-enabled object (first member a const AVClass *), or with AV_OPT_SEARCH_FAKE_OBJ a const AVClass **; only read for the call (av_opt_find). The result borrows nothing from it."
+      "nullable": true,
+      "note": "AVClass-enabled object (first member a const AVClass *), or with AV_OPT_SEARCH_FAKE_OBJ a const AVClass **; only read for the call, through av_opt_find -> av_opt_find2, which returns NULL for a NULL obj or a NULL class pointer, so the query then fails with AVERROR(ENOMEM) instead of dereferencing it (unlike av_opt_query_ranges, which reads *(AVClass **)obj unconditionally). The result borrows nothing from it."
      }
     },
     {
@@ -2371,7 +2371,7 @@
       },
       "mutable": true,
       "nullable": false,
-      "note": "Out-parameter: receives a fresh owned AVOptionRanges on success (av_opt_freep_ranges releases it); NULL is stored on the default path's failure."
+      "note": "Out-parameter: receives a fresh owned AVOptionRanges on success (av_opt_freep_ranges releases it); NULL is stored on every failure, before the lookup."
      }
     }
    ]
