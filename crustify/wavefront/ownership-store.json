@@ -1977,7 +1977,7 @@
       },
       "nullable": false,
       "mutable": true,
-      "note": "Writes dst[0..cnt) from dst[-back..]: the buffer must extend back bytes before dst (read even when cnt is 0 for back 1..4) and cnt bytes after; back/cnt non-negative. [symbol] LZ77 overlapping copy; back 0 is a no-op."
+      "note": "Writes dst[0..cnt) from dst[-back..]: the buffer must extend back bytes before dst (read even when cnt is 0 for back 1..4) and cnt bytes after; back/cnt non-negative. For back > 4 and cnt >= 16 the doubling block copy keeps an int blocklen (mem.c:466 `blocklen <<= 1`): with B the first back<<k >= 2^30, a run longer than 2*B - back doubles B past INT_MAX (signed overflow; wraps to INT_MIN and memcpy runs with (size_t)INT_MIN). A safe wrapper must split such a run into calls of at most 2*B - back bytes (for back >= 2^30 that is back itself); distances up to 4 copy without a block length. [symbol] LZ77 overlapping copy; back 0 is a no-op."
      }
     }
    ]
