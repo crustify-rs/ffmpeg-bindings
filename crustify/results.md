@@ -34,8 +34,8 @@ Thin batches with `"objective": "review"`, LLM-as-a-Judge over each landed wave.
 - **`--max-loc`** — `500`
 - **`--min-fields`** — `20`
 - **orchestrator parallelism** — `10` concurrent batch processes
-- **branch** — `crustify/reviews/20261005/libavutil/raw-lifetime-void/wave-0`, tip `9cdb9f2a73`
-- **agents** — `1`, over `1` wave(s)
+- **branch** — `crustify/reviews/20261005/libavutil/raw-lifetime-string/wave-0`, tip `8bdf2c7138`
+- **agents** — `2`, over `2` wave(s)
 
 `rv`-prefixed columns below carry the review pass; the unprefixed ones remain
 the campaign's.
@@ -134,7 +134,7 @@ Implementation `openrouter/anthropic/claude-opus-5.5` via `claude`; review
 | sub-campaign | nr types | nr symbols | sub-campaign wall | batch | review | total | $/type | $/sym |
 |---|---:|---:|---|---:|---:|---:|---:|---:|
 | `raw-lifetime-void` | `0` | `6` | `78m48s` | `$8.46` | `$4.69` | `$13.15` | — | `$2.19` |
-| `raw-lifetime-string` | `0` | `<n>` | `<n>m<n>s` | `$<n>` | `$<n>` | `$<n>` | — | `$<n>` |
+| `raw-lifetime-string` | `0` | `3` | `48m03s` | `$3.77` | `$5.25` | `$9.02` | — | `$3.01` |
 | `<link-unit>/<subsystem>` | `<n>` | `<n>` | `<n>h<n>m<n>s` | `$<n>` | `$<n>` | `$<n>` | `$<n>` | `$<n>` |
 | orchestrator | `<n>` | `<n>` | — | — | — | `$<n>`+ | — | — |
 | **Σ recorded agents** | **`<n>`** | **`<n>`** | **`<n>h<n>m`** | **`$<n>`** | **`$<n>`** | **`$<n>`** | **`$<n>`** | **`$<n>`** |
@@ -146,8 +146,8 @@ Implementation `openrouter/anthropic/claude-opus-5.5` via `claude`; review
 | tier | strategies emitted | $ | wall |
 |---|---|---|---|
 | void | `3` | `$8.46` | `57m23s` |
-| string | `<n>` | `$<n>` | `<n>m<n>s` |
-| **Σ** | **`<n>`** | **`$<n>`** | **`<n>m<n>s`** |
+| string | `2` | `$3.77` | `19m11s` |
+| **Σ** | **`5`** | **`$12.23`** | **`76m34s`** |
 
 ### Review
 
@@ -156,8 +156,8 @@ Implementation `openrouter/anthropic/claude-opus-5.5` via `claude`; review
 | tier | rv loc | rv $ | rv wall |
 |---|---|---|---|
 | void | `+241/-4` | `$4.69` | `17m36s` |
-| string | `+<n>/-<n>` | `$<n>` | `<n>m<n>s` |
-| **Σ** | **`+<n>/-<n>`** | **`$<n>`** | **`<n>m<n>s`** |
+| string | `+86/-17` | `$5.25` | `26m33s` |
+| **Σ** | **`+327/-21`** | **`$9.94`** | **`44m09s`** |
 
 ## Types
 
@@ -505,3 +505,40 @@ The review (`72abd2c241`, `9cdb9f2a73`) filed three defects, all confirmed on re
 
 No reproducer was rejected. The promoted tip passes `clippy`, the plain test suites and the
 `asan-ubsan` suites.
+
+### `raw-lifetime-string`
+
+The translation batch (`a95b9e3220`, `+429/-4` `.rs`) added `HeapString`, ffibox's `CStrBox`
+under a separate `StringHeap` policy: `av_free` releases it and `av_strdup` clones it, the 2
+strategies counted above. `Heap` could not carry the string clone beside its singleton
+`CDupClone` (`E0119`). Safe constructors wrap `av_strdup` (`string_from_c_str`) and
+`av_strndup` (`string_from_bytes_until_nul`); the `symbols` count of the Overview row is
+these 3 anchored primitives. It added 5 unit, 6 `ub_safe` (cross-thread drop and clone,
+non-UTF-8 and interior-NUL input), 2 trybuild and 6 equivalence tests, and recorded
+`av_strdup`/`av_strndup` as string cloners and `av_asprintf`, `av_append_path_component`,
+`av_get_token` and `av_strireplace` as string constructors in wavefront. Those four stay
+scheduled as `libavutil/core` symbols. Seeded with `av_free av_strdup av_strndup`, the scan
+moved the `unsafe fn` smell by `+2` and the raw-pointer smell by `0`; the review moved
+neither.
+
+The review (`f337203e0d`, `8bdf2c7138`) filed three reports and no reproducer, so none was
+rerun or rejected:
+
+- `wavefront/string-out-param-constructors`: six functions that return a new string through
+  a `char **` out-parameter (`av_escape`, `av_dict_get_string`, `av_opt_serialize`,
+  `av_opt_get`, `av_opt_get_key_value`, `av_bprint_finalize`) had no record; resubmitted.
+  Wavefront's schema cannot mark an out-slot's contents as a string, so
+  `--lifetime-for string` still does not list them.
+- `conventions/string-policy-hand-written-impls`: the `av_strdup` clone is now bound through
+  ffibox's `impl_cdupclone_str!`; the `av_free` drop stays hand-written (`/// Handwritten`)
+  because the macro needs a raw-pointer adapter that the scan counts.
+- `misc/string-max-alloc-limit-docs`: the constructors' docs were off by one on the
+  `av_max_alloc` limit (C allocates length + 1). Fixed, with an equivalence test that lowers
+  the limit in a re-executed child process on both sides of the boundary.
+
+The review also observed that `av_bprint_finalize` on an `AV_BPRINT_SIZE_COUNT_ONLY` buffer
+returns a string with no NUL: the buffer's `size` is 0, so `real_size` is 0 and
+`av_memdup(str, 0)` hands back a 1-byte allocation with nothing copied. It reproduced a
+heap-buffer-overflow in `strlen` on the `asan-ubsan` build, and recorded the case in the
+function's wavefront note for the batch that wraps it. The promoted tip passes `clippy`, the
+plain test suites and the `asan-ubsan` suites.
