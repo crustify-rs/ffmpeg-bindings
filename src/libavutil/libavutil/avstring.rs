@@ -15,6 +15,7 @@ use core::ffi::{CStr, c_char, c_int, c_long, c_longlong, c_short, c_uint, c_void
 use core::fmt;
 use core::iter::FusedIterator;
 use core::marker::PhantomData;
+use core::num::NonZeroU8;
 use core::ptr;
 use std::borrow::Cow;
 use std::ffi::CString;
@@ -171,7 +172,7 @@ pub fn strlcatf(dst: &mut [u8], args: fmt::Arguments<'_>) -> Option<usize> {
 }
 
 /// The text `args` formats, up to its first NUL.
-fn text_until_nul(args: fmt::Arguments<'_>) -> CString {
+pub(crate) fn text_until_nul(args: fmt::Arguments<'_>) -> CString {
     let mut bytes = std::fmt::format(args).into_bytes();
     let len = bytes.iter().position(|&b| b == 0).unwrap_or(bytes.len());
     bytes.truncate(len);
@@ -942,6 +943,61 @@ pub fn scan(
     Ok(usize::try_from(ret).ok())
 }
 
+/// Wraps: av_isgraph
+///
+/// Whether `c` is a printable ASCII character other than space (33 to 126),
+/// whatever the locale. Any `int` is accepted, `EOF` included.
+pub fn is_graph(c: c_int) -> bool {
+    // SAFETY: `av_isgraph` takes its argument by value and reads no memory.
+    unsafe { ffi::av_isgraph(c) != 0 }
+}
+
+/// Wraps: av_isspace
+///
+/// Whether `c` is ASCII white space (space, `\t`, `\n`, `\v`, `\f` or `\r`),
+/// whatever the locale. Unlike [`u8::is_ascii_whitespace`], the vertical tab
+/// counts. Any `int` is accepted.
+pub fn is_space(c: c_int) -> bool {
+    // SAFETY: `av_isspace` takes its argument by value and reads no memory.
+    unsafe { ffi::av_isspace(c) != 0 }
+}
+
+/// Wraps: av_isxdigit
+///
+/// Whether `c` is an ASCII hexadecimal digit, either case, whatever the
+/// locale. Any `int` is accepted.
+pub fn is_xdigit(c: c_int) -> bool {
+    // SAFETY: `av_isxdigit` takes its argument by value and reads no memory.
+    unsafe { ffi::av_isxdigit(c) != 0 }
+}
+
+/// Wraps: av_match_name
+///
+/// Whether `name` matches the comma-separated `names`: an entry equal to it
+/// ignoring ASCII case, or `ALL`, matches; an entry prefixed with `-` that
+/// matches makes the result `false`. The first matching entry decides.
+pub fn match_name(name: &CStr, names: &CStr) -> bool {
+    // SAFETY: both are live NUL-terminated strings, which `av_match_name`
+    // only reads, never past their terminators.
+    unsafe { ffi::av_match_name(name.as_ptr(), names.as_ptr()) != 0 }
+}
+
+/// Wraps: av_match_list
+///
+/// Whether `name` and `list`, both `separator`-separated lists, share an
+/// entry, compared as C compares them.
+///
+/// The separator is non-zero: with a NUL separator, C steps past the
+/// terminator of `list` and reads out of bounds.
+pub fn match_list(name: &CStr, list: &CStr, separator: NonZeroU8) -> bool {
+    // C compares `char`s, so a byte above 0x7f is its signed `char` value on
+    // both sides.
+    let separator = separator.get() as c_char;
+    // SAFETY: both are live NUL-terminated strings; with a non-NUL separator,
+    // `av_match_list` reads each only up to its terminator.
+    unsafe { ffi::av_match_list(name.as_ptr(), list.as_ptr(), separator) != 0 }
+}
+
 #[cfg(test)]
 mod unit_tests {
     use super::*;
@@ -1405,5 +1461,51 @@ mod unit_tests {
         assert_eq!(r.as_bytes(), b"abc");
         let r = replace_ignore_ascii_case(c"", c"", c"").unwrap();
         assert!(r.is_empty());
+    }
+
+    #[test]
+    fn character_classes() {
+        for c in -1..=256 {
+            let ascii = u8::try_from(c).ok().filter(u8::is_ascii);
+            assert_eq!(
+                is_graph(c),
+                ascii.is_some_and(|b| b.is_ascii_graphic()),
+                "{c}"
+            );
+            assert_eq!(
+                is_xdigit(c),
+                ascii.is_some_and(|b| b.is_ascii_hexdigit()),
+                "{c}"
+            );
+            let space = ascii.is_some_and(|b| b.is_ascii_whitespace() || b == 0x0b);
+            assert_eq!(is_space(c), space, "{c}");
+        }
+        for c in [c_int::MIN, -129, 0x161, c_int::MAX] {
+            assert!(!is_graph(c) && !is_space(c) && !is_xdigit(c));
+        }
+    }
+
+    #[test]
+    fn match_name_entries_negation_and_all() {
+        assert!(match_name(c"h264", c"mpeg4,H264"));
+        assert!(!match_name(c"h264", c"h26"));
+        assert!(!match_name(c"h26", c"h264"));
+        assert!(match_name(c"anything", c"ALL"));
+        assert!(!match_name(c"anything", c"all"));
+        assert!(!match_name(c"h264", c"-h264,ALL"));
+        assert!(match_name(c"vp9", c"-h264,ALL"));
+        assert!(!match_name(c"x", c""));
+        assert!(!match_name(c"", c"a,"));
+    }
+
+    #[test]
+    fn match_list_any_common_entry() {
+        let comma = NonZeroU8::new(b',').unwrap();
+        assert!(match_list(c"a,b", c"c,b", comma));
+        assert!(!match_list(c"a,b", c"c,d", comma));
+        assert!(!match_list(c"", c"", comma));
+        assert!(!match_list(c"ab", c"a", comma));
+        let high = NonZeroU8::new(0xff).unwrap();
+        assert!(match_list(c"x\xffy", c"y", high));
     }
 }

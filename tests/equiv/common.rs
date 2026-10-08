@@ -1,11 +1,13 @@
-//! Equivalence of `libavutil/common.h`'s safe clamps, [`zero_extend`] and
-//! `ceil_log2` with the raw C functions, on every edge their branches test.
+//! Equivalence of `libavutil/common.h`'s safe clamps, [`zero_extend`],
+//! `ceil_log2` and bit-counting helpers with the raw C functions, on every
+//! edge their branches test.
 
 use core::ffi::c_int;
 
 use ffmpeg::libavutil::common::{
     ceil_log2, clamp_f32, clamp_f64, clamp_i32, clamp_i64, clamp_to_i8, clamp_to_i16, clamp_to_i32,
-    clamp_to_signed_pow2, clamp_to_u8, clamp_to_u16, clamp_to_unsigned_pow2, zero_extend,
+    clamp_to_signed_pow2, clamp_to_u8, clamp_to_u16, clamp_to_unsigned_pow2, log2, log2_16bit,
+    parity, zero_extend,
 };
 use ffmpeg::libavutil::ffi;
 
@@ -290,5 +292,44 @@ mod count_and_saturate {
                 );
             }
         }
+    }
+}
+
+/// Values at every bit boundary, their neighbours, and a spread between.
+fn u32_edges() -> Vec<u32> {
+    let mut v = vec![0, 1, 2, 3, u32::MAX, u32::MAX - 1, 0x5555_5555, 0xaaaa_aaaa];
+    for bit in 0..32 {
+        let p = 1u32 << bit;
+        v.extend([p - 1, p, p | 1, p.wrapping_add(1)]);
+    }
+    v.extend((0..4096).map(|i: u32| i.wrapping_mul(0x9e37_79b9)));
+    v
+}
+
+#[test]
+fn log2_matches_av_log2() {
+    for v in u32_edges() {
+        // SAFETY: `av_log2` takes its argument by value.
+        let c = unsafe { ffi::av_log2(v) };
+        assert_eq!(log2(v) as c_int, c, "{v:#x}");
+    }
+}
+
+#[test]
+fn log2_16bit_matches_av_log2_16bit_on_every_value() {
+    for v in 0..=u16::MAX {
+        // SAFETY: `av_log2_16bit` takes its argument by value; it is below
+        // 2^16.
+        let c = unsafe { ffi::av_log2_16bit(v.into()) };
+        assert_eq!(log2_16bit(v) as c_int, c, "{v:#x}");
+    }
+}
+
+#[test]
+fn parity_matches_av_parity_c() {
+    for v in u32_edges() {
+        // SAFETY: `av_parity_c` takes its argument by value.
+        let c = unsafe { ffi::av_parity_c(v) };
+        assert_eq!(c_int::from(parity(v)), c, "{v:#x}");
     }
 }

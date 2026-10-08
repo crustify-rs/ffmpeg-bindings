@@ -1,13 +1,17 @@
 //! UB tests for `libavutil/mem.h`'s `av_malloc`-family owners, its dynamic
-//! arrays and its reusable buffers, through the safe API only.
+//! arrays and reusable buffers, the allocation limit and the back-reference
+//! copy, through the safe API only.
 
 use core::mem::MaybeUninit;
 use std::panic::{AssertUnwindSafe, catch_unwind};
+use std::thread;
 
 use ffmpeg::libavutil::intfloat::IntFloat64;
 use ffmpeg::libavutil::mem::{
-    DynArray, FastBuffer, Heap, HeapString, HeapVec, StringHeap, ZeroedFastBuffer, alloc_array,
-    alloc_array_from_fn, alloc_array_zeroed, string_from_bytes_until_nul, string_from_c_str,
+    BackReferenceError, DynArray, FastBuffer, Heap, HeapBox, HeapString, HeapVec, StringHeap,
+    ZeroedFastBuffer, alloc_array, alloc_array_from_fn, alloc_array_zeroed,
+    alloc_cell_array_zeroed, copy_back_reference, set_max_alloc, string_from_bytes_until_nul,
+    string_from_c_str,
 };
 
 #[test]
@@ -560,4 +564,195 @@ mod realloc {
         std::thread::spawn(move || drop(a)).join().unwrap();
         assert_eq!(checked_size_mul(usize::MAX, 2), None);
     }
+}
+
+/// Whether this run is under BSan, whose runtime makes exhaustive loops over
+/// FFI calls take minutes.
+fn under_bsan() -> bool {
+    std::env::var("CRUSTIFY_FFMPEG_VARIANT").as_deref() == Ok("bsan")
+}
+
+/// Accepted copies read and write inside the buffer; rejected ones touch
+/// nothing.
+fn check_back_reference(size: usize, dst: usize, back: usize, len: usize) {
+    let fresh: Box<[u8]> = (0..size).map(|i| i as u8).collect();
+    let mut buf = fresh.clone();
+    match copy_back_reference(&mut buf, dst, back, len) {
+        Ok(()) => assert!(back <= dst && dst + len <= size),
+        Err(e) => {
+            assert_ne!(e, BackReferenceError::TooLong);
+            assert_eq!(buf, fresh);
+        }
+    }
+}
+
+#[test]
+fn back_references_stay_inside_exact_size_buffers() {
+    // Every (dst, back, len) over exact-size buffers of up to 12 bytes (6
+    // under BSan, whose per-access cost makes the full set take minutes), one
+    // past each bound included.
+    let max = if under_bsan() { 6 } else { 12 };
+    for size in 0..=max {
+        for dst in 0..=size + 1 {
+            for back in 0..=dst + 1 {
+                for len in 0..=size + 2 - dst.min(size) {
+                    check_back_reference(size, dst, back, len);
+                }
+            }
+        }
+    }
+    // A larger buffer at each fill path's edges.
+    let size = 70;
+    for dst in [0, 1, 4, 5, 16, 17, 35, 69, 70, 71] {
+        for back in [0, 1, 2, 3, 4, 5, 8, 16, 17, dst, dst + 1] {
+            for len in [
+                0,
+                1,
+                3,
+                4,
+                7,
+                8,
+                15,
+                16,
+                17,
+                33,
+                size - dst.min(size),
+                size + 1 - dst.min(size),
+            ] {
+                check_back_reference(size, dst, back, len);
+            }
+        }
+    }
+}
+
+#[test]
+fn long_back_references_take_every_fill_path() {
+    // Every distance up to 70; under BSan, one per fill path and its edges.
+    let (backs, size): (Vec<usize>, usize) = if under_bsan() {
+        (vec![1, 2, 3, 4, 5, 16, 17, 70], 256)
+    } else {
+        ((1..=70).collect(), 1024)
+    };
+    for back in backs {
+        let mut buf = vec![0u8; size].into_boxed_slice();
+        buf[..back]
+            .iter_mut()
+            .enumerate()
+            .for_each(|(i, b)| *b = i as u8 + 1);
+        copy_back_reference(&mut buf, back, back, size - back).unwrap();
+        assert!(
+            buf.chunks(back)
+                .all(|c| c.iter().enumerate().all(|(i, &b)| b == i as u8 + 1))
+        );
+    }
+}
+
+#[test]
+fn oversized_back_references_are_rejected() {
+    let mut buf = [0u8; 4];
+    let huge = [i32::MAX as usize + 1, usize::MAX];
+    for n in huge {
+        assert_eq!(
+            copy_back_reference(&mut buf, 2, n, 1),
+            Err(BackReferenceError::TooLong)
+        );
+        assert_eq!(
+            copy_back_reference(&mut buf, 2, 1, n),
+            Err(BackReferenceError::TooLong)
+        );
+        assert_eq!(
+            copy_back_reference(&mut buf, n, 1, 1),
+            Err(BackReferenceError::PastEnd)
+        );
+    }
+    assert_eq!(
+        copy_back_reference(&mut buf, 4, 1, i32::MAX as usize),
+        Err(BackReferenceError::PastEnd)
+    );
+}
+
+#[test]
+fn back_references_run_concurrently_on_separate_buffers() {
+    let handles: Vec<_> = (1..=4)
+        .map(|back| {
+            thread::spawn(move || {
+                let mut buf = vec![7u8; 1024];
+                for len in 0..512 {
+                    copy_back_reference(&mut buf, 512, back, len).unwrap();
+                }
+            })
+        })
+        .collect();
+    for h in handles {
+        h.join().unwrap();
+    }
+}
+
+/// Set in the child process an isolated test re-runs itself in.
+const ISOLATED: &str = "CRUSTIFY_UB_ISOLATED";
+
+/// Every safe constructor fails cleanly, or succeeds within the limit, at
+/// each limit, while other threads keep allocating. The limit is
+/// process-global, so this runs in a child process running nothing else.
+#[test]
+fn allocations_obey_every_max_alloc_limit() {
+    const NAME: &str = "mem::allocations_obey_every_max_alloc_limit";
+    if std::env::var_os(ISOLATED).is_none() {
+        let status = std::process::Command::new(std::env::current_exe().unwrap())
+            .args(["--exact", NAME, "--test-threads=1", "--nocapture"])
+            .env(ISOLATED, "1")
+            .status()
+            .unwrap();
+        assert!(status.success(), "isolated run failed: {status}");
+        return;
+    }
+    let src = HeapVec::from_slice(&[1u8; 48]).unwrap();
+    let s = string_from_c_str(c"0123456789").unwrap();
+    let boxed = HeapBox::<IntFloat64>::new_zeroed().unwrap();
+    let stop = std::sync::Arc::new(std::sync::atomic::AtomicBool::new(false));
+    let churn = {
+        let stop = stop.clone();
+        thread::spawn(move || {
+            while !stop.load(std::sync::atomic::Ordering::Relaxed) {
+                drop(alloc_array::<u8>(32));
+                drop(string_from_bytes_until_nul(b"abc"));
+            }
+        })
+    };
+    for limit in [
+        0,
+        1,
+        7,
+        8,
+        11,
+        16,
+        47,
+        48,
+        64,
+        usize::MAX,
+        i32::MAX as usize,
+    ] {
+        set_max_alloc(limit);
+        for len in [0, 1, 8, 16, 48, 100] {
+            if let Some(mut a) = alloc_array::<u8>(len) {
+                assert!(len.max(1) <= limit);
+                a.as_mut_slice().fill(MaybeUninit::new(1));
+            }
+            if let Some(a) = alloc_array_zeroed::<u16>(len) {
+                assert!((len * 2).max(1) <= limit);
+                assert!(a.as_slice().iter().all(|&x| x == 0));
+            }
+            drop(alloc_array_from_fn(len, |i| i as u8));
+            drop(alloc_cell_array_zeroed::<IntFloat64>(len));
+        }
+        drop(src.try_clone());
+        drop(s.try_clone());
+        drop(boxed.try_clone());
+        drop(HeapBox::<IntFloat64>::new_uninit());
+        drop(string_from_bytes_until_nul(&[b'x'; 40]));
+    }
+    stop.store(true, std::sync::atomic::Ordering::Relaxed);
+    churn.join().unwrap();
+    set_max_alloc(i32::MAX as usize);
+    assert_eq!(src.clone().as_slice(), &[1u8; 48]);
 }

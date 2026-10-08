@@ -1,9 +1,16 @@
-//! UB tests for `libavutil/avstring.h`'s [`EscapeMode`], through the safe API
-//! only.
+//! UB tests for `libavutil/avstring.h`'s [`EscapeMode`], character classes
+//! and name matching, through the safe API only. Strings are exact-size
+//! `CString` allocations, so a read past a terminator lands in a sanitizer
+//! redzone.
 
+use core::ffi::{CStr, c_int};
+use core::num::NonZeroU8;
+use std::ffi::CString;
 use std::thread;
 
-use ffmpeg::libavutil::avstring::EscapeMode;
+use ffmpeg::libavutil::avstring::{
+    EscapeMode, is_graph, is_space, is_xdigit, match_list, match_name,
+};
 use ffmpeg::libavutil::ffi;
 
 const ALL: [EscapeMode; 4] = [
@@ -637,5 +644,91 @@ mod search_and_scan {
                 });
             }
         });
+    }
+}
+
+#[test]
+fn character_classes_take_any_int() {
+    for c in (-300..=300).chain([c_int::MIN, c_int::MIN + 1, c_int::MAX - 1, c_int::MAX]) {
+        let _ = (is_graph(c), is_space(c), is_xdigit(c));
+    }
+}
+
+/// Strings over the separator-like bytes, of every short length, each its own
+/// exact-size allocation.
+fn strings() -> Vec<CString> {
+    let alphabet = [b'a', b'A', b',', b'-', b';', 0xff];
+    let mut out = vec![CString::default()];
+    let mut layer = vec![Vec::new()];
+    for _ in 0..3 {
+        layer = layer
+            .iter()
+            .flat_map(|s: &Vec<u8>| {
+                alphabet.iter().map(move |&b| {
+                    let mut t = s.clone();
+                    t.push(b);
+                    t
+                })
+            })
+            .collect();
+        out.extend(layer.iter().map(|s| CString::new(s.clone()).unwrap()));
+    }
+    out.push(c"ALL".to_owned());
+    out.push(c"-ALL,all,".to_owned());
+    out.push(CString::new(vec![b','; 300]).unwrap());
+    out.push(CString::new([b"a,".repeat(200), b"ALL".to_vec()].concat()).unwrap());
+    out
+}
+
+#[test]
+fn match_name_stays_inside_its_strings() {
+    let all = strings();
+    for name in all.iter().step_by(5) {
+        for names in &all {
+            let _ = match_name(name, names);
+        }
+    }
+}
+
+#[test]
+fn match_list_stays_inside_its_strings_for_every_separator() {
+    let all = strings();
+    let short: Vec<&CStr> = all.iter().take(43).map(CString::as_c_str).collect();
+    // Separators in the alphabet, around it, and at the signed-`char` edges.
+    for sep in [
+        0x01, b',', b';', b'-', b'a', b'A', b'b', 0x7f, 0x80, 0xfe, 0xff,
+    ] {
+        let separator = NonZeroU8::new(sep).unwrap();
+        for name in &short {
+            for list in &short {
+                let _ = match_list(name, list, separator);
+            }
+        }
+    }
+    let comma = NonZeroU8::new(b',').unwrap();
+    for name in &all {
+        for list in all.iter().rev().take(4) {
+            let _ = match_list(name, list, comma);
+            let _ = match_list(list, name, comma);
+        }
+    }
+}
+
+#[test]
+fn matching_runs_concurrently() {
+    let handles: Vec<_> = (0..4)
+        .map(|t| {
+            thread::spawn(move || {
+                let all = strings();
+                let sep = NonZeroU8::new([b',', b';', b'a', 0xff][t]).unwrap();
+                for (i, name) in all.iter().enumerate().step_by(7) {
+                    let list = &all[(i * 31) % all.len()];
+                    let _ = (match_name(name, list), match_list(name, list, sep));
+                }
+            })
+        })
+        .collect();
+    for h in handles {
+        h.join().unwrap();
     }
 }

@@ -57,3 +57,81 @@ fn repeated_calls_into_one_buffer_match_c() {
         assert_eq!(r, c, "{errnum}");
     }
 }
+
+/// `make_error_string` against `av_make_error_string` on independently
+/// owned buffers.
+mod make_error_string {
+    use core::ffi::c_int;
+
+    use ffmpeg::libavutil::error::{MAX_STRING_SIZE, make_error_string};
+    use ffmpeg::libavutil::ffi;
+
+    /// `FFERRTAG(a, b, c, d)`.
+    const fn tag(a: u8, b: u8, c: u8, d: u8) -> c_int {
+        -((a as c_int) | (b as c_int) << 8 | (c as c_int) << 16 | (d as c_int) << 24)
+    }
+
+    /// FFmpeg's own codes, negated `errno`s, unknown values and the extremes.
+    const CODES: [c_int; 16] = [
+        tag(b'E', b'O', b'F', b' '),
+        tag(b'I', b'N', b'D', b'A'),
+        tag(0xf8, b'D', b'E', b'C'),
+        tag(0xf8, b'4', b'0', b'4'),
+        tag(b'B', b'U', b'G', b'!'),
+        -0x2bb2_afa8,
+        -0x636e_6701,
+        -1,
+        -12,
+        -22,
+        -110,
+        0,
+        1,
+        12345,
+        c_int::MIN,
+        c_int::MAX,
+    ];
+
+    /// `av_make_error_string` into a fresh `len`-byte buffer: the whole buffer
+    /// afterwards, and whether it returned the buffer. A size-0 call gets a valid
+    /// one-byte buffer it may not write: glibc's `strerror_r` takes no NULL.
+    fn c_error_string(len: usize, errnum: c_int) -> (Vec<u8>, bool) {
+        let mut buf = vec![0xa5_u8; len.max(1)];
+        let ptr = buf.as_mut_ptr().cast();
+        // SAFETY: `ptr` is valid for `len.max(1)` bytes of writes, and C writes
+        // at most `len`.
+        let ret = unsafe { ffi::av_make_error_string(ptr, len, errnum) };
+        if len == 0 {
+            assert_eq!(buf, [0xa5], "C wrote into a size-0 buffer");
+            buf.clear();
+        }
+        (buf, ret == ptr)
+    }
+
+    #[test]
+    fn descriptions_and_buffers_match_at_every_size() {
+        for errnum in CODES {
+            for len in (0..=MAX_STRING_SIZE + 8).chain([256]) {
+                let (c, returned_buf) = c_error_string(len, errnum);
+                assert!(returned_buf);
+                let mut rust = vec![0xa5_u8; len];
+                let s = make_error_string(errnum, &mut rust).to_bytes().to_vec();
+                assert_eq!(rust, c, "buffer, {errnum} in {len}");
+                let c_str = c.split(|&b| b == 0).next().filter(|_| len > 0);
+                assert_eq!(s, c_str.unwrap_or_default(), "string, {errnum} in {len}");
+            }
+        }
+    }
+
+    #[test]
+    fn reusing_one_buffer_matches_step_by_step() {
+        let mut rust = [0u8; MAX_STRING_SIZE];
+        let mut c = [0u8; MAX_STRING_SIZE];
+        for errnum in CODES.iter().chain(CODES.iter().rev()) {
+            let s = make_error_string(*errnum, &mut rust).to_owned();
+            // SAFETY: `c` is valid for `MAX_STRING_SIZE` bytes of writes.
+            unsafe { ffi::av_make_error_string(c.as_mut_ptr().cast(), c.len(), *errnum) };
+            assert_eq!(rust, c, "{errnum}");
+            assert_eq!(s.as_bytes(), c.split(|&b| b == 0).next().unwrap());
+        }
+    }
+}

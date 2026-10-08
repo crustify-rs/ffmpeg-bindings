@@ -1,10 +1,14 @@
-//! UB tests for `libavutil/common.h`'s safe clamps, [`zero_extend`] and
-//! `ceil_log2`, through the safe API only: every input class the C branches
-//! test, and no bit position reaches C's undefined shifts.
+//! UB tests for `libavutil/common.h`'s safe clamps, [`zero_extend`],
+//! `ceil_log2` and bit-counting helpers, through the safe API only: every
+//! input class the C branches test, every 16-bit value and bit boundary,
+//! no bit position reaching C's undefined shifts, and concurrent calls.
+
+use std::thread;
 
 use ffmpeg::libavutil::common::{
     ceil_log2, clamp_f32, clamp_f64, clamp_i32, clamp_i64, clamp_to_i8, clamp_to_i16, clamp_to_i32,
-    clamp_to_signed_pow2, clamp_to_u8, clamp_to_u16, clamp_to_unsigned_pow2, zero_extend,
+    clamp_to_signed_pow2, clamp_to_u8, clamp_to_u16, clamp_to_unsigned_pow2, log2, log2_16bit,
+    parity, zero_extend,
 };
 
 /// `i32` values around zero, every power of two and the type limits.
@@ -155,5 +159,42 @@ mod count_and_saturate {
             .join()
             .unwrap();
         assert_eq!(r, i64::MIN);
+    }
+}
+
+#[test]
+fn log2_16bit_takes_every_value_of_its_domain() {
+    for v in 0..=u16::MAX {
+        assert!(log2_16bit(v) < 16);
+    }
+}
+
+#[test]
+fn log2_and_parity_take_every_bit_boundary() {
+    for bit in 0..32 {
+        for v in [(1u32 << bit) - 1, 1 << bit, (1 << bit) | 1, !(1u32 << bit)] {
+            assert!(log2(v) < 32);
+            let _ = parity(v);
+        }
+    }
+    assert_eq!((log2(0), log2(u32::MAX)), (0, 31));
+}
+
+#[test]
+fn helpers_run_concurrently() {
+    let handles: Vec<_> = (0..4u32)
+        .map(|t| {
+            thread::spawn(move || {
+                (0..10_000u32)
+                    .map(|i| {
+                        let v = i.wrapping_mul(0x9e37_79b9) ^ t;
+                        log2(v) + log2_16bit(v as u16) + u32::from(parity(v))
+                    })
+                    .sum::<u32>()
+            })
+        })
+        .collect();
+    for h in handles {
+        h.join().unwrap();
     }
 }

@@ -1,7 +1,8 @@
 //! Safe wrappers over `libavutil/error.h`.
 //!
 //! [`describe`] writes the description of an `AVERROR` code into a caller
-//! buffer.
+//! buffer, and [`make_error_string`] does the same without the status, as
+//! `av_err2str` uses it.
 
 use core::ffi::CStr;
 
@@ -38,6 +39,30 @@ pub fn describe(errnum: i32, buf: &mut [u8]) -> Result<&CStr, &CStr> {
     // C defect, read as an empty description rather than past the buffer.
     let text = CStr::from_bytes_until_nul(buf).unwrap_or(c"");
     if ret < 0 { Err(text) } else { Ok(text) }
+}
+
+/// The buffer size `av_err2str` uses, which fits every description FFmpeg
+/// defines itself (`AV_ERROR_MAX_STRING_SIZE`).
+pub const MAX_STRING_SIZE: usize = ffi::AV_ERROR_MAX_STRING_SIZE as usize;
+
+/// Wraps: av_make_error_string
+///
+/// Writes the description of the `AVERROR` code `errnum` into `buf`, and
+/// returns it, as [`describe`] does without the status: FFmpeg's own text for its codes, the system's for a negated
+/// `errno`, and `Error number <errnum> occurred` for anything else, truncated
+/// to fit with its NUL. An empty `buf` yields an empty string.
+/// [`MAX_STRING_SIZE`] bytes hold every FFmpeg description untruncated.
+pub fn make_error_string(errnum: i32, buf: &mut [u8]) -> &CStr {
+    if buf.is_empty() {
+        return Default::default();
+    }
+    // SAFETY: `buf` is valid for writes of `buf.len()` bytes, which bounds
+    // every write `av_strerror` makes and includes the NUL it always writes
+    // into a non-empty buffer. The returned pointer is `buf`'s own.
+    unsafe { ffi::av_make_error_string(buf.as_mut_ptr().cast(), buf.len(), errnum) };
+    // C NUL-terminates a non-empty buffer on every path; an unterminated one
+    // would be a broken libc, read as no description at all.
+    CStr::from_bytes_until_nul(buf).unwrap_or_default()
 }
 
 #[cfg(test)]
@@ -84,5 +109,31 @@ mod unit_tests {
         assert_eq!(describe(EOF, &mut []), Ok(c""));
         assert_eq!(describe(ENOMEM, &mut []), Err(c""));
         assert_eq!(describe(-0x7777_7777, &mut []), Err(c""));
+    }
+
+    #[test]
+    fn make_error_string_describes_ffmpeg_codes() {
+        let mut buf = [0xaa; MAX_STRING_SIZE];
+        assert_eq!(make_error_string(EOF, &mut buf), c"End of file");
+    }
+
+    #[test]
+    fn make_error_string_truncates_to_the_buffer() {
+        let mut buf = [0xaa; 4];
+        assert_eq!(make_error_string(EOF, &mut buf), c"End");
+        let mut one = [0xaa; 1];
+        assert_eq!(make_error_string(EOF, &mut one), c"");
+    }
+
+    #[test]
+    fn make_error_string_into_an_empty_buffer_is_empty() {
+        assert_eq!(make_error_string(EOF, &mut []), c"");
+    }
+
+    #[test]
+    fn make_error_string_reports_unknown_codes_by_number() {
+        let mut buf = [0; MAX_STRING_SIZE];
+        let s = make_error_string(i32::MIN, &mut buf).to_str().unwrap();
+        assert_eq!(s, format!("Error number {} occurred", i32::MIN));
     }
 }
