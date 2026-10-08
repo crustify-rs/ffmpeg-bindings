@@ -18,7 +18,7 @@ Copy this template into the campaign checkout, then fill it as work lands.
 - **`--min-fields`** — `20`
 - **orchestrator parallelism** — `10` concurrent batch processes
 - **branch** — `crustify/campaigns/20261005`, tip `<sha>`
-- **deps** — crustify `c6fb5c6` (`main`, plus an uncommitted prompt edit), ffibox `695d52d` (`main`)
+- **deps** — crustify `7912683` (`main`, plus uncommitted prompt edits; `scan-unsafe` from `fix/pin-audit-nightly` `4efc0cc`), ffibox `695d52d` (`main`)
 - **build version** — `3`
 - **C test baseline** — `5437/5437, 0 skipped, and no disabled tests`
 
@@ -163,12 +163,21 @@ Implementation `openrouter/anthropic/claude-opus-5.5` via `claude`; review
 
 ### Batches — wrap
 
-`<provider>/<model>` via `<backend>`.
+`openrouter/anthropic/claude-opus-5.5` via `claude`.
 
 | wave | batch | types | fields | +LoC | +UB safe tests (+C/+Rust pp) | +UB unsafe tests (+C/+Rust pp) | +equiv tests (+C/+Rust pp) | +unit tests (+C/+Rust pp) | +unsafe fn smell | +raw-ptr smell | $ | wall | $/type | $/field |
 |---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|
-|`<n>`|`<n>`| `<n>` | `<n>` |`+<n>/-<n>`|`+<n>` (`+<n>`/`+<n>` pp)|`+<n>` (`+<n>`/`+<n>` pp)|`+<n>` (`+<n>`/`+<n>` pp)|`+<n>` (`+<n>`/`+<n>` pp)| `±<n>` | `±<n>` | `$<n>` | `<n>m<n>s` | `$<n>` | `$<n>` |
-| **Σ** |  | **`<n>`** | **`<n>`** | **`+<n>/-<n>`** | **`+<n>` (`+<n>`/`+<n>` pp)** | **`+<n>` (`+<n>`/`+<n>` pp)** | **`+<n>` (`+<n>`/`+<n>` pp)** | **`+<n>` (`+<n>`/`+<n>` pp)** | **`±<n>`** | **`±<n>`** | **`$<n>`** | — | **`$<n>`** | **`$<n>`** |
+|`0`|`0`| `2` | `0` |`+649/-0`|`+3` (`+0.00`/`+12.03` pp)|`+0` (`+0.00`/`+0.00` pp)|`+3` (`+1.69`/`-29.59` pp)|`+9` (`+0.00`/`-0.59` pp)| `0` | `0` | `$2.13` | `10m25s` | `$1.06` | `—` |
+|`0`|`1`| `2` | `0` |`+569/-0`|`+8` (`+0.00`/`-0.93` pp)|`+0` (`+0.00`/`+0.00` pp)|`+11` (`+0.57`/`-2.30` pp)|`+9` (`+0.00`/`+0.07` pp)| `0` | `0` | `$2.77` | `16m06s` | `$1.39` | `—` |
+|`0`|`2`| `2` | `0` |`+1154/-0`|`+0` (`+0.00`/`-20.74` pp)|`+10` (`+1.10`/`+6.13` pp)|`+5` (`+0.74`/`-13.82` pp)|`+12` (`+5.51`/`-15.47` pp)| `+4` | `+3` | `$7.87` | `32m39s` | `$3.94` | `—` |
+|`0`|`3`| `2` | `2` |`+848/-2`|`+14` (`+0.00`/`+3.17` pp)|`+0` (`+0.00`/`-0.52` pp)|`+10` (`+0.37`/`-0.37` pp)|`+15` (`+0.00`/`+0.97` pp)| `0` | `0` | `$4.39` | `28m48s` | `$2.19` | `$2.19` |
+|`0`|`4`| `2` | `0` |`+504/-0`|`+4` (`+0.00`/`+1.78` pp)|`+0` (`+0.00`/`+0.00` pp)|`+9` (`+0.37`/`-1.69` pp)|`+8` (`+0.00`/`+0.03` pp)| `0` | `0` | `$4.53` | `23m25s` | `$2.27` | `—` |
+|`0`|`5`| `2` | `6` |`+650/-2`|`+9` (`+0.00`/`-1.08` pp)|`+0` (`+0.00`/`+0.00` pp)|`+6` (`+0.00`/`+0.85` pp)|`+7` (`+0.00`/`+0.10` pp)| `0` | `0` | `$3.35` | `20m31s` | `$1.68` | `$0.56` |
+|`0`|`6`| `2` | `8` |`+773/-6`|`+9` (`+0.00`/`-4.18` pp)|`+0` (`+0.00`/`+0.00` pp)|`+7` (`+0.00`/`+2.75` pp)|`+12` (`+0.00`/`+0.04` pp)| `0` | `0` | `$6.15` | `29m17s` | `$3.08` | `$0.77` |
+|`0`|`7`| `1` | `2` |`+494/-0`|`+9` (`+0.00`/`-3.59` pp)|`+0` (`+0.00`/`+0.00` pp)|`+8` (`+0.00`/`+0.19` pp)|`+9` (`+0.00`/`+0.08` pp)| `0` | `0` | `$2.61` | `14m49s` | `$2.61` | `$1.30` |
+|`0`|`8`| `2` | `2` |`+741/-2`|`+10` (`+0.00`/`-1.32` pp)|`+0` (`+0.00`/`+0.00` pp)|`+8` (`+0.43`/`+1.09` pp)|`+7` (`+0.00`/`+0.03` pp)| `0` | `0` | `$5.48` | `25m56s` | `$2.74` | `$2.74` |
+|`0`|`9`| `1` | `1` |`+396/-0`|`+10` (`+0.00`/`+9.78` pp)|`+0` (`+0.00`/`+0.00` pp)|`+5` (`+0.18`/`+1.84` pp)|`+4` (`+0.00`/`+0.07` pp)| `0` | `0` | `$2.95` | `12m24s` | `$2.95` | `$2.95` |
+| **Σ** |  | **`18`** | **`21`** | **`+6778/-12`** | **`+76` (`+0.00`/`-5.09` pp)** | **`+10` (`+1.10`/`+5.61` pp)** | **`+72` (`+4.34`/`-41.05` pp)** | **`+92` (`+5.51`/`-14.68` pp)** | **`+4`** | **`+3`** | **`$42.23`** | — | **`$2.35`** | **`$2.01`** |
 
 ### Batches — port
 
@@ -201,13 +210,16 @@ Implementation `openrouter/anthropic/claude-opus-5.5` via `claude`; review
 
 ### Batches
 
-`<provider>/<model>` via `<backend>`.
+`openrouter/anthropic/claude-opus-5.5` via `claude`.
 
 | wave | batch | objective | symbols | loc | +LoC | +UB safe tests (+C/+Rust pp) | +UB unsafe tests (+C/+Rust pp) | +equiv tests (+C/+Rust pp) | +unit tests (+C/+Rust pp) | +unsafe fn smell | +raw-ptr smell | $ | wall | $/symbol | $/loc |
 |---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|
-|`<n>`|`<n>`| wrap | `<n>` | `<n>` |`+<n>/-<n>`|`+<n>` (`+<n>`/`+<n>` pp)|`+<n>` (`+<n>`/`+<n>` pp)|`+<n>` (`+<n>`/`+<n>` pp)|`+<n>` (`+<n>`/`+<n>` pp)| `±<n>` | `±<n>` | `$<n>` | `<n>m<n>s` | `$<n>` | `$<n>` |
-|`<n>`|`<n>`| port | `<n>` | `<n>` |`+<n>/-<n>`|`+<n>` (`+<n>`/`+<n>` pp)|`+<n>` (`+<n>`/`+<n>` pp)|`+<n>` (`+<n>`/`+<n>` pp)|`+<n>` (`+<n>`/`+<n>` pp)| `±<n>` | `±<n>` | `$<n>` | `<n>m<n>s` | `$<n>` | `$<n>` |
-| **Σ** |  |  | **`<n>`** | **`<n>`** | **`+<n>/-<n>`** | **`+<n>` (`+<n>`/`+<n>` pp)** | **`+<n>` (`+<n>`/`+<n>` pp)** | **`+<n>` (`+<n>`/`+<n>` pp)** | **`+<n>` (`+<n>`/`+<n>` pp)** | **`±<n>`** | **`±<n>`** | **`$<n>`** | — | **`$<n>`** | **`$<n>`** |
+|`0`|`10`| wrap | `25` | `1283` |`+1283/-3`|`+16` (`+0.82`/`+2.63` pp)|`+6` (`+0.02`/`-0.08` pp)|`+21` (`+0.85`/`+2.96` pp)|`+18` (`+0.79`/`+1.65` pp)| `+1` | `+1` | `$17.79` | `86m15s` | `$0.71` | `$0.014` |
+|`0`|`11`| wrap | `25` | `1877` |`+1877/-14`|`+20` (`+1.27`/`+2.84` pp)|`+7` (`+0.53`/`+1.20` pp)|`+29` (`+1.49`/`+3.35` pp)|`+13` (`+0.74`/`-1.55` pp)| `+4` | `+7` | `$28.38` | `124m29s` | `$1.14` | `$0.015` |
+|`0`|`12`| wrap | `25` | `2896` |`+2896/-176`|`+20` (`+1.66`/`-0.46` pp)|`+13` (`+0.45`/`+6.11` pp)|`+21` (`+0.90`/`+0.47` pp)|`+22` (`+1.07`/`-0.12` pp)| `+2` | `+3` | `$45.49` | `178m41s` | `$1.82` | `$0.016` |
+|`0`|`13`| wrap | `25` | `2611` |`+2611/-3`|`+27` (`+6.37`/`+3.54` pp)|`+0` (`+0.00`/`-1.35` pp)|`+27` (`+6.86`/`+4.73` pp)|`+37` (`+1.83`/`+0.77` pp)| `+1` | `0` | `$27.60` | `155m09s` | `$1.10` | `$0.011` |
+|`0`|`14`| wrap | `21` | `1561` |`+1561/-1`|`+20` (`+2.05`/`+4.45` pp)|`+5` (`+1.19`/`-0.57` pp)|`+26` (`+1.05`/`+5.47` pp)|`+12` (`+0.46`/`-4.07` pp)| `+1` | `+1` | `$11.38` | `62m02s` | `$0.54` | `$0.007` |
+| **Σ** |  |  | **`121`** | **`10228`** | **`+10228/-197`** | **`+103` (`+12.18`/`+13.00` pp)** | **`+31` (`+2.18`/`+5.31` pp)** | **`+124` (`+11.15`/`+16.97` pp)** | **`+102` (`+4.89`/`-3.31` pp)** | **`+9`** | **`+12`** | **`$130.64`** | — | **`$1.08`** | **`$0.013`** |
 
 ### Batches — review
 
@@ -548,3 +560,86 @@ Both raw-lifetime tiers were translated and reviewed against ffibox `508e478`. A
 string tier, ffibox `main` took the `CVec::clone` alignment fix (`695d52d`), and the gates were
 rerun at `050c2adfa0` against it: `clippy` clean, and the plain, `asan-ubsan`, `tsan` and `bsan`
 suites pass. The void review's reproducer no longer compiles (`E0080`).
+
+### `libavutil/core` wave 0
+
+Wave 0 is 15 batches: 10 type batches (18 types, 21 scheduled field anchors) and 5 symbol
+batches (121 symbols), all `wrap`. The interrupted session launched batches 0–2 and 4–9 at
+02:54Z on 2026-10-08; all nine landed by 03:27Z. It never prepared batch 3 or batches 10–14 and
+left no record of why. The resumed session launched those six at 18:46Z from the wave tip
+`6ae1112aa5`; they landed between 19:15Z and 21:45Z. All 139 scheduled items carry their anchor
+on the wave tip `3770f8f483`. Translation cost `$172.86` for 424.5M tokens and 13h41m of agent
+wall time.
+
+The wave tip passes `clippy --all-targets -D warnings`, the plain suites (`compile_fail`
+included) and the `asan-ubsan`, `tsan` and `bsan` suites: 211 unit, 213 equivalence, 200
+`ub_safe` and 41 `ub_unsafe` tests under `bsan`.
+
+What the diffs contained beyond the row counts:
+
+- Batch 2 (`AVOption`, `AVOptionRanges`) also anchored `av_opt_query_ranges`,
+  `av_opt_query_ranges_default` and `av_opt_freep_ranges`, which `schedule.json` places in
+  `libavutil/options` wave 2 batch 0, and 16 `Field:` anchors on the two types, which the
+  schedule gave no `field_anchors`. The `fields` column counts scheduled anchors only, so the
+  row reads `0`. The empty `field_anchors` on two structs with public fields looks like a gap in
+  the schedule. The three functions count as done when that options batch runs.
+- The 25-symbol batches took 86–179 minutes against 10–33 for the type batches. Batches 12 and 13
+  share homes (`log.rs`, `avstring.rs`) with siblings that landed first, rebased 3 and 6 times
+  and revalidated the full sanitizer matrix after each.
+
+How the rows were measured. Every per-batch figure compares the batch's landing commit with its
+parent, so it is that batch's own change. The toolchain commit below has no row.
+
+- `+LoC` (and the Symbols `loc`, its insertions) counts `.rs` lines under `crustify/rust`,
+  tests included, excluding blank and comment-only lines.
+- Test counts are `#[test]` functions: unit under `crustify/rust/ffmpeg` outside `tests/`,
+  and `tests/{ub_safe,ub_unsafe,equiv}` excluding `compile_fail/` programs.
+- C coverage is line coverage over the 12,558 executable lines of libavutil's 94 compiled TUs,
+  from the `coverage` prebuild through `gcov`. `.gcda` output is redirected with `GCOV_PREFIX`.
+  Header inlines compiled into the `-sys` shim (`av_int2float`, `av_clip_*`, `av_bswap*`) are
+  not instrumented and count nowhere.
+- Rust coverage is line coverage from `-C instrument-coverage` (nightly `1d81eb4ad`) over the
+  authored non-test sources of `crustify/rust/ffmpeg`, excluding `tests/` and `#[cfg(test)]`
+  modules. All four test binaries serve as coverage objects for every workload, so the four
+  workloads share one denominator per commit.
+- Each workload ran alone, on the plain build: unit is `--lib`, the others their test binary,
+  all with `--skip compile_fail`.
+- Σ coverage cells add the per-row deltas. Denominators grow with every landing, so a Σ is
+  not the wave-level change, and negative Rust deltas mark landings whose new lines a given
+  workload does not reach.
+- Smell deltas come from unseeded scans (`scan-unsafe.tree.json`) at the landing commit and
+  its parent. They sum to `+13` (`unsafe fn`) and `+15` (raw pointer) over the base's 8 and 5,
+  which equals the wave tip's 21 and 20. The seeded scans of batches 0, 1 and 4 matched no site
+  (`scan-unsafe.txt`).
+
+### Toolchain drift before the wave-0 resume
+
+Between the interrupted session and the resume, the container's toolchains changed:
+
+- nightly went from 1.100 to `1d81eb4ad` (2026-10-07) at 03:34Z;
+- the bsan toolchain went from clang 23.1.0 to 23.1.3, runtime `3f210d63ae` to `de6ede0149`,
+  at 03:36Z;
+- stable `rustc` was reinstalled at 16:11Z;
+- `zlib1g-dev` disappeared, while the zlib runtime stayed.
+
+Effects and fixes:
+
+- **Stable `rustc`.** It added a "struct named `Rounding` exists in another namespace" note to
+  one trybuild `.stderr` (batch 4), and its clippy flagged a deliberate `Clone::clone` on a
+  `Copy` type in batch 7's tests. Commit `6ae1112aa5` re-blessed the `.stderr` and allowed
+  `clone_on_copy` on that statement. Both are test-only.
+- **BSan prebuild.** It was rebuilt with the unchanged `build.json` commands (still version 3)
+  after reinstalling `zlib1g-dev`; its `CONFIG_*` set is identical. The new runtime no longer
+  reports the `realloc(NULL, n)` false use-after-free. Instead it aborts multi-threaded suites
+  when its garbage collector waits more than 10 s for a thread to reach a safepoint;
+  `BSAN_OPTIONS=gc_hang_threshold_ms=600000` lets every suite pass.
+- **`crustify scan-unsafe`.** Its `rustc_private` driver no longer built on the new nightly, so
+  it reported no counts. The fix, on crustify branch `fix/pin-audit-nightly` (`4efc0cc`, not
+  merged), ports the driver and pins it to `nightly-2026-10-07`. Every wave-0 scan comes from
+  that driver. Its scan of the wave base reproduces the raw-lifetime smells recorded above
+  (8 and 5).
+
+The six resumed translators lost time to the broken scan and the BSan abort before working
+around them. The interrupted run's translators also wrote `.gcda` counters straight into the
+shared `coverage` prebuild (92 files, last at 03:08Z); the coverage figures above never read
+them.
