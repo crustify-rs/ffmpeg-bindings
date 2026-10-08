@@ -1,9 +1,13 @@
 //! Equivalence of `libavutil/avstring.h`'s [`EscapeMode`] with the C enum, as
-//! `av_escape` observes it.
+//! `av_escape` observes it, and of the character classes and name matching
+//! with the C functions they wrap.
 
 use core::ffi::{CStr, c_char, c_int, c_void};
+use core::num::NonZeroU8;
 
-use ffmpeg::libavutil::avstring::EscapeMode;
+use ffmpeg::libavutil::avstring::{
+    EscapeMode, is_graph, is_space, is_xdigit, match_list, match_name,
+};
 use ffmpeg::libavutil::ffi;
 
 /// Every mode beside its C enumerator.
@@ -1446,5 +1450,98 @@ mod search_and_scan {
         assert_eq!(outcomes, [true, true, true, false, false, false]);
         // SAFETY: as above; the default limit again.
         unsafe { ffi::av_max_alloc(i32::MAX as usize) };
+    }
+}
+
+#[test]
+fn character_classes_match_c_on_every_byte_and_the_extremes() {
+    let extremes = [
+        c_int::MIN,
+        c_int::MIN + 1,
+        -129,
+        -128,
+        -2,
+        -1,
+        256,
+        257,
+        c_int::MAX,
+    ];
+    for c in (-1..=255).chain(extremes) {
+        // SAFETY: the classifiers take their argument by value.
+        let (g, s, x) = unsafe { (ffi::av_isgraph(c), ffi::av_isspace(c), ffi::av_isxdigit(c)) };
+        assert_eq!(c_int::from(is_graph(c)), g, "isgraph({c})");
+        assert_eq!(c_int::from(is_space(c)), s, "isspace({c})");
+        assert_eq!(c_int::from(is_xdigit(c)), x, "isxdigit({c})");
+    }
+}
+
+const NAMES: [&CStr; 9] = [
+    c"", c"h264", c"H264", c"h26", c"h2645", c"all", c"ALL", c"-", c"a,b",
+];
+
+const NAME_LISTS: [&CStr; 14] = [
+    c"",
+    c",",
+    c",,",
+    c"h264",
+    c"mpeg4,h264",
+    c"mpeg4,H264,",
+    c"-h264,ALL",
+    c"ALL,-h264",
+    c"-ALL",
+    c"ALL",
+    c"AL",
+    c"ALLX",
+    c"-",
+    c"h26,h2645,-",
+];
+
+#[test]
+fn match_name_matches_av_match_name() {
+    for name in NAMES {
+        for names in NAME_LISTS {
+            // SAFETY: both are live NUL-terminated strings, only read.
+            let c = unsafe { ffi::av_match_name(name.as_ptr(), names.as_ptr()) };
+            assert_eq!(
+                c_int::from(match_name(name, names)),
+                c,
+                "{name:?} in {names:?}"
+            );
+        }
+    }
+}
+
+const LISTS: [&CStr; 12] = [
+    c"",
+    c",",
+    c"a",
+    c"a,b",
+    c"b,a",
+    c"ab,a",
+    c",a",
+    c"a,",
+    c"aa,bb,cc",
+    c"x;y",
+    c"\xff",
+    c"a\xffb",
+];
+
+#[test]
+fn match_list_matches_av_match_list_for_every_separator() {
+    for sep in [b',', b';', b' ', b'a', 0x01, 0x7f, 0x80, 0xff] {
+        let separator = NonZeroU8::new(sep).unwrap();
+        for name in LISTS {
+            for list in LISTS {
+                // SAFETY: both are live NUL-terminated strings and the
+                // separator is not NUL, so C reads each only up to its
+                // terminator.
+                let c = unsafe { ffi::av_match_list(name.as_ptr(), list.as_ptr(), sep as c_char) };
+                assert_eq!(
+                    c_int::from(match_list(name, list, separator)),
+                    c,
+                    "{name:?} vs {list:?} on {sep:#x}"
+                );
+            }
+        }
     }
 }

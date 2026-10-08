@@ -1,7 +1,8 @@
 //! Equivalence of `libavutil/mem.h`'s `av_malloc`-family owners with the raw
-//! C allocator, on independently owned blocks; and of `DynArray`,
+//! C allocator, on independently owned blocks; of `DynArray`,
 //! `FastBuffer` and `ZeroedFastBuffer` with C `(tab, nb)` and `(ptr, size)`
-//! pairs grown by the `av_dynarray` and `av_fast` families.
+//! pairs grown by the `av_dynarray` and `av_fast` families; and of the
+//! allocation limit and back-reference copy with the C functions they wrap.
 
 use core::ffi::{CStr, c_char, c_int, c_uint, c_void};
 use core::marker::PhantomData;
@@ -10,9 +11,9 @@ use core::mem::{MaybeUninit, size_of};
 use ffibox::{CZeroable, define_ctype};
 use ffmpeg::libavutil::ffi;
 use ffmpeg::libavutil::mem::{
-    DynArray, FastBuffer, HeapBox, HeapString, HeapVec, ZeroedFastBuffer, alloc_array,
-    alloc_array_from_fn, alloc_array_zeroed, alloc_cell_array_zeroed, string_from_bytes_until_nul,
-    string_from_c_str,
+    BackReferenceError, DynArray, FastBuffer, HeapBox, HeapString, HeapVec, ZeroedFastBuffer,
+    alloc_array, alloc_array_from_fn, alloc_array_zeroed, alloc_cell_array_zeroed,
+    copy_back_reference, set_max_alloc, string_from_bytes_until_nul, string_from_c_str,
 };
 
 /// The alignment `av_malloc` guarantees in every configuration.
@@ -1150,4 +1151,116 @@ mod realloc {
             }
         }
     }
+}
+
+/// `av_memcpy_backptr(buf + dst, back, len)` on `buf`.
+fn c_backptr(buf: &mut [u8], dst: usize, back: usize, len: usize) {
+    assert!(back <= dst && dst + len <= buf.len());
+    // SAFETY: `dst <= buf.len()`; C reads from `dst - back`, at or after
+    // `buf[0]`, and writes `buf[dst..dst + len]`, inside `buf`.
+    unsafe { ffi::av_memcpy_backptr(buf.as_mut_ptr().add(dst), back as c_int, len as c_int) };
+}
+
+/// A buffer of distinct bytes, so a byte copied from the wrong place shows.
+fn backref_pattern(len: usize) -> Vec<u8> {
+    (0..len).map(|i| (i * 37 + 11) as u8).collect()
+}
+
+#[test]
+fn back_reference_matches_av_memcpy_backptr() {
+    for back in 0..=40 {
+        for len in (0..=70).chain([127, 128, 129, 255, 1000]) {
+            for dst in [back, back + 1, 64] {
+                let mut c = backref_pattern(dst + len + 3);
+                let mut rust = c.clone();
+                if back > dst {
+                    continue;
+                }
+                c_backptr(&mut c, dst, back, len);
+                copy_back_reference(&mut rust, dst, back, len).unwrap();
+                assert_eq!(rust, c, "dst {dst} back {back} len {len}");
+            }
+        }
+    }
+}
+
+#[test]
+fn chained_back_references_agree_after_every_step() {
+    // An LZ77 decode: literals, then back-references into what came before.
+    let steps = [(3, 9), (1, 4), (7, 20), (2, 2), (16, 33), (5, 0), (40, 64)];
+    let mut c = backref_pattern(400);
+    let mut rust = c.clone();
+    let mut at = 8;
+    for (back, len) in steps {
+        c_backptr(&mut c, at, back, len);
+        copy_back_reference(&mut rust, at, back, len).unwrap();
+        assert_eq!(rust, c, "at {at} back {back} len {len}");
+        at += len + 1;
+    }
+}
+
+#[test]
+fn rejected_back_references_leave_the_buffer_alone() {
+    let fresh = backref_pattern(16);
+    for (dst, back, len, err) in [
+        (2, 3, 1, BackReferenceError::BeforeStart),
+        (2, 3, 0, BackReferenceError::BeforeStart),
+        (10, 1, 7, BackReferenceError::PastEnd),
+        (17, 0, 0, BackReferenceError::PastEnd),
+        (4, 1 << 31, 1, BackReferenceError::TooLong),
+    ] {
+        let mut rust = fresh.clone();
+        assert_eq!(copy_back_reference(&mut rust, dst, back, len), Err(err));
+        assert_eq!(rust, fresh);
+    }
+}
+
+/// `set_max_alloc` moves the limit that both C and the Rust owners obey, as
+/// `av_max_alloc` does. The limit is process-global, so this runs in a child
+/// process running nothing else, and passes when the child does.
+#[test]
+fn set_max_alloc_moves_the_limit_as_av_max_alloc() {
+    const NAME: &str = "mem::set_max_alloc_moves_the_limit_as_av_max_alloc";
+    if std::env::var_os(ISOLATED).is_none() {
+        let status = std::process::Command::new(std::env::current_exe().unwrap())
+            .args(["--exact", NAME, "--test-threads=1", "--nocapture"])
+            .env(ISOLATED, "1")
+            .status()
+            .unwrap();
+        assert!(status.success(), "isolated run failed: {status}");
+        return;
+    }
+
+    /// Whether C and Rust each allocate `len` bytes, which must agree.
+    fn fits(len: usize) -> bool {
+        // SAFETY: `av_malloc` takes a size by value.
+        let c = CBlock(unsafe { ffi::av_malloc(len) });
+        let rust = alloc_array::<u8>(len);
+        assert_eq!(rust.is_some(), !c.0.is_null(), "{len}");
+        rust.is_some()
+    }
+
+    for (limit, via_rust) in [
+        (64, true),
+        (16, false),
+        (4096, true),
+        (0, false),
+        (100, true),
+    ] {
+        if via_rust {
+            set_max_alloc(limit);
+        } else {
+            // SAFETY: `av_max_alloc` takes a size by value; nothing else runs
+            // in this process.
+            unsafe { ffi::av_max_alloc(limit) };
+        }
+        assert!(fits(limit.min(4096)) || limit == 0);
+        assert!(!fits(limit + 1));
+        if limit > 0 {
+            assert!(fits(limit - 1));
+        }
+        assert_eq!(string_from_c_str(c"ab").is_some(), limit >= 3);
+    }
+    set_max_alloc(i32::MAX as usize);
+    assert!(fits(1 << 20));
 }

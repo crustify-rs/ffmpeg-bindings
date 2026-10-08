@@ -1421,6 +1421,379 @@
    "defined_in": "libavutil/avstring.h"
   },
   {
+   "name": "av_isgraph",
+   "defined_in": "libavutil/avstring.h"
+  },
+  {
+   "name": "av_isspace",
+   "defined_in": "libavutil/avstring.h"
+  },
+  {
+   "name": "av_isxdigit",
+   "defined_in": "libavutil/avstring.h"
+  },
+  {
+   "name": "av_log",
+   "defined_in": "libavutil/log.c",
+   "ptr_args": [
+    {
+     "name": "avcl",
+     "ptr": {
+      "scalar": {
+       "by_val": true
+      },
+      "array": null,
+      "string": false,
+      "owned": false,
+      "borrowed": {
+       "lifetime": "arg:avcl"
+      },
+      "nullable": true,
+      "mutable": false,
+      "note": "AVClass-enabled logging context or NULL (general log). Read only: av_vlog reads the class's version and log_level_offset_offset (then the int at that offset), format_line reads class_name/item_name, parent_log_context_offset (then the parent pointer and its class) and get_category. Borrowed for the call; the installed callback receives it unchanged. Rust: raw seam *mut c_void until AVClass-carrying types are wrapped. [symbol] Variadic; forwards to av_vlog, which applies the context's log level offset and calls the atomic av_log_callback (NULL-checked)."
+     }
+    },
+    {
+     "name": "fmt",
+     "ptr": {
+      "scalar": null,
+      "array": null,
+      "string": true,
+      "owned": false,
+      "borrowed": {
+       "lifetime": "arg:fmt"
+      },
+      "nullable": false,
+      "mutable": false,
+      "note": "printf format consumed with the variadic arguments for the call; never stored. Rust always passes \"%s\"."
+     }
+    }
+   ]
+  },
+  {
+   "name": "av_log2",
+   "defined_in": "libavutil/intmath.c"
+  },
+  {
+   "name": "av_log2_16bit",
+   "defined_in": "libavutil/intmath.c"
+  },
+  {
+   "name": "av_log_default_callback",
+   "defined_in": "libavutil/log.c",
+   "ptr_args": [
+    {
+     "name": "fmt",
+     "ptr": {
+      "scalar": null,
+      "array": null,
+      "string": true,
+      "owned": false,
+      "borrowed": {
+       "lifetime": "arg:fmt"
+      },
+      "nullable": false,
+      "mutable": false,
+      "note": "printf format consumed with the variadic arguments for the call; never stored. Rust always passes \"%s\"."
+     }
+    },
+    {
+     "name": "ptr",
+     "ptr": {
+      "scalar": {
+       "by_val": true
+      },
+      "array": null,
+      "string": false,
+      "owned": false,
+      "borrowed": {
+       "lifetime": "arg:ptr"
+      },
+      "nullable": true,
+      "mutable": false,
+      "note": "AVClass-enabled logging context or NULL (general log). Read only: av_vlog reads the class's version and log_level_offset_offset (then the int at that offset), format_line reads class_name/item_name, parent_log_context_offset (then the parent pointer and its class) and get_category. Borrowed for the call; the installed callback receives it unchanged. Rust: raw seam *mut c_void until AVClass-carrying types are wrapped. [symbol] va_list consumed through av_vbprintf's va_copy only, so the caller's va_list stays usable. Static state (print_prefix, repeat count, prev line) under a non-recursive static mutex; prints to stderr. Rust exposes it as Record::log_default inside a callback, where a live va_list exists."
+     }
+    }
+   ]
+  },
+  {
+   "name": "av_log_format_line",
+   "defined_in": "libavutil/log.c",
+   "ptr_args": [
+    {
+     "name": "fmt",
+     "ptr": {
+      "scalar": null,
+      "array": null,
+      "string": true,
+      "owned": false,
+      "borrowed": {
+       "lifetime": "arg:fmt"
+      },
+      "nullable": false,
+      "mutable": false,
+      "note": "printf format consumed with the variadic arguments for the call; never stored. Rust always passes \"%s\"."
+     }
+    },
+    {
+     "name": "line",
+     "ptr": {
+      "scalar": null,
+      "array": {
+       "by_val": true
+      },
+      "string": true,
+      "owned": false,
+      "borrowed": {
+       "lifetime": "arg:line"
+      },
+      "nullable": true,
+      "mutable": true,
+      "note": "Output buffer of line_size bytes, NUL-terminated by snprintf when line_size > 0; NULL accepted with line_size 0 (snprintf)."
+     }
+    },
+    {
+     "name": "print_prefix",
+     "ptr": {
+      "scalar": {
+       "by_val": true
+      },
+      "array": null,
+      "string": false,
+      "owned": false,
+      "borrowed": {
+       "lifetime": "arg:print_prefix"
+      },
+      "nullable": false,
+      "mutable": true,
+      "note": "Persistent in/out int, initially 1; read to decide the context prefix, set when the message ends with \\n or \\r."
+     }
+    },
+    {
+     "name": "ptr",
+     "ptr": {
+      "scalar": {
+       "by_val": true
+      },
+      "array": null,
+      "string": false,
+      "owned": false,
+      "borrowed": {
+       "lifetime": "arg:ptr"
+      },
+      "nullable": true,
+      "mutable": false,
+      "note": "AVClass-enabled logging context or NULL (general log). Read only: av_vlog reads the class's version and log_level_offset_offset (then the int at that offset), format_line reads class_name/item_name, parent_log_context_offset (then the parent pointer and its class) and get_category. Borrowed for the call; the installed callback receives it unchanged. Rust: raw seam *mut c_void until AVClass-carrying types are wrapped. [symbol] Forwards to av_log_format_line2 discarding its result."
+     }
+    }
+   ]
+  },
+  {
+   "name": "av_log_format_line2",
+   "defined_in": "libavutil/log.c",
+   "ptr_args": [
+    {
+     "name": "fmt",
+     "ptr": {
+      "scalar": null,
+      "array": null,
+      "string": true,
+      "owned": false,
+      "borrowed": {
+       "lifetime": "arg:fmt"
+      },
+      "nullable": false,
+      "mutable": false,
+      "note": "printf format consumed with the variadic arguments for the call; never stored. Rust always passes \"%s\"."
+     }
+    },
+    {
+     "name": "line",
+     "ptr": {
+      "scalar": null,
+      "array": {
+       "by_val": true
+      },
+      "string": true,
+      "owned": false,
+      "borrowed": {
+       "lifetime": "arg:line"
+      },
+      "nullable": true,
+      "mutable": true,
+      "note": "Output buffer of line_size bytes; may be NULL when line_size is 0; at most line_size-1 chars plus NUL."
+     }
+    },
+    {
+     "name": "print_prefix",
+     "ptr": {
+      "scalar": {
+       "by_val": true
+      },
+      "array": null,
+      "string": false,
+      "owned": false,
+      "borrowed": {
+       "lifetime": "arg:print_prefix"
+      },
+      "nullable": false,
+      "mutable": true,
+      "note": "Persistent in/out int, initially 1; set when the message ends with \\n or \\r."
+     }
+    },
+    {
+     "name": "ptr",
+     "ptr": {
+      "scalar": {
+       "by_val": true
+      },
+      "array": null,
+      "string": false,
+      "owned": false,
+      "borrowed": {
+       "lifetime": "arg:ptr"
+      },
+      "nullable": true,
+      "mutable": false,
+      "note": "AVClass-enabled logging context or NULL (general log). Read only: av_vlog reads the class's version and log_level_offset_offset (then the int at that offset), format_line reads class_name/item_name, parent_log_context_offset (then the parent pointer and its class) and get_category. Borrowed for the call; the installed callback receives it unchanged. Rust: raw seam *mut c_void until AVClass-carrying types are wrapped. [symbol] Returns snprintf's result: negative on error, else the untruncated length. va_list used through va_copy only."
+     }
+    }
+   ]
+  },
+  {
+   "name": "av_log_get_flags",
+   "defined_in": "libavutil/log.c"
+  },
+  {
+   "name": "av_log_get_level",
+   "defined_in": "libavutil/log.c"
+  },
+  {
+   "name": "av_log_once",
+   "defined_in": "libavutil/log.c",
+   "ptr_args": [
+    {
+     "name": "avcl",
+     "ptr": {
+      "scalar": {
+       "by_val": true
+      },
+      "array": null,
+      "string": false,
+      "owned": false,
+      "borrowed": {
+       "lifetime": "arg:avcl"
+      },
+      "nullable": true,
+      "mutable": false,
+      "note": "AVClass-enabled logging context or NULL (general log). Read only: av_vlog reads the class's version and log_level_offset_offset (then the int at that offset), format_line reads class_name/item_name, parent_log_context_offset (then the parent pointer and its class) and get_category. Borrowed for the call; the installed callback receives it unchanged. Rust: raw seam *mut c_void until AVClass-carrying types are wrapped. [symbol] Variadic; av_vlog at initial or subsequent level by *state, then *state = 1."
+     }
+    },
+    {
+     "name": "fmt",
+     "ptr": {
+      "scalar": null,
+      "array": null,
+      "string": true,
+      "owned": false,
+      "borrowed": {
+       "lifetime": "arg:fmt"
+      },
+      "nullable": false,
+      "mutable": false,
+      "note": "printf format consumed with the variadic arguments for the call; never stored. Rust always passes \"%s\"."
+     }
+    },
+    {
+     "name": "state",
+     "ptr": {
+      "scalar": {
+       "by_val": true
+      },
+      "array": null,
+      "string": false,
+      "owned": false,
+      "borrowed": {
+       "lifetime": "arg:state"
+      },
+      "nullable": false,
+      "mutable": true,
+      "note": "Caller-owned int flag: read (nonzero selects subsequent_level) then set to 1; must not be shared between threads during the call."
+     }
+    }
+   ]
+  },
+  {
+   "name": "av_log_set_callback",
+   "defined_in": "libavutil/log.c",
+   "ptr_args": [
+    {
+     "name": "callback",
+     "ptr": {
+      "scalar": {
+       "by_val": true
+      },
+      "array": null,
+      "string": false,
+      "owned": false,
+      "borrowed": {
+       "lifetime": "static"
+      },
+      "nullable": true,
+      "mutable": false,
+      "note": "Function pointer stored in the atomic av_log_callback for the rest of the program; NULL disables logging (av_vlog checks). Must be thread-safe. [symbol] Relaxed atomic store; a callback in flight on another thread may still run after replacement, so the callee must live for the program (Rust: a monomorphized extern fn per Callback impl)."
+     }
+    }
+   ]
+  },
+  {
+   "name": "av_log_set_flags",
+   "defined_in": "libavutil/log.c"
+  },
+  {
+   "name": "av_log_set_level",
+   "defined_in": "libavutil/log.c"
+  },
+  {
+   "name": "av_make_error_string",
+   "defined_in": "libavutil/error.h",
+   "ptr_args": [
+    {
+     "name": "errbuf",
+     "ptr": {
+      "scalar": null,
+      "array": {
+       "by_val": true
+      },
+      "string": true,
+      "owned": false,
+      "borrowed": {
+       "lifetime": "arg:errbuf"
+      },
+      "nullable": true,
+      "mutable": true,
+      "note": "Caller buffer of errbuf_size bytes filled by av_strerror (av_strlcpy / strerror_r / snprintf), NUL-terminated when errbuf_size > 0; NULL tolerated only with size 0. [symbol] Static inline over av_strerror; discards its status."
+     }
+    }
+   ],
+   "ptr_ret": {
+    "ptr": {
+     "scalar": null,
+     "array": {
+      "by_val": true
+     },
+     "string": true,
+     "owned": false,
+     "borrowed": {
+      "lifetime": "arg:errbuf"
+     },
+     "nullable": true,
+     "mutable": true,
+     "note": "Returns errbuf itself."
+    }
+   }
+  },
+  {
    "name": "av_malloc",
    "defined_in": "libavutil/mem.c",
    "lifetime": {
@@ -1507,6 +1880,105 @@
      "note": "ZEROED (av_malloc + memset 0). Fresh av_malloc storage: posix_memalign(ALIGN) with ALIGN = 64/32/16 by SIMD config (16 is the floor); size 0 yields a 1-byte block, so NULL means failure: size > max_alloc_size (INT_MAX by default, av_max_alloc) or OOM. Released by av_free/av_freep."
     }
    }
+  },
+  {
+   "name": "av_match_list",
+   "defined_in": "libavutil/avstring.c",
+   "ptr_args": [
+    {
+     "name": "list",
+     "ptr": {
+      "scalar": null,
+      "array": null,
+      "string": true,
+      "owned": false,
+      "borrowed": {
+       "lifetime": "arg:list"
+      },
+      "nullable": true,
+      "mutable": false,
+      "note": "separator-separated; NULL matches nothing. With separator '\\0', strchr returns the terminator and q++ steps past it: out-of-bounds read, so the separator must be non-zero (Rust: NonZeroU8)."
+     }
+    },
+    {
+     "name": "name",
+     "ptr": {
+      "scalar": null,
+      "array": null,
+      "string": true,
+      "owned": false,
+      "borrowed": {
+       "lifetime": "arg:name"
+      },
+      "nullable": true,
+      "mutable": false,
+      "note": "separator-separated; NULL matches nothing. [symbol] Read-only scan, no storage."
+     }
+    }
+   ]
+  },
+  {
+   "name": "av_match_name",
+   "defined_in": "libavutil/avstring.c",
+   "ptr_args": [
+    {
+     "name": "name",
+     "ptr": {
+      "scalar": null,
+      "array": null,
+      "string": true,
+      "owned": false,
+      "borrowed": {
+       "lifetime": "arg:name"
+      },
+      "nullable": true,
+      "mutable": false,
+      "note": "NULL makes the result 0. [symbol] Read-only scan, no storage."
+     }
+    },
+    {
+     "name": "names",
+     "ptr": {
+      "scalar": null,
+      "array": null,
+      "string": true,
+      "owned": false,
+      "borrowed": {
+       "lifetime": "arg:names"
+      },
+      "nullable": true,
+      "mutable": false,
+      "note": "Comma-separated list, '-' negation, ALL; NULL makes the result 0. Read up to its NUL."
+     }
+    }
+   ]
+  },
+  {
+   "name": "av_max_alloc",
+   "defined_in": "libavutil/mem.c"
+  },
+  {
+   "name": "av_memcpy_backptr",
+   "defined_in": "libavutil/mem.c",
+   "ptr_args": [
+    {
+     "name": "dst",
+     "ptr": {
+      "scalar": null,
+      "array": {
+       "by_val": true
+      },
+      "string": false,
+      "owned": false,
+      "borrowed": {
+       "lifetime": "arg:dst"
+      },
+      "nullable": false,
+      "mutable": true,
+      "note": "Writes dst[0..cnt) from dst[-back..]: the buffer must extend back bytes before dst (read even when cnt is 0 for back 1..4) and cnt bytes after; back/cnt non-negative. [symbol] LZ77 overlapping copy; back 0 is a no-op."
+     }
+    }
+   ]
   },
   {
    "name": "av_memdup",
@@ -1954,6 +2426,10 @@
      }
     }
    ]
+  },
+  {
+   "name": "av_parity_c",
+   "defined_in": "libavutil/common.h"
   },
   {
    "name": "av_parse_cpu_caps",

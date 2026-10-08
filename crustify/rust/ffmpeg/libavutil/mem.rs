@@ -39,6 +39,10 @@
 //! - [`FastBuffer`] and [`ZeroedFastBuffer`] are the `(ptr, size)` pair of a
 //!   buffer reused while large enough, grown by `av_fast_realloc`,
 //!   `av_fast_malloc` and `av_fast_mallocz`, and released by `av_free`.
+//!
+//! [`set_max_alloc`] sets the process-wide size limit every one of these
+//! allocations obeys, and [`copy_back_reference`] is the LZ77-style
+//! overlapping copy within one buffer.
 
 use core::ffi::{CStr, c_char, c_double, c_int, c_longlong, c_uint, c_void};
 use core::fmt;
@@ -970,6 +974,78 @@ pub fn realloc_array_in_place<T>(
     if ret < 0 { Err(ret) } else { Ok(()) }
 }
 
+/// Wraps: av_max_alloc
+///
+/// Sets the largest block, in bytes, any `av_malloc`-family allocation may
+/// return from now on, process-wide; larger requests fail as out of memory.
+/// The default is `INT_MAX`. C stores the limit in a relaxed atomic, so a
+/// call races with no allocation, but blocks allocated earlier keep their
+/// size, and other threads see the new limit eventually, not at once.
+pub fn set_max_alloc(max: usize) {
+    // SAFETY: `av_max_alloc` takes its argument by value and stores it
+    // atomically.
+    unsafe { ffi::av_max_alloc(max) }
+}
+
+/// Why [`copy_back_reference`] refused a copy.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+pub enum BackReferenceError {
+    /// `back` or `len` exceeds `c_int::MAX`, which C cannot take.
+    TooLong,
+    /// The destination run `dst..dst + len` ends past the buffer.
+    PastEnd,
+    /// `back` exceeds `dst`: the source would start before the buffer.
+    BeforeStart,
+}
+
+impl fmt::Display for BackReferenceError {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.write_str(match self {
+            Self::TooLong => "back-reference distance or length exceeds INT_MAX",
+            Self::PastEnd => "back-reference destination ends past the buffer",
+            Self::BeforeStart => "back-reference source starts before the buffer",
+        })
+    }
+}
+
+impl std::error::Error for BackReferenceError {}
+
+/// Wraps: av_memcpy_backptr
+///
+/// Fills `buf[dst..dst + len]` with the bytes `back` positions earlier, one
+/// byte after another, as an LZ77 back-reference expands: a `back` shorter
+/// than `len` repeats the last `back` bytes before `dst`. A `back` of 0
+/// leaves the buffer unchanged.
+///
+/// Fails without touching `buf` when the source would start before it, the
+/// destination would end past it, or `back` or `len` exceeds `c_int::MAX`.
+pub fn copy_back_reference(
+    buf: &mut [u8],
+    dst: usize,
+    back: usize,
+    len: usize,
+) -> Result<(), BackReferenceError> {
+    let (Ok(c_back), Ok(c_len)) = (c_int::try_from(back), c_int::try_from(len)) else {
+        return Err(BackReferenceError::TooLong);
+    };
+    if dst.checked_add(len).is_none_or(|end| end > buf.len()) {
+        return Err(BackReferenceError::PastEnd);
+    }
+    if back > dst {
+        return Err(BackReferenceError::BeforeStart);
+    }
+    // SAFETY: `dst <= buf.len()`, so the offset stays within (or one past)
+    // `buf`, and the pointer derives from the whole mutable slice.
+    let at = unsafe { buf.as_mut_ptr().add(dst) };
+    // SAFETY: C reads `buf[dst - back..dst + len - back]` and writes
+    // `buf[dst..dst + len]`, both inside `buf` since `back <= dst` and
+    // `dst + len <= buf.len()`; even the empty copy's reads of up to
+    // `min(back, 4)` bytes before `dst` stay at or after `buf[0]`. Nothing
+    // else accesses `buf` while the exclusive borrow lasts.
+    unsafe { ffi::av_memcpy_backptr(at, c_back, c_len) };
+    Ok(())
+}
+
 #[cfg(test)]
 mod unit_tests {
     use super::*;
@@ -1018,6 +1094,77 @@ mod unit_tests {
             // handle.
             unsafe { core::ptr::addr_of_mut!((*self.as_mut_ptr()).num).write(v) }
         }
+    }
+
+    /// The byte-by-byte expansion `av_memcpy_backptr` documents.
+    fn expand(buf: &mut [u8], dst: usize, back: usize, len: usize) {
+        if back == 0 {
+            return;
+        }
+        for i in dst..dst + len {
+            buf[i] = buf[i - back];
+        }
+    }
+
+    #[test]
+    fn back_reference_expands_byte_by_byte() {
+        // Every fill path: memset, the 2-, 3- and 4-byte periods, and the
+        // short and doubling block copies.
+        for back in 0..=20 {
+            for len in [
+                0, 1, 2, 3, 4, 5, 7, 8, 11, 12, 15, 16, 17, 31, 32, 33, 64, 100,
+            ] {
+                let mut want: Vec<u8> = (0..200).map(|i| i as u8 ^ 0x5a).collect();
+                let mut got = want.clone();
+                let dst = 24;
+                expand(&mut want, dst, back, len);
+                copy_back_reference(&mut got, dst, back, len).unwrap();
+                assert_eq!(got, want, "back {back} len {len}");
+            }
+        }
+    }
+
+    #[test]
+    fn back_reference_rejects_out_of_bounds_before_ffi() {
+        let mut buf = [7u8; 8];
+        use BackReferenceError::*;
+        assert_eq!(copy_back_reference(&mut buf, 4, 5, 1), Err(BeforeStart));
+        assert_eq!(copy_back_reference(&mut buf, 0, 1, 0), Err(BeforeStart));
+        assert_eq!(copy_back_reference(&mut buf, 4, 1, 5), Err(PastEnd));
+        assert_eq!(copy_back_reference(&mut buf, 9, 0, 0), Err(PastEnd));
+        assert_eq!(
+            copy_back_reference(&mut buf, usize::MAX, 1, 1),
+            Err(PastEnd)
+        );
+        let big = c_int::MAX as usize + 1;
+        assert_eq!(copy_back_reference(&mut buf, 4, big, 1), Err(TooLong));
+        assert_eq!(copy_back_reference(&mut buf, 4, 1, big), Err(TooLong));
+        assert_eq!(buf, [7; 8]);
+    }
+
+    #[test]
+    fn back_reference_error_is_a_std_error() {
+        use BackReferenceError::*;
+        let all = [TooLong, PastEnd, BeforeStart];
+        let texts: Vec<String> = all.iter().map(ToString::to_string).collect();
+        assert!(texts.iter().all(|t| !t.is_empty()));
+        assert_ne!(texts[0], texts[1]);
+        assert_ne!(texts[1], texts[2]);
+        let e: Box<dyn std::error::Error> = Box::new(PastEnd);
+        assert!(e.source().is_none());
+        assert_eq!(format!("{BeforeStart:?}"), "BeforeStart");
+    }
+
+    #[test]
+    fn back_reference_fills_at_both_buffer_edges() {
+        let mut buf = [1, 2, 3, 4, 0, 0, 0, 0];
+        copy_back_reference(&mut buf, 4, 4, 4).unwrap();
+        assert_eq!(buf, [1, 2, 3, 4, 1, 2, 3, 4]);
+        copy_back_reference(&mut buf, 8, 8, 0).unwrap();
+        let mut one = [9u8];
+        copy_back_reference(&mut one, 0, 0, 1).unwrap();
+        copy_back_reference(&mut one, 1, 1, 0).unwrap();
+        assert_eq!(one, [9]);
     }
 
     #[test]

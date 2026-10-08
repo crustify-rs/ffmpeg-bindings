@@ -220,3 +220,34 @@ function av_sat_dadd32_c
 function av_sat_dsub32_c
 function av_sat_sub32_c
 function av_sat_sub64_c
+
+# libavutil/avstring.h: locale-independent character classes (static inline,
+# compiled by bindgen's wrap_static_fns) and name/list matching (core wave 0,
+# batch 12).
+function av_isgraph
+function av_isspace
+function av_isxdigit
+function av_match_name
+function av_match_list
+
+# libavutil/common.h, intmath.c: integer helpers (core wave 0, batch 12).
+function av_log2_16bit
+function av_parity_c
+
+# libavutil/error.h: error descriptions (static inline; core wave 0, batch 12).
+function av_make_error_string
+var AV_ERROR_MAX_STRING_SIZE
+
+# libavutil/log.h: logging, its flags and callback (core wave 0, batch 12);
+# the levels, av_log, av_log_set_callback, av_log_default_callback and
+# av_log_format_line2 are listed above.
+function av_log_once
+function av_log_format_line
+function av_log_get_level
+function av_log_set_level
+function av_log_get_flags
+function av_log_set_flags
+var AV_LOG_SKIP_REPEATED
+var AV_LOG_PRINT_LEVEL
+var AV_LOG_PRINT_TIME
+var AV_LOG_PRINT_DATETIME
