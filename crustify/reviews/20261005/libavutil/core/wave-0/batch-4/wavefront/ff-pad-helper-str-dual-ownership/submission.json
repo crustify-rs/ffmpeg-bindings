@@ -1,0 +1,17 @@
+{
+  "_comment_agent": "FF_PAD_STRUCTURE sizing witness: only sizeof(struct ff_pad_helper_AVBPrint) (24) is used, to size AVBPrint.reserved_padding (1000) so that sizeof(AVBPrint) is 1024. No code path creates, stores, or frees one. Its trailing alignment (bytes 21..24) overlaps AVBPrint.reserved_padding, so the generator's padding cannot be modelled as a generic {fields, padding} Rust layout; bprint.c uses those bytes and the whole padding as AVBPrint's internal buffer (size_auto = 1024 - offsetof(reserved_internal_buffer) = 1004), and it also covers AVBPrint's own 3 trailing alignment bytes (1021..1024) in its Rust binding. Wrapped as the sealed trait `bprint::PaddedStruct`. Review 20261005 core wave 0 batch 4: `str` carries the dual ownership its note already described (owned on the heap path, borrowed from the struct or a caller buffer otherwise), and the finalize note is corrected: only the allocated path leaves the field NULL.",
+  "fields": {
+    "str": {
+      "ptr": {
+        "scalar": null,
+        "array": {"by_val": true},
+        "string": true,
+        "owned": true,
+        "borrowed": {"lifetime": "self"},
+        "nullable": true,
+        "mutable": true,
+        "note": "Mirrors AVBPrint.str; the helper itself is never instantiated (FF_PAD_STRUCTURE uses it only in sizeof). Runtime-conditional dual ownership, discriminated by `str != reserved_internal_buffer` (av_bprint_is_allocated): av_bprint_init points it at the struct's own reserved_internal_buffer (borrowed from self; the automatic size_max never allocates), av_bprint_init_for_buffer(buf, buffer, size > 0) points it at a caller buffer (borrowed, lifetime `other`: the caller's, which the schema's single lifetime slot cannot carry beside `self`), and av_bprint_alloc replaces it with av_realloc storage the struct owns, which av_bprint_finalize(buf, NULL) frees (av_freep leaves it NULL) or av_bprint_finalize(buf, &ret) transfers out (then NULL). On the borrowed path finalize with a non-NULL ret_str av_memdup's a copy and leaves the field pointing at the storage it borrows: it is NULL only after the owned path's finalize. Always NUL-terminated within `size` while initialised (len may exceed size: truncation), so `string` holds alongside the by-value byte array."
+      }
+    }
+  }
+}
