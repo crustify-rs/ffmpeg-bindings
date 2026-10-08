@@ -109,6 +109,28 @@ impl ClassCategory {
             .find(|(c, _)| *c == self)
             .map(|&(_, name)| name)
     }
+
+    /// Wraps: AV_IS_INPUT_DEVICE
+    ///
+    /// Whether this is one of the input device categories:
+    /// [`DEVICE_VIDEO_INPUT`](Self::DEVICE_VIDEO_INPUT),
+    /// [`DEVICE_AUDIO_INPUT`](Self::DEVICE_AUDIO_INPUT) or
+    /// [`DEVICE_INPUT`](Self::DEVICE_INPUT).
+    pub fn is_input_device(self) -> bool {
+        // SAFETY: a plain value comparison; any category value is accepted.
+        unsafe { ffi::crustify_AV_IS_INPUT_DEVICE(self.0) != 0 }
+    }
+
+    /// Wraps: AV_IS_OUTPUT_DEVICE
+    ///
+    /// Whether this is one of the output device categories:
+    /// [`DEVICE_VIDEO_OUTPUT`](Self::DEVICE_VIDEO_OUTPUT),
+    /// [`DEVICE_AUDIO_OUTPUT`](Self::DEVICE_AUDIO_OUTPUT) or
+    /// [`DEVICE_OUTPUT`](Self::DEVICE_OUTPUT).
+    pub fn is_output_device(self) -> bool {
+        // SAFETY: a plain value comparison; any category value is accepted.
+        unsafe { ffi::crustify_AV_IS_OUTPUT_DEVICE(self.0) != 0 }
+    }
 }
 
 impl Default for ClassCategory {
@@ -1077,6 +1099,29 @@ mod unit_tests {
         // The gap between HWDEVICE and the device categories, and NB.
         for v in [12, 39, 46, c_uint::MAX] {
             assert_eq!(ClassCategory::from_value(v).name(), None);
+        }
+    }
+
+    #[test]
+    fn device_predicates_name_the_device_categories() {
+        let inputs = [
+            ClassCategory::DEVICE_VIDEO_INPUT,
+            ClassCategory::DEVICE_AUDIO_INPUT,
+            ClassCategory::DEVICE_INPUT,
+        ];
+        let outputs = [
+            ClassCategory::DEVICE_VIDEO_OUTPUT,
+            ClassCategory::DEVICE_AUDIO_OUTPUT,
+            ClassCategory::DEVICE_OUTPUT,
+        ];
+        for &(c, _) in &ClassCategory::KNOWN {
+            assert_eq!(c.is_input_device(), inputs.contains(&c), "{c:?}");
+            assert_eq!(c.is_output_device(), outputs.contains(&c), "{c:?}");
+        }
+        // Unnamed values around the device range and beyond are neither.
+        for v in [12, 39, 46, 1000, c_uint::MAX] {
+            let c = ClassCategory::from_value(v);
+            assert!(!c.is_input_device() && !c.is_output_device(), "{c:?}");
         }
     }
 

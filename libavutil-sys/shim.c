@@ -38,3 +38,13 @@ void crustify_AV_ZERO64(void *d)
 {
     AV_ZERO64(d);
 }
+
+int crustify_AV_IS_INPUT_DEVICE(AVClassCategory category)
+{
+    return AV_IS_INPUT_DEVICE(category);
+}
+
+int crustify_AV_IS_OUTPUT_DEVICE(AVClassCategory category)
+{
+    return AV_IS_OUTPUT_DEVICE(category);
+}

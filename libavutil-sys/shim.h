@@ -4,6 +4,8 @@
 
 #include <stdint.h>
 
+#include "libavutil/log.h"
+
 /* av_vlog with its va_list built from the trailing arguments: stable Rust
  * can call a C variadic function but cannot construct a va_list. */
 void crustify_av_vlog(void *avcl, int level, const char *fmt, ...);
@@ -17,5 +19,10 @@ void crustify_AV_WN64A(void *p, uint64_t v);
 void crustify_AV_COPY64(void *d, const void *s);
 void crustify_AV_SWAP64(void *a, void *b);
 void crustify_AV_ZERO64(void *d);
+
+/* AV_IS_INPUT_DEVICE / AV_IS_OUTPUT_DEVICE: whether a class category is one
+ * of the three input (output) device categories; 1 or 0. */
+int crustify_AV_IS_INPUT_DEVICE(AVClassCategory category);
+int crustify_AV_IS_OUTPUT_DEVICE(AVClassCategory category);
 
 #endif /* CRUSTIFY_LIBAVUTIL_SHIM_H */

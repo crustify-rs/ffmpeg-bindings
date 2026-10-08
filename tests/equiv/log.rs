@@ -232,6 +232,301 @@ fn state_flags_gate_non_runtime_options_as_in_c() {
     }
 }
 
+/// A child context: an `AVClass` pointer, then the option the parent's
+/// search reaches through `child_next`; its class has no state flags.
+#[repr(C)]
+struct Child {
+    class: *const ffi::AVClass,
+    value: c_int,
+}
+
+/// A parent context: its class finds [`Child`] through `child_next`, and
+/// carries the state flags `state_flags_offset` locates; it has no option
+/// of its own.
+#[repr(C)]
+struct Parent {
+    class: *const ffi::AVClass,
+    state_flags: c_uint,
+    child: *mut Child,
+}
+
+/// `child_next` of the parent class: the one child, then no more.
+unsafe extern "C" fn parent_child_next(obj: *mut c_void, prev: *mut c_void) -> *mut c_void {
+    if !prev.is_null() {
+        return ptr::null_mut();
+    }
+    // SAFETY: C passes the parent context `av_opt_set_int` received, a live
+    // `Parent`; only its `child` pointer is read.
+    unsafe { (*obj.cast::<Parent>()).child.cast() }
+}
+
+/// The option table of the child's class: `value`, settable only before
+/// initialization, then the NULL terminator.
+fn child_options() -> [ffi::AVOption; 2] {
+    let value = ffi::AVOption {
+        name: c"value".as_ptr(),
+        offset: offset_of!(Child, value) as c_int,
+        type_: ffi::AVOptionType::AV_OPT_TYPE_INT,
+        min: f64::from(c_int::MIN),
+        max: f64::from(c_int::MAX),
+        ..Default::default()
+    };
+    [value, ffi::AVOption::default()]
+}
+
+/// The child's class, with `options` and, when `with_flags`, state flags
+/// located at the child's `value` member reinterpreted as the flag word.
+fn child_class(options: &[ffi::AVOption; 2], with_flags: bool) -> ffi::AVClass {
+    ffi::AVClass {
+        class_name: c"crustify-log-equiv-child".as_ptr(),
+        option: options.as_ptr(),
+        state_flags_offset: if with_flags {
+            offset_of!(Child, value) as c_int
+        } else {
+            0
+        },
+        ..Default::default()
+    }
+}
+
+/// The parent's class: no options, the child through `child_next`, and
+/// the state flags at the parent's `state_flags` member.
+fn parent_class() -> ffi::AVClass {
+    ffi::AVClass {
+        class_name: c"crustify-log-equiv-parent".as_ptr(),
+        child_next: Some(parent_child_next),
+        state_flags_offset: offset_of!(Parent, state_flags) as c_int,
+        ..Default::default()
+    }
+}
+
+/// `av_opt_set_int(parent, "value", value, AV_OPT_SEARCH_CHILDREN)`, and the
+/// value the child is left holding.
+fn c_set_child_value(parent: &mut Parent, value: i64) -> (c_int, c_int) {
+    // SAFETY: `parent` is a live context whose class, child, the child's
+    // class and options, and both state-flag words outlive the call; C
+    // writes only the child's `value`, at the option's offset.
+    let ret = unsafe {
+        ffi::av_opt_set_int(
+            (parent as *mut Parent).cast(),
+            c"value".as_ptr(),
+            value,
+            ffi::AV_OPT_SEARCH_CHILDREN as c_int,
+        )
+    };
+    // SAFETY: `parent.child` addresses a live `Child` for the whole test.
+    (ret, unsafe { (&raw const (*parent.child).value).read() })
+}
+
+/// One parent/child pair of contexts for [`c_set_child_value`]. The child
+/// stays behind the raw pointer the parent stores, so no Rust reference
+/// to it is formed while C reads and writes it through that pointer.
+struct Family {
+    parent: Parent,
+}
+
+impl Family {
+    fn new(parent_class: &ffi::AVClass, child_class: &ffi::AVClass) -> Self {
+        let child = Box::into_raw(Box::new(Child {
+            class: child_class,
+            value: 0,
+        }));
+        Self {
+            parent: Parent {
+                class: parent_class,
+                state_flags: 0,
+                child,
+            },
+        }
+    }
+
+    /// The child's `value` member.
+    fn child_value(&self) -> c_int {
+        // SAFETY: `child` is the live `Child` `new` leaked, freed only by `drop`.
+        unsafe { (&raw const (*self.parent.child).value).read() }
+    }
+
+    fn set_child_value(&mut self, value: c_int) {
+        // SAFETY: as for `child_value`.
+        unsafe { (&raw mut (*self.parent.child).value).write(value) }
+    }
+}
+
+impl Drop for Family {
+    fn drop(&mut self) {
+        // SAFETY: `child` came from `Box::into_raw` in `new` and is reclaimed
+        // once, here.
+        drop(unsafe { Box::from_raw(self.parent.child) });
+    }
+}
+
+#[test]
+fn state_flags_of_the_parent_gate_a_child_option_as_in_c() {
+    let options = child_options();
+    let parent_class = parent_class();
+    let child_class = child_class(&options, false);
+    let mut c = Family::new(&parent_class, &child_class);
+    let mut rust = Family::new(&parent_class, &child_class);
+    let initialized = ffi::AVClassStateFlags::AV_CLASS_STATE_INITIALIZED.0;
+    let mut flags = ClassStateFlags::empty();
+
+    // The child's class has no state flags, so C reads the parent's: each
+    // step writes the raw C bits next to the Rust set's.
+    let steps: [(Step, c_uint); 5] = [
+        (|_| {}, 0),
+        (|f| f.insert(ClassStateFlags::INITIALIZED), initialized),
+        (|f| *f |= ClassStateFlags::from_bits_retain(0x80), initialized | 0x80),
+        (|f| f.remove(ClassStateFlags::INITIALIZED), 0x80),
+        (|f| *f = ClassStateFlags::all(), initialized),
+    ];
+    for (i, (step, c_bits)) in steps.into_iter().enumerate() {
+        step(&mut flags);
+        c.parent.state_flags = c_bits;
+        rust.parent.state_flags = flags.bits();
+        assert_eq!(rust.parent.state_flags, c.parent.state_flags, "step {i}");
+
+        let value = 200 + i as i64;
+        let (c_ret, c_value) = c_set_child_value(&mut c.parent, value);
+        let (rust_ret, rust_value) = c_set_child_value(&mut rust.parent, value);
+        assert_eq!(rust_ret, c_ret, "step {i}");
+        assert_eq!(rust_value, c_value, "step {i}");
+        assert_eq!(rust.child_value(), c.child_value(), "step {i}");
+        assert_eq!(
+            c_ret < 0,
+            flags.contains(ClassStateFlags::INITIALIZED),
+            "step {i}"
+        );
+    }
+}
+
+#[test]
+fn state_flags_of_the_child_take_precedence_over_the_parent_as_in_c() {
+    let options = child_options();
+    let parent_class = parent_class();
+    let child_class = child_class(&options, true);
+    let mut c = Family::new(&parent_class, &child_class);
+    let mut rust = Family::new(&parent_class, &child_class);
+    let initialized = ffi::AVClassStateFlags::AV_CLASS_STATE_INITIALIZED.0;
+
+    // The child's flag word is its `value` member: an initialized child
+    // refuses the write whatever the parent says, and an uninitialized one
+    // accepts it even when the parent is initialized. The write lands in
+    // the flag word itself, so each step resets both contexts.
+    let steps: [(ClassStateFlags, c_uint, ClassStateFlags, c_uint); 4] = [
+        (ClassStateFlags::empty(), 0, ClassStateFlags::empty(), 0),
+        (
+            ClassStateFlags::INITIALIZED,
+            initialized,
+            ClassStateFlags::empty(),
+            0,
+        ),
+        (
+            ClassStateFlags::empty(),
+            0,
+            ClassStateFlags::INITIALIZED,
+            initialized,
+        ),
+        (
+            ClassStateFlags::INITIALIZED | ClassStateFlags::from_bits_retain(0x80),
+            initialized | 0x80,
+            ClassStateFlags::INITIALIZED,
+            initialized,
+        ),
+    ];
+    for (i, (child, c_child, parent, c_parent)) in steps.into_iter().enumerate() {
+        c.set_child_value(c_child as c_int);
+        c.parent.state_flags = c_parent;
+        rust.set_child_value(child.bits() as c_int);
+        rust.parent.state_flags = parent.bits();
+        assert_eq!(rust.child_value(), c.child_value(), "step {i}");
+        assert_eq!(rust.parent.state_flags, c.parent.state_flags, "step {i}");
+
+        let value = 300 + i as i64;
+        let (c_ret, c_value) = c_set_child_value(&mut c.parent, value);
+        let (rust_ret, rust_value) = c_set_child_value(&mut rust.parent, value);
+        assert_eq!(rust_ret, c_ret, "step {i}");
+        assert_eq!(rust_value, c_value, "step {i}");
+        assert_eq!(
+            c_ret < 0,
+            child.contains(ClassStateFlags::INITIALIZED),
+            "step {i}"
+        );
+    }
+}
+
+#[test]
+fn without_state_flags_nothing_gates_an_option_as_in_c() {
+    let initialized = ffi::AVClassStateFlags::AV_CLASS_STATE_INITIALIZED.0;
+    let bits = [0, initialized, initialized | 0x80];
+
+    // A direct context whose class locates no state flags: the word it
+    // holds is never read, whatever it says.
+    let options = options();
+    let mut class = class(ffi::AVClassCategory::AV_CLASS_CATEGORY_NA, &options);
+    class.state_flags_offset = 0;
+    let mut c = Ctx {
+        class: &class,
+        state_flags: 0,
+        value: 0,
+    };
+    let mut rust = Ctx {
+        class: &class,
+        state_flags: 0,
+        value: 0,
+    };
+    for (i, raw) in bits.into_iter().enumerate() {
+        c.state_flags = raw;
+        rust.state_flags = ClassStateFlags::from_bits_retain(raw).bits();
+        let value = 400 + i as i64;
+        let (c_ret, c_value) = c_set_value(&mut c, value);
+        let (rust_ret, rust_value) = c_set_value(&mut rust, value);
+        assert_eq!((rust_ret, rust_value), (c_ret, c_value), "direct, step {i}");
+        assert_eq!(c_ret, 0, "direct, step {i}");
+    }
+
+    // A child reached through a parent, neither class locating state flags.
+    let child_options = child_options();
+    let mut parent_class = parent_class();
+    parent_class.state_flags_offset = 0;
+    let child_class = child_class(&child_options, false);
+    let mut c = Family::new(&parent_class, &child_class);
+    let mut rust = Family::new(&parent_class, &child_class);
+    for (i, raw) in bits.into_iter().enumerate() {
+        c.parent.state_flags = raw;
+        rust.parent.state_flags = ClassStateFlags::from_bits_retain(raw).bits();
+        let value = 500 + i as i64;
+        let (c_ret, c_value) = c_set_child_value(&mut c.parent, value);
+        let (rust_ret, rust_value) = c_set_child_value(&mut rust.parent, value);
+        assert_eq!((rust_ret, rust_value), (c_ret, c_value), "child, step {i}");
+        assert_eq!(c_ret, 0, "child, step {i}");
+    }
+}
+
+/// Raw category values at and around every boundary the device predicates
+/// distinguish, plus the gap below the device range.
+const DEVICE_EDGES: [c_uint; 12] = [0, 11, 12, 39, 40, 41, 42, 43, 44, 45, 46, c_uint::MAX];
+
+#[test]
+fn device_predicates_match_the_c_macros() {
+    let named = CATEGORIES.iter().map(|&(_, raw)| raw.0);
+    for v in named.chain(DEVICE_EDGES) {
+        let raw = ffi::AVClassCategory(v);
+        // SAFETY: the macro shims compare a value; every category is valid.
+        let (c_input, c_output) = unsafe {
+            (
+                ffi::crustify_AV_IS_INPUT_DEVICE(raw) != 0,
+                ffi::crustify_AV_IS_OUTPUT_DEVICE(raw) != 0,
+            )
+        };
+        let category = ClassCategory::from_value(v);
+        assert_eq!(category.is_input_device(), c_input, "{category:?}");
+        assert_eq!(category.is_output_device(), c_output, "{category:?}");
+        // The macros name disjoint sets within the device range.
+        assert!(!(c_input && c_output), "{category:?}");
+        assert_eq!(c_input || c_output, (40..=45).contains(&v), "{category:?}");
+    }
+}
+
 /// `av_vlog` through [`log`] and [`log_with_context`], against `av_log`
 /// with the format `%s`, as a capturing log callback observes both.
 mod vlog {
