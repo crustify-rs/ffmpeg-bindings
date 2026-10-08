@@ -182,8 +182,9 @@ mod parse_caps {
     fn c_parse(flags: &mut u32, s: &CStr) -> Result<(), i32> {
         // SAFETY: `flags` is a live, writable word and `s` a live NUL-terminated
         // string, both only used for the call. Every string the tests pass has
-        // tokens of letters, digits, `_` and `.` whose `+`/`-` operands are
-        // 32-bit flag sets, which C evaluates without overflow.
+        // tokens of letters, digits, `_` and `.` whose `+`/`-` operands lie
+        // below 2^63 in magnitude, which C converts to `int64_t` without
+        // overflow.
         let ret = unsafe { ffi::av_parse_cpu_caps(flags, s.as_ptr()) };
         if ret < 0 { Err(ret) } else { Ok(()) }
     }
@@ -234,6 +235,81 @@ mod parse_caps {
         for rotate in 0..STRINGS.len() {
             let (mut c, mut r) = (0x5a5a, 0x5a5a);
             for s in STRINGS.iter().cycle().skip(rotate).take(STRINGS.len() * 2) {
+                let cret = c_parse(&mut c, s);
+                let rret = parse_cpu_caps(&mut r, s);
+                assert_eq!((rret, r), (cret, c), "{s:?} at rotation {rotate}");
+            }
+        }
+    }
+
+    /// `+`/`-` operands that are not 32-bit flag sets themselves: C truncates
+    /// each to an `int64_t` and range-checks only the combination, so a
+    /// fractional, wide, or named operand may clear bits, set some, or fail.
+    /// Regression: the wrapper once evaluated such operands through C's
+    /// unprefixed path, which rounds to the nearest integer, so `-0.999`
+    /// cleared bit 0 and `+1.9995` set bit 1 where C leaves bit 0 alone.
+    const OPERANDS: [&CStr; 30] = [
+        c"-0.999",
+        c"+1.9995",
+        c"-1.9995",
+        c"+2.5",
+        c"+0.5",
+        c"-0.5",
+        c"+0.001",
+        c"+4294967294.999",
+        c"+5d",
+        c"-3h",
+        c"+1dB",
+        c"-10dB",
+        c"+0.25k",
+        c"-5G",
+        c"-0x100000000",
+        c"+1e18",
+        c"-1e18",
+        c"-9223372036854774784",
+        c"+PI",
+        c"-E",
+        c"+PHI",
+        c"+QP2LAMBDA",
+        c"-min",
+        c"+min",
+        c"+3dnow",
+        c"-3dnowext",
+        c"+all",
+        c"-none",
+        c"+nan",
+        c"sse2+2.5-0.999+PI",
+    ];
+
+    #[test]
+    fn fractional_wide_and_named_operands_match_c() {
+        for start in [0, 1, 0x55, 0xFFFF, u32::MAX] {
+            for s in OPERANDS {
+                let (mut c, mut r) = (start, start);
+                let cret = c_parse(&mut c, s);
+                let rret = parse_cpu_caps(&mut r, s);
+                assert_eq!((rret, r), (cret, c), "{s:?} from {start:#x}");
+            }
+        }
+        // Each outcome occurs: a changed word, an unchanged one, and a failure.
+        let outcomes: Vec<(bool, bool)> = OPERANDS
+            .iter()
+            .map(|s| {
+                let mut c = 0x55;
+                let ok = c_parse(&mut c, s).is_ok();
+                (ok, c != 0x55)
+            })
+            .collect();
+        assert!(outcomes.contains(&(true, true)));
+        assert!(outcomes.contains(&(true, false)));
+        assert!(outcomes.contains(&(false, false)));
+    }
+
+    #[test]
+    fn operand_sequences_match_c_after_each_step() {
+        for rotate in 0..OPERANDS.len() {
+            let (mut c, mut r) = (0xA5A5, 0xA5A5);
+            for s in OPERANDS.iter().cycle().skip(rotate).take(OPERANDS.len() + 3) {
                 let cret = c_parse(&mut c, s);
                 let rret = parse_cpu_caps(&mut r, s);
                 assert_eq!((rret, r), (cret, c), "{s:?} at rotation {rotate}");
