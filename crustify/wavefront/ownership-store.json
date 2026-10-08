@@ -14,6 +14,18 @@
    "fields": []
   },
   {
+   "name": "AVEscapeMode",
+   "defined_in": "libavutil/avstring.h",
+   "_comment_agent": "Plain C enum, no fields, no lifecycle. Values flow Rust->C only: a by-value `mode` argument of av_escape (avstring.c:323) and av_bprint_escape (bprint.c:264); no struct field, return or out-parameter stores it, so C never hands one back. bprint.c:268-313 maps AUTO to BACKSLASH and treats any unknown value as BACKSLASH. Rust representation: closed Rust enum EscapeMode {Auto, Backslash, Quote, Xml} with an infallible conversion into ffi::AVEscapeMode; out-of-range modes are not representable (they only alias BACKSLASH).",
+   "fields": []
+  },
+  {
+   "name": "AVMediaType",
+   "defined_in": "libavutil/avutil.h",
+   "_comment_agent": "Plain C enum (UNKNOWN=-1, VIDEO..ATTACHMENT=0..4, NB=5 count sentinel), no fields, no lifecycle. Stored by C in public struct fields (AVCodecParameters.codec_type, AVCodecContext.codec_type, AVCodec.type, AVCodecDescriptor.type, AVFilterPad/filter types), in a C-allocated array (AVDeviceInfo.media_types), returned (avcodec_get_type, av_buffersink_get_type, avfilter_pad_get_type) and taken by value (av_get_media_type_string, whose default case returns NULL for any other value). Users write public fields directly, so C memory may hold any int, NB included. Rust representation: #[repr(transparent)] newtype MediaType over ffi::AVMediaType with associated constants, infallible raw conversions both ways, and CPlainElem (every c_int bit pattern valid) so C arrays read as plain slices.",
+   "fields": []
+  },
+  {
    "name": "av_intfloat64",
    "defined_in": "libavutil/intfloat.h",
    "_comment_agent": "C `union av_intfloat64 { uint64_t i; double f; }` (the record's kind says struct; the definition is a union). A type-punning union: no discriminator, both members cover all 8 bytes and every bit pattern is a valid value of each, so either view is always readable after a write to the other (av_int2double writes i and reads f; av_double2int the reverse). No pointer fields, no sub-allocations and no lifecycle routine: C only creates it as an automatic local or a const initializer ({.i = ...} in libavcodec/mips/constants.c, mips-only); copied by value, never freed. All-zero is valid (i = 0, f = +0.0). No shared state or lock: plain data, Send/Sync like u64.",

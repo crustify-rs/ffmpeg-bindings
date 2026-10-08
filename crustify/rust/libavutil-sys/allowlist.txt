@@ -31,3 +31,8 @@ function av_memcpy_backptr
 # (equivalence tests; static inline, compiled by bindgen's wrap_static_fns).
 function av_int2double
 function av_double2int
+
+# libavutil/avutil.h and avstring.h: C consumers of `AVMediaType` and
+# `AVEscapeMode`, which observe the encodings in equivalence tests.
+function av_get_media_type_string
+function av_escape

@@ -1,6 +1,8 @@
 //! UB tests against the safe public API.
 #![forbid(unsafe_code)]
 
+mod avstring;
+mod avutil;
 mod intfloat;
 mod intreadwrite;
 mod log;
