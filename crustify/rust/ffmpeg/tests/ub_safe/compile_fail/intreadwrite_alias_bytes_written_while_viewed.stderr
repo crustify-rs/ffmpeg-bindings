@@ -1,0 +1,9 @@
+error[E0502]: cannot borrow `bytes` as mutable because it is also borrowed as immutable
+ --> tests/ub_safe/compile_fail/intreadwrite_alias_bytes_written_while_viewed.rs
+  |
+  |     let shared = Alias16Ref::from_bytes(&bytes).unwrap();
+  |                                         ------ immutable borrow occurs here
+  |     Alias16Mut::from_bytes(&mut bytes).unwrap().set_u16(1);
+  |                            ^^^^^^^^^^ mutable borrow occurs here
+  |     println!("{}", shared.u16());
+  |                    ------ immutable borrow later used here

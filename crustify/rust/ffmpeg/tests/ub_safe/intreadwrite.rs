@@ -15,9 +15,9 @@ use std::thread;
 
 use ffibox::CZeroable;
 use ffmpeg::libavutil::intreadwrite::{
-    Alias16, Alias16Mut, Alias32, Alias32Mut, Alias64, Alias64Mut, Alias64Ref, Unaligned16,
-    Unaligned16Mut, Unaligned16Ref, Unaligned32, Unaligned32Mut, Unaligned32Ref, Unaligned64,
-    Unaligned64Mut, Unaligned64Ref,
+    Alias16, Alias16Mut, Alias16Ref, Alias32, Alias32Mut, Alias32Ref, Alias64, Alias64Mut,
+    Alias64Ref, Unaligned16, Unaligned16Mut, Unaligned16Ref, Unaligned32, Unaligned32Mut,
+    Unaligned32Ref, Unaligned64, Unaligned64Mut, Unaligned64Ref,
 };
 use ffmpeg::libavutil::mem::{HeapBox, HeapVec, alloc_array_zeroed, alloc_cell_array_zeroed};
 
@@ -691,4 +691,129 @@ fn heap_alias64_handles_and_owners_move_across_threads() {
     let (x, b) = t.join().unwrap();
     assert_eq!((x, b.as_ref().u64()), (7, 9));
     thread::spawn(move || drop(b)).join().unwrap();
+}
+
+// `Alias16` and `Alias32` views over caller bytes (`from_bytes`).
+
+/// A buffer whose first byte is 8-aligned, so every residue of an `Alias16`
+/// and `Alias32` address occurs at a known offset.
+#[derive(Clone, Copy)]
+#[repr(C, align(8))]
+struct Aligned<const N: usize>([u8; N]);
+
+/// Writes through an exclusive view at every aligned offset of `buf` (the
+/// last one ending on its final byte), reads back through a shared view, and
+/// has every misaligned offset refused.
+fn sweep_alias_views(buf: &mut [u8]) {
+    let len = buf.len();
+    for off in 0..=len - 2 {
+        let v = 0x0102u16.wrapping_mul(off as u16 + 1);
+        match Alias16Mut::from_bytes((&mut buf[off..off + 2]).try_into().unwrap()) {
+            Some(mut m) => {
+                assert_eq!(off % 2, 0);
+                m.set_u16(v);
+                assert_eq!(m.as_ref().u8x2(), v.to_ne_bytes());
+            }
+            None => assert_eq!(off % 2, 1),
+        }
+        let r = Alias16Ref::from_bytes(buf[off..off + 2].try_into().unwrap());
+        assert_eq!(r.map(|r| r.u16()), (off % 2 == 0).then_some(v));
+    }
+    for off in 0..=len - 4 {
+        let v = 0x0a0b_0c0du32.rotate_left(off as u32 * 8);
+        match Alias32Mut::from_bytes((&mut buf[off..off + 4]).try_into().unwrap()) {
+            Some(mut m) => {
+                assert_eq!(off % 4, 0);
+                m.set_u32(v);
+                m.set_f32(m.as_ref().f32());
+                assert_eq!(m.as_ref().u8x4(), v.to_ne_bytes());
+            }
+            None => assert_ne!(off % 4, 0),
+        }
+        let r = Alias32Ref::from_bytes(buf[off..off + 4].try_into().unwrap());
+        assert_eq!(r.map(|r| r.u32()), (off % 4 == 0).then_some(v));
+    }
+}
+
+#[test]
+fn alias_byte_views_stay_in_bounds_of_exact_rust_buffers() {
+    sweep_alias_views(&mut Aligned([0u8; 4]).0);
+    sweep_alias_views(&mut Aligned([0u8; 7]).0);
+    sweep_alias_views(&mut Aligned([0u8; 24]).0);
+    // A view at the very end of the buffer touches only its own bytes.
+    let mut tail = Aligned([0xa5u8; 8]);
+    Alias16Mut::from_bytes(tail.0[6..].first_chunk_mut().unwrap())
+        .unwrap()
+        .set_u16(0);
+    assert_eq!(tail.0, [0xa5, 0xa5, 0xa5, 0xa5, 0xa5, 0xa5, 0, 0]);
+    Alias32Mut::from_bytes(tail.0[..4].first_chunk_mut().unwrap())
+        .unwrap()
+        .set_u32(u32::MAX);
+    assert_eq!(tail.0, [0xff, 0xff, 0xff, 0xff, 0xa5, 0xa5, 0, 0]);
+}
+
+#[test]
+fn heap_alias_byte_views_stay_in_bounds_of_exact_c_buffers() {
+    for len in [4usize, 9, 32] {
+        let mut bytes = alloc_array_zeroed::<u8>(len).unwrap();
+        sweep_alias_views(bytes.as_mut_slice());
+        let first = Alias32Ref::from_bytes(bytes.as_slice()[..4].try_into().unwrap()).unwrap();
+        assert_eq!(first.u8x4(), bytes.as_slice()[..4]);
+    }
+}
+
+#[test]
+fn alias_views_overlap_consistently() {
+    let mut buf = Aligned([0u8; 4]);
+    Alias32Mut::from_bytes(&mut buf.0).unwrap().set_u16x2([0x1122, 0x3344]);
+    let lo = Alias16Ref::from_bytes(buf.0[..2].try_into().unwrap()).unwrap();
+    let hi = Alias16Ref::from_bytes(buf.0[2..].try_into().unwrap()).unwrap();
+    let whole = Alias32Ref::from_bytes(&buf.0).unwrap();
+    assert_eq!([lo.u16(), hi.u16()], whole.u16x2());
+    let copy = whole; // the shared view is `Copy`
+    assert_eq!(copy.u8x4(), [lo.u8x2(), hi.u8x2()].concat()[..]);
+    assert_eq!(Alias32::from_u8x4(copy.u8x4()), Alias32::from_u16x2(whole.u16x2()));
+}
+
+#[test]
+fn alias_view_reborrows_hand_back_the_exclusive_handle() {
+    let mut buf = Aligned([0u8; 8]);
+    let mut m = Alias32Mut::from_bytes(buf.0[4..].first_chunk_mut().unwrap()).unwrap();
+    exercise32(m.as_mut());
+    m.set_u32(3);
+    assert_eq!(m.as_ref().u32(), 3);
+    let mut n = Alias16Mut::from_bytes(buf.0[..2].first_chunk_mut().unwrap()).unwrap();
+    exercise16(n.as_mut());
+    n.set_u8x2([1, 2]);
+    assert_eq!(buf.0[..2], [1, 2]);
+    assert_eq!(buf.0[4..], 3u32.to_ne_bytes());
+}
+
+#[test]
+fn alias_views_cross_threads() {
+    let mut buf = Aligned([0u8; 16]);
+    {
+        let (lo, hi) = buf.0.split_at_mut(8);
+        let a = Alias32Mut::from_bytes((&mut lo[..4]).try_into().unwrap()).unwrap();
+        let b = Alias16Mut::from_bytes((&mut hi[..2]).try_into().unwrap()).unwrap();
+        thread::scope(|s| {
+            s.spawn(move || exercise32(a));
+            s.spawn(move || exercise16(b));
+        });
+    }
+    let r32 = Alias32Ref::from_bytes(buf.0[..4].try_into().unwrap()).unwrap();
+    let r16 = Alias16Ref::from_bytes(buf.0[8..10].try_into().unwrap()).unwrap();
+    thread::scope(|s| {
+        for _ in 0..4 {
+            s.spawn(move || {
+                for _ in 0..100 {
+                    assert_eq!(r32.f32().to_bits(), 0xff80_0000);
+                    assert_eq!(r16.u8x2(), [0xff, 0x00]);
+                }
+            });
+            s.spawn(|| assert_eq!(r32.u32(), 0xff80_0000));
+        }
+    });
+    let moved = thread::spawn(move || buf).join().unwrap();
+    assert_eq!(moved.0[..4], 0xff80_0000u32.to_ne_bytes());
 }

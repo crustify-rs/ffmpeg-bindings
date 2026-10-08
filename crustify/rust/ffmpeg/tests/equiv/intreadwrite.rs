@@ -29,11 +29,11 @@ use core::mem::{align_of, offset_of, size_of};
 use ffibox::CZeroable;
 use ffmpeg::libavutil::ffi;
 use ffmpeg::libavutil::intreadwrite::{
-    Alias16, Alias16Ref, Alias32, Alias32Ref, Alias64, Alias64Ref, Unaligned16, Unaligned16Mut,
-    Unaligned16Ref, Unaligned32, Unaligned32Mut, Unaligned32Ref, Unaligned64, Unaligned64Mut,
-    Unaligned64Ref,
+    Alias16, Alias16Mut, Alias16Ref, Alias32, Alias32Mut, Alias32Ref, Alias64, Alias64Ref,
+    Unaligned16, Unaligned16Mut, Unaligned16Ref, Unaligned32, Unaligned32Mut, Unaligned32Ref,
+    Unaligned64, Unaligned64Mut, Unaligned64Ref,
 };
-use ffmpeg::libavutil::mem::HeapBox;
+use ffmpeg::libavutil::mem::{HeapBox, alloc_array_zeroed};
 
 /// The 8-byte window of `buf` at `off`.
 fn window(buf: &[u8], off: usize) -> Unaligned64Ref<'_> {
@@ -1107,5 +1107,199 @@ mod alias64_c_accessors {
             );
             assert_eq!(c_rn64a(elem(&v, (i + 1) % N)), c_rn64a(&raw const expect));
         }
+    }
+}
+
+// `Alias16` and `Alias32` views over caller bytes, against the aligned C
+// accessors: `AV_RN16A` / `AV_RN32A` (`((const av_aliasN *)(p))->uN`),
+// `AV_WN16A` / `AV_WN32A`, `AV_COPY16` / `AV_COPY32` and `AV_ZERO16` /
+// `AV_ZERO32`, which cast an aligned byte pointer to the union. The `-sys`
+// crate compiles each as a `crustify_<NAME>` shim, so C itself drives the C
+// side. The macros leave the alignment to their caller (misaligned use is
+// undefined, so there is nothing to compare there); the Rust views check it
+// and return `None`.
+
+/// A buffer whose first byte is 8-aligned, like the `DECLARE_ALIGNED` arrays
+/// C views through the aligned macros.
+#[derive(Clone, Copy, Debug, PartialEq)]
+#[repr(C, align(8))]
+struct Aligned16([u8; 16]);
+
+/// `AV_RN16A(buf + off)`.
+fn c_rn16a(buf: &[u8], off: usize) -> u16 {
+    assert!(off + 2 <= buf.len() && off.is_multiple_of(2));
+    // SAFETY: two bytes of `buf` at a 2-aligned address, the union's size and
+    // alignment; the shim only reads them.
+    unsafe { ffi::crustify_AV_RN16A(buf.as_ptr().add(off).cast()) }
+}
+
+/// `AV_RN32A(buf + off)`.
+fn c_rn32a(buf: &[u8], off: usize) -> u32 {
+    assert!(off + 4 <= buf.len() && off.is_multiple_of(4));
+    // SAFETY: four bytes of `buf` at a 4-aligned address, the union's size
+    // and alignment; the shim only reads them.
+    unsafe { ffi::crustify_AV_RN32A(buf.as_ptr().add(off).cast()) }
+}
+
+/// `AV_WN16A(buf + off, v)`.
+fn c_wn16a(buf: &mut [u8], off: usize, v: u16) {
+    assert!(off + 2 <= buf.len() && off.is_multiple_of(2));
+    // SAFETY: as `c_rn16a`, through the exclusive borrow; the shim writes
+    // exactly those two bytes.
+    unsafe { ffi::crustify_AV_WN16A(buf.as_mut_ptr().add(off).cast(), v) }
+}
+
+/// `AV_WN32A(buf + off, v)`.
+fn c_wn32a(buf: &mut [u8], off: usize, v: u32) {
+    assert!(off + 4 <= buf.len() && off.is_multiple_of(4));
+    // SAFETY: as `c_rn32a`, through the exclusive borrow; the shim writes
+    // exactly those four bytes.
+    unsafe { ffi::crustify_AV_WN32A(buf.as_mut_ptr().add(off).cast(), v) }
+}
+
+/// `AV_COPY16(dst + off, src + from)`.
+fn c_copy16(dst: &mut [u8], off: usize, src: &[u8], from: usize) {
+    assert!(off + 2 <= dst.len() && off.is_multiple_of(2));
+    assert!(from + 2 <= src.len() && from.is_multiple_of(2));
+    // SAFETY: two aligned bytes of each buffer, `src` only read, `dst` only
+    // written, through their respective borrows.
+    unsafe {
+        ffi::crustify_AV_COPY16(
+            dst.as_mut_ptr().add(off).cast(),
+            src.as_ptr().add(from).cast(),
+        )
+    }
+}
+
+/// `AV_COPY32(dst + off, src + from)`.
+fn c_copy32(dst: &mut [u8], off: usize, src: &[u8], from: usize) {
+    assert!(off + 4 <= dst.len() && off.is_multiple_of(4));
+    assert!(from + 4 <= src.len() && from.is_multiple_of(4));
+    // SAFETY: as `c_copy16`, four bytes each.
+    unsafe {
+        ffi::crustify_AV_COPY32(
+            dst.as_mut_ptr().add(off).cast(),
+            src.as_ptr().add(from).cast(),
+        )
+    }
+}
+
+/// `AV_ZERO16(buf + off)`.
+fn c_zero16(buf: &mut [u8], off: usize) {
+    assert!(off + 2 <= buf.len() && off.is_multiple_of(2));
+    // SAFETY: as `c_wn16a`.
+    unsafe { ffi::crustify_AV_ZERO16(buf.as_mut_ptr().add(off).cast()) }
+}
+
+/// `AV_ZERO32(buf + off)`.
+fn c_zero32(buf: &mut [u8], off: usize) {
+    assert!(off + 4 <= buf.len() && off.is_multiple_of(4));
+    // SAFETY: as `c_wn32a`.
+    unsafe { ffi::crustify_AV_ZERO32(buf.as_mut_ptr().add(off).cast()) }
+}
+
+#[test]
+fn aligned_views_read_what_the_aligned_c_macros_read() {
+    let mut c = Aligned16([0; 16]);
+    c.0.copy_from_slice(&pattern(16));
+    let rust = c;
+    for off in 0..=14 {
+        let view = Alias16Ref::from_bytes(rust.0[off..off + 2].try_into().unwrap());
+        if off % 2 == 0 {
+            let v = view.unwrap();
+            assert_eq!(v.u16(), c_rn16a(&c.0, off), "AV_RN16A at {off}");
+            assert_eq!(v.u8x2(), c.0[off..off + 2], "bytes at {off}");
+        } else {
+            assert!(view.is_none(), "offset {off} is misaligned for av_alias16");
+        }
+    }
+    for off in 0..=12 {
+        let view = Alias32Ref::from_bytes(rust.0[off..off + 4].try_into().unwrap());
+        if off % 4 == 0 {
+            let v = view.unwrap();
+            let want = c_rn32a(&c.0, off);
+            assert_eq!(v.u32(), want, "AV_RN32A at {off}");
+            assert_eq!(v.f32().to_bits(), want, "float bits at {off}");
+            assert_eq!(
+                v.u16x2(),
+                [c_rn16a(&c.0, off), c_rn16a(&c.0, off + 2)],
+                "lanes at {off}"
+            );
+        } else {
+            assert!(view.is_none(), "offset {off} is misaligned for av_alias32");
+        }
+    }
+}
+
+#[test]
+fn aligned_views_write_what_the_aligned_c_macros_write() {
+    let mut c = Aligned16([0; 16]);
+    let mut rust = Aligned16([0; 16]);
+    let src = Aligned16(pattern(16).try_into().unwrap());
+
+    // AV_WN32A, then AV_WN16A over its halves, at every aligned offset.
+    for off in (0..=12).step_by(4) {
+        let v = 0xdead_beefu32.rotate_left(off as u32 * 8);
+        c_wn32a(&mut c.0, off, v);
+        Alias32Mut::from_bytes((&mut rust.0[off..off + 4]).try_into().unwrap())
+            .unwrap()
+            .set_u32(v);
+        assert_eq!(rust, c, "AV_WN32A at {off}");
+    }
+    for off in (0..=14).step_by(2) {
+        let v = 0x0102u16.wrapping_mul(off as u16 + 1);
+        c_wn16a(&mut c.0, off, v);
+        Alias16Mut::from_bytes((&mut rust.0[off..off + 2]).try_into().unwrap())
+            .unwrap()
+            .set_u16(v);
+        assert_eq!(rust, c, "AV_WN16A at {off}");
+    }
+
+    // AV_COPY32(d, s): `d->u32 = s->u32`, with the source read through a
+    // shared view of another buffer; then AV_COPY16 on the remaining halves.
+    for off in (0..=12).step_by(4) {
+        c_copy32(&mut c.0, off, &src.0, 12 - off);
+        let s = Alias32Ref::from_bytes(src.0[12 - off..16 - off].try_into().unwrap()).unwrap();
+        Alias32Mut::from_bytes((&mut rust.0[off..off + 4]).try_into().unwrap())
+            .unwrap()
+            .set_u32(s.u32());
+        assert_eq!(rust, c, "AV_COPY32 at {off}");
+    }
+    for off in (0..=14).step_by(2) {
+        c_copy16(&mut c.0, off, &src.0, off);
+        let s = Alias16Ref::from_bytes(src.0[off..off + 2].try_into().unwrap()).unwrap();
+        Alias16Mut::from_bytes((&mut rust.0[off..off + 2]).try_into().unwrap())
+            .unwrap()
+            .set_u16(s.u16());
+        assert_eq!(rust, c, "AV_COPY16 at {off}");
+    }
+    assert_eq!(rust, src);
+
+    // AV_ZERO32 / AV_ZERO16: `d->uN = 0`.
+    c_zero32(&mut c.0, 8);
+    Alias32Mut::from_bytes((&mut rust.0[8..12]).try_into().unwrap())
+        .unwrap()
+        .set_u32(0);
+    assert_eq!(rust, c, "AV_ZERO32");
+    c_zero16(&mut c.0, 2);
+    Alias16Mut::from_bytes((&mut rust.0[2..4]).try_into().unwrap())
+        .unwrap()
+        .set_u16(0);
+    assert_eq!(rust, c, "AV_ZERO16");
+
+    // C writes storage a Rust owner holds, and Rust views read it back: a
+    // C-allocated box, and a C-allocated byte buffer.
+    let boxed = HeapBox::<Alias32>::new_zeroed().unwrap();
+    // SAFETY: the box's pointer addresses a live, `av_mallocz`-aligned
+    // `av_alias32` for the call, and no handle to it is live meanwhile.
+    unsafe { ffi::crustify_AV_WN32A(boxed.as_c_ptr().cast(), 0x0102_0304) };
+    assert_eq!(boxed.as_ref().u8x4(), 0x0102_0304u32.to_ne_bytes());
+    // SAFETY: as above, a read.
+    assert_eq!(unsafe { ffi::crustify_AV_RN32A(boxed.as_c_ptr().cast()) }, boxed.as_ref().u32());
+    let mut heap = alloc_array_zeroed::<u8>(16).unwrap();
+    heap.as_mut_slice().copy_from_slice(&c.0);
+    for off in (0..=12).step_by(4) {
+        let v = Alias32Ref::from_bytes(heap.as_slice()[off..off + 4].try_into().unwrap());
+        assert_eq!(v.unwrap().u32(), c_rn32a(&c.0, off), "heap view at {off}");
     }
 }

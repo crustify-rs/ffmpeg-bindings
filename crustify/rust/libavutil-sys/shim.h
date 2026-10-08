@@ -25,4 +25,16 @@ void crustify_AV_ZERO64(void *d);
 int crustify_AV_IS_INPUT_DEVICE(AVClassCategory category);
 int crustify_AV_IS_OUTPUT_DEVICE(AVClassCategory category);
 
+/* The same accessors over av_alias16 and av_alias32 (AV_SWAP has no 16- or
+ * 32-bit form): the C references for the Alias16 / Alias32 equivalence tests.
+ * Every pointer must be 2- or 4-byte aligned, as the macros require. */
+uint16_t crustify_AV_RN16A(const void *p);
+void crustify_AV_WN16A(void *p, uint16_t v);
+void crustify_AV_COPY16(void *d, const void *s);
+void crustify_AV_ZERO16(void *d);
+uint32_t crustify_AV_RN32A(const void *p);
+void crustify_AV_WN32A(void *p, uint32_t v);
+void crustify_AV_COPY32(void *d, const void *s);
+void crustify_AV_ZERO32(void *d);
+
 #endif /* CRUSTIFY_LIBAVUTIL_SHIM_H */

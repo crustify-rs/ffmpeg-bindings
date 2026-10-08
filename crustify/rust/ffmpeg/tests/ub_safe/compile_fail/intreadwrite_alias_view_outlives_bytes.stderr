@@ -1,0 +1,11 @@
+error[E0597]: `bytes` does not live long enough
+ --> tests/ub_safe/compile_fail/intreadwrite_alias_view_outlives_bytes.rs
+  |
+  |         let bytes = [0u8; 4];
+  |             ----- binding `bytes` declared here
+  |         view = Alias32Ref::from_bytes(&bytes);
+  |                                       ^^^^^^ borrowed value does not live long enough
+  |     }
+  |     - `bytes` dropped here while still borrowed
+  |     println!("{:?}", view.map(|v| v.u32()));
+  |                      ---- borrow later used here
