@@ -30,6 +30,16 @@ fn any_category_value_is_valid() {
     }
 }
 
+/// The device predicates reach C; kept apart from the FFI-free tests above,
+/// which also run under Miri.
+#[test]
+fn device_predicates_accept_any_value() {
+    for v in EDGES {
+        let c = ClassCategory::from_value(v);
+        assert!(!(c.is_input_device() && c.is_output_device()));
+    }
+}
+
 #[test]
 fn any_state_flag_bits_are_valid() {
     for a in EDGES {
