@@ -656,6 +656,241 @@
    ]
   },
   {
+   "name": "av_dirname",
+   "defined_in": "libavutil/avstring.c",
+   "ptr_args": [
+    {
+     "name": "path",
+     "ptr": {
+      "scalar": null,
+      "array": null,
+      "string": true,
+      "owned": false,
+      "borrowed": {
+       "lifetime": "arg:path"
+      },
+      "nullable": true,
+      "mutable": true,
+      "note": "Caller-owned NUL-terminated path, modified in place: a NUL is written over its last '/' (and, with HAVE_DOS_PATHS, '\\\\' or the char after ':'). NULL is accepted and yields \".\". Nothing is retained. [Symbol: Not a lifecycle primitive: an in-place string cut. Note C's textual semantics: \"/usr\" -> \"\" and \"a/b/\" -> \"a/b\" (not POSIX dirname). Wrapped as avstring::dirname(&mut [u8]) -> Option<&CStr>, rejecting a buffer without NUL before C.]"
+     }
+    }
+   ],
+   "ptr_ret": {
+    "ptr": {
+     "scalar": null,
+     "array": null,
+     "string": true,
+     "owned": false,
+     "borrowed": {
+      "lifetime": "arg:path"
+     },
+     "nullable": false,
+     "mutable": false,
+     "note": "Either `path` itself (now truncated), borrowed from it, or the static literal \".\" when path is NULL or has no separator. Never NULL; never owned by the caller."
+    }
+   }
+  },
+  {
+   "name": "av_double2int",
+   "defined_in": "libavutil/intfloat.h"
+  },
+  {
+   "name": "av_dynarray2_add",
+   "defined_in": "libavutil/mem.c",
+   "ptr_args": [
+    {
+     "name": "elem_data",
+     "ptr": {
+      "scalar": null,
+      "array": {
+       "by_val": true
+      },
+      "string": false,
+      "owned": false,
+      "borrowed": {
+       "lifetime": "arg:elem_data"
+      },
+      "nullable": true,
+      "mutable": false,
+      "note": "elem_size bytes copied into the new slot; NULL leaves the slot uninitialised (memory-poisoned with CONFIG_MEMORY_POISONING)."
+     }
+    },
+    {
+     "name": "nb_ptr",
+     "ptr": {
+      "scalar": {
+       "by_val": true
+      },
+      "array": null,
+      "string": false,
+      "owned": false,
+      "borrowed": {
+       "lifetime": "arg:nb_ptr"
+      },
+      "nullable": false,
+      "mutable": true,
+      "note": "In/out element count, 0..=INT_MAX; incremented on success."
+     }
+    },
+    {
+     "name": "tab_ptr",
+     "ptr": {
+      "scalar": {
+       "by_ref": {
+        "owned": true,
+        "borrowed": null
+       }
+      },
+      "array": null,
+      "string": false,
+      "owned": false,
+      "borrowed": {
+       "lifetime": "arg:tab_ptr"
+      },
+      "nullable": false,
+      "mutable": true,
+      "note": "Pointer to the array slot (T ** passed as void *, memcpy'd): its pointee is NULL or an av_realloc table of nb entries whose capacity is nb rounded up to a power of two (implicit; only arrays grown by this family from NULL/0 satisfy it). Reallocated in place when nb is a power of two; owned by the caller and released with av_freep. [Symbol: Value-element dynamic array growth; divides INT_MAX by elem_size, so elem_size 0 is a division by zero (the Rust wrapper rejects zero-sized T at compile time). Wrapped as mem::DynArray::push_or_clear for T: Copy.]"
+     }
+    }
+   ],
+   "ptr_ret": {
+    "ptr": {
+     "scalar": {
+      "by_val": true
+     },
+     "array": null,
+     "string": false,
+     "owned": false,
+     "borrowed": {
+      "lifetime": "arg:tab_ptr"
+     },
+     "nullable": true,
+     "mutable": true,
+     "note": "The new element's slot inside *tab_ptr, valid until the next reallocation; NULL on failure (the table is then av_freep'd and *nb_ptr zeroed)."
+    }
+   }
+  },
+  {
+   "name": "av_dynarray_add",
+   "defined_in": "libavutil/mem.c",
+   "ptr_args": [
+    {
+     "name": "elem",
+     "ptr": {
+      "scalar": {
+       "by_val": true
+      },
+      "array": null,
+      "string": false,
+      "owned": false,
+      "borrowed": {
+       "lifetime": "other"
+      },
+      "nullable": true,
+      "mutable": false,
+      "note": "Element pointer stored verbatim in the new slot, never dereferenced; ownership of the pointee stays with the caller (the table does not own its elements)."
+     }
+    },
+    {
+     "name": "nb_ptr",
+     "ptr": {
+      "scalar": {
+       "by_val": true
+      },
+      "array": null,
+      "string": false,
+      "owned": false,
+      "borrowed": {
+       "lifetime": "arg:nb_ptr"
+      },
+      "nullable": false,
+      "mutable": true,
+      "note": "In/out element count, 0..=INT_MAX; incremented on success."
+     }
+    },
+    {
+     "name": "tab_ptr",
+     "ptr": {
+      "scalar": {
+       "by_ref": {
+        "owned": true,
+        "borrowed": null
+       }
+      },
+      "array": null,
+      "string": false,
+      "owned": false,
+      "borrowed": {
+       "lifetime": "arg:tab_ptr"
+      },
+      "nullable": false,
+      "mutable": true,
+      "note": "Pointer to the array slot (T ** passed as void *, memcpy'd): its pointee is NULL or an av_realloc table of nb entries whose capacity is nb rounded up to a power of two (implicit; only arrays grown by this family from NULL/0 satisfy it). Reallocated in place when nb is a power of two; owned by the caller and released with av_freep. [Symbol: On failure the table is av_freep'd and *nb_ptr zeroed. Grows the slot in place; not a lifecycle primitive. Wrapped as mem::DynArray::push_ptr_or_clear (pointer elements via the sealed DynPtr trait).]"
+     }
+    }
+   ]
+  },
+  {
+   "name": "av_dynarray_add_nofree",
+   "defined_in": "libavutil/mem.c",
+   "ptr_args": [
+    {
+     "name": "elem",
+     "ptr": {
+      "scalar": {
+       "by_val": true
+      },
+      "array": null,
+      "string": false,
+      "owned": false,
+      "borrowed": {
+       "lifetime": "other"
+      },
+      "nullable": true,
+      "mutable": false,
+      "note": "Element pointer stored verbatim, never dereferenced; not owned by the table."
+     }
+    },
+    {
+     "name": "nb_ptr",
+     "ptr": {
+      "scalar": {
+       "by_val": true
+      },
+      "array": null,
+      "string": false,
+      "owned": false,
+      "borrowed": {
+       "lifetime": "arg:nb_ptr"
+      },
+      "nullable": false,
+      "mutable": true,
+      "note": "In/out element count, 0..=INT_MAX; incremented on success."
+     }
+    },
+    {
+     "name": "tab_ptr",
+     "ptr": {
+      "scalar": {
+       "by_ref": {
+        "owned": true,
+        "borrowed": null
+       }
+      },
+      "array": null,
+      "string": false,
+      "owned": false,
+      "borrowed": {
+       "lifetime": "arg:tab_ptr"
+      },
+      "nullable": false,
+      "mutable": true,
+      "note": "Pointer to the array slot (T ** passed as void *, memcpy'd): its pointee is NULL or an av_realloc table of nb entries whose capacity is nb rounded up to a power of two (implicit; only arrays grown by this family from NULL/0 satisfy it). Reallocated in place when nb is a power of two; owned by the caller and released with av_freep. [Symbol: As av_dynarray_add, but on failure returns AVERROR(ENOMEM) leaving table and count untouched. Wrapped as mem::DynArray::try_push_ptr.]"
+     }
+    }
+   ]
+  },
+  {
    "name": "av_escape",
    "defined_in": "libavutil/avstring.c",
    "lifetime": {
@@ -722,6 +957,306 @@
    ]
   },
   {
+   "name": "av_fast_malloc",
+   "defined_in": "libavutil/mem.c",
+   "ptr_args": [
+    {
+     "name": "ptr",
+     "ptr": {
+      "scalar": {
+       "by_ref": {
+        "owned": true,
+        "borrowed": null
+       }
+      },
+      "array": null,
+      "string": false,
+      "owned": false,
+      "borrowed": {
+       "lifetime": "arg:ptr"
+      },
+      "nullable": false,
+      "mutable": true,
+      "note": "Declared void * but a T ** slot (memcpy'd). Its pointee is NULL or an av_malloc-family block of *size bytes, owned by the caller. Kept when min_size <= *size (av_assert0 that it is non-NULL unless min_size is 0); otherwise av_freep'd and replaced by a fresh uninitialised av_malloc block, or NULL on failure. [Symbol: Realloc-style slot reuse (frees and allocates the same slot), not a constructor. Wrapped as mem::FastBuffer::reserve_discarding.]"
+     }
+    },
+    {
+     "name": "size",
+     "ptr": {
+      "scalar": {
+       "by_val": true
+      },
+      "array": null,
+      "string": false,
+      "owned": false,
+      "borrowed": {
+       "lifetime": "arg:size"
+      },
+      "nullable": false,
+      "mutable": true,
+      "note": "In/out byte size of *ptr; new size or 0 on failure."
+     }
+    }
+   ]
+  },
+  {
+   "name": "av_fast_mallocz",
+   "defined_in": "libavutil/mem.c",
+   "ptr_args": [
+    {
+     "name": "ptr",
+     "ptr": {
+      "scalar": {
+       "by_ref": {
+        "owned": true,
+        "borrowed": null
+       }
+      },
+      "array": null,
+      "string": false,
+      "owned": false,
+      "borrowed": {
+       "lifetime": "arg:ptr"
+      },
+      "nullable": false,
+      "mutable": true,
+      "note": "As av_fast_malloc's slot, but a fresh block comes from av_mallocz (zeroed); a reused block is not cleared. [Symbol: Realloc-style slot reuse, not a constructor. Wrapped as mem::ZeroedFastBuffer::reserve_discarding, whose bytes are all initialised.]"
+     }
+    },
+    {
+     "name": "size",
+     "ptr": {
+      "scalar": {
+       "by_val": true
+      },
+      "array": null,
+      "string": false,
+      "owned": false,
+      "borrowed": {
+       "lifetime": "arg:size"
+      },
+      "nullable": false,
+      "mutable": true,
+      "note": "In/out byte size of *ptr; new size or 0 on failure."
+     }
+    }
+   ]
+  },
+  {
+   "name": "av_fast_realloc",
+   "defined_in": "libavutil/mem.c",
+   "ptr_args": [
+    {
+     "name": "ptr",
+     "ptr": {
+      "scalar": null,
+      "array": {
+       "by_val": true
+      },
+      "string": false,
+      "owned": true,
+      "borrowed": {
+       "lifetime": "arg:ptr"
+      },
+      "nullable": true,
+      "mutable": true,
+      "note": "NULL or an av_malloc/av_realloc block of *size bytes. Returned unchanged (still the caller's) when min_size <= *size; otherwise passed to av_realloc, which frees or moves it; on failure it stays allocated and the caller must free it (av_fast_realloc returns NULL and sets *size = 0). [Symbol: Realloc-style (releases and allocates the same slot), so no constructor role per the schema. Wrapped as mem::FastBuffer::reserve over a HeapVec<MaybeUninit<u8>>, which keeps the old block on failure.]"
+     }
+    },
+    {
+     "name": "size",
+     "ptr": {
+      "scalar": {
+       "by_val": true
+      },
+      "array": null,
+      "string": false,
+      "owned": false,
+      "borrowed": {
+       "lifetime": "arg:size"
+      },
+      "nullable": false,
+      "mutable": true,
+      "note": "In/out byte size of the block; set to the allocated size (min_size + min_size/16 + 32, capped by max_alloc and UINT_MAX) or 0 on failure."
+     }
+    }
+   ],
+   "ptr_ret": {
+    "ptr": {
+     "scalar": null,
+     "array": {
+      "by_val": true
+     },
+     "string": false,
+     "owned": true,
+     "borrowed": null,
+     "nullable": true,
+     "mutable": true,
+     "note": "The (possibly same) block of *size bytes, owned by the caller and released by av_free; NULL on failure. Contents up to the old size are preserved; the tail is uninitialised."
+    }
+   }
+  },
+  {
+   "name": "av_file_map",
+   "defined_in": "libavutil/file.c",
+   "lifetime": {
+    "for": "bufptr",
+    "is_dropper": false,
+    "is_disposer": false,
+    "is_cloner": null,
+    "is_constructor": {
+     "alloc": true,
+     "init": false
+    }
+   },
+   "ptr_args": [
+    {
+     "name": "bufptr",
+     "ptr": {
+      "scalar": {
+       "by_ref": {
+        "owned": true,
+        "borrowed": null
+       }
+      },
+      "array": null,
+      "string": false,
+      "owned": false,
+      "borrowed": {
+       "lifetime": "arg:bufptr"
+      },
+      "nullable": false,
+      "mutable": true,
+      "note": "Out-slot, set to NULL first, then on success to an mmap(PROT_READ|PROT_WRITE, MAP_PRIVATE) mapping (or an av_malloc read copy without mmap) of *size bytes, owned by the caller and released only by av_file_unmap(*bufptr, *size). NULL with *size == 0 for an empty file. The inner pointee is a byte array of *size bytes."
+     }
+    },
+    {
+     "name": "filename",
+     "ptr": {
+      "scalar": null,
+      "array": null,
+      "string": true,
+      "owned": false,
+      "borrowed": {
+       "lifetime": "arg:filename"
+      },
+      "nullable": false,
+      "mutable": false,
+      "note": "Path opened with avpriv_open(O_RDONLY); only read, not retained. [Symbol: Allocating constructor through the bufptr out-slot; paired dropper av_file_unmap. log_offset is added to AV_LOG_ERROR inside av_vlog, which overflows (signed UB) for log_offset > INT_MAX - 16; the Rust wrapper file::map rejects those. Mapping contents change if another process writes the file (MAP_PRIVATE pages not yet copied), so the wrapper is unsafe.]"
+     }
+    },
+    {
+     "name": "log_ctx",
+     "ptr": {
+      "scalar": {
+       "by_val": true
+      },
+      "array": null,
+      "string": false,
+      "owned": false,
+      "borrowed": {
+       "lifetime": "arg:log_ctx"
+      },
+      "nullable": true,
+      "mutable": false,
+      "note": "Parent log context stored in a stack FileLogContext (parent_log_context_offset); av_log's default callback reads *(AVClass **)log_ctx, so it must be NULL or point to a struct led by a const AVClass * (NULL or valid). Not retained past the call."
+     }
+    },
+    {
+     "name": "size",
+     "ptr": {
+      "scalar": {
+       "by_val": true
+      },
+      "array": null,
+      "string": false,
+      "owned": false,
+      "borrowed": {
+       "lifetime": "arg:size"
+      },
+      "nullable": false,
+      "mutable": true,
+      "note": "Out-param byte count of *bufptr; 0 on failure."
+     }
+    }
+   ]
+  },
+  {
+   "name": "av_file_unmap",
+   "defined_in": "libavutil/file.c",
+   "lifetime": {
+    "for": "bufptr",
+    "is_dropper": true,
+    "is_disposer": false,
+    "is_cloner": null,
+    "is_constructor": null
+   },
+   "ptr_args": [
+    {
+     "name": "bufptr",
+     "ptr": {
+      "scalar": null,
+      "array": {
+       "by_val": true
+      },
+      "string": false,
+      "owned": true,
+      "borrowed": null,
+      "nullable": true,
+      "mutable": true,
+      "note": "A buffer from av_file_map with its exact size; munmap'ed (or av_free'd without mmap). NULL or size 0 is a no-op. [Symbol: Dropper of av_file_map buffers; needs the size back, so the Rust policy FileUnmap is an impl_clendrop! over CVec<u8, FileUnmap> (file::FileMap).]"
+     }
+    }
+   ]
+  },
+  {
+   "name": "av_float2int",
+   "defined_in": "libavutil/intfloat.h"
+  },
+  {
+   "name": "av_force_cpu_flags",
+   "defined_in": "libavutil/cpu.c"
+  },
+  {
+   "name": "av_fourcc_make_string",
+   "defined_in": "libavutil/utils.c",
+   "ptr_args": [
+    {
+     "name": "buf",
+     "ptr": {
+      "scalar": null,
+      "array": {
+       "by_val": true
+      },
+      "string": true,
+      "owned": false,
+      "borrowed": {
+       "lifetime": "arg:buf"
+      },
+      "nullable": false,
+      "mutable": true,
+      "note": "Caller-provided output buffer of at least AV_FOURCC_MAX_STRING_SIZE (32) chars; filled with a NUL-terminated string of at most 20 chars via bounded snprintf. Must not be NULL. Not retained. [Symbol: Formatter into caller storage; no lifecycle role. Wrapped as avutil::fourcc_string(&mut [u8; 32], u32) -> &CStr borrowing the buffer.]"
+     }
+    }
+   ],
+   "ptr_ret": {
+    "ptr": {
+     "scalar": null,
+     "array": {
+      "by_val": true
+     },
+     "string": true,
+     "owned": false,
+     "borrowed": {
+      "lifetime": "arg:buf"
+     },
+     "nullable": false,
+     "mutable": true,
+     "note": "Always `buf` itself."
+    }
+   }
+  },
+  {
    "name": "av_free",
    "defined_in": "libavutil/mem.c",
    "lifetime": {
@@ -783,6 +1318,18 @@
      }
     }
    ]
+  },
+  {
+   "name": "av_gcd",
+   "defined_in": "libavutil/mathematics.c"
+  },
+  {
+   "name": "av_get_cpu_flags",
+   "defined_in": "libavutil/cpu.c"
+  },
+  {
+   "name": "av_get_random_seed",
+   "defined_in": "libavutil/random_seed.c"
   },
   {
    "name": "av_get_token",
@@ -848,6 +1395,30 @@
      "note": "Fresh av_realloc block holding the unescaped, whitespace-trimmed token, NUL-terminated (shrunk with av_realloc when possible); released by av_free. NULL only when the initial av_realloc(NULL, strlen(*buf) + 1) fails, in which case *buf is left unchanged."
     }
    }
+  },
+  {
+   "name": "av_gettime",
+   "defined_in": "libavutil/time.c"
+  },
+  {
+   "name": "av_gettime_relative",
+   "defined_in": "libavutil/time.c"
+  },
+  {
+   "name": "av_gettime_relative_is_monotonic",
+   "defined_in": "libavutil/time.c"
+  },
+  {
+   "name": "av_int2double",
+   "defined_in": "libavutil/intfloat.h"
+  },
+  {
+   "name": "av_int2float",
+   "defined_in": "libavutil/intfloat.h"
+  },
+  {
+   "name": "av_isdigit",
+   "defined_in": "libavutil/avstring.h"
   },
   {
    "name": "av_malloc",

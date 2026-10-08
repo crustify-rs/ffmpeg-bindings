@@ -292,6 +292,29 @@ pub fn x_if_null_mut<'a, T>(p: Option<&'a mut T>, x: Option<&'a mut T>) -> Optio
     unsafe { chosen.cast::<T>().as_mut() }
 }
 
+/// `AV_FOURCC_MAX_STRING_SIZE`: the buffer [`fourcc_string`] fills.
+const FOURCC_MAX_STRING_SIZE: usize = ffi::AV_FOURCC_MAX_STRING_SIZE as usize;
+
+/// Wraps: av_fourcc_make_string
+///
+/// `fourcc` spelled out in `buf`, least significant byte first: a digit,
+/// ASCII letter or one of `. -_` as itself, any other byte as its decimal
+/// value in brackets (`[0]`). The result borrows `buf`.
+///
+/// ```
+/// use ffmpeg::libavutil::avutil::fourcc_string;
+/// let mut buf = [0; 32];
+/// assert_eq!(fourcc_string(&mut buf, u32::from_le_bytes(*b"H264")), c"H264");
+/// assert_eq!(fourcc_string(&mut buf, 0x0100_2e41), c"A.[0][1]");
+/// ```
+pub fn fourcc_string(buf: &mut [u8; FOURCC_MAX_STRING_SIZE], fourcc: u32) -> &CStr {
+    // SAFETY: `buf` is `AV_FOURCC_MAX_STRING_SIZE` writable bytes, the size
+    // `av_fourcc_make_string` bounds its `snprintf` calls by (at most 20
+    // bytes and a NUL are written); it keeps no pointer to it.
+    unsafe { ffi::av_fourcc_make_string(buf.as_mut_ptr().cast(), fourcc) };
+    CStr::from_bytes_until_nul(buf).expect("snprintf NUL-terminates the buffer")
+}
+
 #[cfg(test)]
 mod unit_tests {
     use super::*;

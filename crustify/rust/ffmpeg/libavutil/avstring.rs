@@ -450,6 +450,71 @@ pub fn append_path_component(path: &CStr, component: &CStr) -> Option<HeapString
     unsafe { HeapString::from_raw(ptr) }
 }
 
+/// Wraps: av_dirname
+///
+/// The parent directory of the path held by `path` up to its first NUL, found
+/// as C does: `path` is truncated in place at its last `/` and returned up to
+/// there, or, when it has no `/`, left as is while `"."` is returned. `None`,
+/// without calling C, when `path` holds no NUL.
+///
+/// This is C's textual cut, not POSIX `dirname`: a path whose only `/` leads
+/// it (`"/usr"`) gives the empty string, and a trailing `/` is cut rather than
+/// skipped (`"a/b/"` gives `"a/b"`). Pass a copy to keep the path intact.
+pub fn dirname(path: &mut [u8]) -> Option<&CStr> {
+    if !path.contains(&0) {
+        return None;
+    }
+    let base = path.as_mut_ptr();
+    // SAFETY: `path` is writable and holds a NUL, so `base` is a live
+    // NUL-terminated string that nothing else borrows during the call.
+    // `av_dirname` reads it up to that NUL (`strrchr`), writes at most one NUL
+    // over its last `/`, before the original NUL, and keeps no pointer.
+    let ret = unsafe { ffi::av_dirname(base.cast()) };
+    if ret.cast::<u8>() == base.cast_const() {
+        CStr::from_bytes_until_nul(path).ok()
+    } else {
+        // C returns its static `"."` whenever it has not cut `path`.
+        Some(c".")
+    }
+}
+
+/// Wraps: av_get_token
+///
+/// The next token of `*buf`, unescaped, and `*buf` advanced past it to the
+/// first unescaped character of `term` or to its end.
+///
+/// Leading and trailing whitespace is dropped unless escaped with `\` or
+/// quoted between `'`; a `\` takes the next character literally, and `'...'`
+/// copies its contents verbatim. `None` when the token cannot be allocated,
+/// which leaves `*buf` as it was; the allocation is `buf.count_bytes() + 1`
+/// bytes, so it fails above the `av_max_alloc` limit too.
+pub fn get_token(buf: &mut &CStr, term: &CStr) -> Option<HeapString> {
+    let start = buf.as_ptr();
+    let mut cursor = start;
+    // SAFETY: `cursor` points to `*buf`, a live NUL-terminated string, and
+    // `term` is one too; `av_get_token` only reads both, and writes `cursor`
+    // once, to a position within `*buf` no later than its NUL.
+    let token = unsafe { ffi::av_get_token(&mut cursor, term.as_ptr()) };
+    let bytes = buf.to_bytes_with_nul();
+    let advanced = (cursor as usize).wrapping_sub(start as usize);
+    assert!(advanced < bytes.len(), "av_get_token left the string");
+    *buf = CStr::from_bytes_until_nul(&bytes[advanced..]).expect("the suffix keeps the NUL");
+    // SAFETY: a non-NULL `token` is a fresh, uniquely-owned, NUL-terminated
+    // `av_realloc` block, which `av_free` releases.
+    unsafe { HeapString::from_raw(token) }
+}
+
+/// Wraps: av_isdigit
+///
+/// Whether `c` is an ASCII digit, `'0'..='9'`, whatever the locale; every
+/// other `int`, `EOF` and non-ASCII bytes included, is not.
+#[must_use]
+pub fn is_ascii_digit(c: c_int) -> bool {
+    // SAFETY: `av_isdigit` takes its argument by value and has no
+    // preconditions.
+    unsafe { ffi::av_isdigit(c) != 0 }
+}
+
 #[cfg(test)]
 mod unit_tests {
     use super::*;
@@ -599,5 +664,32 @@ mod unit_tests {
         assert_eq!(e.to_string(), "invalid UTF-8 sequence");
         assert!(format!("{e:?}").starts_with("Utf8Error"));
         let _: &dyn std::error::Error = &e;
+    }
+
+    #[test]
+    fn dirname_rejects_a_path_without_nul_before_c() {
+        let mut no_nul = *b"dir/file";
+        assert_eq!(dirname(&mut no_nul), None);
+        assert_eq!(&no_nul, b"dir/file");
+        assert_eq!(dirname(&mut []), None);
+    }
+
+    #[test]
+    fn dirname_reads_only_up_to_the_first_nul() {
+        let mut path = *b"a\0b/c\0";
+        assert_eq!(dirname(&mut path), Some(c"."));
+        assert_eq!(&path, b"a\0b/c\0");
+        let mut path = *b"x/y\0/z/w";
+        assert_eq!(dirname(&mut path), Some(c"x"));
+        assert_eq!(&path, b"x\0y\0/z/w");
+    }
+
+    #[test]
+    fn get_token_cursor_stays_on_the_input() {
+        let input = c"a , b";
+        let mut cursor = input;
+        let t = get_token(&mut cursor, c",").unwrap();
+        assert_eq!((t.to_str(), cursor), (Ok("a"), c", b"));
+        assert_eq!(cursor.as_ptr(), input.as_ptr().wrapping_add(2));
     }
 }

@@ -1,0 +1,9 @@
+error[E0502]: cannot borrow `a` as mutable because it is also borrowed as immutable
+ --> tests/ub_safe/compile_fail/mem_dynarray_push_while_viewed.rs
+  |
+  |     let s = a.as_slice();
+  |             - immutable borrow occurs here
+  |     let _ = a.push_or_clear(2);
+  |             ^^^^^^^^^^^^^^^^^^ mutable borrow occurs here
+  |     println!("{}", s[0]);
+  |                    ---- immutable borrow later used here

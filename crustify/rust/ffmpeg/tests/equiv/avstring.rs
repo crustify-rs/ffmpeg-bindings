@@ -759,3 +759,187 @@ mod paths_and_format {
         assert!(format(format_args!("01234567")).is_some());
     }
 }
+
+/// `av_dirname`, `av_get_token` and `av_isdigit`, each against its raw C
+/// symbol on independently owned buffers.
+mod paths_and_tokens {
+    use core::ffi::{CStr, c_char, c_int};
+
+    use ffmpeg::libavutil::avstring::{dirname, get_token, is_ascii_digit};
+    use ffmpeg::libavutil::ffi;
+
+    /// Paths around every cut `av_dirname` makes: none, a leading, inner,
+    /// doubled or trailing `/`, DOS separators (plain bytes on this platform),
+    /// and bytes after an inner NUL, which neither side may read.
+    const PATHS: [&[u8]; 18] = [
+        b"",
+        b"/",
+        b"//",
+        b"a",
+        b"a/",
+        b"/a",
+        b"a/b",
+        b"a/b/",
+        b"/a/b/c",
+        b"a//b",
+        b"./a",
+        b"../",
+        b"..",
+        b"C:\\x\\y",
+        b"c:file",
+        b"a b/c d",
+        b"x/y\0/z",
+        b"\xff/\xfe",
+    ];
+
+    /// `av_dirname` on a NUL-terminated copy of `path`: the result, whether it
+    /// is the buffer itself, and the buffer afterwards.
+    fn c_dirname(path: &[u8]) -> (Vec<u8>, bool, Vec<u8>) {
+        let mut buf = path.to_vec();
+        buf.push(0);
+        // SAFETY: `buf` is a writable NUL-terminated string, which `av_dirname`
+        // reads up to its NUL and writes at most one NUL into.
+        let ret = unsafe { ffi::av_dirname(buf.as_mut_ptr().cast()) };
+        let same = ret.cast::<u8>() == buf.as_ptr();
+        // SAFETY: `ret` is `buf` (alive) or C's static `"."`, NUL-terminated.
+        let out = unsafe { CStr::from_ptr(ret) }.to_bytes().to_vec();
+        (out, same, buf)
+    }
+
+    /// `dirname` on a NUL-terminated copy of `path`, as [`c_dirname`] reports it.
+    fn rust_dirname(path: &[u8]) -> (Vec<u8>, bool, Vec<u8>) {
+        let mut buf = path.to_vec();
+        buf.push(0);
+        let base = buf.as_ptr();
+        let ret = dirname(&mut buf).unwrap();
+        let (out, same) = (ret.to_bytes().to_vec(), ret.as_ptr().cast::<u8>() == base);
+        (out, same, buf)
+    }
+
+    #[test]
+    fn dirname_cuts_and_returns_as_av_dirname() {
+        for path in PATHS {
+            assert_eq!(
+                rust_dirname(path),
+                c_dirname(path),
+                "{:?}",
+                path.escape_ascii().to_string()
+            );
+        }
+    }
+
+    #[test]
+    fn repeated_dirnames_agree_after_every_step() {
+        for path in [&b"/usr/local/lib/x.so"[..], b"a/b/c/", b"rel/path"] {
+            let (mut rust, mut c) = (path.to_vec(), path.to_vec());
+            for step in 0..6 {
+                let (r, k) = (rust_dirname(&rust), c_dirname(&c));
+                assert_eq!(r, k, "{path:?} step {step}");
+                rust = r.0;
+                c = k.0;
+            }
+            assert_eq!(rust, b".");
+        }
+    }
+
+    /// `av_get_token` from `*cursor`: the token, and `*cursor` advanced.
+    fn c_get_token(cursor: &mut *const c_char, term: &CStr) -> Option<Vec<u8>> {
+        // SAFETY: `*cursor` is a live NUL-terminated string and `term` one too;
+        // `av_get_token` only reads both, and moves `*cursor` within the first.
+        let tok = unsafe { ffi::av_get_token(cursor, term.as_ptr()) };
+        if tok.is_null() {
+            return None;
+        }
+        // SAFETY: `tok` is a fresh NUL-terminated `av_realloc` string we own.
+        let out = unsafe { CStr::from_ptr(tok) }.to_bytes().to_vec();
+        // SAFETY: as above; freed once.
+        unsafe { ffi::av_free(tok.cast()) };
+        Some(out)
+    }
+
+    /// Inputs exercising each `av_get_token` branch, with their terminators.
+    const TOKEN_INPUTS: [(&CStr, &CStr); 12] = [
+        (c"", c","),
+        (c"   ", c","),
+        (c"a,b,c", c","),
+        (c"  lead , trail  ,", c","),
+        (c"k1=v1:k2=v2", c"=:"),
+        (c"esc\\,aped,next", c","),
+        (c"'quoted, kept'  ,x", c","),
+        (c"half'quote", c","),
+        (c"trailing\\", c","),
+        (c" \\  ' ' \\ ,", c","),
+        (c"no terminator here", c""),
+        (c"a;b|c;;d", c";|"),
+    ];
+
+    #[test]
+    fn token_sequences_agree_after_every_step() {
+        for (input, term) in TOKEN_INPUTS {
+            let mut rust = input;
+            let mut c = input.as_ptr();
+            for step in 0..8 {
+                let r = get_token(&mut rust, term).map(|t| t.as_bytes().to_vec());
+                let k = c_get_token(&mut c, term);
+                assert_eq!(r, k, "{input:?} step {step}");
+                assert_eq!(rust.as_ptr(), c, "{input:?} step {step}: cursor");
+                if rust.is_empty() {
+                    break;
+                }
+                // Both stop on a terminator; step over it on each side.
+                rust = CStr::from_bytes_with_nul(&rust.to_bytes_with_nul()[1..]).unwrap();
+                c = c.wrapping_add(1);
+            }
+        }
+    }
+
+    #[test]
+    fn is_digit_classifies_every_int_as_av_isdigit() {
+        let extremes = [c_int::MIN, c_int::MIN + 1, -1, c_int::MAX - 1, c_int::MAX];
+        for c in (-300..=300).chain(extremes) {
+            // SAFETY: `av_isdigit` takes its argument by value.
+            let k = unsafe { ffi::av_isdigit(c) } != 0;
+            assert_eq!(is_ascii_digit(c), k, "{c}");
+            assert_eq!(k, u8::try_from(c).is_ok_and(|b| b.is_ascii_digit()), "{c}");
+        }
+    }
+
+    /// Set in the child process an isolated test re-runs itself in.
+    const ISOLATED: &str = "CRUSTIFY_EQUIV_ISOLATED";
+
+    /// The `av_max_alloc` limit is process-global, so this test lowers it only in
+    /// a child process running nothing else, and passes when the child does.
+    #[test]
+    fn get_token_failure_at_the_av_max_alloc_limit_matches_c() {
+        if std::env::var_os(ISOLATED).is_none() {
+            let status = std::process::Command::new(std::env::current_exe().unwrap())
+                .args([
+                    "--exact",
+                    "avstring::paths_and_tokens::get_token_failure_at_the_av_max_alloc_limit_matches_c",
+                ])
+                .args(["--test-threads=1", "--nocapture"])
+                .env(ISOLATED, "1")
+                .status()
+                .unwrap();
+            assert!(status.success(), "isolated run failed: {status}");
+            return;
+        }
+
+        // The token buffer is `strlen(*buf) + 1` bytes: 7 bytes of input fit an
+        // 8-byte limit and 8 do not.
+        // SAFETY: `av_max_alloc` takes a size by value; nothing else runs in this
+        // process.
+        unsafe { ffi::av_max_alloc(8) };
+        for input in [c"abc,def", c"abcd,efg", c"abcdefghijkl"] {
+            let mut rust = input;
+            let mut c = input.as_ptr();
+            let r = get_token(&mut rust, c",").map(|t| t.as_bytes().to_vec());
+            let k = c_get_token(&mut c, c",");
+            assert_eq!(r, k, "{input:?}");
+            assert_eq!(rust.as_ptr(), c, "{input:?}: cursor");
+            assert_eq!(r.is_none(), input.count_bytes() >= 8, "{input:?}");
+        }
+        // SAFETY: as above; the default limit again.
+        unsafe { ffi::av_max_alloc(i32::MAX as usize) };
+    }
+}

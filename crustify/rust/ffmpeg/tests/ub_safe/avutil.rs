@@ -191,3 +191,43 @@ mod version_and_x_if_null {
         assert!(x_if_null::<String>(None, None).is_none());
     }
 }
+
+/// `fourcc_string` on every byte class and from many threads.
+mod fourcc {
+    use std::thread;
+
+    use ffmpeg::libavutil::avutil::fourcc_string;
+
+    #[test]
+    fn fourcc_strings_fit_their_buffer() {
+        let mut buf = [0u8; 32];
+        // The longest: four bracketed three-digit bytes.
+        assert_eq!(
+            fourcc_string(&mut buf, 0xffff_ffff),
+            c"[255][255][255][255]"
+        );
+        for f in [0, 1, 0x8000_0000, 0x2e2d_205f, 0x0a0d_0900, u32::MAX - 1] {
+            let s = fourcc_string(&mut buf, f);
+            assert!(s.count_bytes() <= 20);
+        }
+    }
+
+    #[test]
+    fn fourcc_strings_on_many_threads() {
+        let handles: Vec<_> = (0..8u32)
+            .map(|t| {
+                thread::spawn(move || {
+                    let mut buf = [0u8; 32];
+                    (0..2000u32)
+                        .map(|i| {
+                            fourcc_string(&mut buf, i.wrapping_mul(0x0101_0101) ^ t).count_bytes()
+                        })
+                        .sum::<usize>()
+                })
+            })
+            .collect();
+        for h in handles {
+            assert!(h.join().unwrap() >= 2000 * 4);
+        }
+    }
+}

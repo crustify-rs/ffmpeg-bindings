@@ -1,0 +1,7 @@
+error[E0133]: call to unsafe function `ffmpeg::libavutil::file::map` is unsafe and requires unsafe block
+ --> tests/ub_safe/compile_fail/file_map_needs_unsafe.rs
+  |
+  |     let _ = ffmpeg::libavutil::file::map(c"/dev/null", 0, core::ptr::null_mut());
+  |             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ call to unsafe function
+  |
+  = note: consult the function's documentation for information on how to avoid undefined behavior

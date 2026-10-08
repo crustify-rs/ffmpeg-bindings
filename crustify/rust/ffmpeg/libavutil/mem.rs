@@ -20,14 +20,27 @@
 //! routine is a [`HeapString`], built by [`string_from_c_str`] (`av_strdup`)
 //! or [`string_from_bytes_until_nul`] (`av_strndup`), `Clone` through
 //! `av_strdup`, and released by `av_free`.
+//!
+//! Two growable owners keep C's in-place growth protocols:
+//!
+//! - [`DynArray<T>`] is the `av_dynarray` family's `(tab, nb)` pair, grown by
+//!   [`push_or_clear`](DynArray::push_or_clear) (`av_dynarray2_add`) and, for
+//!   pointer elements, [`push_ptr_or_clear`](DynArray::push_ptr_or_clear)
+//!   (`av_dynarray_add`) and [`try_push_ptr`](DynArray::try_push_ptr)
+//!   (`av_dynarray_add_nofree`), and released by `av_freep`;
+//! - [`FastBuffer`] and [`ZeroedFastBuffer`] are the `(ptr, size)` pair of a
+//!   buffer reused while large enough, grown by `av_fast_realloc`,
+//!   `av_fast_malloc` and `av_fast_mallocz`, and released by `av_free`.
 
-use core::ffi::{CStr, c_char};
+use core::ffi::{CStr, c_char, c_double, c_int, c_longlong, c_uint, c_void};
+use core::fmt;
+use core::marker::PhantomData;
 use core::mem::{MaybeUninit, align_of, size_of};
 use core::ptr::NonNull;
 
 use ffibox::{
-    CAlloc, CAllocZeroed, CBox, CCell, CDrop, CDupClone, CPlainElem, CStrBox, CVec, CZeroable,
-    impl_cdupclone_str, impl_clenclone, impl_clendrop,
+    CAlloc, CAllocZeroed, CBox, CCell, CDrop, CDupClone, CPlainElem, CSlice, CSliceMut, CStrBox,
+    CVec, CZeroable, impl_cdupclone_str, impl_clenclone, impl_clendrop,
 };
 
 use super::ffi;
@@ -289,6 +302,450 @@ pub fn string_from_bytes_until_nul(bytes: &[u8]) -> Option<HeapString> {
     // SAFETY: a non-NULL `ptr` is a fresh, uniquely-owned `av_realloc` block,
     // NUL-terminated by `av_strndup`, which `av_free` releases.
     unsafe { HeapString::from_raw(ptr) }
+}
+
+/// Alignment of every `av_realloc` block: `realloc`'s, which suits every
+/// fundamental C type, so at least that of `double`, `long long` and a pointer.
+const REALLOC_ALIGN: usize = {
+    let (d, ll, p) = (
+        align_of::<c_double>(),
+        align_of::<c_longlong>(),
+        align_of::<*const u8>(),
+    );
+    let m = if d > ll { d } else { ll };
+    if m > p { m } else { p }
+};
+
+/// Handwritten
+///
+/// A dynamic array grown in place by the `av_dynarray` family, released by
+/// `av_freep`.
+///
+/// C keeps the array as a `(tab, nb)` pair: `nb` elements in an `av_realloc`
+/// block whose capacity is implicit, `nb` rounded up to a power of two, and
+/// which an append doubles whenever `nb` is one. Only arrays grown from empty
+/// by these appends keep that capacity, so a `DynArray` is built empty and
+/// grown only through them; an arbitrary [`HeapVec`] cannot become one.
+///
+/// Elements are appended by value with [`push_or_clear`](Self::push_or_clear),
+/// or, when they are pointers ([`DynPtr`]), with
+/// [`push_ptr_or_clear`](Self::push_ptr_or_clear) or
+/// [`try_push_ptr`](Self::try_push_ptr). Each is a `Copy` value, so neither a
+/// failed append that frees the array nor dropping it leaves a destructor
+/// unrun. Plain elements read out as a slice, wrapped C objects as handles;
+/// [`into_vec`](Self::into_vec) gives the elements up as a [`HeapVec`].
+///
+/// Hand-written rather than a [`HeapVec`]: C reallocates and frees the `tab`
+/// slot and writes the `nb` slot in place, and the implicit capacity is an
+/// invariant a `HeapVec` cannot carry.
+pub struct DynArray<T> {
+    /// NULL, or an `av_realloc` block of at least `len` rounded up to a power
+    /// of two elements, the first `len` initialised.
+    tab: *mut T,
+    /// `nb`, in `0..=INT_MAX`.
+    len: c_int,
+    _owns: PhantomData<T>,
+}
+
+// SAFETY: a `DynArray` owns its block and elements as a `Vec` does, and
+// `av_freep` releases the block from any thread.
+unsafe impl<T: Send> Send for DynArray<T> {}
+// SAFETY: `&DynArray` reaches the elements only through shared views, as
+// `&Vec` does.
+unsafe impl<T: Sync> Sync for DynArray<T> {}
+
+/// A pointer element of a [`DynArray`]: C's `av_dynarray_add` stores it as a
+/// `void *` and never dereferences it, so the array neither owns nor borrows
+/// the pointee.
+///
+/// Implemented for `*const U` and `*mut U`; sealed.
+pub trait DynPtr: Copy + sealed::Sealed {}
+
+mod sealed {
+    use core::ffi::c_void;
+
+    pub trait Sealed {
+        /// The pointer as the `void *` C stores; read back as `Self`, the same
+        /// address.
+        fn into_void(self) -> *mut c_void;
+    }
+}
+
+impl<U> sealed::Sealed for *const U {
+    fn into_void(self) -> *mut c_void {
+        self.cast_mut().cast()
+    }
+}
+impl<U> DynPtr for *const U {}
+impl<U> sealed::Sealed for *mut U {
+    fn into_void(self) -> *mut c_void {
+        self.cast()
+    }
+}
+impl<U> DynPtr for *mut U {}
+
+impl<T> DynArray<T> {
+    /// An empty array, which owns no block.
+    #[must_use]
+    pub const fn new() -> Self {
+        Self {
+            tab: core::ptr::null_mut(),
+            len: 0,
+            _owns: PhantomData,
+        }
+    }
+
+    /// The number of elements.
+    #[must_use]
+    pub fn len(&self) -> usize {
+        self.len as usize
+    }
+
+    /// Whether the array holds no elements.
+    #[must_use]
+    pub fn is_empty(&self) -> bool {
+        self.len == 0
+    }
+
+    /// The elements as a [`HeapVec`], released by `av_free`; the spare
+    /// capacity goes with them, out of reach.
+    #[must_use]
+    pub fn into_vec(self) -> HeapVec<T> {
+        let this = core::mem::ManuallyDrop::new(self);
+        // SAFETY: `tab` is NULL with no elements, or an `av_realloc` block
+        // this array owns, holding `len` initialised `T` aligned for `T` (as
+        // the appends assert) within its size, which `av_free` releases
+        // whatever its length; `ManuallyDrop` hands the claim over.
+        unsafe { HeapVec::from_raw_parts_or_empty(this.tab, this.len()) }
+            .expect("a dynarray is NULL only when empty")
+    }
+
+    /// The first element's address, dangling when the array is empty.
+    fn data(&self) -> NonNull<T> {
+        NonNull::new(self.tab).unwrap_or(NonNull::dangling())
+    }
+}
+
+impl<T: CPlainElem> DynArray<T> {
+    /// The elements as a slice.
+    #[must_use]
+    pub fn as_slice(&self) -> &[T] {
+        // SAFETY: `data()` addresses `len` initialised, aligned `T` the array
+        // owns exclusively (or is dangling with none), alive and unwritten
+        // while `self` is borrowed.
+        unsafe { core::slice::from_raw_parts(self.data().as_ptr(), self.len()) }
+    }
+
+    /// The elements as a mutable slice.
+    #[must_use]
+    pub fn as_mut_slice(&mut self) -> &mut [T] {
+        // SAFETY: as `as_slice`, with the exclusive borrow of `self`.
+        unsafe { core::slice::from_raw_parts_mut(self.data().as_ptr(), self.len()) }
+    }
+}
+
+impl<T: CCell> DynArray<T> {
+    /// The elements as shared handles.
+    #[must_use]
+    pub fn as_handles(&self) -> CSlice<'_, T> {
+        // SAFETY: `data()` addresses `len` initialised, aligned `T` the array
+        // owns, alive while `self` is borrowed.
+        unsafe { CSlice::from_raw_parts(self.data(), self.len()) }
+    }
+
+    /// The elements as exclusive handles.
+    #[must_use]
+    pub fn as_handles_mut(&mut self) -> CSliceMut<'_, T> {
+        // SAFETY: as `as_handles`, with the exclusive borrow of `self`.
+        unsafe { CSliceMut::from_raw_parts(self.data(), self.len()) }
+    }
+}
+
+impl<T: Copy> DynArray<T> {
+    /// Wraps: av_dynarray2_add
+    ///
+    /// Appends a copy of `value`, doubling the block when the length is a
+    /// power of two; `false` when that fails, which frees the array and
+    /// empties it, as C does. It fails when `(len * 2) * size_of::<T>()`
+    /// exceeds `INT_MAX` or the `av_max_alloc` limit, or the allocation fails.
+    ///
+    /// C copies the value's bytes into the block; its `NULL` form, which
+    /// leaves the new element uninitialised for the caller to fill, has no
+    /// safe counterpart. A zero-sized `T`, by which C would divide, and a `T`
+    /// aligned beyond `realloc`'s guarantee are rejected at compile time:
+    ///
+    /// ```compile_fail,E0080
+    /// let mut a = ffmpeg::libavutil::mem::DynArray::<()>::new();
+    /// let _ = a.push_or_clear(());
+    /// ```
+    #[must_use = "a failed append empties the array"]
+    pub fn push_or_clear(&mut self, value: T) -> bool {
+        const {
+            assert!(
+                size_of::<T>() != 0,
+                "av_dynarray2_add divides by the element size"
+            )
+        };
+        const {
+            assert!(
+                align_of::<T>() <= REALLOC_ALIGN,
+                "av_realloc cannot align T"
+            )
+        };
+        // SAFETY: `tab` / `len` are a pair only this family has grown from
+        // NULL / 0, so `tab` holds the capacity `av_dynarray2_add` assumes for
+        // `len` elements of `size_of::<T>()` (non-zero) bytes. It reallocates
+        // `tab` through its slot, copies the `size_of::<T>()` readable bytes of
+        // `value` into the new element and increments `len`, or frees `tab`,
+        // nulls the slot and zeroes `len`; it keeps no pointer to either slot.
+        let slot = unsafe {
+            ffi::av_dynarray2_add(
+                (&raw mut self.tab).cast(),
+                &mut self.len,
+                size_of::<T>(),
+                (&raw const value).cast(),
+            )
+        };
+        !slot.is_null()
+    }
+}
+
+impl<T: DynPtr> DynArray<T> {
+    /// Wraps: av_dynarray_add
+    ///
+    /// Appends the pointer `elem`, doubling the block when the length is a
+    /// power of two; `false` when that fails, which frees the array and
+    /// empties it, as C does. The pointee is neither read nor owned.
+    ///
+    /// Only pointer elements go through `av_dynarray_add`'s `void *`:
+    ///
+    /// ```compile_fail,E0599
+    /// let mut a = ffmpeg::libavutil::mem::DynArray::<usize>::new();
+    /// let _ = a.push_ptr_or_clear(0);
+    /// ```
+    #[must_use = "a failed append empties the array"]
+    pub fn push_ptr_or_clear(&mut self, elem: T) -> bool {
+        // SAFETY: as `push_or_clear`, for `void *` elements, which `T` is
+        // layout-compatible with (a thin pointer): `av_dynarray_add` stores
+        // `elem` in the new slot without dereferencing it, or frees `tab`,
+        // nulls the slot and zeroes `len`.
+        unsafe {
+            ffi::av_dynarray_add((&raw mut self.tab).cast(), &mut self.len, elem.into_void());
+        }
+        self.len != 0
+    }
+
+    /// Wraps: av_dynarray_add_nofree
+    ///
+    /// Appends the pointer `elem`, as
+    /// [`push_ptr_or_clear`](Self::push_ptr_or_clear); on failure the array
+    /// is left as it was and the `AVERROR(ENOMEM)` code is returned.
+    pub fn try_push_ptr(&mut self, elem: T) -> Result<(), c_int> {
+        // SAFETY: as `push_ptr_or_clear`; on failure `av_dynarray_add_nofree`
+        // writes neither slot, and the old block stays the array's.
+        let ret = unsafe {
+            ffi::av_dynarray_add_nofree((&raw mut self.tab).cast(), &mut self.len, elem.into_void())
+        };
+        if ret < 0 { Err(ret) } else { Ok(()) }
+    }
+}
+
+/// Wraps: av_freep
+/// Handwritten
+///
+/// The release strategy of a [`DynArray`]: `av_freep` on the `tab` slot, as C
+/// releases one. Elements are `Copy` and have nothing to drop.
+impl<T> Drop for DynArray<T> {
+    fn drop(&mut self) {
+        // SAFETY: the slot holds NULL or an `av_realloc` block this array
+        // owns; `av_freep` frees it once and nulls the slot.
+        unsafe { ffi::av_freep((&raw mut self.tab).cast()) }
+    }
+}
+
+impl<T> Default for DynArray<T> {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
+impl<T> fmt::Debug for DynArray<T> {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.debug_struct("DynArray")
+            .field("len", &self.len)
+            .finish_non_exhaustive()
+    }
+}
+
+/// The `(ptr, size)` of an `av_fast` buffer, from `buf`, which gives it up.
+fn fast_parts<T>(buf: &mut HeapVec<T>) -> (*mut T, c_uint) {
+    let (ptr, len) = core::mem::take(buf).into_raw_parts();
+    let size = c_uint::try_from(len).expect("an av_fast buffer fits unsigned int");
+    (ptr, size)
+}
+
+/// A reusable byte buffer, regrown by `av_fast_realloc` and `av_fast_malloc`
+/// only when too small, and released by `av_free`.
+///
+/// C keeps it as a `(ptr, size)` pair, `size` the block's whole length in
+/// bytes, at most `UINT_MAX`. A regrowth allocates `min_size + min_size / 16
+/// + 32` bytes (capped by the `av_max_alloc` limit) so that slowly growing
+/// requests rarely reallocate. The bytes start uninitialised: write them
+/// through [`as_mut_slice`](Self::as_mut_slice). For a buffer whose new bytes
+/// are zeroed, use [`ZeroedFastBuffer`].
+#[derive(Debug, Default)]
+pub struct FastBuffer(HeapVec<MaybeUninit<u8>>);
+
+impl FastBuffer {
+    /// An empty buffer, which owns no block.
+    #[must_use]
+    pub fn new() -> Self {
+        Self(HeapVec::empty())
+    }
+
+    /// The buffer's size in bytes: what C records as its `size`.
+    #[must_use]
+    pub fn capacity(&self) -> usize {
+        self.0.len()
+    }
+
+    /// The whole buffer.
+    #[must_use]
+    pub fn as_slice(&self) -> &[MaybeUninit<u8>] {
+        self.0.as_slice()
+    }
+
+    /// The whole buffer, writable.
+    #[must_use]
+    pub fn as_mut_slice(&mut self) -> &mut [MaybeUninit<u8>] {
+        self.0.as_mut_slice()
+    }
+
+    /// The block as a [`HeapVec`] of its whole size.
+    #[must_use]
+    pub fn into_vec(self) -> HeapVec<MaybeUninit<u8>> {
+        self.0
+    }
+
+    /// Wraps: av_fast_realloc
+    ///
+    /// Makes the buffer at least `min_size` bytes, keeping its contents: a
+    /// buffer already large enough is left alone, a smaller one is
+    /// reallocated, its bytes moved. `false` when that fails, which includes a
+    /// `min_size` above `UINT_MAX` or the `av_max_alloc` limit; the buffer is
+    /// then left as it was. (C reports a size of 0 there, while the old block
+    /// stays allocated for the caller to free; the buffer keeps it instead.)
+    #[must_use = "a failed regrowth leaves the buffer too small"]
+    pub fn reserve(&mut self, min_size: usize) -> bool {
+        let (ptr, old_size) = fast_parts(&mut self.0);
+        let mut size = old_size;
+        // SAFETY: `ptr` is NULL with `size == 0`, or an `av_malloc`- or
+        // `av_realloc`-family block of `size` bytes we own. `av_fast_realloc`
+        // returns it unchanged when `min_size <= size`; otherwise it
+        // reallocates it, storing the new size, or returns NULL with `size`
+        // zeroed, the block still allocated.
+        let new = unsafe { ffi::av_fast_realloc(ptr.cast(), &mut size, min_size) };
+        let ok = !new.is_null() || min_size <= old_size as usize;
+        let (ptr, size) = if ok {
+            (new.cast(), size)
+        } else {
+            (ptr, old_size)
+        };
+        // SAFETY: `ptr` is NULL with a size of 0, or a block of `size` bytes we
+        // own, from `av_realloc` or as it was; `av_free` releases it and every
+        // bit pattern is a valid `MaybeUninit<u8>`.
+        self.0 = unsafe { HeapVec::from_raw_parts_or_empty(ptr, size as usize) }
+            .expect("an av_fast buffer is NULL only when empty");
+        ok
+    }
+
+    /// Wraps: av_fast_malloc
+    ///
+    /// Makes the buffer at least `min_size` bytes, without keeping its
+    /// contents: a buffer already large enough is left alone, contents
+    /// included, a smaller one is freed and replaced by a fresh, uninitialised
+    /// block. `false` when that fails, which includes a `min_size` above
+    /// `UINT_MAX` or the `av_max_alloc` limit; the buffer is then empty.
+    #[must_use = "a failed regrowth empties the buffer"]
+    pub fn reserve_discarding(&mut self, min_size: usize) -> bool {
+        let (ptr, mut size) = fast_parts(&mut self.0);
+        let mut slot = ptr.cast::<c_void>();
+        // SAFETY: the slot holds NULL with `size == 0`, or an `av_malloc`- or
+        // `av_realloc`-family block of `size` bytes we own, so `av_fast_malloc`'s
+        // assertion that a kept block is non-NULL unless `min_size` is 0
+        // holds. It keeps the block when `min_size <= size`; otherwise it
+        // frees it and stores a fresh `av_malloc` block and its size, or NULL
+        // and 0. It keeps no pointer to either slot.
+        unsafe { ffi::av_fast_malloc((&raw mut slot).cast(), &mut size, min_size) };
+        // SAFETY: the slot holds NULL with a size of 0, or a block of `size`
+        // bytes we own; `av_free` releases it and every bit pattern is a valid
+        // `MaybeUninit<u8>`.
+        self.0 = unsafe { HeapVec::from_raw_parts_or_empty(slot.cast(), size as usize) }
+            .expect("an av_fast buffer is NULL only when empty");
+        !slot.is_null() || min_size == 0
+    }
+}
+
+/// A reusable byte buffer whose fresh blocks are zeroed, regrown by
+/// `av_fast_mallocz` only when too small, and released by `av_free`.
+///
+/// As [`FastBuffer`], but every byte is initialised: a regrowth allocates a
+/// zeroed block, and a buffer large enough keeps the bytes already written.
+#[derive(Debug, Default)]
+pub struct ZeroedFastBuffer(HeapVec<u8>);
+
+impl ZeroedFastBuffer {
+    /// An empty buffer, which owns no block.
+    #[must_use]
+    pub fn new() -> Self {
+        Self(HeapVec::empty())
+    }
+
+    /// The buffer's size in bytes: what C records as its `size`.
+    #[must_use]
+    pub fn capacity(&self) -> usize {
+        self.0.len()
+    }
+
+    /// The whole buffer.
+    #[must_use]
+    pub fn as_slice(&self) -> &[u8] {
+        self.0.as_slice()
+    }
+
+    /// The whole buffer, writable.
+    #[must_use]
+    pub fn as_mut_slice(&mut self) -> &mut [u8] {
+        self.0.as_mut_slice()
+    }
+
+    /// The block as a [`HeapVec`] of its whole size.
+    #[must_use]
+    pub fn into_vec(self) -> HeapVec<u8> {
+        self.0
+    }
+
+    /// Wraps: av_fast_mallocz
+    ///
+    /// Makes the buffer at least `min_size` bytes, without keeping its
+    /// contents: a buffer already large enough is left alone, contents
+    /// included (not cleared), a smaller one is freed and replaced by a fresh,
+    /// zeroed block. `false` when that fails, which includes a `min_size`
+    /// above `UINT_MAX` or the `av_max_alloc` limit; the buffer is then empty.
+    #[must_use = "a failed regrowth empties the buffer"]
+    pub fn reserve_discarding(&mut self, min_size: usize) -> bool {
+        let (ptr, mut size) = fast_parts(&mut self.0);
+        let mut slot = ptr.cast::<c_void>();
+        // SAFETY: as `FastBuffer::reserve_discarding`, through
+        // `av_fast_mallocz`, whose fresh block is `av_mallocz`'s.
+        unsafe { ffi::av_fast_mallocz((&raw mut slot).cast(), &mut size, min_size) };
+        // SAFETY: the slot holds NULL with a size of 0, a fresh zeroed block of
+        // `size` bytes, or the block we gave, every byte of which was zeroed
+        // or written as a `u8`; `av_free` releases it.
+        self.0 = unsafe { HeapVec::from_raw_parts_or_empty(slot.cast(), size as usize) }
+            .expect("an av_fast buffer is NULL only when empty");
+        !slot.is_null() || min_size == 0
+    }
 }
 
 #[cfg(test)]
@@ -562,5 +1019,96 @@ mod unit_tests {
         assert!(s.is_empty() && !s.as_ptr().is_null());
         let s = string_from_bytes_until_nul(&b"prefix"[..3]).unwrap();
         assert_eq!(s.to_str(), Ok("pre"));
+    }
+
+    #[test]
+    fn dynarray_is_two_words_and_crosses_threads() {
+        fn send_sync<T: Send + Sync>() {}
+        send_sync::<DynArray<u32>>();
+        send_sync::<DynArray<crate::libavutil::intfloat::IntFloat64>>();
+        assert!(size_of::<DynArray<u8>>() <= 2 * size_of::<usize>());
+        assert!(REALLOC_ALIGN >= align_of::<*const u8>() && REALLOC_ALIGN.is_power_of_two());
+    }
+
+    #[test]
+    fn dynarray_frees_its_block_through_av_freep() {
+        let mut a = DynArray::<u16>::default();
+        assert!(a.tab.is_null() && a.is_empty());
+        assert_eq!(format!("{a:?}"), "DynArray { len: 0, .. }");
+        for i in 0..9 {
+            assert!(a.push_or_clear(i));
+        }
+        assert!(!a.tab.is_null());
+        assert_eq!(format!("{a:?}"), "DynArray { len: 9, .. }");
+        // `Drop` hands the slot to `av_freep`, which nulls it.
+        let mut a = core::mem::ManuallyDrop::new(a);
+        // SAFETY: `a` is never used or dropped again after its drop here.
+        unsafe { core::mem::ManuallyDrop::drop(&mut a) };
+        assert!(a.tab.is_null());
+    }
+
+    #[test]
+    fn dynarray_hands_its_block_to_a_heap_vec() {
+        let mut a = DynArray::<u32>::new();
+        for i in 0..5 {
+            assert!(a.push_or_clear(i));
+        }
+        let tab = a.tab;
+        let v = a.into_vec();
+        assert_eq!((v.as_ptr(), v.as_slice()), (tab, &[0, 1, 2, 3, 4][..]));
+        assert!(DynArray::<u32>::new().into_vec().as_ptr().is_null());
+    }
+
+    #[test]
+    fn dynptr_keeps_the_address() {
+        let x = 5u8;
+        let p: *const u8 = &x;
+        assert_eq!(sealed::Sealed::into_void(p), p.cast_mut().cast());
+        assert_eq!(sealed::Sealed::into_void(p.cast_mut()), p.cast_mut().cast());
+        let mut a = DynArray::<*mut u8>::new();
+        assert!(a.push_ptr_or_clear(core::ptr::null_mut()));
+        assert_eq!(a.try_push_ptr(p.cast_mut()), Ok(()));
+        assert_eq!(a.as_slice(), &[core::ptr::null_mut(), p.cast_mut()]);
+    }
+
+    #[test]
+    fn fast_parts_takes_the_block_and_leaves_the_vec_empty() {
+        let mut v = alloc_array_zeroed::<u8>(40).unwrap();
+        let ptr = v.as_ptr();
+        let (p, size) = fast_parts(&mut v);
+        assert_eq!((p, size), (ptr, 40));
+        assert!(v.is_empty() && v.as_ptr().is_null());
+        // SAFETY: `p` is the `av_calloc` block `fast_parts` gave up.
+        unsafe { ffi::av_free(p.cast()) };
+    }
+
+    #[test]
+    fn failed_reserve_keeps_the_block_c_leaves_to_its_caller() {
+        let mut b = FastBuffer::new();
+        assert!(b.reserve(10));
+        for (i, x) in b.as_mut_slice().iter_mut().enumerate() {
+            x.write(i as u8);
+        }
+        let (ptr, cap) = (b.as_slice().as_ptr(), b.capacity());
+        // C reports a size of 0 here and returns NULL; the buffer keeps its
+        // old block, contents and size instead of leaking or freeing them.
+        assert!(!b.reserve(c_uint::MAX as usize + 1));
+        assert_eq!((b.as_slice().as_ptr(), b.capacity()), (ptr, cap));
+        let v = b.into_vec();
+        // SAFETY: every byte was written above.
+        let v = unsafe { v.assume_init() };
+        assert!(v.as_slice().iter().enumerate().all(|(i, &x)| x == i as u8));
+    }
+
+    #[test]
+    fn failed_discarding_reserve_empties_the_buffer() {
+        let mut b = ZeroedFastBuffer::new();
+        assert!(b.reserve_discarding(1));
+        assert_eq!(b.capacity(), 1 + 32);
+        assert!(!b.reserve_discarding(usize::MAX));
+        assert!(b.capacity() == 0 && b.into_vec().as_ptr().is_null());
+        let mut b = FastBuffer::default();
+        assert!(b.reserve_discarding(0) && b.capacity() == 0);
+        assert!(!b.reserve_discarding(c_uint::MAX as usize + 1));
     }
 }

@@ -425,3 +425,63 @@ mod version_and_x_if_null {
         }
     }
 }
+
+/// `av_fourcc_make_string` against the safe `fourcc_string`.
+mod fourcc {
+    use core::ffi::CStr;
+
+    use ffmpeg::libavutil::avutil::fourcc_string;
+    use ffmpeg::libavutil::ffi;
+
+    /// `av_fourcc_make_string` into `buf`: the string, which C returns as `buf`.
+    fn c_fourcc(buf: &mut [u8; 32], fourcc: u32) -> Vec<u8> {
+        // SAFETY: `buf` is `AV_FOURCC_MAX_STRING_SIZE` writable bytes, which is
+        // all `av_fourcc_make_string` writes.
+        let ret = unsafe { ffi::av_fourcc_make_string(buf.as_mut_ptr().cast(), fourcc) };
+        assert_eq!(ret.cast::<u8>(), buf.as_mut_ptr());
+        CStr::from_bytes_until_nul(buf).unwrap().to_bytes().to_vec()
+    }
+
+    /// FourCCs whose bytes cover every class `av_fourcc_make_string` prints
+    /// differently, in each position.
+    fn fourccs() -> impl Iterator<Item = u32> {
+        let singles = (0..=255u32)
+            .flat_map(|b| (0..4).map(move |i| b << (8 * i) | 0x4141_4141 & !(0xff << (8 * i))));
+        let words = [
+            0,
+            u32::MAX,
+            u32::from_le_bytes(*b"H264"),
+            u32::from_le_bytes(*b"av01"),
+            0x2e2d_205f,
+            0x0102_0304,
+        ];
+        singles.chain(words)
+    }
+
+    #[test]
+    fn fourcc_strings_and_buffers_match_c() {
+        for f in fourccs() {
+            let (mut rb, mut cb) = ([0u8; 32], [0u8; 32]);
+            let r = fourcc_string(&mut rb, f).to_bytes().to_vec();
+            assert_eq!(r, c_fourcc(&mut cb, f), "{f:#010x}");
+            assert_eq!(rb, cb, "{f:#010x}: whole buffer");
+        }
+    }
+
+    #[test]
+    fn reused_buffers_agree_after_every_step() {
+        let (mut rb, mut cb) = ([0xa5u8; 32], [0xa5u8; 32]);
+        for f in [
+            0xffff_ffff,
+            u32::from_le_bytes(*b"mp4a"),
+            0,
+            0x0000_2e41,
+            0x7f7f_7f7f,
+        ] {
+            let r = fourcc_string(&mut rb, f).to_bytes().to_vec();
+            assert_eq!(r, c_fourcc(&mut cb, f), "{f:#010x}");
+            // Bytes past the NUL keep what earlier, longer strings left, alike.
+            assert_eq!(rb, cb, "{f:#010x}: whole buffer");
+        }
+    }
+}
