@@ -18,7 +18,7 @@ Copy this template into the campaign checkout, then fill it as work lands.
 - **`--min-fields`** — `20`
 - **orchestrator parallelism** — `10` concurrent batch processes
 - **branch** — `crustify/campaigns/20261005`, tip `<sha>`
-- **deps** — crustify `7912683` (`main`, plus uncommitted prompt edits; `scan-unsafe` from `fix/pin-audit-nightly` `4efc0cc`), ffibox `695d52d` (`main`)
+- **deps** — crustify `2a4a613` (`main`, plus uncommitted prompt edits), ffibox `196c5fb` (`main`)
 - **build version** — `3`
 - **C test baseline** — `5437/5437, 0 skipped, and no disabled tests`
 
@@ -748,8 +748,8 @@ Effects and fixes:
   when its garbage collector waits more than 10 s for a thread to reach a safepoint;
   `BSAN_OPTIONS=gc_hang_threshold_ms=600000` lets every suite pass.
 - **`crustify scan-unsafe`.** Its `rustc_private` driver no longer built on the new nightly, so
-  it reported no counts. The fix, on crustify branch `fix/pin-audit-nightly` (`4efc0cc`, not
-  merged), ports the driver and pins it to `nightly-2026-10-07`. Every wave-0 scan comes from
+  it reported no counts. The fix, crustify `4efc0cc` (merged into `main` on 2026-10-09), ports
+  the driver and pins it to `nightly-2026-10-07`. Every wave-0 scan comes from
   that driver. Its scan of the wave base reproduces the raw-lifetime smells recorded above
   (8 and 5).
 
@@ -793,9 +793,8 @@ Results:
     `35f30a7185`. The contract now requires alignment.
   - `misc/option-ranges-box-not-send-sync` (batch 2): 15 `E0277` errors on `ad7acaeaca`; builds
     on the reviewed tip.
-  - `misc/ffibox-cslice-to-cvec-plain-only` (batch 3): `E0599` against ffibox `695d52d`. The fix
-    is on ffibox branch `crustify/review-20261005/cslice-to-cvec-copy-cells` (`196c5fb`, its
-    tests pass) and is not merged, so the reproducer still fails against the pinned ffibox.
+  - `misc/ffibox-cslice-to-cvec-plain-only` (batch 3): `E0599` against ffibox `695d52d`. The fix,
+    ffibox `196c5fb`, was merged into `main` on 2026-10-09; the reproducer then builds and exits 0.
 - **Summary:** one UB reachable from safe code, one equivalence divergence, one incomplete
   `unsafe fn` contract. Every one is in a symbol batch. The ten type batches yielded only
   missing traits (`Hash`, `Debug`, `Send`/`Sync`), missing borrowed views, documentation and
@@ -853,3 +852,15 @@ Notes on the wave:
 The wave tip passes `clippy --all-targets -D warnings` and the plain, `asan-ubsan`, `tsan` and
 `bsan` suites: 275 unit, 273 equivalence, 252 `ub_safe` and 59 `ub_unsafe` tests under `bsan`.
 Its review runs with wave 2's, on Opus 5.5, after wave 2.
+
+### Dependency merges after `core` wave 1
+
+On 2026-10-09, at the user's direction:
+
+- crustify `main` took the `scan-unsafe` driver pin (`4efc0cc`) and the results-template split
+  (`2a4a613`). The live `crustify scan-unsafe` then gave the same counts on the wave-1 tip as the
+  fix branch had.
+- ffibox `main` took `196c5fb` (`CSlice::to_cvec` for `Copy` cells).
+
+Against the merged ffibox, the wave-1 tip passes `clippy` and the plain (918 tests) and
+`asan-ubsan` (878) suites.
