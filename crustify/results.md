@@ -34,8 +34,8 @@ Thin batches with `"objective": "review"`, LLM-as-a-Judge over each landed wave.
 - **`--max-loc`** — `500`
 - **`--min-fields`** — `20`
 - **orchestrator parallelism** — `10` concurrent batch processes
-- **branch** — `crustify/reviews/20261005/libavutil/raw-lifetime-string/wave-0`, tip `8bdf2c7138`
-- **agents** — `2`, over `2` wave(s)
+- **branch** — `crustify/reviews/20261005/libavutil/core/wave-0`, tip `0604718bba`
+- **agents** — `17`, over `3` wave(s)
 
 `rv`-prefixed columns below carry the review pass; the unprefixed ones remain
 the campaign's.
@@ -222,30 +222,57 @@ Implementation `openrouter/anthropic/claude-opus-5.5` via `claude`; review
 
 ### Batches — review
 
-`<provider>/<model>` via `<backend>`.
+`openrouter/anthropic/claude-fable-5.1` via `claude`.
 
 | wave | batch | types | +LoC | cov (C/Rust) | +unsafe fn smell | +raw-ptr smell | rv loc | rv $ | rv wall | rv $/type |
 |---|---|---|---|---|---|---|---|---|---|---|
-|`<n>`|`<n>`| `<n>` |`+<n>/-<n>`| `<n>`% / `<n>`% | `±<n>` | `±<n>` | `+<n>/-<n>` | `$<n>` | `<n>m<n>s` | `$<n>` |
-| **Σ** |  | **`<n>`** | **`+<n>/-<n>`** | **`<n>`% / `<n>`%** | **`±<n>`** | **`±<n>`** | **`+<n>/-<n>`** | **`$<n>`** | — | **`$<n>`** |
+|`0`|`0`| `2` |`+265/-0`| `19.00`% / `94.73`% | `0` | `0` | `+350/-0` | `$8.17` | `30m15s` | `$4.08` |
+|`0`|`1`| `2` |`+0/-0`| — | `0` | `0` | `+0/-0` | `$4.58` | `17m23s` | `$2.29` |
+|`0`|`2`| `2` |`+147/-3`| `18.96`% / `94.71`% | `0` | `0` | `+239/-15` | `$10.68` | `28m27s` | `$5.34` |
+|`0`|`3`| `2` |`+138/-2`| `19.00`% / `94.73`% | `0` | `0` | `+168/-2` | `$10.67` | `33m26s` | `$5.33` |
+|`0`|`4`| `2` |`+3/-0`| `18.96`% / `94.69`% | `0` | `0` | `+14/-0` | `$4.92` | `18m50s` | `$2.46` |
+|`0`|`5`| `2` |`+399/-7`| `19.00`% / `94.83`% | `0` | `0` | `+524/-8` | `$10.30` | `37m29s` | `$5.15` |
+|`0`|`6`| `2` |`+228/-0`| `18.96`% / `94.71`% | `0` | `0` | `+303/-6` | `$8.43` | `25m31s` | `$4.21` |
+|`0`|`7`| `1` |`+97/-1`| `18.96`% / `94.69`% | `0` | `0` | `+127/-1` | `$5.99` | `20m21s` | `$5.99` |
+|`0`|`8`| `2` |`+41/-6`| `19.00`% / `94.74`% | `0` | `0` | `+62/-10` | `$8.73` | `34m59s` | `$4.37` |
+|`0`|`9`| `1` |`+24/-7`| `18.96`% / `94.69`% | `0` | `0` | `+31/-10` | `$4.68` | `16m27s` | `$4.68` |
+| **Σ** |  | **`18`** | **`+1342/-26`** | **`19.00`% / `94.83`%** | **`0`** | **`0`** | **`+1818/-52`** | **`$77.15`** | — | **`$4.29`** |
 
 ### Batches — review: tests
 
-`<provider>/<model>` via `<backend>`.
+`openrouter/anthropic/claude-fable-5.1` via `claude`.
 
 | wave | batch | +UB safe tests (+C/+Rust pp) | +UB unsafe tests (+C/+Rust pp) | +equiv tests (+C/+Rust pp) | +unit tests (+C/+Rust pp) |
 |---|---|---|---|---|---|
-|`<n>`|`<n>`|`+<n>` (`+<n>`/`+<n>` pp)|`+<n>` (`+<n>`/`+<n>` pp)|`+<n>` (`+<n>`/`+<n>` pp)|`+<n>` (`+<n>`/`+<n>` pp)|
-| **Σ** |  | **`+<n>` (`+<n>`/`+<n>` pp)** | **`+<n>` (`+<n>`/`+<n>` pp)** | **`+<n>` (`+<n>`/`+<n>` pp)** | **`+<n>` (`+<n>`/`+<n>` pp)** |
+|`0`|`0`|`+1` (`+0.00`/`+0.08` pp)|`+0` (`+0.00`/`-0.03` pp)|`+4` (`+0.04`/`+0.08` pp)|`+1` (`+0.00`/`+0.06` pp)|
+|`0`|`1`|`+0` (`+0.00`/`+0.00` pp)|`+0` (`+0.00`/`+0.00` pp)|`+0` (`+0.00`/`+0.00` pp)|`+0` (`+0.00`/`+0.00` pp)|
+|`0`|`2`|`+0` (`+0.00`/`+0.00` pp)|`+2` (`+0.00`/`+0.00` pp)|`+2` (`+0.00`/`+0.00` pp)|`+1` (`+0.00`/`+0.00` pp)|
+|`0`|`3`|`+2` (`+0.00`/`+0.00` pp)|`+0` (`+0.00`/`+0.00` pp)|`+1` (`+0.00`/`+0.00` pp)|`+1` (`+0.00`/`+0.00` pp)|
+|`0`|`4`|`+0` (`+0.00`/`+0.00` pp)|`+0` (`+0.00`/`+0.00` pp)|`+0` (`+0.00`/`+0.00` pp)|`+0` (`+0.00`/`+0.00` pp)|
+|`0`|`5`|`+5` (`+0.00`/`+0.14` pp)|`+0` (`+0.00`/`-0.19` pp)|`+2` (`+0.00`/`+0.01` pp)|`+3` (`+0.00`/`+0.31` pp)|
+|`0`|`6`|`+0` (`+0.00`/`-0.35` pp)|`+0` (`+0.00`/`-0.05` pp)|`+3` (`+0.00`/`-0.35` pp)|`+2` (`+0.00`/`+0.08` pp)|
+|`0`|`7`|`+2` (`+0.00`/`+0.00` pp)|`+0` (`+0.00`/`+0.00` pp)|`+1` (`+0.00`/`+0.00` pp)|`+0` (`+0.00`/`+0.00` pp)|
+|`0`|`8`|`+0` (`+0.00`/`-0.12` pp)|`+0` (`+0.00`/`-0.02` pp)|`+0` (`+0.00`/`-0.12` pp)|`+1` (`+0.00`/`+0.03` pp)|
+|`0`|`9`|`+0` (`+0.00`/`+0.12` pp)|`+0` (`+0.00`/`+0.02` pp)|`+0` (`+0.00`/`+0.12` pp)|`+1` (`+0.00`/`-0.03` pp)|
+| **Σ** |  | **`+10` (`+0.00`/`-0.13` pp)** | **`+2` (`+0.00`/`-0.27` pp)** | **`+13` (`+0.04`/`-0.26` pp)** | **`+10` (`+0.00`/`+0.45` pp)** |
 
 ### Batches — review: PoC + reports
 
-`<provider>/<model>` via `<backend>`.
+`openrouter/anthropic/claude-fable-5.1` via `claude`.
 
 | wave | batch | +lifecycle | +unsafe | +UB safe | +UB unsafe | +equiv | +internal | +conventions | +misc | total | +rejected PoCs |
 | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
-| `<n>` | `<n>` | `+<n>` | `+<n>` | `+<n>` | `+<n>` | `+<n>` | `+<n>` | `+<n>` | `+<n>` | `<n>` | `<n>` |
-| **Σ** |  | **`+<n>`** | **`+<n>`** | **`+<n>`** | **`+<n>`** | **`+<n>`** | **`+<n>`** | **`+<n>`** | **`+<n>`** | **`<n>`** | **`<n>`** |
+| `0` | `0` | `+0` | `+0` | `+0` | `+0` | `+0` | `+0` | `+0` | `+1` | `1` | `0` |
+| `0` | `1` | `+0` | `+0` | `+0` | `+0` | `+0` | `+0` | `+0` | `+0` | `0` | `0` |
+| `0` | `2` | `+0` | `+1` | `+0` | `+0` | `+0` | `+0` | `+0` | `+3` | `4` | `0` |
+| `0` | `3` | `+0` | `+0` | `+0` | `+0` | `+0` | `+0` | `+0` | `+1` | `1` | `0` |
+| `0` | `4` | `+0` | `+0` | `+0` | `+0` | `+0` | `+0` | `+0` | `+1` | `1` | `0` |
+| `0` | `5` | `+2` | `+0` | `+0` | `+0` | `+0` | `+0` | `+0` | `+1` | `3` | `0` |
+| `0` | `6` | `+0` | `+0` | `+0` | `+0` | `+0` | `+0` | `+0` | `+1` | `1` | `0` |
+| `0` | `7` | `+0` | `+0` | `+0` | `+0` | `+0` | `+0` | `+0` | `+0` | `0` | `0` |
+| `0` | `8` | `+0` | `+0` | `+0` | `+0` | `+0` | `+0` | `+0` | `+1` | `1` | `0` |
+| `0` | `9` | `+0` | `+0` | `+0` | `+0` | `+0` | `+0` | `+0` | `+1` | `1` | `0` |
+| **Σ** |  | **`+2`** | **`+1`** | **`+0`** | **`+0`** | **`+0`** | **`+0`** | **`+0`** | **`+10`** | **`13`** | **`0`** |
 
 ## Symbols
 
@@ -277,30 +304,42 @@ Implementation `openrouter/anthropic/claude-opus-5.5` via `claude`; review
 
 ### Batches — review
 
-`<provider>/<model>` via `<backend>`.
+`openrouter/anthropic/claude-fable-5.1` via `claude`.
 
 | wave | batch | symbols | +LoC | cov (C/Rust) | +unsafe fn smell | +raw-ptr smell | rv loc | rv $ | rv wall | rv $/symbol |
 |---|---|---|---|---|---|---|---|---|---|---|
-|`<n>`|`<n>`| `<n>` |`+<n>/-<n>`| `<n>`% / `<n>`% | `±<n>` | `±<n>` | `+<n>/-<n>` | `$<n>` | `<n>m<n>s` | `$<n>` |
-| **Σ** |  | **`<n>`** | **`+<n>/-<n>`** | **`<n>`% / `<n>`%** | **`±<n>`** | **`±<n>`** | **`+<n>/-<n>`** | **`$<n>`** | — | **`$<n>`** |
+|`0`|`10`| `25` |`+45/-1`| `19.02`% / `94.83`% | `0` | `0` | `+79/-14` | `$18.09` | `52m22s` | `$0.72` |
+|`0`|`11`| `25` |`+75/-0`| `19.02`% / `94.83`% | `0` | `0` | `+97/-0` | `$16.16` | `43m21s` | `$0.65` |
+|`0`|`12`| `25` |`+145/-6`| `19.14`% / `94.98`% | `0` | `0` | `+208/-18` | `$26.29` | `57m24s` | `$1.05` |
+|`0`|`13`| `25` |`+163/-9`| `19.14`% / `94.92`% | `0` | `0` | `+230/-19` | `$25.37` | `53m00s` | `$1.01` |
+|`0`|`14`| `21` |`+65/-12`| `19.00`% / `94.83`% | `0` | `0` | `+93/-23` | `$10.99` | `32m35s` | `$0.52` |
+| **Σ** |  | **`121`** | **`+493/-28`** | **`19.14`% / `94.98`%** | **`0`** | **`0`** | **`+707/-74`** | **`$96.90`** | — | **`$0.80`** |
 
 ### Batches — review: tests
 
-`<provider>/<model>` via `<backend>`.
+`openrouter/anthropic/claude-fable-5.1` via `claude`.
 
 | wave | batch | +UB safe tests (+C/+Rust pp) | +UB unsafe tests (+C/+Rust pp) | +equiv tests (+C/+Rust pp) | +unit tests (+C/+Rust pp) |
 |---|---|---|---|---|---|
-|`<n>`|`<n>`|`+<n>` (`+<n>`/`+<n>` pp)|`+<n>` (`+<n>`/`+<n>` pp)|`+<n>` (`+<n>`/`+<n>` pp)|`+<n>` (`+<n>`/`+<n>` pp)|
-| **Σ** |  | **`+<n>` (`+<n>`/`+<n>` pp)** | **`+<n>` (`+<n>`/`+<n>` pp)** | **`+<n>` (`+<n>`/`+<n>` pp)** | **`+<n>` (`+<n>`/`+<n>` pp)** |
+|`0`|`10`|`+0` (`+0.00`/`-0.08` pp)|`+1` (`+0.00`/`+0.09` pp)|`+0` (`+0.00`/`+0.02` pp)|`+1` (`+0.00`/`+0.02` pp)|
+|`0`|`11`|`+0` (`+0.00`/`+0.00` pp)|`+0` (`+0.00`/`+0.00` pp)|`+1` (`+0.02`/`+0.00` pp)|`+0` (`+0.00`/`+0.00` pp)|
+|`0`|`12`|`+1` (`+0.00`/`+0.33` pp)|`+0` (`+0.00`/`-0.14` pp)|`+0` (`+0.00`/`+0.26` pp)|`+3` (`+0.00`/`+0.22` pp)|
+|`0`|`13`|`+0` (`+0.00`/`+0.02` pp)|`+0` (`+0.00`/`-0.18` pp)|`+2` (`+0.10`/`+0.30` pp)|`+2` (`+0.20`/`+0.29` pp)|
+|`0`|`14`|`+0` (`+0.00`/`+0.00` pp)|`+0` (`+0.00`/`+0.00` pp)|`+1` (`+0.00`/`+0.00` pp)|`+0` (`+0.00`/`+0.00` pp)|
+| **Σ** |  | **`+1` (`+0.00`/`+0.27` pp)** | **`+1` (`+0.00`/`-0.22` pp)** | **`+4` (`+0.12`/`+0.58` pp)** | **`+6` (`+0.20`/`+0.53` pp)** |
 
 ### Batches — review: PoC + reports
 
-`<provider>/<model>` via `<backend>`.
+`openrouter/anthropic/claude-fable-5.1` via `claude`.
 
 | wave | batch | +lifecycle | +unsafe | +UB safe | +UB unsafe | +equiv | +internal | +conventions | +misc | total | +rejected PoCs |
 | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
-| `<n>` | `<n>` | — | `+<n>` | `+<n>` | `+<n>` | `+<n>` | `+<n>` | `+<n>` | `+<n>` | `<n>` | `<n>` |
-| **Σ** |  | — | **`+<n>`** | **`+<n>`** | **`+<n>`** | **`+<n>`** | **`+<n>`** | **`+<n>`** | **`+<n>`** | **`<n>`** | **`<n>`** |
+| `0` | `10` | — | `+1` | `+0` | `+0` | `+0` | `+0` | `+0` | `+1` | `2` | `0` |
+| `0` | `11` | — | `+0` | `+0` | `+0` | `+0` | `+0` | `+0` | `+0` | `0` | `0` |
+| `0` | `12` | — | `+0` | `+1` | `+0` | `+0` | `+0` | `+1` | `+1` | `3` | `0` |
+| `0` | `13` | — | `+0` | `+0` | `+0` | `+1` | `+0` | `+0` | `+0` | `1` | `0` |
+| `0` | `14` | — | `+0` | `+0` | `+0` | `+0` | `+0` | `+2` | `+1` | `3` | `0` |
+| **Σ** |  | — | **`+1`** | **`+1`** | **`+0`** | **`+1`** | **`+0`** | **`+3`** | **`+3`** | **`9`** | **`0`** |
 
 ## Safety audit
 
@@ -710,3 +749,66 @@ The six resumed translators lost time to the broken scan and the BSan abort befo
 around them. The interrupted run's translators also wrote `.gcda` counters straight into the
 shared `coverage` prebuild (92 files, last at 03:08Z); the coverage figures above never read
 them.
+
+### `libavutil/core` review wave 0: Fable 5.1 experiment
+
+At the user's direction, `libavutil/core` review wave 0 ran on
+`openrouter/anthropic/claude-fable-5.1` (api, `claude` backend) instead of the configured Opus 5.5,
+as an experiment. It also ran right after wave-0 translation rather than at sub-campaign end,
+so a reviewed wave 0 is the base of `core` wave 1. All other reviews stay on Opus 5.5 and the
+after-each-sub-campaign policy. The review tables' model line names Fable because every row in
+them is from this wave. The review reused the 15 translation batches unchanged
+(`objective: review`), with no re-batching and no units dropped.
+
+Results:
+
+- **Landings:** 14 of 15 reviewers landed 27 commits on
+  `crustify/reviews/20261005/libavutil/core/wave-0` (tip `0604718bba`). The batch-1 reviewer
+  checked `AVEscapeMode` and `AVMediaType` under every sanitizer, found nothing and landed no
+  commit; its row reads `+0/-0` and `—` for `cov`.
+- **Reports:** 29 defect reports plus 4 batch summaries. The PoC tables count 22. They have no
+  `wavefront` column, so the 7 `wavefront/` reports (record corrections, submitted to the
+  ownership store) are counted nowhere above. Three of those correct union types recorded as
+  `kind: struct` (`av_alias64`, `av_intfloat32`, `unaligned_64`).
+- **Reproducers:** all five runnable ones were rerun on their affected commit and on the
+  reviewed tip, and all five hold, so none is rejected:
+  - `ub_safe/memcpy-backptr-block-length-overflow` (batch 12). On `3770f8f483`, safe
+    `copy_back_reference` with a distance of 2^30 and a run one byte longer makes C's `int`
+    block length overflow (UBSan, `mem.c:466`). `memcpy` then runs with a negative size
+    (ASan). On `0604718bba` it fills the run and exits 0: the wrapper now splits such runs
+    into calls within the bound.
+  - `equiv/parse-cpu-caps-prefixed-operand-rounds` (batch 13). `parse_cpu_caps` rounded `+`/`-`
+    operands where C truncates them, and rejected some that C accepts: 10 inputs diverged on
+    `6978702856`, and all agree on the reviewed tip.
+  - `unsafe/default-item-name-alignment-unstated` (batch 10). A misaligned context that
+    satisfied the old `# Safety` text triggers UBSan's misaligned load at `log.c:243` on
+    `35f30a7185`. The contract now requires alignment.
+  - `misc/option-ranges-box-not-send-sync` (batch 2): 15 `E0277` errors on `ad7acaeaca`; builds
+    on the reviewed tip.
+  - `misc/ffibox-cslice-to-cvec-plain-only` (batch 3): `E0599` against ffibox `695d52d`. The fix
+    is on ffibox branch `crustify/review-20261005/cslice-to-cvec-copy-cells` (`196c5fb`, its
+    tests pass) and is not merged, so the reproducer still fails against the pinned ffibox.
+- **Summary:** one UB reachable from safe code, one equivalence divergence, one incomplete
+  `unsafe fn` contract. Every one is in a symbol batch. The ten type batches yielded only
+  missing traits (`Hash`, `Debug`, `Send`/`Sync`), missing borrowed views, documentation and
+  wavefront records.
+- **Effect on the tree:** the review landings changed neither smell, and the reviewed tip's
+  unseeded scan equals the wave tip's (21 and 20). The `asan-ubsan`, `tsan` and `bsan` suites
+  and `clippy` pass on the reviewed tip. Under `bsan` that is 227 unit, 230 equivalence, 211
+  `ub_safe` and 44 `ub_unsafe` tests. The 2 GiB `copy_back_reference` regression is skipped
+  under `bsan` and `tsan`.
+- **Measurement:** review rows use the same method as translation rows, over each batch's
+  commit range on the review branch. `+LoC` counts code lines; `rv loc` is raw `.rs`
+  insertions/deletions, comments included.
+- **Promotion:** the reviewed tip was promoted to `crustify/subcampaigns/20261005/libavutil/core`.
+
+Cost: `$174.05` for 213.3M tokens and 8h21m of agent wall time: `$77.15` on type batches,
+`$96.90` on symbol batches. That is about the wave's translation cost (`$172.86`), for half the
+tokens: Fable 5.1 is priced at 2.5× Opus 5.5 per token ($10/$50 against $4/$20 per million input
+and output tokens). The Opus reviews so far cover only the two raw-lifetime tiers (`$4.69` and
+`$5.25`, one batch each, 6 reports, one runnable reproducer), too different a workload to
+compare against. The like-for-like comparison is Opus 5.5 reviewing `core` waves 1–2.
+
+About 23% of the reviewers' wall time (~115 of 502 min) went to waiting on BorrowSanitizer
+runs, and about 38% of the six resumed translators' (~243 of 635 min), measured from the
+agents' transcripts. Most of it is the full suite rerun after each rebase.

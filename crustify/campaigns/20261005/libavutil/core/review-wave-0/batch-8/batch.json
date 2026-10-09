@@ -1,0 +1,23 @@
+{
+  "objective": "review",
+  "items": [
+    {
+      "name": "unaligned_16",
+      "defined_in": "libavutil/intreadwrite.h",
+      "kind": "type",
+      "field_anchors": [
+        "l"
+      ],
+      "home": "crustify/rust/ffmpeg/libavutil/intreadwrite.rs"
+    },
+    {
+      "name": "unaligned_32",
+      "defined_in": "libavutil/intreadwrite.h",
+      "kind": "type",
+      "field_anchors": [
+        "l"
+      ],
+      "home": "crustify/rust/ffmpeg/libavutil/intreadwrite.rs"
+    }
+  ]
+}
