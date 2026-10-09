@@ -1,0 +1,19 @@
+{
+  "_comment_agent": "Review core wave-1 batch-0: published library classes and child_class_iterate results are immutable static descriptors; no class-specific allocator, disposer, or cloner exists. Exception to the previous whole-tree static-only claim: libavfilter/vidstabutils.c:vs2av_log initializes an automatic AVClass with a borrowed caller tag and passes its address through a stack context to synchronous av_vlog. ClassRef must carry the actual descriptor and pointee lifetime. Class::new is Rust-owned immutable storage (local or static); its name is static. No lifecycle representation is missing.",
+  "fields": {
+    "class_name": {
+      "ptr": {
+        "scalar": null,
+        "array": null,
+        "string": true,
+        "owned": false,
+        "borrowed": {
+          "lifetime": "other"
+        },
+        "nullable": true,
+        "mutable": false,
+        "note": "Usually a static literal in an immutable static class. Exception: libavfilter/vidstabutils.c:vs2av_log builds a stack-local class with class_name = tag borrowed from its caller, valid only during synchronous av_vlog. ClassRef and its string view must be bounded by the actual class/name lifetime, not assumed static. The wrapper accepts NULL names."
+      }
+    }
+  }
+}

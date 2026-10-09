@@ -1,0 +1,272 @@
+{
+  "before": {
+    "rust": {
+      "bprint.rs": {
+        "lines": {
+          "count": 302,
+          "covered": 302,
+          "percent": 100
+        },
+        "functions": {
+          "count": 50,
+          "covered": 50,
+          "percent": 100
+        },
+        "instantiations": {
+          "count": 88,
+          "covered": 85,
+          "percent": 96.5909090909091
+        },
+        "regions": {
+          "count": 591,
+          "covered": 590,
+          "notcovered": 1,
+          "percent": 99.83079526226734
+        },
+        "branches": {
+          "count": 0,
+          "covered": 0,
+          "notcovered": 0,
+          "percent": 0
+        },
+        "mcdc": {
+          "count": 0,
+          "covered": 0,
+          "notcovered": 0,
+          "percent": 0
+        }
+      },
+      "log.rs": {
+        "lines": {
+          "count": 908,
+          "covered": 905,
+          "percent": 99.66960352422907
+        },
+        "functions": {
+          "count": 151,
+          "covered": 151,
+          "percent": 100
+        },
+        "instantiations": {
+          "count": 299,
+          "covered": 285,
+          "percent": 95.31772575250837
+        },
+        "regions": {
+          "count": 1587,
+          "covered": 1575,
+          "notcovered": 12,
+          "percent": 99.24385633270322
+        },
+        "branches": {
+          "count": 0,
+          "covered": 0,
+          "notcovered": 0,
+          "percent": 0
+        },
+        "mcdc": {
+          "count": 0,
+          "covered": 0,
+          "notcovered": 0,
+          "percent": 0
+        }
+      },
+      "class_surface_regions": {
+        "count": 196,
+        "covered": 196
+      }
+    },
+    "c": {
+      "av_default_item_name": {
+        "blocks": 1,
+        "blocks_executed": 1,
+        "execution_count": 164382
+      },
+      "av_default_get_category": {
+        "blocks": 1,
+        "blocks_executed": 1,
+        "execution_count": 4427
+      },
+      "get_category": {
+        "blocks": 9,
+        "blocks_executed": 9,
+        "execution_count": 25056
+      },
+      "av_bprint_alloc": {
+        "blocks": 14,
+        "blocks_executed": 13,
+        "execution_count": 464
+      },
+      "av_bprint_init": {
+        "blocks": 5,
+        "blocks_executed": 5,
+        "execution_count": 1039060
+      },
+      "av_bprint_init_for_buffer": {
+        "blocks": 5,
+        "blocks_executed": 5,
+        "execution_count": 23
+      },
+      "av_bprint_finalize": {
+        "blocks": 14,
+        "blocks_executed": 14,
+        "execution_count": 207932
+      },
+      "av_opt_next": {
+        "blocks": 8,
+        "blocks_executed": 8,
+        "execution_count": 2153
+      },
+      "av_opt_child_next": {
+        "blocks": 3,
+        "blocks_executed": 3,
+        "execution_count": 51
+      },
+      "av_opt_child_class_iterate": {
+        "blocks": 3,
+        "blocks_executed": 3,
+        "execution_count": 11
+      },
+      "av_opt_query_ranges": {
+        "blocks": 8,
+        "blocks_executed": 7,
+        "execution_count": 54
+      }
+    }
+  },
+  "complete": {
+    "rust": {
+      "bprint.rs": {
+        "lines": {
+          "count": 302,
+          "covered": 302,
+          "percent": 100
+        },
+        "functions": {
+          "count": 50,
+          "covered": 50,
+          "percent": 100
+        },
+        "instantiations": {
+          "count": 88,
+          "covered": 85,
+          "percent": 96.5909090909091
+        },
+        "regions": {
+          "count": 591,
+          "covered": 591,
+          "notcovered": 0,
+          "percent": 100
+        },
+        "branches": {
+          "count": 0,
+          "covered": 0,
+          "notcovered": 0,
+          "percent": 0
+        },
+        "mcdc": {
+          "count": 0,
+          "covered": 0,
+          "notcovered": 0,
+          "percent": 0
+        }
+      },
+      "log.rs": {
+        "lines": {
+          "count": 922,
+          "covered": 919,
+          "percent": 99.67462039045553
+        },
+        "functions": {
+          "count": 152,
+          "covered": 152,
+          "percent": 100
+        },
+        "instantiations": {
+          "count": 300,
+          "covered": 286,
+          "percent": 95.33333333333334
+        },
+        "regions": {
+          "count": 1620,
+          "covered": 1608,
+          "notcovered": 12,
+          "percent": 99.25925925925925
+        },
+        "branches": {
+          "count": 0,
+          "covered": 0,
+          "notcovered": 0,
+          "percent": 0
+        },
+        "mcdc": {
+          "count": 0,
+          "covered": 0,
+          "notcovered": 0,
+          "percent": 0
+        }
+      },
+      "class_surface_regions": {
+        "count": 196,
+        "covered": 196
+      }
+    },
+    "c": {
+      "av_default_item_name": {
+        "blocks": 1,
+        "blocks_executed": 1,
+        "execution_count": 164383
+      },
+      "av_default_get_category": {
+        "blocks": 1,
+        "blocks_executed": 1,
+        "execution_count": 4427
+      },
+      "get_category": {
+        "blocks": 9,
+        "blocks_executed": 9,
+        "execution_count": 25056
+      },
+      "av_bprint_alloc": {
+        "blocks": 14,
+        "blocks_executed": 14,
+        "execution_count": 477
+      },
+      "av_bprint_init": {
+        "blocks": 5,
+        "blocks_executed": 5,
+        "execution_count": 1036878
+      },
+      "av_bprint_init_for_buffer": {
+        "blocks": 5,
+        "blocks_executed": 5,
+        "execution_count": 24
+      },
+      "av_bprint_finalize": {
+        "blocks": 14,
+        "blocks_executed": 14,
+        "execution_count": 207498
+      },
+      "av_opt_next": {
+        "blocks": 8,
+        "blocks_executed": 8,
+        "execution_count": 2153
+      },
+      "av_opt_child_next": {
+        "blocks": 3,
+        "blocks_executed": 3,
+        "execution_count": 51
+      },
+      "av_opt_child_class_iterate": {
+        "blocks": 3,
+        "blocks_executed": 3,
+        "execution_count": 11
+      },
+      "av_opt_query_ranges": {
+        "blocks": 8,
+        "blocks_executed": 7,
+        "execution_count": 54
+      }
+    }
+  }
+}
