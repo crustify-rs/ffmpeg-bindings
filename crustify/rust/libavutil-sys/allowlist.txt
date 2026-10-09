@@ -50,6 +50,26 @@ function av_bprint_init
 function av_bprint_chars
 var AV_BPRINT_SIZE_AUTOMATIC
 
+# libavutil/bprint.h: AVBPrint's lifecycle (core wave 1, AVBPrint): the two
+# initialisers, the finalizer and the size_max special values; append_data and
+# clear are the C writers equivalence tests drive the safe getters with.
+function av_bprint_init_for_buffer
+function av_bprint_finalize
+function av_bprint_append_data
+function av_bprint_clear
+var AV_BPRINT_SIZE_COUNT_ONLY
+# The AVERROR(ENOMEM) av_bprint_finalize fails with.
+var ENOMEM
+
+# libavutil/opt.h, iamf.h: the C reader of AVClass.child_class_iterate and
+# public classes with option tables and child classes, which the AVClass
+# getters are compared against (core wave 1, AVClass).
+function av_opt_child_class_iterate
+function av_opt_child_next
+function av_iamf_audio_element_get_class
+function av_iamf_mix_presentation_get_class
+function av_iamf_param_definition_get_class
+
 # libavutil/opt.h: AVOptionRanges' lifecycle (core wave 0, AVOption / AVOptionRanges).
 function av_opt_query_ranges
 function av_opt_query_ranges_default

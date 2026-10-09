@@ -1,0 +1,8 @@
+error[E0515]: cannot return value referencing local variable `class`
+ --> tests/ub_safe/compile_fail/log_class_handle_outlives_class.rs
+  |
+  |     class.as_ref()
+  |     -----^^^^^^^^^
+  |     |
+  |     returns a value referencing data owned by the current function
+  |     `class` is borrowed here

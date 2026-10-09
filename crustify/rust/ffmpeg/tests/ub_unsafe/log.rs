@@ -940,3 +940,227 @@ mod item_name {
         });
     }
 }
+
+/// The `log_with_context` route to a raw class's `ClassRef`.
+#[path = "../common/class.rs"]
+mod class_fixture;
+
+/// UB tests of `AVClass`'s callable handles, each call within its `# Safety`
+/// contract: `item_name` on Rust-built and C-named classes (NULL names
+/// included), `get_category` returning any value, `query_ranges` succeeding
+/// with one or several components, failing and returning no list, from
+/// several threads, and `child_next` walking an object's children to the end.
+mod class_callbacks {
+    use core::ffi::{CStr, c_char, c_int, c_void};
+    use core::ptr;
+    use std::thread;
+
+    use ffmpeg::libavutil::ffi;
+    use ffmpeg::libavutil::log::{Class, ClassCategory, ClassRef};
+
+    use super::LogState;
+    use super::class_fixture::with_class;
+    use crate::opt::fixture::{CB_FAKE, CB_KEYS, EINVAL, RANGED, UNKNOWN};
+
+    /// An object of a class: its class pointer first, then `children`.
+    #[repr(C)]
+    struct Obj {
+        class: *const ffi::AVClass,
+        children: [*mut c_void; 2],
+    }
+
+    impl Obj {
+        fn new(class: *const ffi::AVClass) -> Self {
+            Self {
+                class,
+                children: [ptr::null_mut(); 2],
+            }
+        }
+
+        fn as_obj(&mut self) -> *mut c_void {
+            (self as *mut Self).cast()
+        }
+    }
+
+    /// A raw class named `name`, every other member zero.
+    fn raw(name: Option<&'static CStr>) -> ffi::AVClass {
+        ffi::AVClass {
+            class_name: name.map_or(ptr::null(), CStr::as_ptr),
+            ..Default::default()
+        }
+    }
+
+    static OWN: Class = Class::new(c"ub-unsafe-class", ClassCategory::DEMUXER);
+    static EMPTY: Class = Class::new(c"", ClassCategory::NA);
+
+    #[test]
+    fn item_name_names_objects_of_rust_classes() {
+        for class in [&OWN, &EMPTY] {
+            let mut obj = Obj::new(class.as_c_ptr());
+            let name = class.as_ref().item_name().unwrap();
+            // SAFETY: `obj` is a live object whose first member points to
+            // `class`, whose `item_name` is `av_default_item_name`; the name
+            // is the class's `'static` literal.
+            let got: Option<&'static CStr> = unsafe { name.call(obj.as_obj()) };
+            assert_eq!(got, class.as_ref().name());
+            assert_eq!(
+                got.unwrap().as_ptr(),
+                class.as_ref().name().unwrap().as_ptr()
+            );
+        }
+    }
+
+    unsafe extern "C" fn null_name(_: *mut c_void) -> *const c_char {
+        ptr::null()
+    }
+
+    unsafe extern "C" fn any_category(obj: *mut c_void) -> ffi::AVClassCategory {
+        // SAFETY: `obj` is an `Obj`, whose first child slot holds the value.
+        let v = unsafe { (*obj.cast::<Obj>()).children[0] }.addr();
+        ffi::AVClassCategory(v as u32)
+    }
+
+    #[test]
+    fn item_name_and_get_category_take_any_result() {
+        let _s = LogState::lock();
+        let mut nameless = raw(None);
+        nameless.item_name = Some(ffi::av_default_item_name);
+        let mut null = raw(Some(c"null-item"));
+        null.item_name = Some(null_name);
+        null.get_category = Some(any_category);
+        for class in [&nameless, &null] {
+            let mut obj = Obj::new(class);
+            let o = obj.as_obj();
+            // SAFETY: `o` starts with a pointer to a live class without
+            // offsets; its callbacks accept `o` and return NULL, a class name
+            // or a category.
+            let (name, cats) = unsafe {
+                with_class(o, |c: Option<ClassRef<'_>>| {
+                    let c = c.unwrap();
+                    let name = c.item_name().unwrap().call(o).map(CStr::to_owned);
+                    let cats = c.get_category().map(|g| {
+                        [0, 7, 45, u32::MAX as usize].map(|v| {
+                            (*o.cast::<Obj>()).children[0] = ptr::without_provenance_mut(v);
+                            g.call(o).value()
+                        })
+                    });
+                    (name, cats)
+                })
+            };
+            assert_eq!(name, None);
+            if let Some(cats) = cats {
+                assert_eq!(cats, [0, 7, 45, u32::MAX]);
+            }
+        }
+    }
+
+    /// Succeeds without storing a list.
+    unsafe extern "C" fn no_list(
+        _: *mut *mut ffi::AVOptionRanges,
+        _: *mut c_void,
+        _: *const c_char,
+        _: c_int,
+    ) -> c_int {
+        0
+    }
+
+    #[test]
+    fn query_ranges_builds_fails_and_reports_a_missing_list() {
+        let _s = LogState::lock();
+        let fake = ffi::AV_OPT_SEARCH_FAKE_OBJ as c_int;
+        let multi = ffi::AV_OPT_MULTI_COMPONENT_RANGE as c_int;
+        let obj = CB_FAKE.as_obj();
+        // SAFETY: `obj` is a `const AVClass *` to the fixture's well-formed
+        // class, a context `log_with_context` accepts; its callback builds
+        // lists per `av_opt_query_ranges`' contract and accepts the fake
+        // object with `AV_OPT_SEARCH_FAKE_OBJ`.
+        unsafe {
+            with_class(obj, |c| {
+                let q = c.unwrap().query_ranges().unwrap();
+                for flags in [fake, fake | multi] {
+                    for key in CB_KEYS.iter().chain(&RANGED).chain(&UNKNOWN) {
+                        match q.call(obj, key, flags) {
+                            Ok(list) => {
+                                let r = list.as_ref();
+                                let n = r.range_count() * r.component_count();
+                                assert_eq!(r.ranges().len(), n);
+                                if *key == c"size" {
+                                    assert_eq!(
+                                        r.component_count(),
+                                        if flags & multi != 0 { 3 } else { 1 }
+                                    );
+                                }
+                            }
+                            Err(e) => assert!(e < 0 && (e != EINVAL || *key == c"fail")),
+                        }
+                    }
+                }
+                // Several threads at once: each list is independent.
+                thread::scope(|s| {
+                    for _ in 0..4 {
+                        s.spawn(move || {
+                            let obj = CB_FAKE.as_obj();
+                            for key in RANGED {
+                                drop(q.call(obj, key, fake | multi).unwrap());
+                            }
+                        });
+                    }
+                });
+            });
+        }
+
+        let mut empty = raw(Some(c"no-list"));
+        empty.query_ranges = Some(no_list);
+        let mut obj = Obj::new(&empty);
+        let o = obj.as_obj();
+        // SAFETY: `o` starts with a pointer to `empty`, whose callback reads
+        // nothing and stores no list.
+        let ret = unsafe {
+            with_class(o, |c| {
+                c.unwrap()
+                    .query_ranges()
+                    .unwrap()
+                    .call(o, c"x", 0)
+                    .map(drop)
+            })
+        };
+        assert_eq!(ret, Err(-i32::from_le_bytes(*b"BUG!")));
+    }
+
+    unsafe extern "C" fn next_child(obj: *mut c_void, prev: *mut c_void) -> *mut c_void {
+        // SAFETY: `obj` is an `Obj` with two children.
+        let children = unsafe { (*obj.cast::<Obj>()).children };
+        match children.iter().position(|&c| c == prev) {
+            _ if prev.is_null() => children[0],
+            Some(i) if i + 1 < children.len() => children[i + 1],
+            _ => ptr::null_mut(),
+        }
+    }
+
+    #[test]
+    fn child_next_walks_the_children_to_the_end() {
+        let _s = LogState::lock();
+        let child_class = raw(Some(c"child"));
+        let mut parent_class = raw(Some(c"parent"));
+        parent_class.child_next = Some(next_child);
+        let mut kids = [Obj::new(&child_class), Obj::new(&child_class)];
+        let mut parent = Obj::new(&parent_class);
+        parent.children = [kids[0].as_obj(), kids[1].as_obj()];
+        let p = parent.as_obj();
+        // SAFETY: `p` starts with a pointer to `parent_class`, whose
+        // `child_next` accepts `p` and NULL or a child it returned.
+        let walked = unsafe {
+            with_class(p, |c| {
+                let next = c.unwrap().child_next().unwrap();
+                let mut walked = Vec::new();
+                let mut prev = ptr::null_mut();
+                while let Some(child) = next.call(p, prev) {
+                    walked.push(child.as_ptr());
+                    prev = child.as_ptr();
+                }
+                walked
+            })
+        };
+        assert_eq!(walked, [kids[0].as_obj(), kids[1].as_obj()]);
+    }
+}

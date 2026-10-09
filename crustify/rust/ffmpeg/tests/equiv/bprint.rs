@@ -222,3 +222,364 @@ mod fields {
         assert_eq!((len, size, size_max), (u32::MAX - 5, 0, 0));
     }
 }
+
+/// Equivalence of the print buffer owners with `av_bprint_init`,
+/// `av_bprint_init_for_buffer` and `av_bprint_finalize` on independently
+/// owned C buffers: the state each getter reads after every step of a
+/// sequence of C appends, clears and truncations, the string each finalizer
+/// hands out, and what a caller buffer holds afterwards.
+mod owners {
+    use core::ffi::{CStr, c_char, c_uint};
+    use core::mem::MaybeUninit;
+    use core::ptr::{self, addr_of, addr_of_mut};
+
+    use ffmpeg::libavutil::bprint::{BPrint, BPrintMut, BPrintRef};
+    use ffmpeg::libavutil::ffi;
+
+    /// A C-side buffer on its own heap storage, which C initialises in place
+    /// and which never moves.
+    struct CBuf {
+        buf: *mut ffi::AVBPrint,
+        /// Whether its string may be finalized (not a caller buffer).
+        owned: bool,
+    }
+
+    impl CBuf {
+        fn storage() -> *mut ffi::AVBPrint {
+            Box::into_raw(Box::new(MaybeUninit::<ffi::AVBPrint>::uninit())).cast()
+        }
+
+        fn init(size_init: c_uint, size_max: c_uint) -> Self {
+            let buf = Self::storage();
+            // SAFETY: `buf` is writable storage for one `AVBPrint`.
+            unsafe { ffi::av_bprint_init(buf, size_init, size_max) };
+            Self { buf, owned: true }
+        }
+
+        fn for_buffer(data: &mut [u8]) -> Self {
+            let buf = Self::storage();
+            // SAFETY: `buf` is writable storage, `data` writable for its
+            // length, which outlives every use of `buf` in these tests.
+            unsafe {
+                ffi::av_bprint_init_for_buffer(buf, data.as_mut_ptr().cast(), data.len() as c_uint)
+            };
+            Self { buf, owned: false }
+        }
+
+        /// `(len, size, size_max, inline, stored bytes, string up to NUL)`.
+        fn state(&self) -> State {
+            let b = self.buf;
+            // SAFETY: `b` is an initialised buffer; fields are read by value,
+            // and its string is valid for `size` bytes, written up to its NUL
+            // at `min(len, size - 1)`.
+            unsafe {
+                let str = addr_of!((*b).str_).read();
+                let len = addr_of!((*b).len).read();
+                let size = addr_of!((*b).size).read();
+                let stored = len.min(size.saturating_sub(1)) as usize;
+                let bytes = if stored == 0 {
+                    Vec::new()
+                } else {
+                    core::slice::from_raw_parts(str.cast::<u8>(), stored).to_vec()
+                };
+                let c_str = if size == 0 {
+                    Vec::new()
+                } else {
+                    CStr::from_ptr(str).to_bytes().to_vec()
+                };
+                State {
+                    len,
+                    size,
+                    size_max: addr_of!((*b).size_max).read(),
+                    inline: ptr::eq(str, addr_of_mut!((*b).reserved_internal_buffer).cast()),
+                    bytes,
+                    c_str,
+                }
+            }
+        }
+
+        /// `av_bprint_finalize(buf, &str)`: its return and the string's
+        /// stored bytes, without the NUL (`None` for a count-only buffer,
+        /// whose block holds no string).
+        fn finalize(mut self) -> (i32, Option<Vec<u8>>) {
+            let mut str = ptr::null_mut();
+            // SAFETY: an owned, initialised buffer; `str` a writable slot.
+            let ret = unsafe { ffi::av_bprint_finalize(self.buf, &mut str) };
+            // SAFETY: `size` is the string's length, NUL included.
+            let real = unsafe { addr_of!((*self.buf).size).read() } as usize;
+            let bytes = (ret == 0 && real > 0).then(|| {
+                // SAFETY: C's fresh block holds `real` bytes, the last a NUL.
+                unsafe { core::slice::from_raw_parts(str.cast::<u8>(), real - 1) }.to_vec()
+            });
+            // SAFETY: C's block, ours to free (or NULL).
+            unsafe { ffi::av_free(str.cast()) };
+            self.owned = false;
+            (ret, bytes)
+        }
+    }
+
+    impl Drop for CBuf {
+        fn drop(&mut self) {
+            if self.owned {
+                // SAFETY: an owned buffer, whose string C frees.
+                unsafe { ffi::av_bprint_finalize(self.buf, ptr::null_mut()) };
+            }
+            // SAFETY: the storage `Box` that `storage` leaked.
+            drop(unsafe { Box::from_raw(self.buf.cast::<MaybeUninit<ffi::AVBPrint>>()) });
+        }
+    }
+
+    #[derive(Debug, PartialEq)]
+    struct State {
+        len: u32,
+        size: u32,
+        size_max: u32,
+        inline: bool,
+        bytes: Vec<u8>,
+        c_str: Vec<u8>,
+    }
+
+    fn rust_state(r: BPrintRef<'_>) -> State {
+        State {
+            len: r.len(),
+            size: r.size(),
+            size_max: r.size_max(),
+            inline: r.is_inline(),
+            bytes: r.as_bytes().to_vec(),
+            c_str: r.as_c_str().to_bytes().to_vec(),
+        }
+    }
+
+    /// One step, applied alike to both buffers.
+    #[derive(Clone, Copy, Debug)]
+    enum Op {
+        Append(&'static [u8]),
+        Chars(u8, u32),
+        Clear,
+        Truncate(u32),
+    }
+
+    /// Appends binary data with NULs, grows past the inline storage,
+    /// truncates within and past the stored part, clears, and appends again.
+    const OPS: &[Op] = &[
+        Op::Append(b"head\0bin\x01"),
+        Op::Chars(b'x', 3),
+        Op::Truncate(20),
+        Op::Truncate(6),
+        Op::Chars(b'y', 1500),
+        Op::Append(b"tail"),
+        Op::Truncate(1003),
+        Op::Truncate(1499),
+        Op::Clear,
+        Op::Clear,
+        Op::Append(b"\0lead-nul"),
+        Op::Chars(b'z', 0),
+        Op::Truncate(0),
+        Op::Chars(b'w', 2),
+    ];
+
+    /// `op` on a C buffer, truncation as C callers write it (avcodec.c).
+    fn c_op(b: *mut ffi::AVBPrint, op: Op) {
+        // SAFETY: `b` is an initialised buffer, which these routines append
+        // to within its `size`; the truncation writes within `size`.
+        unsafe {
+            match op {
+                Op::Append(d) => {
+                    ffi::av_bprint_append_data(b, d.as_ptr().cast(), d.len() as c_uint)
+                }
+                Op::Chars(c, n) => ffi::av_bprint_chars(b, c as c_char, n),
+                Op::Clear => ffi::av_bprint_clear(b),
+                Op::Truncate(n) => {
+                    if n < (*b).len {
+                        (*b).len = n;
+                        if (*b).size > 0 {
+                            *(*b).str_.add(n.min((*b).size - 1) as usize) = 0;
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    /// `op` on a Rust buffer: C's appends through the owner's pointer, the
+    /// truncation through the safe setter.
+    fn rust_op(b: *mut ffi::AVBPrint, m: &mut BPrintMut<'_>, op: Op) {
+        match op {
+            Op::Truncate(n) => m.truncate(n),
+            _ => c_op(b, op),
+        }
+    }
+
+    const INITS: [(u32, u32); 9] = [
+        (0, BPrint::SIZE_UNLIMITED),
+        (0, BPrint::SIZE_AUTOMATIC),
+        (0, BPrint::SIZE_COUNT_ONLY),
+        (0, 10),
+        (0, 1500),
+        (2000, BPrint::SIZE_UNLIMITED),
+        (5000, 3000),
+        (1, 2),
+        (u32::MAX, BPrint::SIZE_UNLIMITED),
+    ];
+
+    #[test]
+    fn new_and_its_finalizers_match_av_bprint_init_and_finalize() {
+        for (size_init, size_max) in INITS {
+            let c = CBuf::init(size_init, size_max);
+            let mut r = BPrint::new(size_init, size_max).unwrap();
+            let ctx = format!("init({size_init}, {size_max})");
+            assert_eq!(rust_state(r.as_ref()), c.state(), "{ctx}");
+            for &op in OPS {
+                let p = r.as_c_ptr();
+                c_op(c.buf, op);
+                rust_op(p, &mut r.as_mut(), op);
+                assert_eq!(rust_state(r.as_ref()), c.state(), "{ctx} {op:?}");
+            }
+            let expect = c.state();
+
+            // `into_bytes` against C's finalized string.
+            let (ret, c_bytes) = c.finalize();
+            assert_eq!(ret, 0);
+            match BPrint::into_bytes(r) {
+                Ok(bytes) => {
+                    assert_eq!(
+                        bytes.as_slice(),
+                        c_bytes.as_deref().unwrap_or_default(),
+                        "{ctx}"
+                    );
+                    assert_eq!(bytes.as_slice(), expect.bytes);
+                }
+                Err(e) => panic!("{ctx}: {e}"),
+            }
+
+            // `into_string` likewise, after the same sequence.
+            let c = CBuf::init(size_init, size_max);
+            let mut r = BPrint::new(size_init, size_max).unwrap();
+            for &op in OPS {
+                let p = r.as_c_ptr();
+                c_op(c.buf, op);
+                rust_op(p, &mut r.as_mut(), op);
+            }
+            let (ret, c_bytes) = c.finalize();
+            let s = BPrint::into_string(r).unwrap();
+            assert_eq!(ret, 0);
+            match c_bytes {
+                // C's string, read up to its NUL.
+                Some(b) => assert_eq!(
+                    s.as_bytes(),
+                    CStr::from_bytes_until_nul(&[&b[..], b"\0"].concat())
+                        .unwrap()
+                        .to_bytes()
+                ),
+                // A count-only buffer: C's block holds no string, the
+                // documented divergence; Rust hands back "".
+                None => {
+                    assert_eq!(expect.size, 0, "{ctx}");
+                    assert_eq!(s.as_bytes(), b"");
+                }
+            }
+        }
+    }
+
+    #[test]
+    fn for_buffer_matches_av_bprint_init_for_buffer() {
+        for len in [0, 1, 2, 5, 64, 2048] {
+            let mut c_data = vec![0xa5_u8; len];
+            let mut r_data = vec![0xa5_u8; len];
+            let c = CBuf::for_buffer(&mut c_data);
+            let mut r = BPrint::for_buffer(&mut r_data).unwrap();
+            assert_eq!(rust_state(r.as_ref()), c.state(), "for_buffer({len})");
+            for &op in OPS {
+                let p = r.as_c_ptr();
+                c_op(c.buf, op);
+                rust_op(p, &mut r.as_mut(), op);
+                assert_eq!(
+                    rust_state(r.as_ref()),
+                    c.state(),
+                    "for_buffer({len}) {op:?}"
+                );
+            }
+            drop(r);
+            drop(c);
+            assert_eq!(r_data, c_data, "for_buffer({len})");
+        }
+    }
+    /// Whether this is the isolated child of test `name`; in the parent, runs
+    /// the child, asserts it passed, and returns `false`.
+    fn isolated(name: &str) -> bool {
+        const ISOLATED: &str = "CRUSTIFY_EQUIV_ISOLATED";
+        if std::env::var_os(ISOLATED).is_some() {
+            return true;
+        }
+        let status = std::process::Command::new(std::env::current_exe().unwrap())
+            .args(["--exact", name, "--test-threads=1", "--nocapture"])
+            .env(ISOLATED, "1")
+            .status()
+            .unwrap();
+        assert!(status.success(), "isolated run failed: {status}");
+        false
+    }
+
+    /// Fills both buffers with `n` bytes of `c`.
+    fn fill(c: &CBuf, r: &mut ffmpeg::libavutil::bprint::BPrintBox, n: u32) {
+        c_op(c.buf, Op::Chars(b'f', n));
+        c_op(r.as_c_ptr(), Op::Chars(b'f', n));
+    }
+
+    /// The finalizers' allocation failures, forced by the `av_max_alloc`
+    /// limit in an isolated child: an inline string C cannot copy out fails
+    /// alike with `AVERROR(ENOMEM)`, and a grown string C cannot shrink is
+    /// handed out unshrunk, alike.
+    #[test]
+    fn finalizing_at_the_av_max_alloc_limit_matches_c() {
+        if !isolated("bprint::owners::finalizing_at_the_av_max_alloc_limit_matches_c") {
+            return;
+        }
+        let enomem = -(ffi::ENOMEM as i32);
+        // A C and a Rust buffer, both unlimited, starting inline.
+        let pair = || {
+            (
+                CBuf::init(0, BPrint::SIZE_UNLIMITED),
+                BPrint::new(0, BPrint::SIZE_UNLIMITED).unwrap(),
+            )
+        };
+
+        let (c, mut r) = pair();
+        fill(&c, &mut r, 100);
+        ffmpeg::libavutil::mem::set_max_alloc(50);
+        assert_eq!(c.finalize(), (enomem, None));
+        assert_eq!(BPrint::into_string(r).map(drop), Err(enomem));
+        ffmpeg::libavutil::mem::set_max_alloc(i32::MAX as usize);
+
+        let (c, mut r) = pair();
+        fill(&c, &mut r, 100);
+        ffmpeg::libavutil::mem::set_max_alloc(50);
+        assert_eq!(c.finalize(), (enomem, None));
+        assert_eq!(BPrint::into_bytes(r).map(drop), Err(enomem));
+        ffmpeg::libavutil::mem::set_max_alloc(i32::MAX as usize);
+
+        for into_string in [false, true] {
+            let (c, mut r) = pair();
+            fill(&c, &mut r, 3000);
+            assert!(!r.as_ref().is_inline());
+            ffmpeg::libavutil::mem::set_max_alloc(100);
+            let (ret, c_bytes) = c.finalize();
+            assert_eq!(ret, 0);
+            let c_bytes = c_bytes.unwrap();
+            assert_eq!(c_bytes.len(), 3000);
+            if into_string {
+                assert_eq!(BPrint::into_string(r).unwrap().as_bytes(), c_bytes);
+            } else {
+                assert_eq!(BPrint::into_bytes(r).unwrap().as_slice(), c_bytes);
+            }
+            ffmpeg::libavutil::mem::set_max_alloc(i32::MAX as usize);
+        }
+
+        // Rust's count-only string, "" where C has no string, needs one
+        // byte; at a zero limit it fails as C's own copies do.
+        let r = BPrint::new(0, BPrint::SIZE_COUNT_ONLY).unwrap();
+        ffmpeg::libavutil::mem::set_max_alloc(0);
+        assert_eq!(BPrint::into_string(r).map(drop), Err(enomem));
+        ffmpeg::libavutil::mem::set_max_alloc(i32::MAX as usize);
+    }
+}

@@ -7,15 +7,32 @@
 //! `AVBPrint`'s fields without the padding, which C only measures with
 //! `sizeof`. It is a plain value Rust owns; no C routine allocates, reads,
 //! writes or frees one.
+//!
+//! [`BPrint`] is `AVBPrint` itself, a print buffer. C initialises one
+//! in place and its string may live inside the structure, so Rust keeps it
+//! behind an `av_malloc` block, never by value, under one of two owners:
+//!
+//! - [`BPrintBox`], from [`BPrint::new`] (`av_bprint_init`): the string lives
+//!   in the structure or in an `av_realloc` block it owns; dropping it runs
+//!   `av_bprint_finalize(buf, NULL)`, and [`BPrint::into_string`] /
+//!   [`BPrint::into_bytes`] hand the string out instead;
+//! - [`BPrintOnBuffer`], from [`BPrint::for_buffer`]
+//!   (`av_bprint_init_for_buffer`): the string lives in a caller buffer the
+//!   owner borrows, which C never reallocates or frees, so it is never
+//!   finalized.
+//!
+//! Both hand out the same [`BPrintRef`] and [`BPrintMut`] handles.
 
-use core::ffi::{CStr, c_char};
+use core::ffi::{CStr, c_char, c_uint};
 use core::fmt;
+use core::marker::PhantomData;
 use core::mem::{align_of, offset_of, size_of};
-use core::ptr::{NonNull, addr_of, addr_of_mut};
+use core::ptr::{self, NonNull, addr_of, addr_of_mut};
 
-use ffibox::{CCell, CZeroable, define_ctype};
+use ffibox::{CBox, CCell, CDrop, CZeroable, define_ctype, impl_cdrop};
 
 use super::ffi;
+use super::mem::{Heap, HeapBox, HeapString, HeapVec, string_from_c_str};
 
 mod sealed {
     pub trait Sealed {}
@@ -325,6 +342,414 @@ impl BPrintFieldsMut<'_> {
     }
 }
 
+define_ctype!(
+    /// Wraps: AVBPrint
+    ///
+    /// A print buffer: a string that grows as data is appended, always
+    /// NUL-terminated, which may hold binary data. It counts the total length
+    /// of everything appended ([`BPrintRef::len`]) even past what it could
+    /// store; the stored part is [`BPrintRef::as_bytes`].
+    ///
+    /// Owned as a [`BPrintBox`] or a [`BPrintOnBuffer`], never by value: C
+    /// points the string into the structure itself (see [`PaddedStruct`]), so
+    /// an initialised buffer must not move.
+    ///
+    /// Every handle addresses a buffer one of the two initialisers set up, of
+    /// which the safe API keeps these invariants: the string is valid for
+    /// `size` bytes and NUL-terminated at `min(len, size - 1)` when `size` is
+    /// non-zero, its first `min(len, size - 1)` bytes written; and a string
+    /// that is neither the structure's own storage nor an `av_realloc` block
+    /// (a [`BPrintOnBuffer`]'s) has `size == size_max`, so C never grows it.
+    /// Nothing safe writes `str`, `size` or `size_max`.
+    BPrint,
+    BPrintRef,
+    BPrintMut,
+    ffi::AVBPrint
+);
+
+// SAFETY: a buffer owns its string (the structure's own storage or an
+// `av_realloc` block, released by `av_free` from any thread) or, behind a
+// `BPrintOnBuffer`, borrows a caller's `&mut [u8]`, whose lifetime the owner
+// carries; nothing in it is tied to a thread, so the sole owner moves as a
+// `Box<Vec<u8>>` does.
+unsafe impl Send for BPrint {}
+// SAFETY: nothing reachable through a shared handle writes: `BPrintRef` has
+// getters only and the structure has no interior mutability, so concurrent
+// shared access reads unchanging bytes.
+unsafe impl Sync for BPrint {}
+// SAFETY: as `&BPrint`, which is `Send` because `BPrint` is `Sync`.
+unsafe impl Send for BPrintRef<'_> {}
+// SAFETY: as above: copies of a shared handle only read.
+unsafe impl Sync for BPrintRef<'_> {}
+// SAFETY: as `&mut BPrint`, which is `Send` because `BPrint` is `Send`.
+unsafe impl Send for BPrintMut<'_> {}
+// SAFETY: `&BPrintMut` reaches the buffer only through `as_ref`, a shared
+// handle.
+unsafe impl Sync for BPrintMut<'_> {}
+
+/// Wraps: av_bprint_finalize
+///
+/// # Safety
+///
+/// `buf` must be an initialised buffer the caller owns, in an `av_malloc`
+/// block, whose string is the structure's own storage or an `av_realloc`
+/// block it owns (one `av_bprint_init` set up).
+unsafe fn finalize_and_free(buf: *mut ffi::AVBPrint) {
+    // SAFETY: per the caller, `buf` is an initialised buffer whose string, if
+    // not inline, is its own `av_realloc` block, which `av_bprint_finalize`
+    // frees with a NULL `ret_str`, leaving the structure in place.
+    unsafe { ffi::av_bprint_finalize(buf, ptr::null_mut()) };
+    // SAFETY: the structure's storage is a live `av_malloc` block the caller
+    // owns, released once; nothing points into it any more.
+    unsafe { ffi::av_free(buf.cast()) };
+}
+
+/// `av_bprint_finalize(buf, NULL)` and `av_free`, the policy of a
+/// [`BPrintBox`]: the string's allocation, if any, then the structure's.
+///
+/// Thread-agnostic: both release through `av_free`, which any thread may
+/// call, so a [`BPrintBox`] is `Send` and `Sync`.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash)]
+pub struct BPrintFinalize;
+
+impl_cdrop!(BPrintFinalize, BPrint, finalize_and_free);
+
+/// An owned print buffer from [`BPrint::new`], finalized on drop.
+///
+/// Not `Clone`: C has no routine that copies a buffer.
+///
+/// ```compile_fail,E0599
+/// use ffmpeg::libavutil::bprint::BPrintBox;
+/// fn copy(b: &BPrintBox) -> BPrintBox {
+///     b.clone()
+/// }
+/// ```
+pub type BPrintBox = CBox<BPrint, BPrintFinalize>;
+
+/// The policy of a [`BPrintOnBuffer`]: `av_free` of the structure's storage
+/// only, borrowing the caller buffer the string lives in for `'b`.
+///
+/// It never finalizes: `av_bprint_finalize` takes a string that is not the
+/// structure's own storage for an `av_realloc` block, and would free the
+/// caller's buffer.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash)]
+pub struct BufferStorage<'b>(PhantomData<&'b mut [u8]>);
+
+/// Wraps: av_free
+///
+/// # Safety
+///
+/// `buf` must be the structure of a buffer `av_bprint_init_for_buffer` set
+/// up, in an `av_malloc` block the caller owns. Its string is the caller's
+/// buffer (or, for an empty one, the structure's own storage), which needs no
+/// release.
+unsafe fn free_storage(buf: *mut ffi::AVBPrint) {
+    // SAFETY: per the caller, `buf` is a live `av_malloc` block it owns;
+    // `av_free` releases it once, without reading it.
+    unsafe { ffi::av_free(buf.cast()) }
+}
+
+impl_cdrop!(BufferStorage<'_>, BPrint, free_storage);
+
+/// A print buffer writing into a caller buffer, from [`BPrint::for_buffer`].
+///
+/// It borrows the buffer exclusively until it drops, after which the buffer
+/// holds what was printed, NUL-terminated:
+///
+/// ```compile_fail,E0503
+/// use ffmpeg::libavutil::bprint::BPrint;
+/// let mut out = [0u8; 16];
+/// let buf = BPrint::for_buffer(&mut out).unwrap();
+/// let first = out[0];
+/// drop(buf);
+/// # let _ = first;
+/// ```
+pub type BPrintOnBuffer<'b> = CBox<BPrint, BufferStorage<'b>>;
+
+impl BPrint {
+    /// `AV_BPRINT_SIZE_UNLIMITED` as a `size_max`: grow without limit (up to
+    /// `u32::MAX` bytes). The macro is `((unsigned)-1)`, a cast bindgen does
+    /// not evaluate.
+    pub const SIZE_UNLIMITED: u32 = u32::MAX;
+
+    /// `AV_BPRINT_SIZE_AUTOMATIC` as a `size_max`: replaced by
+    /// [`INLINE_CAPACITY`](Self::INLINE_CAPACITY), so the string stays in the
+    /// structure and nothing is allocated for it.
+    pub const SIZE_AUTOMATIC: u32 = ffi::AV_BPRINT_SIZE_AUTOMATIC;
+
+    /// `AV_BPRINT_SIZE_COUNT_ONLY` as a `size_max`: store nothing, only count
+    /// the length.
+    pub const SIZE_COUNT_ONLY: u32 = ffi::AV_BPRINT_SIZE_COUNT_ONLY;
+
+    /// The bytes of string, NUL included, the structure holds itself: from
+    /// `reserved_internal_buffer` to its end, as `av_bprint_init` sizes its
+    /// automatic storage.
+    pub const INLINE_CAPACITY: u32 =
+        (size_of::<ffi::AVBPrint>() - offset_of!(ffi::AVBPrint, reserved_internal_buffer)) as u32;
+
+    /// Storage for a buffer, which `fill` initialises in place, then adopted
+    /// under `policy`; `None` when the storage cannot be allocated.
+    ///
+    /// # Safety
+    ///
+    /// `fill` must initialise the buffer at the pointer it is given so that
+    /// it meets [`BPrint`]'s invariants and `policy` releases it.
+    unsafe fn init_with<P: CDrop<BPrint>>(
+        policy: P,
+        fill: impl FnOnce(*mut ffi::AVBPrint),
+    ) -> Option<CBox<BPrint, P>> {
+        let mut storage = HeapBox::<BPrint>::new_uninit()?;
+        fill(storage.as_c_ptr());
+        // SAFETY: per the caller, `fill` initialised the buffer in place.
+        let storage = unsafe { storage.assume_init() };
+        // SAFETY: per the caller, `policy` releases the buffer `fill` set up,
+        // storage included.
+        let (buf, Heap) = unsafe { storage.with_policy(policy) };
+        Some(buf)
+    }
+
+    /// Wraps: av_bprint_init
+    ///
+    /// An empty buffer that may grow to `size_max` bytes, NUL included, with
+    /// room for `size_init` bytes up front. The string starts inside the
+    /// structure ([`INLINE_CAPACITY`](Self::INLINE_CAPACITY) bytes) and moves
+    /// to an allocation when it outgrows it. `size_max` takes
+    /// [`SIZE_UNLIMITED`](Self::SIZE_UNLIMITED),
+    /// [`SIZE_AUTOMATIC`](Self::SIZE_AUTOMATIC),
+    /// [`SIZE_COUNT_ONLY`](Self::SIZE_COUNT_ONLY) or any limit; a `size_init`
+    /// that cannot be allocated leaves the buffer inline, as C does.
+    ///
+    /// `None` only when the structure itself cannot be allocated.
+    pub fn new(size_init: u32, size_max: u32) -> Option<BPrintBox> {
+        let fill = |buf| {
+            // SAFETY: `buf` is writable storage for one `AVBPrint`.
+            unsafe { ffi::av_bprint_init(buf, size_init, size_max) }
+        };
+        // SAFETY: `av_bprint_init` initialises the `AVBPrint` storage in
+        // place without reading it, with an inline or `av_realloc` string,
+        // which `BPrintFinalize` releases with the storage.
+        unsafe { Self::init_with(BPrintFinalize, fill) }
+    }
+
+    /// Wraps: av_bprint_init_for_buffer
+    ///
+    /// An empty buffer printing into `buffer`, never beyond it: appends past
+    /// `buffer.len() - 1` bytes are counted but truncated. C writes the NUL
+    /// terminator at once, so `buffer[0]` is 0 afterwards. A `buffer` longer
+    /// than `u32::MAX` bytes is used up to that many; an empty one counts
+    /// only, as [`SIZE_COUNT_ONLY`](Self::SIZE_COUNT_ONLY).
+    ///
+    /// `None` only when the structure cannot be allocated.
+    pub fn for_buffer(buffer: &mut [u8]) -> Option<BPrintOnBuffer<'_>> {
+        let size = c_uint::try_from(buffer.len()).unwrap_or(c_uint::MAX);
+        let data = buffer.as_mut_ptr().cast::<c_char>();
+        let fill = |buf| {
+            // SAFETY: `buf` is writable storage for one `AVBPrint`; `data` is
+            // valid for `size` bytes of writes.
+            unsafe { ffi::av_bprint_init_for_buffer(buf, data, size) }
+        };
+        // SAFETY: `av_bprint_init_for_buffer` initialises the storage in
+        // place with `size == size_max`, its string `buffer`'s first `size`
+        // bytes, writable and borrowed for `'b` by the owner's policy (or the
+        // inline storage when `size` is 0, which C then reads nothing of);
+        // `BufferStorage` frees only the storage.
+        unsafe { Self::init_with(BufferStorage(PhantomData), fill) }
+    }
+
+    /// `av_bprint_finalize(buf, &str)`: the string, `(str, stored)` with
+    /// `stored` bytes before its NUL, after which `buf`'s storage is freed.
+    /// `None` for the string of a count-only buffer (`size` 0), which C
+    /// hands back as a block holding no string, freed here.
+    fn finalize(buf: BPrintBox) -> Result<Option<(*mut c_char, usize)>, i32> {
+        let p = buf.into_c();
+        let mut str = ptr::null_mut();
+        // SAFETY: `p` is an initialised buffer `av_bprint_init` set up, which
+        // we own; `str` is a writable slot. C hands the string out: its
+        // `av_realloc` block resized to `min(len + 1, size)`, or an
+        // `av_memdup` of the inline one, NULL on failure; and sets `size` to
+        // that length.
+        let ret = unsafe { ffi::av_bprint_finalize(p, &mut str) };
+        // SAFETY: a read of a projected field of the live structure.
+        let real_size = unsafe { addr_of!((*p).size).read() };
+        // SAFETY: the structure's storage is ours, released once; the string
+        // no longer points into it.
+        unsafe { ffi::av_free(p.cast()) };
+        if ret < 0 {
+            return Err(ret);
+        }
+        if real_size == 0 {
+            // SAFETY: `str` is NULL or C's `av_malloc` block, ours to free.
+            unsafe { ffi::av_free(str.cast()) };
+            return Ok(None);
+        }
+        // `real_size` is at least 1: the bytes before the NUL.
+        Ok(Some((str, real_size as usize - 1)))
+    }
+
+    /// Wraps: av_bprint_finalize
+    ///
+    /// The stored string of `buf` as an owned C string, consuming the buffer
+    /// without copying an allocated string. It ends at its first NUL, as C
+    /// reads it, which binary content may place early; see
+    /// [`into_bytes`](Self::into_bytes). Fails with `AVERROR(ENOMEM)` when
+    /// an inline string cannot be copied out.
+    ///
+    /// A count-only buffer yields an empty string, where C hands back a
+    /// block that holds no string.
+    pub fn into_string(buf: BPrintBox) -> Result<HeapString, i32> {
+        let enomem = -(ffi::ENOMEM as i32);
+        match Self::finalize(buf)? {
+            // SAFETY: on success `str` is a fresh `av_realloc` or `av_memdup`
+            // block the caller owns, NUL-terminated at `stored` (C's invariant
+            // `str[min(len, size - 1)] == 0`, kept by the resize to
+            // `min(len + 1, size)` bytes), which `av_free` releases.
+            Some((str, _)) => unsafe { HeapString::from_raw(str) }.ok_or(enomem),
+            None => string_from_c_str(c"").ok_or(enomem),
+        }
+    }
+
+    /// Wraps: av_bprint_finalize
+    ///
+    /// The stored bytes of `buf`, [`BPrintRef::as_bytes`] as an owned array,
+    /// consuming the buffer without copying an allocated string; the NUL
+    /// terminator follows them in the allocation. Fails with
+    /// `AVERROR(ENOMEM)` when an inline string cannot be copied out.
+    pub fn into_bytes(buf: BPrintBox) -> Result<HeapVec<u8>, i32> {
+        let enomem = -(ffi::ENOMEM as i32);
+        match Self::finalize(buf)? {
+            Some((str, stored)) => {
+                // SAFETY: `str` is a fresh `av_malloc`-family block the
+                // caller owns, released by `av_free`, whose first `stored`
+                // bytes C wrote (the buffer's stored string).
+                unsafe { HeapVec::from_raw_parts(str.cast(), stored) }.ok_or(enomem)
+            }
+            None => Ok(HeapVec::empty()),
+        }
+    }
+}
+
+impl<'a> BPrintRef<'a> {
+    /// `(str, len, size)`, read by value.
+    fn state(&self) -> (*mut c_char, u32, u32) {
+        let p = self.as_ptr();
+        // SAFETY: reads of projected fields through the shared handle.
+        unsafe {
+            (
+                addr_of!((*p).str_).read(),
+                addr_of!((*p).len).read(),
+                addr_of!((*p).size).read(),
+            )
+        }
+    }
+
+    /// Field: AVBPrint.str
+    ///
+    /// The stored string: the first `min(len(), size() - 1)` bytes appended,
+    /// NULs included, without the terminator. Empty for a count-only buffer.
+    pub fn as_bytes(&self) -> &'a [u8] {
+        let (str, len, size) = self.state();
+        let stored = len.min(size.saturating_sub(1)) as usize;
+        if stored == 0 {
+            return &[];
+        }
+        // SAFETY: by `BPrint`'s invariants, `str` is valid for `size` bytes,
+        // of which C wrote the first `stored`; they live in the structure, an
+        // allocation it owns or the borrowed caller buffer, all alive and
+        // unwritten while this shared handle lives (`'a`).
+        unsafe { core::slice::from_raw_parts(str.cast::<u8>(), stored) }
+    }
+
+    /// Field: AVBPrint.str
+    ///
+    /// The stored string as C reads it: up to its first NUL, which binary
+    /// content may place before [`as_bytes`](Self::as_bytes) ends. Empty for
+    /// a count-only buffer.
+    pub fn as_c_str(&self) -> &'a CStr {
+        let (str, len, size) = self.state();
+        if size == 0 {
+            return c"";
+        }
+        let terminated = len.min(size - 1) as usize + 1;
+        // SAFETY: as for `as_bytes`, the string's first `terminated` bytes
+        // are written, the last one being the NUL terminator.
+        let bytes = unsafe { core::slice::from_raw_parts(str.cast::<u8>(), terminated) };
+        CStr::from_bytes_until_nul(bytes).unwrap_or_default()
+    }
+
+    /// Field: AVBPrint.len
+    ///
+    /// The total length of everything appended, which exceeds what is
+    /// stored once the buffer is truncated (at least [`size`](Self::size)).
+    pub fn len(&self) -> u32 {
+        self.state().1
+    }
+
+    /// Whether nothing has been appended since the buffer was initialised or
+    /// last truncated to empty.
+    pub fn is_empty(&self) -> bool {
+        self.len() == 0
+    }
+
+    /// Field: AVBPrint.size
+    ///
+    /// The bytes the string has room for, NUL included: 0 for a count-only
+    /// buffer.
+    pub fn size(&self) -> u32 {
+        self.state().2
+    }
+
+    /// Field: AVBPrint.size_max
+    ///
+    /// The most [`size`](Self::size) may grow to: [`BPrint::SIZE_AUTOMATIC`]
+    /// replaced by [`BPrint::INLINE_CAPACITY`], and `size()` itself for a
+    /// [`BPrintOnBuffer`].
+    pub fn size_max(&self) -> u32 {
+        // SAFETY: a read of a projected field through the shared handle.
+        unsafe { addr_of!((*self.as_ptr()).size_max).read() }
+    }
+
+    /// Field: AVBPrint.reserved_internal_buffer
+    /// Field: AVBPrint.reserved_padding
+    ///
+    /// Whether the string is kept in the structure itself: its inline
+    /// storage starts at `reserved_internal_buffer` and runs through
+    /// `reserved_padding` to the end, [`BPrint::INLINE_CAPACITY`] bytes.
+    /// `false` once it has moved to an allocation, and for a
+    /// [`BPrintOnBuffer`] printing into a non-empty buffer.
+    pub fn is_inline(&self) -> bool {
+        let p = self.as_ptr();
+        // SAFETY: only the field's address is taken, through the shared
+        // handle's pointer.
+        let inline = unsafe { addr_of!((*p).reserved_internal_buffer) };
+        ptr::eq(self.state().0.cast_const(), inline.cast())
+    }
+}
+
+impl BPrintMut<'_> {
+    /// Field: AVBPrint.len
+    ///
+    /// Shortens the buffer to `len` bytes, as C callers do by lowering `len`
+    /// and re-terminating the string; a `len` at or above
+    /// [`len()`](BPrintRef::len) leaves it unchanged. Truncating a truncated
+    /// buffer below its [`size`](BPrintRef::size) makes it complete again.
+    pub fn truncate(&mut self, len: u32) {
+        let (str, cur, size) = self.as_ref().state();
+        if len >= cur {
+            return;
+        }
+        let p = self.as_mut_ptr();
+        // SAFETY: a write of a projected field through the exclusive handle.
+        unsafe { addr_of_mut!((*p).len).write(len) };
+        if size > 0 {
+            // SAFETY: by `BPrint`'s invariants `str` is valid for `size`
+            // bytes of writes, reached through the exclusive handle's buffer;
+            // the NUL lands at `min(len, size - 1)`, within them, where C's
+            // own appends keep it.
+            unsafe { str.add(len.min(size - 1) as usize).write(0) };
+        }
+    }
+}
+
 #[cfg(test)]
 mod unit_tests {
     use super::*;
@@ -426,5 +851,109 @@ mod unit_tests {
             core::any::type_name::<<T as PaddedStruct>::Fields>(),
             core::any::type_name::<BPrintFields>()
         );
+    }
+
+    #[test]
+    fn inline_capacity_is_the_storage_from_the_internal_buffer_to_the_end() {
+        // `str`, `len`, `size` and `size_max` precede the inline storage,
+        // which runs through `reserved_padding` and the trailing alignment.
+        assert_eq!(BPrint::INLINE_CAPACITY, 1024 - 20);
+        assert_eq!(
+            BPrint::INLINE_CAPACITY as usize,
+            1 + <ffi::AVBPrint as PaddedStruct>::PADDING_LEN + 3
+        );
+    }
+
+    #[test]
+    fn size_max_constants_are_cs() {
+        // `AV_BPRINT_SIZE_UNLIMITED` is `((unsigned)-1)`.
+        assert_eq!(BPrint::SIZE_UNLIMITED, c_uint::MAX);
+        assert_eq!(BPrint::SIZE_AUTOMATIC, 1);
+        assert_eq!(BPrint::SIZE_COUNT_ONLY, 0);
+    }
+
+    /// Appends `n` copies of `c` through C.
+    fn chars(buf: &mut BPrintMut<'_>, c: u8, n: u32) {
+        // SAFETY: `buf` is an initialised buffer, which `av_bprint_chars`
+        // appends to within its `size`, growing it only when it owns its
+        // string.
+        unsafe { ffi::av_bprint_chars(buf.as_mut_ptr(), c as c_char, n) }
+    }
+
+    /// Corrected behaviour: C finalizes a count-only buffer into an
+    /// `av_malloc(0)` block that holds no NUL, which read as a string is
+    /// out of bounds; `into_string` hands back an empty string instead.
+    #[test]
+    fn a_count_only_buffer_finalizes_into_an_empty_string() {
+        let mut buf = BPrint::new(0, BPrint::SIZE_COUNT_ONLY).unwrap();
+        chars(&mut buf.as_mut(), b'x', 10);
+        assert_eq!((buf.as_ref().len(), buf.as_ref().size()), (10, 0));
+        let s = BPrint::into_string(buf).unwrap();
+        assert_eq!(s.as_c_str(), c"");
+
+        let mut buf = BPrint::new(0, BPrint::SIZE_COUNT_ONLY).unwrap();
+        chars(&mut buf.as_mut(), b'x', 10);
+        assert!(BPrint::into_bytes(buf).unwrap().as_slice().is_empty());
+    }
+
+    /// The finalizing policy releases a grown string with the structure;
+    /// LeakSanitizer reports either one left behind.
+    #[test]
+    fn dropping_a_grown_buffer_frees_its_string() {
+        let mut buf = BPrint::new(0, BPrint::SIZE_UNLIMITED).unwrap();
+        chars(&mut buf.as_mut(), b'y', 5000);
+        assert!(!buf.as_ref().is_inline());
+        assert_eq!(buf.as_ref().as_bytes(), [b'y'; 5000]);
+        drop(buf);
+
+        // Grown up front by `size_init`, never written.
+        let buf = BPrint::new(4096, BPrint::SIZE_UNLIMITED).unwrap();
+        assert!(!buf.as_ref().is_inline());
+        assert!(buf.as_ref().size() >= 4096);
+    }
+
+    /// The buffer policy frees only the structure: AddressSanitizer reports
+    /// a free of the caller's (Rust) buffer, which then stays readable.
+    #[test]
+    fn dropping_a_buffer_on_a_caller_buffer_leaves_it_alone() {
+        let mut out = vec![0xaa_u8; 8];
+        let mut buf = BPrint::for_buffer(&mut out).unwrap();
+        chars(&mut buf.as_mut(), b'z', 20);
+        assert_eq!(buf.as_ref().as_bytes(), b"zzzzzzz");
+        assert_eq!((buf.as_ref().len(), buf.as_ref().size_max()), (20, 8));
+        drop(buf);
+        assert_eq!(out, b"zzzzzzz\0");
+    }
+
+    #[test]
+    fn truncate_moves_the_terminator_within_the_string() {
+        let mut out = [0xaa_u8; 8];
+        let mut buf = BPrint::for_buffer(&mut out).unwrap();
+        chars(&mut buf.as_mut(), b'a', 12);
+        // Still truncated: the terminator stays at `size - 1`.
+        buf.as_mut().truncate(9);
+        assert_eq!(buf.as_ref().len(), 9);
+        assert_eq!(buf.as_ref().as_bytes(), b"aaaaaaa");
+        // Below `size`: complete again, terminated at `len`.
+        buf.as_mut().truncate(3);
+        assert_eq!(buf.as_ref().as_c_str(), c"aaa");
+        // Never lengthens.
+        buf.as_mut().truncate(5);
+        assert_eq!(buf.as_ref().len(), 3);
+        drop(buf);
+        assert_eq!(&out[..5], b"aaa\0a");
+    }
+
+    #[test]
+    fn a_count_only_buffer_stores_nothing_and_truncates_without_writing() {
+        let mut buf = BPrint::for_buffer(&mut []).unwrap();
+        chars(&mut buf.as_mut(), b'q', 7);
+        assert_eq!((buf.as_ref().len(), buf.as_ref().size()), (7, 0));
+        assert_eq!(buf.as_ref().as_bytes(), b"");
+        assert_eq!(buf.as_ref().as_c_str(), c"");
+        // An empty caller buffer falls back to the inline storage.
+        assert!(buf.as_ref().is_inline());
+        buf.as_mut().truncate(2);
+        assert_eq!(buf.as_ref().len(), 2);
     }
 }

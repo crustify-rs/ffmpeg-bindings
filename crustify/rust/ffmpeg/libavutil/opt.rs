@@ -326,7 +326,7 @@ unsafe impl CDrop<OptionRanges> for OptionRangesFree {
 }
 
 /// `AVERROR_BUG`: `FFERRTAG('B', 'U', 'G', '!')`.
-const AVERROR_BUG: i32 = -i32::from_le_bytes(*b"BUG!");
+pub(crate) const AVERROR_BUG: i32 = -i32::from_le_bytes(*b"BUG!");
 
 impl OptionRanges {
     /// Wraps: av_opt_query_ranges
@@ -465,7 +465,7 @@ impl<'a> OptionRangesRef<'a> {
 
 #[cfg(test)]
 #[path = "../tests/common/opt.rs"]
-mod fixture;
+pub(crate) mod fixture;
 
 #[cfg(test)]
 mod unit_tests {

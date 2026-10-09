@@ -1574,3 +1574,279 @@ fn default_callback_output_is_identical() {
         }
     }
 }
+
+/// The `log_with_context` route to a raw class's `ClassRef`.
+#[path = "../common/class.rs"]
+mod class_fixture;
+
+/// Equivalence of `AVClass`'s getters and callable handles with C's readers
+/// of the same classes: `av_default_item_name`, `av_default_get_category`,
+/// `av_opt_next`, `av_opt_child_class_iterate`, `av_opt_child_next` and
+/// `av_opt_query_ranges`, on Rust-built classes, libavutil's public IAMF
+/// classes and their children, and test classes with callbacks.
+mod class {
+    use core::ffi::{CStr, c_char, c_int, c_void};
+    use core::ptr;
+    use std::ffi::CString;
+
+    use ffmpeg::libavutil::ffi;
+    use ffmpeg::libavutil::log::{Class, ClassCategory, ClassRef};
+
+    use super::LogState;
+    use super::class_fixture::with_class;
+    use crate::opt::fixture::{CB_FAKE, CB_KEYS, RANGED, UNKNOWN, UNRANGED};
+
+    /// A `const AVClass *` slot: the fake object C's option readers take,
+    /// and a context `log_with_context` accepts.
+    struct Fake(*const ffi::AVClass);
+
+    impl Fake {
+        fn obj(&mut self) -> *mut c_void {
+            (&raw mut self.0).cast()
+        }
+    }
+
+    /// The names of the options `av_opt_next` walks for `obj`.
+    fn c_options(obj: *mut c_void) -> Vec<*const c_char> {
+        let mut names = Vec::new();
+        let mut prev = ptr::null();
+        loop {
+            // SAFETY: `obj` is a `const AVClass *` slot to a well-formed
+            // class; `prev` is NULL or an entry of its table.
+            prev = unsafe { ffi::av_opt_next(obj, prev) };
+            if prev.is_null() {
+                return names;
+            }
+            // SAFETY: a live table entry.
+            names.push(unsafe { (*prev).name });
+        }
+    }
+
+    /// The classes `av_opt_child_class_iterate` yields for `class`.
+    fn c_children(class: *const ffi::AVClass) -> Vec<*const ffi::AVClass> {
+        let mut iter = ptr::null_mut();
+        let mut out = Vec::new();
+        loop {
+            // SAFETY: a well-formed class and its own iteration state.
+            let child = unsafe { ffi::av_opt_child_class_iterate(class, &mut iter) };
+            if child.is_null() {
+                return out;
+            }
+            out.push(child);
+        }
+    }
+
+    fn rust_options(c: ClassRef<'_>) -> Vec<*const c_char> {
+        c.options()
+            .iter()
+            .map(|o| o.name().map_or(ptr::null(), CStr::as_ptr))
+            .collect()
+    }
+
+    /// Every getter of `c` against the raw class `k` it was reached for, and
+    /// its options and children against C's walks, recursively.
+    fn compare(c: ClassRef<'_>, k: *const ffi::AVClass) {
+        // SAFETY: `k` is a live, well-formed class; fields are read by value.
+        let raw = unsafe { k.read() };
+        assert_eq!(c.name().map_or(ptr::null(), CStr::as_ptr), raw.class_name);
+        assert_eq!(c.version(), raw.version);
+        assert_eq!(c.category().value(), raw.category.0);
+        let offset = |o: Option<core::num::NonZeroI32>| o.map_or(0, |o| o.get());
+        assert_eq!(
+            offset(c.log_level_offset_offset()),
+            raw.log_level_offset_offset
+        );
+        assert_eq!(
+            offset(c.parent_log_context_offset()),
+            raw.parent_log_context_offset
+        );
+        assert_eq!(offset(c.state_flags_offset()), raw.state_flags_offset);
+        assert_eq!(c.item_name().is_some(), raw.item_name.is_some());
+        assert_eq!(c.get_category().is_some(), raw.get_category.is_some());
+        assert_eq!(c.query_ranges().is_some(), raw.query_ranges.is_some());
+        assert_eq!(c.child_next().is_some(), raw.child_next.is_some());
+
+        let mut fake = Fake(k);
+        assert_eq!(rust_options(c), c_options(fake.obj()));
+        if let Some(name) = c.item_name() {
+            // SAFETY: a fake object of `k`, whose `item_name` reads only the
+            // class pointer (`av_default_item_name`, as every class here).
+            let (rust, c_name) =
+                unsafe { (name.call(fake.obj()), ffi::av_default_item_name(fake.obj())) };
+            assert_eq!(rust.map_or(ptr::null(), CStr::as_ptr), c_name);
+        }
+        // SAFETY: as above; `av_default_get_category` reads the class's
+        // `category`.
+        let c_category = unsafe { ffi::av_default_get_category(fake.obj()) };
+        assert_eq!(c.category().value(), c_category.0);
+
+        let children = c_children(k);
+        let rust: Vec<_> = c.child_classes().collect();
+        assert_eq!(rust.len(), children.len());
+        for (child, k) in rust.into_iter().zip(children) {
+            compare(child, k);
+        }
+    }
+
+    static OWN: Class = Class::new(c"equiv-class", ClassCategory::BITSTREAM_FILTER);
+    static NAMELESS: Class = Class::new(c"", ClassCategory::from_value(77));
+
+    #[test]
+    fn rust_classes_read_as_c_reads_them() {
+        let _s = LogState::lock();
+        for class in [&OWN, &NAMELESS] {
+            compare(class.as_ref(), class.as_c_ptr());
+            let mut fake = Fake(class.as_c_ptr());
+            // SAFETY: a context whose class is a live Rust-built class.
+            let same = unsafe { with_class(fake.obj(), |c| c.unwrap().ptr_eq(class.as_ref())) };
+            assert!(same);
+        }
+    }
+
+    #[test]
+    fn iamf_classes_read_as_c_reads_them() {
+        let _s = LogState::lock();
+        let getters: [unsafe extern "C" fn() -> *const ffi::AVClass; 3] = [
+            ffi::av_iamf_audio_element_get_class,
+            ffi::av_iamf_mix_presentation_get_class,
+            ffi::av_iamf_param_definition_get_class,
+        ];
+        for get in getters {
+            // SAFETY: each returns a pointer to a static class.
+            let k = unsafe { get() };
+            let mut fake = Fake(k);
+            // SAFETY: `fake` is a context whose class is a static FFmpeg
+            // class with no offsets.
+            unsafe { with_class(fake.obj(), |c| compare(c.unwrap(), k)) };
+        }
+    }
+
+    #[test]
+    fn a_classless_context_has_no_class_as_c_reads_it() {
+        let _s = LogState::lock();
+        let mut fake = Fake(ptr::null());
+        // SAFETY: a context whose class pointer is NULL.
+        assert!(unsafe { with_class(fake.obj(), |c| c.is_none()) });
+        // C's option walk finds no class, hence no options, either.
+        assert!(c_options(fake.obj()).is_empty());
+    }
+
+    /// An object: its class pointer, then two children.
+    #[repr(C)]
+    struct Parent {
+        class: *const ffi::AVClass,
+        children: [*mut c_void; 2],
+    }
+
+    unsafe extern "C" fn next_child(obj: *mut c_void, prev: *mut c_void) -> *mut c_void {
+        // SAFETY: `obj` is a `Parent`.
+        let children = unsafe { (*obj.cast::<Parent>()).children };
+        match children.iter().position(|&c| c == prev) {
+            _ if prev.is_null() => children[0],
+            Some(i) if i + 1 < children.len() => children[i + 1],
+            _ => ptr::null_mut(),
+        }
+    }
+
+    #[test]
+    fn child_next_walks_as_av_opt_child_next() {
+        let _s = LogState::lock();
+        let child_class = ffi::AVClass {
+            class_name: c"child".as_ptr(),
+            ..Default::default()
+        };
+        let parent_class = ffi::AVClass {
+            class_name: c"parent".as_ptr(),
+            child_next: Some(next_child),
+            ..Default::default()
+        };
+        let mut kids = [Fake(&child_class), Fake(&child_class)];
+        let mut parent = Parent {
+            class: &parent_class,
+            children: [kids[0].obj(), kids[1].obj()],
+        };
+        let p = (&raw mut parent).cast::<c_void>();
+        // SAFETY: `p` starts with a pointer to `parent_class`, whose
+        // `child_next` accepts it and NULL or a child it returned.
+        unsafe {
+            with_class(p, |c| {
+                let next = c.unwrap().child_next().unwrap();
+                let mut prev = ptr::null_mut();
+                loop {
+                    let rust = next.call(p, prev).map_or(ptr::null_mut(), |n| n.as_ptr());
+                    let c_next = ffi::av_opt_child_next(p, prev);
+                    assert_eq!(rust, c_next);
+                    if c_next.is_null() {
+                        break;
+                    }
+                    prev = c_next;
+                }
+            });
+        }
+    }
+
+    /// A range list's contents: counts, then each range's fields.
+    type List = (
+        c_int,
+        c_int,
+        Vec<Option<(Option<CString>, [f64; 4], c_int)>>,
+    );
+
+    fn list(p: *const ffi::AVOptionRanges) -> List {
+        // SAFETY: `p` is a live list whose `range` array holds
+        // `nb_ranges * nb_components` pointers, each NULL or a live range.
+        unsafe {
+            let n = ((*p).nb_ranges * (*p).nb_components).max(0) as usize;
+            let ranges = (0..n)
+                .map(|i| {
+                    let r = *(*p).range.add(i);
+                    (!r.is_null()).then(|| {
+                        let r = &*r;
+                        (
+                            (!r.str_.is_null()).then(|| CStr::from_ptr(r.str_).to_owned()),
+                            [r.value_min, r.value_max, r.component_min, r.component_max],
+                            r.is_range,
+                        )
+                    })
+                })
+                .collect();
+            ((*p).nb_ranges, (*p).nb_components, ranges)
+        }
+    }
+
+    #[test]
+    fn query_ranges_matches_av_opt_query_ranges() {
+        let _s = LogState::lock();
+        let fake = ffi::AV_OPT_SEARCH_FAKE_OBJ as c_int;
+        let multi = ffi::AV_OPT_MULTI_COMPONENT_RANGE as c_int;
+        let obj = CB_FAKE.as_obj();
+        // SAFETY: `obj` is a `const AVClass *` to the fixture's class, whose
+        // callback honours `av_opt_query_ranges`' contract and accepts the
+        // fake object with `AV_OPT_SEARCH_FAKE_OBJ`.
+        unsafe {
+            with_class(obj, |c| {
+                let q = c.unwrap().query_ranges().unwrap();
+                let keys = CB_KEYS
+                    .iter()
+                    .chain(&RANGED)
+                    .chain(&UNRANGED)
+                    .chain(&UNKNOWN);
+                for flags in [fake, fake | multi] {
+                    for key in keys.clone() {
+                        let rust = q.call(obj, key, flags);
+                        let mut out = ptr::null_mut();
+                        let ret = ffi::av_opt_query_ranges(&mut out, obj, key.as_ptr(), flags);
+                        match rust {
+                            Ok(r) => {
+                                assert!(ret >= 0, "{key:?}");
+                                assert_eq!(list(r.as_c_ptr()), list(out), "{key:?} {flags}");
+                                ffi::av_opt_freep_ranges(&mut out);
+                            }
+                            Err(e) => assert_eq!(e, ret, "{key:?} {flags}"),
+                        }
+                    }
+                }
+            });
+        }
+    }
+}
