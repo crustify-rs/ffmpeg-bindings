@@ -1,0 +1,15 @@
+{
+  "objective": "review",
+  "items": [
+    {
+      "name": "av_intfloat64",
+      "defined_in": "libavutil/intfloat.h",
+      "kind": "type",
+      "field_anchors": [
+        "f",
+        "i"
+      ],
+      "home": "crustify/rust/ffmpeg/libavutil/intfloat.rs"
+    }
+  ]
+}

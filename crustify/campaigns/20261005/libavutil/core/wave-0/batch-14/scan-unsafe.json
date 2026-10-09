@@ -1,0 +1,302 @@
+{
+  "crate_path": "/target/crustify/.worktrees/orchestrator/core-wave-0-gate/crustify/rust",
+  "counts": {
+    "unsafe_blocks": 186,
+    "unsafe_block_stmts": 0,
+    "unsafe_block_lines": 200,
+    "unsafe_block_code_lines": 195,
+    "unsafe_blocks_wrapper_impl": 133,
+    "unsafe_blocks_ffi_export": 0,
+    "unsafe_fns": 46,
+    "unsafe_fns_seam": 33,
+    "unsafe_fns_pub": 10,
+    "unsafe_impls": 85,
+    "unsafe_traits": 0,
+    "ffi_calls": 39,
+    "wrapper_newtypes": 11,
+    "wrapper_newtypes_declared": 11,
+    "wrapper_declared_nonconformant": 0,
+    "wrapper_newtypes_undeclared": 0,
+    "raw_ptr_args": 41,
+    "raw_ptr_rets": 45,
+    "raw_ptr_seam": 77,
+    "raw_ptr_wrapped": 0,
+    "raw_ptr_in_wrapper": 2,
+    "ref_to_type_wrapper": 51,
+    "field_ref_wrapped": 0,
+    "field_proj_wrapped": 57,
+    "field_proj_outside_impl": 0,
+    "void_ptr_sanctioned": 33,
+    "void_ptr_smell": 3,
+    "raw_ptr_derefs": 57,
+    "raw_ptr_derefs_outside_impl": 0,
+    "total_stmts": 225,
+    "code_lines": 1366,
+    "raw_ptr_sites": [],
+    "void_ptr_sites": [
+      {
+        "file": "ffmpeg/libavutil/log.rs",
+        "count": 1,
+        "lines": [
+          375
+        ]
+      },
+      {
+        "file": "ffmpeg/libavutil/opt.rs",
+        "count": 2,
+        "lines": [
+          293,
+          322
+        ]
+      }
+    ],
+    "field_proj_sites": [],
+    "field_ref_sites": [],
+    "raw_deref_sites": []
+  },
+  "counts_unavailable": null,
+  "seed": "--name av_strlcat av_strlcatf av_strlcpy av_strncasecmp av_strndup av_strnlen av_strnstr av_strstart av_strtok av_tolower av_toupper av_ts_make_string av_usleep av_utf8_decode av_version_info av_vlog av_x_if_null av_zero_extend_c avutil_configuration avutil_license avutil_version",
+  "entries": [
+    {
+      "name": "av_strlcat",
+      "raw_ptr_sites": [],
+      "raw_deref_sites": [],
+      "deref_impl_sites": [],
+      "deref_mut_impl_sites": [],
+      "slice_ref_sites": [],
+      "slice_mut_sites": [],
+      "crate": "ffmpeg"
+    },
+    {
+      "name": "av_strlcatf",
+      "raw_ptr_sites": [],
+      "raw_deref_sites": [],
+      "deref_impl_sites": [],
+      "deref_mut_impl_sites": [],
+      "slice_ref_sites": [],
+      "slice_mut_sites": [],
+      "crate": "ffmpeg"
+    },
+    {
+      "name": "av_strlcpy",
+      "raw_ptr_sites": [],
+      "raw_deref_sites": [],
+      "deref_impl_sites": [],
+      "deref_mut_impl_sites": [],
+      "slice_ref_sites": [],
+      "slice_mut_sites": [],
+      "crate": "ffmpeg"
+    },
+    {
+      "name": "av_strncasecmp",
+      "raw_ptr_sites": [],
+      "raw_deref_sites": [],
+      "deref_impl_sites": [],
+      "deref_mut_impl_sites": [],
+      "slice_ref_sites": [],
+      "slice_mut_sites": [],
+      "crate": "ffmpeg"
+    },
+    {
+      "name": "av_strndup",
+      "raw_ptr_sites": [],
+      "raw_deref_sites": [],
+      "deref_impl_sites": [],
+      "deref_mut_impl_sites": [],
+      "slice_ref_sites": [],
+      "slice_mut_sites": [],
+      "crate": "ffmpeg"
+    },
+    {
+      "name": "av_strnlen",
+      "raw_ptr_sites": [],
+      "raw_deref_sites": [],
+      "deref_impl_sites": [],
+      "deref_mut_impl_sites": [],
+      "slice_ref_sites": [],
+      "slice_mut_sites": [],
+      "crate": "ffmpeg"
+    },
+    {
+      "name": "av_strnstr",
+      "raw_ptr_sites": [
+        {
+          "file": "ffmpeg/libavutil/avstring.rs",
+          "count": 1,
+          "lines": [
+            89
+          ]
+        }
+      ],
+      "raw_deref_sites": [],
+      "deref_impl_sites": [],
+      "deref_mut_impl_sites": [],
+      "slice_ref_sites": [],
+      "slice_mut_sites": [],
+      "crate": "ffmpeg"
+    },
+    {
+      "name": "av_strstart",
+      "raw_ptr_sites": [
+        {
+          "file": "ffmpeg/libavutil/avstring.rs",
+          "count": 1,
+          "lines": [
+            69
+          ]
+        }
+      ],
+      "raw_deref_sites": [],
+      "deref_impl_sites": [],
+      "deref_mut_impl_sites": [],
+      "slice_ref_sites": [],
+      "slice_mut_sites": [],
+      "crate": "ffmpeg"
+    },
+    {
+      "name": "av_strtok",
+      "raw_ptr_sites": [],
+      "raw_deref_sites": [],
+      "deref_impl_sites": [],
+      "deref_mut_impl_sites": [],
+      "slice_ref_sites": [],
+      "slice_mut_sites": [],
+      "crate": "ffmpeg"
+    },
+    {
+      "name": "av_tolower",
+      "raw_ptr_sites": [],
+      "raw_deref_sites": [],
+      "deref_impl_sites": [],
+      "deref_mut_impl_sites": [],
+      "slice_ref_sites": [],
+      "slice_mut_sites": [],
+      "crate": "ffmpeg"
+    },
+    {
+      "name": "av_toupper",
+      "raw_ptr_sites": [],
+      "raw_deref_sites": [],
+      "deref_impl_sites": [],
+      "deref_mut_impl_sites": [],
+      "slice_ref_sites": [],
+      "slice_mut_sites": [],
+      "crate": "ffmpeg"
+    },
+    {
+      "name": "av_ts_make_string",
+      "raw_ptr_sites": [],
+      "raw_deref_sites": [],
+      "deref_impl_sites": [],
+      "deref_mut_impl_sites": [],
+      "slice_ref_sites": [],
+      "slice_mut_sites": [],
+      "crate": "ffmpeg"
+    },
+    {
+      "name": "av_usleep",
+      "raw_ptr_sites": [],
+      "raw_deref_sites": [],
+      "deref_impl_sites": [],
+      "deref_mut_impl_sites": [],
+      "slice_ref_sites": [],
+      "slice_mut_sites": [],
+      "crate": "ffmpeg"
+    },
+    {
+      "name": "av_utf8_decode",
+      "raw_ptr_sites": [],
+      "raw_deref_sites": [],
+      "deref_impl_sites": [],
+      "deref_mut_impl_sites": [],
+      "slice_ref_sites": [],
+      "slice_mut_sites": [],
+      "crate": "ffmpeg"
+    },
+    {
+      "name": "av_version_info",
+      "raw_ptr_sites": [],
+      "raw_deref_sites": [],
+      "deref_impl_sites": [],
+      "deref_mut_impl_sites": [],
+      "slice_ref_sites": [],
+      "slice_mut_sites": [],
+      "crate": "ffmpeg"
+    },
+    {
+      "name": "av_x_if_null",
+      "raw_ptr_sites": [
+        {
+          "file": "ffmpeg/libavutil/avutil.rs",
+          "count": 4,
+          "lines": [
+            270,
+            271,
+            285,
+            286
+          ]
+        }
+      ],
+      "raw_deref_sites": [],
+      "deref_impl_sites": [],
+      "deref_mut_impl_sites": [],
+      "slice_ref_sites": [],
+      "slice_mut_sites": [],
+      "crate": "ffmpeg"
+    },
+    {
+      "name": "av_zero_extend_c",
+      "raw_ptr_sites": [],
+      "raw_deref_sites": [],
+      "deref_impl_sites": [],
+      "deref_mut_impl_sites": [],
+      "slice_ref_sites": [],
+      "slice_mut_sites": [],
+      "crate": "ffmpeg"
+    },
+    {
+      "name": "avutil_configuration",
+      "raw_ptr_sites": [],
+      "raw_deref_sites": [],
+      "deref_impl_sites": [],
+      "deref_mut_impl_sites": [],
+      "slice_ref_sites": [],
+      "slice_mut_sites": [],
+      "crate": "ffmpeg"
+    },
+    {
+      "name": "avutil_license",
+      "raw_ptr_sites": [],
+      "raw_deref_sites": [],
+      "deref_impl_sites": [],
+      "deref_mut_impl_sites": [],
+      "slice_ref_sites": [],
+      "slice_mut_sites": [],
+      "crate": "ffmpeg"
+    },
+    {
+      "name": "avutil_version",
+      "raw_ptr_sites": [],
+      "raw_deref_sites": [],
+      "deref_impl_sites": [],
+      "deref_mut_impl_sites": [],
+      "slice_ref_sites": [],
+      "slice_mut_sites": [],
+      "crate": "ffmpeg"
+    }
+  ],
+  "undocumented_unsafe": {
+    "sites": 0,
+    "documented": 0,
+    "undocumented": 0,
+    "per_file": {}
+  },
+  "derived": {
+    "unsafe_fn_pub_ratio": 0.2174,
+    "unsafe_fn_smell": 13,
+    "raw_ptr_smell": 9,
+    "raw_ptr_seam_ratio": 0.8953,
+    "unsafe_loc_ratio": 0.1428,
+    "loc_per_unsafe_block": 7.3
+  }
+}

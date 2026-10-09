@@ -1,0 +1,278 @@
+{
+  "crate_path": "/target/crustify/.worktrees/orchestrator/core-wave-0-gate/crustify/rust",
+  "counts": {
+    "unsafe_blocks": 285,
+    "unsafe_block_stmts": 1,
+    "unsafe_block_lines": 331,
+    "unsafe_block_code_lines": 318,
+    "unsafe_blocks_wrapper_impl": 133,
+    "unsafe_blocks_ffi_export": 0,
+    "unsafe_fns": 52,
+    "unsafe_fns_seam": 33,
+    "unsafe_fns_pub": 14,
+    "unsafe_impls": 88,
+    "unsafe_traits": 0,
+    "ffi_calls": 105,
+    "wrapper_newtypes": 11,
+    "wrapper_newtypes_declared": 11,
+    "wrapper_declared_nonconformant": 0,
+    "wrapper_newtypes_undeclared": 0,
+    "raw_ptr_args": 47,
+    "raw_ptr_rets": 48,
+    "raw_ptr_seam": 78,
+    "raw_ptr_wrapped": 0,
+    "raw_ptr_in_wrapper": 2,
+    "ref_to_type_wrapper": 51,
+    "field_ref_wrapped": 0,
+    "field_proj_wrapped": 57,
+    "field_proj_outside_impl": 0,
+    "void_ptr_sanctioned": 34,
+    "void_ptr_smell": 7,
+    "raw_ptr_derefs": 57,
+    "raw_ptr_derefs_outside_impl": 0,
+    "total_stmts": 439,
+    "code_lines": 2203,
+    "raw_ptr_sites": [],
+    "void_ptr_sites": [
+      {
+        "file": "ffmpeg/libavutil/file.rs",
+        "count": 1,
+        "lines": [
+          63
+        ]
+      },
+      {
+        "file": "ffmpeg/libavutil/log.rs",
+        "count": 2,
+        "lines": [
+          378,
+          398
+        ]
+      },
+      {
+        "file": "ffmpeg/libavutil/mem.rs",
+        "count": 2,
+        "lines": [
+          383,
+          389
+        ]
+      },
+      {
+        "file": "ffmpeg/libavutil/opt.rs",
+        "count": 2,
+        "lines": [
+          293,
+          322
+        ]
+      }
+    ],
+    "field_proj_sites": [],
+    "field_ref_sites": [],
+    "raw_deref_sites": []
+  },
+  "counts_unavailable": null,
+  "seed": "--name av_parse_cpu_caps av_popcount64_c av_popcount_c av_random_bytes av_realloc av_realloc_array av_realloc_f av_reallocp av_reallocp_array av_reduce av_rescale av_sat_add32_c av_sat_add64_c av_sat_dadd32_c av_sat_dsub32_c av_sat_sub32_c av_sat_sub64_c av_size_mult av_sscanf av_strcasecmp av_strdup av_strerror av_strireplace av_stristart av_stristr",
+  "entries": [
+    {
+      "name": "av_parse_cpu_caps",
+      "raw_ptr_sites": [],
+      "raw_deref_sites": [],
+      "deref_impl_sites": [],
+      "deref_mut_impl_sites": [],
+      "slice_ref_sites": [],
+      "slice_mut_sites": [],
+      "crate": "ffmpeg"
+    },
+    {
+      "name": "av_random_bytes",
+      "raw_ptr_sites": [],
+      "raw_deref_sites": [],
+      "deref_impl_sites": [],
+      "deref_mut_impl_sites": [],
+      "slice_ref_sites": [],
+      "slice_mut_sites": [],
+      "crate": "ffmpeg"
+    },
+    {
+      "name": "av_realloc",
+      "raw_ptr_sites": [],
+      "raw_deref_sites": [],
+      "deref_impl_sites": [],
+      "deref_mut_impl_sites": [],
+      "slice_ref_sites": [],
+      "slice_mut_sites": [],
+      "crate": "ffmpeg"
+    },
+    {
+      "name": "av_realloc_array",
+      "raw_ptr_sites": [],
+      "raw_deref_sites": [],
+      "deref_impl_sites": [],
+      "deref_mut_impl_sites": [],
+      "slice_ref_sites": [],
+      "slice_mut_sites": [],
+      "crate": "ffmpeg"
+    },
+    {
+      "name": "av_realloc_f",
+      "raw_ptr_sites": [],
+      "raw_deref_sites": [],
+      "deref_impl_sites": [],
+      "deref_mut_impl_sites": [],
+      "slice_ref_sites": [],
+      "slice_mut_sites": [],
+      "crate": "ffmpeg"
+    },
+    {
+      "name": "av_reallocp",
+      "raw_ptr_sites": [],
+      "raw_deref_sites": [],
+      "deref_impl_sites": [],
+      "deref_mut_impl_sites": [],
+      "slice_ref_sites": [],
+      "slice_mut_sites": [],
+      "crate": "ffmpeg"
+    },
+    {
+      "name": "av_reallocp_array",
+      "raw_ptr_sites": [],
+      "raw_deref_sites": [],
+      "deref_impl_sites": [],
+      "deref_mut_impl_sites": [],
+      "slice_ref_sites": [],
+      "slice_mut_sites": [],
+      "crate": "ffmpeg"
+    },
+    {
+      "name": "av_reduce",
+      "raw_ptr_sites": [],
+      "raw_deref_sites": [],
+      "deref_impl_sites": [],
+      "deref_mut_impl_sites": [],
+      "slice_ref_sites": [],
+      "slice_mut_sites": [],
+      "crate": "ffmpeg"
+    },
+    {
+      "name": "av_rescale",
+      "raw_ptr_sites": [],
+      "raw_deref_sites": [],
+      "deref_impl_sites": [],
+      "deref_mut_impl_sites": [],
+      "slice_ref_sites": [],
+      "slice_mut_sites": [],
+      "crate": "ffmpeg"
+    },
+    {
+      "name": "av_size_mult",
+      "raw_ptr_sites": [],
+      "raw_deref_sites": [],
+      "deref_impl_sites": [],
+      "deref_mut_impl_sites": [],
+      "slice_ref_sites": [],
+      "slice_mut_sites": [],
+      "crate": "ffmpeg"
+    },
+    {
+      "name": "av_sscanf",
+      "raw_ptr_sites": [],
+      "raw_deref_sites": [],
+      "deref_impl_sites": [],
+      "deref_mut_impl_sites": [],
+      "slice_ref_sites": [],
+      "slice_mut_sites": [],
+      "crate": "ffmpeg"
+    },
+    {
+      "name": "av_strcasecmp",
+      "raw_ptr_sites": [],
+      "raw_deref_sites": [],
+      "deref_impl_sites": [],
+      "deref_mut_impl_sites": [],
+      "slice_ref_sites": [],
+      "slice_mut_sites": [],
+      "crate": "ffmpeg"
+    },
+    {
+      "name": "av_strdup",
+      "raw_ptr_sites": [
+        {
+          "file": "/opt/venv/share/ffibox/src/macros.rs",
+          "count": 2,
+          "lines": [
+            427,
+            429
+          ]
+        }
+      ],
+      "raw_deref_sites": [],
+      "deref_impl_sites": [],
+      "deref_mut_impl_sites": [],
+      "slice_ref_sites": [],
+      "slice_mut_sites": [],
+      "crate": "ffmpeg"
+    },
+    {
+      "name": "av_strerror",
+      "raw_ptr_sites": [],
+      "raw_deref_sites": [],
+      "deref_impl_sites": [],
+      "deref_mut_impl_sites": [],
+      "slice_ref_sites": [],
+      "slice_mut_sites": [],
+      "crate": "ffmpeg"
+    },
+    {
+      "name": "av_strireplace",
+      "raw_ptr_sites": [],
+      "raw_deref_sites": [],
+      "deref_impl_sites": [],
+      "deref_mut_impl_sites": [],
+      "slice_ref_sites": [],
+      "slice_mut_sites": [],
+      "crate": "ffmpeg"
+    },
+    {
+      "name": "av_stristart",
+      "raw_ptr_sites": [
+        {
+          "file": "ffmpeg/libavutil/avstring.rs",
+          "count": 1,
+          "lines": [
+            542
+          ]
+        }
+      ],
+      "raw_deref_sites": [],
+      "deref_impl_sites": [],
+      "deref_mut_impl_sites": [],
+      "slice_ref_sites": [],
+      "slice_mut_sites": [],
+      "crate": "ffmpeg"
+    },
+    {
+      "name": "av_stristr",
+      "raw_ptr_sites": [],
+      "raw_deref_sites": [],
+      "deref_impl_sites": [],
+      "deref_mut_impl_sites": [],
+      "slice_ref_sites": [],
+      "slice_mut_sites": [],
+      "crate": "ffmpeg"
+    }
+  ],
+  "undocumented_unsafe": {
+    "sites": 0,
+    "documented": 0,
+    "undocumented": 0,
+    "per_file": {}
+  },
+  "derived": {
+    "unsafe_fn_pub_ratio": 0.2692,
+    "unsafe_fn_smell": 19,
+    "raw_ptr_smell": 17,
+    "raw_ptr_seam_ratio": 0.8211,
+    "unsafe_loc_ratio": 0.1443,
+    "loc_per_unsafe_block": 7.7
+  }
+}

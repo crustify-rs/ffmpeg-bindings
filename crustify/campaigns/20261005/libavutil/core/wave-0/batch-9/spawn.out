@@ -1,0 +1,5 @@
+[crustify spawn-translator] workdir: /target/crustify/.worktrees/crustify/batches/20261005/libavutil/core/wave-0/batch-9
+[crustify spawn-translator] landing on: crustify/waves/20261005/libavutil/core/wave-0
+[crustify spawn-translator] log: /target/crustify/campaigns/20261005/libavutil/core/wave-0/batch-9/translator.log
+[crustify spawn-translator] batch completed.
+exit 0
