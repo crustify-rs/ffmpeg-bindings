@@ -1,0 +1,12 @@
+error[E0597]: `f` does not live long enough
+ --> tests/ub_safe/compile_fail/bprint_fields_str_outlives_value.rs
+  |
+  |     let s = {
+  |         - borrow later stored here
+  |         let mut f = BPrintFields::new();
+  |             ----- binding `f` declared here
+  |         f.as_mut().set_str(Some(c"so far"));
+  |         f.as_ref().str()
+  |         ^ borrowed value does not live long enough
+  |     };
+  |     - `f` dropped here while still borrowed

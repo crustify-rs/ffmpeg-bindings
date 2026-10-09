@@ -1,0 +1,9 @@
+error[E0502]: cannot borrow `f` as mutable because it is also borrowed as immutable
+ --> tests/ub_safe/compile_fail/bprint_fields_written_while_read.rs
+  |
+  |     let r = f.as_ref();
+  |             - immutable borrow occurs here
+  |     f.as_mut().set_len(1);
+  |     ^^^^^^^^^^ mutable borrow occurs here
+  |     println!("{}", r.len());
+  |                    - immutable borrow later used here

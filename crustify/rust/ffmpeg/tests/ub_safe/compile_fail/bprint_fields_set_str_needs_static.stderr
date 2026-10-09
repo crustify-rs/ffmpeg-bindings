@@ -1,0 +1,12 @@
+error[E0597]: `s` does not live long enough
+ --> tests/ub_safe/compile_fail/bprint_fields_set_str_needs_static.rs
+  |
+  |         let s = CString::new("so far").unwrap();
+  |             - binding `s` declared here
+  |         f.as_mut().set_str(Some(&s));
+  |         ------------------------^^--
+  |         |                       |
+  |         |                       borrowed value does not live long enough
+  |         argument requires that `s` is borrowed for `'static`
+  |     }
+  |     - `s` dropped here while still borrowed
