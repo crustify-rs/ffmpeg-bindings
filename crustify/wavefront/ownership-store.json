@@ -2,6 +2,152 @@
  "_comment": "Authored analysis: ownership, lifecycle, refcount and locking judgements that no composer can derive, keyed to the C entities they describe. The structural half of each record (field layout, signatures, footprints, casts) is composed from the CodeQL tables on demand and merged in at read time, so a re-extract rewrites nothing here. Written only by `wavefront <repo> <target> query {types,symbols} --update`; read through wavefront.manifests. Hand-edit at your own risk: `--update` validates a submission against the composed skeleton (unknown field, wrong kind, ptr-invariant violation) and this file does not.",
  "types": [
   {
+   "name": "AVBPrint",
+   "defined_in": "libavutil/bprint.h",
+   "_comment_agent": "AVBPrint (FF_PAD_STRUCTURE, 1024 bytes) is caller storage initialised in place by av_bprint_init / av_bprint_init_for_buffer and torn down by av_bprint_finalize (a disposer: frees str when allocated, keeps the struct). Rust holds it behind an av_malloc block (str may point into the struct): BPrintBox = CBox<BPrint, BPrintFinalize> (finalize(NULL) + av_free) for av_bprint_init, and CBox<BPrint, BufferStorage<'b>> (av_free only, borrowing the caller buffer) for av_bprint_init_for_buffer. len/size/size_max are maintained by bprint.c; external writers only shrink len and re-terminate (avcodec.c) or commit av_bprint_get_buffer writes (pngdec.c).",
+   "fields": [
+    {
+     "name": "str",
+     "ptr": {
+      "scalar": null,
+      "array": null,
+      "string": true,
+      "owned": true,
+      "borrowed": {
+       "lifetime": "field:reserved_internal_buffer"
+      },
+      "nullable": true,
+      "mutable": true,
+      "note": "The string buffer, NUL-terminated at min(len, size - 1) whenever size > 0, possibly holding binary data before that. Runtime-conditional ownership: it points at reserved_internal_buffer (av_bprint_init, automatic storage reaching through reserved_padding to the end of the 1024-byte struct; also the size-0 fallback of av_bprint_init_for_buffer), at an av_realloc block the struct owns once av_bprint_alloc grew it (av_bprint_is_allocated: str != reserved_internal_buffer; released by av_bprint_finalize(buf, NULL) or handed out by av_bprint_finalize(buf, &s)), or at a caller buffer from av_bprint_init_for_buffer (borrowed from `other`; is_allocated is then true too, but size == size_max keeps av_bprint_alloc from reallocating it, and finalize must never run on it). NULL only after av_bprint_finalize handed the allocation out. Self-referential in the inline case, so an initialised AVBPrint must not move."
+     }
+    }
+   ]
+  },
+  {
+   "name": "AVClass",
+   "defined_in": "libavutil/log.h",
+   "_comment_agent": "AVClass is a static const class descriptor: every in-tree instance is a file-scope `static const AVClass` (or `const AVClass` exported) with designated initializers, reached as `const AVClass *` (first member of an AVClass-enabled object, *_get_class() returns, child_class_iterate results). No C path allocates, writes, copies or frees one (field touchers only read), so it has no lifecycle primitives; Rust wraps it as a borrowed ClassRef<'a> (getters only, the callbacks as callable handles), plus a const Rust constructor for Rust-owned static classes. Scalars: version (LIBAVUTIL_VERSION_INT at definition), offsets into the described object (0 = none), category by value.",
+   "fields": [
+    {
+     "name": "child_class_iterate",
+     "ptr": {
+      "scalar": {
+       "by_val": true
+      },
+      "array": null,
+      "string": false,
+      "owned": false,
+      "borrowed": {
+       "lifetime": "static"
+      },
+      "nullable": true,
+      "mutable": false,
+      "note": "Iterates the static classes of potential children through an opaque void* state the caller initializes to NULL; returns NULL at the end. Called by av_opt_child_class_iterate and av_opt_find2's FAKE_OBJ child search; every in-tree iterator returns pointers to static const AVClass objects (iamf.c, options.c, avfilter.c...)."
+     }
+    },
+    {
+     "name": "child_next",
+     "ptr": {
+      "scalar": {
+       "by_val": true
+      },
+      "array": null,
+      "string": false,
+      "owned": false,
+      "borrowed": {
+       "lifetime": "static"
+      },
+      "nullable": true,
+      "mutable": false,
+      "note": "Returns the next AVOptions-enabled child object of an existing object after prev (NULL starts), or NULL; the child is borrowed from the object. Called by av_opt_child_next."
+     }
+    },
+    {
+     "name": "class_name",
+     "ptr": {
+      "scalar": null,
+      "array": null,
+      "string": true,
+      "owned": false,
+      "borrowed": {
+       "lifetime": "static"
+      },
+      "nullable": true,
+      "mutable": false,
+      "note": "The class's name: a string literal in every FFmpeg class (designated initializers of static const AVClass). Only read (av_default_item_name returns it, av_opt_show2 and format_to_name print it). NULL is tolerated by av_default_item_name's callers only as a NULL name; the safe getter returns Option<&CStr> tied to the class borrow."
+     }
+    },
+    {
+     "name": "get_category",
+     "ptr": {
+      "scalar": {
+       "by_val": true
+      },
+      "array": null,
+      "string": false,
+      "owned": false,
+      "borrowed": {
+       "lifetime": "static"
+      },
+      "nullable": true,
+      "mutable": false,
+      "note": "Per-instance category callback, preferred by log.c get_category() over the category field (version >= 51.56 gate) and by ffprobe's log callback; takes the object as void* and returns an AVClassCategory by value."
+     }
+    },
+    {
+     "name": "item_name",
+     "ptr": {
+      "scalar": {
+       "by_val": true
+      },
+      "array": null,
+      "string": false,
+      "owned": false,
+      "borrowed": {
+       "lifetime": "static"
+      },
+      "nullable": true,
+      "mutable": false,
+      "note": "Callback returning the name of an object of the class; called by log.c item_name() (falling back to av_default_item_name when NULL), fftools and tee.c. Takes the AVClass-enabled object as void* and returns a string the object or class keeps alive; never written after the static initializer."
+     }
+    },
+    {
+     "name": "option",
+     "ptr": {
+      "scalar": null,
+      "array": {
+       "by_val": true
+      },
+      "string": false,
+      "owned": false,
+      "borrowed": {
+       "lifetime": "static"
+      },
+      "nullable": true,
+      "mutable": false,
+      "note": "The class's option table: a static const AVOption array terminated by an entry with a NULL name (av_opt_next stops there), or NULL for a class without options. Never allocated, written or freed by any C path; the safe getter scans to the terminator and returns a CSlice of OptionDef handles borrowed for the class's lifetime."
+     }
+    },
+    {
+     "name": "query_ranges",
+     "ptr": {
+      "scalar": {
+       "by_val": true
+      },
+      "array": null,
+      "string": false,
+      "owned": false,
+      "borrowed": {
+       "lifetime": "static"
+      },
+      "nullable": true,
+      "mutable": false,
+      "note": "Range query callback with av_opt_query_ranges' signature: on success it stores a fresh av_malloc'd AVOptionRanges (released by av_opt_freep_ranges) in its out slot and returns the component count, which av_opt_query_ranges stores in nb_components. No in-tree class sets it; av_opt_query_ranges falls back to av_opt_query_ranges_default."
+     }
+    }
+   ]
+  },
+  {
    "name": "AVClassCategory",
    "defined_in": "libavutil/log.h",
    "_comment_agent": "Field-less enum with no lifecycle: a plain unsigned value (bindgen c_uint). C stores it by value in AVClass.category and returns it from AVClass.get_category / av_default_get_category, unchecked, so any unsigned value can reach Rust (log.c get_category guards >= AV_CLASS_CATEGORY_NB). AV_CLASS_CATEGORY_NB is documented as not part of ABI/API. Wrapped as an open Copy newtype, not a closed Rust enum.",
@@ -452,6 +598,89 @@
       "nullable": true,
       "mutable": true,
       "note": "Optional out slot for the string, an alloc-constructor output (av_free releases it): the shrunk av_realloc heap buffer (or the unshrunk one when that realloc fails), else av_memdup(buf->str, min(len + 1, size)) for an internal/user buffer, NULL with AVERROR(ENOMEM) when that copy fails. NULL slot discards the string. C DEFECT: for an AV_BPRINT_SIZE_COUNT_ONLY buffer (av_bprint_init(.., 0, AV_BPRINT_SIZE_COUNT_ONLY), or av_bprint_init_for_buffer with size 0) size is 0, so the result is av_memdup(str, 0) = a 1-byte av_malloc block that is never written: NOT NUL-terminated (ASan: heap-buffer-overflow in strlen). A wrapper must not adopt that result as an owned string (HeapString). The lifecycle role below is the AVBPrint teardown; the string output is recorded here because the schema carries one role per symbol."
+     }
+    }
+   ]
+  },
+  {
+   "name": "av_bprint_init",
+   "defined_in": "libavutil/bprint.c",
+   "lifetime": {
+    "for": "buf",
+    "is_dropper": false,
+    "is_disposer": false,
+    "is_cloner": null,
+    "is_constructor": {
+     "alloc": false,
+     "init": true
+    }
+   },
+   "ptr_args": [
+    {
+     "name": "buf",
+     "ptr": {
+      "scalar": {
+       "by_val": true
+      },
+      "array": null,
+      "string": false,
+      "owned": false,
+      "borrowed": {
+       "lifetime": "arg:buf"
+      },
+      "nullable": false,
+      "mutable": true,
+      "note": "Caller storage of one AVBPrint, written in place without being read: str = reserved_internal_buffer, len = 0, size = min(automatic size, size_max), size_max (1 replaced by the automatic size), *str = 0; then av_bprint_alloc grows into an av_realloc block when size_init exceeds the inline size (silently keeping the inline buffer on failure). The struct must not move afterwards (str points into it)."
+     }
+    }
+   ]
+  },
+  {
+   "name": "av_bprint_init_for_buffer",
+   "defined_in": "libavutil/bprint.c",
+   "lifetime": {
+    "for": "buf",
+    "is_dropper": false,
+    "is_disposer": false,
+    "is_cloner": null,
+    "is_constructor": {
+     "alloc": false,
+     "init": true
+    }
+   },
+   "ptr_args": [
+    {
+     "name": "buf",
+     "ptr": {
+      "scalar": {
+       "by_val": true
+      },
+      "array": null,
+      "string": false,
+      "owned": false,
+      "borrowed": {
+       "lifetime": "arg:buf"
+      },
+      "nullable": false,
+      "mutable": true,
+      "note": "Caller storage of one AVBPrint, initialised in place: str = buffer, len = 0, size = size_max = size, *str = 0; with size 0 it delegates to av_bprint_init(buf, 0, AV_BPRINT_SIZE_COUNT_ONLY) (inline, count only)."
+     }
+    },
+    {
+     "name": "buffer",
+     "ptr": {
+      "scalar": null,
+      "array": {
+       "by_val": true
+      },
+      "string": false,
+      "owned": false,
+      "borrowed": {
+       "lifetime": "other"
+      },
+      "nullable": true,
+      "mutable": true,
+      "note": "A caller byte buffer of `size` chars that the AVBPrint stores in str and writes for its whole life (never reallocated: size == size_max makes av_bprint_alloc fail with EIO); it must outlive the AVBPrint and must never reach av_bprint_finalize, which would av_realloc/av_free it since str != reserved_internal_buffer. Not dereferenced when size is 0, so NULL is accepted then."
      }
     }
    ]

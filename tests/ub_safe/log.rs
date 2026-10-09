@@ -514,3 +514,136 @@ mod vlog {
         }
     }
 }
+
+/// UB tests of `AVClass` through the safe API: a Rust class built by
+/// `Class::new` and C's `cpuflags` class reached through `Record::class`,
+/// every getter, the option table and child iteration, and handles shared
+/// across threads.
+mod class {
+    use core::ffi::CStr;
+    use std::cell::RefCell;
+    use std::thread;
+
+    use ffmpeg::libavutil::cpu;
+    use ffmpeg::libavutil::log::{self, Callback, Class, ClassCategory, ClassRef, Record};
+
+    use super::LogState;
+
+    static OWN: Class = Class::new(c"ub-safe-class", ClassCategory::ENCODER);
+
+    /// Every getter, collected; the callable handles stay uncalled (calling
+    /// them is unsafe).
+    fn read(c: ClassRef<'_>) -> (Option<Vec<u8>>, usize, usize, i32, String) {
+        let _ = (
+            c.item_name(),
+            c.get_category(),
+            c.query_ranges(),
+            c.child_next(),
+            c.log_level_offset_offset(),
+            c.parent_log_context_offset(),
+            c.state_flags_offset(),
+            c.category(),
+            format!("{c:?}"),
+        );
+        let names: Vec<Option<&CStr>> = c.options().iter().map(|o| o.name()).collect();
+        assert!(names.iter().all(Option::is_some));
+        let children = c
+            .child_classes()
+            .inspect(|child| assert!(child.name().is_some()))
+            .count();
+        (
+            c.name().map(|n| n.to_bytes().to_vec()),
+            names.len(),
+            children,
+            c.version(),
+            format!("{:?}", c.category()),
+        )
+    }
+
+    #[test]
+    fn a_rust_class_reads_back() {
+        let c = OWN.as_ref();
+        let (name, options, children, version, category) = read(c);
+        assert_eq!(name.as_deref(), Some(&b"ub-safe-class"[..]));
+        assert_eq!((options, children), (0, 0));
+        assert!(version > 0);
+        assert_eq!(category, "ClassCategory::ENCODER");
+        assert!(c.ptr_eq(OWN.as_ref()));
+        // A local class, read and dropped.
+        let local = Class::new(c"", ClassCategory::from_value(u32::MAX));
+        assert_eq!(read(local.as_ref()).0.as_deref(), Some(&b""[..]));
+        assert!(!local.as_ref().ptr_eq(c));
+    }
+
+    #[test]
+    fn class_handles_cross_threads() {
+        thread::scope(|s| {
+            for _ in 0..4 {
+                s.spawn(|| {
+                    let c: ClassRef<'static> = OWN.as_ref();
+                    for _ in 0..100 {
+                        let _ = read(c);
+                    }
+                });
+            }
+        });
+    }
+
+    /// A class's name, option count and child count.
+    type Seen = (Option<Vec<u8>>, usize, usize);
+
+    thread_local! {
+        /// What `Grab` read from this thread's messages' classes, while set.
+        static SEEN: RefCell<Option<Vec<Seen>>> = const { RefCell::new(None) };
+    }
+
+    /// Reads the class of every message logged on a capturing thread, and
+    /// re-reads it from a scoped thread while the callback runs.
+    struct Grab;
+
+    impl Callback for Grab {
+        fn log(record: Record<'_>) {
+            if SEEN.with(|s| s.borrow().is_none()) {
+                return;
+            }
+            let Some(class) = record.class() else {
+                return;
+            };
+            let (name, options, children, _, _) = read(class);
+            let again = thread::scope(|s| s.spawn(move || read(class)).join().unwrap());
+            assert_eq!(
+                (name.clone(), options, children),
+                (again.0, again.1, again.2)
+            );
+            SEEN.with(|s| {
+                s.borrow_mut()
+                    .as_mut()
+                    .unwrap()
+                    .push((name, options, children))
+            });
+        }
+    }
+
+    /// `av_parse_cpu_caps` evaluates flags against its own static class,
+    /// `cpuflags`, and logs an unknown token in that class's context.
+    #[test]
+    fn the_cpuflags_class_reaches_a_callback() {
+        let _s = LogState::lock();
+        SEEN.with(|s| *s.borrow_mut() = Some(Vec::new()));
+        log::set_callback::<Grab>();
+        let mut flags = 0;
+        assert!(cpu::parse_cpu_caps(&mut flags, c"no-such-flag").is_err());
+        log::set_default_callback();
+        let seen = SEEN.with(|s| s.borrow_mut().take()).unwrap();
+        // The expression evaluator logs in its own context too.
+        let cpuflags: Vec<_> = seen
+            .into_iter()
+            .filter(|(name, ..)| name.as_deref() == Some(&b"cpuflags"[..]))
+            .collect();
+        assert!(!cpuflags.is_empty());
+        for (_, options, children) in cpuflags {
+            assert!(options > 1, "the flags option and its constants");
+            assert_eq!(children, 0);
+        }
+    }
+}

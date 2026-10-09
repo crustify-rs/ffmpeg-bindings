@@ -1,0 +1,15 @@
+error[E0308]: mismatched types
+ --> tests/ub_safe/compile_fail/bprint_finalize_needs_an_owned_buffer.rs
+  |
+  |     let _ = BPrint::into_string(buf);
+  |             ------------------- ^^^ expected `CBox<BPrint, BPrintFinalize>`, found `CBox<BPrint, BufferStorage<'_>>`
+  |             |
+  |             arguments to this function are incorrect
+  |
+  = note: expected struct `CBox<BPrint, BPrintFinalize>`
+             found struct `CBox<BPrint, BufferStorage<'_>>`
+note: associated function defined here
+ --> libavutil/bprint.rs
+  |
+  |     pub fn into_string(buf: BPrintBox) -> Result<HeapString, i32> {
+  |            ^^^^^^^^^^^

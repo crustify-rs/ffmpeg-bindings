@@ -14,21 +14,33 @@
 //! accessor is safe from any thread. Messages are passed to C with a `"%s"`
 //! format, so Rust never hands C a format string to interpret.
 //!
+//! [`Class`] is the class of an `AVClass`-enabled object (`AVClass`): a
+//! constant C never allocates, writes or frees, borrowed as a [`ClassRef`]
+//! whose getters read its name, category, offsets and option table, iterate
+//! its child classes, and hand out its callbacks as callable handles. A Rust
+//! object's own class is a `static` built by [`Class::new`];
+//! [`Record::class`] reads the class of a message's context.
+//!
 //! A logging context, an `AVClass`-enabled object, stays a raw `void *` until
 //! the types that carry an `AVClass` are wrapped by a later batch:
 //! [`log_with_context`], [`log_fmt_with_context`], [`log_once_with_context`]
-//! and [`default_item_name`] take it, and [`Record::context`] returns it.
+//! and [`default_item_name`] take it, [`Record::context`] returns it, and the
+//! class callbacks' handles take it.
 
 use core::ffi::{CStr, c_char, c_int, c_uint, c_void};
 use core::fmt;
 use core::marker::PhantomData;
 use core::mem::align_of;
+use core::num::NonZeroI32;
 use core::ops::{BitAnd, BitAndAssign, BitOr, BitOrAssign, Sub, SubAssign};
-use core::ptr;
+use core::ptr::{self, NonNull, addr_of, addr_of_mut};
 use std::ffi::CString;
+
+use ffibox::{CSlice, define_ctype};
 
 use super::avstring::text_until_nul;
 use super::ffi;
+use super::opt::{AVERROR_BUG, OptionDef, OptionRangesBox};
 
 /// Wraps: AVClassCategory
 /// Handwritten
@@ -367,6 +379,408 @@ impl From<ClassStateFlags> for ffi::AVClassStateFlags {
         flags.0
     }
 }
+
+define_ctype!(
+    /// Wraps: AVClass
+    ///
+    /// The class of an `AVClass`-enabled object: its name, log category and
+    /// level offset, parent context, option table and children, which
+    /// logging and the `av_opt_*` routines read through the object's first
+    /// member, a `const AVClass *`.
+    ///
+    /// A class is a constant: every FFmpeg class is a `static const`, which
+    /// no C path writes, allocates or frees, so it is only borrowed, as a
+    /// [`ClassRef`] with getters ([`ClassMut`] has no setters). A Rust
+    /// object's own class is a `static` built by [`Class::new`].
+    ///
+    /// Every handle addresses a well-formed class for its lifetime: a
+    /// `class_name` that is NULL or a NUL-terminated string, an option table
+    /// that is NULL or terminated by an entry with a NULL name, both live as
+    /// long as the class, and callbacks honouring the contracts their
+    /// callable handles document.
+    Class,
+    ClassRef,
+    ClassMut,
+    ffi::AVClass
+);
+
+// SAFETY: a class is plain data (integers, an enum), pointers to immutable
+// strings and option tables that live as long as it does, and function
+// pointers C calls from whichever thread logs or sets options; nothing in it
+// is tied to a thread, so a value moves between threads as a struct of
+// `&'static` fields and `fn` pointers does.
+unsafe impl Send for Class {}
+// SAFETY: nothing writes a class: `ClassRef` has getters only, `ClassMut` no
+// setters, the struct has no interior mutability, and no C path writes one
+// once published, so concurrent shared access reads unchanging bytes.
+unsafe impl Sync for Class {}
+// SAFETY: as `&Class`, which is `Send` because `Class` is `Sync`.
+unsafe impl Send for ClassRef<'_> {}
+// SAFETY: as above: copies of a shared handle only read.
+unsafe impl Sync for ClassRef<'_> {}
+// SAFETY: as `&mut Class`; the exclusive handle has no setters, so it reaches
+// only the same immutable bytes.
+unsafe impl Send for ClassMut<'_> {}
+// SAFETY: `&ClassMut` reaches the class only through `as_ref`, a shared
+// handle.
+unsafe impl Sync for ClassMut<'_> {}
+
+/// `LIBAVUTIL_VERSION_INT`: `AV_VERSION_INT(major, minor, micro)`, the
+/// version a class records it was built against.
+const VERSION_INT: c_int = ((ffi::LIBAVUTIL_VERSION_MAJOR << 16)
+    | (ffi::LIBAVUTIL_VERSION_MINOR << 8)
+    | ffi::LIBAVUTIL_VERSION_MICRO) as c_int;
+
+impl Class {
+    /// A class named `name`, of `category`, for a Rust object that logs as
+    /// an `AVClass`-enabled context: named by `av_default_item_name` (its
+    /// class name), recording the libavutil version it is built against, with
+    /// no options, children, parent or log level offset. A `const fn`, so it
+    /// builds a `static`:
+    ///
+    /// ```
+    /// use ffmpeg::libavutil::log::{Class, ClassCategory};
+    /// static CLASS: Class = Class::new(c"MyContext", ClassCategory::FILTER);
+    /// assert_eq!(CLASS.as_ref().name(), Some(c"MyContext"));
+    /// ```
+    pub const fn new(name: &'static CStr, category: ClassCategory) -> Self {
+        Self(
+            ffi::AVClass {
+                class_name: name.as_ptr(),
+                item_name: Some(ffi::av_default_item_name),
+                option: ptr::null(),
+                version: VERSION_INT,
+                log_level_offset_offset: 0,
+                parent_log_context_offset: 0,
+                category: category.0,
+                get_category: None,
+                query_ranges: None,
+                child_next: None,
+                child_class_iterate: None,
+                state_flags_offset: 0,
+            },
+            PhantomData,
+        )
+    }
+
+    /// The class as the `const AVClass *` an object's first member holds,
+    /// for an object of this class handed to C as a logging context.
+    pub fn as_c_ptr(&self) -> *const ffi::AVClass {
+        (&raw const *self).cast()
+    }
+}
+
+impl<'a> ClassRef<'a> {
+    /// Field: AVClass.class_name
+    ///
+    /// The class's name, usually its context structure's (`"AVCodecContext"`);
+    /// `None` when it has none.
+    pub fn name(&self) -> Option<&'a CStr> {
+        // SAFETY: a read of a projected field through the shared handle.
+        let name = unsafe { addr_of!((*self.as_ptr()).class_name).read() };
+        // SAFETY: a well-formed class's name is NULL or a NUL-terminated
+        // string that lives, unwritten, as long as the class (`'a`).
+        (!name.is_null()).then(|| unsafe { CStr::from_ptr(name) })
+    }
+
+    /// Field: AVClass.item_name
+    ///
+    /// The callback naming an object of the class, which logging calls
+    /// (falling back to `av_default_item_name` when it is `None`).
+    pub fn item_name(&self) -> Option<ItemNameFn> {
+        // SAFETY: a read of a projected field through the shared handle.
+        unsafe { addr_of!((*self.as_ptr()).item_name).read() }.map(ItemNameFn)
+    }
+
+    /// Field: AVClass.option
+    ///
+    /// The class's options, the entries of its table before the terminating
+    /// one; empty for a class without options.
+    pub fn options(&self) -> CSlice<'a, OptionDef> {
+        // SAFETY: a read of a projected field through the shared handle.
+        let table = unsafe { addr_of!((*self.as_ptr()).option).read() };
+        let Some(first) = NonNull::new(table.cast_mut()) else {
+            // SAFETY: an empty run reads nothing; a dangling pointer is
+            // aligned and non-NULL.
+            return unsafe { CSlice::from_raw_parts(NonNull::dangling(), 0) };
+        };
+        let mut len = 0;
+        // SAFETY: a well-formed class's table ends with an entry whose name
+        // is NULL, so every entry up to it is in bounds; only names are read.
+        while !unsafe { addr_of!((*table.add(len)).name).read() }.is_null() {
+            len += 1;
+        }
+        // SAFETY: the table holds `len` initialised options before its
+        // terminator, living, unwritten, as long as the class (`'a`);
+        // `OptionDef` is `#[repr(transparent)]` over `AVOption`.
+        unsafe { CSlice::from_raw_parts(first.cast(), len) }
+    }
+
+    /// Field: AVClass.version
+    ///
+    /// The libavutil version the class was built against,
+    /// `AV_VERSION_INT(major, minor, micro)`, which C compares before reading
+    /// some members (the log level offset needs 50.15.2, the category
+    /// callback 51.56.0).
+    pub fn version(&self) -> i32 {
+        // SAFETY: a read of a projected field through the shared handle.
+        unsafe { addr_of!((*self.as_ptr()).version).read() }
+    }
+
+    /// Field: AVClass.log_level_offset_offset
+    ///
+    /// The byte offset, in an object of the class, of the `int` added to the
+    /// level of every message at or above `AV_LOG_FATAL` it logs; `None`
+    /// when objects have none.
+    pub fn log_level_offset_offset(&self) -> Option<NonZeroI32> {
+        // SAFETY: a read of a projected field through the shared handle.
+        NonZeroI32::new(unsafe { addr_of!((*self.as_ptr()).log_level_offset_offset).read() })
+    }
+
+    /// Field: AVClass.parent_log_context_offset
+    ///
+    /// The byte offset, in an object of the class, of a pointer to the
+    /// parent context the default log callback prints before it; `None`
+    /// when objects have none.
+    pub fn parent_log_context_offset(&self) -> Option<NonZeroI32> {
+        // SAFETY: a read of a projected field through the shared handle.
+        NonZeroI32::new(unsafe { addr_of!((*self.as_ptr()).parent_log_context_offset).read() })
+    }
+
+    /// Field: AVClass.category
+    ///
+    /// The category of every object of the class, used when it has no
+    /// [`get_category`](Self::get_category) callback.
+    pub fn category(&self) -> ClassCategory {
+        // SAFETY: a read of a projected field through the shared handle;
+        // every `c_uint` is a valid `AVClassCategory`.
+        ClassCategory(unsafe { addr_of!((*self.as_ptr()).category).read() })
+    }
+
+    /// Field: AVClass.get_category
+    ///
+    /// The callback returning an object's category, for a class whose objects
+    /// differ.
+    pub fn get_category(&self) -> Option<GetCategoryFn> {
+        // SAFETY: a read of a projected field through the shared handle.
+        unsafe { addr_of!((*self.as_ptr()).get_category).read() }.map(GetCategoryFn)
+    }
+
+    /// Field: AVClass.query_ranges
+    ///
+    /// The callback returning an option's allowed ranges, which
+    /// `av_opt_query_ranges` prefers to the default query.
+    pub fn query_ranges(&self) -> Option<QueryRangesFn> {
+        // SAFETY: a read of a projected field through the shared handle.
+        unsafe { addr_of!((*self.as_ptr()).query_ranges).read() }.map(QueryRangesFn)
+    }
+
+    /// Field: AVClass.child_next
+    ///
+    /// The callback iterating an object's `AVClass`-enabled children.
+    pub fn child_next(&self) -> Option<ChildNextFn> {
+        // SAFETY: a read of a projected field through the shared handle.
+        unsafe { addr_of!((*self.as_ptr()).child_next).read() }.map(ChildNextFn)
+    }
+
+    /// Field: AVClass.child_class_iterate
+    ///
+    /// The classes of the children an object of this class may have, as
+    /// `av_opt_child_class_iterate` yields them; empty for a class without
+    /// a `child_class_iterate` callback. Unlike
+    /// [`child_next`](Self::child_next), this needs no object.
+    pub fn child_classes(&self) -> ChildClasses<'a> {
+        ChildClasses {
+            // SAFETY: a read of a projected field through the shared handle.
+            iterate: unsafe { addr_of!((*self.as_ptr()).child_class_iterate).read() },
+            state: ptr::null_mut(),
+            _class: PhantomData,
+        }
+    }
+
+    /// Field: AVClass.state_flags_offset
+    ///
+    /// The byte offset, in an object of the class, of the `unsigned`
+    /// [`ClassStateFlags`] the object updates; `None` when objects have none.
+    pub fn state_flags_offset(&self) -> Option<NonZeroI32> {
+        // SAFETY: a read of a projected field through the shared handle.
+        NonZeroI32::new(unsafe { addr_of!((*self.as_ptr()).state_flags_offset).read() })
+    }
+
+    /// Whether `self` and `other` are the same class, as C compares classes:
+    /// by address.
+    pub fn ptr_eq(self, other: ClassRef<'_>) -> bool {
+        ptr::eq(self.as_ptr(), other.as_ptr())
+    }
+}
+
+impl fmt::Debug for ClassRef<'_> {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.debug_struct("ClassRef")
+            .field("name", &self.name())
+            .field("category", &self.category())
+            .finish_non_exhaustive()
+    }
+}
+
+/// A class's `item_name` callback, from [`ClassRef::item_name`].
+#[derive(Clone, Copy, Debug)]
+pub struct ItemNameFn(unsafe extern "C" fn(*mut c_void) -> *const c_char);
+
+impl ItemNameFn {
+    /// The name of `obj`; `None` when the callback returns NULL.
+    ///
+    /// The object is raw until the types that carry an `AVClass` are
+    /// wrapped.
+    ///
+    /// # Safety
+    ///
+    /// `obj` must be an object the callback accepts for the whole call: for
+    /// FFmpeg's classes, a live object of the class the callback came from
+    /// (for `av_default_item_name`, any live object whose first member is an
+    /// aligned, non-NULL `const AVClass *`), which no other thread writes
+    /// during the call. The string the callback returns, if any, must stay
+    /// alive and unwritten for `'o`; FFmpeg's callbacks return the class
+    /// name or a string of the object, alive while the object is.
+    pub unsafe fn call<'o>(self, obj: *mut c_void) -> Option<&'o CStr> {
+        // SAFETY: the caller vouches that the callback accepts `obj`.
+        let name = unsafe { (self.0)(obj) };
+        // SAFETY: a non-NULL result is a NUL-terminated string the caller
+        // guarantees alive and unwritten for `'o`.
+        (!name.is_null()).then(|| unsafe { CStr::from_ptr(name) })
+    }
+}
+
+/// A class's `get_category` callback, from [`ClassRef::get_category`].
+#[derive(Clone, Copy, Debug)]
+pub struct GetCategoryFn(unsafe extern "C" fn(*mut c_void) -> ffi::AVClassCategory);
+
+impl GetCategoryFn {
+    /// The category of `obj`.
+    ///
+    /// The object is raw until the types that carry an `AVClass` are
+    /// wrapped.
+    ///
+    /// # Safety
+    ///
+    /// `obj` must be an object the callback accepts for the whole call: for
+    /// FFmpeg's classes, a live object of the class the callback came from,
+    /// which no other thread writes during the call.
+    pub unsafe fn call(self, obj: *mut c_void) -> ClassCategory {
+        // SAFETY: the caller vouches that the callback accepts `obj`; any
+        // returned value is a valid (open) category.
+        ClassCategory(unsafe { (self.0)(obj) })
+    }
+}
+
+/// A class's `query_ranges` callback, from [`ClassRef::query_ranges`].
+#[derive(Clone, Copy, Debug)]
+pub struct QueryRangesFn(
+    unsafe extern "C" fn(*mut *mut ffi::AVOptionRanges, *mut c_void, *const c_char, c_int) -> c_int,
+);
+
+impl QueryRangesFn {
+    /// The allowed ranges of option `key` of `obj`, as `av_opt_query_ranges`
+    /// returns them for a class with this callback: the list's component
+    /// count is the callback's return value with
+    /// `AV_OPT_MULTI_COMPONENT_RANGE` in `flags`, and 1 without. Fails with
+    /// the callback's `AVERROR` code, or `AVERROR_BUG` when it succeeds
+    /// without a list.
+    ///
+    /// The object is raw until the types that carry an `AVClass` are
+    /// wrapped.
+    ///
+    /// # Safety
+    ///
+    /// `obj` must be an object the callback accepts for the whole call: for
+    /// FFmpeg's classes, a live object of the class the callback came from
+    /// or, with `AV_OPT_SEARCH_FAKE_OBJ` in `flags`, a pointer to a live
+    /// `const AVClass *` addressing that class. No other thread may write
+    /// it during the call. The callback must honour `av_opt_query_ranges`'
+    /// contract: on success, store a fresh list that `av_opt_freep_ranges`
+    /// releases and that holds `nb_ranges` ranges for each of the components
+    /// counted as above.
+    pub unsafe fn call(
+        self,
+        obj: *mut c_void,
+        key: &CStr,
+        flags: i32,
+    ) -> Result<OptionRangesBox, i32> {
+        let mut ranges = ptr::null_mut();
+        // SAFETY: `ranges` is a writable slot, `key` a live NUL-terminated
+        // string, and the caller vouches for `obj` and the callback.
+        let ret = unsafe { (self.0)(&mut ranges, obj, key.as_ptr(), flags) };
+        if ret < 0 {
+            return Err(ret);
+        }
+        // SAFETY: on success `ranges` is a fresh list the caller owns,
+        // released by `av_opt_freep_ranges`; NULL is reported as a bug.
+        let list = unsafe { OptionRangesBox::from_c(ranges) }.ok_or(AVERROR_BUG)?;
+        let multi = flags & ffi::AV_OPT_MULTI_COMPONENT_RANGE as c_int != 0;
+        // SAFETY: a write of a projected field of the list we own, as
+        // `av_opt_query_ranges` records the count; the callback allocated
+        // that many components, per the caller.
+        unsafe {
+            addr_of_mut!((*list.as_c_ptr()).nb_components).write(if multi { ret } else { 1 })
+        };
+        Ok(list)
+    }
+}
+
+/// A class's `child_next` callback, from [`ClassRef::child_next`].
+#[derive(Clone, Copy, Debug)]
+pub struct ChildNextFn(unsafe extern "C" fn(*mut c_void, *mut c_void) -> *mut c_void);
+
+impl ChildNextFn {
+    /// The child of `obj` after `prev`, or its first child when `prev` is
+    /// NULL; `None` after the last one. The child is borrowed from `obj`.
+    ///
+    /// The objects are raw until the types that carry an `AVClass` are
+    /// wrapped.
+    ///
+    /// # Safety
+    ///
+    /// `obj` must be an object the callback accepts for the whole call: for
+    /// FFmpeg's classes, a live object of the class the callback came from,
+    /// which no other thread writes during the call. `prev` must be NULL or a
+    /// child an earlier call returned for `obj`, which `obj` still holds.
+    pub unsafe fn call(self, obj: *mut c_void, prev: *mut c_void) -> Option<NonNull<c_void>> {
+        // SAFETY: the caller vouches for `obj` and `prev`.
+        NonNull::new(unsafe { (self.0)(obj, prev) })
+    }
+}
+
+/// The classes of a class's potential children, from
+/// [`ClassRef::child_classes`]: its `child_class_iterate` callback driven
+/// from a NULL state until it returns NULL.
+#[derive(Debug)]
+pub struct ChildClasses<'a> {
+    iterate: Option<unsafe extern "C" fn(*mut *mut c_void) -> *const ffi::AVClass>,
+    state: *mut c_void,
+    _class: PhantomData<ClassRef<'a>>,
+}
+
+impl<'a> Iterator for ChildClasses<'a> {
+    type Item = ClassRef<'a>;
+
+    fn next(&mut self) -> Option<ClassRef<'a>> {
+        let iterate = self.iterate?;
+        // SAFETY: a well-formed class's `child_class_iterate` takes the
+        // opaque state it alone advanced from NULL, which `state` is.
+        let child = unsafe { iterate(&mut self.state) };
+        // SAFETY: the callback returns NULL or a well-formed class that lives
+        // as long as the parent class (`'a`): every FFmpeg iterator returns a
+        // `static const` class.
+        let child = unsafe { ClassRef::from_ptr(child.cast_mut()) };
+        if child.is_none() {
+            // C callers stop at the first NULL; so does the iterator.
+            self.iterate = None;
+        }
+        child
+    }
+}
+
+impl core::iter::FusedIterator for ChildClasses<'_> {}
 
 /// The `va_list` parameter of a C log callback. On x86-64 SysV, the ABI the
 /// bindings are generated for, a `va_list` is a one-element array of
@@ -925,6 +1339,25 @@ impl Record<'_> {
         // passed the callback, valid for the default callback while it runs;
         // `args` is a private copy.
         unsafe { ffi::av_log_default_callback(self.context, self.level, self.format, &mut args) }
+    }
+}
+
+impl<'a> Record<'a> {
+    /// The class of the message's context: the `const AVClass *` the
+    /// context's first member holds; `None` for the general log, or a
+    /// context whose class pointer is NULL. Borrowed for the callback.
+    pub fn class(&self) -> Option<ClassRef<'a>> {
+        if self.context.is_null() {
+            return None;
+        }
+        // SAFETY: a non-NULL context is an `AVClass`-enabled object, as
+        // `av_log` requires of every caller: its first member is an aligned
+        // `const AVClass *`, which `av_vlog` itself reads, and no thread
+        // writes it while the message is logged.
+        let class = unsafe { self.context.cast::<*const ffi::AVClass>().read() };
+        // SAFETY: the pointer is NULL or a well-formed class live for the
+        // logging call (`'a`), as `av_log`'s contract requires.
+        unsafe { ClassRef::from_ptr(class.cast_mut()) }
     }
 }
 
@@ -1502,5 +1935,163 @@ mod unit_tests {
             "{line}"
         );
         assert!(line.ends_with("] m\n"), "{line}");
+    }
+
+    use crate::libavutil::opt::fixture as opt_fixture;
+
+    #[test]
+    fn new_builds_a_named_class_of_this_version() {
+        static NEW: Class = Class::new(c"unit-new", ClassCategory::FILTER);
+        let c = NEW.as_ref();
+        assert_eq!(c.name(), Some(c"unit-new"));
+        assert_eq!(c.category(), ClassCategory::FILTER);
+        assert_eq!(c.version(), (61 << 16) | (6 << 8) | 100);
+        assert!(c.item_name().is_some());
+        assert!(c.options().is_empty());
+        assert_eq!(c.child_classes().count(), 0);
+        assert!(c.get_category().is_none() && c.query_ranges().is_none());
+        assert!(c.child_next().is_none());
+        assert_eq!(c.log_level_offset_offset(), None);
+        assert_eq!(c.parent_log_context_offset(), None);
+        assert_eq!(c.state_flags_offset(), None);
+        assert_eq!(NEW.as_c_ptr(), c.as_ptr());
+        assert!(c.ptr_eq(NEW.as_ref()));
+        assert_eq!(
+            format!("{c:?}"),
+            "ClassRef { name: Some(\"unit-new\"), category: ClassCategory::FILTER, .. }"
+        );
+    }
+
+    unsafe extern "C" fn unit_item_name(_: *mut c_void) -> *const c_char {
+        c"item".as_ptr()
+    }
+
+    unsafe extern "C" fn unit_category(_: *mut c_void) -> ffi::AVClassCategory {
+        ffi::AVClassCategory::AV_CLASS_CATEGORY_DECODER
+    }
+
+    unsafe extern "C" fn unit_child_next(obj: *mut c_void, prev: *mut c_void) -> *mut c_void {
+        if prev.is_null() { obj } else { ptr::null_mut() }
+    }
+
+    static CHILD_A: opt_fixture::Class = opt_fixture::Class(ffi::AVClass {
+        class_name: c"child-a".as_ptr(),
+        item_name: None,
+        option: ptr::null(),
+        version: 0,
+        log_level_offset_offset: 0,
+        parent_log_context_offset: 0,
+        category: ffi::AVClassCategory::AV_CLASS_CATEGORY_NA,
+        get_category: None,
+        query_ranges: None,
+        child_next: None,
+        child_class_iterate: None,
+        state_flags_offset: 0,
+    });
+
+    std::thread_local!(static ITERATIONS: core::cell::Cell<usize> = const { core::cell::Cell::new(0) });
+
+    /// Yields `CHILD_A` twice, then NULL, then (were it asked again) more.
+    unsafe extern "C" fn unit_children(state: *mut *mut c_void) -> *const ffi::AVClass {
+        ITERATIONS.with(|n| n.set(n.get() + 1));
+        // SAFETY: `ChildClasses` passes its own state slot.
+        let i = unsafe { state.read() }.addr();
+        // SAFETY: as above.
+        unsafe { state.write(ptr::without_provenance_mut(i + 1)) };
+        if i == 2 { ptr::null() } else { &CHILD_A.0 }
+    }
+
+    #[test]
+    fn getters_read_every_field() {
+        let raw = ffi::AVClass {
+            class_name: c"unit-all".as_ptr(),
+            item_name: Some(unit_item_name),
+            option: opt_fixture::CLASS.0.option,
+            version: 0x0001_0203,
+            log_level_offset_offset: 8,
+            parent_log_context_offset: -16,
+            category: ffi::AVClassCategory::AV_CLASS_CATEGORY_MUXER,
+            get_category: Some(unit_category),
+            query_ranges: None,
+            child_next: Some(unit_child_next),
+            child_class_iterate: Some(unit_children),
+            state_flags_offset: 24,
+        };
+        // SAFETY: `raw` is a well-formed class outliving the handle.
+        let c = unsafe { ClassRef::from_ptr((&raw const raw).cast_mut()) }.unwrap();
+        assert_eq!(c.name(), Some(c"unit-all"));
+        assert_eq!(c.version(), 0x0001_0203);
+        assert_eq!(c.log_level_offset_offset().map(NonZeroI32::get), Some(8));
+        assert_eq!(
+            c.parent_log_context_offset().map(NonZeroI32::get),
+            Some(-16)
+        );
+        assert_eq!(c.state_flags_offset().map(NonZeroI32::get), Some(24));
+        assert_eq!(c.category(), ClassCategory::MUXER);
+        let mut obj = 0_u8;
+        let obj = (&raw mut obj).cast::<c_void>();
+        // SAFETY: the callbacks above accept any object and return statics.
+        unsafe {
+            assert_eq!(c.item_name().unwrap().call(obj), Some(c"item"));
+            assert_eq!(c.get_category().unwrap().call(obj), ClassCategory::DECODER);
+            let next = c.child_next().unwrap();
+            assert_eq!(
+                next.call(obj, ptr::null_mut()).map(NonNull::as_ptr),
+                Some(obj)
+            );
+            assert_eq!(next.call(obj, obj), None);
+        }
+        let names: Vec<_> = opt_fixture::OPTIONS
+            .0
+            .iter()
+            .map_while(|o| {
+                // SAFETY: the fixture's names are NULL or literals.
+                (!o.name.is_null()).then(|| unsafe { CStr::from_ptr(o.name) })
+            })
+            .collect();
+        let options = c.options();
+        assert_eq!(options.len(), names.len());
+        assert!(options.iter().map(|o| o.name().unwrap()).eq(names));
+    }
+
+    #[test]
+    fn child_classes_stop_at_the_first_null() {
+        let raw = ffi::AVClass {
+            child_class_iterate: Some(unit_children),
+            ..Default::default()
+        };
+        // SAFETY: `raw` is a well-formed class outliving the handle.
+        let c = unsafe { ClassRef::from_ptr((&raw const raw).cast_mut()) }.unwrap();
+        ITERATIONS.with(|n| n.set(0));
+        let mut children = c.child_classes();
+        assert_eq!(children.next().unwrap().as_ptr(), &raw const CHILD_A.0);
+        assert_eq!(children.next().unwrap().name(), Some(c"child-a"));
+        assert!(children.next().is_none());
+        // Fused: the callback is not asked past its NULL.
+        assert!(children.next().is_none());
+        assert_eq!(ITERATIONS.with(|n| n.get()), 3);
+        // Every iteration starts afresh.
+        assert_eq!(c.child_classes().count(), 2);
+    }
+
+    #[test]
+    fn record_class_reads_the_contexts_first_member() {
+        let record = |context: *mut c_void| Record {
+            context,
+            level: 0,
+            format: ptr::null(),
+            args: ptr::null_mut(),
+            _call: PhantomData,
+        };
+        assert!(record(ptr::null_mut()).class().is_none());
+
+        let mut classless: *const ffi::AVClass = ptr::null();
+        assert!(record((&raw mut classless).cast()).class().is_none());
+
+        static OWN: Class = Class::new(c"unit-record", ClassCategory::NA);
+        let mut obj = OWN.as_c_ptr();
+        let class = record((&raw mut obj).cast()).class().unwrap();
+        assert!(class.ptr_eq(OWN.as_ref()));
+        assert_eq!(class.name(), Some(c"unit-record"));
     }
 }

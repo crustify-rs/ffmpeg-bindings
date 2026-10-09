@@ -1,0 +1,9 @@
+error[E0502]: cannot borrow `b` as mutable because it is also borrowed as immutable
+ --> tests/ub_safe/compile_fail/bprint_string_read_while_truncated.rs
+  |
+  |     let s = b.as_ref().as_c_str();
+  |             - immutable borrow occurs here
+  |     b.as_mut().truncate(0);
+  |     ^^^^^^^^^^ mutable borrow occurs here
+  |     println!("{s:?}");
+  |                - immutable borrow later used here

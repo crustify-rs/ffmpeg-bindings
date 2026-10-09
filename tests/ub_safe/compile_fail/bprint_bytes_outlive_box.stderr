@@ -1,0 +1,11 @@
+error[E0505]: cannot move out of `b` because it is borrowed
+ --> tests/ub_safe/compile_fail/bprint_bytes_outlive_box.rs
+  |
+  |     let b = BPrint::new(0, BPrint::SIZE_UNLIMITED).unwrap();
+  |         - binding `b` declared here
+  |     let bytes = b.as_ref().as_bytes();
+  |                 - borrow of `b` occurs here
+  |     drop(b);
+  |          ^ move out of `b` occurs here
+  |     println!("{}", bytes.len());
+  |                    ----- borrow later used here

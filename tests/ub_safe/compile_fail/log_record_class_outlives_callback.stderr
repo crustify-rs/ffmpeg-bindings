@@ -1,0 +1,13 @@
+error[E0521]: borrowed data escapes outside of associated function
+ --> tests/ub_safe/compile_fail/log_record_class_outlives_callback.rs
+  |
+  |     fn log(record: Record<'_>) {
+  |            ------
+  |            |
+  |            `record` is a reference that is only valid in the associated function body
+  |            has type `Record<'1>`
+  |         KEPT.with(|k| *k.borrow_mut() = record.class());
+  |         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  |         |
+  |         `record` escapes the associated function body here
+  |         argument requires that `'1` must outlive `'static`

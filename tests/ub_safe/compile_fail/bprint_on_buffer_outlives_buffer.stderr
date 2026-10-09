@@ -1,0 +1,11 @@
+error[E0597]: `out` does not live long enough
+ --> tests/ub_safe/compile_fail/bprint_on_buffer_outlives_buffer.rs
+  |
+  |         let mut out = [0u8; 16];
+  |             ------- binding `out` declared here
+  |         buf = BPrint::for_buffer(&mut out).unwrap();
+  |                                  ^^^^^^^^ borrowed value does not live long enough
+  |     }
+  |     - `out` dropped here while still borrowed
+  |     println!("{}", buf.as_ref().len());
+  |                    --- borrow later used here

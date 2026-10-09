@@ -1,0 +1,7 @@
+error: lifetime may not live long enough
+ --> tests/ub_safe/compile_fail/log_class_name_outlives_class.rs
+  |
+  | fn name<'a>(c: ClassRef<'a>) -> &'static CStr {
+  |         -- lifetime `'a` defined here
+  |     c.name().unwrap()
+  |     ^^^^^^^^^^^^^^^^^ returning this value requires that `'a` must outlive `'static`

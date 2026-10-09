@@ -197,3 +197,167 @@ mod fields {
         });
     }
 }
+
+/// UB tests of the print buffer owners, `BPrintBox` and `BPrintOnBuffer`,
+/// through the safe API: every `size_init`/`size_max` shape, caller buffers
+/// of every length class, each finalizer, truncation, and owners and handles
+/// moved and shared across threads.
+mod owners {
+    use std::thread;
+
+    use ffmpeg::libavutil::bprint::{BPrint, BPrintBox, BPrintOnBuffer, BPrintRef};
+
+    fn under_bsan() -> bool {
+        std::env::var("CRUSTIFY_FFMPEG_VARIANT").as_deref() == Ok("bsan")
+    }
+
+    /// `size_max` values at every boundary `av_bprint_init` distinguishes.
+    const SIZE_MAX: [u32; 9] = [
+        BPrint::SIZE_COUNT_ONLY,
+        BPrint::SIZE_AUTOMATIC,
+        2,
+        BPrint::INLINE_CAPACITY - 1,
+        BPrint::INLINE_CAPACITY,
+        BPrint::INLINE_CAPACITY + 1,
+        5000,
+        u32::MAX - 1,
+        BPrint::SIZE_UNLIMITED,
+    ];
+
+    /// `size_init` values around the inline storage, and one no allocator
+    /// can satisfy (4 GiB, beyond `av_max_alloc`'s default `INT_MAX`).
+    const SIZE_INIT: [u32; 7] = [0, 1, 2, 1004, 1005, 4096, u32::MAX];
+
+    /// Every getter, whose results must be consistent with an empty buffer.
+    fn check_empty(r: BPrintRef<'_>) {
+        assert_eq!(r.len(), 0);
+        assert!(r.is_empty());
+        assert_eq!(r.as_bytes(), b"");
+        assert_eq!(r.as_c_str(), c"");
+        assert!(r.size() <= r.size_max());
+        let _ = r.is_inline();
+    }
+
+    #[test]
+    fn every_init_shape_reads_empty_and_drops() {
+        for size_max in SIZE_MAX {
+            for size_init in SIZE_INIT {
+                let mut buf = BPrint::new(size_init, size_max).unwrap();
+                check_empty(buf.as_ref());
+                // Inline unless `size_init` asked for more than the inline
+                // size, the limit allowed growing, and `av_realloc` could
+                // (it refuses more than `INT_MAX` bytes).
+                let max = if size_max == BPrint::SIZE_AUTOMATIC {
+                    BPrint::INLINE_CAPACITY
+                } else {
+                    size_max
+                };
+                let inline = max.min(BPrint::INLINE_CAPACITY);
+                let grows =
+                    size_init > inline && inline != max && size_init.min(max) <= i32::MAX as u32;
+                assert_eq!(buf.as_ref().is_inline(), !grows, "{size_init} {size_max}");
+                buf.as_mut().truncate(0);
+                buf.as_mut().as_mut().truncate(u32::MAX);
+                check_empty(buf.as_mut().as_ref());
+            }
+        }
+    }
+
+    #[test]
+    fn each_finalizer_hands_out_the_empty_string() {
+        for size_max in SIZE_MAX {
+            for size_init in [0, 4096] {
+                let s = BPrint::into_string(BPrint::new(size_init, size_max).unwrap()).unwrap();
+                assert_eq!(s.as_c_str(), c"");
+                let b = BPrint::into_bytes(BPrint::new(size_init, size_max).unwrap()).unwrap();
+                assert_eq!(b.as_slice(), b"");
+            }
+        }
+    }
+
+    #[test]
+    fn caller_buffers_of_every_length_hold_an_empty_string() {
+        for len in [0, 1, 2, 3, 1024, 70_000] {
+            let mut out = vec![0xa5_u8; len];
+            let mut buf = BPrint::for_buffer(&mut out).unwrap();
+            check_empty(buf.as_ref());
+            assert_eq!(buf.as_ref().size() as usize, len);
+            assert_eq!(buf.as_ref().is_inline(), len == 0);
+            buf.as_mut().truncate(0);
+            drop(buf);
+            if len > 0 {
+                assert_eq!(out[0], 0);
+                // One slice comparison: BSan retags per element visited.
+                assert_eq!(out[1..], vec![0xa5; len - 1][..]);
+            }
+        }
+    }
+
+    /// A buffer past `u32::MAX` bytes is used up to that many. Zeroed pages
+    /// cost nothing until touched; skipped under BSan, whose shadow does not
+    /// scale to them.
+    #[test]
+    fn a_caller_buffer_beyond_u32_is_clamped() {
+        if under_bsan() {
+            return;
+        }
+        let mut out = vec![0_u8; u32::MAX as usize + 2];
+        let buf = BPrint::for_buffer(&mut out).unwrap();
+        assert_eq!(buf.as_ref().size(), u32::MAX);
+        assert_eq!(buf.as_ref().size_max(), u32::MAX);
+        assert_eq!(buf.as_ref().as_bytes(), b"");
+    }
+
+    #[test]
+    fn owners_and_handles_cross_threads() {
+        let mut boxes: Vec<BPrintBox> = (0..4)
+            .map(|i| BPrint::new(i * 2000, BPrint::SIZE_UNLIMITED).unwrap())
+            .collect();
+        // Shared handles read concurrently.
+        thread::scope(|s| {
+            for b in &boxes {
+                let r = b.as_ref();
+                s.spawn(move || {
+                    for _ in 0..100 {
+                        check_empty(r);
+                    }
+                });
+            }
+        });
+        // Exclusive handles write on other threads.
+        thread::scope(|s| {
+            for b in &mut boxes {
+                let mut m = b.as_mut();
+                s.spawn(move || m.truncate(0));
+            }
+        });
+        // Owners finalize and drop where they land.
+        let joins: Vec<_> = boxes
+            .into_iter()
+            .enumerate()
+            .map(|(i, b)| {
+                thread::spawn(move || {
+                    if i % 2 == 0 {
+                        BPrint::into_string(b).unwrap().len()
+                    } else {
+                        drop(b);
+                        0
+                    }
+                })
+            })
+            .collect();
+        for j in joins {
+            assert_eq!(j.join().unwrap(), 0);
+        }
+
+        let mut out = [0xa5_u8; 32];
+        let on: BPrintOnBuffer<'_> = BPrint::for_buffer(&mut out).unwrap();
+        thread::scope(|s| {
+            s.spawn(move || {
+                check_empty(on.as_ref());
+                drop(on);
+            });
+        });
+        assert_eq!(out[0], 0);
+    }
+}

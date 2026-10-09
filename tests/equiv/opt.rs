@@ -9,7 +9,7 @@ use ffmpeg::libavutil::ffi;
 use ffmpeg::libavutil::opt::{OptionRanges, OptionRangesBox, OptionRangesRef};
 
 #[path = "../common/opt.rs"]
-mod fixture;
+pub(crate) mod fixture;
 use fixture::{CB_FAKE, CB_KEYS, CLASS, Ctx, FAKE, RANGED, UNKNOWN, UNRANGED};
 
 const FAKE_OBJ: c_int = ffi::AV_OPT_SEARCH_FAKE_OBJ as c_int;
