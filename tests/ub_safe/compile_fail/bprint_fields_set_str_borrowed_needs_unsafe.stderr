@@ -1,0 +1,7 @@
+error[E0133]: call to unsafe function `BPrintFieldsMut::<'_>::set_str_borrowed` is unsafe and requires unsafe block
+ --> tests/ub_safe/compile_fail/bprint_fields_set_str_borrowed_needs_unsafe.rs
+  |
+  |     f.as_mut().set_str_borrowed(Some(c"so far"));
+  |     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ call to unsafe function
+  |
+  = note: consult the function's documentation for information on how to avoid undefined behavior
