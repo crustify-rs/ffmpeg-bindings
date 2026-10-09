@@ -1,0 +1,21 @@
+error[E0597]: `buf` does not live long enough
+ --> tests/ub_safe/compile_fail/timestamp_time_string_outlives_buffer.rs
+  |
+  |     let text = {
+  |         ---- borrow later stored here
+  |         let mut buf = [0u8; ffi::AV_TS_MAX_STRING_SIZE as usize];
+  |             ------- binding `buf` declared here
+  |         make_time_string(&mut buf, 1, tb)
+  |                          ^^^^^^^^ borrowed value does not live long enough
+  |     };
+  |     - `buf` dropped here while still borrowed
+
+error[E0506]: cannot assign to `buf[_]` because it is borrowed
+ --> tests/ub_safe/compile_fail/timestamp_time_string_outlives_buffer.rs
+  |
+  |     let first = make_time_string(&mut buf, 1, tb);
+  |                                  -------- `buf[_]` is borrowed here
+  |     buf[0] = b'x';
+  |     ^^^^^^^^^^^^^ `buf[_]` is assigned to here but it was already borrowed
+  |     println!("{text:?} {first:?} {}", buf[0]);
+  |                         ----- borrow later used here

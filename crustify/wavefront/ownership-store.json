@@ -3535,6 +3535,45 @@
    }
   },
   {
+   "name": "av_ts_make_time_string2",
+   "defined_in": "libavutil/timestamp.c",
+   "ptr_args": [
+    {
+     "name": "buf",
+     "ptr": {
+      "scalar": null,
+      "array": {
+       "by_val": true
+      },
+      "string": true,
+      "owned": false,
+      "borrowed": {
+       "lifetime": "arg:buf"
+      },
+      "nullable": false,
+      "mutable": true,
+      "note": "Caller buffer of at least AV_TS_MAX_STRING_SIZE (32) bytes, borrowed for the call: snprintf bounded by 32 writes NOPTS for AV_NOPTS_VALUE, else ts*av_q2d(tb) as %.*f, then trailing zeros and a trailing '.' are cut by writing a NUL at most at buf[31]. Bytes after that NUL keep snprintf's output. Never NULL (snprintf and buf[last] write through it); not retained. Only caller: the header inline av_ts_make_time_string."
+     }
+    }
+   ],
+   "ptr_ret": {
+    "ptr": {
+     "scalar": null,
+     "array": {
+      "by_val": true
+     },
+     "string": true,
+     "owned": false,
+     "borrowed": {
+      "lifetime": "arg:buf"
+     },
+     "nullable": false,
+     "mutable": true,
+     "note": "buf itself, holding the NUL-terminated text."
+    }
+   }
+  },
+  {
    "name": "av_usleep",
    "defined_in": "libavutil/time.c"
   },
