@@ -850,7 +850,9 @@ Notes on the wave:
   function pointers taking `void *` contexts (4 raw-pointer sites in `log.rs`), and the rest
   `AVBPrint`'s buffer (3 in `bprint.rs`).
 - Batch rows sum to `+11` and `+8`, which equals the wave tip's unseeded scan (32 and 28) over the
-  reviewed base (21 and 20). No undocumented `unsafe`.
+  reviewed base (21 and 20). No undocumented `unsafe`: the workspace denies
+  `clippy::undocumented_unsafe_blocks` and `clippy -D warnings` passes (the scan's own
+  `undocumented_unsafe` count reads 0 of 0 for every crustify campaign; see below).
 - The Σ `cov` cells now read wave 1's last type and symbol landings: batch 0 (`364c59df9b`) and
   batch 2 (`23dc07587c`, the wave tip). The rows' `cov` and `: tests` figures continue the
   wave-0 method.
@@ -907,10 +909,22 @@ Findings:
   loop with `cmp_distance` (C's `av_nearer_q`), so `None` now means exactly that C would
   overflow.
 - **Smells and documentation:** neither reviewer moved either smell; the reviewed tip's
-  unseeded scan equals the wave tip's (32 and 28), with no undocumented `unsafe`.
+  unseeded scan equals the wave tip's (32 and 28); `clippy -D warnings` with the denied
+  `undocumented_unsafe_blocks` lint passes, so no `unsafe` block lacks a `// SAFETY:` comment.
 
 The reviewed tip passes `clippy --all-targets -D warnings` and the plain, `asan-ubsan`, `tsan` and
 `bsan` suites: 276 unit, 275 equivalence, 254 `ub_safe` and 59 `ub_unsafe` tests under `bsan`. It was
 promoted to `crustify/subcampaigns/20261005/libavutil/core`. Both reviewers wrote Conventional
 Commit subjects (`fix(avutil): …`) instead of the campaign's `crustify: …`. Review cost for the
 wave: `$23.44` landed, `$26.90` with the stopped attempt.
+
+### `scan-unsafe`'s `undocumented_unsafe` reads 0 of 0 here
+
+The scan's lexical `undocumented_unsafe` walker skips every path that has a `crustify`
+directory component (`_SKIP_DIRS` in `crustify_audit/unsafe_scan.py`, meant to exclude
+the audit tree's reproducers). A crustify campaign keeps its whole Rust workspace under
+`<repo>/crustify/rust/`, so the walker skips every file and reports `sites: 0` on every
+scan in this campaign, while the driver counts 431 `unsafe` blocks at `ffda06bb23`. The
+driver's counts and the smells are unaffected. Statements here that no `unsafe` block lacks a
+`// SAFETY:` comment rest on `clippy::undocumented_unsafe_blocks`, which the workspace denies
+and which every gated tip passes.
