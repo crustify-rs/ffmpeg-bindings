@@ -1,0 +1,165 @@
+{
+  "crate_path": "/target/crustify/.worktrees/orchestrator/core-wave-0-gate/crustify/rust",
+  "counts": {
+    "unsafe_blocks": 316,
+    "unsafe_block_stmts": 1,
+    "unsafe_block_lines": 393,
+    "unsafe_block_code_lines": 376,
+    "unsafe_blocks_wrapper_impl": 133,
+    "unsafe_blocks_ffi_export": 0,
+    "unsafe_fns": 55,
+    "unsafe_fns_seam": 34,
+    "unsafe_fns_pub": 16,
+    "unsafe_impls": 102,
+    "unsafe_traits": 0,
+    "ffi_calls": 130,
+    "wrapper_newtypes": 11,
+    "wrapper_newtypes_declared": 11,
+    "wrapper_declared_nonconformant": 0,
+    "wrapper_newtypes_undeclared": 0,
+    "raw_ptr_args": 52,
+    "raw_ptr_rets": 49,
+    "raw_ptr_seam": 81,
+    "raw_ptr_wrapped": 0,
+    "raw_ptr_in_wrapper": 2,
+    "ref_to_type_wrapper": 59,
+    "field_ref_wrapped": 0,
+    "field_proj_wrapped": 57,
+    "field_proj_outside_impl": 0,
+    "void_ptr_sanctioned": 35,
+    "void_ptr_smell": 10,
+    "raw_ptr_derefs": 57,
+    "raw_ptr_derefs_outside_impl": 0,
+    "total_stmts": 510,
+    "code_lines": 2561,
+    "raw_ptr_sites": [],
+    "void_ptr_sites": [
+      {
+        "file": "ffmpeg/libavutil/file.rs",
+        "count": 1,
+        "lines": [
+          63
+        ]
+      },
+      {
+        "file": "ffmpeg/libavutil/log.rs",
+        "count": 5,
+        "lines": [
+          622,
+          654,
+          692,
+          799,
+          990
+        ]
+      },
+      {
+        "file": "ffmpeg/libavutil/mem.rs",
+        "count": 2,
+        "lines": [
+          387,
+          393
+        ]
+      },
+      {
+        "file": "ffmpeg/libavutil/opt.rs",
+        "count": 2,
+        "lines": [
+          353,
+          383
+        ]
+      }
+    ],
+    "field_proj_sites": [],
+    "field_ref_sites": [],
+    "raw_deref_sites": []
+  },
+  "counts_unavailable": null,
+  "seed": "--name AVOption AVOptionRanges",
+  "entries": [
+    {
+      "name": "AVOption",
+      "raw_ptr_sites": [
+        {
+          "file": "/opt/venv/share/ffibox/src/macros.rs",
+          "count": 4,
+          "lines": [
+            203,
+            215,
+            256,
+            267
+          ]
+        }
+      ],
+      "raw_deref_sites": [
+        {
+          "file": "ffmpeg/libavutil/opt.rs",
+          "count": 12,
+          "lines": [
+            118,
+            129,
+            141,
+            151,
+            174,
+            190,
+            194,
+            204,
+            220,
+            228,
+            236,
+            245
+          ]
+        }
+      ],
+      "deref_impl_sites": [],
+      "deref_mut_impl_sites": [],
+      "slice_ref_sites": [],
+      "slice_mut_sites": [],
+      "crate": "ffmpeg"
+    },
+    {
+      "name": "AVOptionRanges",
+      "raw_ptr_sites": [
+        {
+          "file": "/opt/venv/share/ffibox/src/macros.rs",
+          "count": 4,
+          "lines": [
+            203,
+            215,
+            256,
+            267
+          ]
+        }
+      ],
+      "raw_deref_sites": [
+        {
+          "file": "ffmpeg/libavutil/opt.rs",
+          "count": 3,
+          "lines": [
+            408,
+            421,
+            439
+          ]
+        }
+      ],
+      "deref_impl_sites": [],
+      "deref_mut_impl_sites": [],
+      "slice_ref_sites": [],
+      "slice_mut_sites": [],
+      "crate": "ffmpeg"
+    }
+  ],
+  "undocumented_unsafe": {
+    "sites": 0,
+    "documented": 0,
+    "undocumented": 0,
+    "per_file": {}
+  },
+  "derived": {
+    "unsafe_fn_pub_ratio": 0.2909,
+    "unsafe_fn_smell": 21,
+    "raw_ptr_smell": 20,
+    "raw_ptr_seam_ratio": 0.802,
+    "unsafe_loc_ratio": 0.1468,
+    "loc_per_unsafe_block": 8.1
+  }
+}

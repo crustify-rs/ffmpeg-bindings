@@ -1,0 +1,22 @@
+{
+  "objective": "review",
+  "items": [
+    {
+      "name": "AVPictureType",
+      "defined_in": "libavutil/avutil.h",
+      "kind": "type",
+      "field_anchors": [],
+      "home": "crustify/rust/ffmpeg/libavutil/avutil.rs"
+    },
+    {
+      "name": "AVRational",
+      "defined_in": "libavutil/rational.h",
+      "kind": "type",
+      "field_anchors": [
+        "num",
+        "den"
+      ],
+      "home": "crustify/rust/ffmpeg/libavutil/rational.rs"
+    }
+  ]
+}
