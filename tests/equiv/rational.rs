@@ -663,6 +663,60 @@ mod arithmetic {
         }
     }
 
+    /// Whether C's `av_find_nearest_q_idx` loop over `list` reaches a
+    /// comparison of two `INT_MIN` denominators, which it overflows on: C's
+    /// loop, stopped just before that pair.
+    fn c_compares_two_min_dens(q: ffi::AVRational, list: &[ffi::AVRational]) -> bool {
+        let mut nearest = 0;
+        for (i, &cand) in list.iter().enumerate() {
+            if cand.den == i32::MIN && list[nearest].den == i32::MIN {
+                return true;
+            }
+            // SAFETY: `av_nearer_q` takes the structs by value; the pair it
+            // overflows on was returned above, and no denominator is zero,
+            // so `av_cmp_q` never reports `INT_MIN`.
+            if unsafe { ffi::av_nearer_q(q, cand, list[nearest]) } > 0 {
+                nearest = i;
+            }
+        }
+        false
+    }
+
+    #[test]
+    fn nearest_walks_two_min_denominators_as_av_find_nearest_q_idx() {
+        let m = (1, i32::MIN);
+        let lists: [&[(i32, i32)]; 6] = [
+            &[(1, 3), m, (2, 3), m],
+            &[(-5, 1), m, m],
+            &[(-5, 1), m, (-7, 1), m],
+            &[(1, 3), m, m],
+            &[(0, 1), (3, i32::MIN), (1, 1), (-1, 1), (i32::MAX, i32::MIN), (1, -1)],
+            &[(i32::MIN, 1), (i32::MIN, i32::MIN), (i32::MIN, i32::MIN)],
+        ];
+        let (mut finished, mut overflowed) = (0, 0);
+        for list in lists {
+            let candidates: Vec<Rational> = list.iter().map(|&(n, d)| rust(n, d)).collect();
+            let mut terminated: Vec<ffi::AVRational> = list.iter().map(|&(n, d)| c(n, d)).collect();
+            terminated.push(c(0, 0));
+            for q in PAIRS {
+                let got = rust(q.0, q.1).nearest(&candidates);
+                if c_compares_two_min_dens(c(q.0, q.1), &terminated[..list.len()]) {
+                    assert_eq!(got, None, "{q:?} in {list:?}");
+                    overflowed += 1;
+                    continue;
+                }
+                // SAFETY: `terminated` ends in `{0, 0}`, the only entry with
+                // a zero denominator, which C reads up to and never writes;
+                // the walk above found no comparison C overflows on.
+                let want = unsafe { ffi::av_find_nearest_q_idx(c(q.0, q.1), terminated.as_ptr()) };
+                assert_eq!(got, Some(want as usize), "{q:?} in {list:?}");
+                finished += 1;
+            }
+        }
+        // Both outcomes are exercised.
+        assert!(finished > 0 && overflowed > 0, "{finished} {overflowed}");
+    }
+
     #[test]
     fn chained_sums_and_products_agree_after_every_step() {
         let steps = [

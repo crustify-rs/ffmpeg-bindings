@@ -294,10 +294,12 @@ impl Rational {
     /// for these.)
     ///
     /// `None` where C has no meaningful answer and overflows computing one:
+    /// when both denominators are `i32::MIN` (C doubles their product), and
     /// when `a` and `b` are unordered ([`partial_cmp`](PartialOrd::partial_cmp)
-    /// is `None`, as with a `0/0`), and when both denominators are
-    /// `i32::MIN`. A negative denominator in `self`, or in exactly one of `a`
-    /// and `b`, gives a meaningless but defined answer, as in C.
+    /// is `None`, as with a `0/0`), where C multiplies `INT_MIN` by -1, 0 or
+    /// 1: an overflow, 0 or `INT_MIN`, no verdict in any case. A negative
+    /// denominator in `self`, or in exactly one of `a` and `b`, gives a
+    /// meaningless but defined answer, as in C.
     #[must_use]
     pub fn cmp_distance(self, a: Self, b: Self) -> Option<Ordering> {
         let (ra, rb) = (a.into_raw(), b.into_raw());
@@ -327,9 +329,12 @@ impl Rational {
     /// C reads its list up to an entry with a zero denominator (its `{0, 0}`
     /// terminator), so only the candidates before the first such entry are
     /// compared; `None` when there are none. `None` too when C would overflow
-    /// comparing two candidates whose denominators are both `i32::MIN`:
-    /// when the first compared candidate has one (C compares it with itself)
-    /// or two of them do.
+    /// comparing two candidates whose denominators are both `i32::MIN`
+    /// (see [`cmp_distance`](Self::cmp_distance)): C compares the first
+    /// candidate with itself and every later one with the nearest so far, so
+    /// a first candidate with that denominator overflows, and a list holding
+    /// two of them is walked as C walks it to find out whether it compares
+    /// them with each other.
     #[must_use]
     pub fn nearest(self, candidates: &[Self]) -> Option<usize> {
         let end = candidates
@@ -337,9 +342,18 @@ impl Rational {
             .position(|q| q.as_ref().den() == 0)
             .unwrap_or(candidates.len());
         let list = &candidates[..end];
-        let min_dens = list.iter().filter(|q| q.as_ref().den() == i32::MIN).count();
-        if list.first()?.as_ref().den() == i32::MIN || min_dens > 1 {
+        if list.first()?.as_ref().den() == i32::MIN {
             return None;
+        }
+        if list.iter().filter(|q| q.as_ref().den() == i32::MIN).count() > 1 {
+            // C's loop with C's own comparisons: `cmp_distance` is `None`
+            // exactly for the pair C overflows on (no denominator is zero).
+            let mut nearest = 0;
+            for (i, &q) in list.iter().enumerate() {
+                if self.cmp_distance(q, list[nearest])? == Ordering::Less {
+                    nearest = i;
+                }
+            }
         }
         let terminated: Vec<ffi::AVRational> = list
             .iter()
@@ -349,8 +363,10 @@ impl Rational {
         // SAFETY: `terminated` is a live array of `AVRational`s ending in the
         // `{0, 0}` entry, the only one with a zero denominator, which C reads
         // up to and never writes. Every comparison C makes is between two
-        // entries with nonzero denominators, never both `INT_MIN`, which
-        // `av_nearer_q` handles without overflow (see `cmp_distance`).
+        // entries with nonzero denominators, never both `INT_MIN`: the first
+        // entry's is not, and with two such entries the walk above made C's
+        // comparisons and found none of them such a pair. `av_nearer_q`
+        // handles those without overflow (see `cmp_distance`).
         let i = unsafe { ffi::av_find_nearest_q_idx(self.into_raw(), terminated.as_ptr()) };
         usize::try_from(i).ok()
     }
@@ -822,10 +838,17 @@ mod unit_tests {
     }
 
     #[test]
-    fn nearest_rejects_two_min_denominators() {
+    fn nearest_rejects_two_min_denominators_only_when_c_compares_them() {
         let m = q(1, i32::MIN);
         assert_eq!(q(1, 2).nearest(&[m]), None);
-        assert_eq!(q(1, 2).nearest(&[q(1, 3), m, m]), None);
+        // Against a nearest so far with a positive denominator, C's verdict
+        // on `m` is `-av_cmp_q(nearest, m)`: `m` (just below zero) takes
+        // over from `-5/1`, and the second `m` is then compared with it.
+        assert_eq!(q(1, 2).nearest(&[q(-5, 1), m, m]), None);
+        assert_eq!(q(1, 2).nearest(&[q(-5, 1), m, q(-7, 1), m]), None);
+        // It never takes over from `1/3`, so C never compares the two.
+        assert_eq!(q(1, 2).nearest(&[q(1, 3), m, m]), Some(0));
+        assert_eq!(q(1, 3).nearest(&[q(2, 3), m, q(1, 3), m]), Some(2));
         // One, not first, is never compared with itself. (Its negative
         // denominator makes C's verdict meaningless, but defined.)
         assert!(q(0, 1).nearest(&[q(1, 3), m]).is_some());
@@ -898,7 +921,6 @@ mod unit_tests {
         assert_eq!(r(1, 2).nearest(&[r(0, 0), r(1, 2)]), None);
         assert_eq!(r(1, 2).nearest(&[r(9, 0)]), None);
         assert_eq!(r(1, 2).nearest(&[m, r(1, 3)]), None);
-        assert_eq!(r(1, 2).nearest(&[r(1, 3), m, r(1, 4), m]), None);
         assert_eq!(r(1, 2).cmp_distance(m, m), None);
         assert_eq!(r(i32::MIN, 3).to_f32_bits(), None);
         assert_eq!(r(3, i32::MIN).to_f32_bits(), None);
