@@ -29,13 +29,13 @@ Thin batches with `"objective": "review"`, LLM-as-a-Judge over each landed wave.
 - **agent backend** — `claude`
 - **model** — `openrouter/anthropic/claude-opus-5.5`
 - **`--billing`** — `api`
-- **`--max-types`** — `2`
-- **`--max-syms`** — `25`
-- **`--max-loc`** — `500`
+- **`--max-types`** — `2` (wave 0); the wave's types from wave 1
+- **`--max-syms`** — `25` (wave 0); the wave's symbols from wave 1
+- **`--max-loc`** — `500` (wave 0); unbounded from wave 1
 - **`--min-fields`** — `20`
 - **orchestrator parallelism** — `10` concurrent batch processes
-- **branch** — `crustify/reviews/20261005/libavutil/core/wave-0`, tip `0604718bba`
-- **agents** — `17`, over `3` wave(s)
+- **branch** — `crustify/reviews/20261005/libavutil/core/wave-1`, tip `532c537e67`
+- **agents** — `20` (one stopped by the provider), over `4` wave(s)
 
 `rv`-prefixed columns below carry the review pass; the unprefixed ones remain
 the campaign's.
@@ -226,7 +226,7 @@ Implementation `openrouter/anthropic/claude-opus-5.5` via `claude`; review
 
 ### Batches — review
 
-`openrouter/anthropic/claude-fable-5.1` via `claude`.
+`openrouter/anthropic/claude-fable-5.1` via `claude` (wave 0); `openrouter/openai/gpt-6-astra` via `codex` (wave 1).
 
 | wave | batch | types | +LoC | cov (C/Rust) | +unsafe fn smell | +raw-ptr smell | rv loc | rv $ | rv wall | rv $/type |
 |---|---|---|---|---|---|---|---|---|---|---|
@@ -240,11 +240,12 @@ Implementation `openrouter/anthropic/claude-opus-5.5` via `claude`; review
 |`0`|`7`| `1` |`+97/-1`| `18.96`% / `94.69`% | `0` | `0` | `+127/-1` | `$5.99` | `20m21s` | `$5.99` |
 |`0`|`8`| `2` |`+41/-6`| `19.00`% / `94.74`% | `0` | `0` | `+62/-10` | `$8.73` | `34m59s` | `$4.37` |
 |`0`|`9`| `1` |`+24/-7`| `18.96`% / `94.69`% | `0` | `0` | `+31/-10` | `$4.68` | `16m27s` | `$4.68` |
-| **Σ** |  | **`18`** | **`+1342/-26`** | **`19.00`% / `94.83`%** | **`0`** | **`0`** | **`+1818/-52`** | **`$77.15`** | — | **`$4.29`** |
+|`1`|`0`| `3` |`+98/-0`| `20.40`% / `96.05`% | `0` | `0` | `+132/-8` | `$13.17` | `13m21s` | `$4.39` |
+| **Σ** |  | **`21`** | **`+1440/-26`** | **`20.40`% / `96.05`%** | **`0`** | **`0`** | **`+1950/-60`** | **`$90.32`** | — | **`$4.30`** |
 
 ### Batches — review: tests
 
-`openrouter/anthropic/claude-fable-5.1` via `claude`.
+`openrouter/anthropic/claude-fable-5.1` via `claude` (wave 0); `openrouter/openai/gpt-6-astra` via `codex` (wave 1).
 
 | wave | batch | +UB safe tests (+C/+Rust pp) | +UB unsafe tests (+C/+Rust pp) | +equiv tests (+C/+Rust pp) | +unit tests (+C/+Rust pp) |
 |---|---|---|---|---|---|
@@ -258,11 +259,12 @@ Implementation `openrouter/anthropic/claude-opus-5.5` via `claude`; review
 |`0`|`7`|`+2` (`+0.00`/`+0.00` pp)|`+0` (`+0.00`/`+0.00` pp)|`+1` (`+0.00`/`+0.00` pp)|`+0` (`+0.00`/`+0.00` pp)|
 |`0`|`8`|`+0` (`+0.00`/`-0.12` pp)|`+0` (`+0.00`/`-0.02` pp)|`+0` (`+0.00`/`-0.12` pp)|`+1` (`+0.00`/`+0.03` pp)|
 |`0`|`9`|`+0` (`+0.00`/`+0.12` pp)|`+0` (`+0.00`/`+0.02` pp)|`+0` (`+0.00`/`+0.12` pp)|`+1` (`+0.00`/`-0.03` pp)|
-| **Σ** |  | **`+10` (`+0.00`/`-0.13` pp)** | **`+2` (`+0.00`/`-0.27` pp)** | **`+13` (`+0.04`/`-0.26` pp)** | **`+10` (`+0.00`/`+0.45` pp)** |
+|`1`|`0`|`+2` (`+0.00`/`+0.00` pp)|`+0` (`+0.00`/`+0.00` pp)|`+1` (`+0.00`/`+0.00` pp)|`+1` (`+0.00`/`+0.00` pp)|
+| **Σ** |  | **`+12` (`+0.00`/`-0.13` pp)** | **`+2` (`+0.00`/`-0.27` pp)** | **`+14` (`+0.04`/`-0.26` pp)** | **`+11` (`+0.00`/`+0.45` pp)** |
 
 ### Batches — review: PoC + reports
 
-`openrouter/anthropic/claude-fable-5.1` via `claude`.
+`openrouter/anthropic/claude-fable-5.1` via `claude` (wave 0); `openrouter/openai/gpt-6-astra` via `codex` (wave 1).
 
 | wave | batch | +lifecycle | +unsafe | +UB safe | +UB unsafe | +equiv | +internal | +conventions | +misc | total | +rejected PoCs |
 | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
@@ -276,7 +278,8 @@ Implementation `openrouter/anthropic/claude-opus-5.5` via `claude`; review
 | `0` | `7` | `+0` | `+0` | `+0` | `+0` | `+0` | `+0` | `+0` | `+0` | `0` | `0` |
 | `0` | `8` | `+0` | `+0` | `+0` | `+0` | `+0` | `+0` | `+0` | `+1` | `1` | `0` |
 | `0` | `9` | `+0` | `+0` | `+0` | `+0` | `+0` | `+0` | `+0` | `+1` | `1` | `0` |
-| **Σ** |  | **`+2`** | **`+1`** | **`+0`** | **`+0`** | **`+0`** | **`+0`** | **`+0`** | **`+10`** | **`13`** | **`0`** |
+| `1` | `0` | `+0` | `+0` | `+0` | `+0` | `+0` | `+0` | `+0` | `+2` | `2` | `0` |
+| **Σ** |  | **`+2`** | **`+1`** | **`+0`** | **`+0`** | **`+0`** | **`+0`** | **`+0`** | **`+12`** | **`15`** | **`0`** |
 
 ## Symbols
 
@@ -321,7 +324,8 @@ Implementation `openrouter/anthropic/claude-opus-5.5` via `claude`; review
 |`0`|`12`| `25` |`+145/-6`| `19.14`% / `94.98`% | `0` | `0` | `+208/-18` | `$26.29` | `57m24s` | `$1.05` |
 |`0`|`13`| `25` |`+163/-9`| `19.14`% / `94.92`% | `0` | `0` | `+230/-19` | `$25.37` | `53m00s` | `$1.01` |
 |`0`|`14`| `21` |`+65/-12`| `19.00`% / `94.83`% | `0` | `0` | `+93/-23` | `$10.99` | `32m35s` | `$0.52` |
-| **Σ** |  | **`121`** | **`+493/-28`** | **`19.14`% / `94.98`%** | **`0`** | **`0`** | **`+707/-74`** | **`$96.90`** | — | **`$0.80`** |
+|`1`|`1`| `26` |`+56/-5`| `20.40`% / `96.06`% | `0` | `0` | `+89/-13` | `$10.27` | `29m53s` | `$0.39` |
+| **Σ** |  | **`147`** | **`+549/-33`** | **`20.40`% / `96.06`%** | **`0`** | **`0`** | **`+796/-87`** | **`$107.17`** | — | **`$0.73`** |
 
 ### Batches — review: tests
 
@@ -334,7 +338,8 @@ Implementation `openrouter/anthropic/claude-opus-5.5` via `claude`; review
 |`0`|`12`|`+1` (`+0.00`/`+0.33` pp)|`+0` (`+0.00`/`-0.14` pp)|`+0` (`+0.00`/`+0.26` pp)|`+3` (`+0.00`/`+0.22` pp)|
 |`0`|`13`|`+0` (`+0.00`/`+0.02` pp)|`+0` (`+0.00`/`-0.18` pp)|`+2` (`+0.10`/`+0.30` pp)|`+2` (`+0.20`/`+0.29` pp)|
 |`0`|`14`|`+0` (`+0.00`/`+0.00` pp)|`+0` (`+0.00`/`+0.00` pp)|`+1` (`+0.00`/`+0.00` pp)|`+0` (`+0.00`/`+0.00` pp)|
-| **Σ** |  | **`+1` (`+0.00`/`+0.27` pp)** | **`+1` (`+0.00`/`-0.22` pp)** | **`+4` (`+0.12`/`+0.58` pp)** | **`+6` (`+0.20`/`+0.53` pp)** |
+|`1`|`1`|`+0` (`+0.00`/`+0.05` pp)|`+0` (`+0.00`/`-0.03` pp)|`+1` (`+0.00`/`+0.05` pp)|`+0` (`+0.00`/`+0.03` pp)|
+| **Σ** |  | **`+1` (`+0.00`/`+0.33` pp)** | **`+1` (`+0.00`/`-0.25` pp)** | **`+5` (`+0.12`/`+0.63` pp)** | **`+6` (`+0.20`/`+0.56` pp)** |
 
 ### Batches — review: PoC + reports
 
@@ -347,7 +352,8 @@ Implementation `openrouter/anthropic/claude-opus-5.5` via `claude`; review
 | `0` | `12` | — | `+0` | `+1` | `+0` | `+0` | `+0` | `+1` | `+1` | `3` | `0` |
 | `0` | `13` | — | `+0` | `+0` | `+0` | `+1` | `+0` | `+0` | `+0` | `1` | `0` |
 | `0` | `14` | — | `+0` | `+0` | `+0` | `+0` | `+0` | `+2` | `+1` | `3` | `0` |
-| **Σ** |  | — | **`+1`** | **`+1`** | **`+0`** | **`+1`** | **`+0`** | **`+3`** | **`+3`** | **`9`** | **`0`** |
+| `1` | `1` | — | `+0` | `+0` | `+0` | `+1` | `+0` | `+0` | `+0` | `1` | `0` |
+| **Σ** |  | — | **`+1`** | **`+1`** | **`+0`** | **`+2`** | **`+0`** | **`+3`** | **`+3`** | **`10`** | **`0`** |
 
 ## Safety audit
 
@@ -864,3 +870,47 @@ On 2026-10-09, at the user's direction:
 
 Against the merged ffibox, the wave-1 tip passes `clippy` and the plain (918 tests) and
 `asan-ubsan` (878) suites.
+
+### `libavutil/core` review wave 1: per-kind reviewers, Astra guardrail
+
+From wave 1 on, at the user's direction, review runs after every wave. Each review wave has
+one reviewer per item kind, over the merged worklist of all the wave's batches of that kind,
+with the review caps lifted to fit. crustify rejects a batch that mixes the type and symbol
+routes, so a wave with both kinds gets two reviewers. In wave 1 that is batch 0 (3 types, 23
+fields) and batch 1 (26 symbols). The `batch` column of the review tables indexes these merged
+batches, not the translation batches.
+
+The user chose `openrouter/openai/gpt-6-astra` (via `codex`) for this wave:
+
+- **Types reviewer:** ran 13m21s without any provider intervention and landed `3624aef099` and
+  `13ae407387`. Its 5 reports are 2 `misc` (a `BPrint` doctest that did not compile, `AVClass`
+  docs that assumed `'static` classes) and 3 `wavefront`. It found no UB or equivalence
+  defect, added `BPrint` allocation-failure and `ClassRef` lifetime tests, and brought
+  `bprint.rs` to full Rust line coverage.
+- **Symbols reviewer:** ran 2m51s before OpenAI's filter stopped it, still in its reading phase
+  and having written nothing. The error was twice "This content was flagged for possible
+  cybersecurity risk … apply for Daybreak access", and it exited 1. Just before, it had opened
+  the wave-0 `memcpy-backptr-block-length-overflow` report (ASan `negative-size-param` and
+  UBSan traces) alongside its own instructions to write UB reproducers. That attempt cost
+  `$3.46` for 1.16M tokens; its log and usage record are kept under
+  `review-wave-1/batch-1/attempt-0-gpt-6-astra/`, and it is in no table above.
+- **Symbols re-run:** at the user's direction, on `openrouter/anthropic/claude-fable-5.1` (via
+  `claude`), from the review tip after the types landing. That is the symbol row above.
+
+Findings:
+
+- **Equivalence drift (batch 1):** `equiv/nearest-refuses-lists-c-finishes`. `Rational::nearest`
+  refused every candidate list holding two `i32::MIN` denominators. C overflows only when it
+  compares that pair, which happens only when the first of them is the nearest so far.
+  Rerun on `23dc07587c`: 3 lists where C returns an index and Rust `None`. On `532c537e67` all
+  agree, and the C calls run clean under `asan-ubsan`. Not rejected. The fix walks C's
+  loop with `cmp_distance` (C's `av_nearer_q`), so `None` now means exactly that C would
+  overflow.
+- **Smells and documentation:** neither reviewer moved either smell; the reviewed tip's
+  unseeded scan equals the wave tip's (32 and 28), with no undocumented `unsafe`.
+
+The reviewed tip passes `clippy --all-targets -D warnings` and the plain, `asan-ubsan`, `tsan` and
+`bsan` suites: 276 unit, 275 equivalence, 254 `ub_safe` and 59 `ub_unsafe` tests under `bsan`. It was
+promoted to `crustify/subcampaigns/20261005/libavutil/core`. Both reviewers wrote Conventional
+Commit subjects (`fix(avutil): …`) instead of the campaign's `crustify: …`. Review cost for the
+wave: `$23.44` landed, `$26.90` with the stopped attempt.
