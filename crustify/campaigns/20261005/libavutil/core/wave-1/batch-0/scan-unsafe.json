@@ -1,0 +1,201 @@
+{
+  "crate_path": "/target/crustify/.worktrees/orchestrator/core-wave-0-gate/crustify/rust",
+  "counts": {
+    "unsafe_blocks": 403,
+    "unsafe_block_stmts": 1,
+    "unsafe_block_lines": 490,
+    "unsafe_block_code_lines": 472,
+    "unsafe_blocks_wrapper_impl": 199,
+    "unsafe_blocks_ffi_export": 0,
+    "unsafe_fns": 74,
+    "unsafe_fns_seam": 43,
+    "unsafe_fns_pub": 23,
+    "unsafe_impls": 126,
+    "unsafe_traits": 0,
+    "ffi_calls": 142,
+    "wrapper_newtypes": 14,
+    "wrapper_newtypes_declared": 14,
+    "wrapper_declared_nonconformant": 0,
+    "wrapper_newtypes_undeclared": 0,
+    "raw_ptr_args": 68,
+    "raw_ptr_rets": 62,
+    "raw_ptr_seam": 103,
+    "raw_ptr_wrapped": 2,
+    "raw_ptr_in_wrapper": 2,
+    "ref_to_type_wrapper": 70,
+    "field_ref_wrapped": 0,
+    "field_proj_wrapped": 88,
+    "field_proj_outside_impl": 0,
+    "void_ptr_sanctioned": 44,
+    "void_ptr_smell": 15,
+    "raw_ptr_derefs": 88,
+    "raw_ptr_derefs_outside_impl": 0,
+    "total_stmts": 635,
+    "code_lines": 3082,
+    "raw_ptr_sites": [
+      {
+        "file": "ffmpeg/libavutil/bprint.rs",
+        "count": 2,
+        "lines": [
+          397,
+          446
+        ]
+      }
+    ],
+    "void_ptr_sites": [
+      {
+        "file": "ffmpeg/libavutil/file.rs",
+        "count": 1,
+        "lines": [
+          63
+        ]
+      },
+      {
+        "file": "ffmpeg/libavutil/log.rs",
+        "count": 9,
+        "lines": [
+          645,
+          669,
+          703,
+          747,
+          1061,
+          1093,
+          1131,
+          1238,
+          1450
+        ]
+      },
+      {
+        "file": "ffmpeg/libavutil/mem.rs",
+        "count": 2,
+        "lines": [
+          387,
+          393
+        ]
+      },
+      {
+        "file": "ffmpeg/libavutil/opt.rs",
+        "count": 2,
+        "lines": [
+          353,
+          383
+        ]
+      }
+    ],
+    "field_proj_sites": [],
+    "field_ref_sites": [],
+    "raw_deref_sites": []
+  },
+  "counts_unavailable": null,
+  "seed": "--name AVBPrint AVClass",
+  "entries": [
+    {
+      "name": "AVBPrint",
+      "raw_ptr_sites": [
+        {
+          "file": "/opt/venv/share/ffibox/src/macros.rs",
+          "count": 4,
+          "lines": [
+            203,
+            215,
+            256,
+            267
+          ]
+        },
+        {
+          "file": "ffmpeg/libavutil/bprint.rs",
+          "count": 3,
+          "lines": [
+            397,
+            446,
+            499
+          ]
+        }
+      ],
+      "raw_deref_sites": [
+        {
+          "file": "ffmpeg/libavutil/bprint.rs",
+          "count": 7,
+          "lines": [
+            573,
+            638,
+            639,
+            640,
+            708,
+            723,
+            742
+          ]
+        }
+      ],
+      "deref_impl_sites": [],
+      "deref_mut_impl_sites": [],
+      "slice_ref_sites": [],
+      "slice_mut_sites": [],
+      "crate": "ffmpeg"
+    },
+    {
+      "name": "AVClass",
+      "raw_ptr_sites": [
+        {
+          "file": "/opt/venv/share/ffibox/src/macros.rs",
+          "count": 4,
+          "lines": [
+            203,
+            215,
+            256,
+            267
+          ]
+        },
+        {
+          "file": "ffmpeg/libavutil/log.rs",
+          "count": 4,
+          "lines": [
+            468,
+            758,
+            1357,
+            1452
+          ]
+        }
+      ],
+      "raw_deref_sites": [
+        {
+          "file": "ffmpeg/libavutil/log.rs",
+          "count": 12,
+          "lines": [
+            480,
+            492,
+            501,
+            527,
+            537,
+            547,
+            557,
+            566,
+            575,
+            583,
+            595,
+            607
+          ]
+        }
+      ],
+      "deref_impl_sites": [],
+      "deref_mut_impl_sites": [],
+      "slice_ref_sites": [],
+      "slice_mut_sites": [],
+      "crate": "ffmpeg"
+    }
+  ],
+  "undocumented_unsafe": {
+    "sites": 0,
+    "documented": 0,
+    "undocumented": 0,
+    "per_file": {}
+  },
+  "derived": {
+    "unsafe_fn_pub_ratio": 0.3108,
+    "unsafe_fn_smell": 31,
+    "raw_ptr_smell": 27,
+    "raw_ptr_seam_ratio": 0.7923,
+    "unsafe_loc_ratio": 0.1531,
+    "loc_per_unsafe_block": 7.6
+  }
+}

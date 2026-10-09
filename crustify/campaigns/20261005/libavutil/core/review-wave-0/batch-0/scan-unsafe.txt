@@ -1,0 +1,2 @@
+$ crustify scan-unsafe <batch worktree> --name AVClassCategory AVClassStateFlags --json
+unsafe: no sites matched --name AVClassCategory AVClassStateFlags

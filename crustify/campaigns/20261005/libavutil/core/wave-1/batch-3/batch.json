@@ -1,0 +1,12 @@
+{
+  "objective": "wrap",
+  "items": [
+    {
+      "name": "av_ts_make_time_string2",
+      "defined_in": "libavutil/timestamp.c",
+      "kind": "symbol",
+      "field_anchors": [],
+      "home": "crustify/rust/ffmpeg/libavutil/timestamp.rs"
+    }
+  ]
+}

@@ -22,7 +22,7 @@
 
 5. **Do you want agentic review after translated work lands? If so, which
    model and billing should perform each review?** (`id: review-agent`)
-   - Answer: `openrouter/openai/gpt-5.6-sol, api`, after each sub-campaign
+   - Answer: `openrouter/anthropic/claude-opus-5.5, api`, after each sub-campaign
 
 6. **Should I run fully autonomously end to end?** (`id: autonomy`)
    - Answer: `no`
@@ -65,5 +65,6 @@ Answer these approval-gate questions only if question 6 is answered `no`.
 
 Unless otherwise stated, preserve the format of the results doc exactly.
 
-You are resuming a campaign that was interrupted previously and completed
-the setup stage. Proceed from where it left off.
+You are resuming a campaign that was interrupted previously during wave-0.
+Some batches landed properly, some did not.
+Assess the current situation and present a brief for resuming the campaign.
