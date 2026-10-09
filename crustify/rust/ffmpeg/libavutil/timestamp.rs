@@ -3,7 +3,7 @@
 use core::ffi::CStr;
 
 use super::ffi;
-use super::rational::Rational;
+use super::rational::{Rational, RationalRef};
 
 /// Wraps: av_ts_make_string
 ///
@@ -54,6 +54,36 @@ pub fn make_time_string(
     // `buf[31]`); `time_base` is passed by value and any pair of `int`s is
     // accepted; the returned pointer is `buf`, which C does not retain.
     unsafe { ffi::av_ts_make_time_string2(buf.as_mut_ptr().cast(), ts, time_base.into_raw()) };
+    // C NUL-terminated its output within `buf`.
+    CStr::from_bytes_until_nul(buf).unwrap_or_default()
+}
+
+/// Wraps: av_ts_make_time_string
+///
+/// [`make_time_string`], with the time base read through a shared handle, as
+/// C reads it through a `const AVRational *`: a time base stored in another
+/// object (a field of a wrapped C struct) is passed in place, without first
+/// copying it out. Writes the same text into `buf` and returns it, borrowed
+/// from `buf`.
+///
+/// ```
+/// use ffmpeg::libavutil::{ffi, rational::Rational, timestamp::make_time_string_by_ref};
+/// let mut buf = [0u8; ffi::AV_TS_MAX_STRING_SIZE as usize];
+/// let tb = Rational::new(1, 90_000);
+/// assert_eq!(make_time_string_by_ref(&mut buf, 135_000, tb.as_ref()), c"1.5");
+/// assert_eq!(make_time_string_by_ref(&mut buf, i64::MIN, tb.as_ref()), c"NOPTS");
+/// ```
+pub fn make_time_string_by_ref<'a>(
+    buf: &'a mut [u8; ffi::AV_TS_MAX_STRING_SIZE as usize],
+    ts: i64,
+    tb: RationalRef<'_>,
+) -> &'a CStr {
+    // SAFETY: `buf` is `AV_TS_MAX_STRING_SIZE` writable bytes, the bound
+    // `av_ts_make_time_string2` gives `snprintf`, and its trimming indexes
+    // below that bound (`snprintf` writes at least one character); `tb`
+    // points to a live `AVRational` C reads once, by value. The returned
+    // pointer is `buf`.
+    unsafe { ffi::av_ts_make_time_string(buf.as_mut_ptr().cast(), ts, tb.as_ptr()) };
     // C NUL-terminated its output within `buf`.
     CStr::from_bytes_until_nul(buf).unwrap_or_default()
 }
@@ -112,5 +142,33 @@ mod unit_tests {
             let nan = make_time_string(&mut buf, ts, Rational::new(num, 0)).to_bytes();
             assert!(nan.ends_with(b"nan") || nan == b"n", "{nan:?}");
         }
+    }
+
+    #[test]
+    fn make_time_string_by_ref_trims_seconds() {
+        let mut buf = [b'x'; ffi::AV_TS_MAX_STRING_SIZE as usize];
+        let ms = Rational::new(1, 1000);
+        assert_eq!(make_time_string_by_ref(&mut buf, 1500, ms.as_ref()), c"1.5");
+        assert_eq!(make_time_string_by_ref(&mut buf, 0, ms.as_ref()), c"0");
+        assert_eq!(
+            make_time_string_by_ref(&mut buf, -1, ms.as_ref()),
+            c"-0.001"
+        );
+        assert_eq!(
+            make_time_string_by_ref(&mut buf, 3, Rational::new(1, 3).as_ref()),
+            c"1"
+        );
+        assert_eq!(
+            make_time_string_by_ref(&mut buf, i64::MIN, ms.as_ref()),
+            c"NOPTS"
+        );
+        assert_eq!(
+            make_time_string_by_ref(&mut buf, 1, Rational::new(1, 0).as_ref()),
+            c"inf"
+        );
+        assert_eq!(
+            make_time_string_by_ref(&mut buf, -1, Rational::new(1, 0).as_ref()),
+            c"-inf"
+        );
     }
 }

@@ -127,3 +127,67 @@ mod time_string {
         }
     }
 }
+
+/// [`make_time_string_by_ref`](ffmpeg::libavutil::timestamp::make_time_string_by_ref)
+/// (core wave 1, batch 2): the text stays within the caller's buffer for
+/// every time base, the degenerate ones and those that print hundreds of
+/// digits included, here and on other threads.
+mod time_string_by_ref {
+    use std::thread;
+
+    use ffmpeg::libavutil::ffi;
+    use ffmpeg::libavutil::rational::Rational;
+    use ffmpeg::libavutil::timestamp::make_time_string_by_ref;
+
+    const SIZE: usize = ffi::AV_TS_MAX_STRING_SIZE as usize;
+
+    const PARTS: [i32; 8] = [0, 1, -1, 1000, 90_000, i32::MAX, i32::MIN, 1001];
+    const STAMPS: [i64; 8] = [i64::MIN, i64::MIN + 1, -1, 0, 1, 3, 1 << 40, i64::MAX];
+
+    #[test]
+    fn every_time_base_fits_a_heap_buffer() {
+        let mut buf = Box::new([0xffu8; SIZE]);
+        for num in PARTS {
+            for den in PARTS {
+                let tb = Rational::new(num, den);
+                for ts in STAMPS {
+                    let s = make_time_string_by_ref(&mut buf, ts, tb.as_ref());
+                    assert!(s.count_bytes() < SIZE, "{ts} {num}/{den}");
+                }
+            }
+        }
+    }
+
+    #[test]
+    fn tiny_values_print_long_and_are_cut() {
+        // `1 / i32::MAX` seconds asks `printf` for 15 decimals, and the
+        // smallest products for hundreds; C cuts them at the buffer.
+        let mut buf = [0u8; SIZE];
+        let tiny = Rational::new(1, i32::MAX);
+        let s = make_time_string_by_ref(&mut buf, 1, tiny.as_ref());
+        assert!(s.to_bytes().starts_with(b"0.000000000"));
+        let s = make_time_string_by_ref(&mut buf, 1, Rational::new(1, i32::MIN).as_ref());
+        assert!(s.to_bytes().starts_with(b"-0.000000000"));
+    }
+
+    #[test]
+    fn time_strings_format_on_many_threads_at_once() {
+        let tb = Rational::new(1, 90_000);
+        let workers: Vec<_> = (0..8i64)
+            .map(|i| {
+                thread::spawn(move || {
+                    let mut buf = [0; SIZE];
+                    (0..500)
+                        .map(|j| {
+                            make_time_string_by_ref(&mut buf, i * 1_000_003 - j, tb.as_ref())
+                                .count_bytes()
+                        })
+                        .sum::<usize>()
+                })
+            })
+            .collect();
+        for w in workers {
+            assert!(w.join().unwrap() > 0);
+        }
+    }
+}

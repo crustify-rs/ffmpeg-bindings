@@ -1850,3 +1850,51 @@ mod class {
         }
     }
 }
+
+/// The safe [`default_category`](log::default_category) against raw
+/// `av_default_get_category` (core wave 1, batch 2), over independently built
+/// contexts of every category and of unnamed values.
+mod default_category {
+    use ffmpeg::libavutil::ffi;
+    use ffmpeg::libavutil::log::{ClassCategory, default_category};
+
+    use super::{CATEGORIES, Ctx, c_category, class, options};
+
+    /// The safe wrapper over a context of `class`.
+    fn mine(class: &ffi::AVClass) -> ClassCategory {
+        let ctx = Ctx {
+            class,
+            state_flags: 0,
+            value: 0,
+        };
+        // SAFETY: `ctx` starts with an aligned pointer to the live `class`;
+        // nothing writes either during the call.
+        unsafe { default_category((&raw const ctx).cast()) }
+    }
+
+    #[test]
+    fn default_category_is_av_default_get_category() {
+        let opts = options();
+        let unnamed = [17, 40, 46, 1000, u32::MAX].map(ffi::AVClassCategory);
+        for raw in CATEGORIES.iter().map(|&(_, raw)| raw).chain(unnamed) {
+            let (theirs, ours) = (class(raw, &opts), class(raw, &opts));
+            assert_eq!(
+                mine(&ours),
+                ClassCategory::from(c_category(&theirs)),
+                "{raw:?}"
+            );
+            assert_eq!(mine(&ours).value(), raw.0);
+        }
+    }
+
+    #[test]
+    fn a_class_rewritten_between_calls_reads_alike() {
+        let opts = options();
+        let (mut ours, mut theirs) = (class(CATEGORIES[0].1, &opts), class(CATEGORIES[0].1, &opts));
+        for &(_, raw) in CATEGORIES.iter().rev() {
+            ours.category = raw;
+            theirs.category = raw;
+            assert_eq!(mine(&ours), ClassCategory::from(c_category(&theirs)));
+        }
+    }
+}

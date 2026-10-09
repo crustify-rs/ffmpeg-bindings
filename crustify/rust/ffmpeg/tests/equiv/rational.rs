@@ -386,3 +386,307 @@ mod reduce {
         }
     }
 }
+
+/// Arithmetic, comparison and conversion (core wave 1, batch 2): each safe
+/// operation on Rust values against the C function on independently built C
+/// values, alone and chained, compared after every step.
+mod arithmetic {
+    use core::cmp::Ordering;
+
+    use ffmpeg::libavutil::ffi;
+    use ffmpeg::libavutil::rational::Rational;
+
+    /// Every pair class the operations branch on: zero and infinite parts,
+    /// signs on either side, the `int` extremes, unreduced fractions and
+    /// common time bases.
+    const PAIRS: [(i32, i32); 22] = [
+        (0, 0),
+        (1, 0),
+        (-1, 0),
+        (0, 1),
+        (0, -7),
+        (1, 1),
+        (6, 4),
+        (-6, 4),
+        (6, -4),
+        (-6, -4),
+        (30000, 1001),
+        (24000, 1001),
+        (1, 90000),
+        (1, 1000),
+        (i32::MAX, 1),
+        (i32::MIN, 1),
+        (1, i32::MAX),
+        (1, i32::MIN),
+        (i32::MIN, i32::MAX),
+        (i32::MAX, i32::MIN),
+        (i32::MIN, i32::MIN),
+        (i32::MAX - 1, i32::MAX),
+    ];
+
+    fn rust(num: i32, den: i32) -> Rational {
+        Rational::new(num, den)
+    }
+
+    fn c(num: i32, den: i32) -> ffi::AVRational {
+        ffi::AVRational { num, den }
+    }
+
+    fn parts(r: Rational) -> (i32, i32) {
+        (r.as_ref().num(), r.as_ref().den())
+    }
+
+    fn c_parts(r: ffi::AVRational) -> (i32, i32) {
+        (r.num, r.den)
+    }
+
+    /// Whether C's `av_add_q` overflows on `b + c` (both `INT_MIN/INT_MIN`).
+    fn add_overflows(b: (i32, i32), c: (i32, i32)) -> bool {
+        [b.0, b.1, c.0, c.1] == [i32::MIN; 4]
+    }
+
+    #[test]
+    fn operators_are_the_c_functions() {
+        for b in PAIRS {
+            for k in PAIRS {
+                let (rb, rk) = (rust(b.0, b.1), rust(k.0, k.1));
+                let (cb, ck) = (c(b.0, b.1), c(k.0, k.1));
+                // SAFETY: each takes its structs by value; for `int` terms
+                // only `av_add_q` of two `INT_MIN/INT_MIN` overflows, which is
+                // skipped.
+                unsafe {
+                    if !add_overflows(b, k) {
+                        assert_eq!(
+                            parts(rb + rk),
+                            c_parts(ffi::av_add_q(cb, ck)),
+                            "{b:?}+{k:?}"
+                        );
+                    }
+                    assert_eq!(
+                        parts(rb - rk),
+                        c_parts(ffi::av_sub_q(cb, ck)),
+                        "{b:?}-{k:?}"
+                    );
+                    assert_eq!(
+                        parts(rb * rk),
+                        c_parts(ffi::av_mul_q(cb, ck)),
+                        "{b:?}*{k:?}"
+                    );
+                    assert_eq!(
+                        parts(rb / rk),
+                        c_parts(ffi::av_div_q(cb, ck)),
+                        "{b:?}/{k:?}"
+                    );
+                }
+            }
+        }
+    }
+
+    #[test]
+    fn order_is_av_cmp_q() {
+        for b in PAIRS {
+            for k in PAIRS {
+                let (rb, rk) = (rust(b.0, b.1), rust(k.0, k.1));
+                // SAFETY: `av_cmp_q` takes the structs by value and handles
+                // every `int` term.
+                let cmp = unsafe { ffi::av_cmp_q(c(b.0, b.1), c(k.0, k.1)) };
+                let want = match cmp {
+                    -1 => Some(Ordering::Less),
+                    0 => Some(Ordering::Equal),
+                    1 => Some(Ordering::Greater),
+                    i32::MIN => None,
+                    other => panic!("av_cmp_q returned {other}"),
+                };
+                assert_eq!(rb.partial_cmp(&rk), want, "{b:?} vs {k:?}");
+                assert_eq!(rb == rk, cmp == 0, "{b:?} == {k:?}");
+                assert_eq!(rb < rk, cmp == -1);
+                assert_eq!(rb >= rk, cmp == 0 || cmp == 1);
+            }
+        }
+    }
+
+    #[test]
+    fn conversions_are_the_c_functions() {
+        for b in PAIRS {
+            let r = rust(b.0, b.1);
+            // SAFETY: both take the struct by value and have no
+            // preconditions.
+            let (inv, d) = unsafe { (ffi::av_inv_q(c(b.0, b.1)), ffi::av_q2d(c(b.0, b.1))) };
+            assert_eq!(parts(r.recip()), c_parts(inv));
+            assert_eq!(r.to_f64().to_bits(), d.to_bits(), "{b:?}");
+        }
+    }
+
+    #[test]
+    fn from_f64_is_av_d2q() {
+        let values = [
+            0.0,
+            -0.0,
+            0.5,
+            -0.25,
+            1.0 / 3.0,
+            29.97,
+            23.976,
+            core::f64::consts::PI,
+            -core::f64::consts::E,
+            1e-12,
+            -1e-300,
+            f64::MIN_POSITIVE,
+            2_147_483_647.0,
+            2_147_483_650.0,
+            2_147_483_651.0,
+            -2_147_483_650.5,
+            1e300,
+            f64::INFINITY,
+            f64::NEG_INFINITY,
+            f64::NAN,
+        ];
+        for d in values {
+            for max in [0, 1, 100, 1001, 65535, i32::MAX] {
+                // SAFETY: `av_d2q` takes its arguments by value; `max` is
+                // non-negative.
+                let c = unsafe { ffi::av_d2q(d, max) };
+                let r = Rational::from_f64(d, max).unwrap();
+                assert_eq!(parts(r), c_parts(c), "{d} within {max}");
+            }
+        }
+    }
+
+    #[test]
+    fn f32_bits_are_av_q2intfloat_on_non_negative_values() {
+        for b in PAIRS {
+            if b.0 == i32::MIN || b.1 == i32::MIN {
+                continue;
+            }
+            // C overflows shifting a negative value's sign bit; its other
+            // bits come from the magnitude, so compare those and the sign.
+            let (num, den) = if b.1 < 0 { (-b.0, -b.1) } else { b };
+            let (mag, sign) = if num < 0 { (-num, 1 << 31) } else { (num, 0) };
+            // SAFETY: `av_q2intfloat` takes the struct by value; both parts
+            // are non-negative, so it neither negates nor shifts a sign.
+            let c = unsafe { ffi::av_q2intfloat(c(mag, den)) };
+            assert_eq!(rust(b.0, b.1).to_f32_bits(), Some(c | sign), "{b:?}");
+            assert_eq!(rust(mag, den).to_f32_bits(), Some(c), "{b:?}");
+        }
+    }
+
+    /// `av_gcd_q(a, b, max, def)`, or `None` when C returned `def`: told
+    /// apart by calling with two different defaults.
+    fn c_gcd(a: ffi::AVRational, b: ffi::AVRational, max: i32) -> Option<(i32, i32)> {
+        let (d1, d2) = (c(-7, 3), c(5, -11));
+        // SAFETY: `av_gcd_q` takes the structs by value; the callers never
+        // pass two zero denominators, the one case it divides by zero.
+        let (r1, r2) = unsafe { (ffi::av_gcd_q(a, b, max, d1), ffi::av_gcd_q(a, b, max, d2)) };
+        (c_parts(r1) == c_parts(r2)).then_some(c_parts(r1))
+    }
+
+    #[test]
+    fn gcd_is_av_gcd_q() {
+        for b in PAIRS {
+            for k in PAIRS {
+                let (rb, rk) = (rust(b.0, b.1), rust(k.0, k.1));
+                for max in [i32::MIN, -1, 0, 1, 120, 1001, 90000, i32::MAX] {
+                    if b.1 == 0 && k.1 == 0 {
+                        assert_eq!(rb.gcd(rk, max), None);
+                        continue;
+                    }
+                    let want = c_gcd(c(b.0, b.1), c(k.0, k.1), max);
+                    assert_eq!(rb.gcd(rk, max).map(parts), want, "{b:?} {k:?} {max}");
+                }
+            }
+        }
+    }
+
+    #[test]
+    fn cmp_distance_is_av_nearer_q() {
+        for q in PAIRS {
+            for a in PAIRS {
+                for b in PAIRS {
+                    let (ra, rb) = (rust(a.0, a.1), rust(b.0, b.1));
+                    let got = rust(q.0, q.1).cmp_distance(ra, rb);
+                    if (a.1 == i32::MIN && b.1 == i32::MIN) || rb.partial_cmp(&ra).is_none() {
+                        assert_eq!(got, None, "{q:?} {a:?} {b:?}");
+                        continue;
+                    }
+                    // SAFETY: `av_nearer_q` takes the structs by value; the
+                    // arguments it overflows on are skipped above.
+                    let c = unsafe { ffi::av_nearer_q(c(q.0, q.1), c(a.0, a.1), c(b.0, b.1)) };
+                    let want = match c {
+                        1 => Ordering::Less,
+                        0 => Ordering::Equal,
+                        -1 => Ordering::Greater,
+                        other => panic!("av_nearer_q returned {other}"),
+                    };
+                    assert_eq!(got, Some(want), "{q:?} {a:?} {b:?}");
+                }
+            }
+        }
+    }
+
+    #[test]
+    fn nearest_is_av_find_nearest_q_idx() {
+        let lists: [&[(i32, i32)]; 8] = [
+            &[
+                (24000, 1001),
+                (24, 1),
+                (25, 1),
+                (30000, 1001),
+                (30, 1),
+                (50, 1),
+                (60000, 1001),
+                (60, 1),
+            ],
+            &[(1, 1)],
+            &[(3, 4), (1, 4), (3, 4)],
+            &[(-1, 2), (1, -3), (7, 5)],
+            &[(i32::MAX, 1), (i32::MIN, 1), (1, i32::MAX)],
+            &[(1, 3), (1, i32::MIN), (2, 3)],
+            &[(5, 1), (6, 1), (0, 9), (4, 1)],
+            &[(0, 5), (0, -5), (1, 1)],
+        ];
+        for list in lists {
+            let candidates: Vec<Rational> = list.iter().map(|&(n, d)| rust(n, d)).collect();
+            let mut terminated: Vec<ffi::AVRational> = list.iter().map(|&(n, d)| c(n, d)).collect();
+            terminated.push(c(0, 0));
+            for q in PAIRS {
+                // SAFETY: `terminated` ends in `{0, 0}`; C reads it up to the
+                // first zero denominator and never writes it. No list holds
+                // two `INT_MIN` denominators or one first, which C overflows
+                // on.
+                let c = unsafe { ffi::av_find_nearest_q_idx(c(q.0, q.1), terminated.as_ptr()) };
+                assert_eq!(
+                    rust(q.0, q.1).nearest(&candidates),
+                    Some(c as usize),
+                    "{q:?} in {list:?}"
+                );
+            }
+        }
+    }
+
+    #[test]
+    fn chained_sums_and_products_agree_after_every_step() {
+        let steps = [
+            (1, 3),
+            (2, 7),
+            (-5, 11),
+            (1, 90000),
+            (30000, 1001),
+            (i32::MAX, 3),
+            (7, -2),
+        ];
+        let (mut r_sum, mut c_sum) = (rust(0, 1), c(0, 1));
+        let (mut r_prod, mut c_prod) = (rust(1, 1), c(1, 1));
+        for (i, &(n, d)) in steps.iter().cycle().take(40).enumerate() {
+            r_sum = r_sum + rust(n, d) - rust(d, 17);
+            r_prod = r_prod * rust(n, d) / rust(d, n);
+            // SAFETY: each takes its structs by value; no step adds two
+            // `INT_MIN/INT_MIN`.
+            unsafe {
+                c_sum = ffi::av_sub_q(ffi::av_add_q(c_sum, c(n, d)), c(d, 17));
+                c_prod = ffi::av_div_q(ffi::av_mul_q(c_prod, c(n, d)), c(d, n));
+            }
+            assert_eq!(parts(r_sum), c_parts(c_sum), "step {i}");
+            assert_eq!(parts(r_prod), c_parts(c_prod), "step {i}");
+        }
+    }
+}

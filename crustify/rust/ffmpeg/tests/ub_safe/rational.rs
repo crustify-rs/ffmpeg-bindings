@@ -349,3 +349,180 @@ mod reduce {
         });
     }
 }
+
+/// Arithmetic, comparison and conversion (core wave 1, batch 2) on every edge
+/// pair and on pseudo-random ones, including those C overflows on unless the
+/// wrapper steps around them, here and on other threads.
+mod arithmetic {
+    use core::cmp::Ordering;
+    use std::thread;
+
+    use ffmpeg::libavutil::rational::Rational;
+
+    /// Each part's edges: zero, ones, the extremes and their neighbours.
+    const PARTS: [i32; 12] = [
+        0,
+        1,
+        -1,
+        2,
+        3,
+        1001,
+        i32::MAX,
+        i32::MAX - 1,
+        i32::MIN,
+        i32::MIN + 1,
+        1 << 30,
+        -(1 << 30),
+    ];
+
+    fn edges() -> Vec<Rational> {
+        PARTS
+            .iter()
+            .flat_map(|&n| PARTS.iter().map(move |&d| Rational::new(n, d)))
+            .collect()
+    }
+
+    /// A deterministic xorshift stream of rationals, half of them edges.
+    struct Rng(u64);
+
+    impl Rng {
+        fn next(&mut self) -> u64 {
+            self.0 ^= self.0 << 13;
+            self.0 ^= self.0 >> 7;
+            self.0 ^= self.0 << 17;
+            self.0
+        }
+
+        fn part(&mut self) -> i32 {
+            match self.next() % 3 {
+                0 => PARTS[(self.next() % PARTS.len() as u64) as usize],
+                1 => self.next() as i32,
+                _ => (self.next() % 2001) as i32 - 1000,
+            }
+        }
+
+        fn q(&mut self) -> Rational {
+            Rational::new(self.part(), self.part())
+        }
+    }
+
+    #[test]
+    fn every_edge_pair_computes() {
+        let all = edges();
+        let mut sum = 0i64;
+        for &a in &all {
+            for &b in &all {
+                for r in [a + b, a - b, a * b, a / b] {
+                    sum += i64::from(r.as_ref().num() ^ r.as_ref().den());
+                }
+                let _ = a.partial_cmp(&b);
+                assert_eq!(a == b, b == a);
+                let _ = a.gcd(b, i32::MAX);
+                let _ = a.gcd(b, i32::MIN);
+            }
+        }
+        assert_ne!(sum, 0);
+    }
+
+    #[test]
+    fn every_edge_converts() {
+        for a in edges() {
+            let _ = a.recip();
+            let _ = a.to_f64();
+            if let Some(bits) = a.to_f32_bits() {
+                // The value is never subnormal or out of `f32`'s range.
+                let f = f32::from_bits(bits);
+                assert!(f.is_nan() || f.is_infinite() || f == 0.0 || f.is_normal());
+            }
+            for max in [0, 1, i32::MAX] {
+                let _ = Rational::from_f64(a.to_f64(), max);
+            }
+            assert!(Rational::from_f64(a.to_f64(), -1).is_none());
+        }
+        for d in [
+            f64::MAX,
+            f64::MIN,
+            f64::MIN_POSITIVE,
+            -f64::MIN_POSITIVE,
+            5e-324,
+            2_147_483_650.0,
+            -2_147_483_650.999,
+        ] {
+            let _ = Rational::from_f64(d, i32::MAX);
+        }
+    }
+
+    #[test]
+    fn random_triples_compare_distances() {
+        let mut rng = Rng(0x9e37_79b9_7f4a_7c15);
+        let all = edges();
+        for i in 0..20_000 {
+            let (q, a, b) = (rng.q(), rng.q(), rng.q());
+            let _ = q.cmp_distance(a, b);
+            let e = all[i % all.len()];
+            let _ = e.cmp_distance(e, e);
+            let _ = q.cmp_distance(e, a);
+        }
+    }
+
+    #[test]
+    fn random_lists_find_the_nearest() {
+        let mut rng = Rng(0x2545_f491_4f6c_dd1d);
+        for _ in 0..5_000 {
+            let len = (rng.next() % 9) as usize;
+            let list: Vec<Rational> = (0..len).map(|_| rng.q()).collect();
+            let q = rng.q();
+            if let Some(i) = q.nearest(&list) {
+                assert!(i < list.len());
+                assert!(list[..=i].iter().all(|c| c.as_ref().den() != 0));
+            }
+        }
+        let min = Rational::new(1, i32::MIN);
+        assert!(Rational::new(1, 2).nearest(&[min; 64]).is_none());
+        assert!(Rational::new(1, 2).nearest(&[]).is_none());
+    }
+
+    #[test]
+    fn overflowing_operands_are_stepped_around() {
+        let m = Rational::new(i32::MIN, i32::MIN);
+        let two = m + m;
+        assert_eq!((two.as_ref().num(), two.as_ref().den()), (2, 1));
+        let z = Rational::new(0, 0);
+        for q in edges() {
+            assert_eq!(q.cmp_distance(Rational::new(1, 2), z), None);
+            assert_eq!(
+                q.cmp_distance(Rational::new(1, i32::MIN), Rational::new(-1, i32::MIN)),
+                None
+            );
+        }
+        assert_eq!(
+            Rational::new(-1, 2).to_f32_bits(),
+            Some((-0.5f32).to_bits())
+        );
+        assert_eq!(Rational::new(1, 0).gcd(Rational::new(0, 0), i32::MAX), None);
+        assert_eq!(z.partial_cmp(&z), None::<Ordering>);
+    }
+
+    #[test]
+    fn operations_run_on_many_threads_at_once() {
+        let workers: Vec<_> = (0..8u64)
+            .map(|t| {
+                thread::spawn(move || {
+                    let mut rng = Rng(0x1234_5678 + t);
+                    let mut acc = Rational::new(0, 1);
+                    for _ in 0..2_000 {
+                        let (a, b) = (rng.q(), rng.q());
+                        acc = acc + a * b - a / b;
+                        let _ = acc.cmp_distance(a, b);
+                        let _ = acc.to_f32_bits();
+                        let _ = acc.nearest(&[a, b]);
+                    }
+                    acc.to_f64()
+                })
+            })
+            .collect();
+        for w in workers {
+            let _ = w.join().unwrap();
+        }
+    }
+}

@@ -7,6 +7,7 @@ use core::ptr;
 use ffibox::CPlainElem;
 
 use super::ffi;
+use super::rational::Rational;
 
 /// Wraps: AVMediaType
 /// Handwritten
@@ -315,6 +316,48 @@ pub fn fourcc_string(buf: &mut [u8; FOURCC_MAX_STRING_SIZE], fourcc: u32) -> &CS
     CStr::from_bytes_until_nul(buf).expect("snprintf NUL-terminates the buffer")
 }
 
+impl MediaType {
+    /// Wraps: av_get_media_type_string
+    ///
+    /// The lowercase name C gives this media type (`"video"`, `"audio"`,
+    /// `"data"`, `"subtitle"`, `"attachment"`), or `None` for
+    /// [`UNKNOWN`](Self::UNKNOWN) and any value C does not name.
+    pub fn as_str(self) -> Option<&'static str> {
+        // SAFETY: `av_get_media_type_string` takes the enum by value, accepts
+        // any value, and returns NULL or the address of a string literal.
+        let name = unsafe { ffi::av_get_media_type_string(self.0) };
+        // SAFETY: a non-NULL `name` is a NUL-terminated string literal,
+        // immutable for the life of the process.
+        let name = (!name.is_null()).then(|| unsafe { CStr::from_ptr(name) })?;
+        // Every name C returns is ASCII.
+        name.to_str().ok()
+    }
+}
+
+impl PictureType {
+    /// Wraps: av_get_picture_type_char
+    ///
+    /// The letter C prints for this picture type: `I`, `P`, `B` and `S` for
+    /// those types, `i`, `p` and `b` for [`SI`](Self::SI),
+    /// [`SP`](Self::SP) and [`BI`](Self::BI), and `?` for
+    /// [`NONE`](Self::NONE) and any value C does not name.
+    pub fn to_char(self) -> char {
+        // SAFETY: `av_get_picture_type_char` takes the enum by value and maps
+        // any value to an ASCII character.
+        let c = unsafe { ffi::av_get_picture_type_char(self.0) };
+        char::from(c as u8)
+    }
+}
+
+/// Wraps: av_get_time_base_q
+///
+/// FFmpeg's internal time base, `1/AV_TIME_BASE`: microseconds.
+pub fn time_base() -> Rational {
+    // SAFETY: `av_get_time_base_q` takes no arguments and returns a constant
+    // struct by value.
+    Rational::from_raw(unsafe { ffi::av_get_time_base_q() })
+}
+
 #[cfg(test)]
 mod unit_tests {
     use super::*;
@@ -470,5 +513,29 @@ mod unit_tests {
         assert_eq!(v >> 16, ffi::LIBAVUTIL_VERSION_MAJOR);
         assert_eq!(v >> 8 & 0xff, ffi::LIBAVUTIL_VERSION_MINOR);
         assert_eq!(v & 0xff, ffi::LIBAVUTIL_VERSION_MICRO);
+    }
+
+    #[test]
+    fn media_type_names_are_cs() {
+        assert_eq!(MediaType::VIDEO.as_str(), Some("video"));
+        assert_eq!(MediaType::ATTACHMENT.as_str(), Some("attachment"));
+        assert_eq!(MediaType::UNKNOWN.as_str(), None);
+        assert_eq!(MediaType::from_raw(ffi::AVMediaType(99)).as_str(), None);
+    }
+
+    #[test]
+    fn picture_type_letters_are_cs() {
+        assert_eq!(PictureType::I.to_char(), 'I');
+        assert_eq!(PictureType::SI.to_char(), 'i');
+        assert_eq!(PictureType::BI.to_char(), 'b');
+        assert_eq!(PictureType::NONE.to_char(), '?');
+        assert_eq!(PictureType::from_raw(ffi::AVPictureType(99)).to_char(), '?');
+    }
+
+    #[test]
+    fn time_base_is_one_microsecond() {
+        let tb = time_base();
+        assert_eq!((tb.as_ref().num(), tb.as_ref().den()), (1, 1_000_000));
+        assert_eq!(tb.as_ref().den(), ffi::AV_TIME_BASE as i32);
     }
 }

@@ -23,9 +23,9 @@
 //!
 //! A logging context, an `AVClass`-enabled object, stays a raw `void *` until
 //! the types that carry an `AVClass` are wrapped by a later batch:
-//! [`log_with_context`], [`log_fmt_with_context`], [`log_once_with_context`]
-//! and [`default_item_name`] take it, [`Record::context`] returns it, and the
-//! class callbacks' handles take it.
+//! [`log_with_context`], [`log_fmt_with_context`], [`log_once_with_context`],
+//! [`default_item_name`] and [`default_category`] take it, [`Record::context`]
+//! returns it, and the class callbacks' handles take it.
 
 use core::ffi::{CStr, c_char, c_int, c_uint, c_void};
 use core::fmt;
@@ -1461,6 +1461,32 @@ pub unsafe fn default_item_name<'a>(ctx: *const c_void) -> Option<&'a CStr> {
     (!name.is_null()).then(|| unsafe { CStr::from_ptr(name) })
 }
 
+/// Wraps: av_default_get_category
+///
+/// The `category` of the `AVClass` that the object `ctx` points to: the
+/// category `av_log` colours a message by when the class has no
+/// `get_category` callback. Any value the class stores is returned, named or
+/// not.
+///
+/// # Safety
+///
+/// `ctx` must address a live `AVClass`-enabled object: a `const AVClass *`
+/// first member, readable and aligned for a pointer (C loads it as
+/// `*(AVClass **) ctx`, so a byte offset into a buffer does not qualify),
+/// holding a non-NULL pointer to a live class. No other thread may write the
+/// object's class pointer or the class's `category` during the call.
+pub unsafe fn default_category(ctx: *const c_void) -> ClassCategory {
+    debug_assert!(
+        ctx.addr().is_multiple_of(align_of::<*const ffi::AVClass>()),
+        "context {ctx:p} is not aligned for its class pointer"
+    );
+    // SAFETY: the caller vouches that `ctx` is an aligned, readable class
+    // pointer slot holding a valid pointer to a live class;
+    // `av_default_get_category` only reads both, and returns the enum by
+    // value.
+    ClassCategory::from(unsafe { ffi::av_default_get_category(ctx.cast_mut()) })
+}
+
 #[cfg(test)]
 mod unit_tests {
     use super::*;
@@ -2093,5 +2119,24 @@ mod unit_tests {
         let class = record((&raw mut obj).cast()).class().unwrap();
         assert!(class.ptr_eq(OWN.as_ref()));
         assert_eq!(class.name(), Some(c"unit-record"));
+    }
+
+    #[test]
+    fn default_category_reads_the_class_member() {
+        for category in [
+            ClassCategory::NA,
+            ClassCategory::DEMUXER,
+            ClassCategory::from_value(4242),
+        ] {
+            let class = ffi::AVClass {
+                category: category.into(),
+                ..Default::default()
+            };
+            let ctx: *const ffi::AVClass = &class;
+            // SAFETY: `ctx` is a live, aligned class pointer slot holding a
+            // pointer to the live `class`; nothing writes either.
+            let got = unsafe { default_category((&raw const ctx).cast()) };
+            assert_eq!(got, category);
+        }
     }
 }

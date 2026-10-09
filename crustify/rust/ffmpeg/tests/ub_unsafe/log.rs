@@ -1164,3 +1164,146 @@ mod class_callbacks {
         assert_eq!(walked, [kids[0].as_obj(), kids[1].as_obj()]);
     }
 }
+
+/// `default_category` (core wave 1, batch 2), each call within its `# Safety`
+/// contract: static and heap classes, the smallest and an embedded class
+/// pointer slot, every category value, a class switched between calls, and
+/// concurrent readers.
+mod default_category {
+    use core::ffi::c_void;
+
+    use ffmpeg::libavutil::ffi;
+    use ffmpeg::libavutil::log::{ClassCategory, default_category};
+
+    /// A class, `Sync` to live in a `static`.
+    struct Class(ffi::AVClass);
+    // SAFETY: the class is immutable and its name is a string literal.
+    unsafe impl Sync for Class {}
+
+    static DEMUXER: Class = Class(ffi::AVClass {
+        class_name: c"ub-unsafe-demuxer".as_ptr(),
+        category: ffi::AVClassCategory::AV_CLASS_CATEGORY_DEMUXER,
+        // SAFETY: every other member is an integer, a nullable pointer or an
+        // `Option` of a function pointer, for which all-zero is valid (NULL).
+        ..unsafe { core::mem::zeroed() }
+    });
+
+    /// An `AVClass`-enabled object with a payload after its class pointer.
+    #[repr(C)]
+    struct Obj {
+        class: *const ffi::AVClass,
+        payload: [u8; 64],
+    }
+
+    impl Obj {
+        fn new(class: *const ffi::AVClass) -> Self {
+            Self {
+                class,
+                payload: [0x3c; 64],
+            }
+        }
+
+        fn ctx(&self) -> *const c_void {
+            (self as *const Self).cast()
+        }
+    }
+
+    #[test]
+    fn static_class_reads_its_category() {
+        let obj = Obj::new(&DEMUXER.0);
+        // SAFETY: `obj` starts with a non-NULL pointer to the live static
+        // class; nothing writes either.
+        let got = unsafe { default_category(obj.ctx()) };
+        assert_eq!(got, ClassCategory::DEMUXER);
+    }
+
+    #[test]
+    fn bare_class_pointer_is_the_smallest_object() {
+        let fake: *const ffi::AVClass = &DEMUXER.0;
+        // SAFETY: `fake` is a readable, aligned slot holding a non-NULL
+        // pointer to the live static class.
+        let got = unsafe { default_category((&raw const fake).cast()) };
+        assert_eq!(got, ClassCategory::DEMUXER);
+    }
+
+    #[test]
+    fn class_pointer_slot_inside_a_larger_object() {
+        /// An object whose class pointer is an aligned member, not its
+        /// allocation's first byte: the context points at the member.
+        #[repr(C)]
+        struct Outer {
+            prefix: [u8; 40],
+            class: *const ffi::AVClass,
+            payload: u64,
+        }
+
+        let outer = Box::new(Outer {
+            prefix: [0x5a; 40],
+            class: &DEMUXER.0,
+            payload: 9,
+        });
+        // SAFETY: the context is the aligned `class` member of the live
+        // `outer`, holding a non-NULL pointer to the static class.
+        let got = unsafe { default_category((&raw const outer.class).cast()) };
+        assert_eq!(got, ClassCategory::DEMUXER);
+        assert_eq!((outer.prefix[39], outer.payload), (0x5a, 9));
+    }
+
+    #[test]
+    fn every_category_value_of_a_heap_class() {
+        let values = (0..=u32::from(u8::MAX)).chain([1 << 16, u32::MAX - 1, u32::MAX]);
+        for v in values {
+            let cls = Box::new(ffi::AVClass {
+                category: ffi::AVClassCategory(v),
+                ..Default::default()
+            });
+            let obj = Box::new(Obj::new(&*cls));
+            // SAFETY: `obj` starts with a non-NULL pointer to the live `cls`;
+            // both are dropped only after the call.
+            let got = unsafe { default_category(obj.ctx()) };
+            assert_eq!(got.value(), v);
+            drop(obj);
+            drop(cls);
+        }
+    }
+
+    #[test]
+    fn object_class_switches_between_calls() {
+        let other = ffi::AVClass {
+            category: ffi::AVClassCategory::AV_CLASS_CATEGORY_ENCODER,
+            ..Default::default()
+        };
+        let mut obj = Obj::new(&DEMUXER.0);
+        for (i, cls) in [&DEMUXER.0, &other, &DEMUXER.0].into_iter().enumerate() {
+            obj.class = cls;
+            // SAFETY: `obj` starts with a non-NULL pointer to a live class; no
+            // other thread writes `obj`.
+            let got = unsafe { default_category(obj.ctx()) };
+            assert_eq!(got, ClassCategory::from(cls.category), "step {i}");
+        }
+        assert_eq!(obj.payload, [0x3c; 64]);
+    }
+
+    #[test]
+    fn concurrent_readers_share_an_object() {
+        /// An object, `Sync` to share across threads.
+        struct Shared(Obj);
+        // SAFETY: the threads below only read the object and its static class.
+        unsafe impl Sync for Shared {}
+
+        let shared = Shared(Obj::new(&DEMUXER.0));
+        std::thread::scope(|s| {
+            for _ in 0..4 {
+                let shared = &shared;
+                s.spawn(move || {
+                    for _ in 0..1_000 {
+                        // SAFETY: the object starts with a non-NULL pointer to
+                        // the static class; every thread only reads it.
+                        let got = unsafe { default_category(shared.0.ctx()) };
+                        assert_eq!(got, ClassCategory::DEMUXER);
+                    }
+                });
+            }
+        });
+    }
+}

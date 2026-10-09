@@ -193,3 +193,82 @@ mod time_string {
         }
     }
 }
+
+/// The safe [`make_time_string_by_ref`](ffmpeg::libavutil::timestamp::make_time_string_by_ref)
+/// against raw `av_ts_make_time_string` (core wave 1, batch 2), on separate
+/// buffers, compared whole after every write.
+mod time_string_by_ref {
+    use core::ffi::CStr;
+
+    use ffmpeg::libavutil::ffi;
+    use ffmpeg::libavutil::rational::Rational;
+    use ffmpeg::libavutil::timestamp::make_time_string_by_ref;
+
+    use super::{SIZE, STAMPS};
+
+    /// Time bases from the usual to the degenerate: zero parts, negative
+    /// parts and the extremes.
+    const TBS: [(i32, i32); 11] = [
+        (1, 1),
+        (1, 1000),
+        (1, 90000),
+        (1001, 30000),
+        (1, i32::MAX),
+        (i32::MAX, 1),
+        (-1, 25),
+        (0, 1),
+        (1, 0),
+        (-1, 0),
+        (0, 0),
+    ];
+
+    /// `av_ts_make_time_string` into `buf`.
+    fn c_time_string(buf: &mut [u8; SIZE], ts: i64, tb: (i32, i32)) -> *mut core::ffi::c_char {
+        let tb = ffi::AVRational {
+            num: tb.0,
+            den: tb.1,
+        };
+        // SAFETY: `buf` is the `AV_TS_MAX_STRING_SIZE` bytes C writes at most;
+        // `tb` is a live struct C reads once.
+        unsafe { ffi::av_ts_make_time_string(buf.as_mut_ptr().cast(), ts, &tb) }
+    }
+
+    #[test]
+    fn by_ref_writes_as_av_ts_make_time_string() {
+        let stamps = STAMPS
+            .into_iter()
+            .chain([3, 7, 1_000_001, 123_456_789, -42]);
+        for ts in stamps {
+            for tb in TBS {
+                let mut mine = [0xa5; SIZE];
+                let mut theirs = [0xa5; SIZE];
+                let ret = c_time_string(&mut theirs, ts, tb);
+                assert_eq!(ret.cast::<u8>(), theirs.as_mut_ptr());
+                let base = mine.as_ptr();
+                let q = Rational::new(tb.0, tb.1);
+                let r = make_time_string_by_ref(&mut mine, ts, q.as_ref());
+                assert_eq!(r.as_ptr().cast::<u8>(), base);
+                // SAFETY: `ret` is `theirs`, NUL-terminated by C.
+                assert_eq!(r, unsafe { CStr::from_ptr(ret) }, "{ts} {tb:?}");
+                assert_eq!(mine, theirs, "{ts} {tb:?}");
+            }
+        }
+    }
+
+    #[test]
+    fn reused_buffers_agree_after_every_step() {
+        let mut mine = [0; SIZE];
+        let mut theirs = [0; SIZE];
+        for (i, ts) in STAMPS
+            .into_iter()
+            .chain(STAMPS.into_iter().rev())
+            .enumerate()
+        {
+            let tb = TBS[i % TBS.len()];
+            let q = Rational::new(tb.0, tb.1);
+            let _ = make_time_string_by_ref(&mut mine, ts, q.as_ref());
+            c_time_string(&mut theirs, ts, tb);
+            assert_eq!(mine, theirs, "{ts} {tb:?}");
+        }
+    }
+}
