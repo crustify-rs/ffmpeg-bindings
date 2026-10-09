@@ -182,7 +182,9 @@ Implementation `openrouter/anthropic/claude-opus-5.5` via `claude`; review
 |`0`|`7`| `1` | `2` |`+494/-0`| `2.36`% / `99.56`% | `0` | `0` | `$2.61` | `14m49s` | `$2.61` | `$1.30` |
 |`0`|`8`| `2` | `2` |`+741/-2`| `3.72`% / `99.78`% | `0` | `0` | `$5.48` | `25m56s` | `$2.74` | `$2.74` |
 |`0`|`9`| `1` | `1` |`+396/-0`| `2.36`% / `99.48`% | `0` | `0` | `$2.95` | `12m24s` | `$2.95` | `$2.95` |
-| **Σ** |  | **`18`** | **`21`** | **`+6778/-12`** | **`9.22`% / `88.07`%** | **`+4`** | **`+3`** | **`$42.23`** | — | **`$2.35`** | **`$2.01`** |
+|`1`|`0`| `2` | `18` |`+1555/-8`| `19.58`% / `95.62`% | `+9` | `+7` | `$13.38` | `43m37s` | `$6.69` | `$0.74` |
+|`1`|`1`| `1` | `5` |`+500/-2`| `19.23`% / `95.13`% | `+1` | `0` | `$3.10` | `20m22s` | `$3.10` | `$0.62` |
+| **Σ** |  | **`21`** | **`44`** | **`+8833/-22`** | **`19.58`% / `95.62`%** | **`+14`** | **`+10`** | **`$58.71`** | — | **`$2.80`** | **`$1.33`** |
 
 ### Batches — wrap: tests
 
@@ -200,7 +202,9 @@ Implementation `openrouter/anthropic/claude-opus-5.5` via `claude`; review
 |`0`|`7`|`+9` (`+0.00`/`-3.59` pp)|`+0` (`+0.00`/`+0.00` pp)|`+8` (`+0.00`/`+0.19` pp)|`+9` (`+0.00`/`+0.08` pp)|
 |`0`|`8`|`+10` (`+0.00`/`-1.32` pp)|`+0` (`+0.00`/`+0.00` pp)|`+8` (`+0.43`/`+1.09` pp)|`+7` (`+0.00`/`+0.03` pp)|
 |`0`|`9`|`+10` (`+0.00`/`+9.78` pp)|`+0` (`+0.00`/`+0.00` pp)|`+5` (`+0.18`/`+1.84` pp)|`+4` (`+0.00`/`+0.07` pp)|
-| **Σ** |  | **`+76` (`+0.00`/`-5.09` pp)** | **`+10` (`+1.10`/`+5.61` pp)** | **`+72` (`+4.34`/`-41.05` pp)** | **`+92` (`+5.51`/`-14.68` pp)** |
+|`1`|`0`|`+8` (`+0.08`/`+0.87` pp)|`+4` (`+0.00`/`+1.22` pp)|`+8` (`+0.37`/`+1.14` pp)|`+11` (`+0.34`/`-0.22` pp)|
+|`1`|`1`|`+8` (`+0.00`/`+0.09` pp)|`+5` (`+0.00`/`+0.68` pp)|`+3` (`+0.00`/`-0.24` pp)|`+5` (`+0.00`/`+0.44` pp)|
+| **Σ** |  | **`+92` (`+0.08`/`-4.13` pp)** | **`+19` (`+1.10`/`+7.51` pp)** | **`+83` (`+4.71`/`-40.15` pp)** | **`+108` (`+5.85`/`-14.45` pp)** |
 
 ### Batches — port
 
@@ -287,7 +291,9 @@ Implementation `openrouter/anthropic/claude-opus-5.5` via `claude`; review
 |`0`|`12`| wrap | `25` | `2896` |`+2896/-176`| `18.96`% / `94.70`% | `+2` | `+3` | `$45.49` | `178m41s` | `$1.82` | `$0.016` |
 |`0`|`13`| wrap | `25` | `2611` |`+2611/-3`| `18.00`% / `93.86`% | `+1` | `0` | `$27.60` | `155m09s` | `$1.10` | `$0.011` |
 |`0`|`14`| wrap | `21` | `1561` |`+1561/-1`| `10.37`% / `89.92`% | `+1` | `+1` | `$11.38` | `62m02s` | `$0.54` | `$0.007` |
-| **Σ** |  |  | **`121`** | **`10228`** | **`+10228/-197`** | **`18.96`% / `94.70`%** | **`+9`** | **`+12`** | **`$130.64`** | — | **`$1.08`** | **`$0.013`** |
+|`1`|`2`| wrap | `25` | `2218` |`+2218/-1`| `20.40`% / `96.05`% | `+1` | `+1` | `$15.41` | `63m58s` | `$0.62` | `$0.007` |
+|`1`|`3`| wrap | `1` | `264` |`+264/-0`| `19.23`% / `95.00`% | `0` | `0` | `$1.71` | `11m10s` | `$1.71` | `$0.006` |
+| **Σ** |  |  | **`147`** | **`12710`** | **`+12710/-198`** | **`20.40`% / `96.05`%** | **`+10`** | **`+13`** | **`$147.76`** | — | **`$1.01`** | **`$0.012`** |
 
 ### Batches: tests
 
@@ -300,7 +306,9 @@ Implementation `openrouter/anthropic/claude-opus-5.5` via `claude`; review
 |`0`|`12`|`+20` (`+1.66`/`-0.46` pp)|`+13` (`+0.45`/`+6.11` pp)|`+21` (`+0.90`/`+0.47` pp)|`+22` (`+1.07`/`-0.12` pp)|
 |`0`|`13`|`+27` (`+6.37`/`+3.54` pp)|`+0` (`+0.00`/`-1.35` pp)|`+27` (`+6.86`/`+4.73` pp)|`+37` (`+1.83`/`+0.77` pp)|
 |`0`|`14`|`+20` (`+2.05`/`+4.45` pp)|`+5` (`+1.19`/`-0.57` pp)|`+26` (`+1.05`/`+5.47` pp)|`+12` (`+0.46`/`-4.07` pp)|
-| **Σ** |  | **`+103` (`+12.18`/`+13.00` pp)** | **`+31` (`+2.18`/`+5.31` pp)** | **`+124` (`+11.15`/`+16.97` pp)** | **`+102` (`+4.89`/`-3.31` pp)** |
+|`1`|`2`|`+21` (`+1.48`/`+0.86` pp)|`+6` (`+0.02`/`-0.89` pp)|`+28` (`+0.91`/`+0.49` pp)|`+30` (`+1.54`/`+1.70` pp)|
+|`1`|`3`|`+4` (`+0.10`/`+0.10` pp)|`+0` (`+0.00`/`-0.04` pp)|`+4` (`+0.10`/`+0.09` pp)|`+2` (`+0.10`/`+0.21` pp)|
+| **Σ** |  | **`+128` (`+13.75`/`+13.96` pp)** | **`+37` (`+2.20`/`+4.38` pp)** | **`+156` (`+12.15`/`+17.55` pp)** | **`+134` (`+6.53`/`-1.40` pp)** |
 
 ### Batches — review
 
@@ -709,7 +717,7 @@ parent, so it is that batch's own change. The toolchain commit below has no row.
 - `cov (C/Rust)` is the all-workloads run (the union) at the landing commit, over the same
   C and Rust denominators. It is cumulative in landing order, not row order: the type batches
   landed as 0, 9, 7, 1, 5, 4, 8, 6, 2, then 3 after the resume, and the symbol batches as 14,
-  10, 11, 13, 12. Each Σ `cov` is the table's last landing (batch 3, batch 12).
+  10, 11, 13, 12. Each Σ `cov` is the table's last landing overall, now in wave 1 (see below).
 - Σ coverage cells in the `: tests` tables add the per-row deltas. Denominators grow with every landing, so a Σ is
   not the wave-level change, and negative Rust deltas mark landings whose new lines a given
   workload does not reach.
@@ -812,3 +820,35 @@ compare against. The like-for-like comparison is Opus 5.5 reviewing `core` waves
 About 23% of the reviewers' wall time (~115 of 502 min) went to waiting on BorrowSanitizer
 runs, and about 38% of the six resumed translators' (~243 of 635 min), measured from the
 agents' transcripts. Most of it is the full suite rerun after each rebase.
+
+### `libavutil/core` wave 1
+
+Wave 1 is 4 `wrap` batches based on the reviewed wave-0 tip `0604718bba`:
+
+- batch 0: `AVBPrint` and `AVClass`, 18 fields;
+- batch 1: `ff_pad_helper_AVBPrint`, 5 fields;
+- batch 2: 25 symbols;
+- batch 3: `av_ts_make_time_string2`.
+
+All four landed between 00:42Z and 01:36Z on 2026-10-09, and every scheduled item and field
+carries its anchor on the wave tip `23dc07587c`. Translation cost `$33.60` for 91.7M tokens and
+2h19m of agent wall time.
+
+Notes on the wave:
+
+- `av_make_q`, scheduled in batch 2, was already anchored by wave 0's `AVRational` batch
+  (`7f5c7edf52`); batch 2 left it as completed work.
+- The 25-symbol batch took 64 minutes, against 86–179 in wave 0, with no sibling landing in its
+  homes.
+- Batch 0 accounts for most of the wave's smell growth (`+9` `unsafe fn`, `+7` raw pointer):
+  `AVClass`'s callback fields (`item_name`, `child_next`, `child_class_iterate`,
+  `get_category`, `query_ranges`) are C function pointers taking `void *` contexts.
+- Batch rows sum to `+11` and `+8`, which equals the wave tip's unseeded scan (32 and 28) over the
+  reviewed base (21 and 20). No undocumented `unsafe`.
+- The Σ `cov` cells now read wave 1's last type and symbol landings: batch 0 (`364c59df9b`) and
+  batch 2 (`23dc07587c`, the wave tip). The rows' `cov` and `: tests` figures continue the
+  wave-0 method.
+
+The wave tip passes `clippy --all-targets -D warnings` and the plain, `asan-ubsan`, `tsan` and
+`bsan` suites: 275 unit, 273 equivalence, 252 `ub_safe` and 59 `ub_unsafe` tests under `bsan`.
+Its review runs with wave 2's, on Opus 5.5, after wave 2.
