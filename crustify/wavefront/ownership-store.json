@@ -413,6 +413,14 @@
  ],
  "symbols": [
   {
+   "name": "av_add_q",
+   "defined_in": "libavutil/rational.c"
+  },
+  {
+   "name": "av_add_stable",
+   "defined_in": "libavutil/mathematics.c"
+  },
+  {
    "name": "av_append_path_component",
    "defined_in": "libavutil/avstring.c",
    "lifetime": {
@@ -776,7 +784,15 @@
    "defined_in": "libavutil/common.h"
   },
   {
+   "name": "av_cmp_q",
+   "defined_in": "libavutil/rational.h"
+  },
+  {
    "name": "av_compare_mod",
+   "defined_in": "libavutil/mathematics.c"
+  },
+  {
+   "name": "av_compare_ts",
    "defined_in": "libavutil/mathematics.c"
   },
   {
@@ -790,6 +806,33 @@
   {
    "name": "av_cpu_max_align",
    "defined_in": "libavutil/cpu.c"
+  },
+  {
+   "name": "av_d2q",
+   "defined_in": "libavutil/rational.c"
+  },
+  {
+   "name": "av_default_get_category",
+   "defined_in": "libavutil/log.c",
+   "ptr_args": [
+    {
+     "name": "ptr",
+     "ptr": {
+      "scalar": {
+       "by_val": true
+      },
+      "array": null,
+      "string": false,
+      "owned": false,
+      "borrowed": {
+       "lifetime": "arg:ptr"
+      },
+      "nullable": false,
+      "mutable": false,
+      "note": "An AVClass-enabled object, read for the call only: C loads its first member as `*(AVClass **) ptr` (so it must be aligned for a pointer and hold a non-NULL pointer to a live AVClass) and returns that class's `category` by value. Never written, stored or freed; declared `void *` only for the log.h callback signature."
+     }
+    }
+   ]
   },
   {
    "name": "av_default_item_name",
@@ -920,6 +963,10 @@
      "note": "Either `path` itself (now truncated), borrowed from it, or the static literal \".\" when path is NULL or has no separator. Never NULL; never owned by the caller."
     }
    }
+  },
+  {
+   "name": "av_div_q",
+   "defined_in": "libavutil/rational.c"
   },
   {
    "name": "av_double2int",
@@ -1441,6 +1488,29 @@
    ]
   },
   {
+   "name": "av_find_nearest_q_idx",
+   "defined_in": "libavutil/rational.c",
+   "ptr_args": [
+    {
+     "name": "q_list",
+     "ptr": {
+      "scalar": null,
+      "array": {
+       "by_val": true
+      },
+      "string": false,
+      "owned": false,
+      "borrowed": {
+       "lifetime": "arg:q_list"
+      },
+      "nullable": false,
+      "mutable": false,
+      "note": "Array of AVRational values read for the call only, up to the first entry whose `den` is 0 (the documented `{0, 0}` terminator; any zero denominator ends the scan). Must not be NULL and must contain such an entry; never written, stored or freed. The return is an index into it (0 for an empty list)."
+     }
+    }
+   ]
+  },
+  {
    "name": "av_float2int",
    "defined_in": "libavutil/intfloat.h"
   },
@@ -1555,12 +1625,42 @@
    "defined_in": "libavutil/mathematics.c"
   },
   {
+   "name": "av_gcd_q",
+   "defined_in": "libavutil/rational.c"
+  },
+  {
    "name": "av_get_cpu_flags",
    "defined_in": "libavutil/cpu.c"
   },
   {
+   "name": "av_get_media_type_string",
+   "defined_in": "libavutil/utils.c",
+   "ptr_ret": {
+    "ptr": {
+     "scalar": null,
+     "array": null,
+     "string": true,
+     "owned": false,
+     "borrowed": {
+      "lifetime": "static"
+     },
+     "nullable": true,
+     "mutable": false,
+     "note": "A string literal (\"video\", \"audio\", ...) for a named media type, immutable for the life of the process; NULL for AVMEDIA_TYPE_UNKNOWN and any unnamed value."
+    }
+   }
+  },
+  {
+   "name": "av_get_picture_type_char",
+   "defined_in": "libavutil/utils.c"
+  },
+  {
    "name": "av_get_random_seed",
    "defined_in": "libavutil/random_seed.c"
+  },
+  {
+   "name": "av_get_time_base_q",
+   "defined_in": "libavutil/utils.c"
   },
   {
    "name": "av_get_token",
@@ -1646,6 +1746,10 @@
   {
    "name": "av_int2float",
    "defined_in": "libavutil/intfloat.h"
+  },
+  {
+   "name": "av_inv_q",
+   "defined_in": "libavutil/rational.h"
   },
   {
    "name": "av_isdigit",
@@ -2025,6 +2129,10 @@
    }
   },
   {
+   "name": "av_make_q",
+   "defined_in": "libavutil/rational.h"
+  },
+  {
    "name": "av_malloc",
    "defined_in": "libavutil/mem.c",
    "lifetime": {
@@ -2261,6 +2369,14 @@
      "note": "Fresh av_malloc(size) block holding a byte copy of p (deep clone): one object (the per-thread context copies in dnxhdenc.c / mpegvideo.c) or an array. NULL when p is NULL or allocation fails. size 0 yields a 1-byte block. Released by av_free."
     }
    }
+  },
+  {
+   "name": "av_mul_q",
+   "defined_in": "libavutil/rational.c"
+  },
+  {
+   "name": "av_nearer_q",
+   "defined_in": "libavutil/rational.c"
   },
   {
    "name": "av_opt_freep_ranges",
@@ -2709,6 +2825,14 @@
    "defined_in": "libavutil/common.h"
   },
   {
+   "name": "av_q2d",
+   "defined_in": "libavutil/rational.h"
+  },
+  {
+   "name": "av_q2intfloat",
+   "defined_in": "libavutil/rational.c"
+  },
+  {
    "name": "av_random_bytes",
    "defined_in": "libavutil/random_seed.c",
    "ptr_args": [
@@ -2942,6 +3066,41 @@
   },
   {
    "name": "av_rescale",
+   "defined_in": "libavutil/mathematics.c"
+  },
+  {
+   "name": "av_rescale_delta",
+   "defined_in": "libavutil/mathematics.c",
+   "ptr_args": [
+    {
+     "name": "last",
+     "ptr": {
+      "scalar": {
+       "by_val": true
+      },
+      "array": null,
+      "string": false,
+      "owned": false,
+      "borrowed": {
+       "lifetime": "arg:last"
+      },
+      "nullable": false,
+      "mutable": true,
+      "note": "In/out state slot holding one int64_t timestamp in fs_tb units (AV_NOPTS_VALUE before the first call): read, then overwritten on every return path; never stored past the call. Must not be NULL (dereferenced unconditionally)."
+     }
+    }
+   ]
+  },
+  {
+   "name": "av_rescale_q",
+   "defined_in": "libavutil/mathematics.c"
+  },
+  {
+   "name": "av_rescale_q_rnd",
+   "defined_in": "libavutil/mathematics.c"
+  },
+  {
+   "name": "av_rescale_rnd",
    "defined_in": "libavutil/mathematics.c"
   },
   {
@@ -3717,6 +3876,10 @@
    }
   },
   {
+   "name": "av_sub_q",
+   "defined_in": "libavutil/rational.c"
+  },
+  {
    "name": "av_tolower",
    "defined_in": "libavutil/avstring.h"
   },
@@ -3760,6 +3923,62 @@
      "nullable": false,
      "mutable": true,
      "note": "buf itself."
+    }
+   }
+  },
+  {
+   "name": "av_ts_make_time_string",
+   "defined_in": "libavutil/timestamp.h",
+   "ptr_args": [
+    {
+     "name": "buf",
+     "ptr": {
+      "scalar": null,
+      "array": {
+       "by_val": true
+      },
+      "string": true,
+      "owned": false,
+      "borrowed": {
+       "lifetime": "arg:buf"
+      },
+      "nullable": false,
+      "mutable": true,
+      "note": "Caller's output buffer of at least AV_TS_MAX_STRING_SIZE bytes: av_ts_make_time_string2 snprintf's into it with that bound and then trims trailing zeros, writing a NUL within it; not stored. Must not be NULL."
+     }
+    },
+    {
+     "name": "tb",
+     "ptr": {
+      "scalar": {
+       "by_val": true
+      },
+      "array": null,
+      "string": false,
+      "owned": false,
+      "borrowed": {
+       "lifetime": "arg:tb"
+      },
+      "nullable": false,
+      "mutable": false,
+      "note": "Time base, dereferenced once (`*tb`) and passed by value to av_ts_make_time_string2; never stored or written. Must not be NULL."
+     }
+    }
+   ],
+   "ptr_ret": {
+    "ptr": {
+     "scalar": null,
+     "array": {
+      "by_val": true
+     },
+     "string": true,
+     "owned": false,
+     "borrowed": {
+      "lifetime": "arg:buf"
+     },
+     "nullable": false,
+     "mutable": true,
+     "note": "Returns `buf` itself, now holding the NUL-terminated text: borrowed from the caller's buffer."
     }
    }
   },

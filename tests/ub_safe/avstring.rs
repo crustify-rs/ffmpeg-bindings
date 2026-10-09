@@ -732,3 +732,101 @@ fn matching_runs_concurrently() {
         h.join().unwrap();
     }
 }
+
+/// [`escape`](ffmpeg::libavutil::avstring::escape) (core wave 1, batch 2) over
+/// every byte, every mode and flag set, inputs that grow most when escaped,
+/// and results dropped or kept past their inputs, here and on other threads.
+mod escaping {
+    use std::ffi::CString;
+    use std::thread;
+
+    use ffmpeg::libavutil::avstring::{EscapeFlags, EscapeMode, escape};
+    use ffmpeg::libavutil::mem::HeapString;
+
+    const MODES: [EscapeMode; 4] = [
+        EscapeMode::Auto,
+        EscapeMode::Backslash,
+        EscapeMode::Quote,
+        EscapeMode::Xml,
+    ];
+
+    fn flag_sets() -> [EscapeFlags; 6] {
+        [
+            EscapeFlags::empty(),
+            EscapeFlags::WHITESPACE,
+            EscapeFlags::STRICT,
+            EscapeFlags::XML_SINGLE_QUOTES | EscapeFlags::XML_DOUBLE_QUOTES,
+            EscapeFlags::from_bits_retain(-1),
+            EscapeFlags::from_bits_retain(i32::MIN),
+        ]
+    }
+
+    #[test]
+    fn every_byte_in_every_mode() {
+        let all: Vec<u8> = (1..=255).collect();
+        let src = CString::new(all).unwrap();
+        for mode in MODES {
+            for flags in flag_sets() {
+                for special in [None, Some(c""), Some(src.as_c_str())] {
+                    let out = escape(&src, special, mode, flags).unwrap();
+                    assert!(out.as_bytes().len() >= 255);
+                    assert!(!out.as_bytes().contains(&0));
+                }
+            }
+        }
+    }
+
+    #[test]
+    fn worst_case_growth_stays_in_bounds() {
+        // XML turns `&` into five bytes; quoting turns `'` into four.
+        for (byte, mode, factor) in [
+            (b'&', EscapeMode::Xml, 5),
+            (b'\'', EscapeMode::Quote, 4),
+            (b' ', EscapeMode::Backslash, 2),
+        ] {
+            for len in [1, 2, 63, 64, 65, 1000] {
+                let src = CString::new(vec![byte; len]).unwrap();
+                let out = escape(&src, Some(c" "), mode, EscapeFlags::WHITESPACE).unwrap();
+                assert!(out.as_bytes().len() >= len * factor, "{mode:?} {len}");
+            }
+        }
+    }
+
+    #[test]
+    fn results_outlive_their_inputs() {
+        let kept: Vec<HeapString> = (0..32)
+            .map(|i| {
+                let src = CString::new(format!("item {i}: 'a' & <b>")).unwrap();
+                let special = CString::new(":").unwrap();
+                escape(&src, Some(&special), MODES[i % 4], flag_sets()[i % 6]).unwrap()
+            })
+            .collect();
+        let total: usize = kept.iter().map(|s| s.as_bytes().len()).sum();
+        assert!(total > 32 * 10);
+        drop(kept);
+    }
+
+    #[test]
+    fn escapes_run_on_many_threads_at_once() {
+        let workers: Vec<_> = (0..8)
+            .map(|t| {
+                thread::spawn(move || {
+                    let src = CString::new(format!(" thread {t} 'quoted' <&> ")).unwrap();
+                    (0..500)
+                        .map(|i| {
+                            let s = escape(&src, None, MODES[i % 4], flag_sets()[i % 6]).unwrap();
+                            s.as_bytes().len()
+                        })
+                        .sum::<usize>()
+                })
+            })
+            .collect();
+        for w in workers {
+            assert!(w.join().unwrap() > 0);
+        }
+        let shared: HeapString =
+            escape(c"shared", None, EscapeMode::Quote, EscapeFlags::empty()).unwrap();
+        let moved = thread::spawn(move || shared.to_str().map(str::to_owned));
+        assert_eq!(moved.join().unwrap().as_deref(), Ok("'shared'"));
+    }
+}

@@ -1,7 +1,8 @@
 //! Safe wrappers over `libavutil/avstring.h`.
 //!
-//! [`format()`] and [`append_path_component`] return a [`HeapString`]: an
-//! `av_malloc`-family string the caller owns, released by `av_free`.
+//! [`format()`], [`append_path_component`] and [`escape`] return a
+//! [`HeapString`]: an `av_malloc`-family string the caller owns, released by
+//! `av_free`.
 //! [`basename`] borrows from its argument instead.
 //!
 //! Locale-independent string helpers. The case-insensitive ones fold ASCII
@@ -17,6 +18,7 @@ use core::fmt;
 use core::iter::FusedIterator;
 use core::marker::PhantomData;
 use core::num::NonZeroU8;
+use core::ops::{BitAnd, BitOr, BitOrAssign};
 use core::ptr;
 use std::borrow::Cow;
 use std::ffi::CString;
@@ -73,6 +75,162 @@ impl From<EscapeMode> for ffi::AVEscapeMode {
     fn from(mode: EscapeMode) -> Self {
         mode.into_raw()
     }
+}
+
+/// The `AV_ESCAPE_FLAG_*` flags that refine how [`escape`] escapes.
+///
+/// C takes them as an `int` and ignores bits it does not name, so any bit
+/// pattern is a valid value and the set operations carry unnamed bits along.
+#[repr(transparent)]
+#[derive(Clone, Copy, Default, PartialEq, Eq, Hash)]
+pub struct EscapeFlags(c_int);
+
+impl EscapeFlags {
+    /// Backslash mode: also escape every whitespace character, wherever it
+    /// is.
+    pub const WHITESPACE: Self = Self(ffi::AV_ESCAPE_FLAG_WHITESPACE as c_int);
+    /// Backslash mode: escape only the caller's special characters, not
+    /// those `av_get_token` treats as special (the quote, the backslash and
+    /// leading or trailing whitespace).
+    pub const STRICT: Self = Self(ffi::AV_ESCAPE_FLAG_STRICT as c_int);
+    /// XML mode: also escape `'`, for single-quoted attributes.
+    pub const XML_SINGLE_QUOTES: Self = Self(ffi::AV_ESCAPE_FLAG_XML_SINGLE_QUOTES as c_int);
+    /// XML mode: also escape `"`, for double-quoted attributes.
+    pub const XML_DOUBLE_QUOTES: Self = Self(ffi::AV_ESCAPE_FLAG_XML_DOUBLE_QUOTES as c_int);
+
+    /// Every named flag with its constant's name, in declaration order.
+    const KNOWN: [(Self, &'static str); 4] = [
+        (Self::WHITESPACE, "WHITESPACE"),
+        (Self::STRICT, "STRICT"),
+        (Self::XML_SINGLE_QUOTES, "XML_SINGLE_QUOTES"),
+        (Self::XML_DOUBLE_QUOTES, "XML_DOUBLE_QUOTES"),
+    ];
+
+    /// The set with no flag.
+    #[inline]
+    pub const fn empty() -> Self {
+        Self(0)
+    }
+
+    /// The set with exactly `bits`, named or not.
+    #[inline]
+    pub const fn from_bits_retain(bits: c_int) -> Self {
+        Self(bits)
+    }
+
+    /// The set's raw bits, as C takes them.
+    #[inline]
+    pub const fn bits(self) -> c_int {
+        self.0
+    }
+
+    /// Whether no bit is set.
+    #[inline]
+    pub const fn is_empty(self) -> bool {
+        self.0 == 0
+    }
+
+    /// Whether every bit of `other` is set in `self`.
+    #[inline]
+    pub const fn contains(self, other: Self) -> bool {
+        self.0 & other.0 == other.0
+    }
+}
+
+impl fmt::Debug for EscapeFlags {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.write_str("EscapeFlags(")?;
+        let mut rest = self.0;
+        let mut first = true;
+        for &(flag, name) in &Self::KNOWN {
+            if self.contains(flag) {
+                if !first {
+                    f.write_str(" | ")?;
+                }
+                f.write_str(name)?;
+                rest &= !flag.0;
+                first = false;
+            }
+        }
+        if rest != 0 || first {
+            if !first {
+                f.write_str(" | ")?;
+            }
+            write!(f, "{rest:#x}")?;
+        }
+        f.write_str(")")
+    }
+}
+
+impl BitOr for EscapeFlags {
+    type Output = Self;
+
+    #[inline]
+    fn bitor(self, rhs: Self) -> Self {
+        Self(self.0 | rhs.0)
+    }
+}
+
+impl BitOrAssign for EscapeFlags {
+    #[inline]
+    fn bitor_assign(&mut self, rhs: Self) {
+        self.0 |= rhs.0;
+    }
+}
+
+impl BitAnd for EscapeFlags {
+    type Output = Self;
+
+    #[inline]
+    fn bitand(self, rhs: Self) -> Self {
+        Self(self.0 & rhs.0)
+    }
+}
+
+/// Wraps: av_escape
+///
+/// `src` escaped by `mode`, as a new C string:
+///
+/// - [`Backslash`](EscapeMode::Backslash) (and [`Auto`](EscapeMode::Auto))
+///   puts a backslash before each character of `special`, and, unless
+///   `flags` has [`STRICT`](EscapeFlags::STRICT), before single quotes,
+///   backslashes, leading and trailing whitespace, and with
+///   [`WHITESPACE`](EscapeFlags::WHITESPACE) all whitespace;
+/// - [`Quote`](EscapeMode::Quote) encloses the text in single quotes,
+///   spelling each quote inside as `'\''`;
+/// - [`Xml`](EscapeMode::Xml) replaces `&`, `<` and `>` by entities, and
+///   quotes too under the `XML_*` flags.
+///
+/// `special` is used by backslash mode only. `None` when the result cannot be
+/// allocated, which includes a result of `i32::MAX` bytes or more.
+///
+/// ```
+/// use ffmpeg::libavutil::avstring::{EscapeFlags, EscapeMode, escape};
+/// let s = escape(c"a b:c", Some(c":"), EscapeMode::Backslash, EscapeFlags::empty()).unwrap();
+/// assert_eq!(s.to_str(), Ok("a b\\:c"));
+/// let s = escape(c"<it's>", None, EscapeMode::Xml, EscapeFlags::XML_SINGLE_QUOTES).unwrap();
+/// assert_eq!(s.to_str(), Ok("&lt;it&apos;s&gt;"));
+/// ```
+pub fn escape(
+    src: &CStr,
+    special: Option<&CStr>,
+    mode: EscapeMode,
+    flags: EscapeFlags,
+) -> Option<HeapString> {
+    let mut dst: *mut c_char = ptr::null_mut();
+    let special = special.map_or(ptr::null(), CStr::as_ptr);
+    // SAFETY: `dst` is a live, writable out-slot; `src` is a NUL-terminated
+    // string and `special` NULL or one, which `av_escape` only reads during
+    // the call; the mode and flags go by value, and C accepts any.
+    let ret = unsafe { ffi::av_escape(&mut dst, src.as_ptr(), special, mode.into(), flags.bits()) };
+    if ret < 0 {
+        // C leaves `dst` untouched or NULL on failure.
+        return None;
+    }
+    // SAFETY: on success `dst` is a fresh, uniquely-owned, NUL-terminated
+    // `av_malloc`-family block (`av_bprint_finalize`'s `av_realloc` or
+    // `av_memdup` copy), which `av_free` releases.
+    unsafe { HeapString::from_raw(dst) }
 }
 
 /// Wraps: av_strstart
@@ -1525,5 +1683,86 @@ mod unit_tests {
         assert!(!match_list(c"ab", c"a", comma));
         let high = NonZeroU8::new(0xff).unwrap();
         assert!(match_list(c"x\xffy", c"y", high));
+    }
+
+    #[test]
+    fn escape_flags_combine_and_print() {
+        let both = EscapeFlags::WHITESPACE | EscapeFlags::STRICT;
+        assert_eq!(both.bits(), 3);
+        assert!(both.contains(EscapeFlags::STRICT));
+        assert!(!both.contains(EscapeFlags::XML_SINGLE_QUOTES));
+        assert_eq!(both & EscapeFlags::STRICT, EscapeFlags::STRICT);
+        let mut f = EscapeFlags::empty();
+        assert!(f.is_empty());
+        f |= EscapeFlags::XML_DOUBLE_QUOTES;
+        assert_eq!(f, EscapeFlags::from_bits_retain(8));
+        assert_eq!(EscapeFlags::default(), EscapeFlags::empty());
+        assert_eq!(format!("{:?}", EscapeFlags::empty()), "EscapeFlags(0x0)");
+        assert_eq!(format!("{both:?}"), "EscapeFlags(WHITESPACE | STRICT)");
+        assert_eq!(
+            format!("{:?}", EscapeFlags::from_bits_retain(0x14)),
+            "EscapeFlags(XML_SINGLE_QUOTES | 0x10)"
+        );
+        assert_eq!(
+            format!("{:?}", EscapeFlags::from_bits_retain(0x20)),
+            "EscapeFlags(0x20)"
+        );
+    }
+
+    #[test]
+    fn escape_flags_debug_forwards_writer_errors() {
+        /// Accepts `budget` writes, then fails.
+        struct Budget(usize);
+        impl fmt::Write for Budget {
+            fn write_str(&mut self, _: &str) -> fmt::Result {
+                self.0 = self.0.checked_sub(1).ok_or(fmt::Error)?;
+                Ok(())
+            }
+        }
+        let f = EscapeFlags::from_bits_retain(0x13);
+        let full = format!("{f:?}");
+        assert_eq!(full, "EscapeFlags(WHITESPACE | STRICT | 0x10)");
+        let mut budget = 0;
+        while fmt::write(&mut Budget(budget), format_args!("{f:?}")).is_err() {
+            budget += 1;
+        }
+        assert!(budget > 4);
+    }
+
+    #[test]
+    fn escape_by_each_mode() {
+        let none = EscapeFlags::empty();
+        let esc = |src, special, mode, flags| {
+            escape(src, special, mode, flags)
+                .unwrap()
+                .to_str()
+                .unwrap()
+                .to_owned()
+        };
+        assert_eq!(esc(c" a'b ", None, EscapeMode::Auto, none), "\\ a\\'b\\ ");
+        assert_eq!(
+            esc(
+                c"a:b",
+                Some(c":"),
+                EscapeMode::Backslash,
+                EscapeFlags::STRICT
+            ),
+            "a\\:b"
+        );
+        assert_eq!(
+            esc(c"a b", None, EscapeMode::Backslash, EscapeFlags::WHITESPACE),
+            "a\\ b"
+        );
+        assert_eq!(esc(c"it's", None, EscapeMode::Quote, none), "'it'\\''s'");
+        assert_eq!(
+            esc(c"<&>\"", None, EscapeMode::Xml, none),
+            "&lt;&amp;&gt;\""
+        );
+        assert_eq!(
+            esc(c"\"", None, EscapeMode::Xml, EscapeFlags::XML_DOUBLE_QUOTES),
+            "&quot;"
+        );
+        assert_eq!(esc(c"", None, EscapeMode::Quote, none), "''");
+        assert_eq!(esc(c"", None, EscapeMode::Backslash, none), "");
     }
 }

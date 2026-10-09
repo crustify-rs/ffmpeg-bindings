@@ -485,3 +485,51 @@ mod fourcc {
         }
     }
 }
+
+/// The names, letters and time base C gives (core wave 1, batch 2): each safe
+/// accessor against the C function, over named and unnamed values.
+mod names {
+    use ffmpeg::libavutil::avutil::{MediaType, PictureType, time_base};
+    use ffmpeg::libavutil::ffi;
+
+    use super::{NAMED, PICTURE_NAMED, UNNAMED, c_letter, c_name, picture_values};
+
+    #[test]
+    fn as_str_is_av_get_media_type_string() {
+        let values = NAMED
+            .iter()
+            .map(|&(_, raw, _)| raw)
+            .chain(UNNAMED.map(ffi::AVMediaType));
+        for raw in values {
+            assert_eq!(MediaType::from_raw(raw).as_str(), c_name(raw), "{raw:?}");
+        }
+        for (t, _, name) in NAMED {
+            assert_eq!(t.as_str(), name);
+        }
+    }
+
+    #[test]
+    fn to_char_is_av_get_picture_type_char() {
+        for raw in picture_values() {
+            assert_eq!(
+                PictureType::from_raw(raw).to_char(),
+                char::from(c_letter(raw)),
+                "{raw:?}"
+            );
+        }
+        for (t, raw, letter) in PICTURE_NAMED {
+            assert_eq!(t.to_char(), char::from(letter));
+            assert_eq!(t.to_char(), char::from(c_letter(raw)));
+        }
+    }
+
+    #[test]
+    fn time_base_is_av_get_time_base_q() {
+        // SAFETY: `av_get_time_base_q` takes no arguments and returns a
+        // struct by value.
+        let c = unsafe { ffi::av_get_time_base_q() };
+        let tb = time_base();
+        assert_eq!((tb.as_ref().num(), tb.as_ref().den()), (c.num, c.den));
+        assert_eq!(c.den, ffi::AV_TIME_BASE as i32);
+    }
+}

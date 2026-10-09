@@ -312,3 +312,308 @@ fn rescale_matches_av_rescale_on_every_class() {
         }
     }
 }
+
+/// Rescaling and timestamp arithmetic (core wave 1, batch 2): each safe
+/// function against the C function on the same arguments, and the stateful
+/// ones over call sequences compared after every step.
+mod timestamps {
+    use core::cmp::Ordering;
+
+    use ffmpeg::libavutil::ffi;
+    use ffmpeg::libavutil::mathematics::{
+        Rounding, add_stable, compare_timestamps, rescale_delta, rescale_rational,
+        rescale_rational_rounded, rescale_rounded,
+    };
+    use ffmpeg::libavutil::rational::Rational;
+
+    use super::{A, BC, rescale, roundings};
+
+    /// Time bases from the usual to the degenerate: zero and negative parts,
+    /// and the `int` extremes.
+    const TBS: [(i32, i32); 12] = [
+        (1, 1),
+        (1, 1000),
+        (1, 90000),
+        (1, 44100),
+        (1001, 30000),
+        (1, 1_000_000),
+        (3, 7),
+        (0, 1),
+        (1, 0),
+        (-1, 25),
+        (i32::MAX, 1),
+        (1, i32::MAX),
+    ];
+
+    fn q(tb: (i32, i32)) -> Rational {
+        Rational::new(tb.0, tb.1)
+    }
+
+    fn c(tb: (i32, i32)) -> ffi::AVRational {
+        ffi::AVRational {
+            num: tb.0,
+            den: tb.1,
+        }
+    }
+
+    /// What a safe rescale should say of C's result `r` for `a`: the value,
+    /// or `None` for C's rejection, which is `INT64_MIN` except as the
+    /// pass-through of `a == INT64_MIN`.
+    fn expected(r: i64, a: i64, rnd: ffi::AVRounding, accepted: bool) -> Option<i64> {
+        let pass = rnd.0 & ffi::AVRounding::AV_ROUND_PASS_MINMAX.0 != 0;
+        (r != i64::MIN || (a == i64::MIN && pass && accepted)).then_some(r)
+    }
+
+    #[test]
+    fn rescale_rounded_is_av_rescale_rnd() {
+        let more_bc = BC
+            .into_iter()
+            .chain([(0, 1), (1, 0), (-1, 1), (1, -1), (i64::MAX, 1)]);
+        for (b, c) in more_bc {
+            for a in A {
+                for (raw, rounding) in roundings() {
+                    let r = rescale(a, b, c, raw);
+                    let want = expected(r, a, raw, b >= 0 && c > 0);
+                    assert_eq!(
+                        rescale_rounded(a, b, c, rounding),
+                        want,
+                        "{a} {b} {c} {rounding:?}"
+                    );
+                }
+            }
+        }
+    }
+
+    #[test]
+    fn rescale_rational_is_av_rescale_q() {
+        for bq in TBS {
+            for cq in TBS {
+                for a in A {
+                    // SAFETY: both take integers and structs by value and
+                    // handle every argument.
+                    let r = unsafe { ffi::av_rescale_q(a, c(bq), c(cq)) };
+                    assert_eq!(
+                        rescale_rational(a, q(bq), q(cq)),
+                        (r != i64::MIN).then_some(r),
+                        "{a} {bq:?} {cq:?}"
+                    );
+                    let b = i64::from(bq.0) * i64::from(cq.1);
+                    let d = i64::from(cq.0) * i64::from(bq.1);
+                    for (raw, rounding) in roundings() {
+                        // SAFETY: as above.
+                        let r = unsafe { ffi::av_rescale_q_rnd(a, c(bq), c(cq), raw) };
+                        assert_eq!(
+                            rescale_rational_rounded(a, q(bq), q(cq), rounding),
+                            expected(r, a, raw, b >= 0 && d > 0),
+                            "{a} {bq:?} {cq:?} {rounding:?}"
+                        );
+                    }
+                }
+            }
+        }
+    }
+
+    #[test]
+    fn compare_timestamps_is_av_compare_ts() {
+        for ta in TBS {
+            for tb in TBS {
+                for a in A {
+                    for b in [0, 1, -1, 90_000, i64::MAX, i64::MIN, a] {
+                        // SAFETY: `av_compare_ts` takes its arguments by value
+                        // and handles every one.
+                        let r = unsafe { ffi::av_compare_ts(a, c(ta), b, c(tb)) };
+                        assert_eq!(compare_timestamps(a, q(ta), b, q(tb)), r.cmp(&0));
+                    }
+                }
+            }
+        }
+        assert_eq!(
+            compare_timestamps(1, q((1, 1000)), 1000, q((1, 1_000_000))),
+            Ordering::Equal
+        );
+    }
+
+    /// One audio stream: input and sample time bases, packet stamps with
+    /// jitter, durations, and output time base.
+    struct Stream {
+        in_tb: (i32, i32),
+        fs_tb: (i32, i32),
+        out_tb: (i32, i32),
+        stamps: Vec<i64>,
+        durations: Vec<i32>,
+    }
+
+    fn streams() -> Vec<Stream> {
+        let jitter = [0, 1, -1, 0, 2, -2, 0, 0, 1, 5, -40, 0];
+        vec![
+            Stream {
+                in_tb: (1, 1000),
+                fs_tb: (1, 44100),
+                out_tb: (1, 44100),
+                stamps: (0..48)
+                    .map(|i| i * 1024 * 1000 / 44100 + jitter[i as usize % 12])
+                    .collect(),
+                durations: vec![1024; 48],
+            },
+            Stream {
+                in_tb: (1, 90000),
+                fs_tb: (1, 48000),
+                out_tb: (1, 48000),
+                stamps: (0..48)
+                    .map(|i| i * 1920 + jitter[i as usize % 12] * 7)
+                    .collect(),
+                durations: (0..48).map(|i| if i % 5 == 0 { 0 } else { 1024 }).collect(),
+            },
+            Stream {
+                in_tb: (1, 25),
+                fs_tb: (1, 48000),
+                out_tb: (1, 1000),
+                stamps: (0..48).map(|i| i + jitter[i as usize % 12] / 2).collect(),
+                durations: vec![1920; 48],
+            },
+            Stream {
+                in_tb: (1, 48000),
+                fs_tb: (1, 48000),
+                out_tb: (1, 1000),
+                stamps: (0..48).map(|i| -(1 << 40) + i * 960).collect(),
+                durations: vec![960; 48],
+            },
+            Stream {
+                in_tb: (1, 1),
+                fs_tb: (1, 4),
+                out_tb: (1, 4),
+                stamps: (0..48)
+                    .map(|i| (1 << 58) + i * 3 + jitter[i as usize % 12] / 2)
+                    .collect(),
+                durations: vec![12; 48],
+            },
+        ]
+    }
+
+    #[test]
+    fn rescale_delta_tracks_av_rescale_delta_over_streams() {
+        for (n, s) in streams().into_iter().enumerate() {
+            let (mut mine, mut theirs) = (i64::MIN, i64::MIN);
+            for (i, (&ts, &dur)) in s.stamps.iter().zip(&s.durations).enumerate() {
+                let r = rescale_delta(q(s.in_tb), ts, q(s.fs_tb), dur, &mut mine, q(s.out_tb));
+                // SAFETY: `theirs` is a live state slot; the streams keep
+                // every stamp off `AV_NOPTS_VALUE`, every duration
+                // non-negative, and every step off C's overflows, which the
+                // safe call above confirms by answering.
+                let c = unsafe {
+                    assert!(r.is_some(), "stream {n} step {i}");
+                    ffi::av_rescale_delta(c(s.in_tb), ts, c(s.fs_tb), dur, &mut theirs, c(s.out_tb))
+                };
+                assert_eq!(r, Some(c), "stream {n} step {i}");
+                assert_eq!(mine, theirs, "stream {n} step {i}");
+            }
+        }
+    }
+
+    #[test]
+    fn unrepresentable_results_update_the_state_as_c_does() {
+        // `2^61` ms is beyond `i64` in 1/90000 units, while the state in
+        // seconds is not.
+        let (ms, s, out) = ((1, 1000), (1, 1), (1, 90000));
+        let (mut mine, mut theirs) = (i64::MIN, i64::MIN);
+        for i in 0..4 {
+            let ts = (1 << 61) + i * 1000;
+            let r = rescale_delta(q(ms), ts, q(s), 1, &mut mine, q(out));
+            // SAFETY: `theirs` is a live state slot; the stamp is not
+            // `AV_NOPTS_VALUE`, the duration is non-negative, and C's state
+            // update, about `2^61 / 1000 + 1`, stays far from overflowing.
+            let c = unsafe { ffi::av_rescale_delta(c(ms), ts, c(s), 1, &mut theirs, c(out)) };
+            assert_eq!(c, i64::MIN, "step {i}");
+            assert_eq!((r, mine), (None, theirs), "step {i}");
+        }
+    }
+
+    #[test]
+    fn rescale_delta_restarts_from_a_reset_state() {
+        let s = &streams()[0];
+        let (mut mine, mut theirs) = (i64::MIN, i64::MIN);
+        for (i, &ts) in s.stamps.iter().enumerate() {
+            if i % 7 == 0 {
+                (mine, theirs) = (i64::MIN, i64::MIN);
+            }
+            let r = rescale_delta(q(s.in_tb), ts, q(s.fs_tb), 1024, &mut mine, q(s.out_tb));
+            // SAFETY: as in `rescale_delta_tracks_av_rescale_delta_over_streams`.
+            let c = unsafe {
+                ffi::av_rescale_delta(c(s.in_tb), ts, c(s.fs_tb), 1024, &mut theirs, c(s.out_tb))
+            };
+            assert_eq!((r, mine), (Some(c), theirs), "step {i}");
+        }
+    }
+
+    #[test]
+    fn add_stable_tracks_av_add_stable_over_sequences() {
+        let cases = [
+            ((1, 1000), (1, 44100), 1024),
+            ((1, 90000), (1, 48000), 1),
+            ((1, 90000), (1, 48000), 960),
+            ((1, 25), (1, 1000), 33),
+            ((1001, 30000), (1, 90000), 3003),
+            ((1, 1), (1, 3), 1),
+            ((1, 3), (1, 1), 2),
+            ((1, 1000), (1, 1000), 7),
+        ];
+        for (ts_tb, inc_tb, inc) in cases {
+            for start in [0, -5000, 1 << 40, i64::MAX - 100] {
+                let (mut mine, mut theirs) = (start, start);
+                for i in 0..200 {
+                    let r = add_stable(q(ts_tb), mine, q(inc_tb), inc).unwrap();
+                    // SAFETY: `av_add_stable` takes its arguments by value; the
+                    // increments are positive and within `int`, and both time
+                    // bases have nonzero parts, which keeps it off its
+                    // overflows.
+                    theirs = unsafe { ffi::av_add_stable(c(ts_tb), theirs, c(inc_tb), inc) };
+                    mine = r;
+                    assert_eq!(
+                        mine, theirs,
+                        "{ts_tb:?} {inc_tb:?} {inc} from {start}, step {i}"
+                    );
+                }
+            }
+        }
+    }
+
+    #[test]
+    fn add_stable_agrees_on_c_s_defined_edges() {
+        for ts_tb in TBS {
+            for inc_tb in TBS {
+                for inc in [1, 2, -1, -3, 0, i64::from(i32::MAX), i64::from(i32::MIN)] {
+                    for ts in A {
+                        let Some(r) = add_stable(q(ts_tb), ts, q(inc_tb), inc) else {
+                            continue;
+                        };
+                        // SAFETY: the safe call answered, so the arguments
+                        // keep C off its overflows and divisions by zero.
+                        let c = unsafe { ffi::av_add_stable(c(ts_tb), ts, c(inc_tb), inc) };
+                        assert_eq!(r, c, "{ts_tb:?} {ts} {inc_tb:?} {inc}");
+                    }
+                }
+            }
+        }
+    }
+
+    #[test]
+    fn pass_through_survives_a_round_trip() {
+        let pass = Rounding::NEAR_INF.pass_min_max();
+        let there = rescale_rational_rounded(i64::MIN, q((1, 1000)), q((1, 90000)), pass);
+        assert_eq!(there, Some(i64::MIN));
+        let back = rescale_rational_rounded(there.unwrap(), q((1, 90000)), q((1, 1000)), pass);
+        // SAFETY: `av_rescale_q_rnd` takes its arguments by value.
+        let c = unsafe {
+            let raw = ffi::AVRounding(
+                ffi::AVRounding::AV_ROUND_NEAR_INF.0 | ffi::AVRounding::AV_ROUND_PASS_MINMAX.0,
+            );
+            ffi::av_rescale_q_rnd(
+                ffi::av_rescale_q_rnd(i64::MIN, c((1, 1000)), c((1, 90000)), raw),
+                c((1, 90000)),
+                c((1, 1000)),
+                raw,
+            )
+        };
+        assert_eq!(back, Some(c));
+    }
+}

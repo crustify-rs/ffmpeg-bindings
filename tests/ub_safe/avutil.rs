@@ -231,3 +231,65 @@ mod fourcc {
         }
     }
 }
+
+/// Names, letters and the time base (core wave 1, batch 2) for every value C
+/// may store, here and on other threads.
+mod names {
+    use std::thread;
+
+    use ffmpeg::libavutil::avutil::{MediaType, PictureType, time_base};
+    use ffmpeg::libavutil::ffi;
+
+    /// `int` and `unsigned` edges, as the enums' encodings.
+    const VALUES: [i64; 12] = [
+        0,
+        1,
+        5,
+        6,
+        7,
+        8,
+        -1,
+        -2,
+        i32::MAX as i64,
+        i32::MIN as i64,
+        u32::MAX as i64,
+        1 << 20,
+    ];
+
+    #[test]
+    fn every_value_names_and_letters() {
+        for v in VALUES {
+            let name = MediaType::from_raw(ffi::AVMediaType(v as i32)).as_str();
+            assert!(name.is_none_or(|n| !n.is_empty() && n.is_ascii()));
+            let letter = PictureType::from_raw(ffi::AVPictureType(v as u32)).to_char();
+            assert!(letter.is_ascii_graphic());
+        }
+        assert_eq!(time_base().to_f64(), 1e-6);
+    }
+
+    #[test]
+    fn names_outlive_any_value_and_cross_threads() {
+        let names: Vec<&'static str> = thread::scope(|s| {
+            let workers: Vec<_> = (0..4)
+                .map(|_| {
+                    s.spawn(|| {
+                        (-1..7)
+                            .filter_map(|v| MediaType::from_raw(ffi::AVMediaType(v)).as_str())
+                            .collect::<Vec<_>>()
+                    })
+                })
+                .collect();
+            workers
+                .into_iter()
+                .flat_map(|w| w.join().unwrap())
+                .collect()
+        });
+        assert_eq!(names.len(), 4 * 5);
+        let letters = thread::spawn(|| {
+            (0..9)
+                .map(|v| PictureType::from_raw(ffi::AVPictureType(v)).to_char())
+                .collect::<String>()
+        });
+        assert_eq!(letters.join().unwrap(), "?IPBSipb?");
+    }
+}

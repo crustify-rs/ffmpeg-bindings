@@ -1604,3 +1604,110 @@ fn match_list_matches_av_match_list_for_every_separator() {
         }
     }
 }
+
+/// The safe [`escape`](ffmpeg::libavutil::avstring::escape) against raw
+/// `av_escape` (core wave 1, batch 2), over every mode, flag set and special
+/// set, alone and chained.
+mod escape_wrapper {
+    use core::ffi::{CStr, c_int};
+    use std::ffi::CString;
+
+    use ffmpeg::libavutil::avstring::{EscapeFlags, escape};
+    use ffmpeg::libavutil::ffi;
+
+    use super::{FLAGS, INPUTS, MODES};
+
+    /// The safe wrapper's bytes, `Err` when it reports a failure.
+    fn mine(
+        src: &CStr,
+        special: Option<&CStr>,
+        mode: ffmpeg::libavutil::avstring::EscapeMode,
+        flags: c_int,
+    ) -> Result<Vec<u8>, ()> {
+        escape(src, special, mode, EscapeFlags::from_bits_retain(flags))
+            .map(|s| s.as_bytes().to_vec())
+            .ok_or(())
+    }
+
+    #[test]
+    fn escape_is_av_escape() {
+        let flags = FLAGS.iter().copied().chain([1 << 4, -1, c_int::MIN]);
+        for (mode, raw) in MODES {
+            for f in flags.clone() {
+                for special in [None, Some(c""), Some(c"lt"), Some(c" "), Some(c"'\\<&")] {
+                    for src in INPUTS {
+                        let c = super::escape(src, special, raw, f).map_err(drop);
+                        assert_eq!(
+                            mine(src, special, mode, f),
+                            c,
+                            "{src:?} {special:?} {mode:?} {f:#x}"
+                        );
+                    }
+                }
+            }
+        }
+    }
+
+    /// Set in the child process an isolated test re-runs itself in.
+    const ISOLATED: &str = "CRUSTIFY_EQUIV_ISOLATED";
+
+    /// The `av_max_alloc` limit is process-global, so this test lowers it only
+    /// in a child process running nothing else, and passes when the child
+    /// does.
+    #[test]
+    fn failures_at_the_av_max_alloc_limit_match_c() {
+        const NAME: &str = "avstring::escape_wrapper::failures_at_the_av_max_alloc_limit_match_c";
+        if std::env::var_os(ISOLATED).is_none() {
+            let status = std::process::Command::new(std::env::current_exe().unwrap())
+                .args(["--exact", NAME, "--test-threads=1", "--nocapture"])
+                .env(ISOLATED, "1")
+                .status()
+                .unwrap();
+            assert!(status.success(), "isolated run failed: {status}");
+            return;
+        }
+
+        // `av_escape` fills an `AVBPrint` whose first kilobyte or so is
+        // internal: a short result fails at the final `av_memdup`, a long one
+        // while the buffer grows past it.
+        const LIMIT: usize = 64;
+        // SAFETY: `av_max_alloc` takes a size by value; nothing else runs in
+        // this process.
+        unsafe { ffi::av_max_alloc(LIMIT) };
+        let (mut ok, mut failed) = (0, 0);
+        for len in [0, 10, 62, 63, 64, 100, 1000, 3000] {
+            let src = CString::new(vec![b'a'; len]).unwrap();
+            for (mode, raw) in MODES {
+                let c = super::escape(&src, None, raw, 0).map_err(drop);
+                let r = mine(&src, None, mode, 0);
+                assert_eq!(r, c, "{len} {mode:?}");
+                match r {
+                    // The result and its NUL fit the limit.
+                    Ok(v) => {
+                        assert!(v.len() < LIMIT, "{len} {mode:?}");
+                        ok += 1;
+                    }
+                    Err(()) => failed += 1,
+                }
+            }
+        }
+        assert!(ok > 0 && failed > 0, "{ok} {failed}");
+        // SAFETY: as above; the default limit again.
+        unsafe { ffi::av_max_alloc(i32::MAX as usize) };
+        assert!(mine(c"0123456789abcdef", None, MODES[0].0, 0).is_ok());
+    }
+    #[test]
+    fn repeated_escapes_agree_after_every_step() {
+        for (mode, raw) in MODES {
+            let mut rust = CString::from(c"a 'quoted' <x> & \\ tail ");
+            let mut c = rust.clone();
+            for step in 0..5 {
+                let r = escape(&rust, Some(c"x"), mode, EscapeFlags::WHITESPACE).unwrap();
+                let k = super::escape(&c, Some(c"x"), raw, 1).unwrap();
+                assert_eq!(r.as_bytes(), &k[..], "{mode:?} step {step}");
+                rust = CString::new(r.as_bytes()).unwrap();
+                c = CString::new(k).unwrap();
+            }
+        }
+    }
+}

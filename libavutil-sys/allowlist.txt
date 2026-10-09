@@ -282,3 +282,25 @@ var AV_LOG_PRINT_DATETIME
 
 # libavutil/timestamp.h: av_ts_make_time_string2 (core wave 1, batch 3).
 function av_ts_make_time_string2
+# Core wave 1, batch 2: rational.h arithmetic, comparison and conversion,
+# mathematics.h rescaling and timestamp helpers, avutil.h's time base,
+# avstring.h's escape flags and timestamp.h's time string (static inline,
+# compiled by bindgen's wrap_static_fns).
+function av_add_q
+function av_sub_q
+function av_mul_q
+function av_div_q
+function av_d2q
+function av_nearer_q
+function av_find_nearest_q_idx
+function av_q2intfloat
+function av_gcd_q
+function av_rescale_q
+function av_rescale_q_rnd
+function av_compare_ts
+function av_rescale_delta
+function av_add_stable
+function av_get_time_base_q
+var AV_TIME_BASE
+var AV_ESCAPE_FLAG_.*
+function av_ts_make_time_string
