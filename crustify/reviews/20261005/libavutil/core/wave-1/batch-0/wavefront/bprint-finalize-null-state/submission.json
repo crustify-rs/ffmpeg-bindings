@@ -1,0 +1,18 @@
+{
+  "fields": {
+    "str": {
+      "ptr": {
+        "scalar": null,
+        "array": null,
+        "string": true,
+        "owned": true,
+        "borrowed": {
+          "lifetime": "field:reserved_internal_buffer"
+        },
+        "nullable": true,
+        "mutable": true,
+        "note": "The string buffer, NUL-terminated at min(len, size - 1) whenever size > 0, possibly holding binary data before that. Runtime-conditional ownership: it points at reserved_internal_buffer (av_bprint_init, automatic storage reaching through reserved_padding to the end of the 1024-byte struct; also the size-0 fallback of av_bprint_init_for_buffer), at an av_realloc block the struct owns once av_bprint_alloc grew it (av_bprint_is_allocated: str != reserved_internal_buffer; released by av_bprint_finalize(buf, NULL) or handed out by av_bprint_finalize(buf, &s)), or at a caller buffer from av_bprint_init_for_buffer (borrowed from `other`; is_allocated is then true too, but size == size_max keeps av_bprint_alloc from reallocating it, and finalize must never run on it). NULL after av_bprint_finalize either hands the allocation out or releases it with av_freep when ret_str is NULL; inline storage is not cleared by finalization. Self-referential in the inline case, so an initialised AVBPrint must not move."
+      }
+    }
+  }
+}
