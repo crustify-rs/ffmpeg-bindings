@@ -18,7 +18,7 @@ Copy this template into the campaign checkout, then fill it as work lands.
 - **`--min-fields`** — `20`
 - **orchestrator parallelism** — `10` concurrent batch processes
 - **branch** — `crustify/campaigns/20261005`, tip `<sha>`
-- **deps** — crustify `a2b5c64` (`main`, plus uncommitted prompt edits), ffibox `196c5fb` (`main`)
+- **deps** — crustify `df5688f` (`main`, plus uncommitted prompt edits), ffibox `196c5fb` (`main`)
 - **build version** — `3`
 - **C test baseline** — `5437/5437, 0 skipped, and no disabled tests`
 
@@ -938,6 +938,10 @@ and which every gated tip passes.
 
 On 2026-10-09, crustify `main` took `f66b2c3`..`a2b5c64`, which change what the scan counts.
 All figures above this note were measured before the change and stay as measured.
+Later the same day `821ee53`..`df5688f` added `--sites`, split `ref_to_type_wrapper` into
+`_sanctioned` (73 on the same tree) and `_smell` (1: `Class::as_c_ptr(&self)`, `log.rs:472`), added
+`ref_to_type_wrapper_body_smell` (0), and documented the known limitations in crustify's
+`docs/audit/unsafe-output.md`.
 
 - **Seam:** the unsafe lifecycle trait methods (`c_drop`, `c_drop_len`, `c_dup`, `c_clone_len`,
   `c_up_ref`, `c_is_sole_owner`, `c_lock`, `c_unlock`, `c_dispose`) join the seam name list.
