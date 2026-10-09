@@ -18,7 +18,7 @@ Copy this template into the campaign checkout, then fill it as work lands.
 - **`--min-fields`** — `20`
 - **orchestrator parallelism** — `10` concurrent batch processes
 - **branch** — `crustify/campaigns/20261005`, tip `<sha>`
-- **deps** — crustify `2a4a613` (`main`, plus uncommitted prompt edits), ffibox `196c5fb` (`main`)
+- **deps** — crustify `a2b5c64` (`main`, plus uncommitted prompt edits), ffibox `196c5fb` (`main`)
 - **build version** — `3`
 - **C test baseline** — `5437/5437, 0 skipped, and no disabled tests`
 
@@ -931,3 +931,41 @@ scan in this campaign, while the driver counts 431 `unsafe` blocks at `ffda06bb2
 driver's counts and the smells are unaffected. Statements here that no `unsafe` block lacks a
 `// SAFETY:` comment rest on `clippy::undocumented_unsafe_blocks`, which the workspace denies
 and which every gated tip passes.
+
+### `scan-unsafe` counter redefinition after `core` wave 1
+
+On 2026-10-09, crustify `main` took `f66b2c3`..`a2b5c64`, which change what the scan counts.
+All figures above this note were measured before the change and stay as measured.
+
+- **Seam:** the unsafe lifecycle trait methods (`c_drop`, `c_drop_len`, `c_dup`, `c_clone_len`,
+  `c_up_ref`, `c_is_sole_owner`, `c_lock`, `c_unlock`, `c_dispose`) join the seam name list.
+  Their trait fixes their `unsafe fn` signature.
+- **Partitions:** `unsafe_fns`, the raw-pointer positions and the `c_void` positions are each
+  split into seam + pub smell + private smell. "Pub" is rustc's effective visibility
+  (callable from outside the crate). This replaces `unsafe_fns_pub`, which counted declared
+  visibility and included seam functions, and `void_ptr_sanctioned` / `void_ptr_smell`.
+  `raw_ptr_in_wrapper` is dropped.
+- **Positions:** a raw pointer nested in a reference, generic argument, tuple, array or slice
+  of a parameter or return type now counts, a pointer to a pointer counts once, and
+  fn-pointer types are not entered.
+- **Sites:** `raw_ptr_sites` is renamed `raw_ptr_smell_sites` and lists every smell position,
+  not only those whose pointee has a wrapper.
+- **`undocumented_unsafe`:** its walker now applies the skip list below the workspace root,
+  so it measures this campaign's crate: 18 of 1044 sites have no `// SAFETY:` comment in
+  its lookback window. The ones checked are long comments and `unsafe impl Send` blocks, not
+  gaps; `clippy::undocumented_unsafe_blocks` passes.
+
+Same Rust tree (`core` waves 0–1 reviewed), old against new definitions:
+
+| | old | new |
+|---|---|---|
+| `unsafe fn` | `75`: `43` seam, `24` pub (declared, seam included) | `75`: `53` seam, `14` pub smell, `8` private smell |
+| `unsafe fn` smell | `32` | `22` |
+| raw-pointer positions | `131`: `103` seam, smell `28` | `138`: `106` seam, smell `16` pub + `16` private |
+| `c_void` positions | `60`: `44` sanctioned, smell `16` | `61`: `44` seam, smell `14` pub + `3` private |
+
+The 14 public `unsafe fn` smells are the 14 explicit `pub unsafe fn`s, 11 of them taking an
+untyped `AVClass`-enabled object, and the 14 public `c_void` smells are those objects'
+parameters. Nested counting found two public raw pointers into C memory from the safe API:
+`OptionRangesRef::ranges` and `get` return `*const ffi::AVOptionRange` until that type is
+wrapped in `libavutil/options`.
