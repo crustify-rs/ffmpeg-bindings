@@ -263,6 +263,47 @@ mod owners {
         }
     }
 
+    /// Descriptor allocation fails before C sees the caller buffer. The
+    /// limit is process-wide, so run this case in an isolated child.
+    #[test]
+    fn descriptor_allocation_failure_leaves_caller_storage_untouched() {
+        const CHILD: &str = "CRUSTIFY_BPRINT_ALLOCATION_FAILURE_CHILD";
+        if std::env::var_os(CHILD).is_none() {
+            let status = std::process::Command::new(std::env::current_exe().unwrap())
+                .args([
+                    "--exact",
+                    "bprint::owners::descriptor_allocation_failure_leaves_caller_storage_untouched",
+                    "--test-threads=1",
+                ])
+                .env(CHILD, "1")
+                .status()
+                .unwrap();
+            assert!(status.success());
+            return;
+        }
+
+        use ffmpeg::libavutil::mem::set_max_alloc;
+        for limit in [0, 1, 1023] {
+            set_max_alloc(limit);
+            assert!(BPrint::new(0, BPrint::SIZE_AUTOMATIC).is_none());
+            assert!(BPrint::for_buffer(&mut []).is_none());
+            let mut out = [0xa5; 8];
+            assert!(BPrint::for_buffer(&mut out).is_none());
+            assert_eq!(out, [0xa5; 8]);
+        }
+
+        // At exactly the descriptor size construction succeeds; failure to
+        // allocate the requested string leaves valid inline storage.
+        set_max_alloc(1024);
+        let buf = BPrint::new(4096, BPrint::SIZE_UNLIMITED).unwrap();
+        assert!(buf.as_ref().is_inline());
+        check_empty(buf.as_ref());
+        drop(buf);
+        let mut out = [0xa5; 8];
+        drop(BPrint::for_buffer(&mut out).unwrap());
+        assert_eq!(out, [0, 0xa5, 0xa5, 0xa5, 0xa5, 0xa5, 0xa5, 0xa5]);
+    }
+
     #[test]
     fn each_finalizer_hands_out_the_empty_string() {
         for size_max in SIZE_MAX {

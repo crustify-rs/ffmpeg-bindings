@@ -15,10 +15,10 @@
 //! format, so Rust never hands C a format string to interpret.
 //!
 //! [`Class`] is the class of an `AVClass`-enabled object (`AVClass`): a
-//! constant C never allocates, writes or frees, borrowed as a [`ClassRef`]
+//! descriptor immutable while borrowed, viewed through a [`ClassRef`]
 //! whose getters read its name, category, offsets and option table, iterate
 //! its child classes, and hand out its callbacks as callable handles. A Rust
-//! object's own class is a `static` built by [`Class::new`];
+//! object's own class can be a local or `static` built by [`Class::new`];
 //! [`Record::class`] reads the class of a message's context.
 //!
 //! A logging context, an `AVClass`-enabled object, stays a raw `void *` until
@@ -388,10 +388,13 @@ define_ctype!(
     /// logging and the `av_opt_*` routines read through the object's first
     /// member, a `const AVClass *`.
     ///
-    /// A class is a constant: every FFmpeg class is a `static const`, which
-    /// no C path writes, allocates or frees, so it is only borrowed, as a
-    /// [`ClassRef`] with getters ([`ClassMut`] has no setters). A Rust
-    /// object's own class is a `static` built by [`Class::new`].
+    /// Published FFmpeg classes are usually `static const`, but a logging
+    /// adapter may build a temporary descriptor (for example `vs2av_log`
+    /// borrows its caller's tag as the name). A class is immutable while
+    /// borrowed, not necessarily static: [`ClassRef`] bounds its getters by
+    /// the actual descriptor lifetime ([`ClassMut`] has no setters). There
+    /// is no class-specific C allocator or destructor. Rust-owned local or
+    /// static descriptors can be built by [`Class::new`].
     ///
     /// Every handle addresses a well-formed class for its lifetime: a
     /// `class_name` that is NULL or a NUL-terminated string, an option table
@@ -408,7 +411,8 @@ define_ctype!(
 // strings and option tables that live as long as it does, and function
 // pointers C calls from whichever thread logs or sets options; nothing in it
 // is tied to a thread, so a value moves between threads as a struct of
-// `&'static` fields and `fn` pointers does.
+// shared immutable borrows and `fn` pointers does. Those borrows remain
+// valid for the descriptor's lifetime, including for temporary descriptors.
 unsafe impl Send for Class {}
 // SAFETY: nothing writes a class: `ClassRef` has getters only, `ClassMut` no
 // setters, the struct has no interior mutability, and no C path writes one
@@ -1986,6 +1990,26 @@ mod unit_tests {
             format!("{c:?}"),
             "ClassRef { name: Some(\"unit-new\"), category: ClassCategory::FILTER, .. }"
         );
+    }
+
+    #[test]
+    fn a_temporary_class_borrows_its_callers_name() {
+        let name = CString::new("temporary tag").unwrap();
+        let raw = ffi::AVClass {
+            class_name: name.as_ptr(),
+            item_name: Some(ffi::av_default_item_name),
+            ..Default::default()
+        };
+        // SAFETY: the initialized local descriptor and its caller-owned
+        // NUL-terminated name outlive all handles below and are not written.
+        let class = unsafe { ClassRef::from_ptr((&raw const raw).cast_mut()) }.unwrap();
+        let mut obj = &raw const raw;
+        assert_eq!(class.name(), Some(name.as_c_str()));
+        // SAFETY: `obj` is an aligned class-pointer slot; its descriptor and
+        // the borrowed tag remain valid and immutable through the result's use.
+        let item = unsafe { class.item_name().unwrap().call((&raw mut obj).cast()) };
+        assert_eq!(item, class.name());
+        assert_eq!(item.unwrap().as_ptr(), name.as_ptr());
     }
 
     unsafe extern "C" fn unit_item_name(_: *mut c_void) -> *const c_char {

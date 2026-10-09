@@ -421,7 +421,7 @@ impl_cdrop!(BPrintFinalize, BPrint, finalize_and_free);
 /// ```compile_fail,E0599
 /// use ffmpeg::libavutil::bprint::BPrintBox;
 /// fn copy(b: &BPrintBox) -> BPrintBox {
-///     b.clone()
+///     (*b).clone()
 /// }
 /// ```
 pub type BPrintBox = CBox<BPrint, BPrintFinalize>;
