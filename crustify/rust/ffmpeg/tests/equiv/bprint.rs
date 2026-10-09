@@ -582,4 +582,39 @@ mod owners {
         assert_eq!(BPrint::into_string(r).map(drop), Err(enomem));
         ffmpeg::libavutil::mem::set_max_alloc(i32::MAX as usize);
     }
+
+    /// After a failed growth, later appends remain truncated even when the
+    /// allocation limit is restored. Truncating below capacity permits a
+    /// fresh growth; compare all fields and stored bytes after each step.
+    #[test]
+    fn failed_growth_stays_truncated_until_explicitly_shortened() {
+        if !isolated("bprint::owners::failed_growth_stays_truncated_until_explicitly_shortened") {
+            return;
+        }
+        let c = CBuf::init(0, BPrint::SIZE_UNLIMITED);
+        let mut r = BPrint::new(0, BPrint::SIZE_UNLIMITED).unwrap();
+        ffmpeg::libavutil::mem::set_max_alloc(1024);
+        for n in [2000, 16] {
+            fill(&c, &mut r, n);
+            assert_eq!(rust_state(r.as_ref()), c.state());
+            assert!(r.as_ref().len() >= r.as_ref().size());
+        }
+        ffmpeg::libavutil::mem::set_max_alloc(i32::MAX as usize);
+        fill(&c, &mut r, 32);
+        assert_eq!(rust_state(r.as_ref()), c.state());
+        assert!(r.as_ref().is_inline());
+        c_op(c.buf, Op::Truncate(3));
+        r.as_mut().truncate(3);
+        assert_eq!(rust_state(r.as_ref()), c.state());
+        // First move inline bytes to the heap, then grow that allocation
+        // twice: both the memcpy and realloc branches preserve the prefix.
+        for n in [2000, 5000, 20_000] {
+            fill(&c, &mut r, n);
+            assert_eq!(rust_state(r.as_ref()), c.state());
+            assert!(!r.as_ref().is_inline());
+        }
+        let (ret, bytes) = c.finalize();
+        assert_eq!(ret, 0);
+        assert_eq!(BPrint::into_bytes(r).unwrap().as_slice(), bytes.unwrap());
+    }
 }

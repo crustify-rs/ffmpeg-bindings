@@ -647,3 +647,27 @@ mod class {
         }
     }
 }
+
+/// A class need not be static. Its shared and exclusive handles retain the
+/// local descriptor's lifetime while moving between scoped threads.
+#[test]
+fn local_class_handles_can_be_reborrowed_on_scoped_threads() {
+    use ffmpeg::libavutil::log::{Class, ClassCategory};
+
+    let mut class = Class::new(c"local-class", ClassCategory::FILTER);
+    std::thread::scope(|scope| {
+        let r = class.as_ref();
+        let copy = r;
+        scope.spawn(move || assert_eq!(r.name(), Some(c"local-class")));
+        scope.spawn(move || assert_eq!(copy.category(), ClassCategory::FILTER));
+    });
+    let mut m = class.as_mut();
+    std::thread::scope(|scope| {
+        let mut reborrow = m.as_mut();
+        scope.spawn(move || {
+            assert_eq!(reborrow.as_mut().as_ref().name(), Some(c"local-class"));
+            assert!(reborrow.as_ref().options().is_empty());
+        });
+    });
+    assert_eq!(m.as_ref().category(), ClassCategory::FILTER);
+}

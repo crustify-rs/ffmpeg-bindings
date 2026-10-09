@@ -18,7 +18,7 @@
       },
       "nullable": true,
       "mutable": true,
-      "note": "The string buffer, NUL-terminated at min(len, size - 1) whenever size > 0, possibly holding binary data before that. Runtime-conditional ownership: it points at reserved_internal_buffer (av_bprint_init, automatic storage reaching through reserved_padding to the end of the 1024-byte struct; also the size-0 fallback of av_bprint_init_for_buffer), at an av_realloc block the struct owns once av_bprint_alloc grew it (av_bprint_is_allocated: str != reserved_internal_buffer; released by av_bprint_finalize(buf, NULL) or handed out by av_bprint_finalize(buf, &s)), or at a caller buffer from av_bprint_init_for_buffer (borrowed from `other`; is_allocated is then true too, but size == size_max keeps av_bprint_alloc from reallocating it, and finalize must never run on it). NULL only after av_bprint_finalize handed the allocation out. Self-referential in the inline case, so an initialised AVBPrint must not move."
+      "note": "The string buffer, NUL-terminated at min(len, size - 1) whenever size > 0, possibly holding binary data before that. Runtime-conditional ownership: it points at reserved_internal_buffer (av_bprint_init, automatic storage reaching through reserved_padding to the end of the 1024-byte struct; also the size-0 fallback of av_bprint_init_for_buffer), at an av_realloc block the struct owns once av_bprint_alloc grew it (av_bprint_is_allocated: str != reserved_internal_buffer; released by av_bprint_finalize(buf, NULL) or handed out by av_bprint_finalize(buf, &s)), or at a caller buffer from av_bprint_init_for_buffer (borrowed from `other`; is_allocated is then true too, but size == size_max keeps av_bprint_alloc from reallocating it, and finalize must never run on it). NULL after av_bprint_finalize either hands the allocation out or releases it with av_freep when ret_str is NULL; inline storage is not cleared by finalization. Self-referential in the inline case, so an initialised AVBPrint must not move."
      }
     }
    ]
@@ -26,7 +26,7 @@
   {
    "name": "AVClass",
    "defined_in": "libavutil/log.h",
-   "_comment_agent": "AVClass is a static const class descriptor: every in-tree instance is a file-scope `static const AVClass` (or `const AVClass` exported) with designated initializers, reached as `const AVClass *` (first member of an AVClass-enabled object, *_get_class() returns, child_class_iterate results). No C path allocates, writes, copies or frees one (field touchers only read), so it has no lifecycle primitives; Rust wraps it as a borrowed ClassRef<'a> (getters only, the callbacks as callable handles), plus a const Rust constructor for Rust-owned static classes. Scalars: version (LIBAVUTIL_VERSION_INT at definition), offsets into the described object (0 = none), category by value.",
+   "_comment_agent": "Review core wave-1 batch-0: published library classes and child_class_iterate results are immutable static descriptors; no class-specific allocator, disposer, or cloner exists. Exception to the previous whole-tree static-only claim: libavfilter/vidstabutils.c:vs2av_log initializes an automatic AVClass with a borrowed caller tag and passes its address through a stack context to synchronous av_vlog. ClassRef must carry the actual descriptor and pointee lifetime. Class::new is Rust-owned immutable storage (local or static); its name is static. No lifecycle representation is missing.",
    "fields": [
     {
      "name": "child_class_iterate",
@@ -70,11 +70,11 @@
       "string": true,
       "owned": false,
       "borrowed": {
-       "lifetime": "static"
+       "lifetime": "other"
       },
       "nullable": true,
       "mutable": false,
-      "note": "The class's name: a string literal in every FFmpeg class (designated initializers of static const AVClass). Only read (av_default_item_name returns it, av_opt_show2 and format_to_name print it). NULL is tolerated by av_default_item_name's callers only as a NULL name; the safe getter returns Option<&CStr> tied to the class borrow."
+      "note": "Usually a static literal in an immutable static class. Exception: libavfilter/vidstabutils.c:vs2av_log builds a stack-local class with class_name = tag borrowed from its caller, valid only during synchronous av_vlog. ClassRef and its string view must be bounded by the actual class/name lifetime, not assumed static. The wrapper accepts NULL names."
      }
     },
     {
@@ -353,23 +353,21 @@
   {
    "name": "ff_pad_helper_AVBPrint",
    "defined_in": "libavutil/bprint.h",
-   "_comment_agent": "FF_PAD_STRUCTURE sizing witness: only sizeof(struct ff_pad_helper_AVBPrint) (24) is used, to size AVBPrint.reserved_padding (1000) so that sizeof(AVBPrint) is 1024. No code path creates, stores, or frees one. Its trailing alignment (bytes 21..24) overlaps AVBPrint.reserved_padding, so the generator's padding cannot be modelled as a generic {fields, padding} Rust layout; bprint.c uses those bytes and the whole padding as AVBPrint's internal buffer (size_auto = 1024 - offsetof(reserved_internal_buffer) = 1004), and it also covers AVBPrint's own 3 trailing alignment bytes (1021..1024) in its Rust binding. Wrapped as the sealed trait `bprint::PaddedStruct`. Review 20261005 core wave 0 batch 4: `str` carries the dual ownership its note already described (owned on the heap path, borrowed from the struct or a caller buffer otherwise), and the finalize note is corrected: only the allocated path leaves the field NULL. Core wave 1 batch 1 (wrap): the helper is also wrapped as the Rust-owned value `bprint::BPrintFields` (`PaddedStruct::Fields` for AVBPrint), with no C lifecycle (nothing allocates, copies or frees one; `zeroed` is a valid empty value). Its `str` there is only a borrow the value never frees: NULL, a `&'static CStr` (safe setter) or a caller-kept string (`unsafe set_str_borrowed`); the dual ownership above is AVBPrint's, which the helper mirrors but C never exercises on a helper.",
+   "_comment_agent": "Review core wave-1 batch-0: ff_pad_helper_AVBPrint is a sizeof-only witness generated by FF_PAD_STRUCTURE. No C path instantiates it, passes it to a bprint routine, owns its pointee, or disposes it. The authored BPrintFields value uses str only as a nullable borrowed immutable C string, with no relationship to len/size/size_max or reserved_internal_buffer. AVBPrint ownership belongs to the separate AVBPrint record, not this helper.",
    "fields": [
     {
      "name": "str",
      "ptr": {
       "scalar": null,
-      "array": {
-       "by_val": true
-      },
+      "array": null,
       "string": true,
-      "owned": true,
+      "owned": false,
       "borrowed": {
-       "lifetime": "self"
+       "lifetime": "other"
       },
       "nullable": true,
-      "mutable": true,
-      "note": "Mirrors AVBPrint.str; the helper itself is never instantiated (FF_PAD_STRUCTURE uses it only in sizeof). Runtime-conditional dual ownership, discriminated by `str != reserved_internal_buffer` (av_bprint_is_allocated): av_bprint_init points it at the struct's own reserved_internal_buffer (borrowed from self; the automatic size_max never allocates), av_bprint_init_for_buffer(buf, buffer, size > 0) points it at a caller buffer (borrowed, lifetime `other`: the caller's, which the schema's single lifetime slot cannot carry beside `self`), and av_bprint_alloc replaces it with av_realloc storage the struct owns, which av_bprint_finalize(buf, NULL) frees (av_freep leaves it NULL) or av_bprint_finalize(buf, &ret) transfers out (then NULL). On the borrowed path finalize with a non-NULL ret_str av_memdup's a copy and leaves the field pointing at the storage it borrows: it is NULL only after the owned path's finalize. Always NUL-terminated within `size` while initialised (len may exceed size: truncation), so `string` holds alongside the by-value byte array."
+      "mutable": false,
+      "note": "C uses this helper only in sizeof; it has no observed runtime pointer ownership. BPrintFields in the safe Rust surface borrows a NUL-terminated string (static through set_str, or caller-kept through set_str_borrowed), never writes through it, and never frees it. The independent scalar fields do not bound the string or imply allocation. Unlike AVBPrint this is not self-referential and is freely copyable."
      }
     }
    ]
