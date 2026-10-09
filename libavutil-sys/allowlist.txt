@@ -259,3 +259,6 @@ var AV_LOG_SKIP_REPEATED
 var AV_LOG_PRINT_LEVEL
 var AV_LOG_PRINT_TIME
 var AV_LOG_PRINT_DATETIME
+
+# libavutil/timestamp.h: av_ts_make_time_string2 (core wave 1, batch 3).
+function av_ts_make_time_string2
