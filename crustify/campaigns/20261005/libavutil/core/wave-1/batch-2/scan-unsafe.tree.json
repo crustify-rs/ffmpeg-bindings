@@ -1,0 +1,105 @@
+{
+  "crate_path": "/target/crustify/.worktrees/orchestrator/core-wave-0-gate/crustify/rust",
+  "counts": {
+    "unsafe_blocks": 431,
+    "unsafe_block_stmts": 1,
+    "unsafe_block_lines": 527,
+    "unsafe_block_code_lines": 507,
+    "unsafe_blocks_wrapper_impl": 211,
+    "unsafe_blocks_ffi_export": 0,
+    "unsafe_fns": 75,
+    "unsafe_fns_seam": 43,
+    "unsafe_fns_pub": 24,
+    "unsafe_impls": 126,
+    "unsafe_traits": 0,
+    "ffi_calls": 166,
+    "wrapper_newtypes": 14,
+    "wrapper_newtypes_declared": 14,
+    "wrapper_declared_nonconformant": 0,
+    "wrapper_newtypes_undeclared": 0,
+    "raw_ptr_args": 69,
+    "raw_ptr_rets": 62,
+    "raw_ptr_seam": 103,
+    "raw_ptr_wrapped": 2,
+    "raw_ptr_in_wrapper": 2,
+    "ref_to_type_wrapper": 74,
+    "field_ref_wrapped": 0,
+    "field_proj_wrapped": 88,
+    "field_proj_outside_impl": 0,
+    "void_ptr_sanctioned": 44,
+    "void_ptr_smell": 16,
+    "raw_ptr_derefs": 88,
+    "raw_ptr_derefs_outside_impl": 0,
+    "total_stmts": 720,
+    "code_lines": 3386,
+    "raw_ptr_sites": [
+      {
+        "file": "ffmpeg/libavutil/bprint.rs",
+        "count": 2,
+        "lines": [
+          397,
+          446
+        ]
+      }
+    ],
+    "void_ptr_sites": [
+      {
+        "file": "ffmpeg/libavutil/file.rs",
+        "count": 1,
+        "lines": [
+          63
+        ]
+      },
+      {
+        "file": "ffmpeg/libavutil/log.rs",
+        "count": 10,
+        "lines": [
+          645,
+          669,
+          703,
+          747,
+          1061,
+          1093,
+          1131,
+          1238,
+          1450,
+          1478
+        ]
+      },
+      {
+        "file": "ffmpeg/libavutil/mem.rs",
+        "count": 2,
+        "lines": [
+          387,
+          393
+        ]
+      },
+      {
+        "file": "ffmpeg/libavutil/opt.rs",
+        "count": 2,
+        "lines": [
+          353,
+          383
+        ]
+      }
+    ],
+    "field_proj_sites": [],
+    "field_ref_sites": [],
+    "raw_deref_sites": []
+  },
+  "counts_unavailable": null,
+  "undocumented_unsafe": {
+    "sites": 0,
+    "documented": 0,
+    "undocumented": 0,
+    "per_file": {}
+  },
+  "derived": {
+    "unsafe_fn_pub_ratio": 0.32,
+    "unsafe_fn_smell": 32,
+    "raw_ptr_smell": 28,
+    "raw_ptr_seam_ratio": 0.7863,
+    "unsafe_loc_ratio": 0.1497,
+    "loc_per_unsafe_block": 7.9
+  }
+}
