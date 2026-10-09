@@ -18,7 +18,7 @@ Copy this template into the campaign checkout, then fill it as work lands.
 - **`--min-fields`** — `20`
 - **orchestrator parallelism** — `10` concurrent batch processes
 - **branch** — `crustify/campaigns/20261005`, tip `<sha>`
-- **deps** — crustify `df5688f` (`main`, plus uncommitted prompt edits), ffibox `196c5fb` (`main`)
+- **deps** — crustify `68601d7` (`main`, plus uncommitted prompt edits), ffibox `196c5fb` (`main`)
 - **build version** — `3`
 - **C test baseline** — `5437/5437, 0 skipped, and no disabled tests`
 
@@ -400,6 +400,7 @@ Deterministic `crustify scan-unsafe <workdir>`; no model.
 | `wrapper_newtypes_undeclared` | `<n>` | `<n>` | … |
 | `raw_ptr_args` | `<n>` | `<n>` | … |
 | `raw_ptr_rets` | `<n>` | `<n>` | … |
+| `raw_ptr_fields` | `<n>` | `<n>` | … |
 | **total positions** | **`<n>`** | `<n>` | … |
 | `raw_ptr_seam` | `<n>` | `<n>` | … |
 | `raw_ptr_pub_smell` | `<n>` | `<n>` | … |
@@ -410,6 +411,7 @@ Deterministic `crustify scan-unsafe <workdir>`; no model.
 | `ref_to_type_wrapper_sanctioned` | `<n>` | `<n>` | … |
 | `ref_to_type_wrapper_smell` | `<n>` | `<n>` | … |
 | `ref_to_type_wrapper_body_smell` | `<n>` | `<n>` | … |
+| `deref_impl_on_wrapper` | `<n>` | `<n>` | … |
 | `field_proj_wrapped` | `<n>` | `<n>` | … |
 | `field_proj_outside_impl` | `<n>` | `<n>` | … |
 | `field_ref_wrapped` | `<n>` | `<n>` | … |
@@ -942,6 +944,12 @@ Later the same day `821ee53`..`df5688f` added `--sites`, split `ref_to_type_wrap
 `_sanctioned` (73 on the same tree) and `_smell` (1: `Class::as_c_ptr(&self)`, `log.rs:472`), added
 `ref_to_type_wrapper_body_smell` (0), and documented the known limitations in crustify's
 `docs/audit/unsafe-output.md`.
+Then `b2f9240`..`68601d7` added `deref_impl_on_wrapper` (0) and `raw_ptr_fields`: raw pointers in
+the fields of structs and unions the crate declares join the raw-pointer partition (7 on the
+same tree, all private smell, 2 of them `c_void`), so the raw-pointer smell reads 16 pub + 23
+private and the `c_void` smell 14 pub + 5 private. `PhantomData<*const T>` markers stopped
+counting as positions. From `core` wave 2 the per-batch scan is unseeded (`--name` is no
+longer used), per the updated orchestrator prompt.
 
 - **Seam:** the unsafe lifecycle trait methods (`c_drop`, `c_drop_len`, `c_dup`, `c_clone_len`,
   `c_up_ref`, `c_is_sole_owner`, `c_lock`, `c_unlock`, `c_dispose`) join the seam name list.
