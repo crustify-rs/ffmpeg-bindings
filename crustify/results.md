@@ -841,8 +841,9 @@ Notes on the wave:
 - The 25-symbol batch took 64 minutes, against 86–179 in wave 0, with no sibling landing in its
   homes.
 - Batch 0 accounts for most of the wave's smell growth (`+9` `unsafe fn`, `+7` raw pointer):
-  `AVClass`'s callback fields (`item_name`, `child_next`, `child_class_iterate`,
-  `get_category`, `query_ranges`) are C function pointers taking `void *` contexts.
+  most of it is `AVClass`'s callback fields, wrapped as `unsafe fn call` handles over C
+  function pointers taking `void *` contexts (4 raw-pointer sites in `log.rs`), and the rest
+  `AVBPrint`'s buffer (3 in `bprint.rs`).
 - Batch rows sum to `+11` and `+8`, which equals the wave tip's unseeded scan (32 and 28) over the
   reviewed base (21 and 20). No undocumented `unsafe`.
 - The Σ `cov` cells now read wave 1's last type and symbol landings: batch 0 (`364c59df9b`) and
