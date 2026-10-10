@@ -172,6 +172,18 @@
    "fields": []
   },
   {
+   "name": "AVColorPrimaries",
+   "defined_in": "libavutil/pixfmt.h",
+   "_comment_agent": "C enum (unsigned int encoding), no fields, no pointers, no lifecycle: a plain value copied by value. Public struct fields (AVFrame, AVCodecParameters, AVCodecContext, AVFilmGrainParams, ...) store it and users write them directly, so any c_uint is observed; AVCOL_PRI_NB / AVCOL_PRI_EXT_NB are 'not part of ABI'. C initialisers (av_frame_alloc's get_frame_defaults, avcodec_parameters_alloc) write AVCOL_PRI_UNSPECIFIED (2), not zero. Wrapped as the open newtype ffmpeg::libavutil::pixfmt::ColorPrimaries (CPlainElem).",
+   "fields": []
+  },
+  {
+   "name": "AVColorRange",
+   "defined_in": "libavutil/pixfmt.h",
+   "_comment_agent": "C enum (unsigned int encoding), no fields, no pointers, no lifecycle: a plain value copied by value. Public struct fields (AVFrame, AVCodecContext, AVCodecParameters, AVFilterLink, AVBufferSrcParameters, ...) store it and users write them directly, so any c_uint is observed; AVCOL_RANGE_NB is 'not part of ABI'. Zero is AVCOL_RANGE_UNSPECIFIED, which C initialisers also write. Wrapped as the open newtype ffmpeg::libavutil::pixfmt::ColorRange (CPlainElem).",
+   "fields": []
+  },
+  {
    "name": "AVColorSpace",
    "defined_in": "libavutil/pixfmt.h",
    "_comment_agent": "Field-less C enum (libavutil/pixfmt.h), c_uint underlying (all enumerators non-negative). No pointers, no lifecycle: a plain value. Stored by value in public struct fields C users write directly (AVFrame.colorspace, AVCodecContext.colorspace, AVCodecParameters.color_space, ...) and passed by value to av_color_space_name / av_csp_luma_coeffs_from_avcsp, which bounds-check with (unsigned)csp < AVCOL_SPC_NB, so any int is a value C may hold and observe. AVCOL_SPC_YCOCG aliases AVCOL_SPC_YCGCO; AVCOL_SPC_NB is not part of the ABI. Wrapped as an open #[repr(transparent)] newtype (ColorSpace) accepting every bit pattern; Default is UNSPECIFIED, the value get_frame_defaults and the codec options set.",

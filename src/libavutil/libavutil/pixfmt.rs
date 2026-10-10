@@ -1523,6 +1523,258 @@ impl From<PixelFormat> for ffi::AVPixelFormat {
 // memory is the whole of it.
 unsafe impl CPlainElem for PixelFormat {}
 
+/// Wraps: AVColorPrimaries
+/// Handwritten
+///
+/// The chromaticity coordinates of a picture's source primaries, as
+/// ISO/IEC 23091-2 subclause 8.1 and ITU-T H.273 number them, plus FFmpeg's
+/// own extensions from [`EXT_BASE`](Self::EXT_BASE) up.
+///
+/// A newtype over the C enum rather than a Rust `enum`: C stores the value in
+/// public struct fields its users write directly (`AVFrame.color_primaries`,
+/// `AVCodecParameters.color_primaries`), so it may hold any value, and a Rust
+/// view of that memory must accept every one. Match on the associated
+/// constants, with a `_` arm for the values C does not name:
+///
+/// ```
+/// use ffmpeg::libavutil::pixfmt::ColorPrimaries;
+/// fn is_wide_gamut(p: ColorPrimaries) -> bool {
+///     matches!(p, ColorPrimaries::BT2020 | ColorPrimaries::SMPTE432)
+/// }
+/// assert!(is_wide_gamut(ColorPrimaries::BT2020));
+/// assert!(!is_wide_gamut(ColorPrimaries::UNSPECIFIED));
+/// ```
+///
+/// `AVCOL_PRI_NB` and `AVCOL_PRI_EXT_NB` are not part of FFmpeg's ABI and
+/// have no constant. The default is [`UNSPECIFIED`](Self::UNSPECIFIED), the
+/// value C's own initialisers (`av_frame_alloc`, `avcodec_parameters_alloc`)
+/// write; zero-filled storage reads [`RESERVED0`](Self::RESERVED0) instead.
+///
+/// No ffibox primitive covers a C enum: it owns nothing, has no handles, and
+/// is `Send + Sync` as the integer it is.
+#[repr(transparent)]
+#[derive(Clone, Copy, PartialEq, Eq, Hash)]
+pub struct ColorPrimaries(ffi::AVColorPrimaries);
+
+impl ColorPrimaries {
+    /// Reserved code point 0; the value of a zero-filled field.
+    pub const RESERVED0: Self = Self(ffi::AVColorPrimaries::AVCOL_PRI_RESERVED0);
+    /// ITU-R BT.709, also ITU-R BT.1361 / IEC 61966-2-4 / SMPTE RP 177 Annex B.
+    pub const BT709: Self = Self(ffi::AVColorPrimaries::AVCOL_PRI_BT709);
+    /// Unspecified.
+    pub const UNSPECIFIED: Self = Self(ffi::AVColorPrimaries::AVCOL_PRI_UNSPECIFIED);
+    /// Reserved code point 3.
+    pub const RESERVED: Self = Self(ffi::AVColorPrimaries::AVCOL_PRI_RESERVED);
+    /// ITU-R BT.470 System M, also FCC Title 47 CFR 73.682 (a)(20).
+    pub const BT470M: Self = Self(ffi::AVColorPrimaries::AVCOL_PRI_BT470M);
+    /// ITU-R BT.470 System B, G, also ITU-R BT.601-6 625 / BT.1358 625 /
+    /// BT.1700 625 PAL & SECAM.
+    pub const BT470BG: Self = Self(ffi::AVColorPrimaries::AVCOL_PRI_BT470BG);
+    /// SMPTE 170M, also ITU-R BT.601-6 525 / BT.1358 525 / BT.1700 NTSC.
+    pub const SMPTE170M: Self = Self(ffi::AVColorPrimaries::AVCOL_PRI_SMPTE170M);
+    /// SMPTE 240M, identical to [`SMPTE170M`](Self::SMPTE170M); also called
+    /// "SMPTE C" even though it uses D65.
+    pub const SMPTE240M: Self = Self(ffi::AVColorPrimaries::AVCOL_PRI_SMPTE240M);
+    /// Generic film: colour filters using Illuminant C.
+    pub const FILM: Self = Self(ffi::AVColorPrimaries::AVCOL_PRI_FILM);
+    /// ITU-R BT.2020.
+    pub const BT2020: Self = Self(ffi::AVColorPrimaries::AVCOL_PRI_BT2020);
+    /// SMPTE ST 428-1 (CIE 1931 XYZ).
+    pub const SMPTE428: Self = Self(ffi::AVColorPrimaries::AVCOL_PRI_SMPTE428);
+    /// The same value as [`SMPTE428`](Self::SMPTE428).
+    pub const SMPTEST428_1: Self = Self(ffi::AVColorPrimaries::AVCOL_PRI_SMPTEST428_1);
+    /// SMPTE ST 431-2 (2011) / DCI P3.
+    pub const SMPTE431: Self = Self(ffi::AVColorPrimaries::AVCOL_PRI_SMPTE431);
+    /// SMPTE ST 432-1 (2010) / P3 D65 / Display P3.
+    pub const SMPTE432: Self = Self(ffi::AVColorPrimaries::AVCOL_PRI_SMPTE432);
+    /// EBU Tech. 3213-E, one of the JEDEC P22 group phosphors.
+    pub const EBU3213: Self = Self(ffi::AVColorPrimaries::AVCOL_PRI_EBU3213);
+    /// The same value as [`EBU3213`](Self::EBU3213).
+    pub const JEDEC_P22: Self = Self(ffi::AVColorPrimaries::AVCOL_PRI_JEDEC_P22);
+    /// The first of FFmpeg's extensions, which are not part of H.273; the
+    /// same value as [`V_GAMUT`](Self::V_GAMUT).
+    pub const EXT_BASE: Self = Self(ffi::AVColorPrimaries::AVCOL_PRI_EXT_BASE);
+    /// Panasonic V-Gamut.
+    pub const V_GAMUT: Self = Self(ffi::AVColorPrimaries::AVCOL_PRI_V_GAMUT);
+
+    /// The primaries C encodes as `raw`, whatever its value.
+    #[inline]
+    pub const fn from_raw(raw: ffi::AVColorPrimaries) -> Self {
+        Self(raw)
+    }
+
+    /// The C encoding of these primaries.
+    #[inline]
+    pub const fn into_raw(self) -> ffi::AVColorPrimaries {
+        self.0
+    }
+
+    /// The name of the constant this value equals, if any; of two constants
+    /// with one value, the first C declares.
+    const fn name(self) -> Option<&'static str> {
+        Some(match self {
+            Self::RESERVED0 => "RESERVED0",
+            Self::BT709 => "BT709",
+            Self::UNSPECIFIED => "UNSPECIFIED",
+            Self::RESERVED => "RESERVED",
+            Self::BT470M => "BT470M",
+            Self::BT470BG => "BT470BG",
+            Self::SMPTE170M => "SMPTE170M",
+            Self::SMPTE240M => "SMPTE240M",
+            Self::FILM => "FILM",
+            Self::BT2020 => "BT2020",
+            Self::SMPTE428 => "SMPTE428",
+            Self::SMPTE431 => "SMPTE431",
+            Self::SMPTE432 => "SMPTE432",
+            Self::EBU3213 => "EBU3213",
+            Self::V_GAMUT => "V_GAMUT",
+            _ => return None,
+        })
+    }
+}
+
+impl Default for ColorPrimaries {
+    #[inline]
+    fn default() -> Self {
+        Self::UNSPECIFIED
+    }
+}
+
+impl fmt::Debug for ColorPrimaries {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self.name() {
+            Some(name) => f.write_str(name),
+            None => f.debug_tuple("ColorPrimaries").field(&self.0.0).finish(),
+        }
+    }
+}
+
+impl From<ffi::AVColorPrimaries> for ColorPrimaries {
+    #[inline]
+    fn from(raw: ffi::AVColorPrimaries) -> Self {
+        Self::from_raw(raw)
+    }
+}
+
+impl From<ColorPrimaries> for ffi::AVColorPrimaries {
+    #[inline]
+    fn from(p: ColorPrimaries) -> Self {
+        p.into_raw()
+    }
+}
+
+// SAFETY: `ColorPrimaries` is `#[repr(transparent)]` over
+// `ffi::AVColorPrimaries`, itself `#[repr(transparent)]` over a `c_uint`, so
+// every bit pattern is a valid value, and it is a value with no C-side
+// identity: a copy read out of C memory is the whole of it.
+unsafe impl CPlainElem for ColorPrimaries {}
+
+/// Wraps: AVColorRange
+/// Handwritten
+///
+/// The range of values a picture's samples take: limited ("MPEG", "TV")
+/// with head- and footroom, or full ("JPEG", "PC"), as ITU-R BT.709,
+/// BT.2020 and BT.2100 define them.
+///
+/// A newtype over the C enum rather than a Rust `enum`, as
+/// [`ColorPrimaries`] is: C stores the value in public struct fields its users
+/// write directly (`AVFrame.color_range`, `AVCodecContext.color_range`), so it
+/// may hold any value, and a Rust view of that memory must accept every one.
+/// Match on the associated constants, with a `_` arm for the values C does
+/// not name:
+///
+/// ```
+/// use ffmpeg::libavutil::pixfmt::ColorRange;
+/// fn luma_black_8bit(r: ColorRange) -> u8 {
+///     match r {
+///         ColorRange::JPEG => 0,
+///         _ => 16,
+///     }
+/// }
+/// assert_eq!(luma_black_8bit(ColorRange::JPEG), 0);
+/// assert_eq!(luma_black_8bit(ColorRange::default()), 16);
+/// ```
+///
+/// `AVCOL_RANGE_NB` is not part of FFmpeg's ABI and has no constant. The
+/// default is [`UNSPECIFIED`](Self::UNSPECIFIED), both the zero-filled value
+/// and the one C's own initialisers write.
+///
+/// No ffibox primitive covers a C enum: it owns nothing, has no handles, and
+/// is `Send + Sync` as the integer it is.
+#[repr(transparent)]
+#[derive(Clone, Copy, PartialEq, Eq, Hash)]
+pub struct ColorRange(ffi::AVColorRange);
+
+impl ColorRange {
+    /// Unspecified; the value of a zero-filled field.
+    pub const UNSPECIFIED: Self = Self(ffi::AVColorRange::AVCOL_RANGE_UNSPECIFIED);
+    /// Narrow or limited range: `(219 * E + 16) * 2^(n-8)` for luma, e.g.
+    /// 16-235 at 8 bits, and `(224 * E + 128) * 2^(n-8)` for chroma, e.g.
+    /// 16-240 at 8 bits.
+    pub const MPEG: Self = Self(ffi::AVColorRange::AVCOL_RANGE_MPEG);
+    /// Full range: `(2^n - 1) * E` for RGB and luma, e.g. 0-255 at 8 bits,
+    /// and `(2^n - 1) * E + 2^(n - 1)` for chroma, e.g. 1-255 at 8 bits.
+    pub const JPEG: Self = Self(ffi::AVColorRange::AVCOL_RANGE_JPEG);
+
+    /// The range C encodes as `raw`, whatever its value.
+    #[inline]
+    pub const fn from_raw(raw: ffi::AVColorRange) -> Self {
+        Self(raw)
+    }
+
+    /// The C encoding of this range.
+    #[inline]
+    pub const fn into_raw(self) -> ffi::AVColorRange {
+        self.0
+    }
+
+    /// The name of the constant this value equals, if any.
+    const fn name(self) -> Option<&'static str> {
+        Some(match self {
+            Self::UNSPECIFIED => "UNSPECIFIED",
+            Self::MPEG => "MPEG",
+            Self::JPEG => "JPEG",
+            _ => return None,
+        })
+    }
+}
+
+impl Default for ColorRange {
+    #[inline]
+    fn default() -> Self {
+        Self::UNSPECIFIED
+    }
+}
+
+impl fmt::Debug for ColorRange {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self.name() {
+            Some(name) => f.write_str(name),
+            None => f.debug_tuple("ColorRange").field(&self.0.0).finish(),
+        }
+    }
+}
+
+impl From<ffi::AVColorRange> for ColorRange {
+    #[inline]
+    fn from(raw: ffi::AVColorRange) -> Self {
+        Self::from_raw(raw)
+    }
+}
+
+impl From<ColorRange> for ffi::AVColorRange {
+    #[inline]
+    fn from(r: ColorRange) -> Self {
+        r.into_raw()
+    }
+}
+
+// SAFETY: `ColorRange` is `#[repr(transparent)]` over `ffi::AVColorRange`,
+// itself `#[repr(transparent)]` over a `c_uint`, so every bit pattern is a
+// valid value, and it is a value with no C-side identity: a copy read out of
+// C memory is the whole of it.
+unsafe impl CPlainElem for ColorRange {}
+
 #[cfg(test)]
 mod unit_tests {
     use super::*;
@@ -1842,5 +2094,140 @@ mod unit_tests {
             assert_eq!(PixelFormat::from(c).into_raw(), c);
             assert_eq!(ffi::AVPixelFormat::from(PixelFormat::from_raw(c)), c);
         }
+    }
+
+    /// Every named primaries value with its `Debug` name, aliases folded.
+    const PRIMARIES_NAMED: [(ColorPrimaries, &str); 15] = [
+        (ColorPrimaries::RESERVED0, "RESERVED0"),
+        (ColorPrimaries::BT709, "BT709"),
+        (ColorPrimaries::UNSPECIFIED, "UNSPECIFIED"),
+        (ColorPrimaries::RESERVED, "RESERVED"),
+        (ColorPrimaries::BT470M, "BT470M"),
+        (ColorPrimaries::BT470BG, "BT470BG"),
+        (ColorPrimaries::SMPTE170M, "SMPTE170M"),
+        (ColorPrimaries::SMPTE240M, "SMPTE240M"),
+        (ColorPrimaries::FILM, "FILM"),
+        (ColorPrimaries::BT2020, "BT2020"),
+        (ColorPrimaries::SMPTE428, "SMPTE428"),
+        (ColorPrimaries::SMPTE431, "SMPTE431"),
+        (ColorPrimaries::SMPTE432, "SMPTE432"),
+        (ColorPrimaries::EBU3213, "EBU3213"),
+        (ColorPrimaries::V_GAMUT, "V_GAMUT"),
+    ];
+
+    const RANGE_NAMED: [(ColorRange, &str); 3] = [
+        (ColorRange::UNSPECIFIED, "UNSPECIFIED"),
+        (ColorRange::MPEG, "MPEG"),
+        (ColorRange::JPEG, "JPEG"),
+    ];
+
+    #[test]
+    fn color_primaries_layout_matches_the_c_enum() {
+        assert_eq!(
+            size_of::<ColorPrimaries>(),
+            size_of::<ffi::AVColorPrimaries>()
+        );
+        assert_eq!(
+            align_of::<ColorPrimaries>(),
+            align_of::<ffi::AVColorPrimaries>()
+        );
+        assert_eq!(size_of::<ColorPrimaries>(), size_of::<c_uint>());
+    }
+
+    #[test]
+    fn color_primaries_debug_names_the_constants() {
+        for (p, name) in PRIMARIES_NAMED {
+            assert_eq!(format!("{p:?}"), name);
+        }
+    }
+
+    #[test]
+    fn color_primaries_aliases_debug_as_their_first_name() {
+        assert_eq!(ColorPrimaries::SMPTEST428_1, ColorPrimaries::SMPTE428);
+        assert_eq!(ColorPrimaries::JEDEC_P22, ColorPrimaries::EBU3213);
+        assert_eq!(ColorPrimaries::EXT_BASE, ColorPrimaries::V_GAMUT);
+        assert_eq!(format!("{:?}", ColorPrimaries::SMPTEST428_1), "SMPTE428");
+        assert_eq!(format!("{:?}", ColorPrimaries::JEDEC_P22), "EBU3213");
+        assert_eq!(format!("{:?}", ColorPrimaries::EXT_BASE), "V_GAMUT");
+    }
+
+    #[test]
+    fn color_primaries_debug_shows_unnamed_values_raw() {
+        // The H.273 gap, both `NB` values, and the far ends of `c_uint`.
+        for raw in [13, 21, 23, 255, 257, 1 << 31, c_uint::MAX] {
+            let p = ColorPrimaries::from_raw(ffi::AVColorPrimaries(raw));
+            assert_eq!(format!("{p:?}"), format!("ColorPrimaries({raw})"));
+        }
+    }
+
+    #[test]
+    fn color_primaries_constants_are_distinct() {
+        for (i, (a, _)) in PRIMARIES_NAMED.iter().enumerate() {
+            for (b, _) in &PRIMARIES_NAMED[i + 1..] {
+                assert_ne!(a, b);
+            }
+        }
+    }
+
+    #[test]
+    fn color_primaries_raw_conversions_round_trip_every_value() {
+        for raw in [0, 1, 12, 13, 22, 23, 256, 257, 1 << 31, c_uint::MAX] {
+            let c = ffi::AVColorPrimaries(raw);
+            assert_eq!(ColorPrimaries::from(c).into_raw(), c);
+            assert_eq!(ffi::AVColorPrimaries::from(ColorPrimaries::from_raw(c)), c);
+        }
+    }
+
+    #[test]
+    fn color_primaries_default_is_unspecified_not_zero() {
+        assert_eq!(ColorPrimaries::default(), ColorPrimaries::UNSPECIFIED);
+        assert_ne!(ColorPrimaries::default().into_raw().0, 0);
+    }
+
+    #[test]
+    fn color_range_layout_matches_the_c_enum() {
+        assert_eq!(size_of::<ColorRange>(), size_of::<ffi::AVColorRange>());
+        assert_eq!(align_of::<ColorRange>(), align_of::<ffi::AVColorRange>());
+        assert_eq!(size_of::<ColorRange>(), size_of::<c_uint>());
+    }
+
+    #[test]
+    fn color_range_debug_names_the_constants() {
+        for (r, name) in RANGE_NAMED {
+            assert_eq!(format!("{r:?}"), name);
+        }
+    }
+
+    #[test]
+    fn color_range_debug_shows_unnamed_values_raw() {
+        for raw in [3, 4, 1 << 20, 1 << 31, c_uint::MAX] {
+            let r = ColorRange::from_raw(ffi::AVColorRange(raw));
+            assert_eq!(format!("{r:?}"), format!("ColorRange({raw})"));
+        }
+    }
+
+    #[test]
+    fn color_range_constants_are_distinct_and_ordered() {
+        for (i, (r, _)) in RANGE_NAMED.iter().enumerate() {
+            assert_eq!(r.into_raw().0 as usize, i);
+            for (s, _) in &RANGE_NAMED[i + 1..] {
+                assert_ne!(r, s);
+            }
+        }
+    }
+
+    #[test]
+    fn color_range_raw_conversions_round_trip_every_value() {
+        for raw in [0, 1, 2, 3, 1 << 31, c_uint::MAX] {
+            let c = ffi::AVColorRange(raw);
+            assert_eq!(ColorRange::from(c).into_raw(), c);
+            assert_eq!(ffi::AVColorRange::from(ColorRange::from_raw(c)), c);
+        }
+    }
+
+    #[test]
+    fn color_range_default_is_the_zero_value() {
+        assert_eq!(ColorRange::default(), ColorRange::UNSPECIFIED);
+        assert_eq!(ColorRange::default().into_raw().0, 0);
     }
 }
