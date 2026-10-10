@@ -1293,7 +1293,7 @@ mod layout {
 
         /// Starting layouts of every order, map shape and size the safe
         /// API builds, the extreme counts included.
-        fn starts() -> Vec<ChannelLayoutVal> {
+        pub(super) fn starts() -> Vec<ChannelLayoutVal> {
             let mut out: Vec<ChannelLayoutVal> = allowed(&DESCRIPTIONS)
                 .filter_map(|s| ChannelLayout::parse(s).ok())
                 .collect();
@@ -1552,6 +1552,302 @@ mod layout {
                 }
             });
             thread::spawn(move || drop(layouts)).join().unwrap();
+        }
+    }
+
+    /// The readers of `ChannelLayoutRef` (`is_valid`, `ambisonic_order`,
+    /// `channel`, `index_of`, `index_by_name`, `channel_by_name`, the three
+    /// describers) and `==`: every start state of every order, map shape and
+    /// extreme count, names and output buffers in exactly sized heap blocks,
+    /// unterminated map names at the end of their C block, random setter
+    /// sequences, and shared handles read on many threads (formats wave-3
+    /// batch 1).
+    mod readers {
+        use core::ffi::{CStr, c_char};
+        use std::ffi::CString;
+
+        use ffmpeg::libavutil::bprint::BPrint;
+
+        use super::order_changes::starts;
+        use super::*;
+
+        /// Channels at every id class, `NONE` and the `int` extremes.
+        fn channels() -> Vec<Channel> {
+            [
+                -1,
+                0,
+                1,
+                3,
+                40,
+                62,
+                63,
+                64,
+                0x200,
+                0x300,
+                0x400,
+                0x403,
+                0x404,
+                0x7ff,
+                0x800,
+                i32::MAX,
+                i32::MIN,
+            ]
+            .map(|id| Channel::from_raw(ffi::AVChannel(id)))
+            .into()
+        }
+
+        /// Names of every lookup shape, each in an exactly sized heap block
+        /// (`CString` keeps none spare), so a read past its NUL is an ASan
+        /// report.
+        fn names() -> Vec<CString> {
+            [
+                "",
+                "@",
+                "FL",
+                "LFE",
+                "USR40",
+                "AMBI3",
+                "UNK",
+                "NONE",
+                "FL@",
+                "@x",
+                "@front",
+                "FL@front",
+                "FR@front",
+                "XX@front",
+                "@0123456789abcde",
+                "@0123456789abcdefghij",
+                "USR63@0123456789abcde",
+                "@xxxxxxxxxxxxxxxx",
+                "0@1@2",
+            ]
+            .map(|s| CString::new(s).unwrap())
+            .into()
+        }
+
+        /// Calls every reader on `l` and checks what they return against one
+        /// another; returns the description, if any.
+        fn read_all(l: ChannelLayoutRef<'_>) -> Option<CString> {
+            let _ = l.is_valid();
+            if let Some(order) = l.ambisonic_order() {
+                assert!(order < 46_340);
+            }
+            let n = usize::try_from(l.channel_count()).unwrap_or(0).min(70);
+            for i in 0..=n + 1 {
+                if let Some(ch) = l.channel(i) {
+                    // The channel's first position, which holds it.
+                    let j = l.index_of(ch).unwrap();
+                    assert!(j <= i);
+                    assert_eq!(l.channel(j), Some(ch));
+                }
+            }
+            for i in [u32::MAX as usize, u32::MAX as usize + 1, usize::MAX] {
+                assert_eq!(l.channel(i), None);
+            }
+            for ch in channels() {
+                if let Some(i) = l.index_of(ch) {
+                    assert_eq!(l.channel(i), Some(ch));
+                }
+            }
+            assert_eq!(l.index_of(Channel::NONE), None);
+            for name in names() {
+                let at = l.index_by_name(&name);
+                let ch = l.channel_by_name(&name);
+                assert_eq!(at.and_then(|i| l.channel(i)), ch, "{name:?}");
+            }
+            let same = l;
+            assert!(l == same);
+            let description = l.description();
+            match &description {
+                Ok(d) => {
+                    let need = d.as_bytes_with_nul().len();
+                    assert_eq!(l.write_description(&mut []), Ok(need));
+                    for len in (1..need.min(24)).chain([need - 1, need, need + 1]) {
+                        if len == 0 {
+                            continue;
+                        }
+                        // An exactly sized heap block: one byte past it is
+                        // outside the allocation.
+                        let mut buf = vec![0xAAu8; len].into_boxed_slice();
+                        assert_eq!(l.write_description(&mut buf), Ok(need));
+                        let end = (need - 1).min(len - 1);
+                        assert_eq!(buf[end], 0);
+                        assert_eq!(buf[..end], d.as_bytes()[..end]);
+                    }
+                    for len in [1, need / 2 + 1, need] {
+                        let mut data = vec![0xAAu8; len].into_boxed_slice();
+                        let mut buf = BPrint::for_buffer(&mut data).unwrap();
+                        l.append_description(buf.as_mut()).unwrap();
+                        assert_eq!(buf.as_ref().len() as usize, need - 1);
+                        let stored = buf.as_ref().as_bytes().len();
+                        drop(buf);
+                        assert_eq!(data[stored], 0);
+                    }
+                }
+                Err(e) => {
+                    assert!(*e < 0);
+                    let mut buf = vec![0xAAu8; 8].into_boxed_slice();
+                    assert_eq!(l.write_description(&mut buf), Err(*e));
+                    let mut b = BPrint::new(0, BPrint::SIZE_UNLIMITED).unwrap();
+                    b.as_mut().append_bytes(b"kept");
+                    assert_eq!(l.append_description(b.as_mut()), Err(*e));
+                    assert_eq!(b.as_ref().as_bytes(), b"kept");
+                }
+            }
+            description.ok()
+        }
+
+        #[test]
+        fn every_reader_reads_every_start_in_bounds() {
+            let mut described = 0;
+            for l in starts() {
+                let d = read_all(l.as_ref());
+                described += usize::from(d.is_some());
+                // A copy reads alike, and the source is left as it was.
+                let copy = l.as_ref().try_clone().unwrap();
+                assert_eq!(read_all(copy.as_ref()), d);
+                assert!(copy.as_ref() == l.as_ref());
+                walk(l.as_ref());
+            }
+            for ((_, layout), (_, twin)) in STANDARD_LAYOUTS.into_iter().zip(STANDARD_LAYOUTS) {
+                assert!(read_all(layout.as_ref()).is_some());
+                assert!(layout == twin);
+            }
+            assert!(described > 20, "{described}");
+        }
+
+        /// A map whose last element's name fills its field with no NUL, at
+        /// the end of the C block: C's string readers would run past the
+        /// field, into the padding and user pointer after it (all-ones
+        /// here) and past the block if those held no zero byte. The padding
+        /// is not the safe API's to set, so the guard's verdict, not a
+        /// sanitizer, is what this checks.
+        fn unterminated_at_block_end(ids: &[i32]) -> ChannelLayoutVal {
+            let mut map = alloc_cell_array_zeroed::<ChannelCustom>(ids.len()).unwrap();
+            for (i, (mut m, &id)) in map.as_handles_mut().iter_mut().zip(ids).enumerate() {
+                m.set_id(Channel::from_raw(ffi::AVChannel(id)));
+                if i + 1 == ids.len() {
+                    m.set(ChannelCustom::from_raw(ffi::AVChannelCustom {
+                        id: ffi::AVChannel(id),
+                        name: [b'x' as c_char; 16],
+                        opaque: dangling(usize::MAX),
+                    }));
+                } else {
+                    m.set_name(c"named").unwrap();
+                }
+            }
+            ChannelLayout::from_custom_map(map).unwrap()
+        }
+
+        #[test]
+        fn unterminated_names_are_never_read_as_strings() {
+            for ids in [&[0, 1][..], &[1][..], &[0x400, 0x401, 0x402, 0x403, 5]] {
+                let l = unterminated_at_block_end(ids);
+                let r = l.as_ref();
+                // The describers would print the name with `%s`.
+                assert_eq!(r.description(), Err(-22));
+                assert_eq!(read_all(r), None);
+                // A search by name would `strcmp` it; one by abbreviation
+                // only does not read names.
+                for name in [c"@xxxxxxxxxxxxxxxx", c"@x", c"FL@named", c"FR@"] {
+                    let compares = name
+                        .to_bytes()
+                        .split(|&b| b == b'@')
+                        .nth(1)
+                        .is_some_and(|s| !s.is_empty());
+                    if compares {
+                        assert_eq!(r.index_by_name(name), None, "{name:?}");
+                        assert_eq!(r.channel_by_name(name), None, "{name:?}");
+                    }
+                }
+                let last = Channel::from_raw(ffi::AVChannel(*ids.last().unwrap()));
+                let name = last.name();
+                assert_eq!(r.index_by_name(&name), Some(ids.len() - 1));
+                assert_eq!(r.channel_by_name(&name), Some(last));
+                // The other readers never read names.
+                assert!(r.is_valid());
+                assert_eq!(r.channel(ids.len() - 1), Some(last));
+                assert_eq!(r.index_of(last), Some(ids.len() - 1));
+                assert!(r == l.as_ref().try_clone().unwrap().as_ref());
+                let _ = r.ambisonic_order();
+            }
+        }
+
+        #[test]
+        fn layouts_compare_with_every_start() {
+            let all = starts();
+            for (i, a) in all.iter().enumerate() {
+                for (j, b) in all.iter().enumerate() {
+                    let eq = a.as_ref() == b.as_ref();
+                    assert_eq!(eq, b.as_ref() == a.as_ref(), "{i} {j}");
+                    if eq {
+                        assert_eq!(a.as_ref().channel_count(), b.as_ref().channel_count());
+                    }
+                }
+                let (x, y) = (a.as_ref(), a.as_ref());
+                assert!(x == y, "{i}");
+            }
+        }
+
+        #[test]
+        fn readers_interleave_with_every_setter() {
+            let mut x = 0x5851_f42d_4c95_7f2du64;
+            let mut next = move || {
+                x ^= x << 13;
+                x ^= x >> 7;
+                x ^= x << 17;
+                x
+            };
+            let names = names();
+            for _ in 0..20 {
+                let mut l = ChannelLayout::unspecified(2);
+                let mut other = ChannelLayout::custom(3).unwrap();
+                for _ in 0..40 {
+                    step(&mut l, &mut other, next());
+                    let r = l.as_ref();
+                    let i = (next() % 80) as usize;
+                    let _ = (r.channel(i), r.is_valid(), r.ambisonic_order());
+                    let _ = r.index_of(Channel::from_raw(ffi::AVChannel(next() as i32 % 0x900)));
+                    let name: &CStr = &names[next() as usize % names.len()];
+                    let _ = (r.index_by_name(name), r.channel_by_name(name));
+                    let _ = r == other.as_ref();
+                    if let Ok(d) = r.description() {
+                        assert!(!d.as_bytes().is_empty());
+                    }
+                    walk(r);
+                }
+            }
+        }
+
+        #[test]
+        fn shared_handles_read_on_many_threads() {
+            let layouts: Vec<ChannelLayoutVal> = [
+                c"FL@front+FR@right+LFE+USR40@u",
+                c"5.1(side)",
+                c"AMBI0+AMBI1+AMBI2+AMBI3+FL@x",
+            ]
+            .into_iter()
+            .map(|s| ChannelLayout::parse(s).unwrap())
+            .collect();
+            let expect: Vec<_> = layouts.iter().map(|l| l.as_ref().description()).collect();
+            let names = names();
+            thread::scope(|s| {
+                for t in 0..4 {
+                    let (layouts, expect, names) = (&layouts, &expect, &names);
+                    s.spawn(move || {
+                        let mut buf = BPrint::new(0, BPrint::SIZE_UNLIMITED).unwrap();
+                        for k in 0..50 {
+                            let l = layouts[(t + k) % layouts.len()].as_ref();
+                            assert_eq!(&l.description(), &expect[(t + k) % layouts.len()]);
+                            l.append_description(buf.as_mut()).unwrap();
+                            let _ = l.index_by_name(&names[k % names.len()]);
+                            let _ = (l.channel(k % 6), l.ambisonic_order(), l.is_valid());
+                            assert!(l == layouts[(t + k) % layouts.len()].as_ref());
+                            buf.as_mut().clear();
+                        }
+                    });
+                }
+            });
         }
     }
 }

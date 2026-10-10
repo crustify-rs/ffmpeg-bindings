@@ -1400,6 +1400,155 @@
    ]
   },
   {
+   "name": "av_channel_layout_ambisonic_order",
+   "defined_in": "libavutil/channel_layout.c",
+   "ptr_args": [
+    {
+     "name": "channel_layout",
+     "ptr": {
+      "scalar": {
+       "by_val": true
+      },
+      "array": null,
+      "string": false,
+      "owned": false,
+      "borrowed": {
+       "lifetime": "arg:channel_layout"
+      },
+      "nullable": false,
+      "mutable": false,
+      "note": "Read-only for the call, not retained. AMBISONIC order: reads nb_channels and u.mask only; highest_ambi = nb_channels - popcount(mask) - 1 and (order+1)*(order+1) are int arithmetic, which overflow for nb_channels near INT_MIN or highest_ambi >= 46340^2 (unreachable from safe paths; the wrapper answers None, C's EINVAL, before calling). CUSTOM order: walks the ids of nb_channels map elements with no NULL check (the wrapper refuses a NULL map or negative count). Any other order: EINVAL without reading more. Rust: ChannelLayoutRef::ambisonic_order -> Option<u32>."
+     }
+    }
+   ]
+  },
+  {
+   "name": "av_channel_layout_channel_from_index",
+   "defined_in": "libavutil/channel_layout.c",
+   "ptr_args": [
+    {
+     "name": "channel_layout",
+     "ptr": {
+      "scalar": {
+       "by_val": true
+      },
+      "array": null,
+      "string": false,
+      "owned": false,
+      "borrowed": {
+       "lifetime": "arg:channel_layout"
+      },
+      "nullable": false,
+      "mutable": false,
+      "note": "Read-only for the call, not retained. idx is unsigned and compared with nb_channels converted to unsigned, so a negative count lets any idx through; CUSTOM order then reads u.map[idx] with no NULL check (out of bounds for a negative count). AMBISONIC/NATIVE read nb_channels and u.mask only. Returns the id by value (AV_CHAN_NONE for no channel; a map element may also hold AV_CHAN_NONE). Rust: ChannelLayoutRef::channel(usize) -> Option<Channel>, refusing a NULL map / negative custom count and indices beyond u32."
+     }
+    }
+   ]
+  },
+  {
+   "name": "av_channel_layout_channel_from_string",
+   "defined_in": "libavutil/channel_layout.c",
+   "ptr_args": [
+    {
+     "name": "channel_layout",
+     "ptr": {
+      "scalar": {
+       "by_val": true
+      },
+      "array": null,
+      "string": false,
+      "owned": false,
+      "borrowed": {
+       "lifetime": "arg:channel_layout"
+      },
+      "nullable": false,
+      "mutable": false,
+      "note": "Read-only for the call, not retained: av_channel_layout_index_from_string then av_channel_layout_channel_from_index on the index found, so it inherits both contracts (CUSTOM map non-NULL with nb_channels elements; map names NUL-terminated when str holds '@' followed by text, since C strcmp's them). Rust: ChannelLayoutRef::channel_by_name -> Option<Channel>."
+     }
+    },
+    {
+     "name": "str",
+     "ptr": {
+      "scalar": null,
+      "array": {
+       "by_val": true
+      },
+      "string": true,
+      "owned": false,
+      "borrowed": {
+       "lifetime": "arg:str"
+      },
+      "nullable": false,
+      "mutable": false,
+      "note": "NUL-terminated channel name, read only during the call (strstr for '@', av_strlcpy of the abbreviation into a 16-byte local, strcmp against map names, av_channel_from_string); not retained. Non-NULL (C dereferences it). Rust: &CStr."
+     }
+    }
+   ]
+  },
+  {
+   "name": "av_channel_layout_check",
+   "defined_in": "libavutil/channel_layout.c",
+   "ptr_args": [
+    {
+     "name": "channel_layout",
+     "ptr": {
+      "scalar": {
+       "by_val": true
+      },
+      "array": null,
+      "string": false,
+      "owned": false,
+      "borrowed": {
+       "lifetime": "arg:channel_layout"
+      },
+      "nullable": false,
+      "mutable": false,
+      "note": "Read-only for the call, not retained. Reads nb_channels (<= 0 -> 0), the order, u.mask; CUSTOM checks u.map for NULL itself and then reads the ids of nb_channels elements. Safe for every state a safe path leaves. Rust: ChannelLayoutRef::is_valid -> bool."
+     }
+    }
+   ]
+  },
+  {
+   "name": "av_channel_layout_compare",
+   "defined_in": "libavutil/channel_layout.c",
+   "ptr_args": [
+    {
+     "name": "chl",
+     "ptr": {
+      "scalar": {
+       "by_val": true
+      },
+      "array": null,
+      "string": false,
+      "owned": false,
+      "borrowed": {
+       "lifetime": "arg:chl"
+      },
+      "nullable": false,
+      "mutable": false,
+      "note": "First layout, read-only for the call, not retained; may alias chl1. Compares counts and orders, masks for two NATIVE or two AMBISONIC layouts, else av_channel_layout_channel_from_index for every index below the (equal) count, which dereferences a CUSTOM map with no NULL check. Returns 0 equal / 1 different (never negative in this revision). Rust: PartialEq for ChannelLayoutRef / ChannelLayout, false for a NULL-map custom layout without calling C."
+     }
+    },
+    {
+     "name": "chl1",
+     "ptr": {
+      "scalar": {
+       "by_val": true
+      },
+      "array": null,
+      "string": false,
+      "owned": false,
+      "borrowed": {
+       "lifetime": "arg:chl1"
+      },
+      "nullable": false,
+      "mutable": false,
+      "note": "Second layout: as chl."
+     }
+    }
+   ]
+  },
+  {
    "name": "av_channel_layout_copy",
    "defined_in": "libavutil/channel_layout.c",
    "lifetime": {
@@ -1516,6 +1665,86 @@
    ]
   },
   {
+   "name": "av_channel_layout_describe",
+   "defined_in": "libavutil/channel_layout.c",
+   "ptr_args": [
+    {
+     "name": "buf",
+     "ptr": {
+      "scalar": null,
+      "array": {
+       "by_val": true
+      },
+      "string": true,
+      "owned": false,
+      "borrowed": {
+       "lifetime": "arg:buf"
+      },
+      "nullable": true,
+      "mutable": true,
+      "note": "Caller output buffer of buf_size bytes, initialised with av_bprint_init_for_buffer (NUL at buf[0], description truncated to fit with its NUL). NULL is allowed only with buf_size 0 (count-only); NULL with a nonzero size is EINVAL. buf_size is narrowed to unsigned. Not retained. Returns the needed size (len + 1), ERANGE when len >= INT_MAX. Rust: ChannelLayoutRef::write_description(&mut [u8]) (empty slice -> NULL, 0; length capped at u32::MAX) and description() -> CString, measuring first."
+     }
+    },
+    {
+     "name": "channel_layout",
+     "ptr": {
+      "scalar": {
+       "by_val": true
+      },
+      "array": null,
+      "string": false,
+      "owned": false,
+      "borrowed": {
+       "lifetime": "arg:channel_layout"
+      },
+      "nullable": false,
+      "mutable": false,
+      "note": "Read-only for the call, not retained: av_channel_layout_describe_bprint's contract (see there)."
+     }
+    }
+   ]
+  },
+  {
+   "name": "av_channel_layout_describe_bprint",
+   "defined_in": "libavutil/channel_layout.c",
+   "ptr_args": [
+    {
+     "name": "bp",
+     "ptr": {
+      "scalar": {
+       "by_val": true
+      },
+      "array": null,
+      "string": false,
+      "owned": false,
+      "borrowed": {
+       "lifetime": "arg:bp"
+      },
+      "nullable": false,
+      "mutable": true,
+      "note": "An initialised AVBPrint, borrowed mutably for the call only and not retained; C appends with av_bprintf / av_bprint_chars (truncating, never failing). Rust: ChannelLayoutRef::append_description(&self, BPrintMut) -> Result<(), i32>."
+     }
+    },
+    {
+     "name": "channel_layout",
+     "ptr": {
+      "scalar": {
+       "by_val": true
+      },
+      "array": null,
+      "string": false,
+      "owned": false,
+      "borrowed": {
+       "lifetime": "arg:channel_layout"
+      },
+      "nullable": false,
+      "mutable": false,
+      "note": "Read-only for the call, not retained. NATIVE: table lookup by mask, else '<n> channels (' + channel names via channel_from_index. CUSTOM: try_describe_ambisonic (av_channel_layout_ambisonic_order, map walk), has_channel_names / masked_description (map walks), else each channel's name and '@%s' of map[i].name, so every map name must be NUL-terminated and the map non-NULL with nb_channels elements. AMBISONIC: av_channel_layout_ambisonic_order (int arithmetic, see there) plus the non-diegetic mask as a native layout. UNSPEC: '<n> channels'. Unknown order: EINVAL. The wrapper refuses a NULL map, negative custom count, unterminated names and ambisonic counts C cannot compute an order of, with EINVAL, before calling."
+     }
+    }
+   ]
+  },
+  {
    "name": "av_channel_layout_from_mask",
    "defined_in": "libavutil/channel_layout.c",
    "lifetime": {
@@ -1594,6 +1823,69 @@
       "nullable": false,
       "mutable": false,
       "note": "The layout description, a NUL-terminated string read during the call only (strcmp, av_strdup'd copy for parsing, strtol/strtoull)."
+     }
+    }
+   ]
+  },
+  {
+   "name": "av_channel_layout_index_from_channel",
+   "defined_in": "libavutil/channel_layout.c",
+   "ptr_args": [
+    {
+     "name": "channel_layout",
+     "ptr": {
+      "scalar": {
+       "by_val": true
+      },
+      "array": null,
+      "string": false,
+      "owned": false,
+      "borrowed": {
+       "lifetime": "arg:channel_layout"
+      },
+      "nullable": false,
+      "mutable": false,
+      "note": "Read-only for the call, not retained. CUSTOM: walks the ids of nb_channels map elements with no NULL check. NATIVE/AMBISONIC: int nb_channels - popcount(mask), which overflows for a count near INT_MIN (unreachable from safe paths; refused by the wrapper), then popcount arithmetic; a NATIVE layout whose count is below its popcount can yield a negative non-error index (read as None). Rust: ChannelLayoutRef::index_of(Channel) -> Option<usize>."
+     }
+    }
+   ]
+  },
+  {
+   "name": "av_channel_layout_index_from_string",
+   "defined_in": "libavutil/channel_layout.c",
+   "ptr_args": [
+    {
+     "name": "channel_layout",
+     "ptr": {
+      "scalar": {
+       "by_val": true
+      },
+      "array": null,
+      "string": false,
+      "owned": false,
+      "borrowed": {
+       "lifetime": "arg:channel_layout"
+      },
+      "nullable": false,
+      "mutable": false,
+      "note": "Read-only for the call, not retained. CUSTOM: when str holds '@' followed by text, strcmp's it with each map name (names must be NUL-terminated) and compares ids; then, as for NATIVE/AMBISONIC, av_channel_from_string(str) and av_channel_layout_index_from_channel (see there). Other orders: EINVAL. Only EINVAL is returned on failure. Rust: ChannelLayoutRef::index_by_name -> Option<usize>, refusing unterminated names only when C would compare them."
+     }
+    },
+    {
+     "name": "str",
+     "ptr": {
+      "scalar": null,
+      "array": {
+       "by_val": true
+      },
+      "string": true,
+      "owned": false,
+      "borrowed": {
+       "lifetime": "arg:str"
+      },
+      "nullable": false,
+      "mutable": false,
+      "note": "NUL-terminated channel name, read only during the call; non-NULL. Rust: &CStr."
      }
     }
    ]

@@ -19,6 +19,15 @@
 //! (`AV_CHANNEL_LAYOUT_*`) over the [`masks`] (`AV_CH_LAYOUT_*`) of channel
 //! bits ([`Channel::mask`], `AV_CH_*`); [`standard_layouts`] walks the ones
 //! C knows by name.
+//!
+//! C's readers query a layout through its shared handle: the channel at an
+//! index and back ([`ChannelLayoutRef::channel`],
+//! [`ChannelLayoutRef::index_of`]), by name
+//! ([`ChannelLayoutRef::index_by_name`],
+//! [`ChannelLayoutRef::channel_by_name`]), its validity
+//! ([`ChannelLayoutRef::is_valid`]), Ambisonic order and description
+//! ([`ChannelLayoutRef::description`], which [`ChannelLayout::parse`] reads
+//! back), and `==` compares two layouts as `av_channel_layout_compare` does.
 
 use core::ffi::{CStr, c_char, c_int, c_uint, c_void};
 use core::hash::{Hash, Hasher};
@@ -2245,6 +2254,402 @@ impl Iterator for StandardLayouts {
 // returns NULL again.
 impl FusedIterator for StandardLayouts {}
 
+/// The `highest_ambi` index past which C's `av_channel_layout_ambisonic_order`
+/// overflows an `int`: from `46340^2` on, `floor(sqrt(highest_ambi))` is
+/// 46340 and C squares 46341.
+const AMBISONIC_HIGHEST_LIMIT: i64 = 46_340 * 46_340;
+
+/// Whether `av_channel_layout_index_from_string(layout, name)` compares
+/// `name` with a custom map's names (`strcmp`): when it holds an `@` with at
+/// least one byte after it.
+fn compares_map_names(name: &CStr) -> bool {
+    let bytes = name.to_bytes();
+    bytes
+        .iter()
+        .position(|&b| b == b'@')
+        .is_some_and(|at| at + 1 < bytes.len())
+}
+
+impl<'a> ChannelLayoutRef<'a> {
+    /// Whether C's per-channel readers (`av_channel_layout_channel_from_index`,
+    /// `_index_from_channel` and the readers built on them) can read this
+    /// layout: false for a custom layout C left without a map (after its own
+    /// failed copy) or with a negative count, which C would read through or
+    /// past, and for a native or ambisonic count so negative that C's
+    /// `nb_channels - popcount(mask)` overflows an `int`. No safe path leaves
+    /// either.
+    fn walkable(&self) -> bool {
+        match self.details() {
+            LayoutDetails::Custom(_) => self
+                .map_parts()
+                .is_some_and(|(map, count)| !map.is_null() && count >= 0),
+            LayoutDetails::Native(mask) | LayoutDetails::Ambisonic(mask) => self
+                .channel_count()
+                .checked_sub(mask.count_ones() as c_int)
+                .is_some(),
+            _ => true,
+        }
+    }
+
+    /// Whether C computes an ambisonic layout's order without overflowing
+    /// an `int` (true in any other order): its `highest_ambi`, the count
+    /// less the non-diegetic channels and one, is not negative and below
+    /// [`AMBISONIC_HIGHEST_LIMIT`]. C answers `AVERROR(EINVAL)` past both
+    /// bounds where it does not overflow: no order exists there.
+    fn ambisonic_computable(&self) -> bool {
+        let LayoutDetails::Ambisonic(mask) = self.details() else {
+            return true;
+        };
+        let highest = i64::from(self.channel_count()) - i64::from(mask.count_ones()) - 1;
+        (0..AMBISONIC_HIGHEST_LIMIT).contains(&highest)
+    }
+
+    /// Whether every name of a custom map ends within its field, as C's
+    /// `%s` and `strcmp` readers of the names assume; true in any other
+    /// order. Only [`ChannelCustom::from_raw`] carries an unterminated name
+    /// into a map.
+    fn names_terminated(&self) -> bool {
+        match self.details() {
+            LayoutDetails::Custom(map) => map
+                .iter()
+                .all(|c| c.name().as_bytes().len() <= ChannelName::MAX_LEN),
+            _ => true,
+        }
+    }
+
+    /// `AVERROR(EINVAL)` for a layout C's describers cannot read: one the
+    /// per-channel readers cannot [walk](Self::walkable), an ambisonic count
+    /// C cannot [compute an order of](Self::ambisonic_computable), or a
+    /// map name with no NUL, which C prints with `%s`.
+    fn describable(&self) -> Result<(), i32> {
+        if self.walkable() && self.ambisonic_computable() && self.names_terminated() {
+            Ok(())
+        } else {
+            Err(EINVAL)
+        }
+    }
+
+    /// Wraps: av_channel_layout_check
+    ///
+    /// Whether C deems the layout valid: it holds at least one channel and,
+    /// by its order, a native mask of as many channels, a custom map with no
+    /// [`Channel::NONE`], or an ambisonic count above its non-diegetic
+    /// channels'; any count in unspecified order, and no layout in an order
+    /// C does not know.
+    ///
+    /// ```
+    /// use ffmpeg::libavutil::channel_layout::ChannelLayout;
+    /// assert!(ChannelLayout::STEREO.as_ref().is_valid());
+    /// assert!(!ChannelLayout::unspecified(0).as_ref().is_valid());
+    /// ```
+    #[must_use]
+    pub fn is_valid(&self) -> bool {
+        // SAFETY: the shared handle covers a live layout that nothing writes
+        // while it lives, and C only reads it: the order, the count, the
+        // mask, and, in custom order with a positive count, the map pointer
+        // (checked for NULL) and the ids of the `nb_channels` initialised
+        // elements every safe path keeps behind a non-NULL one.
+        unsafe { ffi::av_channel_layout_check(self.as_ptr()) == 1 }
+    }
+
+    /// Wraps: av_channel_layout_ambisonic_order
+    ///
+    /// The Ambisonic order `n` of a layout that starts with all `(n + 1)^2`
+    /// components of order `n`, each at its own ACN index: an ambisonic
+    /// layout's, or a custom map's leading [`Channel::ambisonic`] channels,
+    /// none of them after a channel of another kind. `None` in any other
+    /// order, for a custom map with no Ambisonic channel or with one out of
+    /// place, and for an incomplete order (C's `AVERROR(EINVAL)`).
+    ///
+    /// ```
+    /// use ffmpeg::libavutil::channel_layout::ChannelLayout;
+    /// assert_eq!(ChannelLayout::AMBISONIC_FIRST_ORDER.as_ref().ambisonic_order(), Some(1));
+    /// let custom = ChannelLayout::parse(c"AMBI0+AMBI1+AMBI2+AMBI3+FL@x").unwrap();
+    /// assert_eq!(custom.as_ref().ambisonic_order(), Some(1));
+    /// assert_eq!(ChannelLayout::STEREO.as_ref().ambisonic_order(), None);
+    /// ```
+    #[must_use]
+    pub fn ambisonic_order(&self) -> Option<u32> {
+        if !self.walkable() || !self.ambisonic_computable() {
+            return None;
+        }
+        // SAFETY: the shared handle covers a live layout C only reads: an
+        // ambisonic layout's count and mask, whose arithmetic stays in `int`
+        // range (checked above), or the ids of a custom layout's
+        // `nb_channels >= 0` elements behind its non-NULL map (checked
+        // above), the only map C walks.
+        let ret = unsafe { ffi::av_channel_layout_ambisonic_order(self.as_ptr()) };
+        u32::try_from(ret).ok()
+    }
+
+    /// Wraps: av_channel_layout_channel_from_index
+    ///
+    /// The channel at `index` in the layout's order: a custom map's id at
+    /// `index`, an ambisonic layout's component `index` before its
+    /// non-diegetic channels, which follow in id order as a native layout's
+    /// do. `None` past the last channel, in unspecified order or an order C
+    /// does not know, and for a map element holding [`Channel::NONE`], which
+    /// C returns for no channel.
+    ///
+    /// ```
+    /// use ffmpeg::libavutil::channel_layout::{Channel, ChannelLayout};
+    /// let l = ChannelLayout::L2POINT1;
+    /// assert_eq!(l.as_ref().channel(2), Some(Channel::LOW_FREQUENCY));
+    /// assert_eq!(l.as_ref().channel(3), None);
+    /// ```
+    #[must_use]
+    pub fn channel(&self, index: usize) -> Option<Channel> {
+        // C takes an `unsigned` index; no layout counts more than `i32::MAX`
+        // channels, so a wider one is past the end of all of them.
+        let index = c_uint::try_from(index).ok()?;
+        if !self.walkable() {
+            return None;
+        }
+        // SAFETY: the shared handle covers a live layout C only reads: the
+        // order, count and mask, and, in custom order, element `index` of
+        // the non-NULL map (checked above) only when `index` is below the
+        // non-negative count (checked above), which the map holds.
+        let raw = unsafe { ffi::av_channel_layout_channel_from_index(self.as_ptr(), index) };
+        Some(Channel::from_raw(raw)).filter(|&ch| ch != Channel::NONE)
+    }
+
+    /// Wraps: av_channel_layout_index_from_channel
+    ///
+    /// The index of `channel` in the layout, the inverse of
+    /// [`channel`](Self::channel): its first position in a custom map, its
+    /// ACN index among an ambisonic layout's components, or its position
+    /// among a native layout's (or an ambisonic layout's non-diegetic)
+    /// channels. `None` when the layout does not hold it, in unspecified
+    /// order or an order C does not know, and for [`Channel::NONE`].
+    ///
+    /// ```
+    /// use ffmpeg::libavutil::channel_layout::{Channel, ChannelLayout};
+    /// let l = ChannelLayout::L5POINT1;
+    /// assert_eq!(l.as_ref().index_of(Channel::LOW_FREQUENCY), Some(3));
+    /// assert_eq!(l.as_ref().index_of(Channel::BACK_LEFT), None);
+    /// ```
+    #[must_use]
+    pub fn index_of(&self, channel: Channel) -> Option<usize> {
+        if !self.walkable() {
+            return None;
+        }
+        let layout = self.as_ptr();
+        // SAFETY: the shared handle covers a live layout C only reads: a
+        // native or ambisonic layout's count and mask, whose difference
+        // stays in `int` range (checked above), or the ids of a custom
+        // layout's `nb_channels >= 0` elements behind its non-NULL map
+        // (checked above).
+        let ret = unsafe { ffi::av_channel_layout_index_from_channel(layout, channel.into_raw()) };
+        usize::try_from(ret).ok()
+    }
+
+    /// Whether C's lookups by name can read this layout for `name`: when
+    /// they compare it with a custom map's names, every name must end in its
+    /// field.
+    fn searchable_for(&self, name: &CStr) -> bool {
+        self.walkable() && (!compares_map_names(name) || self.names_terminated())
+    }
+
+    /// Wraps: av_channel_layout_index_from_string
+    ///
+    /// The index of the channel `name` names in the layout, as
+    /// [`index_of`](Self::index_of) finds the channel
+    /// [`Channel::from_name`] reads from it. A custom map is first searched
+    /// by name: `<abbr>@<name>` finds the first element of that name whose
+    /// id is the channel `<abbr>` names, and `@<name>` the first of that
+    /// name whatever its id; failing that, the whole string is read as a
+    /// channel name.
+    ///
+    /// ```
+    /// use ffmpeg::libavutil::channel_layout::ChannelLayout;
+    /// let l = ChannelLayout::parse(c"FL@left+FR@right+FL@rear").unwrap();
+    /// assert_eq!(l.as_ref().index_by_name(c"FR"), Some(1));
+    /// assert_eq!(l.as_ref().index_by_name(c"@rear"), Some(2));
+    /// assert_eq!(l.as_ref().index_by_name(c"FL@rear"), Some(2));
+    /// assert_eq!(l.as_ref().index_by_name(c"FR@rear"), None);
+    /// ```
+    ///
+    /// `None` where C reports `AVERROR(EINVAL)`: when nothing matches, for a
+    /// `<abbr>` before the `@` that names no channel, in unspecified order or
+    /// an order C does not know. Also `None`, before C is called, when the
+    /// search by name would meet a map name with no NUL, which C would read
+    /// past.
+    #[must_use]
+    pub fn index_by_name(&self, name: &CStr) -> Option<usize> {
+        if !self.searchable_for(name) {
+            return None;
+        }
+        let (layout, name) = (self.as_ptr(), name.as_ptr());
+        // SAFETY: the shared handle covers a live layout C only reads,
+        // within the bounds `index_of` relies on (checked above), and, when
+        // it compares `name` with the map's names, names that each end in
+        // their field (checked above); `name` is a live C string C only
+        // reads during the call.
+        let ret = unsafe { ffi::av_channel_layout_index_from_string(layout, name) };
+        usize::try_from(ret).ok()
+    }
+
+    /// Wraps: av_channel_layout_channel_from_string
+    ///
+    /// The channel `name` names in the layout: the [`channel`](Self::channel)
+    /// at the [`index_by_name`](Self::index_by_name) of `name`, so a custom
+    /// map element is found by its name too. `None` where `index_by_name`
+    /// finds nothing.
+    ///
+    /// ```
+    /// use ffmpeg::libavutil::channel_layout::{Channel, ChannelLayout};
+    /// let l = ChannelLayout::parse(c"FL@left+LFE@sub").unwrap();
+    /// assert_eq!(l.as_ref().channel_by_name(c"@sub"), Some(Channel::LOW_FREQUENCY));
+    /// assert_eq!(l.as_ref().channel_by_name(c"FR"), None);
+    /// ```
+    #[must_use]
+    pub fn channel_by_name(&self, name: &CStr) -> Option<Channel> {
+        if !self.searchable_for(name) {
+            return None;
+        }
+        let (layout, name) = (self.as_ptr(), name.as_ptr());
+        // SAFETY: as in `index_by_name`; C then reads the channel at the
+        // index it found, which is below the count.
+        let raw = unsafe { ffi::av_channel_layout_channel_from_string(layout, name) };
+        Some(Channel::from_raw(raw)).filter(|&ch| ch != Channel::NONE)
+    }
+
+    /// Wraps: av_channel_layout_describe
+    ///
+    /// Writes the layout's description, as
+    /// [`description`](Self::description) returns it, into `buf`, truncated
+    /// to fit with its NUL, and returns the size a buffer needs to hold it
+    /// whole, NUL included: it was truncated when that exceeds `buf.len()`.
+    /// An empty `buf` only measures it.
+    ///
+    /// # Errors
+    ///
+    /// As for [`description`](Self::description), and `AVERROR(ERANGE)` for
+    /// a description of `INT_MAX` bytes or more.
+    pub fn write_description(&self, buf: &mut [u8]) -> Result<usize, i32> {
+        self.describable()?;
+        let (ptr, size) = name_buffer(buf);
+        // SAFETY: the shared handle covers a live layout C only reads, within
+        // the bounds its readers need (checked above); `ptr` is NULL with
+        // size 0, which C takes as a count-only request and never
+        // dereferences, or valid for `size` bytes of writes, which bound
+        // every byte C writes; C keeps no pointer to either.
+        let ret = unsafe { ffi::av_channel_layout_describe(self.as_ptr(), ptr, size) };
+        usize::try_from(ret).map_err(|_| ret)
+    }
+
+    /// Wraps: av_channel_layout_describe
+    ///
+    /// The description of the layout, which [`ChannelLayout::parse`] reads
+    /// back: the name of a standard native layout (`stereo`, `5.1(side)`),
+    /// `<n> channels (<names>)` listing other native layouts and custom maps
+    /// channel by channel, `@<name>` after a named channel, `ambisonic <n>`
+    /// with any non-diegetic channels after a `+`, and `<n> channels` in
+    /// unspecified order. A custom map C can list as native or ambisonic
+    /// (unnamed native channels in increasing order, after any complete
+    /// Ambisonic order) is described as such.
+    ///
+    /// ```
+    /// use ffmpeg::libavutil::channel_layout::{ChannelLayout, ChannelLayoutRef, masks};
+    /// let d = |l: ChannelLayoutRef<'_>| l.description().unwrap().into_string().unwrap();
+    /// assert_eq!(d(ChannelLayout::L5POINT1.as_ref()), "5.1(side)");
+    /// let odd = ChannelLayout::native(masks::STEREO | 1 << 50);
+    /// assert_eq!(d(odd.as_ref()), "3 channels (FL+FR+USR50)");
+    /// assert_eq!(d(ChannelLayout::AMBISONIC_FIRST_ORDER.as_ref()), "ambisonic 1");
+    /// let custom = ChannelLayout::parse(c"FR@r+FL").unwrap();
+    /// assert_eq!(d(custom.as_ref()), "2 channels (FR@r+FL)");
+    /// ```
+    ///
+    /// # Errors
+    ///
+    /// `AVERROR(EINVAL)` for an order C does not know, and, before C is
+    /// called, for a map name with no NUL, which C would print past.
+    pub fn description(&self) -> Result<CString, i32> {
+        let need = self.write_description(&mut [])?;
+        let mut buf = vec![0; need];
+        self.write_description(&mut buf)?;
+        Ok(CString::from_vec_with_nul(buf).expect("C writes one NUL, at the end"))
+    }
+
+    /// Wraps: av_channel_layout_describe_bprint
+    ///
+    /// Appends the layout's [description](Self::description) to `buf`,
+    /// truncated as `buf` truncates what does not fit. `buf` is a handle,
+    /// which `as_mut()` reborrows from an owner or another handle.
+    ///
+    /// ```
+    /// use ffmpeg::libavutil::bprint::BPrint;
+    /// use ffmpeg::libavutil::channel_layout::ChannelLayout;
+    /// let mut buf = BPrint::new(0, BPrint::SIZE_UNLIMITED).unwrap();
+    /// buf.as_mut().append_bytes(b"layout: ");
+    /// ChannelLayout::STEREO.as_ref().append_description(buf.as_mut()).unwrap();
+    /// assert_eq!(buf.as_ref().as_bytes(), b"layout: stereo");
+    /// ```
+    ///
+    /// # Errors
+    ///
+    /// As for [`description`](Self::description), leaving `buf` as it was.
+    pub fn append_description(&self, mut buf: BPrintMut<'_>) -> Result<(), i32> {
+        self.describable()?;
+        let (layout, bp) = (self.as_ptr(), buf.as_mut_ptr());
+        // SAFETY: the shared handle covers a live layout C only reads, within
+        // the bounds its readers need (checked above); the exclusive handle
+        // addresses an initialised print buffer, which C appends to with
+        // `av_bprintf` within its `size`; C keeps no pointer to either.
+        let ret = unsafe { ffi::av_channel_layout_describe_bprint(layout, bp) };
+        if ret < 0 { Err(ret) } else { Ok(()) }
+    }
+}
+
+/// Wraps: av_channel_layout_compare
+///
+/// Whether two layouts hold the same channels in the same order, as C
+/// compares them: their counts must be equal; two unspecified layouts are
+/// equal, and one equals no layout in another order; two native or two
+/// ambisonic layouts compare their masks; any other pair compares
+/// [channel](ChannelLayoutRef::channel) by channel, so a custom map of
+/// native channels in id order equals the native layout of the same mask.
+/// Names and user pointers are not compared.
+///
+/// ```
+/// use ffmpeg::libavutil::channel_layout::{ChannelLayout, ChannelOrder};
+/// let mut l = ChannelLayout::parse(c"FL@left+FR").unwrap();
+/// assert!(l.as_ref() == ChannelLayout::STEREO.as_ref());
+/// l.as_mut().retype(ChannelOrder::UNSPEC).unwrap();
+/// assert!(l.as_ref() != ChannelLayout::STEREO.as_ref());
+/// assert!(l.as_ref() == ChannelLayout::unspecified(2).as_ref());
+/// ```
+///
+/// Not `Eq`: a layout C's readers cannot walk (a custom layout C left
+/// without a map), which no safe path keeps, equals nothing, itself
+/// included, rather than being read through.
+///
+/// ```compile_fail,E0277
+/// use ffmpeg::libavutil::channel_layout::ChannelLayout;
+/// fn total<T: Eq>(_: &T) {}
+/// total(&ChannelLayout::STEREO);
+/// ```
+impl PartialEq<ChannelLayoutRef<'_>> for ChannelLayoutRef<'_> {
+    fn eq(&self, other: &ChannelLayoutRef<'_>) -> bool {
+        if !self.walkable() || !other.walkable() {
+            return false;
+        }
+        // SAFETY: both shared handles cover live layouts that nothing writes
+        // while they live, possibly the same one, which C only reads: their
+        // counts, orders and masks, and the channels below their (equal,
+        // non-negative) count, read as `channel` reads them (checked above).
+        let ret = unsafe { ffi::av_channel_layout_compare(self.as_ptr(), other.as_ptr()) };
+        ret == 0
+    }
+}
+
+/// As the layouts' shared handles compare.
+impl PartialEq for ChannelLayout {
+    fn eq(&self, other: &Self) -> bool {
+        self.as_ref() == other.as_ref()
+    }
+}
+
 #[cfg(test)]
 mod unit_tests {
     use core::ffi::{c_int, c_uint};
@@ -3481,5 +3886,152 @@ mod unit_tests {
         assert!(done.next().is_none());
         assert!(done.next().is_none());
         assert_eq!(format!("{done:?}"), "StandardLayouts { next: 40 }");
+    }
+
+    /// A raw layout of `order`, `nb_channels` and the union bits `u`, with
+    /// no user pointer: states no safe path leaves, for the readers' guards.
+    fn raw_layout(order: ChannelOrder, nb_channels: c_int, u: u64) -> ChannelLayoutVal {
+        let raw = ChannelLayout::masked(order, nb_channels, u, ptr::null_mut());
+        ChannelLayoutVal::new(ChannelLayout::from_parts(raw))
+    }
+
+    /// Every reader refuses, before calling C.
+    fn assert_refused(l: ChannelLayoutRef<'_>) {
+        assert_eq!(l.ambisonic_order(), None);
+        assert_eq!(l.channel(0), None);
+        assert_eq!(l.channel(1), None);
+        assert_eq!(l.index_of(Channel::FRONT_LEFT), None);
+        assert_eq!(l.index_by_name(c"FL"), None);
+        assert_eq!(l.channel_by_name(c"@x"), None);
+        assert_eq!(l.description(), Err(EINVAL));
+        assert_eq!(l.write_description(&mut [0; 8]), Err(EINVAL));
+        let same = l;
+        assert!(l != same, "equals nothing, itself included");
+    }
+
+    /// A custom layout C left without a map, and one whose negative count
+    /// C would compare an `unsigned` index with: the readers answer before C
+    /// reads through the NULL map or past the real one.
+    #[test]
+    fn readers_refuse_custom_layouts_c_cannot_walk() {
+        let mapless = raw_layout(ChannelOrder::CUSTOM, 3, 0);
+        assert_refused(mapless.as_ref());
+        // C checks the map itself.
+        assert!(!mapless.as_ref().is_valid());
+        let map = named_map(&[Channel::FRONT_LEFT, Channel::FRONT_RIGHT]);
+        let (map, _) = map.into_raw_parts();
+        let raw = ffi::AVChannelLayout {
+            order: ChannelOrder::CUSTOM.into_raw(),
+            nb_channels: -2,
+            u: ffi::AVChannelLayout__bindgen_ty_1 { map: map.cast() },
+            opaque: ptr::null_mut(),
+        };
+        let negative = ChannelLayoutVal::new(ChannelLayout::from_parts(raw));
+        assert_refused(negative.as_ref());
+        assert!(!negative.as_ref().is_valid());
+        assert!(negative.as_ref() != mapless.as_ref());
+        // `av_channel_layout_uninit` frees the map on drop, whatever the
+        // count.
+    }
+
+    /// Native and ambisonic counts at the `int` extremes: the readers answer
+    /// what C answers where C's `int` arithmetic does not overflow, and
+    /// refuse where it would.
+    #[test]
+    fn readers_keep_cs_int_arithmetic_in_range() {
+        let ambi = |n| raw_layout(ChannelOrder::AMBISONIC, n, 0);
+        // `highest_ambi` at the limit's edges: 46339 squares within `int`.
+        let top = c_int::try_from(AMBISONIC_HIGHEST_LIMIT).unwrap();
+        let l = ambi(top);
+        assert_eq!(l.as_ref().ambisonic_order(), Some(46_339));
+        assert_eq!(
+            l.as_ref().description().unwrap().as_bytes(),
+            b"ambisonic 46339"
+        );
+        for n in [top + 1, c_int::MAX, 0, -1, c_int::MIN] {
+            let l = ambi(n);
+            assert_eq!(l.as_ref().ambisonic_order(), None, "{n}");
+            assert_eq!(l.as_ref().description(), Err(EINVAL), "{n}");
+        }
+        // The components are still indexed, which needs no order.
+        let l = ambi(c_int::MAX);
+        let acn5 = Channel::ambisonic(5).unwrap();
+        assert_eq!(l.as_ref().channel(5), Some(acn5));
+        assert_eq!(l.as_ref().index_of(acn5), Some(5));
+        assert!(l.as_ref().is_valid());
+        // A count so negative that `nb_channels - popcount(mask)` overflows.
+        for (order, n) in [
+            (ChannelOrder::NATIVE, c_int::MIN),
+            (ChannelOrder::AMBISONIC, c_int::MIN + 3),
+        ] {
+            let l = raw_layout(order, n, u64::MAX);
+            assert_refused(l.as_ref());
+            assert!(!l.as_ref().is_valid());
+        }
+        // One channel short of overflowing is read by C.
+        let l = raw_layout(ChannelOrder::NATIVE, c_int::MIN + 64, u64::MAX);
+        assert_eq!(l.as_ref().index_of(Channel::FRONT_LEFT), None);
+        assert_eq!(l.as_ref().channel(0), Some(Channel::FRONT_LEFT));
+    }
+
+    #[test]
+    fn map_names_are_compared_only_after_an_at_with_text() {
+        for (name, compares) in [
+            (c"", false),
+            (c"FL", false),
+            (c"@", false),
+            (c"FL@", false),
+            (c"@x", true),
+            (c"FL@x", true),
+            (c"FL@@", true),
+            (c"@@", true),
+            (c"a@b@c", true),
+        ] {
+            assert_eq!(compares_map_names(name), compares, "{name:?}");
+        }
+    }
+
+    /// A name with no NUL is refused only where C reads it as a string.
+    #[test]
+    fn unterminated_names_refuse_only_string_readers() {
+        let mut map = named_map(&[Channel::FRONT_LEFT, Channel::LOW_FREQUENCY]);
+        map.as_handles_mut()
+            .get_mut(0)
+            .unwrap()
+            .set(ChannelCustom::from_raw(ffi::AVChannelCustom {
+                id: Channel::FRONT_LEFT.into_raw(),
+                name: [b'y' as c_char; 16],
+                opaque: ptr::null_mut(),
+            }));
+        let l = ChannelLayout::from_custom_map(map).unwrap();
+        let r = l.as_ref();
+        assert!(!r.names_terminated());
+        assert_eq!(r.description(), Err(EINVAL));
+        let mut b = super::super::bprint::BPrint::new(0, u32::MAX).unwrap();
+        assert_eq!(r.append_description(b.as_mut()), Err(EINVAL));
+        assert!(b.as_ref().as_bytes().is_empty());
+        assert_eq!(r.index_by_name(c"@n1"), None);
+        assert_eq!(r.channel_by_name(c"LFE@n1"), None);
+        assert_eq!(r.index_by_name(c"LFE"), Some(1));
+        // C reads `LFE@` whole as a channel name, which names none.
+        assert_eq!(r.index_by_name(c"LFE@"), None);
+        assert_eq!(r.index_by_name(c"USR0@"), None);
+        assert_eq!(r.channel(0), Some(Channel::FRONT_LEFT));
+        assert!(r.is_valid());
+        let same = r;
+        assert!(r == same);
+        // Terminated, the same names are searched.
+        let named = ChannelLayout::from_custom_map(named_map(&[
+            Channel::FRONT_LEFT,
+            Channel::LOW_FREQUENCY,
+        ]))
+        .unwrap();
+        assert!(named.as_ref().names_terminated());
+        assert_eq!(named.as_ref().index_by_name(c"@n1"), Some(1));
+        assert_eq!(
+            named.as_ref().channel_by_name(c"LFE@n1"),
+            Some(Channel::LOW_FREQUENCY)
+        );
+        assert!(named.as_ref() == r);
     }
 }
