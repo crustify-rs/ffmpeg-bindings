@@ -1,0 +1,29 @@
+{
+  "method": {
+    "rust": "RUSTFLAGS=-C instrument-coverage, nightly llvm-profdata merge + llvm-cov report over the lib, equiv, ub_safe and ub_unsafe test binaries (cargo +nightly test -p ffmpeg --lib --tests -- --skip compile_fail), reported for the two home files",
+    "c": "CRUSTIFY_FFMPEG_VARIANT=coverage with GCOV_PREFIX, the channel_layout and csp tests of the four binaries, gcov -b -c -f over libavutil/channel_layout.c for the type's six lifecycle routines (and parse_channel_list, which av_channel_layout_from_string owns); AVPrimaryCoefficients has no C routine of its own",
+    "note": "one measurement, at the fixed tree (BSan input filter, Channel::mask, masks, the standard-layout constants and their tests included)"
+  },
+  "rust": {
+    "libavutil/channel_layout.rs": { "lines": { "count": 1364, "percent": 98.97 }, "regions": { "count": 2112, "percent": 99.29 }, "functions": { "count": 196, "percent": 99.49 } },
+    "libavutil/csp.rs": { "lines": { "count": 738, "percent": 100.0 }, "regions": { "count": 1280, "percent": 100.0 }, "functions": { "count": 135, "percent": 100.0 } },
+    "uncovered": [
+      "channel_layout.rs masks::bit: a private const fn only ever evaluated at compile time (the 40 mask constants), so it has no runtime count; its None arm is a const-evaluation panic no named channel reaches",
+      "channel_layout.rs unit_tests: the panic!() arms of `let ... else` destructurings and the parent branch of the isolated-child test, unreachable by construction"
+    ]
+  },
+  "c": {
+    "libavutil/channel_layout.c": {
+      "av_channel_layout_uninit": "100% of 7 lines",
+      "av_channel_layout_copy": "100% of 9 lines",
+      "av_channel_layout_custom_init": "100% of 11 lines",
+      "av_channel_layout_from_mask": "100% of 6 lines",
+      "av_channel_layout_from_string": "100% of 76 lines",
+      "av_channel_layout_default": "100% of 8 lines",
+      "parse_channel_list": "96.77% of 31 lines",
+      "uncovered": [
+        "channel_layout.c:277 parse_channel_list's av_freep(&map) when av_opt_get_key_value fails after at least one channel was added: av_get_token / get_key fail only on ENOMEM for a few-byte allocation, which av_max_alloc (a size threshold) cannot make fail after the preceding same-sized allocations succeeded"
+      ]
+    }
+  }
+}
