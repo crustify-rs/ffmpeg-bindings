@@ -1,0 +1,27 @@
+{
+  "objective": "wrap",
+  "items": [
+    {
+      "name": "AVChannelCustom",
+      "defined_in": "libavutil/channel_layout.h",
+      "kind": "type",
+      "field_anchors": [
+        "name",
+        "id",
+        "opaque"
+      ],
+      "home": "crustify/rust/ffmpeg/libavutil/channel_layout.rs"
+    },
+    {
+      "name": "AVLumaCoefficients",
+      "defined_in": "libavutil/csp.h",
+      "kind": "type",
+      "field_anchors": [
+        "cb",
+        "cr",
+        "cg"
+      ],
+      "home": "crustify/rust/ffmpeg/libavutil/csp.rs"
+    }
+  ]
+}

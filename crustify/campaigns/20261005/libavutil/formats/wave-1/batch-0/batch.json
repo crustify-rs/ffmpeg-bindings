@@ -1,0 +1,15 @@
+{
+  "objective": "wrap",
+  "items": [
+    {
+      "name": "AVCIExy",
+      "defined_in": "libavutil/csp.h",
+      "kind": "type",
+      "field_anchors": [
+        "x",
+        "y"
+      ],
+      "home": "crustify/rust/ffmpeg/libavutil/csp.rs"
+    }
+  ]
+}

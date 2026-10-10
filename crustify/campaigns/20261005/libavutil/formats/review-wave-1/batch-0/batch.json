@@ -1,0 +1,52 @@
+{
+  "objective": "review",
+  "items": [
+    {
+      "name": "AVCIExy",
+      "defined_in": "libavutil/csp.h",
+      "kind": "type",
+      "field_anchors": [
+        "x",
+        "y"
+      ],
+      "home": "crustify/rust/ffmpeg/libavutil/csp.rs"
+    },
+    {
+      "name": "AVChannelCustom",
+      "defined_in": "libavutil/channel_layout.h",
+      "kind": "type",
+      "field_anchors": [
+        "name",
+        "id",
+        "opaque"
+      ],
+      "home": "crustify/rust/ffmpeg/libavutil/channel_layout.rs"
+    },
+    {
+      "name": "AVLumaCoefficients",
+      "defined_in": "libavutil/csp.h",
+      "kind": "type",
+      "field_anchors": [
+        "cb",
+        "cr",
+        "cg"
+      ],
+      "home": "crustify/rust/ffmpeg/libavutil/csp.rs"
+    },
+    {
+      "name": "AVPixFmtDescriptor",
+      "defined_in": "libavutil/pixdesc.h",
+      "kind": "type",
+      "field_anchors": [
+        "name",
+        "flags",
+        "nb_components",
+        "log2_chroma_w",
+        "log2_chroma_h",
+        "comp",
+        "alias"
+      ],
+      "home": "crustify/rust/ffmpeg/libavutil/pixdesc.rs"
+    }
+  ]
+}

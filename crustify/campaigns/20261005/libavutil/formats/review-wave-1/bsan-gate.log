@@ -1,0 +1,198 @@
+# BSan gate of libavutil/formats wave 1 at 2f6e60458d — FAILED (timeouts, equiv and ub_safe)
+
+Gate: clippy, plain, asan-ubsan, tsan, bsan lib (501) and ub_unsafe (72) pass. `bsan` equiv and
+ub_safe hit the gate's 7200 s timeout (exit 124); at wave 0 they took 13m26s and 24m26s.
+No BSan "Undefined Behavior" report was printed by either.
+Command: BSAN_OPTIONS=gc_hang_threshold_ms=600000 CRUSTIFY_FFMPEG_VARIANT=bsan timeout 7200 cargo bsan test --test <equiv|ub_safe> -- --skip compile_fail
+
+Orchestrator triage — each test alone, same binaries, 1500 s cap, peak RSS:
+| binary | test | result |
+|---|---|---|
+| ub_safe | samplefmt::buffers::many_planar_channels_spill_the_plane_pointers | timeout, 62 GB |
+| equiv | imgutils::images::copies_and_fills_match_c_for_every_format | timeout, 14 GB |
+| equiv | imgutils::images::allocations_match_c | timeout, 4.4 GB |
+| ub_safe | samplefmt::buffers::every_owner_and_view_stays_inside_its_planes | timeout, 3.8 GB |
+| ub_safe | imgutils::images::exact_planes_of_every_format_copy_and_fill | ok in 867 s, 282 MB |
+| ub_safe | csp::cie_xy::heap_box_owner_lives_reads_writes_clones_and_frees | ok in 6 s |
+| ub_safe | bprint::fields::a_string_read_outlives_the_handle | ok in 6 s |
+| ub_safe | samplefmt:: minus samplefmt::buffers (12 tests) | ok in 6 s |
+| equiv | imgutils:: minus imgutils::images | ok in 6 s |
+These match the runtime's known cost profile (per-retag cost growing with a long-lived allocation's
+history; runaway after Rust slice views of multi-KiB C blocks): see the shared test recipes' BSan section.
+The gate cannot judge the affected tests' UB verdict under BSan until they finish. Promotion is
+blocked until the reviewed wave passes the BSan gate within its timeout.
+
+## bsan-equiv: tests that never finished in the gate run
+avstring::character_classes_match_c_on_every_byte_and_the_extremes
+avstring::helpers::chained_strip_prefix_agrees_after_every_step
+avstring::helpers::cmp_n_ignore_ascii_case_orders_as_av_strncasecmp
+avstring::helpers::interleaved_tokens_agree_after_every_step
+avstring::helpers::strip_prefix_matches_av_strstart
+avstring::helpers::strlcatf_matches_av_strlcatf_formats
+avstring::helpers::strlcpy_matches_av_strlcpy_at_every_size
+avstring::helpers::tokens_split_as_av_strtok
+avstring::helpers::utf8_decode_consumes_as_c_on_each_malformed_shape
+avstring::helpers::utf8_decode_steps_as_av_utf8_decode
+avstring::match_list_matches_av_match_list_for_every_separator
+avstring::match_name_matches_av_match_name
+avstring::modes_encode_as_the_c_enumerators
+avstring::paths_and_format::appended_paths_match_c_for_every_pair
+avstring::paths_and_format::basename_points_where_c_points
+avstring::paths_and_format::format_matches_av_asprintf_with_the_same_conversions
+avstring::paths_and_format::format_of_a_nul_matches_c_reading_the_same_text
+avstring::paths_and_format::paths_built_step_by_step_stay_equal
+avstring::paths_and_tokens::dirname_cuts_and_returns_as_av_dirname
+avstring::paths_and_tokens::is_digit_classifies_every_int_as_av_isdigit
+avstring::paths_and_tokens::token_sequences_agree_after_every_step
+avstring::search_and_scan::compare_matches_av_strcasecmp
+avstring::search_and_scan::find_matches_av_stristr
+avstring::search_and_scan::replace_matches_av_strireplace_step_by_step
+avstring::search_and_scan::strip_prefix_matches_av_stristart
+avstring::the_modes_are_observably_distinct_in_c
+avutil::clone_copies_the_c_encoding
+avutil::constants_are_the_c_enumerators
+avutil::index_is_some_exactly_where_c_names_the_type
+avutil::names::as_str_is_av_get_media_type_string
+avutil::names::time_base_is_av_get_time_base_q
+avutil::version_and_x_if_null::version_queries_return_the_c_values
+avutil::version_and_x_if_null::x_if_null_picks_as_c
+avutil::writes_through_each_side_agree_after_every_step
+avutil::zeroed_storage_reads_as_c_zeroed_storage
+bprint::automatic_storage_is_the_padded_size
+bprint::c_fills_the_storage_to_its_last_byte_and_no_further
+bprint::fields::automatic_buffers_match_after_every_append
+bprint::fields::the_helper_is_the_header_size_c_pads
+imgutils::images::allocations_match_c
+imgutils::images::copies_and_fills_match_c_for_every_format
+
+## bsan-equiv gate log (tail)
+[IMGUTILS @ 0x7bffee5f90c0] Picture size 0x1 is invalid
+[IMGUTILS @ 0x7bffee5f94c0] Picture size 0x1 is invalid
+[IMGUTILS @ 0x7bffee5f90c0] Picture size 0x1 is invalid
+[IMGUTILS @ 0x7bffee5f94c0] Picture size 0x1 is invalid
+[IMGUTILS @ 0x7bffee5f90c0] Picture size 0x1 is invalid
+[IMGUTILS @ 0x7bffee5f94c0] Picture size 0x1 is invalid
+[IMGUTILS @ 0x7bffee5f90c0] Picture size 0x1 is invalid
+[IMGUTILS @ 0x7bffee5f94c0] Picture size 0x1 is invalid
+[IMGUTILS @ 0x7bffee5f90c0] Picture size 0x1 is invalid
+[IMGUTILS @ 0x7bffee5f94c0] Picture size 1x4294967295 is invalid
+[IMGUTILS @ 0x7bffee5f90c0] Picture size 1x4294967295 is invalid
+[IMGUTILS @ 0x7bffee5f94c0] Picture size 1x4294967295 is invalid
+[IMGUTILS @ 0x7bffee5f90c0] Picture size 1x4294967295 is invalid
+[IMGUTILS @ 0x7bffee5f94c0] Picture size 1x4294967295 is invalid
+[IMGUTILS @ 0x7bffee5f90c0] Picture size 1x4294967295 is invalid
+[IMGUTILS @ 0x7bffee5f94c0] Picture size 1x4294967295 is invalid
+[IMGUTILS @ 0x7bffee5f90c0] Picture size 1x4294967295 is invalid
+[IMGUTILS @ 0x7bffee5f94c0] Picture size 1x4294967295 is invalid
+[IMGUTILS @ 0x7bffee5f90c0] Picture size 1x4294967295 is invalid
+[IMGUTILS @ 0x7bffee5f94c0] Picture size 65536x65536 is invalid
+[IMGUTILS @ 0x7bffee5f90c0] Picture size 65536x65536 is invalid
+[IMGUTILS @ 0x7bffee5f94c0] Picture size 65536x65536 is invalid
+[IMGUTILS @ 0x7bffee5f90c0] Picture size 65536x65536 is invalid
+[IMGUTILS @ 0x7bffee5f94c0] Picture size 65536x65536 is invalid
+[IMGUTILS @ 0x7bffee5f90c0] Picture size 65536x65536 is invalid
+[IMGUTILS @ 0x7bffee5f94c0] Picture size 65536x65536 is invalid
+[IMGUTILS @ 0x7bffee5f90c0] Picture size 65536x65536 is invalid
+[IMGUTILS @ 0x7bffee5f94c0] Picture size 65536x65536 is invalid
+[IMGUTILS @ 0x7bffee5f90c0] Picture size 65536x65536 is invalid
+[IMGUTILS @ 0x7bffee5f94c0] Picture size 0x1 is invalid
+[IMGUTILS @ 0x7bffee5f90c0] Picture size 0x1 is invalid
+[IMGUTILS @ 0x7bffee5f94c0] Picture size 0x1 is invalid
+[IMGUTILS @ 0x7bffee5f90c0] Picture size 0x1 is invalid
+[IMGUTILS @ 0x7bffee5f94c0] Picture size 0x1 is invalid
+[IMGUTILS @ 0x7bffee5f90c0] Picture size 0x1 is invalid
+[IMGUTILS @ 0x7bffee5f94c0] Picture size 0x1 is invalid
+[IMGUTILS @ 0x7bffee5f90c0] Picture size 0x1 is invalid
+[IMGUTILS @ 0x7bffee5f94c0] Picture size 0x1 is invalid
+[IMGUTILS @ 0x7bffee5f90c0] Picture size 0x1 is invalid
+[IMGUTILS @ 0x7bffee5f94c0] Picture size 1x4294967295 is invalid
+[IMGUTILS @ 0x7bffee5f90c0] Picture size 1x4294967295 is invalid
+[IMGUTILS @ 0x7bffee5f94c0] Picture size 1x4294967295 is invalid
+[IMGUTILS @ 0x7bffee5f90c0] Picture size 1x4294967295 is invalid
+[IMGUTILS @ 0x7bffee5f94c0] Picture size 1x4294967295 is invalid
+[IMGUTILS @ 0x7bffee5f90c0] Picture size 1x4294967295 is invalid
+[IMGUTILS @ 0x7bffee5f94c0] Picture size 1x4294967295 is invalid
+[IMGUTILS @ 0x7bffee5f90c0] Picture size 1x4294967295 is invalid
+[IMGUTILS @ 0x7bffee5f94c0] Picture size 1x4294967295 is invalid
+[IMGUTILS @ 0x7bffee5f90c0] Picture size 1x4294967295 is invalid
+[IMGUTILS @ 0x7bffee5f94c0] Picture size 65536x65536 is invalid
+[IMGUTILS @ 0x7bffee5f90c0] Picture size 65536x65536 is invalid
+[IMGUTILS @ 0x7bffee5f94c0] Picture size 65536x65536 is invalid
+[IMGUTILS @ 0x7bffee5f90c0] Picture size 65536x65536 is invalid
+[IMGUTILS @ 0x7bffee5f94c0] Picture size 65536x65536 is invalid
+[IMGUTILS @ 0x7bffee5f90c0] Picture size 65536x65536 is invalid
+[IMGUTILS @ 0x7bffee5f94c0] Picture size 65536x65536 is invalid
+[IMGUTILS @ 0x7bffee5f90c0] Picture size 65536x65536 is invalid
+[IMGUTILS @ 0x7bffee5f94c0] Picture size 65536x65536 is invalid
+[IMGUTILS @ 0x7bffee5f90c0] Picture size 65536x65536 is invalid
+exit 124
+
+## bsan-ub_safe: tests that never finished in the gate run
+avstring::paths_and_tokens::is_digit_takes_every_int_edge
+bprint::fields::a_string_read_outlives_the_handle
+csp::cie_xy::heap_box_owner_lives_reads_writes_clones_and_frees
+imgutils::images::exact_planes_of_every_format_copy_and_fill
+samplefmt::buffers::every_owner_and_view_stays_inside_its_planes
+samplefmt::buffers::many_planar_channels_spill_the_plane_pointers
+
+## bsan-ub_safe gate log (tail)
+test samplefmt::buffers::is_planar_accepts_every_value ... ok
+test pixdesc::pixel_format_loss::every_ignore_set_is_accepted ... ok
+test pixdesc::names_and_positions::getters_accept_every_value ... ok
+test avstring::match_name_stays_inside_its_strings ... ok
+test samplefmt::clone_is_independent_of_its_source ... ok
+test samplefmt::empty_arrays_allocate_and_free ... ok
+test samplefmt::index_and_debug_accept_every_value ... ok
+test samplefmt::none_terminated_list_stops_at_its_terminator ... ok
+test samplefmt::lookups::lookups_on_many_threads ... ok
+test samplefmt::sample_format_forms::every_value_is_accepted ... ok
+test samplefmt::uninit_and_from_fn_arrays_fill_end_to_end ... ok
+test samplefmt::zeroed_array_reads_u8_and_takes_every_value ... ok
+test samplefmt::values_hash_and_compare_by_encoding ... ok
+test timestamp::extreme_stamps_fit_a_heap_buffer ... ok
+test time::sleeping_on_many_threads_at_once ... ok
+test samplefmt::sample_format_forms::calls_run_on_many_threads ... ok
+test timestamp::time_string::stamps_and_plain_strings_share_one_buffer ... ok
+test samplefmt::lookups::lookups_of_every_value_stay_in_bounds ... ok
+test timestamp::time_string::every_stamp_and_base_fits_a_heap_buffer ... ok
+test timestamp::time_string::text_borrowed_from_one_buffer_survives_writes_to_another ... ok
+test time::clocks_are_read_concurrently ... ok
+test avstring::paths_and_tokens::get_token_consumes_any_input_to_its_end ... ok
+test timestamp::time_string_by_ref::tiny_values_print_long_and_are_cut ... ok
+test timestamp::stamps_format_on_many_threads_at_once ... ok
+test pixdesc::pixel_format_queries::queries_of_every_value_stay_in_bounds ... ok
+test timestamp::time_string::time_strings_format_on_many_threads_at_once ... ok
+test pixdesc::names_and_positions::calls_run_on_many_threads ... ok
+test timestamp::time_string_by_ref::time_strings_format_on_many_threads_at_once ... ok
+test timestamp::time_string_by_ref::every_time_base_fits_a_heap_buffer ... ok
+test avstring::paths_and_tokens::dirname_takes_any_buffer ... ok
+test samplefmt::buffers::disjoint_caller_buffers_are_written_from_threads_at_once ... ok
+test avstring::match_list_stays_inside_its_strings_for_every_separator ... ok
+test mem::back_references_stay_inside_exact_size_buffers ... ok
+test pixdesc::pixel_format_descriptor::every_field_edge_builds_and_reads_back ... ok
+test rational::arithmetic::operations_run_on_many_threads_at_once ... ok
+test common::log2_16bit_takes_every_value_of_its_domain ... ok
+test samplefmt::buffers::owners_cross_and_are_shared_between_threads ... ok
+test common::power_of_two_clamps_are_defined_at_every_accepted_position ... ok
+test mathematics::timestamps::random_delta_rescales_keep_their_state ... ok
+test mem::exclusive_slices_are_written_from_scoped_threads ... ok
+test rational::arithmetic::random_triples_compare_distances ... ok
+test imgutils::images::images_live_and_die_on_many_threads ... ok
+test imgutils::uncacheable_fast_path_planes_never_fault_or_overrun ... ok
+test mem::realloc::in_place_slots_survive_every_transition ... ok
+test rational::arithmetic::random_lists_find_the_nearest ... ok
+test mathematics::timestamps::random_stable_additions ... ok
+test pixdesc::names_and_positions::lookups_read_names_of_every_length_in_bounds ... ok
+test cpu::parse_caps::token_edges_and_lengths_are_sound ... ok
+test avstring::helpers::copies_and_appends_stay_inside_every_buffer_size ... ok
+test pixdesc::pixel_format_loss::every_pair_scores_without_ub ... ok
+test rational::arithmetic::every_edge_pair_computes ... ok
+test mem::realloc::grow_shrink_cycles_stay_in_bounds ... ok
+test mem::shared_array_is_read_and_cloned_concurrently ... ok
+test imgutils::images::misaligned_uncacheable_images_never_fault_or_overrun ... ok
+test imgutils::images::layouts_hand_out_disjoint_exact_planes ... ok
+test pixdesc::names_and_positions::static_names_outlive_every_later_call ... ok
+test cpu::cpu_flags_read_concurrently_agree ... ok
+test mem::fast_buffers_are_writable_end_to_end_after_every_regrowth ... ok
+test mathematics::timestamps::every_edge_rescales ... ok
+exit 124

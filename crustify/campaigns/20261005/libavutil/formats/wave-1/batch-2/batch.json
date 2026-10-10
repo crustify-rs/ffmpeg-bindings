@@ -1,0 +1,20 @@
+{
+  "objective": "wrap",
+  "items": [
+    {
+      "name": "AVPixFmtDescriptor",
+      "defined_in": "libavutil/pixdesc.h",
+      "kind": "type",
+      "field_anchors": [
+        "name",
+        "flags",
+        "nb_components",
+        "log2_chroma_w",
+        "log2_chroma_h",
+        "comp",
+        "alias"
+      ],
+      "home": "crustify/rust/ffmpeg/libavutil/pixdesc.rs"
+    }
+  ]
+}
