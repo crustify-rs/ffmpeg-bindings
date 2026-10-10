@@ -339,3 +339,8 @@ function av_alpha_mode_from_name
 function av_channel_name
 function av_channel_description
 function av_channel_from_string
+
+# libavutil/pixdesc.h: the C reader of `AVPixelFormat` values (formats wave 0,
+# batch 5), whose descriptor table names exactly the enumerators, in
+# equivalence tests.
+function av_get_pix_fmt_name

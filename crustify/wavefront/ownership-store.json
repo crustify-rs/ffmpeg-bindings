@@ -311,6 +311,12 @@
    "fields": []
   },
   {
+   "name": "AVPixelFormat",
+   "defined_in": "libavutil/pixfmt.h",
+   "_comment_agent": "C enum (int-based: AV_PIX_FMT_NONE = -1 .. AV_PIX_FMT_NB), no fields or pointers, no lifecycle: a plain value. Public C structs store it in fields users write directly (AVCodecContext.pix_fmt/sw_pix_fmt, AVHWFramesContext.format/sw_format, AVCodecParserContext.format as int, AVFrame.format as int) and in AV_PIX_FMT_NONE-terminated arrays (AVCodec.pix_fmts, AVHWFramesConstraints.valid_hw_formats/valid_sw_formats, av_hwframe_transfer_get_formats out-array freed with av_free); a newer libavutil may return values beyond this header's enumerators. C readers bounds-check before indexing (av_pix_fmt_desc_get: 0 <= fmt < AV_PIX_FMT_NB), so every int is a valid stored value. Wrapped as a repr(transparent) newtype accepting every value, with associated constants for the enumerators, the three in-enum aliases and the 104 native-endian AV_PIX_FMT_NE macro aliases; CPlainElem for C-allocated arrays.",
+   "fields": []
+  },
+  {
    "name": "AVRational",
    "defined_in": "libavutil/rational.h",
    "_comment_agent": "Plain by-value pair of ints; no pointer fields, no heap lifecycle. C passes and returns it by value (av_mul_q, av_d2q, ...) and embeds it by value in public structs (AVCodecContext.time_base, AVStream.time_base, AVFrame.sample_aspect_ratio, ...), or in caller arrays terminated by {0,0} (av_find_nearest_q_idx, AVCodec.supported_framerates). Its only constructor is the header inline av_make_q (by value, so it has no pointer-return lifetime record); copying is a byte copy and no routine drops, disposes or clones it. 0/0 is a value C itself produces (zeroed contexts, av_cmp_q's INT_MIN case) and every reader tolerates, so all-zero is a valid value. Wrapped as the ffibox layout type Rational (CZeroable, Copy, Send + Sync as plain data) with RationalRef/RationalMut num/den accessors.",

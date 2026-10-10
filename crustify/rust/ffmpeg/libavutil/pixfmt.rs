@@ -415,11 +415,1120 @@ impl From<AlphaMode> for ffi::AVAlphaMode {
 // memory is the whole of it.
 unsafe impl CPlainElem for AlphaMode {}
 
+/// Wraps: AVPixelFormat
+/// Handwritten
+///
+/// The layout of a picture's pixels in memory: its planes, the order and
+/// depth of their components, its chroma subsampling and byte order, or the
+/// hardware surface that holds it.
+///
+/// A newtype over the C enum rather than a Rust `enum`, as
+/// [`MediaType`](super::avutil::MediaType) is: C stores the value in public
+/// struct fields and format lists its users write directly
+/// (`AVCodecContext.pix_fmt`, `AVHWFramesContext.sw_format`), and a newer
+/// library may return a format this crate does not name, so it may hold any
+/// `int`, and a Rust view of that memory must accept every one. Match on the
+/// associated constants, with a `_` arm for the values C does not name:
+///
+/// ```
+/// use ffmpeg::libavutil::pixfmt::PixelFormat;
+/// fn is_nv12_family(f: PixelFormat) -> bool {
+///     matches!(f, PixelFormat::NV12 | PixelFormat::NV21)
+/// }
+/// assert!(is_nv12_family(PixelFormat::NV21));
+/// assert!(!is_nv12_family(PixelFormat::NONE));
+/// ```
+///
+/// Formats whose components span several bytes come in a big-endian `BE` and
+/// a little-endian `LE` constant. C's native-endian names for them
+/// (`AV_PIX_FMT_GRAY16`, `AV_PIX_FMT_RGB32`, ...) are associated constants
+/// too, resolved for the target's byte order:
+///
+/// ```
+/// use ffmpeg::libavutil::pixfmt::PixelFormat;
+/// #[cfg(target_endian = "little")]
+/// assert_eq!(PixelFormat::GRAY16, PixelFormat::GRAY16LE);
+/// #[cfg(target_endian = "big")]
+/// assert_eq!(PixelFormat::GRAY16, PixelFormat::GRAY16BE);
+/// ```
+///
+/// The C names `AV_PIX_FMT_0RGB`, `AV_PIX_FMT_0BGR`, `AV_PIX_FMT_0RGB32` and
+/// `AV_PIX_FMT_0BGR32` are not Rust identifiers, so their constants are
+/// [`XRGB`](Self::XRGB), [`XBGR`](Self::XBGR), [`XRGB32`](Self::XRGB32) and
+/// [`XBGR32`](Self::XBGR32). There is no count: `AV_PIX_FMT_NB` differs
+/// between library versions, and the header warns against using it with a
+/// shared libavutil.
+///
+/// No ffibox primitive covers a C enum: it owns nothing, has no handles, and
+/// is `Send + Sync` as the integer it is.
+#[repr(transparent)]
+#[derive(Clone, Copy, PartialEq, Eq, Hash)]
+pub struct PixelFormat(ffi::AVPixelFormat);
+
+impl PixelFormat {
+    /// The pixel format C encodes as `raw`, whatever its value.
+    #[inline]
+    pub const fn from_raw(raw: ffi::AVPixelFormat) -> Self {
+        Self(raw)
+    }
+
+    /// The C encoding of this pixel format.
+    #[inline]
+    pub const fn into_raw(self) -> ffi::AVPixelFormat {
+        self.0
+    }
+}
+
+/// Declares each named pixel format as an associated constant of
+/// [`PixelFormat`] over its C enumerator, and the constants' names for
+/// `Debug`.
+macro_rules! pixel_formats {
+    ($($(#[$meta:meta])* $name:ident = $c:ident;)*) => {
+        impl PixelFormat {
+            $(
+                $(#[$meta])*
+                pub const $name: Self = Self(ffi::AVPixelFormat::$c);
+            )*
+
+            /// The name of the constant this value equals, if any: the
+            /// primary one, for a value that also has an alias.
+            const fn name(self) -> Option<&'static str> {
+                Some(match self {
+                    $(Self::$name => stringify!($name),)*
+                    _ => return None,
+                })
+            }
+        }
+    };
+}
+
+/// `be` on a big-endian target and `le` on a little-endian one, as C's
+/// `AV_PIX_FMT_NE(be, le)` selects with `AV_HAVE_BIGENDIAN`.
+const fn native_endian(be: PixelFormat, le: PixelFormat) -> PixelFormat {
+    if cfg!(target_endian = "big") { be } else { le }
+}
+
+pixel_formats! {
+    /// No pixel format: the value of an unset format field, the result of a failed lookup, and
+    /// the terminator of C's format lists.
+    NONE = AV_PIX_FMT_NONE;
+    /// Planar YUV 4:2:0, 12bpp, (1 Cr & Cb sample per 2x2 Y samples).
+    YUV420P = AV_PIX_FMT_YUV420P;
+    /// Packed YUV 4:2:2, 16bpp, Y0 Cb Y1 Cr.
+    YUYV422 = AV_PIX_FMT_YUYV422;
+    /// Packed RGB 8:8:8, 24bpp, RGBRGB...
+    RGB24 = AV_PIX_FMT_RGB24;
+    /// Packed RGB 8:8:8, 24bpp, BGRBGR...
+    BGR24 = AV_PIX_FMT_BGR24;
+    /// Planar YUV 4:2:2, 16bpp, (1 Cr & Cb sample per 2x1 Y samples).
+    YUV422P = AV_PIX_FMT_YUV422P;
+    /// Planar YUV 4:4:4, 24bpp, (1 Cr & Cb sample per 1x1 Y samples).
+    YUV444P = AV_PIX_FMT_YUV444P;
+    /// Planar YUV 4:1:0, 9bpp, (1 Cr & Cb sample per 4x4 Y samples).
+    YUV410P = AV_PIX_FMT_YUV410P;
+    /// Planar YUV 4:1:1, 12bpp, (1 Cr & Cb sample per 4x1 Y samples).
+    YUV411P = AV_PIX_FMT_YUV411P;
+    /// Y, 8bpp.
+    GRAY8 = AV_PIX_FMT_GRAY8;
+    /// Y, 1bpp, 0 is white, 1 is black, in each byte pixels are ordered from the msb to the
+    /// lsb.
+    MONOWHITE = AV_PIX_FMT_MONOWHITE;
+    /// Y, 1bpp, 0 is black, 1 is white, in each byte pixels are ordered from the msb to the
+    /// lsb.
+    MONOBLACK = AV_PIX_FMT_MONOBLACK;
+    /// 8 bits with [`RGB32`](Self::RGB32) palette.
+    PAL8 = AV_PIX_FMT_PAL8;
+    /// Planar YUV 4:2:0, 12bpp, full scale (JPEG), deprecated in favor of
+    /// [`YUV420P`](Self::YUV420P) and setting `color_range`.
+    YUVJ420P = AV_PIX_FMT_YUVJ420P;
+    /// Planar YUV 4:2:2, 16bpp, full scale (JPEG), deprecated in favor of
+    /// [`YUV422P`](Self::YUV422P) and setting `color_range`.
+    YUVJ422P = AV_PIX_FMT_YUVJ422P;
+    /// Planar YUV 4:4:4, 24bpp, full scale (JPEG), deprecated in favor of
+    /// [`YUV444P`](Self::YUV444P) and setting `color_range`.
+    YUVJ444P = AV_PIX_FMT_YUVJ444P;
+    /// Packed YUV 4:2:2, 16bpp, Cb Y0 Cr Y1.
+    UYVY422 = AV_PIX_FMT_UYVY422;
+    /// Packed YUV 4:1:1, 12bpp, Cb Y0 Y1 Cr Y2 Y3.
+    UYYVYY411 = AV_PIX_FMT_UYYVYY411;
+    /// Packed RGB 3:3:2, 8bpp, (msb)2B 3G 3R(lsb).
+    BGR8 = AV_PIX_FMT_BGR8;
+    /// Packed RGB 1:2:1 bitstream, 4bpp, (msb)1B 2G 1R(lsb), a byte contains two pixels, the
+    /// first pixel in the byte is the one composed by the 4 msb bits.
+    BGR4 = AV_PIX_FMT_BGR4;
+    /// Packed RGB 1:2:1, 8bpp, (msb)1B 2G 1R(lsb).
+    BGR4_BYTE = AV_PIX_FMT_BGR4_BYTE;
+    /// Packed RGB 3:3:2, 8bpp, (msb)3R 3G 2B(lsb).
+    RGB8 = AV_PIX_FMT_RGB8;
+    /// Packed RGB 1:2:1 bitstream, 4bpp, (msb)1R 2G 1B(lsb), a byte contains two pixels, the
+    /// first pixel in the byte is the one composed by the 4 msb bits.
+    RGB4 = AV_PIX_FMT_RGB4;
+    /// Packed RGB 1:2:1, 8bpp, (msb)1R 2G 1B(lsb).
+    RGB4_BYTE = AV_PIX_FMT_RGB4_BYTE;
+    /// Planar YUV 4:2:0, 12bpp, 1 plane for Y and 1 plane for the UV components, which are
+    /// interleaved (first byte U and the following byte V).
+    NV12 = AV_PIX_FMT_NV12;
+    /// As [`NV12`](Self::NV12), but U and V bytes are swapped.
+    NV21 = AV_PIX_FMT_NV21;
+    /// Packed ARGB 8:8:8:8, 32bpp, ARGBARGB...
+    ARGB = AV_PIX_FMT_ARGB;
+    /// Packed RGBA 8:8:8:8, 32bpp, RGBARGBA...
+    RGBA = AV_PIX_FMT_RGBA;
+    /// Packed ABGR 8:8:8:8, 32bpp, ABGRABGR...
+    ABGR = AV_PIX_FMT_ABGR;
+    /// Packed BGRA 8:8:8:8, 32bpp, BGRABGRA...
+    BGRA = AV_PIX_FMT_BGRA;
+    /// Y, 16bpp, big-endian.
+    GRAY16BE = AV_PIX_FMT_GRAY16BE;
+    /// Y, 16bpp, little-endian.
+    GRAY16LE = AV_PIX_FMT_GRAY16LE;
+    /// Planar YUV 4:4:0 (1 Cr & Cb sample per 1x2 Y samples).
+    YUV440P = AV_PIX_FMT_YUV440P;
+    /// Planar YUV 4:4:0 full scale (JPEG), deprecated in favor of [`YUV440P`](Self::YUV440P)
+    /// and setting `color_range`.
+    YUVJ440P = AV_PIX_FMT_YUVJ440P;
+    /// Planar YUV 4:2:0, 20bpp, (1 Cr & Cb sample per 2x2 Y & A samples).
+    YUVA420P = AV_PIX_FMT_YUVA420P;
+    /// Packed RGB 16:16:16, 48bpp, 16R, 16G, 16B, the 2-byte value for each R/G/B component is
+    /// stored as big-endian.
+    RGB48BE = AV_PIX_FMT_RGB48BE;
+    /// Packed RGB 16:16:16, 48bpp, 16R, 16G, 16B, the 2-byte value for each R/G/B component is
+    /// stored as little-endian.
+    RGB48LE = AV_PIX_FMT_RGB48LE;
+    /// Packed RGB 5:6:5, 16bpp, (msb) 5R 6G 5B(lsb), big-endian.
+    RGB565BE = AV_PIX_FMT_RGB565BE;
+    /// Packed RGB 5:6:5, 16bpp, (msb) 5R 6G 5B(lsb), little-endian.
+    RGB565LE = AV_PIX_FMT_RGB565LE;
+    /// Packed RGB 5:5:5, 16bpp, (msb)1X 5R 5G 5B(lsb), big-endian, X=unused/undefined.
+    RGB555BE = AV_PIX_FMT_RGB555BE;
+    /// Packed RGB 5:5:5, 16bpp, (msb)1X 5R 5G 5B(lsb), little-endian, X=unused/undefined.
+    RGB555LE = AV_PIX_FMT_RGB555LE;
+    /// Packed BGR 5:6:5, 16bpp, (msb) 5B 6G 5R(lsb), big-endian.
+    BGR565BE = AV_PIX_FMT_BGR565BE;
+    /// Packed BGR 5:6:5, 16bpp, (msb) 5B 6G 5R(lsb), little-endian.
+    BGR565LE = AV_PIX_FMT_BGR565LE;
+    /// Packed BGR 5:5:5, 16bpp, (msb)1X 5B 5G 5R(lsb), big-endian, X=unused/undefined.
+    BGR555BE = AV_PIX_FMT_BGR555BE;
+    /// Packed BGR 5:5:5, 16bpp, (msb)1X 5B 5G 5R(lsb), little-endian, X=unused/undefined.
+    BGR555LE = AV_PIX_FMT_BGR555LE;
+    /// Hardware acceleration through VA-API, `data[3]` contains a VASurfaceID.
+    VAAPI = AV_PIX_FMT_VAAPI;
+    /// Planar YUV 4:2:0, 24bpp, (1 Cr & Cb sample per 2x2 Y samples), little-endian.
+    YUV420P16LE = AV_PIX_FMT_YUV420P16LE;
+    /// Planar YUV 4:2:0, 24bpp, (1 Cr & Cb sample per 2x2 Y samples), big-endian.
+    YUV420P16BE = AV_PIX_FMT_YUV420P16BE;
+    /// Planar YUV 4:2:2, 32bpp, (1 Cr & Cb sample per 2x1 Y samples), little-endian.
+    YUV422P16LE = AV_PIX_FMT_YUV422P16LE;
+    /// Planar YUV 4:2:2, 32bpp, (1 Cr & Cb sample per 2x1 Y samples), big-endian.
+    YUV422P16BE = AV_PIX_FMT_YUV422P16BE;
+    /// Planar YUV 4:4:4, 48bpp, (1 Cr & Cb sample per 1x1 Y samples), little-endian.
+    YUV444P16LE = AV_PIX_FMT_YUV444P16LE;
+    /// Planar YUV 4:4:4, 48bpp, (1 Cr & Cb sample per 1x1 Y samples), big-endian.
+    YUV444P16BE = AV_PIX_FMT_YUV444P16BE;
+    /// HW decoding through DXVA2, `Picture.data[3]` contains a LPDIRECT3DSURFACE9 pointer.
+    DXVA2_VLD = AV_PIX_FMT_DXVA2_VLD;
+    /// Packed RGB 4:4:4, 16bpp, (msb)4X 4R 4G 4B(lsb), little-endian, X=unused/undefined.
+    RGB444LE = AV_PIX_FMT_RGB444LE;
+    /// Packed RGB 4:4:4, 16bpp, (msb)4X 4R 4G 4B(lsb), big-endian, X=unused/undefined.
+    RGB444BE = AV_PIX_FMT_RGB444BE;
+    /// Packed BGR 4:4:4, 16bpp, (msb)4X 4B 4G 4R(lsb), little-endian, X=unused/undefined.
+    BGR444LE = AV_PIX_FMT_BGR444LE;
+    /// Packed BGR 4:4:4, 16bpp, (msb)4X 4B 4G 4R(lsb), big-endian, X=unused/undefined.
+    BGR444BE = AV_PIX_FMT_BGR444BE;
+    /// 8 bits gray, 8 bits alpha.
+    YA8 = AV_PIX_FMT_YA8;
+    /// Packed RGB 16:16:16, 48bpp, 16B, 16G, 16R, the 2-byte value for each R/G/B component is
+    /// stored as big-endian.
+    BGR48BE = AV_PIX_FMT_BGR48BE;
+    /// Packed RGB 16:16:16, 48bpp, 16B, 16G, 16R, the 2-byte value for each R/G/B component is
+    /// stored as little-endian.
+    BGR48LE = AV_PIX_FMT_BGR48LE;
+    /// Planar YUV 4:2:0, 13.5bpp, (1 Cr & Cb sample per 2x2 Y samples), big-endian.
+    ///
+    /// The following 12 formats have the disadvantage of needing 1 format for each bit depth.
+    /// Notice that each 9/10 bits sample is stored in 16 bits with extra padding. If you want
+    /// to support multiple bit depths, then using `AV_PIX_FMT_YUV420P16*` with the bpp stored
+    /// separately is better.
+    YUV420P9BE = AV_PIX_FMT_YUV420P9BE;
+    /// Planar YUV 4:2:0, 13.5bpp, (1 Cr & Cb sample per 2x2 Y samples), little-endian.
+    YUV420P9LE = AV_PIX_FMT_YUV420P9LE;
+    /// Planar YUV 4:2:0, 15bpp, (1 Cr & Cb sample per 2x2 Y samples), big-endian.
+    YUV420P10BE = AV_PIX_FMT_YUV420P10BE;
+    /// Planar YUV 4:2:0, 15bpp, (1 Cr & Cb sample per 2x2 Y samples), little-endian.
+    YUV420P10LE = AV_PIX_FMT_YUV420P10LE;
+    /// Planar YUV 4:2:2, 20bpp, (1 Cr & Cb sample per 2x1 Y samples), big-endian.
+    YUV422P10BE = AV_PIX_FMT_YUV422P10BE;
+    /// Planar YUV 4:2:2, 20bpp, (1 Cr & Cb sample per 2x1 Y samples), little-endian.
+    YUV422P10LE = AV_PIX_FMT_YUV422P10LE;
+    /// Planar YUV 4:4:4, 27bpp, (1 Cr & Cb sample per 1x1 Y samples), big-endian.
+    YUV444P9BE = AV_PIX_FMT_YUV444P9BE;
+    /// Planar YUV 4:4:4, 27bpp, (1 Cr & Cb sample per 1x1 Y samples), little-endian.
+    YUV444P9LE = AV_PIX_FMT_YUV444P9LE;
+    /// Planar YUV 4:4:4, 30bpp, (1 Cr & Cb sample per 1x1 Y samples), big-endian.
+    YUV444P10BE = AV_PIX_FMT_YUV444P10BE;
+    /// Planar YUV 4:4:4, 30bpp, (1 Cr & Cb sample per 1x1 Y samples), little-endian.
+    YUV444P10LE = AV_PIX_FMT_YUV444P10LE;
+    /// Planar YUV 4:2:2, 18bpp, (1 Cr & Cb sample per 2x1 Y samples), big-endian.
+    YUV422P9BE = AV_PIX_FMT_YUV422P9BE;
+    /// Planar YUV 4:2:2, 18bpp, (1 Cr & Cb sample per 2x1 Y samples), little-endian.
+    YUV422P9LE = AV_PIX_FMT_YUV422P9LE;
+    /// Planar GBR 4:4:4 24bpp.
+    GBRP = AV_PIX_FMT_GBRP;
+    /// Planar GBR 4:4:4 27bpp, big-endian.
+    GBRP9BE = AV_PIX_FMT_GBRP9BE;
+    /// Planar GBR 4:4:4 27bpp, little-endian.
+    GBRP9LE = AV_PIX_FMT_GBRP9LE;
+    /// Planar GBR 4:4:4 30bpp, big-endian.
+    GBRP10BE = AV_PIX_FMT_GBRP10BE;
+    /// Planar GBR 4:4:4 30bpp, little-endian.
+    GBRP10LE = AV_PIX_FMT_GBRP10LE;
+    /// Planar GBR 4:4:4 48bpp, big-endian.
+    GBRP16BE = AV_PIX_FMT_GBRP16BE;
+    /// Planar GBR 4:4:4 48bpp, little-endian.
+    GBRP16LE = AV_PIX_FMT_GBRP16LE;
+    /// Planar YUV 4:2:2 24bpp, (1 Cr & Cb sample per 2x1 Y & A samples).
+    YUVA422P = AV_PIX_FMT_YUVA422P;
+    /// Planar YUV 4:4:4 32bpp, (1 Cr & Cb sample per 1x1 Y & A samples).
+    YUVA444P = AV_PIX_FMT_YUVA444P;
+    /// Planar YUV 4:2:0 22.5bpp, (1 Cr & Cb sample per 2x2 Y & A samples), big-endian.
+    YUVA420P9BE = AV_PIX_FMT_YUVA420P9BE;
+    /// Planar YUV 4:2:0 22.5bpp, (1 Cr & Cb sample per 2x2 Y & A samples), little-endian.
+    YUVA420P9LE = AV_PIX_FMT_YUVA420P9LE;
+    /// Planar YUV 4:2:2 27bpp, (1 Cr & Cb sample per 2x1 Y & A samples), big-endian.
+    YUVA422P9BE = AV_PIX_FMT_YUVA422P9BE;
+    /// Planar YUV 4:2:2 27bpp, (1 Cr & Cb sample per 2x1 Y & A samples), little-endian.
+    YUVA422P9LE = AV_PIX_FMT_YUVA422P9LE;
+    /// Planar YUV 4:4:4 36bpp, (1 Cr & Cb sample per 1x1 Y & A samples), big-endian.
+    YUVA444P9BE = AV_PIX_FMT_YUVA444P9BE;
+    /// Planar YUV 4:4:4 36bpp, (1 Cr & Cb sample per 1x1 Y & A samples), little-endian.
+    YUVA444P9LE = AV_PIX_FMT_YUVA444P9LE;
+    /// Planar YUV 4:2:0 25bpp, (1 Cr & Cb sample per 2x2 Y & A samples, big-endian).
+    YUVA420P10BE = AV_PIX_FMT_YUVA420P10BE;
+    /// Planar YUV 4:2:0 25bpp, (1 Cr & Cb sample per 2x2 Y & A samples, little-endian).
+    YUVA420P10LE = AV_PIX_FMT_YUVA420P10LE;
+    /// Planar YUV 4:2:2 30bpp, (1 Cr & Cb sample per 2x1 Y & A samples, big-endian).
+    YUVA422P10BE = AV_PIX_FMT_YUVA422P10BE;
+    /// Planar YUV 4:2:2 30bpp, (1 Cr & Cb sample per 2x1 Y & A samples, little-endian).
+    YUVA422P10LE = AV_PIX_FMT_YUVA422P10LE;
+    /// Planar YUV 4:4:4 40bpp, (1 Cr & Cb sample per 1x1 Y & A samples, big-endian).
+    YUVA444P10BE = AV_PIX_FMT_YUVA444P10BE;
+    /// Planar YUV 4:4:4 40bpp, (1 Cr & Cb sample per 1x1 Y & A samples, little-endian).
+    YUVA444P10LE = AV_PIX_FMT_YUVA444P10LE;
+    /// Planar YUV 4:2:0 40bpp, (1 Cr & Cb sample per 2x2 Y & A samples, big-endian).
+    YUVA420P16BE = AV_PIX_FMT_YUVA420P16BE;
+    /// Planar YUV 4:2:0 40bpp, (1 Cr & Cb sample per 2x2 Y & A samples, little-endian).
+    YUVA420P16LE = AV_PIX_FMT_YUVA420P16LE;
+    /// Planar YUV 4:2:2 48bpp, (1 Cr & Cb sample per 2x1 Y & A samples, big-endian).
+    YUVA422P16BE = AV_PIX_FMT_YUVA422P16BE;
+    /// Planar YUV 4:2:2 48bpp, (1 Cr & Cb sample per 2x1 Y & A samples, little-endian).
+    YUVA422P16LE = AV_PIX_FMT_YUVA422P16LE;
+    /// Planar YUV 4:4:4 64bpp, (1 Cr & Cb sample per 1x1 Y & A samples, big-endian).
+    YUVA444P16BE = AV_PIX_FMT_YUVA444P16BE;
+    /// Planar YUV 4:4:4 64bpp, (1 Cr & Cb sample per 1x1 Y & A samples, little-endian).
+    YUVA444P16LE = AV_PIX_FMT_YUVA444P16LE;
+    /// HW acceleration through VDPAU, `Picture.data[3]` contains a VdpVideoSurface.
+    VDPAU = AV_PIX_FMT_VDPAU;
+    /// Packed XYZ 4:4:4, 36 bpp, (msb) 12X, 12Y, 12Z (lsb), the 2-byte value for each X/Y/Z is
+    /// stored as little-endian, the 4 lower bits are set to 0.
+    XYZ12LE = AV_PIX_FMT_XYZ12LE;
+    /// Packed XYZ 4:4:4, 36 bpp, (msb) 12X, 12Y, 12Z (lsb), the 2-byte value for each X/Y/Z is
+    /// stored as big-endian, the 4 lower bits are set to 0.
+    XYZ12BE = AV_PIX_FMT_XYZ12BE;
+    /// Interleaved chroma YUV 4:2:2, 16bpp, (1 Cr & Cb sample per 2x1 Y samples).
+    NV16 = AV_PIX_FMT_NV16;
+    /// Interleaved chroma YUV 4:2:2, 20bpp, (1 Cr & Cb sample per 2x1 Y samples),
+    /// little-endian.
+    NV20LE = AV_PIX_FMT_NV20LE;
+    /// Interleaved chroma YUV 4:2:2, 20bpp, (1 Cr & Cb sample per 2x1 Y samples), big-endian.
+    NV20BE = AV_PIX_FMT_NV20BE;
+    /// Packed RGBA 16:16:16:16, 64bpp, 16R, 16G, 16B, 16A, the 2-byte value for each R/G/B/A
+    /// component is stored as big-endian.
+    RGBA64BE = AV_PIX_FMT_RGBA64BE;
+    /// Packed RGBA 16:16:16:16, 64bpp, 16R, 16G, 16B, 16A, the 2-byte value for each R/G/B/A
+    /// component is stored as little-endian.
+    RGBA64LE = AV_PIX_FMT_RGBA64LE;
+    /// Packed RGBA 16:16:16:16, 64bpp, 16B, 16G, 16R, 16A, the 2-byte value for each R/G/B/A
+    /// component is stored as big-endian.
+    BGRA64BE = AV_PIX_FMT_BGRA64BE;
+    /// Packed RGBA 16:16:16:16, 64bpp, 16B, 16G, 16R, 16A, the 2-byte value for each R/G/B/A
+    /// component is stored as little-endian.
+    BGRA64LE = AV_PIX_FMT_BGRA64LE;
+    /// Packed YUV 4:2:2, 16bpp, Y0 Cr Y1 Cb.
+    YVYU422 = AV_PIX_FMT_YVYU422;
+    /// 16 bits gray, 16 bits alpha (big-endian).
+    YA16BE = AV_PIX_FMT_YA16BE;
+    /// 16 bits gray, 16 bits alpha (little-endian).
+    YA16LE = AV_PIX_FMT_YA16LE;
+    /// Planar GBRA 4:4:4:4 32bpp.
+    GBRAP = AV_PIX_FMT_GBRAP;
+    /// Planar GBRA 4:4:4:4 64bpp, big-endian.
+    GBRAP16BE = AV_PIX_FMT_GBRAP16BE;
+    /// Planar GBRA 4:4:4:4 64bpp, little-endian.
+    GBRAP16LE = AV_PIX_FMT_GBRAP16LE;
+    /// HW acceleration through QSV, `data[3]` contains a pointer to the mfxFrameSurface1
+    /// structure.
+    ///
+    /// Before FFmpeg 5.0: `mfxFrameSurface1.Data.MemId` contains a pointer when importing the
+    /// following frames as QSV frames:
+    ///
+    /// VAAPI: `mfxFrameSurface1.Data.MemId` contains a pointer to VASurfaceID.
+    ///
+    /// DXVA2: `mfxFrameSurface1.Data.MemId` contains a pointer to IDirect3DSurface9.
+    ///
+    /// FFmpeg 5.0 and above: `mfxFrameSurface1.Data.MemId` contains a pointer to the mfxHDLPair
+    /// structure when importing the following frames as QSV frames:
+    ///
+    /// VAAPI: mfxHDLPair.first contains a VASurfaceID pointer. mfxHDLPair.second is always
+    /// `MFX_INFINITE`.
+    ///
+    /// DXVA2: mfxHDLPair.first contains IDirect3DSurface9 pointer. mfxHDLPair.second is always
+    /// `MFX_INFINITE`.
+    ///
+    /// D3D11: mfxHDLPair.first contains a ID3D11Texture2D pointer. mfxHDLPair.second contains
+    /// the texture array index of the frame if the ID3D11Texture2D is an array texture, or
+    /// always `MFX_INFINITE` if it is a normal texture.
+    QSV = AV_PIX_FMT_QSV;
+    /// HW acceleration though MMAL, `data[3]` contains a pointer to the `MMAL_BUFFER_HEADER_T`
+    /// structure.
+    MMAL = AV_PIX_FMT_MMAL;
+    /// HW decoding through Direct3D11 via old API, `Picture.data[3]` contains a
+    /// ID3D11VideoDecoderOutputView pointer.
+    D3D11VA_VLD = AV_PIX_FMT_D3D11VA_VLD;
+    /// HW acceleration through CUDA. `data[i]` contain CUdeviceptr pointers exactly as for
+    /// system memory frames.
+    CUDA = AV_PIX_FMT_CUDA;
+    /// Packed RGB 8:8:8, 32bpp, XRGBXRGB... X=unused/undefined.
+    XRGB = AV_PIX_FMT_0RGB;
+    /// Packed RGB 8:8:8, 32bpp, RGBXRGBX... X=unused/undefined.
+    RGB0 = AV_PIX_FMT_RGB0;
+    /// Packed BGR 8:8:8, 32bpp, XBGRXBGR... X=unused/undefined.
+    XBGR = AV_PIX_FMT_0BGR;
+    /// Packed BGR 8:8:8, 32bpp, BGRXBGRX... X=unused/undefined.
+    BGR0 = AV_PIX_FMT_BGR0;
+    /// Planar YUV 4:2:0,18bpp, (1 Cr & Cb sample per 2x2 Y samples), big-endian.
+    YUV420P12BE = AV_PIX_FMT_YUV420P12BE;
+    /// Planar YUV 4:2:0,18bpp, (1 Cr & Cb sample per 2x2 Y samples), little-endian.
+    YUV420P12LE = AV_PIX_FMT_YUV420P12LE;
+    /// Planar YUV 4:2:0,21bpp, (1 Cr & Cb sample per 2x2 Y samples), big-endian.
+    YUV420P14BE = AV_PIX_FMT_YUV420P14BE;
+    /// Planar YUV 4:2:0,21bpp, (1 Cr & Cb sample per 2x2 Y samples), little-endian.
+    YUV420P14LE = AV_PIX_FMT_YUV420P14LE;
+    /// Planar YUV 4:2:2,24bpp, (1 Cr & Cb sample per 2x1 Y samples), big-endian.
+    YUV422P12BE = AV_PIX_FMT_YUV422P12BE;
+    /// Planar YUV 4:2:2,24bpp, (1 Cr & Cb sample per 2x1 Y samples), little-endian.
+    YUV422P12LE = AV_PIX_FMT_YUV422P12LE;
+    /// Planar YUV 4:2:2,28bpp, (1 Cr & Cb sample per 2x1 Y samples), big-endian.
+    YUV422P14BE = AV_PIX_FMT_YUV422P14BE;
+    /// Planar YUV 4:2:2,28bpp, (1 Cr & Cb sample per 2x1 Y samples), little-endian.
+    YUV422P14LE = AV_PIX_FMT_YUV422P14LE;
+    /// Planar YUV 4:4:4,36bpp, (1 Cr & Cb sample per 1x1 Y samples), big-endian.
+    YUV444P12BE = AV_PIX_FMT_YUV444P12BE;
+    /// Planar YUV 4:4:4,36bpp, (1 Cr & Cb sample per 1x1 Y samples), little-endian.
+    YUV444P12LE = AV_PIX_FMT_YUV444P12LE;
+    /// Planar YUV 4:4:4,42bpp, (1 Cr & Cb sample per 1x1 Y samples), big-endian.
+    YUV444P14BE = AV_PIX_FMT_YUV444P14BE;
+    /// Planar YUV 4:4:4,42bpp, (1 Cr & Cb sample per 1x1 Y samples), little-endian.
+    YUV444P14LE = AV_PIX_FMT_YUV444P14LE;
+    /// Planar GBR 4:4:4 36bpp, big-endian.
+    GBRP12BE = AV_PIX_FMT_GBRP12BE;
+    /// Planar GBR 4:4:4 36bpp, little-endian.
+    GBRP12LE = AV_PIX_FMT_GBRP12LE;
+    /// Planar GBR 4:4:4 42bpp, big-endian.
+    GBRP14BE = AV_PIX_FMT_GBRP14BE;
+    /// Planar GBR 4:4:4 42bpp, little-endian.
+    GBRP14LE = AV_PIX_FMT_GBRP14LE;
+    /// Planar YUV 4:1:1, 12bpp, (1 Cr & Cb sample per 4x1 Y samples) full scale (JPEG),
+    /// deprecated in favor of [`YUV411P`](Self::YUV411P) and setting `color_range`.
+    YUVJ411P = AV_PIX_FMT_YUVJ411P;
+    /// Bayer, BGBG..(odd line), GRGR..(even line), 8-bit samples.
+    BAYER_BGGR8 = AV_PIX_FMT_BAYER_BGGR8;
+    /// Bayer, RGRG..(odd line), GBGB..(even line), 8-bit samples.
+    BAYER_RGGB8 = AV_PIX_FMT_BAYER_RGGB8;
+    /// Bayer, GBGB..(odd line), RGRG..(even line), 8-bit samples.
+    BAYER_GBRG8 = AV_PIX_FMT_BAYER_GBRG8;
+    /// Bayer, GRGR..(odd line), BGBG..(even line), 8-bit samples.
+    BAYER_GRBG8 = AV_PIX_FMT_BAYER_GRBG8;
+    /// Bayer, BGBG..(odd line), GRGR..(even line), 16-bit samples, little-endian.
+    BAYER_BGGR16LE = AV_PIX_FMT_BAYER_BGGR16LE;
+    /// Bayer, BGBG..(odd line), GRGR..(even line), 16-bit samples, big-endian.
+    BAYER_BGGR16BE = AV_PIX_FMT_BAYER_BGGR16BE;
+    /// Bayer, RGRG..(odd line), GBGB..(even line), 16-bit samples, little-endian.
+    BAYER_RGGB16LE = AV_PIX_FMT_BAYER_RGGB16LE;
+    /// Bayer, RGRG..(odd line), GBGB..(even line), 16-bit samples, big-endian.
+    BAYER_RGGB16BE = AV_PIX_FMT_BAYER_RGGB16BE;
+    /// Bayer, GBGB..(odd line), RGRG..(even line), 16-bit samples, little-endian.
+    BAYER_GBRG16LE = AV_PIX_FMT_BAYER_GBRG16LE;
+    /// Bayer, GBGB..(odd line), RGRG..(even line), 16-bit samples, big-endian.
+    BAYER_GBRG16BE = AV_PIX_FMT_BAYER_GBRG16BE;
+    /// Bayer, GRGR..(odd line), BGBG..(even line), 16-bit samples, little-endian.
+    BAYER_GRBG16LE = AV_PIX_FMT_BAYER_GRBG16LE;
+    /// Bayer, GRGR..(odd line), BGBG..(even line), 16-bit samples, big-endian.
+    BAYER_GRBG16BE = AV_PIX_FMT_BAYER_GRBG16BE;
+    /// Planar YUV 4:4:0,20bpp, (1 Cr & Cb sample per 1x2 Y samples), little-endian.
+    YUV440P10LE = AV_PIX_FMT_YUV440P10LE;
+    /// Planar YUV 4:4:0,20bpp, (1 Cr & Cb sample per 1x2 Y samples), big-endian.
+    YUV440P10BE = AV_PIX_FMT_YUV440P10BE;
+    /// Planar YUV 4:4:0,24bpp, (1 Cr & Cb sample per 1x2 Y samples), little-endian.
+    YUV440P12LE = AV_PIX_FMT_YUV440P12LE;
+    /// Planar YUV 4:4:0,24bpp, (1 Cr & Cb sample per 1x2 Y samples), big-endian.
+    YUV440P12BE = AV_PIX_FMT_YUV440P12BE;
+    /// Packed AYUV 4:4:4,64bpp (1 Cr & Cb sample per 1x1 Y & A samples), little-endian.
+    AYUV64LE = AV_PIX_FMT_AYUV64LE;
+    /// Packed AYUV 4:4:4,64bpp (1 Cr & Cb sample per 1x1 Y & A samples), big-endian.
+    AYUV64BE = AV_PIX_FMT_AYUV64BE;
+    /// Hardware decoding through Videotoolbox.
+    VIDEOTOOLBOX = AV_PIX_FMT_VIDEOTOOLBOX;
+    /// Like NV12, with 10bpp per component, data in the high bits, zeros in the low bits,
+    /// little-endian.
+    P010LE = AV_PIX_FMT_P010LE;
+    /// Like NV12, with 10bpp per component, data in the high bits, zeros in the low bits,
+    /// big-endian.
+    P010BE = AV_PIX_FMT_P010BE;
+    /// Planar GBR 4:4:4:4 48bpp, big-endian.
+    GBRAP12BE = AV_PIX_FMT_GBRAP12BE;
+    /// Planar GBR 4:4:4:4 48bpp, little-endian.
+    GBRAP12LE = AV_PIX_FMT_GBRAP12LE;
+    /// Planar GBR 4:4:4:4 40bpp, big-endian.
+    GBRAP10BE = AV_PIX_FMT_GBRAP10BE;
+    /// Planar GBR 4:4:4:4 40bpp, little-endian.
+    GBRAP10LE = AV_PIX_FMT_GBRAP10LE;
+    /// Hardware decoding through MediaCodec.
+    MEDIACODEC = AV_PIX_FMT_MEDIACODEC;
+    /// Y, 12bpp, big-endian.
+    GRAY12BE = AV_PIX_FMT_GRAY12BE;
+    /// Y, 12bpp, little-endian.
+    GRAY12LE = AV_PIX_FMT_GRAY12LE;
+    /// Y, 10bpp, big-endian.
+    GRAY10BE = AV_PIX_FMT_GRAY10BE;
+    /// Y, 10bpp, little-endian.
+    GRAY10LE = AV_PIX_FMT_GRAY10LE;
+    /// Like NV12, with 16bpp per component, little-endian.
+    P016LE = AV_PIX_FMT_P016LE;
+    /// Like NV12, with 16bpp per component, big-endian.
+    P016BE = AV_PIX_FMT_P016BE;
+    /// Hardware surfaces for Direct3D11.
+    ///
+    /// This is preferred over the legacy [`D3D11VA_VLD`](Self::D3D11VA_VLD). The new D3D11
+    /// hwaccel API and filtering support [`D3D11`](Self::D3D11) only.
+    ///
+    /// `data[0]` contains a ID3D11Texture2D pointer, and `data[1]` contains the texture array
+    /// index of the frame as `intptr_t` if the ID3D11Texture2D is an array texture (or always 0
+    /// if it's a normal texture).
+    D3D11 = AV_PIX_FMT_D3D11;
+    /// Y, 9bpp, big-endian.
+    GRAY9BE = AV_PIX_FMT_GRAY9BE;
+    /// Y, 9bpp, little-endian.
+    GRAY9LE = AV_PIX_FMT_GRAY9LE;
+    /// IEEE-754 single precision planar GBR 4:4:4, 96bpp, big-endian.
+    GBRPF32BE = AV_PIX_FMT_GBRPF32BE;
+    /// IEEE-754 single precision planar GBR 4:4:4, 96bpp, little-endian.
+    GBRPF32LE = AV_PIX_FMT_GBRPF32LE;
+    /// IEEE-754 single precision planar GBRA 4:4:4:4, 128bpp, big-endian.
+    GBRAPF32BE = AV_PIX_FMT_GBRAPF32BE;
+    /// IEEE-754 single precision planar GBRA 4:4:4:4, 128bpp, little-endian.
+    GBRAPF32LE = AV_PIX_FMT_GBRAPF32LE;
+    /// DRM-managed buffers exposed through PRIME buffer sharing.
+    ///
+    /// `data[0]` points to an AVDRMFrameDescriptor.
+    DRM_PRIME = AV_PIX_FMT_DRM_PRIME;
+    /// Hardware surfaces for OpenCL.
+    ///
+    /// `data[i]` contain 2D image objects (typed in C as `cl_mem`, used in OpenCL as
+    /// `image2d_t`) for each plane of the surface.
+    OPENCL = AV_PIX_FMT_OPENCL;
+    /// Y, 14bpp, big-endian.
+    GRAY14BE = AV_PIX_FMT_GRAY14BE;
+    /// Y, 14bpp, little-endian.
+    GRAY14LE = AV_PIX_FMT_GRAY14LE;
+    /// IEEE-754 single precision Y, 32bpp, big-endian.
+    GRAYF32BE = AV_PIX_FMT_GRAYF32BE;
+    /// IEEE-754 single precision Y, 32bpp, little-endian.
+    GRAYF32LE = AV_PIX_FMT_GRAYF32LE;
+    /// Planar YUV 4:2:2,24bpp, (1 Cr & Cb sample per 2x1 Y samples), 12b alpha, big-endian.
+    YUVA422P12BE = AV_PIX_FMT_YUVA422P12BE;
+    /// Planar YUV 4:2:2,24bpp, (1 Cr & Cb sample per 2x1 Y samples), 12b alpha, little-endian.
+    YUVA422P12LE = AV_PIX_FMT_YUVA422P12LE;
+    /// Planar YUV 4:4:4,36bpp, (1 Cr & Cb sample per 1x1 Y samples), 12b alpha, big-endian.
+    YUVA444P12BE = AV_PIX_FMT_YUVA444P12BE;
+    /// Planar YUV 4:4:4,36bpp, (1 Cr & Cb sample per 1x1 Y samples), 12b alpha, little-endian.
+    YUVA444P12LE = AV_PIX_FMT_YUVA444P12LE;
+    /// Planar YUV 4:4:4, 24bpp, 1 plane for Y and 1 plane for the UV components, which are
+    /// interleaved (first byte U and the following byte V).
+    NV24 = AV_PIX_FMT_NV24;
+    /// As [`NV24`](Self::NV24), but U and V bytes are swapped.
+    NV42 = AV_PIX_FMT_NV42;
+    /// Vulkan hardware images.
+    ///
+    /// `data[0]` points to an AVVkFrame.
+    VULKAN = AV_PIX_FMT_VULKAN;
+    /// Packed YUV 4:2:2 like YUYV422, 20bpp, data in the high bits, big-endian.
+    Y210BE = AV_PIX_FMT_Y210BE;
+    /// Packed YUV 4:2:2 like YUYV422, 20bpp, data in the high bits, little-endian.
+    Y210LE = AV_PIX_FMT_Y210LE;
+    /// Packed RGB 10:10:10, 30bpp, (msb)2X 10R 10G 10B(lsb), little-endian, X=unused/undefined.
+    X2RGB10LE = AV_PIX_FMT_X2RGB10LE;
+    /// Packed RGB 10:10:10, 30bpp, (msb)2X 10R 10G 10B(lsb), big-endian, X=unused/undefined.
+    X2RGB10BE = AV_PIX_FMT_X2RGB10BE;
+    /// Packed BGR 10:10:10, 30bpp, (msb)2X 10B 10G 10R(lsb), little-endian, X=unused/undefined.
+    X2BGR10LE = AV_PIX_FMT_X2BGR10LE;
+    /// Packed BGR 10:10:10, 30bpp, (msb)2X 10B 10G 10R(lsb), big-endian, X=unused/undefined.
+    X2BGR10BE = AV_PIX_FMT_X2BGR10BE;
+    /// Interleaved chroma YUV 4:2:2, 20bpp, data in the high bits, big-endian.
+    P210BE = AV_PIX_FMT_P210BE;
+    /// Interleaved chroma YUV 4:2:2, 20bpp, data in the high bits, little-endian.
+    P210LE = AV_PIX_FMT_P210LE;
+    /// Interleaved chroma YUV 4:4:4, 30bpp, data in the high bits, big-endian.
+    P410BE = AV_PIX_FMT_P410BE;
+    /// Interleaved chroma YUV 4:4:4, 30bpp, data in the high bits, little-endian.
+    P410LE = AV_PIX_FMT_P410LE;
+    /// Interleaved chroma YUV 4:2:2, 32bpp, big-endian.
+    P216BE = AV_PIX_FMT_P216BE;
+    /// Interleaved chroma YUV 4:2:2, 32bpp, little-endian.
+    P216LE = AV_PIX_FMT_P216LE;
+    /// Interleaved chroma YUV 4:4:4, 48bpp, big-endian.
+    P416BE = AV_PIX_FMT_P416BE;
+    /// Interleaved chroma YUV 4:4:4, 48bpp, little-endian.
+    P416LE = AV_PIX_FMT_P416LE;
+    /// Packed VUYA 4:4:4:4, 32bpp (1 Cr & Cb sample per 1x1 Y & A samples), VUYAVUYA...
+    VUYA = AV_PIX_FMT_VUYA;
+    /// IEEE-754 half precision packed RGBA 16:16:16:16, 64bpp, RGBARGBA..., big-endian.
+    RGBAF16BE = AV_PIX_FMT_RGBAF16BE;
+    /// IEEE-754 half precision packed RGBA 16:16:16:16, 64bpp, RGBARGBA..., little-endian.
+    RGBAF16LE = AV_PIX_FMT_RGBAF16LE;
+    /// Packed VUYX 4:4:4:4, 32bpp, Variant of VUYA where alpha channel is left undefined.
+    VUYX = AV_PIX_FMT_VUYX;
+    /// Like NV12, with 12bpp per component, data in the high bits, zeros in the low bits,
+    /// little-endian.
+    P012LE = AV_PIX_FMT_P012LE;
+    /// Like NV12, with 12bpp per component, data in the high bits, zeros in the low bits,
+    /// big-endian.
+    P012BE = AV_PIX_FMT_P012BE;
+    /// Packed YUV 4:2:2 like YUYV422, 24bpp, data in the high bits, zeros in the low bits,
+    /// big-endian.
+    Y212BE = AV_PIX_FMT_Y212BE;
+    /// Packed YUV 4:2:2 like YUYV422, 24bpp, data in the high bits, zeros in the low bits,
+    /// little-endian.
+    Y212LE = AV_PIX_FMT_Y212LE;
+    /// Packed XVYU 4:4:4, 32bpp, (msb)2X 10V 10Y 10U(lsb), big-endian, variant of Y410 where
+    /// alpha channel is left undefined.
+    XV30BE = AV_PIX_FMT_XV30BE;
+    /// Packed XVYU 4:4:4, 32bpp, (msb)2X 10V 10Y 10U(lsb), little-endian, variant of Y410 where
+    /// alpha channel is left undefined.
+    XV30LE = AV_PIX_FMT_XV30LE;
+    /// Packed XVYU 4:4:4, 48bpp, data in the high bits, zeros in the low bits, big-endian,
+    /// variant of Y412 where alpha channel is left undefined.
+    XV36BE = AV_PIX_FMT_XV36BE;
+    /// Packed XVYU 4:4:4, 48bpp, data in the high bits, zeros in the low bits, little-endian,
+    /// variant of Y412 where alpha channel is left undefined.
+    XV36LE = AV_PIX_FMT_XV36LE;
+    /// IEEE-754 single precision packed RGB 32:32:32, 96bpp, RGBRGB..., big-endian.
+    RGBF32BE = AV_PIX_FMT_RGBF32BE;
+    /// IEEE-754 single precision packed RGB 32:32:32, 96bpp, RGBRGB..., little-endian.
+    RGBF32LE = AV_PIX_FMT_RGBF32LE;
+    /// IEEE-754 single precision packed RGBA 32:32:32:32, 128bpp, RGBARGBA..., big-endian.
+    RGBAF32BE = AV_PIX_FMT_RGBAF32BE;
+    /// IEEE-754 single precision packed RGBA 32:32:32:32, 128bpp, RGBARGBA..., little-endian.
+    RGBAF32LE = AV_PIX_FMT_RGBAF32LE;
+    /// Interleaved chroma YUV 4:2:2, 24bpp, data in the high bits, big-endian.
+    P212BE = AV_PIX_FMT_P212BE;
+    /// Interleaved chroma YUV 4:2:2, 24bpp, data in the high bits, little-endian.
+    P212LE = AV_PIX_FMT_P212LE;
+    /// Interleaved chroma YUV 4:4:4, 36bpp, data in the high bits, big-endian.
+    P412BE = AV_PIX_FMT_P412BE;
+    /// Interleaved chroma YUV 4:4:4, 36bpp, data in the high bits, little-endian.
+    P412LE = AV_PIX_FMT_P412LE;
+    /// Planar GBR 4:4:4:4 56bpp, big-endian.
+    GBRAP14BE = AV_PIX_FMT_GBRAP14BE;
+    /// Planar GBR 4:4:4:4 56bpp, little-endian.
+    GBRAP14LE = AV_PIX_FMT_GBRAP14LE;
+    /// Hardware surfaces for Direct3D 12.
+    ///
+    /// `data[0]` points to an AVD3D12VAFrame.
+    D3D12 = AV_PIX_FMT_D3D12;
+    /// Packed AYUV 4:4:4:4, 32bpp (1 Cr & Cb sample per 1x1 Y & A samples), AYUVAYUV...
+    AYUV = AV_PIX_FMT_AYUV;
+    /// Packed UYVA 4:4:4:4, 32bpp (1 Cr & Cb sample per 1x1 Y & A samples), UYVAUYVA...
+    UYVA = AV_PIX_FMT_UYVA;
+    /// Packed VYU 4:4:4, 24bpp (1 Cr & Cb sample per 1x1 Y), VYUVYU...
+    VYU444 = AV_PIX_FMT_VYU444;
+    /// Packed VYUX 4:4:4 like XV30, 32bpp, (msb)10V 10Y 10U 2X(lsb), big-endian.
+    V30XBE = AV_PIX_FMT_V30XBE;
+    /// Packed VYUX 4:4:4 like XV30, 32bpp, (msb)10V 10Y 10U 2X(lsb), little-endian.
+    V30XLE = AV_PIX_FMT_V30XLE;
+    /// IEEE-754 half precision packed RGB 16:16:16, 48bpp, RGBRGB..., big-endian.
+    RGBF16BE = AV_PIX_FMT_RGBF16BE;
+    /// IEEE-754 half precision packed RGB 16:16:16, 48bpp, RGBRGB..., little-endian.
+    RGBF16LE = AV_PIX_FMT_RGBF16LE;
+    /// Packed RGBA 32:32:32:32, 128bpp, RGBARGBA..., big-endian.
+    RGBA128BE = AV_PIX_FMT_RGBA128BE;
+    /// Packed RGBA 32:32:32:32, 128bpp, RGBARGBA..., little-endian.
+    RGBA128LE = AV_PIX_FMT_RGBA128LE;
+    /// Packed RGBA 32:32:32, 96bpp, RGBRGB..., big-endian.
+    RGB96BE = AV_PIX_FMT_RGB96BE;
+    /// Packed RGBA 32:32:32, 96bpp, RGBRGB..., little-endian.
+    RGB96LE = AV_PIX_FMT_RGB96LE;
+    /// Packed YUV 4:2:2 like YUYV422, 32bpp, big-endian.
+    Y216BE = AV_PIX_FMT_Y216BE;
+    /// Packed YUV 4:2:2 like YUYV422, 32bpp, little-endian.
+    Y216LE = AV_PIX_FMT_Y216LE;
+    /// Packed XVYU 4:4:4, 64bpp, big-endian, variant of Y416 where alpha channel is left
+    /// undefined.
+    XV48BE = AV_PIX_FMT_XV48BE;
+    /// Packed XVYU 4:4:4, 64bpp, little-endian, variant of Y416 where alpha channel is left
+    /// undefined.
+    XV48LE = AV_PIX_FMT_XV48LE;
+    /// IEEE-754 half precision planer GBR 4:4:4, 48bpp, big-endian.
+    GBRPF16BE = AV_PIX_FMT_GBRPF16BE;
+    /// IEEE-754 half precision planer GBR 4:4:4, 48bpp, little-endian.
+    GBRPF16LE = AV_PIX_FMT_GBRPF16LE;
+    /// IEEE-754 half precision planar GBRA 4:4:4:4, 64bpp, big-endian.
+    GBRAPF16BE = AV_PIX_FMT_GBRAPF16BE;
+    /// IEEE-754 half precision planar GBRA 4:4:4:4, 64bpp, little-endian.
+    GBRAPF16LE = AV_PIX_FMT_GBRAPF16LE;
+    /// IEEE-754 half precision Y, 16bpp, big-endian.
+    GRAYF16BE = AV_PIX_FMT_GRAYF16BE;
+    /// IEEE-754 half precision Y, 16bpp, little-endian.
+    GRAYF16LE = AV_PIX_FMT_GRAYF16LE;
+    /// HW acceleration through AMF. `data[0]` contain AMFSurface pointer.
+    AMF_SURFACE = AV_PIX_FMT_AMF_SURFACE;
+    /// Y, 32bpp, big-endian.
+    GRAY32BE = AV_PIX_FMT_GRAY32BE;
+    /// Y, 32bpp, little-endian.
+    GRAY32LE = AV_PIX_FMT_GRAY32LE;
+    /// IEEE-754 single precision packed YA, 32 bits gray, 32 bits alpha, 64bpp, big-endian.
+    YAF32BE = AV_PIX_FMT_YAF32BE;
+    /// IEEE-754 single precision packed YA, 32 bits gray, 32 bits alpha, 64bpp, little-endian.
+    YAF32LE = AV_PIX_FMT_YAF32LE;
+    /// IEEE-754 half precision packed YA, 16 bits gray, 16 bits alpha, 32bpp, big-endian.
+    YAF16BE = AV_PIX_FMT_YAF16BE;
+    /// IEEE-754 half precision packed YA, 16 bits gray, 16 bits alpha, 32bpp, little-endian.
+    YAF16LE = AV_PIX_FMT_YAF16LE;
+    /// Planar GBRA 4:4:4:4 128bpp, big-endian.
+    GBRAP32BE = AV_PIX_FMT_GBRAP32BE;
+    /// Planar GBRA 4:4:4:4 128bpp, little-endian.
+    GBRAP32LE = AV_PIX_FMT_GBRAP32LE;
+    /// Planar YUV 4:4:4, 30bpp, (1 Cr & Cb sample per 1x1 Y samples), lowest bits zero,
+    /// big-endian.
+    YUV444P10MSBBE = AV_PIX_FMT_YUV444P10MSBBE;
+    /// Planar YUV 4:4:4, 30bpp, (1 Cr & Cb sample per 1x1 Y samples), lowest bits zero,
+    /// little-endian.
+    YUV444P10MSBLE = AV_PIX_FMT_YUV444P10MSBLE;
+    /// Planar YUV 4:4:4, 30bpp, (1 Cr & Cb sample per 1x1 Y samples), lowest bits zero,
+    /// big-endian.
+    YUV444P12MSBBE = AV_PIX_FMT_YUV444P12MSBBE;
+    /// Planar YUV 4:4:4, 30bpp, (1 Cr & Cb sample per 1x1 Y samples), lowest bits zero,
+    /// little-endian.
+    YUV444P12MSBLE = AV_PIX_FMT_YUV444P12MSBLE;
+    /// Planar GBR 4:4:4 30bpp, lowest bits zero, big-endian.
+    GBRP10MSBBE = AV_PIX_FMT_GBRP10MSBBE;
+    /// Planar GBR 4:4:4 30bpp, lowest bits zero, little-endian.
+    GBRP10MSBLE = AV_PIX_FMT_GBRP10MSBLE;
+    /// Planar GBR 4:4:4 36bpp, lowest bits zero, big-endian.
+    GBRP12MSBBE = AV_PIX_FMT_GBRP12MSBBE;
+    /// Planar GBR 4:4:4 36bpp, lowest bits zero, little-endian.
+    GBRP12MSBLE = AV_PIX_FMT_GBRP12MSBLE;
+    /// Hardware decoding through OpenHarmony.
+    OHCODEC = AV_PIX_FMT_OHCODEC;
+    /// CUDA block-linear (opaque). `data[0]` is a CUarray in block-linear layout, e.g. from
+    /// NVDEC opaque decode. Use for zero-copy to NVENC (CUDA array input).
+    CUARRAY = AV_PIX_FMT_CUARRAY;
+}
+
+impl PixelFormat {
+    /// Another name for [`YA8`](Self::YA8) (`AV_PIX_FMT_Y400A`).
+    pub const Y400A: Self = Self(ffi::AVPixelFormat::AV_PIX_FMT_Y400A);
+    /// Another name for [`YA8`](Self::YA8) (`AV_PIX_FMT_GRAY8A`).
+    pub const GRAY8A: Self = Self(ffi::AVPixelFormat::AV_PIX_FMT_GRAY8A);
+    /// Another name for [`GBRP`](Self::GBRP) (`AV_PIX_FMT_GBR24P`).
+    pub const GBR24P: Self = Self(ffi::AVPixelFormat::AV_PIX_FMT_GBR24P);
+
+    /// [`ARGB`](Self::ARGB) on big-endian targets and [`BGRA`](Self::BGRA) on little-endian
+    /// ones: `AV_PIX_FMT_RGB32`, in native byte order.
+    pub const RGB32: Self = native_endian(Self::ARGB, Self::BGRA);
+    /// [`RGBA`](Self::RGBA) on big-endian targets and [`ABGR`](Self::ABGR) on little-endian
+    /// ones: `AV_PIX_FMT_RGB32_1`, in native byte order.
+    pub const RGB32_1: Self = native_endian(Self::RGBA, Self::ABGR);
+    /// [`ABGR`](Self::ABGR) on big-endian targets and [`RGBA`](Self::RGBA) on little-endian
+    /// ones: `AV_PIX_FMT_BGR32`, in native byte order.
+    pub const BGR32: Self = native_endian(Self::ABGR, Self::RGBA);
+    /// [`BGRA`](Self::BGRA) on big-endian targets and [`ARGB`](Self::ARGB) on little-endian
+    /// ones: `AV_PIX_FMT_BGR32_1`, in native byte order.
+    pub const BGR32_1: Self = native_endian(Self::BGRA, Self::ARGB);
+    /// [`XRGB`](Self::XRGB) on big-endian targets and [`BGR0`](Self::BGR0) on little-endian
+    /// ones: `AV_PIX_FMT_0RGB32`, in native byte order.
+    pub const XRGB32: Self = native_endian(Self::XRGB, Self::BGR0);
+    /// [`XBGR`](Self::XBGR) on big-endian targets and [`RGB0`](Self::RGB0) on little-endian
+    /// ones: `AV_PIX_FMT_0BGR32`, in native byte order.
+    pub const XBGR32: Self = native_endian(Self::XBGR, Self::RGB0);
+    /// [`GRAY9BE`](Self::GRAY9BE) on big-endian targets and [`GRAY9LE`](Self::GRAY9LE) on
+    /// little-endian ones: `AV_PIX_FMT_GRAY9`, in native byte order.
+    pub const GRAY9: Self = native_endian(Self::GRAY9BE, Self::GRAY9LE);
+    /// [`GRAY10BE`](Self::GRAY10BE) on big-endian targets and [`GRAY10LE`](Self::GRAY10LE) on
+    /// little-endian ones: `AV_PIX_FMT_GRAY10`, in native byte order.
+    pub const GRAY10: Self = native_endian(Self::GRAY10BE, Self::GRAY10LE);
+    /// [`GRAY12BE`](Self::GRAY12BE) on big-endian targets and [`GRAY12LE`](Self::GRAY12LE) on
+    /// little-endian ones: `AV_PIX_FMT_GRAY12`, in native byte order.
+    pub const GRAY12: Self = native_endian(Self::GRAY12BE, Self::GRAY12LE);
+    /// [`GRAY14BE`](Self::GRAY14BE) on big-endian targets and [`GRAY14LE`](Self::GRAY14LE) on
+    /// little-endian ones: `AV_PIX_FMT_GRAY14`, in native byte order.
+    pub const GRAY14: Self = native_endian(Self::GRAY14BE, Self::GRAY14LE);
+    /// [`GRAY16BE`](Self::GRAY16BE) on big-endian targets and [`GRAY16LE`](Self::GRAY16LE) on
+    /// little-endian ones: `AV_PIX_FMT_GRAY16`, in native byte order.
+    pub const GRAY16: Self = native_endian(Self::GRAY16BE, Self::GRAY16LE);
+    /// [`GRAY32BE`](Self::GRAY32BE) on big-endian targets and [`GRAY32LE`](Self::GRAY32LE) on
+    /// little-endian ones: `AV_PIX_FMT_GRAY32`, in native byte order.
+    pub const GRAY32: Self = native_endian(Self::GRAY32BE, Self::GRAY32LE);
+    /// [`YA16BE`](Self::YA16BE) on big-endian targets and [`YA16LE`](Self::YA16LE) on
+    /// little-endian ones: `AV_PIX_FMT_YA16`, in native byte order.
+    pub const YA16: Self = native_endian(Self::YA16BE, Self::YA16LE);
+    /// [`RGB48BE`](Self::RGB48BE) on big-endian targets and [`RGB48LE`](Self::RGB48LE) on
+    /// little-endian ones: `AV_PIX_FMT_RGB48`, in native byte order.
+    pub const RGB48: Self = native_endian(Self::RGB48BE, Self::RGB48LE);
+    /// [`RGB565BE`](Self::RGB565BE) on big-endian targets and [`RGB565LE`](Self::RGB565LE) on
+    /// little-endian ones: `AV_PIX_FMT_RGB565`, in native byte order.
+    pub const RGB565: Self = native_endian(Self::RGB565BE, Self::RGB565LE);
+    /// [`RGB555BE`](Self::RGB555BE) on big-endian targets and [`RGB555LE`](Self::RGB555LE) on
+    /// little-endian ones: `AV_PIX_FMT_RGB555`, in native byte order.
+    pub const RGB555: Self = native_endian(Self::RGB555BE, Self::RGB555LE);
+    /// [`RGB444BE`](Self::RGB444BE) on big-endian targets and [`RGB444LE`](Self::RGB444LE) on
+    /// little-endian ones: `AV_PIX_FMT_RGB444`, in native byte order.
+    pub const RGB444: Self = native_endian(Self::RGB444BE, Self::RGB444LE);
+    /// [`RGBA64BE`](Self::RGBA64BE) on big-endian targets and [`RGBA64LE`](Self::RGBA64LE) on
+    /// little-endian ones: `AV_PIX_FMT_RGBA64`, in native byte order.
+    pub const RGBA64: Self = native_endian(Self::RGBA64BE, Self::RGBA64LE);
+    /// [`BGR48BE`](Self::BGR48BE) on big-endian targets and [`BGR48LE`](Self::BGR48LE) on
+    /// little-endian ones: `AV_PIX_FMT_BGR48`, in native byte order.
+    pub const BGR48: Self = native_endian(Self::BGR48BE, Self::BGR48LE);
+    /// [`BGR565BE`](Self::BGR565BE) on big-endian targets and [`BGR565LE`](Self::BGR565LE) on
+    /// little-endian ones: `AV_PIX_FMT_BGR565`, in native byte order.
+    pub const BGR565: Self = native_endian(Self::BGR565BE, Self::BGR565LE);
+    /// [`BGR555BE`](Self::BGR555BE) on big-endian targets and [`BGR555LE`](Self::BGR555LE) on
+    /// little-endian ones: `AV_PIX_FMT_BGR555`, in native byte order.
+    pub const BGR555: Self = native_endian(Self::BGR555BE, Self::BGR555LE);
+    /// [`BGR444BE`](Self::BGR444BE) on big-endian targets and [`BGR444LE`](Self::BGR444LE) on
+    /// little-endian ones: `AV_PIX_FMT_BGR444`, in native byte order.
+    pub const BGR444: Self = native_endian(Self::BGR444BE, Self::BGR444LE);
+    /// [`BGRA64BE`](Self::BGRA64BE) on big-endian targets and [`BGRA64LE`](Self::BGRA64LE) on
+    /// little-endian ones: `AV_PIX_FMT_BGRA64`, in native byte order.
+    pub const BGRA64: Self = native_endian(Self::BGRA64BE, Self::BGRA64LE);
+    /// [`YUV420P9BE`](Self::YUV420P9BE) on big-endian targets and
+    /// [`YUV420P9LE`](Self::YUV420P9LE) on little-endian ones: `AV_PIX_FMT_YUV420P9`, in native
+    /// byte order.
+    pub const YUV420P9: Self = native_endian(Self::YUV420P9BE, Self::YUV420P9LE);
+    /// [`YUV422P9BE`](Self::YUV422P9BE) on big-endian targets and
+    /// [`YUV422P9LE`](Self::YUV422P9LE) on little-endian ones: `AV_PIX_FMT_YUV422P9`, in native
+    /// byte order.
+    pub const YUV422P9: Self = native_endian(Self::YUV422P9BE, Self::YUV422P9LE);
+    /// [`YUV444P9BE`](Self::YUV444P9BE) on big-endian targets and
+    /// [`YUV444P9LE`](Self::YUV444P9LE) on little-endian ones: `AV_PIX_FMT_YUV444P9`, in native
+    /// byte order.
+    pub const YUV444P9: Self = native_endian(Self::YUV444P9BE, Self::YUV444P9LE);
+    /// [`YUV420P10BE`](Self::YUV420P10BE) on big-endian targets and
+    /// [`YUV420P10LE`](Self::YUV420P10LE) on little-endian ones: `AV_PIX_FMT_YUV420P10`, in
+    /// native byte order.
+    pub const YUV420P10: Self = native_endian(Self::YUV420P10BE, Self::YUV420P10LE);
+    /// [`YUV422P10BE`](Self::YUV422P10BE) on big-endian targets and
+    /// [`YUV422P10LE`](Self::YUV422P10LE) on little-endian ones: `AV_PIX_FMT_YUV422P10`, in
+    /// native byte order.
+    pub const YUV422P10: Self = native_endian(Self::YUV422P10BE, Self::YUV422P10LE);
+    /// [`YUV440P10BE`](Self::YUV440P10BE) on big-endian targets and
+    /// [`YUV440P10LE`](Self::YUV440P10LE) on little-endian ones: `AV_PIX_FMT_YUV440P10`, in
+    /// native byte order.
+    pub const YUV440P10: Self = native_endian(Self::YUV440P10BE, Self::YUV440P10LE);
+    /// [`YUV444P10BE`](Self::YUV444P10BE) on big-endian targets and
+    /// [`YUV444P10LE`](Self::YUV444P10LE) on little-endian ones: `AV_PIX_FMT_YUV444P10`, in
+    /// native byte order.
+    pub const YUV444P10: Self = native_endian(Self::YUV444P10BE, Self::YUV444P10LE);
+    /// [`YUV420P12BE`](Self::YUV420P12BE) on big-endian targets and
+    /// [`YUV420P12LE`](Self::YUV420P12LE) on little-endian ones: `AV_PIX_FMT_YUV420P12`, in
+    /// native byte order.
+    pub const YUV420P12: Self = native_endian(Self::YUV420P12BE, Self::YUV420P12LE);
+    /// [`YUV422P12BE`](Self::YUV422P12BE) on big-endian targets and
+    /// [`YUV422P12LE`](Self::YUV422P12LE) on little-endian ones: `AV_PIX_FMT_YUV422P12`, in
+    /// native byte order.
+    pub const YUV422P12: Self = native_endian(Self::YUV422P12BE, Self::YUV422P12LE);
+    /// [`YUV440P12BE`](Self::YUV440P12BE) on big-endian targets and
+    /// [`YUV440P12LE`](Self::YUV440P12LE) on little-endian ones: `AV_PIX_FMT_YUV440P12`, in
+    /// native byte order.
+    pub const YUV440P12: Self = native_endian(Self::YUV440P12BE, Self::YUV440P12LE);
+    /// [`YUV444P12BE`](Self::YUV444P12BE) on big-endian targets and
+    /// [`YUV444P12LE`](Self::YUV444P12LE) on little-endian ones: `AV_PIX_FMT_YUV444P12`, in
+    /// native byte order.
+    pub const YUV444P12: Self = native_endian(Self::YUV444P12BE, Self::YUV444P12LE);
+    /// [`YUV420P14BE`](Self::YUV420P14BE) on big-endian targets and
+    /// [`YUV420P14LE`](Self::YUV420P14LE) on little-endian ones: `AV_PIX_FMT_YUV420P14`, in
+    /// native byte order.
+    pub const YUV420P14: Self = native_endian(Self::YUV420P14BE, Self::YUV420P14LE);
+    /// [`YUV422P14BE`](Self::YUV422P14BE) on big-endian targets and
+    /// [`YUV422P14LE`](Self::YUV422P14LE) on little-endian ones: `AV_PIX_FMT_YUV422P14`, in
+    /// native byte order.
+    pub const YUV422P14: Self = native_endian(Self::YUV422P14BE, Self::YUV422P14LE);
+    /// [`YUV444P14BE`](Self::YUV444P14BE) on big-endian targets and
+    /// [`YUV444P14LE`](Self::YUV444P14LE) on little-endian ones: `AV_PIX_FMT_YUV444P14`, in
+    /// native byte order.
+    pub const YUV444P14: Self = native_endian(Self::YUV444P14BE, Self::YUV444P14LE);
+    /// [`YUV420P16BE`](Self::YUV420P16BE) on big-endian targets and
+    /// [`YUV420P16LE`](Self::YUV420P16LE) on little-endian ones: `AV_PIX_FMT_YUV420P16`, in
+    /// native byte order.
+    pub const YUV420P16: Self = native_endian(Self::YUV420P16BE, Self::YUV420P16LE);
+    /// [`YUV422P16BE`](Self::YUV422P16BE) on big-endian targets and
+    /// [`YUV422P16LE`](Self::YUV422P16LE) on little-endian ones: `AV_PIX_FMT_YUV422P16`, in
+    /// native byte order.
+    pub const YUV422P16: Self = native_endian(Self::YUV422P16BE, Self::YUV422P16LE);
+    /// [`YUV444P16BE`](Self::YUV444P16BE) on big-endian targets and
+    /// [`YUV444P16LE`](Self::YUV444P16LE) on little-endian ones: `AV_PIX_FMT_YUV444P16`, in
+    /// native byte order.
+    pub const YUV444P16: Self = native_endian(Self::YUV444P16BE, Self::YUV444P16LE);
+    /// [`YUV444P10MSBBE`](Self::YUV444P10MSBBE) on big-endian targets and
+    /// [`YUV444P10MSBLE`](Self::YUV444P10MSBLE) on little-endian ones:
+    /// `AV_PIX_FMT_YUV444P10MSB`, in native byte order.
+    pub const YUV444P10MSB: Self = native_endian(Self::YUV444P10MSBBE, Self::YUV444P10MSBLE);
+    /// [`YUV444P12MSBBE`](Self::YUV444P12MSBBE) on big-endian targets and
+    /// [`YUV444P12MSBLE`](Self::YUV444P12MSBLE) on little-endian ones:
+    /// `AV_PIX_FMT_YUV444P12MSB`, in native byte order.
+    pub const YUV444P12MSB: Self = native_endian(Self::YUV444P12MSBBE, Self::YUV444P12MSBLE);
+    /// [`GBRP9BE`](Self::GBRP9BE) on big-endian targets and [`GBRP9LE`](Self::GBRP9LE) on
+    /// little-endian ones: `AV_PIX_FMT_GBRP9`, in native byte order.
+    pub const GBRP9: Self = native_endian(Self::GBRP9BE, Self::GBRP9LE);
+    /// [`GBRP10BE`](Self::GBRP10BE) on big-endian targets and [`GBRP10LE`](Self::GBRP10LE) on
+    /// little-endian ones: `AV_PIX_FMT_GBRP10`, in native byte order.
+    pub const GBRP10: Self = native_endian(Self::GBRP10BE, Self::GBRP10LE);
+    /// [`GBRP12BE`](Self::GBRP12BE) on big-endian targets and [`GBRP12LE`](Self::GBRP12LE) on
+    /// little-endian ones: `AV_PIX_FMT_GBRP12`, in native byte order.
+    pub const GBRP12: Self = native_endian(Self::GBRP12BE, Self::GBRP12LE);
+    /// [`GBRP14BE`](Self::GBRP14BE) on big-endian targets and [`GBRP14LE`](Self::GBRP14LE) on
+    /// little-endian ones: `AV_PIX_FMT_GBRP14`, in native byte order.
+    pub const GBRP14: Self = native_endian(Self::GBRP14BE, Self::GBRP14LE);
+    /// [`GBRP16BE`](Self::GBRP16BE) on big-endian targets and [`GBRP16LE`](Self::GBRP16LE) on
+    /// little-endian ones: `AV_PIX_FMT_GBRP16`, in native byte order.
+    pub const GBRP16: Self = native_endian(Self::GBRP16BE, Self::GBRP16LE);
+    /// [`GBRAP10BE`](Self::GBRAP10BE) on big-endian targets and [`GBRAP10LE`](Self::GBRAP10LE)
+    /// on little-endian ones: `AV_PIX_FMT_GBRAP10`, in native byte order.
+    pub const GBRAP10: Self = native_endian(Self::GBRAP10BE, Self::GBRAP10LE);
+    /// [`GBRAP12BE`](Self::GBRAP12BE) on big-endian targets and [`GBRAP12LE`](Self::GBRAP12LE)
+    /// on little-endian ones: `AV_PIX_FMT_GBRAP12`, in native byte order.
+    pub const GBRAP12: Self = native_endian(Self::GBRAP12BE, Self::GBRAP12LE);
+    /// [`GBRAP14BE`](Self::GBRAP14BE) on big-endian targets and [`GBRAP14LE`](Self::GBRAP14LE)
+    /// on little-endian ones: `AV_PIX_FMT_GBRAP14`, in native byte order.
+    pub const GBRAP14: Self = native_endian(Self::GBRAP14BE, Self::GBRAP14LE);
+    /// [`GBRAP16BE`](Self::GBRAP16BE) on big-endian targets and [`GBRAP16LE`](Self::GBRAP16LE)
+    /// on little-endian ones: `AV_PIX_FMT_GBRAP16`, in native byte order.
+    pub const GBRAP16: Self = native_endian(Self::GBRAP16BE, Self::GBRAP16LE);
+    /// [`GBRAP32BE`](Self::GBRAP32BE) on big-endian targets and [`GBRAP32LE`](Self::GBRAP32LE)
+    /// on little-endian ones: `AV_PIX_FMT_GBRAP32`, in native byte order.
+    pub const GBRAP32: Self = native_endian(Self::GBRAP32BE, Self::GBRAP32LE);
+    /// [`GBRP10MSBBE`](Self::GBRP10MSBBE) on big-endian targets and
+    /// [`GBRP10MSBLE`](Self::GBRP10MSBLE) on little-endian ones: `AV_PIX_FMT_GBRP10MSB`, in
+    /// native byte order.
+    pub const GBRP10MSB: Self = native_endian(Self::GBRP10MSBBE, Self::GBRP10MSBLE);
+    /// [`GBRP12MSBBE`](Self::GBRP12MSBBE) on big-endian targets and
+    /// [`GBRP12MSBLE`](Self::GBRP12MSBLE) on little-endian ones: `AV_PIX_FMT_GBRP12MSB`, in
+    /// native byte order.
+    pub const GBRP12MSB: Self = native_endian(Self::GBRP12MSBBE, Self::GBRP12MSBLE);
+    /// [`BAYER_BGGR16BE`](Self::BAYER_BGGR16BE) on big-endian targets and
+    /// [`BAYER_BGGR16LE`](Self::BAYER_BGGR16LE) on little-endian ones:
+    /// `AV_PIX_FMT_BAYER_BGGR16`, in native byte order.
+    pub const BAYER_BGGR16: Self = native_endian(Self::BAYER_BGGR16BE, Self::BAYER_BGGR16LE);
+    /// [`BAYER_RGGB16BE`](Self::BAYER_RGGB16BE) on big-endian targets and
+    /// [`BAYER_RGGB16LE`](Self::BAYER_RGGB16LE) on little-endian ones:
+    /// `AV_PIX_FMT_BAYER_RGGB16`, in native byte order.
+    pub const BAYER_RGGB16: Self = native_endian(Self::BAYER_RGGB16BE, Self::BAYER_RGGB16LE);
+    /// [`BAYER_GBRG16BE`](Self::BAYER_GBRG16BE) on big-endian targets and
+    /// [`BAYER_GBRG16LE`](Self::BAYER_GBRG16LE) on little-endian ones:
+    /// `AV_PIX_FMT_BAYER_GBRG16`, in native byte order.
+    pub const BAYER_GBRG16: Self = native_endian(Self::BAYER_GBRG16BE, Self::BAYER_GBRG16LE);
+    /// [`BAYER_GRBG16BE`](Self::BAYER_GRBG16BE) on big-endian targets and
+    /// [`BAYER_GRBG16LE`](Self::BAYER_GRBG16LE) on little-endian ones:
+    /// `AV_PIX_FMT_BAYER_GRBG16`, in native byte order.
+    pub const BAYER_GRBG16: Self = native_endian(Self::BAYER_GRBG16BE, Self::BAYER_GRBG16LE);
+    /// [`GBRPF16BE`](Self::GBRPF16BE) on big-endian targets and [`GBRPF16LE`](Self::GBRPF16LE)
+    /// on little-endian ones: `AV_PIX_FMT_GBRPF16`, in native byte order.
+    pub const GBRPF16: Self = native_endian(Self::GBRPF16BE, Self::GBRPF16LE);
+    /// [`GBRAPF16BE`](Self::GBRAPF16BE) on big-endian targets and
+    /// [`GBRAPF16LE`](Self::GBRAPF16LE) on little-endian ones: `AV_PIX_FMT_GBRAPF16`, in native
+    /// byte order.
+    pub const GBRAPF16: Self = native_endian(Self::GBRAPF16BE, Self::GBRAPF16LE);
+    /// [`GBRPF32BE`](Self::GBRPF32BE) on big-endian targets and [`GBRPF32LE`](Self::GBRPF32LE)
+    /// on little-endian ones: `AV_PIX_FMT_GBRPF32`, in native byte order.
+    pub const GBRPF32: Self = native_endian(Self::GBRPF32BE, Self::GBRPF32LE);
+    /// [`GBRAPF32BE`](Self::GBRAPF32BE) on big-endian targets and
+    /// [`GBRAPF32LE`](Self::GBRAPF32LE) on little-endian ones: `AV_PIX_FMT_GBRAPF32`, in native
+    /// byte order.
+    pub const GBRAPF32: Self = native_endian(Self::GBRAPF32BE, Self::GBRAPF32LE);
+    /// [`GRAYF16BE`](Self::GRAYF16BE) on big-endian targets and [`GRAYF16LE`](Self::GRAYF16LE)
+    /// on little-endian ones: `AV_PIX_FMT_GRAYF16`, in native byte order.
+    pub const GRAYF16: Self = native_endian(Self::GRAYF16BE, Self::GRAYF16LE);
+    /// [`GRAYF32BE`](Self::GRAYF32BE) on big-endian targets and [`GRAYF32LE`](Self::GRAYF32LE)
+    /// on little-endian ones: `AV_PIX_FMT_GRAYF32`, in native byte order.
+    pub const GRAYF32: Self = native_endian(Self::GRAYF32BE, Self::GRAYF32LE);
+    /// [`YAF16BE`](Self::YAF16BE) on big-endian targets and [`YAF16LE`](Self::YAF16LE) on
+    /// little-endian ones: `AV_PIX_FMT_YAF16`, in native byte order.
+    pub const YAF16: Self = native_endian(Self::YAF16BE, Self::YAF16LE);
+    /// [`YAF32BE`](Self::YAF32BE) on big-endian targets and [`YAF32LE`](Self::YAF32LE) on
+    /// little-endian ones: `AV_PIX_FMT_YAF32`, in native byte order.
+    pub const YAF32: Self = native_endian(Self::YAF32BE, Self::YAF32LE);
+    /// [`YUVA420P9BE`](Self::YUVA420P9BE) on big-endian targets and
+    /// [`YUVA420P9LE`](Self::YUVA420P9LE) on little-endian ones: `AV_PIX_FMT_YUVA420P9`, in
+    /// native byte order.
+    pub const YUVA420P9: Self = native_endian(Self::YUVA420P9BE, Self::YUVA420P9LE);
+    /// [`YUVA422P9BE`](Self::YUVA422P9BE) on big-endian targets and
+    /// [`YUVA422P9LE`](Self::YUVA422P9LE) on little-endian ones: `AV_PIX_FMT_YUVA422P9`, in
+    /// native byte order.
+    pub const YUVA422P9: Self = native_endian(Self::YUVA422P9BE, Self::YUVA422P9LE);
+    /// [`YUVA444P9BE`](Self::YUVA444P9BE) on big-endian targets and
+    /// [`YUVA444P9LE`](Self::YUVA444P9LE) on little-endian ones: `AV_PIX_FMT_YUVA444P9`, in
+    /// native byte order.
+    pub const YUVA444P9: Self = native_endian(Self::YUVA444P9BE, Self::YUVA444P9LE);
+    /// [`YUVA420P10BE`](Self::YUVA420P10BE) on big-endian targets and
+    /// [`YUVA420P10LE`](Self::YUVA420P10LE) on little-endian ones: `AV_PIX_FMT_YUVA420P10`, in
+    /// native byte order.
+    pub const YUVA420P10: Self = native_endian(Self::YUVA420P10BE, Self::YUVA420P10LE);
+    /// [`YUVA422P10BE`](Self::YUVA422P10BE) on big-endian targets and
+    /// [`YUVA422P10LE`](Self::YUVA422P10LE) on little-endian ones: `AV_PIX_FMT_YUVA422P10`, in
+    /// native byte order.
+    pub const YUVA422P10: Self = native_endian(Self::YUVA422P10BE, Self::YUVA422P10LE);
+    /// [`YUVA444P10BE`](Self::YUVA444P10BE) on big-endian targets and
+    /// [`YUVA444P10LE`](Self::YUVA444P10LE) on little-endian ones: `AV_PIX_FMT_YUVA444P10`, in
+    /// native byte order.
+    pub const YUVA444P10: Self = native_endian(Self::YUVA444P10BE, Self::YUVA444P10LE);
+    /// [`YUVA422P12BE`](Self::YUVA422P12BE) on big-endian targets and
+    /// [`YUVA422P12LE`](Self::YUVA422P12LE) on little-endian ones: `AV_PIX_FMT_YUVA422P12`, in
+    /// native byte order.
+    pub const YUVA422P12: Self = native_endian(Self::YUVA422P12BE, Self::YUVA422P12LE);
+    /// [`YUVA444P12BE`](Self::YUVA444P12BE) on big-endian targets and
+    /// [`YUVA444P12LE`](Self::YUVA444P12LE) on little-endian ones: `AV_PIX_FMT_YUVA444P12`, in
+    /// native byte order.
+    pub const YUVA444P12: Self = native_endian(Self::YUVA444P12BE, Self::YUVA444P12LE);
+    /// [`YUVA420P16BE`](Self::YUVA420P16BE) on big-endian targets and
+    /// [`YUVA420P16LE`](Self::YUVA420P16LE) on little-endian ones: `AV_PIX_FMT_YUVA420P16`, in
+    /// native byte order.
+    pub const YUVA420P16: Self = native_endian(Self::YUVA420P16BE, Self::YUVA420P16LE);
+    /// [`YUVA422P16BE`](Self::YUVA422P16BE) on big-endian targets and
+    /// [`YUVA422P16LE`](Self::YUVA422P16LE) on little-endian ones: `AV_PIX_FMT_YUVA422P16`, in
+    /// native byte order.
+    pub const YUVA422P16: Self = native_endian(Self::YUVA422P16BE, Self::YUVA422P16LE);
+    /// [`YUVA444P16BE`](Self::YUVA444P16BE) on big-endian targets and
+    /// [`YUVA444P16LE`](Self::YUVA444P16LE) on little-endian ones: `AV_PIX_FMT_YUVA444P16`, in
+    /// native byte order.
+    pub const YUVA444P16: Self = native_endian(Self::YUVA444P16BE, Self::YUVA444P16LE);
+    /// [`XYZ12BE`](Self::XYZ12BE) on big-endian targets and [`XYZ12LE`](Self::XYZ12LE) on
+    /// little-endian ones: `AV_PIX_FMT_XYZ12`, in native byte order.
+    pub const XYZ12: Self = native_endian(Self::XYZ12BE, Self::XYZ12LE);
+    /// [`NV20BE`](Self::NV20BE) on big-endian targets and [`NV20LE`](Self::NV20LE) on
+    /// little-endian ones: `AV_PIX_FMT_NV20`, in native byte order.
+    pub const NV20: Self = native_endian(Self::NV20BE, Self::NV20LE);
+    /// [`AYUV64BE`](Self::AYUV64BE) on big-endian targets and [`AYUV64LE`](Self::AYUV64LE) on
+    /// little-endian ones: `AV_PIX_FMT_AYUV64`, in native byte order.
+    pub const AYUV64: Self = native_endian(Self::AYUV64BE, Self::AYUV64LE);
+    /// [`P010BE`](Self::P010BE) on big-endian targets and [`P010LE`](Self::P010LE) on
+    /// little-endian ones: `AV_PIX_FMT_P010`, in native byte order.
+    pub const P010: Self = native_endian(Self::P010BE, Self::P010LE);
+    /// [`P012BE`](Self::P012BE) on big-endian targets and [`P012LE`](Self::P012LE) on
+    /// little-endian ones: `AV_PIX_FMT_P012`, in native byte order.
+    pub const P012: Self = native_endian(Self::P012BE, Self::P012LE);
+    /// [`P016BE`](Self::P016BE) on big-endian targets and [`P016LE`](Self::P016LE) on
+    /// little-endian ones: `AV_PIX_FMT_P016`, in native byte order.
+    pub const P016: Self = native_endian(Self::P016BE, Self::P016LE);
+    /// [`Y210BE`](Self::Y210BE) on big-endian targets and [`Y210LE`](Self::Y210LE) on
+    /// little-endian ones: `AV_PIX_FMT_Y210`, in native byte order.
+    pub const Y210: Self = native_endian(Self::Y210BE, Self::Y210LE);
+    /// [`Y212BE`](Self::Y212BE) on big-endian targets and [`Y212LE`](Self::Y212LE) on
+    /// little-endian ones: `AV_PIX_FMT_Y212`, in native byte order.
+    pub const Y212: Self = native_endian(Self::Y212BE, Self::Y212LE);
+    /// [`Y216BE`](Self::Y216BE) on big-endian targets and [`Y216LE`](Self::Y216LE) on
+    /// little-endian ones: `AV_PIX_FMT_Y216`, in native byte order.
+    pub const Y216: Self = native_endian(Self::Y216BE, Self::Y216LE);
+    /// [`XV30BE`](Self::XV30BE) on big-endian targets and [`XV30LE`](Self::XV30LE) on
+    /// little-endian ones: `AV_PIX_FMT_XV30`, in native byte order.
+    pub const XV30: Self = native_endian(Self::XV30BE, Self::XV30LE);
+    /// [`XV36BE`](Self::XV36BE) on big-endian targets and [`XV36LE`](Self::XV36LE) on
+    /// little-endian ones: `AV_PIX_FMT_XV36`, in native byte order.
+    pub const XV36: Self = native_endian(Self::XV36BE, Self::XV36LE);
+    /// [`XV48BE`](Self::XV48BE) on big-endian targets and [`XV48LE`](Self::XV48LE) on
+    /// little-endian ones: `AV_PIX_FMT_XV48`, in native byte order.
+    pub const XV48: Self = native_endian(Self::XV48BE, Self::XV48LE);
+    /// [`V30XBE`](Self::V30XBE) on big-endian targets and [`V30XLE`](Self::V30XLE) on
+    /// little-endian ones: `AV_PIX_FMT_V30X`, in native byte order.
+    pub const V30X: Self = native_endian(Self::V30XBE, Self::V30XLE);
+    /// [`X2RGB10BE`](Self::X2RGB10BE) on big-endian targets and [`X2RGB10LE`](Self::X2RGB10LE)
+    /// on little-endian ones: `AV_PIX_FMT_X2RGB10`, in native byte order.
+    pub const X2RGB10: Self = native_endian(Self::X2RGB10BE, Self::X2RGB10LE);
+    /// [`X2BGR10BE`](Self::X2BGR10BE) on big-endian targets and [`X2BGR10LE`](Self::X2BGR10LE)
+    /// on little-endian ones: `AV_PIX_FMT_X2BGR10`, in native byte order.
+    pub const X2BGR10: Self = native_endian(Self::X2BGR10BE, Self::X2BGR10LE);
+    /// [`P210BE`](Self::P210BE) on big-endian targets and [`P210LE`](Self::P210LE) on
+    /// little-endian ones: `AV_PIX_FMT_P210`, in native byte order.
+    pub const P210: Self = native_endian(Self::P210BE, Self::P210LE);
+    /// [`P410BE`](Self::P410BE) on big-endian targets and [`P410LE`](Self::P410LE) on
+    /// little-endian ones: `AV_PIX_FMT_P410`, in native byte order.
+    pub const P410: Self = native_endian(Self::P410BE, Self::P410LE);
+    /// [`P212BE`](Self::P212BE) on big-endian targets and [`P212LE`](Self::P212LE) on
+    /// little-endian ones: `AV_PIX_FMT_P212`, in native byte order.
+    pub const P212: Self = native_endian(Self::P212BE, Self::P212LE);
+    /// [`P412BE`](Self::P412BE) on big-endian targets and [`P412LE`](Self::P412LE) on
+    /// little-endian ones: `AV_PIX_FMT_P412`, in native byte order.
+    pub const P412: Self = native_endian(Self::P412BE, Self::P412LE);
+    /// [`P216BE`](Self::P216BE) on big-endian targets and [`P216LE`](Self::P216LE) on
+    /// little-endian ones: `AV_PIX_FMT_P216`, in native byte order.
+    pub const P216: Self = native_endian(Self::P216BE, Self::P216LE);
+    /// [`P416BE`](Self::P416BE) on big-endian targets and [`P416LE`](Self::P416LE) on
+    /// little-endian ones: `AV_PIX_FMT_P416`, in native byte order.
+    pub const P416: Self = native_endian(Self::P416BE, Self::P416LE);
+    /// [`RGBF16BE`](Self::RGBF16BE) on big-endian targets and [`RGBF16LE`](Self::RGBF16LE) on
+    /// little-endian ones: `AV_PIX_FMT_RGBF16`, in native byte order.
+    pub const RGBF16: Self = native_endian(Self::RGBF16BE, Self::RGBF16LE);
+    /// [`RGBAF16BE`](Self::RGBAF16BE) on big-endian targets and [`RGBAF16LE`](Self::RGBAF16LE)
+    /// on little-endian ones: `AV_PIX_FMT_RGBAF16`, in native byte order.
+    pub const RGBAF16: Self = native_endian(Self::RGBAF16BE, Self::RGBAF16LE);
+    /// [`RGBF32BE`](Self::RGBF32BE) on big-endian targets and [`RGBF32LE`](Self::RGBF32LE) on
+    /// little-endian ones: `AV_PIX_FMT_RGBF32`, in native byte order.
+    pub const RGBF32: Self = native_endian(Self::RGBF32BE, Self::RGBF32LE);
+    /// [`RGBAF32BE`](Self::RGBAF32BE) on big-endian targets and [`RGBAF32LE`](Self::RGBAF32LE)
+    /// on little-endian ones: `AV_PIX_FMT_RGBAF32`, in native byte order.
+    pub const RGBAF32: Self = native_endian(Self::RGBAF32BE, Self::RGBAF32LE);
+    /// [`RGB96BE`](Self::RGB96BE) on big-endian targets and [`RGB96LE`](Self::RGB96LE) on
+    /// little-endian ones: `AV_PIX_FMT_RGB96`, in native byte order.
+    pub const RGB96: Self = native_endian(Self::RGB96BE, Self::RGB96LE);
+    /// [`RGBA128BE`](Self::RGBA128BE) on big-endian targets and [`RGBA128LE`](Self::RGBA128LE)
+    /// on little-endian ones: `AV_PIX_FMT_RGBA128`, in native byte order.
+    pub const RGBA128: Self = native_endian(Self::RGBA128BE, Self::RGBA128LE);
+}
+
+impl fmt::Debug for PixelFormat {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self.name() {
+            Some(name) => f.write_str(name),
+            None => f.debug_tuple("PixelFormat").field(&self.0.0).finish(),
+        }
+    }
+}
+
+impl From<ffi::AVPixelFormat> for PixelFormat {
+    #[inline]
+    fn from(raw: ffi::AVPixelFormat) -> Self {
+        Self::from_raw(raw)
+    }
+}
+
+impl From<PixelFormat> for ffi::AVPixelFormat {
+    #[inline]
+    fn from(f: PixelFormat) -> Self {
+        f.into_raw()
+    }
+}
+
+// SAFETY: `PixelFormat` is `#[repr(transparent)]` over `ffi::AVPixelFormat`,
+// itself `#[repr(transparent)]` over a `c_int`, so every bit pattern is a
+// valid value, and it is a value with no C-side identity: a copy read out of C
+// memory is the whole of it.
+unsafe impl CPlainElem for PixelFormat {}
+
 #[cfg(test)]
 mod unit_tests {
     use super::*;
-    use core::ffi::c_uint;
+    use core::ffi::{c_int, c_uint};
     use core::mem::{align_of, size_of};
+    use std::collections::HashSet;
 
     const COLOR_SPACE_NAMED: [(ColorSpace, &str); 18] = [
         (ColorSpace::RGB, "RGB"),
@@ -638,6 +1747,100 @@ mod unit_tests {
             for (b, _) in &ALPHA_MODE_NAMED[i + 1..] {
                 assert_ne!(a, b);
             }
+        }
+    }
+
+    #[test]
+    fn pixel_format_layout_matches_the_c_enum() {
+        assert_eq!(size_of::<PixelFormat>(), size_of::<ffi::AVPixelFormat>());
+        assert_eq!(align_of::<PixelFormat>(), align_of::<ffi::AVPixelFormat>());
+        assert_eq!(size_of::<PixelFormat>(), size_of::<c_int>());
+    }
+
+    #[test]
+    fn pixel_format_every_enumerator_has_one_distinct_name() {
+        // The enumerators run densely from `AV_PIX_FMT_NONE` (-1) up to
+        // `AV_PIX_FMT_NB`, which names none.
+        let nb = ffi::AVPixelFormat::AV_PIX_FMT_NB.0;
+        let mut names = HashSet::new();
+        for raw in -1..nb {
+            let name = PixelFormat::from_raw(ffi::AVPixelFormat(raw)).name();
+            let name = name.unwrap_or_else(|| panic!("raw {raw} has no name"));
+            assert!(names.insert(name), "{name} names two values");
+        }
+        assert_eq!(names.len(), (nb + 1) as usize);
+        assert_eq!(PixelFormat::from_raw(ffi::AVPixelFormat(nb)).name(), None);
+    }
+
+    #[test]
+    fn pixel_format_debug_names_the_constants() {
+        for (f, name) in [
+            (PixelFormat::NONE, "NONE"),
+            (PixelFormat::YUV420P, "YUV420P"),
+            (PixelFormat::BGR4_BYTE, "BGR4_BYTE"),
+            (PixelFormat::XRGB, "XRGB"),
+            (PixelFormat::XBGR, "XBGR"),
+            (PixelFormat::P010LE, "P010LE"),
+            (PixelFormat::CUARRAY, "CUARRAY"),
+        ] {
+            assert_eq!(format!("{f:?}"), name);
+        }
+    }
+
+    #[test]
+    fn pixel_format_debug_names_an_alias_by_its_primary_constant() {
+        assert_eq!(format!("{:?}", PixelFormat::Y400A), "YA8");
+        assert_eq!(format!("{:?}", PixelFormat::GRAY8A), "YA8");
+        assert_eq!(format!("{:?}", PixelFormat::GBR24P), "GBRP");
+    }
+
+    #[test]
+    fn pixel_format_debug_shows_unnamed_values_raw() {
+        let nb = ffi::AVPixelFormat::AV_PIX_FMT_NB.0;
+        for raw in [c_int::MIN, -2, nb, nb + 1, c_int::MAX] {
+            let f = PixelFormat::from_raw(ffi::AVPixelFormat(raw));
+            assert_eq!(format!("{f:?}"), format!("PixelFormat({raw})"));
+        }
+    }
+
+    #[test]
+    fn pixel_format_native_endian_picks_the_target_byte_order() {
+        let pairs = [
+            (PixelFormat::RGB32, PixelFormat::ARGB, PixelFormat::BGRA),
+            (PixelFormat::RGB32_1, PixelFormat::RGBA, PixelFormat::ABGR),
+            (PixelFormat::BGR32, PixelFormat::ABGR, PixelFormat::RGBA),
+            (PixelFormat::BGR32_1, PixelFormat::BGRA, PixelFormat::ARGB),
+            (PixelFormat::XRGB32, PixelFormat::XRGB, PixelFormat::BGR0),
+            (PixelFormat::XBGR32, PixelFormat::XBGR, PixelFormat::RGB0),
+            (
+                PixelFormat::GRAY16,
+                PixelFormat::GRAY16BE,
+                PixelFormat::GRAY16LE,
+            ),
+            (
+                PixelFormat::YUV420P10,
+                PixelFormat::YUV420P10BE,
+                PixelFormat::YUV420P10LE,
+            ),
+            (
+                PixelFormat::RGBA128,
+                PixelFormat::RGBA128BE,
+                PixelFormat::RGBA128LE,
+            ),
+        ];
+        for (ne, be, le) in pairs {
+            let expected = if cfg!(target_endian = "big") { be } else { le };
+            assert_eq!(ne, expected);
+            assert_eq!(native_endian(be, le), expected);
+        }
+    }
+
+    #[test]
+    fn pixel_format_raw_conversions_round_trip_every_value() {
+        for raw in [c_int::MIN, -2, -1, 0, 1, 267, 268, c_int::MAX] {
+            let c = ffi::AVPixelFormat(raw);
+            assert_eq!(PixelFormat::from(c).into_raw(), c);
+            assert_eq!(ffi::AVPixelFormat::from(PixelFormat::from_raw(c)), c);
         }
     }
 }

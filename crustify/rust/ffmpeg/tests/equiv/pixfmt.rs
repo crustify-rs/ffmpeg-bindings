@@ -620,3 +620,395 @@ mod alpha_mode {
         }
     }
 }
+
+/// [`PixelFormat`] against `AVPixelFormat` (formats wave 0, batch 5): through
+/// `av_get_pix_fmt_name`, whose descriptor table names every enumerator,
+/// through the native-endian `AV_PIX_FMT_NE` aliases the
+/// `crustify_AV_PIX_FMT_NE` shim evaluates, and through C-allocated storage
+/// holding the values.
+mod pixel_format {
+    use core::ffi::{CStr, c_char, c_int, c_void};
+    use core::mem::size_of;
+    use core::ptr;
+
+    use ffmpeg::libavutil::ffi;
+    use ffmpeg::libavutil::mem::{HeapVec, alloc_array_zeroed};
+    use ffmpeg::libavutil::pixfmt::PixelFormat;
+
+    /// The constant's name for every C alias spelled `AV_PIX_FMT_NE(be, le)`.
+    const NATIVE_ENDIAN: [(&str, PixelFormat); 104] = [
+        ("RGB32", PixelFormat::RGB32),
+        ("RGB32_1", PixelFormat::RGB32_1),
+        ("BGR32", PixelFormat::BGR32),
+        ("BGR32_1", PixelFormat::BGR32_1),
+        ("0RGB32", PixelFormat::XRGB32),
+        ("0BGR32", PixelFormat::XBGR32),
+        ("GRAY9", PixelFormat::GRAY9),
+        ("GRAY10", PixelFormat::GRAY10),
+        ("GRAY12", PixelFormat::GRAY12),
+        ("GRAY14", PixelFormat::GRAY14),
+        ("GRAY16", PixelFormat::GRAY16),
+        ("GRAY32", PixelFormat::GRAY32),
+        ("YA16", PixelFormat::YA16),
+        ("RGB48", PixelFormat::RGB48),
+        ("RGB565", PixelFormat::RGB565),
+        ("RGB555", PixelFormat::RGB555),
+        ("RGB444", PixelFormat::RGB444),
+        ("RGBA64", PixelFormat::RGBA64),
+        ("BGR48", PixelFormat::BGR48),
+        ("BGR565", PixelFormat::BGR565),
+        ("BGR555", PixelFormat::BGR555),
+        ("BGR444", PixelFormat::BGR444),
+        ("BGRA64", PixelFormat::BGRA64),
+        ("YUV420P9", PixelFormat::YUV420P9),
+        ("YUV422P9", PixelFormat::YUV422P9),
+        ("YUV444P9", PixelFormat::YUV444P9),
+        ("YUV420P10", PixelFormat::YUV420P10),
+        ("YUV422P10", PixelFormat::YUV422P10),
+        ("YUV440P10", PixelFormat::YUV440P10),
+        ("YUV444P10", PixelFormat::YUV444P10),
+        ("YUV420P12", PixelFormat::YUV420P12),
+        ("YUV422P12", PixelFormat::YUV422P12),
+        ("YUV440P12", PixelFormat::YUV440P12),
+        ("YUV444P12", PixelFormat::YUV444P12),
+        ("YUV420P14", PixelFormat::YUV420P14),
+        ("YUV422P14", PixelFormat::YUV422P14),
+        ("YUV444P14", PixelFormat::YUV444P14),
+        ("YUV420P16", PixelFormat::YUV420P16),
+        ("YUV422P16", PixelFormat::YUV422P16),
+        ("YUV444P16", PixelFormat::YUV444P16),
+        ("YUV444P10MSB", PixelFormat::YUV444P10MSB),
+        ("YUV444P12MSB", PixelFormat::YUV444P12MSB),
+        ("GBRP9", PixelFormat::GBRP9),
+        ("GBRP10", PixelFormat::GBRP10),
+        ("GBRP12", PixelFormat::GBRP12),
+        ("GBRP14", PixelFormat::GBRP14),
+        ("GBRP16", PixelFormat::GBRP16),
+        ("GBRAP10", PixelFormat::GBRAP10),
+        ("GBRAP12", PixelFormat::GBRAP12),
+        ("GBRAP14", PixelFormat::GBRAP14),
+        ("GBRAP16", PixelFormat::GBRAP16),
+        ("GBRAP32", PixelFormat::GBRAP32),
+        ("GBRP10MSB", PixelFormat::GBRP10MSB),
+        ("GBRP12MSB", PixelFormat::GBRP12MSB),
+        ("BAYER_BGGR16", PixelFormat::BAYER_BGGR16),
+        ("BAYER_RGGB16", PixelFormat::BAYER_RGGB16),
+        ("BAYER_GBRG16", PixelFormat::BAYER_GBRG16),
+        ("BAYER_GRBG16", PixelFormat::BAYER_GRBG16),
+        ("GBRPF16", PixelFormat::GBRPF16),
+        ("GBRAPF16", PixelFormat::GBRAPF16),
+        ("GBRPF32", PixelFormat::GBRPF32),
+        ("GBRAPF32", PixelFormat::GBRAPF32),
+        ("GRAYF16", PixelFormat::GRAYF16),
+        ("GRAYF32", PixelFormat::GRAYF32),
+        ("YAF16", PixelFormat::YAF16),
+        ("YAF32", PixelFormat::YAF32),
+        ("YUVA420P9", PixelFormat::YUVA420P9),
+        ("YUVA422P9", PixelFormat::YUVA422P9),
+        ("YUVA444P9", PixelFormat::YUVA444P9),
+        ("YUVA420P10", PixelFormat::YUVA420P10),
+        ("YUVA422P10", PixelFormat::YUVA422P10),
+        ("YUVA444P10", PixelFormat::YUVA444P10),
+        ("YUVA422P12", PixelFormat::YUVA422P12),
+        ("YUVA444P12", PixelFormat::YUVA444P12),
+        ("YUVA420P16", PixelFormat::YUVA420P16),
+        ("YUVA422P16", PixelFormat::YUVA422P16),
+        ("YUVA444P16", PixelFormat::YUVA444P16),
+        ("XYZ12", PixelFormat::XYZ12),
+        ("NV20", PixelFormat::NV20),
+        ("AYUV64", PixelFormat::AYUV64),
+        ("P010", PixelFormat::P010),
+        ("P012", PixelFormat::P012),
+        ("P016", PixelFormat::P016),
+        ("Y210", PixelFormat::Y210),
+        ("Y212", PixelFormat::Y212),
+        ("Y216", PixelFormat::Y216),
+        ("XV30", PixelFormat::XV30),
+        ("XV36", PixelFormat::XV36),
+        ("XV48", PixelFormat::XV48),
+        ("V30X", PixelFormat::V30X),
+        ("X2RGB10", PixelFormat::X2RGB10),
+        ("X2BGR10", PixelFormat::X2BGR10),
+        ("P210", PixelFormat::P210),
+        ("P410", PixelFormat::P410),
+        ("P212", PixelFormat::P212),
+        ("P412", PixelFormat::P412),
+        ("P216", PixelFormat::P216),
+        ("P416", PixelFormat::P416),
+        ("RGBF16", PixelFormat::RGBF16),
+        ("RGBAF16", PixelFormat::RGBAF16),
+        ("RGBF32", PixelFormat::RGBF32),
+        ("RGBAF32", PixelFormat::RGBAF32),
+        ("RGB96", PixelFormat::RGB96),
+        ("RGBA128", PixelFormat::RGBA128),
+    ];
+
+    /// The formats whose C descriptor name is not their constant's name in
+    /// lower case.
+    const RENAMED: [(PixelFormat, &str); 7] = [
+        (PixelFormat::GRAY8, "gray"),
+        (PixelFormat::MONOWHITE, "monow"),
+        (PixelFormat::MONOBLACK, "monob"),
+        (PixelFormat::XRGB, "0rgb"),
+        (PixelFormat::XBGR, "0bgr"),
+        (PixelFormat::VIDEOTOOLBOX, "videotoolbox_vld"),
+        (PixelFormat::AMF_SURFACE, "amf"),
+    ];
+
+    /// Values C may store though it names none of them, `AV_PIX_FMT_NB` included.
+    fn unnamed() -> [c_int; 8] {
+        let nb = ffi::AVPixelFormat::AV_PIX_FMT_NB.0;
+        [
+            c_int::MIN,
+            -1000,
+            -2,
+            nb,
+            nb + 1,
+            1 << 16,
+            1 << 30,
+            c_int::MAX,
+        ]
+    }
+
+    /// What C calls `f`: `av_get_pix_fmt_name`, NULL as `None`.
+    fn c_name(f: ffi::AVPixelFormat) -> Option<&'static str> {
+        // SAFETY: `av_get_pix_fmt_name` takes the enum by value and returns NULL
+        // for any value outside its descriptor table.
+        let name = unsafe { ffi::av_get_pix_fmt_name(f) };
+        if name.is_null() {
+            return None;
+        }
+        // SAFETY: a non-NULL result is a descriptor's static string literal in
+        // `pixdesc.c`.
+        Some(unsafe { CStr::from_ptr(name) }.to_str().unwrap())
+    }
+
+    /// The constant name `Debug` prints for `f`, or `None` for an unnamed value.
+    fn rust_name(f: PixelFormat) -> Option<String> {
+        let s = format!("{f:?}");
+        (!s.starts_with("PixelFormat(")).then_some(s)
+    }
+
+    /// The C alias table, as `crustify_AV_PIX_FMT_NE` enumerates it.
+    fn c_native_endian() -> Vec<(String, ffi::AVPixelFormat)> {
+        let mut out = Vec::new();
+        for i in 0.. {
+            let mut name: *const c_char = ptr::null();
+            // SAFETY: the shim takes `i` by value and writes one pointer through
+            // `&mut name`, which is live and writable.
+            let f = unsafe { ffi::crustify_AV_PIX_FMT_NE(i, &mut name) };
+            if name.is_null() {
+                assert_eq!(f, ffi::AVPixelFormat::AV_PIX_FMT_NONE);
+                break;
+            }
+            // SAFETY: a non-NULL name is a string literal in the shim's table.
+            let name = unsafe { CStr::from_ptr(name) }.to_str().unwrap();
+            out.push((name.to_owned(), f));
+        }
+        out
+    }
+
+    #[test]
+    fn named_values_are_exactly_the_ones_c_describes() {
+        let nb = ffi::AVPixelFormat::AV_PIX_FMT_NB.0;
+        let mut named = 0;
+        for raw in (-3..nb + 4).chain(unnamed()) {
+            let c = ffi::AVPixelFormat(raw);
+            let f = PixelFormat::from_raw(c);
+            assert_eq!(f.into_raw(), c);
+            let rust = rust_name(f);
+            if f == PixelFormat::NONE {
+                // C describes no format for its sentinel.
+                assert_eq!(rust.as_deref(), Some("NONE"));
+                assert_eq!(c_name(c), None);
+                continue;
+            }
+            assert_eq!(rust.is_some(), c_name(c).is_some(), "raw {raw}");
+            if let Some(rust) = rust {
+                named += 1;
+                let expected = RENAMED
+                    .iter()
+                    .find(|&&(r, _)| r == f)
+                    .map_or_else(|| rust.to_lowercase(), |&(_, n)| n.to_owned());
+                assert_eq!(c_name(c), Some(expected.as_str()), "raw {raw}");
+            }
+        }
+        assert_eq!(named, nb);
+    }
+
+    #[test]
+    fn aliases_are_the_c_aliases() {
+        for (alias, c) in [
+            (PixelFormat::Y400A, ffi::AVPixelFormat::AV_PIX_FMT_Y400A),
+            (PixelFormat::GRAY8A, ffi::AVPixelFormat::AV_PIX_FMT_GRAY8A),
+            (PixelFormat::GBR24P, ffi::AVPixelFormat::AV_PIX_FMT_GBR24P),
+        ] {
+            assert_eq!(alias.into_raw(), c);
+            assert_eq!(c_name(alias.into_raw()), c_name(c));
+            assert!(c_name(c).is_some());
+        }
+        assert_eq!(c_name(PixelFormat::Y400A.into_raw()), Some("ya8"));
+        assert_eq!(c_name(PixelFormat::GBR24P.into_raw()), Some("gbrp"));
+    }
+
+    #[test]
+    fn native_endian_constants_are_the_c_aliases() {
+        let c = c_native_endian();
+        assert_eq!(c.len(), NATIVE_ENDIAN.len());
+        for (name, value) in &c {
+            let &(_, f) = NATIVE_ENDIAN
+                .iter()
+                .find(|&&(n, _)| n == name)
+                .unwrap_or_else(|| panic!("no constant for AV_PIX_FMT_{name}"));
+            assert_eq!(f.into_raw(), *value, "AV_PIX_FMT_{name}");
+            assert_eq!(c_name(f.into_raw()), c_name(*value));
+            assert!(c_name(*value).is_some(), "AV_PIX_FMT_{name}");
+        }
+    }
+
+    /// A C block of `ffi::AVPixelFormat`, freed with `av_free` on drop.
+    struct CFormats(*mut ffi::AVPixelFormat, usize);
+
+    impl CFormats {
+        fn zeroed(len: usize) -> Self {
+            // SAFETY: `av_calloc` takes its sizes by value.
+            let ptr = unsafe { ffi::av_calloc(len, size_of::<ffi::AVPixelFormat>()) };
+            assert!(!ptr.is_null());
+            Self(ptr.cast(), len)
+        }
+
+        fn get(&self, i: usize) -> ffi::AVPixelFormat {
+            assert!(i < self.1);
+            // SAFETY: `i` is in bounds of the live, initialised block.
+            unsafe { self.0.add(i).read() }
+        }
+
+        fn set(&mut self, i: usize, f: ffi::AVPixelFormat) {
+            assert!(i < self.1);
+            // SAFETY: `i` is in bounds of the live block, which we own.
+            unsafe { self.0.add(i).write(f) }
+        }
+    }
+
+    impl Drop for CFormats {
+        fn drop(&mut self) {
+            // SAFETY: `self.0` is a live `av_calloc` block we own.
+            unsafe { ffi::av_free(self.0.cast::<c_void>()) }
+        }
+    }
+
+    /// The C values a Rust array holds, read back through its C-typed pointer.
+    fn rust_as_c(a: &HeapVec<PixelFormat>) -> Vec<ffi::AVPixelFormat> {
+        let ptr = a.as_ptr().cast::<ffi::AVPixelFormat>();
+        (0..a.len())
+            // SAFETY: `PixelFormat` is `#[repr(transparent)]` over
+            // `ffi::AVPixelFormat`, and `i` is in bounds of the live, initialised
+            // array `a` borrows.
+            .map(|i| unsafe { ptr.add(i).read() })
+            .collect()
+    }
+
+    fn c_values(c: &CFormats) -> Vec<ffi::AVPixelFormat> {
+        (0..c.1).map(|i| c.get(i)).collect()
+    }
+
+    /// Named formats, an alias, native-endian ones and unnamed values.
+    fn values() -> Vec<ffi::AVPixelFormat> {
+        [
+            PixelFormat::NONE,
+            PixelFormat::YUV420P,
+            PixelFormat::GRAY8A,
+            PixelFormat::RGB32,
+            PixelFormat::YUV420P10,
+            PixelFormat::CUARRAY,
+        ]
+        .map(PixelFormat::into_raw)
+        .into_iter()
+        .chain(unnamed().map(ffi::AVPixelFormat))
+        .collect()
+    }
+
+    #[test]
+    fn zeroed_storage_reads_as_c_zeroed_storage() {
+        const LEN: usize = 8;
+        let rust = alloc_array_zeroed::<PixelFormat>(LEN).unwrap();
+        let c = CFormats::zeroed(LEN);
+        assert_eq!(rust_as_c(&rust), c_values(&c));
+        // A zero-filled C struct's pixel format is `AV_PIX_FMT_YUV420P`, not
+        // `AV_PIX_FMT_NONE`.
+        assert!(rust.as_slice().iter().all(|&f| f == PixelFormat::YUV420P));
+        assert_eq!(c_name(c.get(0)), Some("yuv420p"));
+    }
+
+    #[test]
+    fn writes_through_each_side_agree_after_every_step() {
+        let values = values();
+        let len = values.len();
+        let mut rust = alloc_array_zeroed::<PixelFormat>(len).unwrap();
+        let mut c = CFormats::zeroed(len);
+        for (step, &v) in values.iter().enumerate() {
+            // Each step writes slot `step` and rotates an earlier one.
+            rust.as_mut_slice()[step] = PixelFormat::from_raw(v);
+            c.set(step, v);
+            let back = (step * 5) % len;
+            let w = values[(step + 3) % len];
+            rust.as_mut_slice()[back] = w.into();
+            c.set(back, w);
+            assert_eq!(rust_as_c(&rust), c_values(&c), "step {step}");
+            for i in 0..len {
+                assert_eq!(
+                    rust.as_slice()[i].into_raw(),
+                    c.get(i),
+                    "step {step} slot {i}"
+                );
+                assert_eq!(c_name(rust.as_slice()[i].into_raw()), c_name(c.get(i)));
+            }
+        }
+    }
+
+    #[test]
+    fn none_terminated_c_list_reads_back_unchanged() {
+        // The shape of C's format lists (`AVCodec.pix_fmts`,
+        // `AVHWFramesConstraints.valid_sw_formats`): values up to a terminating
+        // `AV_PIX_FMT_NONE`.
+        let mut values = values();
+        values.retain(|&v| v != ffi::AVPixelFormat::AV_PIX_FMT_NONE);
+        values.push(ffi::AVPixelFormat::AV_PIX_FMT_NONE);
+        let mut c = CFormats::zeroed(values.len());
+        for (i, &v) in values.iter().enumerate() {
+            c.set(i, v);
+        }
+        // The path a field accessor over such a list takes: adopt the C block
+        // and read it as `PixelFormat`s.
+        let len = c.1;
+        let ptr = c.0;
+        core::mem::forget(c);
+        // SAFETY: `ptr` is a live `av_calloc` block of `len` initialised
+        // `ffi::AVPixelFormat`, whose ownership `forget` gave up; `PixelFormat` is
+        // layout-compatible with it, and `av_free` releases it.
+        let adopted = unsafe { HeapVec::<PixelFormat>::from_raw_parts(ptr.cast(), len) }.unwrap();
+        let listed: Vec<_> = adopted
+            .as_slice()
+            .iter()
+            .take_while(|&&f| f != PixelFormat::NONE)
+            .collect();
+        assert_eq!(listed.len(), len - 1);
+        for (f, &v) in listed.into_iter().zip(&values) {
+            assert_eq!(*f, PixelFormat::from_raw(v));
+            assert_eq!(rust_name(*f).is_some(), c_name(v).is_some());
+        }
+    }
+
+    #[test]
+    fn clone_copies_the_c_encoding() {
+        let src: Vec<PixelFormat> = values().into_iter().map(PixelFormat::from).collect();
+        let rust = HeapVec::from_slice(&src).unwrap();
+        let copy = rust.clone();
+        let mut c = CFormats::zeroed(src.len());
+        for (i, f) in src.iter().enumerate() {
+            c.set(i, f.into_raw());
+        }
+        assert_eq!(rust_as_c(&copy), c_values(&c));
+        assert_eq!(rust_as_c(&rust), rust_as_c(&copy));
+    }
+}
