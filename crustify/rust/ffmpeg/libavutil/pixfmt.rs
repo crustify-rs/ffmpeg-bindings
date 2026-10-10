@@ -94,7 +94,7 @@ impl ColorSpace {
 
     /// The name of the constant this value equals, if any; an alias reports
     /// the constant it aliases.
-    const fn name(self) -> Option<&'static str> {
+    const fn constant_name(self) -> Option<&'static str> {
         Some(match self {
             Self::RGB => "RGB",
             Self::BT709 => "BT709",
@@ -128,7 +128,7 @@ impl Default for ColorSpace {
 
 impl fmt::Debug for ColorSpace {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        match self.name() {
+        match self.constant_name() {
             Some(name) => f.write_str(name),
             None => f.debug_tuple("ColorSpace").field(&self.0.0).finish(),
         }
@@ -254,7 +254,7 @@ impl ColorTransfer {
     /// The name of the constant this value equals, if any; an alias reports
     /// the constant it aliases, and [`EXT_BASE`](Self::EXT_BASE) the
     /// extension it numbers.
-    const fn name(self) -> Option<&'static str> {
+    const fn constant_name(self) -> Option<&'static str> {
         Some(match self {
             Self::RESERVED0 => "RESERVED0",
             Self::BT709 => "BT709",
@@ -290,7 +290,7 @@ impl Default for ColorTransfer {
 
 impl fmt::Debug for ColorTransfer {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        match self.name() {
+        match self.constant_name() {
             Some(name) => f.write_str(name),
             None => f.debug_tuple("ColorTransfer").field(&self.0.0).finish(),
         }
@@ -369,7 +369,7 @@ impl AlphaMode {
     }
 
     /// The name of the constant this value equals, if any.
-    const fn name(self) -> Option<&'static str> {
+    const fn constant_name(self) -> Option<&'static str> {
         Some(match self {
             Self::UNSPECIFIED => "UNSPECIFIED",
             Self::PREMULTIPLIED => "PREMULTIPLIED",
@@ -388,7 +388,7 @@ impl Default for AlphaMode {
 
 impl fmt::Debug for AlphaMode {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        match self.name() {
+        match self.constant_name() {
             Some(name) => f.write_str(name),
             None => f.debug_tuple("AlphaMode").field(&self.0.0).finish(),
         }
@@ -496,7 +496,7 @@ macro_rules! pixel_formats {
 
             /// The name of the constant this value equals, if any: the
             /// primary one, for a value that also has an alias.
-            const fn name(self) -> Option<&'static str> {
+            const fn constant_name(self) -> Option<&'static str> {
                 Some(match self {
                     $(Self::$name => stringify!($name),)*
                     _ => return None,
@@ -1507,7 +1507,7 @@ impl Default for PixelFormat {
 
 impl fmt::Debug for PixelFormat {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        match self.name() {
+        match self.constant_name() {
             Some(name) => f.write_str(name),
             None => f.debug_tuple("PixelFormat").field(&self.0.0).finish(),
         }
@@ -1622,7 +1622,7 @@ impl ColorPrimaries {
 
     /// The name of the constant this value equals, if any; of two constants
     /// with one value, the first C declares.
-    const fn name(self) -> Option<&'static str> {
+    const fn constant_name(self) -> Option<&'static str> {
         Some(match self {
             Self::RESERVED0 => "RESERVED0",
             Self::BT709 => "BT709",
@@ -1653,7 +1653,7 @@ impl Default for ColorPrimaries {
 
 impl fmt::Debug for ColorPrimaries {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        match self.name() {
+        match self.constant_name() {
             Some(name) => f.write_str(name),
             None => f.debug_tuple("ColorPrimaries").field(&self.0.0).finish(),
         }
@@ -1740,7 +1740,7 @@ impl ColorRange {
     }
 
     /// The name of the constant this value equals, if any.
-    const fn name(self) -> Option<&'static str> {
+    const fn constant_name(self) -> Option<&'static str> {
         Some(match self {
             Self::UNSPECIFIED => "UNSPECIFIED",
             Self::MPEG => "MPEG",
@@ -1759,7 +1759,7 @@ impl Default for ColorRange {
 
 impl fmt::Debug for ColorRange {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        match self.name() {
+        match self.constant_name() {
             Some(name) => f.write_str(name),
             None => f.debug_tuple("ColorRange").field(&self.0.0).finish(),
         }
@@ -1857,7 +1857,7 @@ impl ChromaLocation {
     }
 
     /// The name of the constant this value equals, if any.
-    const fn name(self) -> Option<&'static str> {
+    const fn constant_name(self) -> Option<&'static str> {
         Some(match self {
             Self::UNSPECIFIED => "UNSPECIFIED",
             Self::LEFT => "LEFT",
@@ -1880,7 +1880,7 @@ impl Default for ChromaLocation {
 
 impl fmt::Debug for ChromaLocation {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        match self.name() {
+        match self.constant_name() {
             Some(name) => f.write_str(name),
             None => f.debug_tuple("ChromaLocation").field(&self.0.0).finish(),
         }
@@ -2148,12 +2148,15 @@ mod unit_tests {
         let nb = ffi::AVPixelFormat::AV_PIX_FMT_NB.0;
         let mut names = HashSet::new();
         for raw in -1..nb {
-            let name = PixelFormat::from_raw(ffi::AVPixelFormat(raw)).name();
+            let name = PixelFormat::from_raw(ffi::AVPixelFormat(raw)).constant_name();
             let name = name.unwrap_or_else(|| panic!("raw {raw} has no name"));
             assert!(names.insert(name), "{name} names two values");
         }
         assert_eq!(names.len(), (nb + 1) as usize);
-        assert_eq!(PixelFormat::from_raw(ffi::AVPixelFormat(nb)).name(), None);
+        assert_eq!(
+            PixelFormat::from_raw(ffi::AVPixelFormat(nb)).constant_name(),
+            None
+        );
     }
 
     #[test]
@@ -2417,7 +2420,7 @@ mod unit_tests {
     fn chroma_location_debug_names_the_constants() {
         for (loc, name) in CHROMA_LOCATION_NAMED {
             assert_eq!(format!("{loc:?}"), name);
-            assert_eq!(loc.name(), Some(name));
+            assert_eq!(loc.constant_name(), Some(name));
         }
     }
 
@@ -2425,7 +2428,7 @@ mod unit_tests {
     fn chroma_location_debug_shows_unnamed_values_raw() {
         for raw in CHROMA_LOCATION_UNNAMED {
             let loc = ChromaLocation::from_raw(ffi::AVChromaLocation(raw));
-            assert_eq!(loc.name(), None);
+            assert_eq!(loc.constant_name(), None);
             assert_eq!(format!("{loc:?}"), format!("ChromaLocation({raw})"));
             assert!(CHROMA_LOCATION_NAMED.iter().all(|&(n, _)| n != loc));
         }

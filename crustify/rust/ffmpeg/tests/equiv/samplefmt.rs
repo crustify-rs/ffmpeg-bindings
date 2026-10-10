@@ -941,3 +941,80 @@ mod buffers {
         }
     }
 }
+
+/// `SampleFormat::alt`, `packed` and `bytes_per_sample` against
+/// `av_get_alt_sample_fmt`, `av_get_packed_sample_fmt` and
+/// `av_get_bytes_per_sample` for every value from below `NONE` to past
+/// `AV_SAMPLE_FMT_NB` and the `int` extremes, and chains feeding each answer
+/// into the next call.
+mod sample_format_forms {
+    use core::ffi::c_int;
+
+    use ffmpeg::libavutil::ffi;
+    use ffmpeg::libavutil::samplefmt::SampleFormat;
+
+    fn raws() -> impl Iterator<Item = c_int> {
+        (-3..16).chain([i32::MIN, i32::MIN + 1, i32::MAX])
+    }
+
+    fn fmt(raw: c_int) -> SampleFormat {
+        SampleFormat::from_raw(ffi::AVSampleFormat(raw))
+    }
+
+    /// A Rust result as C's raw value; `None` is C's `NONE` (-1).
+    fn raw(f: Option<SampleFormat>) -> c_int {
+        if let Some(f) = f {
+            assert_ne!(f, SampleFormat::NONE);
+        }
+        f.map_or(-1, |f| f.into_raw().0)
+    }
+
+    fn c_alt(raw: c_int, planar: c_int) -> c_int {
+        // SAFETY: two integers by value; C bounds-checks the table index.
+        unsafe { ffi::av_get_alt_sample_fmt(ffi::AVSampleFormat(raw), planar) }.0
+    }
+
+    fn c_packed(raw: c_int) -> c_int {
+        // SAFETY: as above.
+        unsafe { ffi::av_get_packed_sample_fmt(ffi::AVSampleFormat(raw)) }.0
+    }
+
+    fn c_bytes(raw: c_int) -> c_int {
+        // SAFETY: as above.
+        unsafe { ffi::av_get_bytes_per_sample(ffi::AVSampleFormat(raw)) }
+    }
+
+    #[test]
+    fn forms_and_sizes_match_c_for_every_value() {
+        let mut known = 0;
+        for r in raws() {
+            let f = fmt(r);
+            assert_eq!(raw(f.alt(false)), c_alt(r, 0), "{r} packed");
+            assert_eq!(raw(f.alt(true)), c_alt(r, 1), "{r} planar");
+            assert_eq!(raw(f.packed()), c_packed(r), "{r}");
+            assert_eq!(f.bytes_per_sample() as c_int, c_bytes(r), "{r}");
+            known += usize::from(f.bytes_per_sample() != 0);
+        }
+        assert_eq!(known, SampleFormat::COUNT);
+    }
+
+    #[test]
+    fn chained_conversions_match_c_step_by_step() {
+        for r in raws() {
+            let (mut rust, mut c) = (fmt(r), r);
+            for step in 0..6 {
+                let planar = step % 2 == 0;
+                let next = rust.alt(planar);
+                let c_next = c_alt(c, c_int::from(planar));
+                assert_eq!(raw(next), c_next, "{r} step {step}");
+                assert_eq!(raw(next.and_then(SampleFormat::packed)), c_packed(c_next));
+                assert_eq!(
+                    next.map_or(0, SampleFormat::bytes_per_sample) as c_int,
+                    c_bytes(c_next)
+                );
+                rust = next.unwrap_or(SampleFormat::NONE);
+                c = c_next;
+            }
+        }
+    }
+}

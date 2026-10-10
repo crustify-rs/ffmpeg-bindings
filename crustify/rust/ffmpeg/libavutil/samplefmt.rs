@@ -943,6 +943,56 @@ impl fmt::Debug for SampleBufferWithPointers {
     }
 }
 
+impl SampleFormat {
+    /// Wraps: av_get_alt_sample_fmt
+    ///
+    /// This sample format in planar form when `planar` is set, or in packed
+    /// form otherwise: itself when it already is, its counterpart with the
+    /// same sample type when not. `None` for [`NONE`](Self::NONE) and any
+    /// value C does not know.
+    ///
+    /// ```
+    /// use ffmpeg::libavutil::samplefmt::SampleFormat;
+    /// assert_eq!(SampleFormat::S16.alt(true), Some(SampleFormat::S16P));
+    /// assert_eq!(SampleFormat::S16.alt(false), Some(SampleFormat::S16));
+    /// assert_eq!(SampleFormat::NONE.alt(true), None);
+    /// ```
+    #[must_use]
+    pub fn alt(self, planar: bool) -> Option<Self> {
+        // SAFETY: `av_get_alt_sample_fmt` takes the format and flag by
+        // value and reads its static table only for an index inside it.
+        let raw = unsafe { ffi::av_get_alt_sample_fmt(self.0, c_int::from(planar)) };
+        Some(Self(raw)).filter(|&f| f != Self::NONE)
+    }
+
+    /// Wraps: av_get_packed_sample_fmt
+    ///
+    /// The packed form of this sample format, its channels interleaved in
+    /// one plane: itself when it already is packed. `None` for
+    /// [`NONE`](Self::NONE) and any value C does not know.
+    #[must_use]
+    pub fn packed(self) -> Option<Self> {
+        // SAFETY: `av_get_packed_sample_fmt` takes the format by value and
+        // reads its static table only for an index inside it.
+        let raw = unsafe { ffi::av_get_packed_sample_fmt(self.0) };
+        Some(Self(raw)).filter(|&f| f != Self::NONE)
+    }
+
+    /// Wraps: av_get_bytes_per_sample
+    ///
+    /// The size in bytes of one sample of one channel in this format: 1, 2,
+    /// 4 or 8, the same for the packed and planar forms. 0 for
+    /// [`NONE`](Self::NONE) and any value C does not know.
+    #[must_use]
+    pub fn bytes_per_sample(self) -> usize {
+        // SAFETY: `av_get_bytes_per_sample` takes the format by value and
+        // reads its static table only for an index inside it.
+        let n = unsafe { ffi::av_get_bytes_per_sample(self.0) };
+        // C returns a table entry's bits divided by 8, or 0.
+        usize::try_from(n).unwrap_or(0)
+    }
+}
+
 #[cfg(test)]
 mod unit_tests {
     use super::*;
@@ -1497,5 +1547,30 @@ mod unit_tests {
         const INDEX: Option<usize> = BACK.index();
         assert_eq!(RAW, ffi::AVSampleFormat::AV_SAMPLE_FMT_S16P);
         assert_eq!(INDEX, Some(6));
+    }
+
+    #[test]
+    fn forms_and_sizes_follow_cs_table() {
+        let pairs = [
+            (SampleFormat::U8, SampleFormat::U8P, 1),
+            (SampleFormat::S16, SampleFormat::S16P, 2),
+            (SampleFormat::S32, SampleFormat::S32P, 4),
+            (SampleFormat::S64, SampleFormat::S64P, 8),
+            (SampleFormat::FLT, SampleFormat::FLTP, 4),
+            (SampleFormat::DBL, SampleFormat::DBLP, 8),
+        ];
+        for (packed, planar, bytes) in pairs {
+            for f in [packed, planar] {
+                assert_eq!(f.alt(false), Some(packed), "{f:?}");
+                assert_eq!(f.alt(true), Some(planar), "{f:?}");
+                assert_eq!(f.packed(), Some(packed), "{f:?}");
+                assert_eq!(f.bytes_per_sample(), bytes, "{f:?}");
+            }
+        }
+        for raw in [c_int::MIN, -2, -1, 12, 13, c_int::MAX] {
+            let f = SampleFormat::from_raw(ffi::AVSampleFormat(raw));
+            assert_eq!((f.alt(false), f.alt(true), f.packed()), (None, None, None));
+            assert_eq!(f.bytes_per_sample(), 0);
+        }
     }
 }

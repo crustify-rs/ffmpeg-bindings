@@ -470,3 +470,638 @@ mod swap_endianness {
         }
     }
 }
+
+/// The value-to-name getters (`ColorRange::name` and its siblings,
+/// `AlphaMode::name`) against `av_color_range_name` and its siblings for
+/// every value up to past the extended ranges and the `unsigned` extremes,
+/// the names fed back to both sides' lookups, and `AlphaMode::from_name`
+/// against `av_alpha_mode_from_name` on C's names and the near misses around
+/// them, in repeated sequences.
+mod property_names {
+    use core::ffi::{CStr, c_char};
+    use std::ffi::CString;
+
+    use ffmpeg::libavutil::ffi;
+    use ffmpeg::libavutil::pixfmt::{
+        AlphaMode, ChromaLocation, ColorPrimaries, ColorRange, ColorSpace, ColorTransfer,
+    };
+
+    /// A C name getter's result as the Rust one reports it.
+    fn c_name(p: *const c_char) -> Option<&'static CStr> {
+        // SAFETY: every `*_name` getter returns NULL or a string literal
+        // from a static table, NUL-terminated and never written.
+        (!p.is_null()).then(|| unsafe { CStr::from_ptr(p) })
+    }
+
+    /// Every value a name table could index, both extended ranges, and the
+    /// `unsigned` extremes, which an `int` comparison would read as
+    /// negative.
+    fn raws() -> Vec<u32> {
+        (0..300)
+            .chain([
+                511,
+                512,
+                1 << 16,
+                i32::MAX as u32,
+                1 << 31,
+                u32::MAX - 1,
+                u32::MAX,
+            ])
+            .collect()
+    }
+
+    /// Every property's name for `raw`, Rust's and C's.
+    fn names(raw: u32) -> [(Option<&'static CStr>, Option<&'static CStr>); 6] {
+        // SAFETY: the getters take the enum by value, accept any value, and
+        // return NULL or a static string.
+        unsafe {
+            [
+                (
+                    ColorRange::from_raw(ffi::AVColorRange(raw)).name(),
+                    c_name(ffi::av_color_range_name(ffi::AVColorRange(raw))),
+                ),
+                (
+                    ColorPrimaries::from_raw(ffi::AVColorPrimaries(raw)).name(),
+                    c_name(ffi::av_color_primaries_name(ffi::AVColorPrimaries(raw))),
+                ),
+                (
+                    ColorTransfer::from_raw(ffi::AVColorTransferCharacteristic(raw)).name(),
+                    c_name(ffi::av_color_transfer_name(
+                        ffi::AVColorTransferCharacteristic(raw),
+                    )),
+                ),
+                (
+                    ColorSpace::from_raw(ffi::AVColorSpace(raw)).name(),
+                    c_name(ffi::av_color_space_name(ffi::AVColorSpace(raw))),
+                ),
+                (
+                    ChromaLocation::from_raw(ffi::AVChromaLocation(raw)).name(),
+                    c_name(ffi::av_chroma_location_name(ffi::AVChromaLocation(raw))),
+                ),
+                (
+                    AlphaMode::from_raw(ffi::AVAlphaMode(raw)).name(),
+                    c_name(ffi::av_alpha_mode_name(ffi::AVAlphaMode(raw))),
+                ),
+            ]
+        }
+    }
+
+    #[test]
+    fn names_match_c_for_every_value() {
+        let mut named = [0usize; 6];
+        for raw in raws() {
+            for (i, (rust, c)) in names(raw).into_iter().enumerate() {
+                assert_eq!(rust, c, "property {i}, value {raw}");
+                // C hands out the same static string, not a copy.
+                assert_eq!(rust.map(CStr::as_ptr), c.map(CStr::as_ptr));
+                named[i] += usize::from(rust.is_some());
+            }
+        }
+        // 3 ranges, 14 + 1 primaries, 19 + 1 transfers, 18 spaces, 7
+        // locations, 3 alpha modes.
+        assert_eq!(named, [3, 15, 20, 18, 7, 3]);
+    }
+
+    /// A lookup's result as a raw value, Rust's (`from_name`) and C's.
+    fn lookup(i: usize, name: &CStr) -> (Option<u32>, Option<u32>) {
+        let c = |ret: core::ffi::c_int| u32::try_from(ret).ok();
+        // SAFETY: `name` is a live NUL-terminated string, which the lookups
+        // only read.
+        unsafe {
+            match i {
+                0 => (
+                    ColorRange::from_name(name).map(|v| v.into_raw().0),
+                    c(ffi::av_color_range_from_name(name.as_ptr())),
+                ),
+                1 => (
+                    ColorPrimaries::from_name(name).map(|v| v.into_raw().0),
+                    c(ffi::av_color_primaries_from_name(name.as_ptr())),
+                ),
+                2 => (
+                    ColorTransfer::from_name(name).map(|v| v.into_raw().0),
+                    c(ffi::av_color_transfer_from_name(name.as_ptr())),
+                ),
+                3 => (
+                    ColorSpace::from_name(name).map(|v| v.into_raw().0),
+                    c(ffi::av_color_space_from_name(name.as_ptr())),
+                ),
+                4 => (
+                    ChromaLocation::from_name(name).map(|v| v.into_raw().0),
+                    c(ffi::av_chroma_location_from_name(name.as_ptr())),
+                ),
+                _ => (
+                    AlphaMode::from_name(name).map(|v| v.into_raw().0),
+                    c(ffi::av_alpha_mode_from_name(name.as_ptr()).0 as core::ffi::c_int),
+                ),
+            }
+        }
+    }
+
+    #[test]
+    fn names_map_back_through_both_lookups() {
+        for raw in raws() {
+            for (i, (name, _)) in names(raw).into_iter().enumerate() {
+                let Some(name) = name else { continue };
+                let (rust, c) = lookup(i, name);
+                assert_eq!(rust, c, "property {i}, {name:?}");
+                // Each name maps back to its value, but for `reserved`,
+                // which two primaries and two transfers share: the first.
+                let back = rust.unwrap();
+                assert!(back == raw || name == c"reserved" && back == 0, "{name:?}");
+            }
+        }
+    }
+
+    /// C's alpha mode names and the spellings around them.
+    fn alpha_candidates() -> Vec<CString> {
+        let mut out = vec![CString::default(), c"none".into(), c"unknown".into()];
+        for name in ["unspecified", "premultiplied", "straight"] {
+            let n = name.as_bytes();
+            out.push(CString::new(n).unwrap());
+            out.push(CString::new(name.to_uppercase()).unwrap());
+            out.push(CString::new([n, b" "].concat()).unwrap());
+            out.push(CString::new(&n[1..]).unwrap());
+            out.push(CString::new(&n[..n.len() - 1]).unwrap());
+            out.push(CString::new([n, b"\xff"].concat()).unwrap());
+        }
+        out
+    }
+
+    #[test]
+    fn alpha_mode_from_name_matches_c() {
+        let mut found = 0;
+        for name in alpha_candidates() {
+            let (rust, c) = lookup(5, &name);
+            assert_eq!(rust, c, "{name:?}");
+            found += usize::from(rust.is_some());
+        }
+        assert_eq!(found, 3);
+    }
+
+    #[test]
+    fn repeated_interleaved_calls_match_c() {
+        let names_: Vec<CString> = alpha_candidates();
+        let values = raws();
+        for round in 0..3 {
+            for (k, raw) in values.iter().enumerate().rev().step_by(round + 1) {
+                for (i, (rust, c)) in names(*raw).into_iter().enumerate() {
+                    assert_eq!(rust, c, "round {round}, property {i}, value {raw}");
+                }
+                let name = &names_[k % names_.len()];
+                let (rust, c) = lookup(5, name);
+                assert_eq!(rust, c, "round {round}, {name:?}");
+            }
+        }
+    }
+}
+
+/// `ChromaLocation::position` and `ChromaLocation::from_position` against
+/// `av_chroma_location_enum_to_pos` and `av_chroma_location_pos_to_enum`:
+/// every location value, the `unsigned` extremes, every position on and
+/// around C's grid, and the round trips between them.
+mod chroma_positions {
+    use ffmpeg::libavutil::ffi;
+    use ffmpeg::libavutil::pixfmt::ChromaLocation;
+
+    /// C's `enum_to_pos` for `raw`: the position when it succeeds, and
+    /// whether it left the out-parameters alone when it fails.
+    fn c_position(raw: u32) -> Option<(i32, i32)> {
+        let (mut x, mut y) = (i32::MIN, i32::MAX);
+        // SAFETY: `x` and `y` are live, writable `int`s, written only on
+        // success and not kept.
+        let ret = unsafe {
+            ffi::av_chroma_location_enum_to_pos(&mut x, &mut y, ffi::AVChromaLocation(raw))
+        };
+        if ret == 0 {
+            Some((x, y))
+        } else {
+            assert_eq!(ret, -22, "value {raw}");
+            assert_eq!((x, y), (i32::MIN, i32::MAX), "value {raw} wrote on failure");
+            None
+        }
+    }
+
+    fn c_from_position(x: i32, y: i32) -> u32 {
+        // SAFETY: two integers by value.
+        unsafe { ffi::av_chroma_location_pos_to_enum(x, y) }.0
+    }
+
+    /// Coordinates on C's 0/128/256 grid, their neighbours and the extremes.
+    const COORDS: [i32; 13] = [
+        i32::MIN,
+        -256,
+        -128,
+        -1,
+        0,
+        1,
+        127,
+        128,
+        129,
+        255,
+        256,
+        257,
+        i32::MAX,
+    ];
+
+    fn raws() -> impl Iterator<Item = u32> {
+        (0..20).chain([255, 256, i32::MAX as u32, 1 << 31, u32::MAX])
+    }
+
+    #[test]
+    fn position_matches_c_for_every_value() {
+        let mut found = 0;
+        for raw in raws() {
+            let rust = ChromaLocation::from_raw(ffi::AVChromaLocation(raw)).position();
+            assert_eq!(rust, c_position(raw), "value {raw}");
+            found += usize::from(rust.is_some());
+        }
+        assert_eq!(found, 6);
+    }
+
+    #[test]
+    fn from_position_matches_c_on_and_around_the_grid() {
+        let mut found = 0;
+        for x in COORDS {
+            for y in COORDS {
+                let rust = ChromaLocation::from_position(x, y).map(|l| l.into_raw().0);
+                let c = c_from_position(x, y);
+                // C reports "no location" as `AVCHROMA_LOC_UNSPECIFIED` (0).
+                assert_eq!(rust.unwrap_or(0), c, "({x}, {y})");
+                assert_ne!(rust, Some(0));
+                found += usize::from(rust.is_some());
+            }
+        }
+        assert_eq!(found, 6);
+    }
+
+    #[test]
+    fn positions_round_trip_on_both_sides() {
+        for raw in raws() {
+            let loc = ChromaLocation::from_raw(ffi::AVChromaLocation(raw));
+            let Some((x, y)) = loc.position() else {
+                continue;
+            };
+            assert_eq!(ChromaLocation::from_position(x, y), Some(loc));
+            assert_eq!(c_from_position(x, y), raw);
+            assert_eq!(c_position(c_from_position(x, y)), Some((x, y)));
+        }
+    }
+}
+
+/// `PixelFormat::name` and `PixelFormat::from_name` against
+/// `av_get_pix_fmt_name` and `av_get_pix_fmt`: every value from below
+/// `NONE` to past `AV_PIX_FMT_NB` and the `int` extremes, every name C
+/// gives fed back, and the endianness-less, aliased, case-changed, long and
+/// near-miss spellings around them.
+mod pixel_format_names {
+    use core::ffi::{CStr, c_int};
+    use std::ffi::CString;
+
+    use ffmpeg::libavutil::ffi;
+    use ffmpeg::libavutil::pixfmt::PixelFormat;
+
+    fn nb() -> c_int {
+        ffi::AVPixelFormat::AV_PIX_FMT_NB.0
+    }
+
+    fn raws() -> impl Iterator<Item = c_int> {
+        (-3..nb() + 3).chain([i32::MIN, i32::MIN + 1, 1 << 16, i32::MAX])
+    }
+
+    fn c_name(raw: c_int) -> Option<&'static CStr> {
+        // SAFETY: `av_get_pix_fmt_name` accepts any value and returns NULL or
+        // a descriptor's static name.
+        let p = unsafe { ffi::av_get_pix_fmt_name(ffi::AVPixelFormat(raw)) };
+        // SAFETY: a non-NULL result is a string literal, never written.
+        (!p.is_null()).then(|| unsafe { CStr::from_ptr(p) })
+    }
+
+    fn c_lookup(name: &CStr) -> c_int {
+        // SAFETY: `name` is a live NUL-terminated string, only read.
+        unsafe { ffi::av_get_pix_fmt(name.as_ptr()) }.0
+    }
+
+    /// Both lookups of `name`, as raw values; C's `NONE` is Rust's `None`.
+    fn lookups(name: &CStr) -> (c_int, c_int) {
+        let rust = PixelFormat::from_name(name).map_or(-1, |f| f.into_raw().0);
+        if let Some(f) = PixelFormat::from_name(name) {
+            assert_ne!(f, PixelFormat::NONE);
+        }
+        (rust, c_lookup(name))
+    }
+
+    #[test]
+    fn name_matches_c_for_every_value() {
+        let mut named = 0;
+        for raw in raws() {
+            let rust = PixelFormat::from_raw(ffi::AVPixelFormat(raw)).name();
+            let c = c_name(raw);
+            assert_eq!(rust, c, "value {raw}");
+            assert_eq!(rust.map(CStr::as_ptr), c.map(CStr::as_ptr));
+            named += usize::from(rust.is_some());
+        }
+        assert_eq!(named, nb() as usize);
+    }
+
+    /// Every name C gives, with the spellings around it.
+    fn candidates() -> Vec<CString> {
+        let mut out: Vec<Vec<u8>> = vec![
+            b"".to_vec(),
+            b"rgb32".to_vec(),
+            b"bgr32".to_vec(),
+            b"RGB32".to_vec(),
+            b"rgb32le".to_vec(),
+            b"none".to_vec(),
+            b"gray16".to_vec(),
+            b"yuv420p10".to_vec(),
+            // Aliases C's descriptors list.
+            b"y400a".to_vec(),
+            b"gray8a".to_vec(),
+            b"rgb565".to_vec(),
+            // Long enough that C's endianness retry truncates its copy.
+            vec![b'x'; 29],
+            vec![b'x'; 30],
+            vec![b'x'; 31],
+            vec![b'x'; 200],
+            [b"gray16".as_slice(), &[b' '; 26]].concat(),
+            [b"\xff\xfe".as_slice(), b"le"].concat(),
+        ];
+        for raw in 0..nb() {
+            let Some(name) = c_name(raw) else { continue };
+            let n = name.to_bytes();
+            out.push(n.to_vec());
+            out.push(n.to_ascii_uppercase());
+            out.push([n, b"le"].concat());
+            out.push([n, b"be"].concat());
+            out.push(n[..n.len() - 1].to_vec());
+            if n.ends_with(b"le") || n.ends_with(b"be") {
+                out.push(n[..n.len() - 2].to_vec());
+            }
+        }
+        out.into_iter().map(|n| CString::new(n).unwrap()).collect()
+    }
+
+    #[test]
+    fn from_name_matches_c_for_every_candidate() {
+        let mut found = 0;
+        for name in candidates() {
+            let (rust, c) = lookups(&name);
+            assert_eq!(rust, c, "{name:?}");
+            found += usize::from(rust >= 0);
+        }
+        assert!(found > nb() as usize, "{found}");
+    }
+
+    #[test]
+    fn names_map_back_on_both_sides() {
+        for raw in 0..nb() {
+            let f = PixelFormat::from_raw(ffi::AVPixelFormat(raw));
+            let name = f.name().unwrap();
+            assert_eq!(lookups(name), (raw, raw), "{name:?}");
+            assert_eq!(PixelFormat::from_name(name), Some(f));
+        }
+    }
+
+    #[test]
+    fn native_endian_names_resolve_as_c_does() {
+        assert_eq!(lookups(c"gray16").0, PixelFormat::GRAY16.into_raw().0);
+        assert_eq!(lookups(c"rgb32").0, PixelFormat::RGB32.into_raw().0);
+        assert_eq!(lookups(c"bgr32").0, PixelFormat::BGR32.into_raw().0);
+        for name in [c"gray16", c"rgb32", c"bgr32", c"yuv420p10"] {
+            let (rust, c) = lookups(name);
+            assert_eq!(rust, c, "{name:?}");
+        }
+    }
+
+    #[test]
+    fn repeated_interleaved_calls_match_c() {
+        let names = candidates();
+        let values: Vec<c_int> = raws().collect();
+        for round in 0..3 {
+            for (k, name) in names.iter().enumerate().rev().step_by(round + 2) {
+                let raw = values[k % values.len()];
+                assert_eq!(
+                    PixelFormat::from_raw(ffi::AVPixelFormat(raw)).name(),
+                    c_name(raw),
+                    "round {round}, value {raw}"
+                );
+                let (rust, c) = lookups(name);
+                assert_eq!(rust, c, "round {round}, {name:?}");
+            }
+        }
+    }
+}
+
+/// `PixelFormat::conversion_loss`, `best_of_two` and
+/// `best_of_two_with_loss` against `av_get_pix_fmt_loss` and
+/// `av_find_best_pix_fmt_of_2`: every ordered pair of values from below
+/// `NONE` to past `AV_PIX_FMT_NB`, with and without alpha; candidate pairs
+/// for every source, under several ignore sets; and chained choices that
+/// feed each answer into the next call.
+mod pixel_format_loss {
+    use core::ffi::c_int;
+    use core::ptr;
+
+    use ffmpeg::libavutil::ffi;
+    use ffmpeg::libavutil::pixdesc::Loss;
+    use ffmpeg::libavutil::pixfmt::PixelFormat;
+
+    fn nb() -> c_int {
+        ffi::AVPixelFormat::AV_PIX_FMT_NB.0
+    }
+
+    /// Every value C knows, `NONE`, and unknown values on both sides.
+    fn raws() -> Vec<c_int> {
+        (-2..nb() + 2).chain([i32::MIN, i32::MAX]).collect()
+    }
+
+    fn fmt(raw: c_int) -> PixelFormat {
+        PixelFormat::from_raw(ffi::AVPixelFormat(raw))
+    }
+
+    fn c_loss(dst: c_int, src: c_int, has_alpha: bool) -> c_int {
+        // SAFETY: three integers by value; C bounds-checks both formats.
+        unsafe {
+            ffi::av_get_pix_fmt_loss(
+                ffi::AVPixelFormat(dst),
+                ffi::AVPixelFormat(src),
+                c_int::from(has_alpha),
+            )
+        }
+    }
+
+    /// A Rust loss result as C's `int`.
+    fn as_c(r: Result<Loss, i32>) -> c_int {
+        match r {
+            Ok(loss) => {
+                assert!(loss.bits() >= 0);
+                loss.bits()
+            }
+            Err(e) => {
+                assert!(e < 0);
+                e
+            }
+        }
+    }
+
+    fn c_best(
+        d1: c_int,
+        d2: c_int,
+        src: c_int,
+        has_alpha: bool,
+        loss: Option<c_int>,
+    ) -> (c_int, Option<c_int>) {
+        let mut l = loss.unwrap_or(0);
+        let p = if loss.is_some() {
+            &raw mut l
+        } else {
+            ptr::null_mut()
+        };
+        // SAFETY: the formats and flag by value; `p` is NULL or a live,
+        // writable `int`, read and written during the call only.
+        let r = unsafe {
+            ffi::av_find_best_pix_fmt_of_2(
+                ffi::AVPixelFormat(d1),
+                ffi::AVPixelFormat(d2),
+                ffi::AVPixelFormat(src),
+                c_int::from(has_alpha),
+                p,
+            )
+        };
+        (r.0, loss.map(|_| l))
+    }
+
+    /// A deterministic pseudo-random sequence.
+    fn xorshift(mut x: u32) -> impl FnMut() -> u32 {
+        move || {
+            x ^= x << 13;
+            x ^= x >> 17;
+            x ^= x << 5;
+            x
+        }
+    }
+
+    #[test]
+    fn conversion_loss_matches_c_for_every_pair() {
+        let raws = raws();
+        let (mut ok, mut errs) = (0, [0usize; 4]);
+        for &src in &raws {
+            for &dst in &raws {
+                for has_alpha in [false, true] {
+                    let rust = fmt(src).conversion_loss(fmt(dst), has_alpha);
+                    let c = c_loss(dst, src, has_alpha);
+                    assert_eq!(as_c(rust), c, "{src} -> {dst}, alpha {has_alpha}");
+                    match rust {
+                        Ok(_) => ok += 1,
+                        Err(e) => errs[(-e - 1) as usize] += 1,
+                    }
+                }
+            }
+        }
+        // Every error C reports is reached but `-3`: every software format
+        // in C's table has components.
+        assert!(
+            ok > 0 && errs[0] > 0 && errs[1] > 0 && errs[3] > 0,
+            "{ok} {errs:?}"
+        );
+        assert_eq!(errs[2], 0);
+    }
+
+    #[test]
+    fn best_of_two_matches_c_for_every_source() {
+        let raws = raws();
+        let mut next = xorshift(0x9e37_79b9);
+        for &src in &raws {
+            for _ in 0..64 {
+                let d1 = raws[next() as usize % raws.len()];
+                let d2 = raws[next() as usize % raws.len()];
+                for has_alpha in [false, true] {
+                    let rust = fmt(src).best_of_two(fmt(d1), fmt(d2), has_alpha);
+                    let (c, _) = c_best(d1, d2, src, has_alpha, None);
+                    assert_eq!(
+                        rust.into_raw().0,
+                        c,
+                        "{src}: {d1} or {d2}, alpha {has_alpha}"
+                    );
+                }
+            }
+        }
+    }
+
+    #[test]
+    fn best_of_two_with_loss_matches_c_under_every_ignore_set() {
+        let raws = raws();
+        let all = (0..8).fold(Loss::empty(), |acc, i| acc | Loss::from_bits_retain(1 << i));
+        let ignores = [
+            Loss::empty(),
+            Loss::ALPHA,
+            Loss::DEPTH | Loss::RESOLUTION,
+            Loss::COLORSPACE | Loss::CHROMA | Loss::COLORQUANT,
+            Loss::EXCESS_DEPTH | Loss::EXCESS_RESOLUTION,
+            all,
+            Loss::from_bits_retain(-1),
+            Loss::from_bits_retain(i32::MIN),
+            Loss::from_bits_retain(0x100),
+        ];
+        let mut next = xorshift(0x1234_5678);
+        for &src in &raws {
+            for _ in 0..16 {
+                let d1 = raws[next() as usize % raws.len()];
+                let d2 = raws[next() as usize % raws.len()];
+                for ignore in ignores {
+                    for has_alpha in [false, true] {
+                        let (rust, loss) =
+                            fmt(src).best_of_two_with_loss(fmt(d1), fmt(d2), has_alpha, ignore);
+                        let (c, c_out) = c_best(d1, d2, src, has_alpha, Some(ignore.bits()));
+                        let at = format!("{src}: {d1} or {d2}, alpha {has_alpha}, {ignore:?}");
+                        assert_eq!(rust.into_raw().0, c, "{at}");
+                        assert_eq!(Some(as_c(loss)), c_out, "{at}");
+                        // C reports the chosen format's loss.
+                        assert_eq!(as_c(loss), c_loss(c, src, has_alpha), "{at}");
+                    }
+                }
+            }
+        }
+    }
+
+    #[test]
+    fn chained_choices_match_c_step_by_step() {
+        // Pick the best of every format for a few sources, carrying the
+        // answer and its loss into the next call on both sides.
+        for src in [
+            PixelFormat::YUV420P,
+            PixelFormat::RGBA,
+            PixelFormat::GRAY16LE,
+            PixelFormat::PAL8,
+            PixelFormat::YUVA444P16LE,
+            PixelFormat::NONE,
+        ] {
+            let s = src.into_raw().0;
+            for has_alpha in [false, true] {
+                let (mut rust, mut c) = (PixelFormat::NONE, -1);
+                let (mut rust_ignore, mut c_ignore) = (Loss::empty(), 0);
+                let (mut rust2, mut c2) = (PixelFormat::NONE, -1);
+                for raw in -1..nb() {
+                    rust2 = src.best_of_two(rust2, fmt(raw), has_alpha);
+                    c2 = c_best(c2, raw, s, has_alpha, None).0;
+                    assert_eq!(rust2.into_raw().0, c2, "{src:?} step {raw}");
+
+                    let (r, loss) =
+                        src.best_of_two_with_loss(rust, fmt(raw), has_alpha, rust_ignore);
+                    let (cr, cl) = c_best(c, raw, s, has_alpha, Some(c_ignore));
+                    assert_eq!(
+                        (r.into_raw().0, Some(as_c(loss))),
+                        (cr, cl),
+                        "{src:?} step {raw}"
+                    );
+                    rust = r;
+                    c = cr;
+                    // Feed the reported loss back as the next ignore set,
+                    // as C's own callers do with one `int`.
+                    rust_ignore = Loss::from_bits_retain(as_c(loss));
+                    c_ignore = cl.unwrap();
+                }
+            }
+        }
+    }
+}

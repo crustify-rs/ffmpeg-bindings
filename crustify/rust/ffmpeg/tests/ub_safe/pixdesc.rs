@@ -425,3 +425,247 @@ mod swap_endianness {
         });
     }
 }
+
+/// The value-to-name getters, `AlphaMode::from_name`, the chroma position
+/// conversions and the pixel format name lookups: every value including the
+/// `int`/`unsigned` extremes, names in exactly sized heap strings (so a read
+/// past the NUL is an ASan report) up to well past C's 32-byte copy, the
+/// `'static` names kept across threads and later calls, and the calls on
+/// several threads at once.
+mod names_and_positions {
+    use core::ffi::CStr;
+    use std::ffi::CString;
+    use std::thread;
+
+    use ffmpeg::libavutil::ffi;
+    use ffmpeg::libavutil::pixfmt::{
+        AlphaMode, ChromaLocation, ColorPrimaries, ColorRange, ColorSpace, ColorTransfer,
+        PixelFormat,
+    };
+
+    fn unsigned_values() -> impl Iterator<Item = u32> {
+        (0..300).chain([
+            511,
+            512,
+            1 << 16,
+            i32::MAX as u32,
+            1 << 31,
+            u32::MAX - 1,
+            u32::MAX,
+        ])
+    }
+
+    fn signed_values() -> impl Iterator<Item = i32> {
+        let nb = ffi::AVPixelFormat::AV_PIX_FMT_NB.0;
+        (-3..nb + 3).chain([i32::MIN, i32::MIN + 1, 1 << 16, i32::MAX])
+    }
+
+    /// Every name any getter returns for `raw`.
+    fn names(raw: u32) -> [Option<&'static CStr>; 6] {
+        [
+            ColorRange::from_raw(ffi::AVColorRange(raw)).name(),
+            ColorPrimaries::from_raw(ffi::AVColorPrimaries(raw)).name(),
+            ColorTransfer::from_raw(ffi::AVColorTransferCharacteristic(raw)).name(),
+            ColorSpace::from_raw(ffi::AVColorSpace(raw)).name(),
+            ChromaLocation::from_raw(ffi::AVChromaLocation(raw)).name(),
+            AlphaMode::from_raw(ffi::AVAlphaMode(raw)).name(),
+        ]
+    }
+
+    /// Every name a getter returns, kept for the whole test.
+    fn all_names() -> Vec<&'static CStr> {
+        let props = unsigned_values().flat_map(names).flatten();
+        let formats =
+            signed_values().filter_map(|r| PixelFormat::from_raw(ffi::AVPixelFormat(r)).name());
+        props.chain(formats).collect()
+    }
+
+    fn heap(bytes: &[u8]) -> CString {
+        CString::new(bytes).unwrap()
+    }
+
+    #[test]
+    fn getters_accept_every_value() {
+        for raw in unsigned_values() {
+            for name in names(raw).into_iter().flatten() {
+                assert!(!name.is_empty() && name.to_str().is_ok());
+            }
+            let loc = ChromaLocation::from_raw(ffi::AVChromaLocation(raw));
+            if let Some((x, y)) = loc.position() {
+                assert!([0, 128, 256].contains(&x) && [0, 128, 256].contains(&y));
+            }
+        }
+        for raw in signed_values() {
+            if let Some(name) = PixelFormat::from_raw(ffi::AVPixelFormat(raw)).name() {
+                assert!(name.to_bytes().len() < 32);
+            }
+        }
+        for x in [i32::MIN, -1, 0, 128, 256, i32::MAX] {
+            for y in [i32::MIN, -1, 0, 128, 256, i32::MAX] {
+                if let Some(loc) = ChromaLocation::from_position(x, y) {
+                    assert_eq!(loc.position(), Some((x, y)));
+                }
+            }
+        }
+    }
+
+    #[test]
+    fn static_names_outlive_every_later_call() {
+        let kept = all_names();
+        let copies: Vec<CString> = kept.iter().map(|n| (*n).to_owned()).collect();
+        // Many unrelated calls later, on other threads too, the borrowed
+        // names still read the same bytes.
+        thread::scope(|s| {
+            for _ in 0..4 {
+                s.spawn(|| all_names().len());
+            }
+        });
+        let _ = all_names();
+        for (name, copy) in kept.iter().zip(&copies) {
+            assert_eq!(*name, copy.as_c_str());
+        }
+        let moved = thread::spawn(move || kept.iter().map(|n| n.to_bytes().len()).sum::<usize>())
+            .join()
+            .unwrap();
+        assert!(moved > 0);
+    }
+
+    #[test]
+    fn lookups_read_names_of_every_length_in_bounds() {
+        let mut names: Vec<Vec<u8>> = vec![b"".to_vec(), b"\xff".to_vec()];
+        for len in [1, 2, 28, 29, 30, 31, 32, 33, 64, 4096] {
+            names.push(vec![b'g'; len]);
+            names.push([b"gray16".as_slice(), &vec![b'x'; len]].concat());
+        }
+        for name in all_names() {
+            let n = name.to_bytes();
+            names.push(n.to_vec());
+            names.push(n[..n.len() - 1].to_vec());
+            names.push([n, b"le"].concat());
+        }
+        for bytes in names {
+            let name = heap(&bytes);
+            let _ = PixelFormat::from_name(&name);
+            let _ = AlphaMode::from_name(&name);
+        }
+        assert_eq!(PixelFormat::from_name(&heap(&[b'x'; 4096])), None);
+    }
+
+    #[test]
+    fn calls_run_on_many_threads() {
+        let expect: Vec<_> = unsigned_values().map(names).collect();
+        let formats: Vec<_> = signed_values()
+            .map(|r| PixelFormat::from_raw(ffi::AVPixelFormat(r)))
+            .collect();
+        thread::scope(|s| {
+            for t in 0..8 {
+                let (expect, formats) = (&expect, &formats);
+                s.spawn(move || {
+                    for (raw, e) in unsigned_values().zip(expect).skip(t) {
+                        assert_eq!(&names(raw), e);
+                        let loc = ChromaLocation::from_raw(ffi::AVChromaLocation(raw));
+                        if let Some((x, y)) = loc.position() {
+                            assert_eq!(ChromaLocation::from_position(x, y), Some(loc));
+                        }
+                    }
+                    for f in formats.iter().skip(t) {
+                        if let Some(name) = f.name() {
+                            assert_eq!(PixelFormat::from_name(name), Some(*f));
+                        }
+                    }
+                    for name in [c"premultiplied", c"straight", c"bogus"] {
+                        let _ = AlphaMode::from_name(name);
+                    }
+                });
+            }
+        });
+    }
+}
+
+/// `PixelFormat::conversion_loss`, `best_of_two` and
+/// `best_of_two_with_loss` on every pair of values, the `int` extremes and
+/// every ignore set's sign and width included (C's scoring shifts and
+/// subtracts by descriptor fields, which UBSan watches), and on several
+/// threads at once.
+mod pixel_format_loss {
+    use std::thread;
+
+    use ffmpeg::libavutil::ffi;
+    use ffmpeg::libavutil::pixdesc::Loss;
+    use ffmpeg::libavutil::pixfmt::PixelFormat;
+
+    fn formats() -> Vec<PixelFormat> {
+        let nb = ffi::AVPixelFormat::AV_PIX_FMT_NB.0;
+        (-2..nb + 2)
+            .chain([i32::MIN, i32::MAX])
+            .map(|r| PixelFormat::from_raw(ffi::AVPixelFormat(r)))
+            .collect()
+    }
+
+    #[test]
+    fn every_pair_scores_without_ub() {
+        let all = formats();
+        for &src in &all {
+            for &dst in &all {
+                for has_alpha in [false, true] {
+                    match src.conversion_loss(dst, has_alpha) {
+                        Ok(loss) => assert!(loss.bits() >= 0 && loss.bits() < 0x100),
+                        Err(e) => assert!((-4..=-1).contains(&e), "{e}"),
+                    }
+                }
+                let best = src.best_of_two(dst, src, true);
+                assert!(best == dst || best == src);
+            }
+        }
+    }
+
+    #[test]
+    fn every_ignore_set_is_accepted() {
+        let all = formats();
+        for bits in [0, 1, 0xff, 0x100, i32::MAX, i32::MIN, -1, -2] {
+            let ignore = Loss::from_bits_retain(bits);
+            for (i, &src) in all.iter().enumerate() {
+                let d1 = all[(i * 7) % all.len()];
+                let d2 = all[(i * 13 + 5) % all.len()];
+                let (best, loss) = src.best_of_two_with_loss(d1, d2, i % 2 == 0, ignore);
+                assert!(best == d1 || best == d2);
+                if let Ok(loss) = loss {
+                    assert!(loss.bits() >= 0);
+                }
+            }
+        }
+    }
+
+    #[test]
+    fn scoring_runs_on_many_threads() {
+        let all = formats();
+        let expect: Vec<_> = all
+            .iter()
+            .map(|&f| {
+                f.best_of_two_with_loss(
+                    PixelFormat::YUV420P,
+                    PixelFormat::RGBA,
+                    true,
+                    Loss::empty(),
+                )
+            })
+            .collect();
+        thread::scope(|s| {
+            for t in 0..8 {
+                let (all, expect) = (&all, &expect);
+                s.spawn(move || {
+                    for (f, e) in all.iter().zip(expect).skip(t) {
+                        let got = f.best_of_two_with_loss(
+                            PixelFormat::YUV420P,
+                            PixelFormat::RGBA,
+                            true,
+                            Loss::empty(),
+                        );
+                        assert_eq!(&got, e);
+                        let _ = f.conversion_loss(PixelFormat::GRAY8, t % 2 == 0);
+                    }
+                });
+            }
+        });
+    }
+}

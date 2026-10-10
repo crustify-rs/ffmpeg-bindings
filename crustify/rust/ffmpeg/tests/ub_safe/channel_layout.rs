@@ -535,3 +535,104 @@ mod channel_custom {
         assert_eq!(names, [0, 5, 10, 15]);
     }
 }
+
+/// `Channel::write_name`, `write_description`, `name`, `description` and
+/// `from_name`: every id class and the `int` extremes written into exactly
+/// sized heap buffers of every length (so a write past the end is an ASan
+/// report), names of every shape in exactly sized heap strings, and the
+/// calls on several threads at once.
+mod channel_names {
+    use std::ffi::CString;
+    use std::thread;
+
+    use ffmpeg::libavutil::channel_layout::Channel;
+    use ffmpeg::libavutil::ffi;
+
+    fn ids() -> Vec<Channel> {
+        (-4..70)
+            .chain(1020..1030)
+            .chain(2040..2060)
+            .chain([i32::MAX, i32::MIN, i32::MIN + 1])
+            .map(|id| Channel::from_raw(ffi::AVChannel(id)))
+            .collect()
+    }
+
+    #[test]
+    fn writers_stay_inside_every_buffer_length() {
+        type Write = fn(Channel, &mut [u8]) -> Result<usize, i32>;
+        for write in [Channel::write_name as Write, Channel::write_description] {
+            for ch in ids() {
+                for len in 0..32 {
+                    // An exactly sized heap block: one byte past it is
+                    // outside the allocation.
+                    let mut buf = vec![0xAAu8; len].into_boxed_slice();
+                    let need = write(ch, &mut buf).unwrap();
+                    assert!(need >= 1);
+                    if len > 0 {
+                        let end = (need - 1).min(len - 1);
+                        assert_eq!(buf[end], 0, "{ch:?} {len}");
+                        assert!(!buf[..end].contains(&0));
+                    }
+                }
+            }
+        }
+    }
+
+    #[test]
+    fn owned_strings_have_the_measured_length() {
+        for ch in ids() {
+            let name = ch.name();
+            assert_eq!(ch.write_name(&mut []), Ok(name.as_bytes_with_nul().len()));
+            let desc = ch.description();
+            assert_eq!(
+                ch.write_description(&mut []),
+                Ok(desc.as_bytes_with_nul().len())
+            );
+            // The owned strings outlive the channel value and later calls.
+            let _ = Channel::from_name(&name);
+            assert!(!name.as_bytes().is_empty() && !desc.as_bytes().is_empty());
+        }
+    }
+
+    #[test]
+    fn lookups_read_names_of_every_shape_in_bounds() {
+        let mut names: Vec<Vec<u8>> = [
+            "", "A", "AMBI", "USR", "AMBI-", "USR-", "USR0x", "AMBI0x", "\u{ff}",
+        ]
+        .map(|s| s.as_bytes().to_vec())
+        .into();
+        for len in [1, 3, 4, 20, 40, 4096] {
+            names.push([b"AMBI".as_slice(), &vec![b'9'; len]].concat());
+            names.push([b"USR".as_slice(), &vec![b'7'; len]].concat());
+            names.push(vec![b'F'; len]);
+        }
+        for ch in ids() {
+            names.push(ch.name().into_bytes());
+        }
+        for bytes in names {
+            let name = CString::new(bytes).unwrap();
+            if let Some(ch) = Channel::from_name(&name) {
+                assert_ne!(ch, Channel::NONE);
+            }
+        }
+    }
+
+    #[test]
+    fn calls_run_on_many_threads() {
+        let ids = ids();
+        let expect: Vec<_> = ids.iter().map(|c| (c.name(), c.description())).collect();
+        thread::scope(|s| {
+            for t in 0..8 {
+                let (ids, expect) = (&ids, &expect);
+                s.spawn(move || {
+                    let mut buf = [0u8; 8];
+                    for (ch, e) in ids.iter().zip(expect).skip(t) {
+                        assert_eq!(&(ch.name(), ch.description()), e);
+                        let _ = ch.write_name(&mut buf);
+                        let _ = Channel::from_name(&e.0);
+                    }
+                });
+            }
+        });
+    }
+}

@@ -1127,3 +1127,219 @@ mod channel_custom {
         assert_eq!(read[2].name(), c"seven");
     }
 }
+
+/// `Channel::write_name`, `name`, `write_description`, `description` and
+/// `from_name` against `av_channel_name`, `av_channel_description` and
+/// `av_channel_from_string`: every channel id around the named, Ambisonic
+/// and user ranges and the `int` extremes, written into every buffer size
+/// from empty to roomy on both sides and compared byte for byte, the names
+/// fed back, and C's lenient spellings, in repeated sequences.
+mod channel_names {
+    use core::ffi::{CStr, c_char, c_int};
+    use std::ffi::CString;
+
+    use ffmpeg::libavutil::channel_layout::Channel;
+    use ffmpeg::libavutil::ffi;
+
+    type Writer = unsafe extern "C" fn(*mut c_char, usize, ffi::AVChannel) -> c_int;
+    type RustWriter = fn(Channel, &mut [u8]) -> Result<usize, i32>;
+
+    fn ids() -> Vec<c_int> {
+        (-4..70)
+            .chain(1000..1030)
+            .chain(2040..2060)
+            .chain([
+                0x7fff,
+                0x10000,
+                i32::MAX - 1,
+                i32::MAX,
+                i32::MIN,
+                i32::MIN + 1,
+            ])
+            .collect()
+    }
+
+    fn ch(id: c_int) -> Channel {
+        Channel::from_raw(ffi::AVChannel(id))
+    }
+
+    /// C's writer into a buffer of `size` bytes prefilled with 0xAA: its
+    /// return and the whole buffer.
+    fn c_write(write: Writer, id: c_int, size: usize) -> (c_int, Vec<u8>) {
+        let mut buf = vec![0xAA; size];
+        let p = if size == 0 {
+            core::ptr::null_mut()
+        } else {
+            buf.as_mut_ptr().cast()
+        };
+        // SAFETY: `p` is NULL with size 0, a count-only request, or valid
+        // for `size` bytes of writes; C keeps no pointer.
+        let ret = unsafe { write(p, size, ffi::AVChannel(id)) };
+        (ret, buf)
+    }
+
+    /// Rust's writer into the same prefilled buffer.
+    fn rust_write(f: RustWriter, id: c_int, size: usize) -> (c_int, Vec<u8>) {
+        let mut buf = vec![0xAA; size];
+        let ret = match f(ch(id), &mut buf) {
+            Ok(n) => c_int::try_from(n).unwrap(),
+            Err(e) => e,
+        };
+        (ret, buf)
+    }
+
+    fn c_string(write: Writer, id: c_int) -> CString {
+        let (need, _) = c_write(write, id, 0);
+        let (_, buf) = c_write(write, id, need as usize);
+        CStr::from_bytes_until_nul(&buf).unwrap().to_owned()
+    }
+
+    #[test]
+    fn writers_match_c_for_every_id_and_buffer_size() {
+        let writers: [(Writer, RustWriter); 2] = [
+            (ffi::av_channel_name, Channel::write_name),
+            (ffi::av_channel_description, Channel::write_description),
+        ];
+        for (c, rust) in writers {
+            for id in ids() {
+                for size in 0..26 {
+                    assert_eq!(
+                        rust_write(rust, id, size),
+                        c_write(c, id, size),
+                        "id {id}, size {size}"
+                    );
+                }
+            }
+        }
+    }
+
+    #[test]
+    fn whole_strings_match_c() {
+        let mut longest = (0, 0);
+        for id in ids() {
+            let name = ch(id).name();
+            assert_eq!(name, c_string(ffi::av_channel_name, id), "id {id}");
+            let desc = ch(id).description();
+            assert_eq!(desc, c_string(ffi::av_channel_description, id), "id {id}");
+            longest.0 = longest.0.max(name.as_bytes_with_nul().len());
+            longest.1 = longest.1.max(desc.as_bytes_with_nul().len());
+        }
+        // The buffer sizes the docs promise suffice.
+        assert!(longest.0 <= 16 && longest.1 <= 24, "{longest:?}");
+        assert_eq!(longest, (15, 22));
+    }
+
+    fn c_from(name: &CStr) -> c_int {
+        // SAFETY: `name` is a live NUL-terminated string, only read.
+        unsafe { ffi::av_channel_from_string(name.as_ptr()) }.0
+    }
+
+    /// Both lookups of `name`; C's `NONE` (-1) is Rust's `None`.
+    fn lookups(name: &CStr) -> (c_int, c_int) {
+        (
+            Channel::from_name(name).map_or(-1, |c| c.into_raw().0),
+            c_from(name),
+        )
+    }
+
+    #[test]
+    fn names_map_back_on_both_sides() {
+        for id in ids() {
+            let name = ch(id).name();
+            let (rust, c) = lookups(&name);
+            assert_eq!(rust, c, "{name:?}");
+            // Every name maps back but NONE's, and a negative user id's,
+            // which C refuses.
+            if id >= 0 {
+                assert_eq!(rust, id, "{name:?}");
+            } else {
+                assert_eq!(
+                    rust,
+                    if name.as_bytes() == b"UNK" || name.as_bytes() == b"UNSD" {
+                        id
+                    } else {
+                        -1
+                    }
+                );
+            }
+        }
+    }
+
+    fn candidates() -> Vec<CString> {
+        [
+            "",
+            "FL",
+            "fl",
+            "FL ",
+            " FL",
+            "LFE2",
+            "NONE",
+            "UNK",
+            "UNSD",
+            "AMBI",
+            "AMBI0",
+            "AMBI1023",
+            "AMBI1024",
+            "AMBI-1",
+            "AMBI0x10",
+            "AMBI010",
+            "AMBI7x",
+            "AMBI 5",
+            "AMBI4294967296",
+            "AMBI99999999999999999999",
+            "USR",
+            "USR0",
+            "USR5",
+            "USR-5",
+            "USR0x10",
+            "USR010",
+            "USR5x",
+            "USR 5",
+            "USR2147483647",
+            "USR2147483648",
+            "USR4294967297",
+            "USR99999999999999999999",
+            "USR+7",
+            "usr5",
+            "AMBIENT",
+            "XYZ",
+        ]
+        .into_iter()
+        .map(|s| CString::new(s).unwrap())
+        .collect()
+    }
+
+    #[test]
+    fn from_name_matches_c_for_every_candidate() {
+        for name in candidates() {
+            let (rust, c) = lookups(&name);
+            assert_eq!(rust, c, "{name:?}");
+        }
+        // C's lenient corners, as Rust reports them.
+        assert_eq!(Channel::from_name(c"AMBI"), Channel::ambisonic(0));
+        assert_eq!(Channel::from_name(c"USR"), Some(Channel::FRONT_LEFT));
+        assert_eq!(Channel::from_name(c"NONE"), None);
+    }
+
+    #[test]
+    fn repeated_interleaved_calls_match_c() {
+        let names = candidates();
+        let ids = ids();
+        for round in 0..3 {
+            for (k, id) in ids.iter().enumerate().rev().step_by(round + 1) {
+                let size = k % 20;
+                assert_eq!(
+                    rust_write(Channel::write_name, *id, size),
+                    c_write(ffi::av_channel_name, *id, size),
+                    "round {round}, id {id}, size {size}"
+                );
+                assert_eq!(
+                    rust_write(Channel::write_description, *id, size),
+                    c_write(ffi::av_channel_description, *id, size),
+                );
+                let name = &names[k % names.len()];
+                assert_eq!(lookups(name).0, lookups(name).1, "round {round}, {name:?}");
+            }
+        }
+    }
+}
