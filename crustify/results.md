@@ -1189,9 +1189,10 @@ ending at `2f6e60458d`, and all 60 scheduled items carry their anchors there. Tr
   `SampleBuffer` owners and plane views. With the default alignment, C's
   `av_samples_get_buffer_size` overflows `FFALIGN` at `nb_samples == INT_MAX - 31`
   (UBSan, `samplefmt.c:137`); the wrappers pass the equivalent alignment 1 for that count.
-- Smells went from 23 to 25 `unsafe fn` and from 40 to 54 raw pointers, mostly from the symbol
-  batches (`check_size_max_pixels_with_context`'s log context, sample-plane pointer arrays, and
-  `ChannelCustom`'s `opaque` cookie behind safe accessors).
+- Smells went from 23 to 25 `unsafe fn` and from 40 to 54 raw pointers, from
+  `check_size_max_pixels_with_context`'s log context, the private C plane-pointer arrays in
+  `imgutils.rs` and `samplefmt.rs`, `ChannelCustom`'s `opaque` cookie and
+  `PixelFormatDescriptor::from_raw` (per the scan's `--sites`).
 
 The wave tip passes `clippy --all-targets -D warnings` and the plain, `asan-ubsan` and `tsan`
 suites, as well as `bsan` for `lib` (501) and `ub_unsafe` (72). The `bsan` equivalence and
