@@ -799,10 +799,10 @@ impl SampleBuffer {
             )
         };
         let size = usize::try_from(ret).map_err(|_| ret)?;
+        let block = slots[0].cast();
         // SAFETY: on success `slots[0]` is an `av_malloc` block of `size`
         // bytes, released by `av_free` (`Heap`), which nothing else owns.
-        let data =
-            unsafe { HeapVec::from_raw_parts(slots[0].cast(), size) }.ok_or(AVERROR_ENOMEM)?;
+        let data = unsafe { HeapVec::from_raw_parts(block, size) }.ok_or(AVERROR_ENOMEM)?;
         let layout =
             Layout::from_c(format, channels, samples, linesize, size).ok_or(AVERROR_EINVAL)?;
         Ok(Self { data, layout })

@@ -352,6 +352,39 @@ mod images {
         (0..AVPixelFormat::AV_PIX_FMT_NB.0).map(|raw| PixelFormat::from_raw(AVPixelFormat(raw)))
     }
 
+    /// The formats an every-format sweep runs over: all of them, or, under
+    /// BorrowSanitizer (whose cost per retag and allocation turns such a
+    /// sweep into hours), one of each layout class the image routines
+    /// distinguish: packed and planar YUV, chroma subsampled both ways,
+    /// semi-planar, RGB in both byte orders, a palette, a bitstream, float,
+    /// 16-bit and alpha planes, Bayer, XYZ and a hardware format.
+    fn sweep_formats() -> Vec<PixelFormat> {
+        if std::env::var("CRUSTIFY_FFMPEG_VARIANT").as_deref() == Ok("bsan") {
+            vec![
+                PixelFormat::YUV420P,
+                PixelFormat::YUYV422,
+                PixelFormat::RGB24,
+                PixelFormat::YUV410P,
+                PixelFormat::GRAY8,
+                PixelFormat::MONOWHITE,
+                PixelFormat::PAL8,
+                PixelFormat::UYVY422,
+                PixelFormat::NV12,
+                PixelFormat::RGB48BE,
+                PixelFormat::YUVA444P16LE,
+                PixelFormat::GBRAPF32LE,
+                PixelFormat::BAYER_RGGB16BE,
+                PixelFormat::XYZ12LE,
+                PixelFormat::P010LE,
+                PixelFormat::VUYA,
+                PixelFormat::GBRP,
+                PixelFormat::VAAPI,
+            ]
+        } else {
+            formats().collect()
+        }
+    }
+
     /// Each plane's bytes a `w x h` copy of `format` touches, `(row width,
     /// rows)`, as the wrappers document; `None` past the format's planes.
     fn extents(format: PixelFormat, w: i32, h: i32) -> [Option<(usize, usize)>; 4] {
@@ -415,7 +448,7 @@ mod images {
 
     #[test]
     fn exact_planes_of_every_format_copy_and_fill() {
-        for format in formats().filter(|&f| copyable(f)) {
+        for format in sweep_formats().into_iter().filter(|&f| copyable(f)) {
             for (w, h) in [(1, 1), (7, 5), (16, 3)] {
                 for (pad, bottom_up) in [(0, false), (3, false), (0, true), (5, true)] {
                     let (src, sl) = exact_planes(format, w, h, pad, bottom_up, 1);
