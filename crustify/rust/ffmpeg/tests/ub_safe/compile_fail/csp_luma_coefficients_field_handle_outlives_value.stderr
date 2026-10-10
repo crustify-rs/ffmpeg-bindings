@@ -1,0 +1,11 @@
+error[E0597]: `c` does not live long enough
+ --> tests/ub_safe/compile_fail/csp_luma_coefficients_field_handle_outlives_value.rs
+  |
+  |     let cr = {
+  |         -- borrow later stored here
+  |         let c = LumaCoefficients::default();
+  |             - binding `c` declared here
+  |         c.as_ref().cr()
+  |         ^ borrowed value does not live long enough
+  |     };
+  |     - `c` dropped here while still borrowed

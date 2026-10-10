@@ -1,0 +1,9 @@
+error[E0502]: cannot borrow `ch` as mutable because it is also borrowed as immutable
+ --> tests/ub_safe/compile_fail/channel_layout_channel_custom_set_while_shared.rs
+  |
+  |     let r = ch.as_ref();
+  |             -- immutable borrow occurs here
+  |     ch.as_mut().set_name(c"x").unwrap();
+  |     ^^^^^^^^^^^ mutable borrow occurs here
+  |     println!("{:?}", r.name());
+  |                      - immutable borrow later used here

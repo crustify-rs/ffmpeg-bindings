@@ -12,6 +12,11 @@
 //! value type with no owner. A field of a wrapped C struct is reached as a
 //! [`CieXyRef`] or [`CieXyMut`] over the projected place, and each
 //! coordinate as a [`RationalRef`] or [`RationalMut`] over its own.
+//!
+//! [`LumaCoefficients`] is `AVLumaCoefficients`: the red, green and blue
+//! weights of luma as three [`Rational`]s, a value type reached as a
+//! [`LumaCoefficientsRef`] or [`LumaCoefficientsMut`], each coefficient as a
+//! [`RationalRef`] or [`RationalMut`] over its own.
 
 use core::fmt;
 use core::ptr::{addr_of, addr_of_mut};
@@ -278,6 +283,251 @@ impl CieXyMut<'_> {
         // SAFETY: a write of the whole `AVCIExy` through the exclusive
         // handle's pointer to a live one; the old value owns nothing to leak.
         unsafe { self.as_mut_ptr().write(xy.into_raw()) }
+    }
+}
+
+define_ctype!(
+    /// Wraps: AVLumaCoefficients
+    ///
+    /// The luma coefficients of a YUV-like colour space, as three
+    /// [`Rational`]s: the weights of red, green and blue in luma
+    /// (`Y = cr * R + cg * G + cb * B`) for RGB to YUV, YCoCg or similar
+    /// conversions. Its getters are on [`LumaCoefficientsRef`]
+    /// (`as_ref()`), its setters on [`LumaCoefficientsMut`] (`as_mut()`).
+    ///
+    /// C hands these out as shared borrows of its static, never-written
+    /// table (`av_csp_luma_coeffs_from_avcsp`) and its users read them by
+    /// value; nothing allocates, frees or clones one on its own, so it is a
+    /// value type with no owner, built by [`LumaCoefficients::new`],
+    /// [`from_raw`](LumaCoefficients::from_raw) or `zeroed()`. No field is
+    /// checked, by C or here: each takes any pair of `int`s, as a
+    /// [`Rational`] does.
+    #[derive(Clone, Copy)]
+    LumaCoefficients,
+    LumaCoefficientsRef,
+    LumaCoefficientsMut,
+    ffi::AVLumaCoefficients
+);
+
+// SAFETY: all-zero is three `0/0` rationals, the entry C's own table holds for
+// every colour space it has no coefficients for (which
+// `av_csp_luma_coeffs_from_avcsp` recognises by `cr.num == 0`); every
+// accessor takes it as the six integers it is, and the type has no teardown
+// to reject it.
+unsafe impl CZeroable for LumaCoefficients {}
+
+// SAFETY: an `AVLumaCoefficients` is 24 bytes of plain data, six `int`s with
+// no pointer, sub-allocation or tie to the thread that wrote them, so a value,
+// or an exclusive handle to one, moves between threads as an `[i32; 6]` does.
+unsafe impl Send for LumaCoefficients {}
+// SAFETY: as for `LumaCoefficients`: the handle is the only access to the
+// fields.
+unsafe impl Send for LumaCoefficientsMut<'_> {}
+
+// SAFETY: nothing reachable through a shared handle writes:
+// `LumaCoefficientsRef` has getters only, whose `RationalRef`s have getters
+// only too, and the struct has no interior mutability, so concurrent shared
+// access reads unchanging bytes, as through `&[i32; 6]`.
+unsafe impl Sync for LumaCoefficients {}
+// SAFETY: as for `Sync for LumaCoefficients`: copies of a shared handle only
+// read.
+unsafe impl Send for LumaCoefficientsRef<'_> {}
+// SAFETY: as above.
+unsafe impl Sync for LumaCoefficientsRef<'_> {}
+// SAFETY: `&LumaCoefficientsMut` reaches the fields only through `as_ref`, a
+// shared handle; the setters and the exclusive field handles need `&mut`.
+unsafe impl Sync for LumaCoefficientsMut<'_> {}
+
+impl LumaCoefficients {
+    /// The coefficients `cr`, `cg` and `cb`, as given.
+    #[inline]
+    #[must_use]
+    pub const fn new(cr: Rational, cg: Rational, cb: Rational) -> Self {
+        Self::from_raw(ffi::AVLumaCoefficients {
+            cr: cr.into_raw(),
+            cg: cg.into_raw(),
+            cb: cb.into_raw(),
+        })
+    }
+
+    /// The coefficients C encodes as `raw`, whatever their values.
+    #[inline]
+    #[must_use]
+    pub const fn from_raw(raw: ffi::AVLumaCoefficients) -> Self {
+        Self(raw, core::marker::PhantomData)
+    }
+
+    /// The C encoding of these coefficients, for passing them by value.
+    #[inline]
+    #[must_use]
+    pub const fn into_raw(self) -> ffi::AVLumaCoefficients {
+        self.0
+    }
+}
+
+/// Three `0/0` rationals: the entry C's table holds for a colour space with
+/// no coefficients.
+impl Default for LumaCoefficients {
+    #[inline]
+    fn default() -> Self {
+        Self::zeroed()
+    }
+}
+
+impl From<ffi::AVLumaCoefficients> for LumaCoefficients {
+    #[inline]
+    fn from(raw: ffi::AVLumaCoefficients) -> Self {
+        Self::from_raw(raw)
+    }
+}
+
+impl From<LumaCoefficients> for ffi::AVLumaCoefficients {
+    #[inline]
+    fn from(c: LumaCoefficients) -> Self {
+        c.into_raw()
+    }
+}
+
+/// Coefficient by coefficient, each by [`Rational`]'s value equality: `1/2`
+/// equals `2/4`, and a `0/0` coefficient equals nothing, itself included.
+impl PartialEq for LumaCoefficients {
+    fn eq(&self, other: &Self) -> bool {
+        let (a, b) = (self.as_ref(), other.as_ref());
+        a.cr().get() == b.cr().get() && a.cg().get() == b.cg().get() && a.cb().get() == b.cb().get()
+    }
+}
+
+impl fmt::Debug for LumaCoefficients {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        self.as_ref().fmt(f)
+    }
+}
+
+impl fmt::Debug for LumaCoefficientsRef<'_> {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.debug_struct("LumaCoefficients")
+            .field("cr", &self.cr())
+            .field("cg", &self.cg())
+            .field("cb", &self.cb())
+            .finish()
+    }
+}
+
+impl<'a> LumaCoefficientsRef<'a> {
+    /// Field: AVLumaCoefficients.cr
+    ///
+    /// The red coefficient, read through a shared handle over the field.
+    #[must_use]
+    pub fn cr(&self) -> RationalRef<'a> {
+        // SAFETY: the `cr` field, projected without a reference through the
+        // shared handle's pointer to a live, initialised
+        // `AVLumaCoefficients`, is a live, initialised `AVRational` for as
+        // long as the coefficients are borrowed (`'a`); `RationalRef` only
+        // reads through the pointer, and a field address is never NULL.
+        unsafe { RationalRef::from_ptr(addr_of!((*self.as_ptr()).cr).cast_mut()) }
+            .expect("a field address is not NULL")
+    }
+
+    /// Field: AVLumaCoefficients.cg
+    ///
+    /// The green coefficient, read through a shared handle over the field.
+    #[must_use]
+    pub fn cg(&self) -> RationalRef<'a> {
+        // SAFETY: as for `cr`, for the `cg` field.
+        unsafe { RationalRef::from_ptr(addr_of!((*self.as_ptr()).cg).cast_mut()) }
+            .expect("a field address is not NULL")
+    }
+
+    /// Field: AVLumaCoefficients.cb
+    ///
+    /// The blue coefficient, read through a shared handle over the field.
+    #[must_use]
+    pub fn cb(&self) -> RationalRef<'a> {
+        // SAFETY: as for `cr`, for the `cb` field.
+        unsafe { RationalRef::from_ptr(addr_of!((*self.as_ptr()).cb).cast_mut()) }
+            .expect("a field address is not NULL")
+    }
+
+    /// A copy of all three coefficients, independent of the place they were
+    /// read from.
+    #[must_use]
+    pub fn get(&self) -> LumaCoefficients {
+        // SAFETY: a read of the whole live, initialised `AVLumaCoefficients`
+        // through the shared handle's pointer; it is six `int`s, so the byte
+        // copy is a complete, independent value.
+        LumaCoefficients::from_raw(unsafe { self.as_ptr().read() })
+    }
+}
+
+impl LumaCoefficientsMut<'_> {
+    /// Field: AVLumaCoefficients.cr
+    ///
+    /// The red coefficient, written through an exclusive handle over the
+    /// field, which borrows these coefficients exclusively while it lives.
+    #[must_use]
+    pub fn cr_mut(&mut self) -> RationalMut<'_> {
+        // SAFETY: the `cr` field, projected without a reference through the
+        // exclusive handle's pointer to a live `AVLumaCoefficients`, is a
+        // live `AVRational` that only the result reaches while it borrows
+        // `self` exclusively; a field address is never NULL.
+        unsafe { RationalMut::from_ptr(addr_of_mut!((*self.as_mut_ptr()).cr)) }
+            .expect("a field address is not NULL")
+    }
+
+    /// Field: AVLumaCoefficients.cg
+    ///
+    /// The green coefficient, written through an exclusive handle over the
+    /// field, which borrows these coefficients exclusively while it lives.
+    #[must_use]
+    pub fn cg_mut(&mut self) -> RationalMut<'_> {
+        // SAFETY: as for `cr_mut`, for the `cg` field.
+        unsafe { RationalMut::from_ptr(addr_of_mut!((*self.as_mut_ptr()).cg)) }
+            .expect("a field address is not NULL")
+    }
+
+    /// Field: AVLumaCoefficients.cb
+    ///
+    /// The blue coefficient, written through an exclusive handle over the
+    /// field, which borrows these coefficients exclusively while it lives.
+    #[must_use]
+    pub fn cb_mut(&mut self) -> RationalMut<'_> {
+        // SAFETY: as for `cr_mut`, for the `cb` field.
+        unsafe { RationalMut::from_ptr(addr_of_mut!((*self.as_mut_ptr()).cb)) }
+            .expect("a field address is not NULL")
+    }
+
+    /// Field: AVLumaCoefficients.cr
+    ///
+    /// Sets the red coefficient, leaving the others as they are.
+    pub fn set_cr(&mut self, cr: Rational) {
+        // SAFETY: a write of the `cr` field projected through the exclusive
+        // handle's pointer to a live `AVLumaCoefficients`; the old value owns
+        // nothing to leak.
+        unsafe { addr_of_mut!((*self.as_mut_ptr()).cr).write(cr.into_raw()) }
+    }
+
+    /// Field: AVLumaCoefficients.cg
+    ///
+    /// Sets the green coefficient, leaving the others as they are.
+    pub fn set_cg(&mut self, cg: Rational) {
+        // SAFETY: as in `set_cr`, for the `cg` field.
+        unsafe { addr_of_mut!((*self.as_mut_ptr()).cg).write(cg.into_raw()) }
+    }
+
+    /// Field: AVLumaCoefficients.cb
+    ///
+    /// Sets the blue coefficient, leaving the others as they are.
+    pub fn set_cb(&mut self, cb: Rational) {
+        // SAFETY: as in `set_cr`, for the `cb` field.
+        unsafe { addr_of_mut!((*self.as_mut_ptr()).cb).write(cb.into_raw()) }
+    }
+
+    /// Overwrites all three coefficients with `c`'s.
+    pub fn set(&mut self, c: LumaCoefficients) {
+        // SAFETY: a write of the whole `AVLumaCoefficients` through the
+        // exclusive handle's pointer to a live one; the old value owns
+        // nothing to leak.
+        unsafe { self.as_mut_ptr().write(c.into_raw()) }
     }
 }
 
@@ -567,5 +817,144 @@ mod unit_tests {
         assert_traits::<CieXy>();
         assert_handle::<CieXyRef<'static>>();
         assert_handle::<CieXyMut<'static>>();
+    }
+
+    fn luma_raw(f: [i32; 6]) -> ffi::AVLumaCoefficients {
+        ffi::AVLumaCoefficients {
+            cr: ffi::AVRational { num: f[0], den: f[1] },
+            cg: ffi::AVRational { num: f[2], den: f[3] },
+            cb: ffi::AVRational { num: f[4], den: f[5] },
+        }
+    }
+
+    fn luma_fields(c: LumaCoefficientsRef<'_>) -> [i32; 6] {
+        [
+            c.cr().num(),
+            c.cr().den(),
+            c.cg().num(),
+            c.cg().den(),
+            c.cb().num(),
+            c.cb().den(),
+        ]
+    }
+
+    #[test]
+    fn luma_coefficients_layout_is_the_c_struct() {
+        use core::mem::{align_of, size_of};
+        assert_eq!(size_of::<LumaCoefficients>(), size_of::<ffi::AVLumaCoefficients>());
+        assert_eq!(size_of::<LumaCoefficients>(), 24);
+        assert_eq!(align_of::<LumaCoefficients>(), align_of::<ffi::AVLumaCoefficients>());
+    }
+
+    #[test]
+    fn luma_coefficients_new_zeroed_default_and_raw_round_trip() {
+        let c = LumaCoefficients::new(
+            Rational::from_raw(ffi::AVRational { num: 2126, den: 10000 }),
+            Rational::from_raw(ffi::AVRational { num: 7152, den: 10000 }),
+            Rational::from_raw(ffi::AVRational { num: 722, den: 10000 }),
+        );
+        assert_eq!(luma_fields(c.as_ref()), [2126, 10000, 7152, 10000, 722, 10000]);
+        assert_eq!(luma_fields(LumaCoefficients::zeroed().as_ref()), [0; 6]);
+        assert_eq!(luma_fields(LumaCoefficients::default().as_ref()), [0; 6]);
+        let f = [i32::MIN, -1, 0, i32::MAX, 1, 0];
+        let back: ffi::AVLumaCoefficients = LumaCoefficients::from(luma_raw(f)).into();
+        assert_eq!(
+            [back.cr.num, back.cr.den, back.cg.num, back.cg.den, back.cb.num, back.cb.den],
+            f
+        );
+        assert_eq!(luma_fields(LumaCoefficients::from_raw(luma_raw(f)).as_ref()), f);
+        // `new` is usable in constants.
+        const ZERO: LumaCoefficients = LumaCoefficients::new(
+            Rational::from_raw(ffi::AVRational { num: 0, den: 0 }),
+            Rational::from_raw(ffi::AVRational { num: 0, den: 0 }),
+            Rational::from_raw(ffi::AVRational { num: 0, den: 0 }),
+        );
+        assert_eq!(luma_fields(ZERO.as_ref()), [0; 6]);
+    }
+
+    #[test]
+    fn luma_coefficients_field_handles_write_their_field_alone() {
+        let mut c = LumaCoefficients::from_raw(luma_raw([1, 2, 3, 4, 5, 6]));
+        let mut m = c.as_mut();
+        m.cr_mut().set_num(-10);
+        assert_eq!(luma_fields(m.as_ref()), [-10, 2, 3, 4, 5, 6]);
+        m.cg_mut().set(Rational::from_raw(ffi::AVRational { num: 30, den: 40 }));
+        assert_eq!(luma_fields(m.as_ref()), [-10, 2, 30, 40, 5, 6]);
+        m.cb_mut().set_den(i32::MIN);
+        assert_eq!(luma_fields(m.as_ref()), [-10, 2, 30, 40, 5, i32::MIN]);
+        m.set(LumaCoefficients::zeroed());
+        assert_eq!(luma_fields(c.as_ref()), [0; 6]);
+    }
+
+    #[test]
+    fn luma_coefficients_field_handles_outlive_the_parent_handle() {
+        let c = LumaCoefficients::from_raw(luma_raw([7, 8, 9, 10, 11, 12]));
+        // The field handles borrow the value, not the temporary handle.
+        let (cr, cb) = {
+            let r = c.as_ref();
+            (r.cr(), r.cb())
+        };
+        assert_eq!((cr.get().into_raw().num, cb.den()), (7, 12));
+        let copy = c.as_ref().get();
+        assert_eq!(luma_fields(copy.as_ref()), [7, 8, 9, 10, 11, 12]);
+    }
+
+    #[test]
+    fn luma_coefficients_value_setters_write_their_field_alone() {
+        let q = |num, den| Rational::from_raw(ffi::AVRational { num, den });
+        let mut c = LumaCoefficients::from_raw(luma_raw([1, 2, 3, 4, 5, 6]));
+        let mut m = c.as_mut();
+        m.set_cr(q(-1, -2));
+        assert_eq!(luma_fields(m.as_ref()), [-1, -2, 3, 4, 5, 6]);
+        m.set_cg(q(i32::MIN, 0));
+        assert_eq!(luma_fields(m.as_ref()), [-1, -2, i32::MIN, 0, 5, 6]);
+        m.set_cb(q(0, i32::MAX));
+        assert_eq!(luma_fields(c.as_ref()), [-1, -2, i32::MIN, 0, 0, i32::MAX]);
+    }
+
+    #[test]
+    fn luma_coefficients_equality_is_by_value() {
+        let a = LumaCoefficients::from_raw(luma_raw([1, 2, 1, 3, 1, 6]));
+        let b = LumaCoefficients::from_raw(luma_raw([2, 4, 3, 9, 5, 30]));
+        assert_eq!(a, b);
+        assert_ne!(a, LumaCoefficients::from_raw(luma_raw([1, 2, 1, 3, 1, 7])));
+        assert_ne!(a, LumaCoefficients::from_raw(luma_raw([1, 2, 1, 4, 1, 6])));
+        assert_ne!(a, LumaCoefficients::from_raw(luma_raw([1, 3, 1, 3, 1, 6])));
+        // `0/0` is unordered, like NaN.
+        let z = LumaCoefficients::zeroed();
+        assert_ne!(z, z);
+    }
+
+    #[test]
+    fn luma_coefficients_debug_names_every_field() {
+        let c = LumaCoefficients::from_raw(luma_raw([1, 2, 3, 4, 5, 6]));
+        assert_eq!(
+            format!("{c:?}"),
+            "LumaCoefficients { cr: Rational { num: 1, den: 2 }, \
+             cg: Rational { num: 3, den: 4 }, cb: Rational { num: 5, den: 6 } }"
+        );
+    }
+
+    #[test]
+    fn luma_coefficients_handles_borrow_raw_storage() {
+        let mut raw = luma_raw([0; 6]);
+        // SAFETY: `raw` is a live, initialised `AVLumaCoefficients` on this
+        // frame, outliving the handle, and nothing else touches it meanwhile.
+        let mut m = unsafe { LumaCoefficientsMut::from_ptr(&raw mut raw) }.unwrap();
+        m.cg_mut().set_num(587);
+        assert_eq!(raw.cg.num, 587);
+        // SAFETY: NULL is accepted and yields `None`.
+        assert!(unsafe { LumaCoefficientsRef::from_ptr(core::ptr::null_mut()) }.is_none());
+        // SAFETY: as above.
+        assert!(unsafe { LumaCoefficientsMut::from_ptr(core::ptr::null_mut()) }.is_none());
+    }
+
+    #[test]
+    fn luma_coefficients_are_plain_shareable_values() {
+        fn assert_traits<T: Copy + Send + Sync + core::fmt::Debug + Default + 'static>() {}
+        fn assert_handles<T: Send + Sync>() {}
+        assert_traits::<LumaCoefficients>();
+        assert_handles::<LumaCoefficientsRef<'static>>();
+        assert_handles::<LumaCoefficientsMut<'static>>();
     }
 }

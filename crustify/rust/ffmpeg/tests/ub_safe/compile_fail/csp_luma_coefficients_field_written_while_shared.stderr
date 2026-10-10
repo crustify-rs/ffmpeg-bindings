@@ -1,0 +1,9 @@
+error[E0502]: cannot borrow `c` as mutable because it is also borrowed as immutable
+ --> tests/ub_safe/compile_fail/csp_luma_coefficients_field_written_while_shared.rs
+  |
+  |     let cr = c.as_ref().cr();
+  |              - immutable borrow occurs here
+  |     c.as_mut().cr_mut().set_num(1);
+  |     ^^^^^^^^^^ mutable borrow occurs here
+  |     println!("{}", cr.num());
+  |                    -- immutable borrow later used here

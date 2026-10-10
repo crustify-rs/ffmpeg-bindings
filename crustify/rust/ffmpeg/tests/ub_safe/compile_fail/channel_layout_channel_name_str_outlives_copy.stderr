@@ -1,0 +1,15 @@
+error[E0716]: temporary value dropped while borrowed
+ --> tests/ub_safe/compile_fail/channel_layout_channel_name_str_outlives_copy.rs
+  |
+  |     let s = ch.as_ref().name().as_c_str();
+  |             ^^^^^^^^^^^^^^^^^^           - temporary value is freed at the end of this statement
+  |             |
+  |             creates a temporary value which is freed while still in use
+  |     println!("{s:?}");
+  |                - borrow later used here
+  |
+help: consider using a `let` binding to create a longer lived value
+  |
+6 ~     let binding = ch.as_ref().name();
+7 ~     let s = binding.as_c_str();
+  |

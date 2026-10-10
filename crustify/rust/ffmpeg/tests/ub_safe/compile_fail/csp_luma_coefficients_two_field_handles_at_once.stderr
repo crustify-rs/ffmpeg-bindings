@@ -1,0 +1,9 @@
+error[E0499]: cannot borrow `m` as mutable more than once at a time
+ --> tests/ub_safe/compile_fail/csp_luma_coefficients_two_field_handles_at_once.rs
+  |
+  |     let mut cr = m.cr_mut();
+  |                  - first mutable borrow occurs here
+  |     let mut cg = m.cg_mut();
+  |                  ^ second mutable borrow occurs here
+  |     cr.set_num(1);
+  |     -- first borrow later used here

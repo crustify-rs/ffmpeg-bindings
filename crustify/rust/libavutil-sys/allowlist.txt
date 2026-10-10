@@ -400,3 +400,13 @@ function av_pixelutils_get_sad_fn
 # for csp.rs's CieXy.
 function av_csp_primaries_desc_from_id
 function av_csp_primaries_id_from_desc
+
+# libavutil/channel_layout.h, csp.h: the C readers and writers of a custom
+# layout's `AVChannelCustom` map and the C producer of `AVLumaCoefficients`,
+# which observe formats wave-1 batch-1's types in equivalence tests.
+function av_channel_layout_copy
+function av_channel_layout_describe
+function av_channel_layout_index_from_string
+function av_channel_layout_channel_from_index
+function av_channel_layout_channel_from_string
+function av_csp_luma_coeffs_from_avcsp

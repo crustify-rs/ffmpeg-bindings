@@ -724,3 +724,406 @@ mod channel_order {
         }
     }
 }
+
+/// [`ChannelCustom`] against C's `AVChannelCustom`, as the elements of a
+/// custom-order layout's map: the safe getters against what C's parser
+/// stores and C's readers (`av_channel_layout_channel_from_index`) return,
+/// and twin maps written field by field, one by C-layout writes
+/// (`av_strlcpy` for names) and one through the safe setters, compared
+/// byte for byte and as C's readers (`av_channel_layout_describe`,
+/// `_check`, `_index_from_string`, `_channel_from_string`) observe them after
+/// every step, then copied (`av_channel_layout_copy`) and freed
+/// (`av_channel_layout_uninit`), a Rust-built map included.
+///
+/// [`ChannelCustom`]: ffmpeg::libavutil::channel_layout::ChannelCustom
+mod channel_custom {
+    use core::ffi::{CStr, c_char, c_int, c_uint, c_void};
+    use core::ptr::{self, NonNull};
+
+    use ffibox::{CSlice, CSliceMut};
+    use ffmpeg::libavutil::channel_layout::{Channel, ChannelCustom, ChannelCustomRef};
+    use ffmpeg::libavutil::ffi;
+    use ffmpeg::libavutil::mem::alloc_cell_array_zeroed;
+
+    /// A C channel layout, uninitialised by C (its map freed) on drop.
+    struct Layout(ffi::AVChannelLayout);
+
+    impl Layout {
+        fn zeroed() -> ffi::AVChannelLayout {
+            ffi::AVChannelLayout {
+                order: ffi::AVChannelOrder::AV_CHANNEL_ORDER_UNSPEC,
+                nb_channels: 0,
+                u: ffi::AVChannelLayout__bindgen_ty_1 { mask: 0 },
+                opaque: ptr::null_mut(),
+            }
+        }
+
+        /// `av_channel_layout_custom_init`: `n` channels, each `UNKNOWN`
+        /// and unnamed.
+        fn custom(n: c_int) -> Self {
+            let mut l = Self::zeroed();
+            // SAFETY: `l` is a zeroed layout C may overwrite.
+            assert_eq!(unsafe { ffi::av_channel_layout_custom_init(&mut l, n) }, 0);
+            assert_eq!(l.order, ffi::AVChannelOrder::AV_CHANNEL_ORDER_CUSTOM);
+            Self(l)
+        }
+
+        /// `av_channel_layout_from_string`.
+        fn parse(s: &CStr) -> Self {
+            let mut l = Self::zeroed();
+            // SAFETY: `l` is a zeroed layout C may overwrite; `s` is a C
+            // string.
+            let r = unsafe { ffi::av_channel_layout_from_string(&mut l, s.as_ptr()) };
+            assert_eq!(r, 0, "{s:?}");
+            Self(l)
+        }
+
+        /// A custom layout over a map Rust allocated (`av_calloc`) and
+        /// filled, which C frees.
+        fn adopt(map: ffmpeg::libavutil::mem::HeapVec<ChannelCustom>) -> Self {
+            let (p, n) = map.into_raw_parts();
+            let mut l = Self::zeroed();
+            l.order = ffi::AVChannelOrder::AV_CHANNEL_ORDER_CUSTOM;
+            l.nb_channels = n as c_int;
+            l.u.map = p.cast();
+            Self(l)
+        }
+
+        fn len(&self) -> usize {
+            self.0.nb_channels as usize
+        }
+
+        fn custom_map(&self) -> *mut ffi::AVChannelCustom {
+            assert_eq!(self.0.order, ffi::AVChannelOrder::AV_CHANNEL_ORDER_CUSTOM);
+            // SAFETY: a custom-order layout's union holds `map`.
+            unsafe { self.0.u.map }
+        }
+
+        /// The map's elements as safe handles: the test's one adoption of
+        /// C-owned `AVChannelCustom` storage.
+        fn handles(&self) -> CSlice<'_, ChannelCustom> {
+            // SAFETY: a custom layout's `map` is a live array of
+            // `nb_channels` initialised elements, freed only when `self`
+            // drops; `ChannelCustom` is transparent over `AVChannelCustom`.
+            unsafe { CSlice::from_raw_parts(NonNull::new(self.custom_map()).unwrap().cast(), self.len()) }
+        }
+
+        fn handles_mut(&mut self) -> CSliceMut<'_, ChannelCustom> {
+            // SAFETY: as for `handles`, borrowed exclusively through
+            // `&mut self`.
+            unsafe { CSliceMut::from_raw_parts(NonNull::new(self.custom_map()).unwrap().cast(), self.len()) }
+        }
+
+        /// Element `i` as C stores it, by value.
+        fn raw(&self, i: usize) -> ffi::AVChannelCustom {
+            assert!(i < self.len());
+            // SAFETY: `i` is in bounds of the live map.
+            unsafe { self.custom_map().add(i).read() }
+        }
+
+        /// A C-layout pointer to element `i`, for C-side writes.
+        fn raw_mut(&mut self, i: usize) -> *mut ffi::AVChannelCustom {
+            assert!(i < self.len());
+            // SAFETY: `i` is in bounds of the live map.
+            unsafe { self.custom_map().add(i) }
+        }
+
+        fn describe(&self) -> String {
+            let mut buf = [0 as c_char; 512];
+            // SAFETY: `self.0` is a valid layout and `buf` holds 512 bytes.
+            let r = unsafe { ffi::av_channel_layout_describe(&self.0, buf.as_mut_ptr(), buf.len()) };
+            assert!(r > 0 && (r as usize) < buf.len(), "{r}");
+            // SAFETY: C NUL-terminated `buf`.
+            unsafe { CStr::from_ptr(buf.as_ptr()) }.to_string_lossy().into_owned()
+        }
+
+        fn copy(&self) -> Self {
+            let mut l = Self::zeroed();
+            // SAFETY: `l` is zeroed, `self.0` valid.
+            assert_eq!(unsafe { ffi::av_channel_layout_copy(&mut l, &self.0) }, 0);
+            Self(l)
+        }
+    }
+
+    impl Drop for Layout {
+        fn drop(&mut self) {
+            // SAFETY: `self.0` is a valid layout whose map, if any, is an
+            // `av_malloc`-family block C may free.
+            unsafe { ffi::av_channel_layout_uninit(&mut self.0) }
+        }
+    }
+
+    /// Names C's lookups are asked for: present, absent, prefixed by a
+    /// channel, truncated and overlong.
+    const PROBES: [&CStr; 15] = [
+        c"front",
+        c"BAD@front",
+        c"@front",
+        c"FL@front",
+        c"FR@front",
+        c"@right",
+        c"@fr",
+        c"@x",
+        c"USR63@x",
+        c"@0123456789abcde",
+        c"@0123456789abcdef",
+        c"@whole",
+        c"@",
+        c"FL",
+        c"LFE",
+    ];
+
+    /// Everything C's readers report about `l`.
+    #[derive(Debug, PartialEq)]
+    struct Observed {
+        describe: String,
+        check: c_int,
+        index: Vec<c_int>,
+        channel: Vec<c_int>,
+        at: Vec<c_int>,
+    }
+
+    fn observe(l: &Layout) -> Observed {
+        let index = PROBES
+            .iter()
+            // SAFETY: `l.0` is a valid layout and `p` a C string.
+            .map(|p| unsafe { ffi::av_channel_layout_index_from_string(&l.0, p.as_ptr()) })
+            .collect();
+        let channel = PROBES
+            .iter()
+            // SAFETY: as above.
+            .map(|p| unsafe { ffi::av_channel_layout_channel_from_string(&l.0, p.as_ptr()) }.0)
+            .collect();
+        let at = (0..=l.len() as c_uint)
+            // SAFETY: `l.0` is a valid layout; C bounds-checks the index.
+            .map(|i| unsafe { ffi::av_channel_layout_channel_from_index(&l.0, i) }.0)
+            .collect();
+        // SAFETY: `l.0` is a valid layout.
+        let check = unsafe { ffi::av_channel_layout_check(&l.0) };
+        Observed {
+            describe: l.describe(),
+            check,
+            index,
+            channel,
+            at,
+        }
+    }
+
+    fn bytes(r: ffi::AVChannelCustom) -> (c_int, [c_char; 16], *mut c_void) {
+        (r.id.0, r.name, r.opaque)
+    }
+
+    /// The safe getters on every element of `l` against C's own reads.
+    fn assert_getters_read_c(l: &Layout, step: &str) {
+        for (i, h) in l.handles().iter().enumerate() {
+            let raw = l.raw(i);
+            // SAFETY: valid layout, index in range.
+            let c_id = unsafe { ffi::av_channel_layout_channel_from_index(&l.0, i as c_uint) };
+            assert_eq!(h.id(), Channel::from_raw(c_id), "{step} [{i}]");
+            assert_eq!(h.id().into_raw(), raw.id, "{step} [{i}]");
+            // C writes every name NUL-terminated within the field.
+            // SAFETY: the field holds a NUL.
+            let c_name = unsafe { CStr::from_ptr(raw.name.as_ptr()) };
+            assert_eq!(h.name(), c_name, "{step} [{i}]");
+            assert_eq!(h.opaque(), raw.opaque, "{step} [{i}]");
+            assert_eq!(bytes(h.get().into_raw()), bytes(raw), "{step} [{i}]");
+        }
+    }
+
+    /// One write to element `i`, by C and through the safe setters.
+    #[derive(Clone, Copy)]
+    enum Op<'a> {
+        Id(Channel),
+        /// `set_name`; C writes only names that fit.
+        Name(&'a CStr),
+        /// `set_name_truncated`; C writes with `av_strlcpy`.
+        NameTruncated(&'a CStr),
+        Opaque(*mut c_void),
+        Whole(ChannelCustom),
+    }
+
+    fn c_write(l: &mut Layout, i: usize, op: Op<'_>) {
+        let p = l.raw_mut(i);
+        // SAFETY: `p` addresses a live element of `l`'s map, which nothing
+        // else reaches meanwhile; `av_strlcpy` writes at most the field's 16
+        // bytes, and `name` is a C string.
+        unsafe {
+            match op {
+                Op::Id(ch) => (*p).id = ch.into_raw(),
+                Op::Name(name) => {
+                    if name.to_bytes().len() < 16 {
+                        ffi::av_strlcpy((*p).name.as_mut_ptr(), name.as_ptr(), 16);
+                    }
+                }
+                Op::NameTruncated(name) => {
+                    ffi::av_strlcpy((*p).name.as_mut_ptr(), name.as_ptr(), 16);
+                }
+                Op::Opaque(o) => (*p).opaque = o,
+                Op::Whole(v) => *p = v.into_raw(),
+            }
+        }
+    }
+
+    fn rust_write(l: &mut Layout, i: usize, op: Op<'_>) {
+        let mut handles = l.handles_mut();
+        let mut m = handles.get_mut(i).unwrap();
+        match op {
+            Op::Id(ch) => m.set_id(ch),
+            Op::Name(name) => {
+                let fits = name.to_bytes().len() < 16;
+                assert_eq!(m.set_name(name).is_ok(), fits);
+            }
+            Op::NameTruncated(name) => {
+                let whole = m.set_name_truncated(name);
+                assert_eq!(whole, name.to_bytes().len() < 16);
+            }
+            Op::Opaque(o) => m.set_opaque(o),
+            Op::Whole(v) => m.set(v),
+        }
+    }
+
+    #[test]
+    fn getters_read_what_c_parses() {
+        let layouts = [
+            c"FL@front+FR@right+LFE",
+            c"FL+FR@0123456789abcdefghij+USR63@x+AMBI4@amb",
+            c"FL@a+FL@a+FL@b",
+            c"USR0@\xc3\xa9+BL",
+            c"FC@0123456789abcde",
+        ];
+        for s in layouts {
+            let l = Layout::parse(s);
+            assert_eq!(l.0.order, ffi::AVChannelOrder::AV_CHANNEL_ORDER_CUSTOM, "{s:?}");
+            assert_getters_read_c(&l, &format!("{s:?}"));
+            for h in l.handles().iter() {
+                assert!(h.opaque().is_null());
+                assert!(h.name().as_bytes().len() <= 15);
+            }
+        }
+        // C truncates parsed names to the field, as `set_name_truncated` does.
+        let l = Layout::parse(c"FL+FR@0123456789abcdefghij");
+        assert_eq!(l.handles().get(1).unwrap().name(), c"0123456789abcde");
+    }
+
+    #[test]
+    fn twin_maps_written_by_c_and_the_setters_read_alike() {
+        let mut cookies = [0u8; 4];
+        let base = cookies.as_mut_ptr();
+        let cookie = |i: usize| -> *mut c_void { base.wrapping_add(i).cast() };
+        let mut whole = ChannelCustom::new(Channel::SIDE_LEFT);
+        assert_eq!(whole.as_mut().set_name(c"whole"), Ok(()));
+        whole.as_mut().set_opaque(cookie(3));
+        let steps: Vec<(usize, Op<'_>)> = vec![
+            (0, Op::Id(Channel::FRONT_LEFT)),
+            (1, Op::Id(Channel::FRONT_RIGHT)),
+            (2, Op::Id(Channel::from_raw(ffi::AVChannel(63)))),
+            (3, Op::Id(Channel::LOW_FREQUENCY)),
+            (0, Op::Name(c"front")),
+            (1, Op::Name(c"right")),
+            (2, Op::Name(c"0123456789abcdef")),
+            (2, Op::NameTruncated(c"0123456789abcdef")),
+            (3, Op::Name(c"x")),
+            (2, Op::Name(c"0123456789abcde")),
+            (0, Op::NameTruncated(c"fr")),
+            (1, Op::Name(c"")),
+            (0, Op::Name(c"x")),
+            (3, Op::NameTruncated(c"0123456789abcdefghijklmnop")),
+            (0, Op::Opaque(cookie(0))),
+            (2, Op::Opaque(cookie(2))),
+            (1, Op::Whole(whole)),
+            (0, Op::Opaque(ptr::null_mut())),
+            (3, Op::Id(Channel::AMBISONIC_BASE)),
+            (3, Op::Whole(ChannelCustom::default())),
+            // Unnamed again, in native order: C describes the map as the
+            // native layout it equals.
+            (0, Op::Name(c"")),
+            (1, Op::Whole(ChannelCustom::new(Channel::FRONT_RIGHT))),
+            (2, Op::NameTruncated(c"")),
+            (2, Op::Id(Channel::FRONT_CENTER)),
+            (3, Op::Id(Channel::LOW_FREQUENCY)),
+        ];
+        let mut c_side = Layout::custom(4);
+        let mut rust_side = Layout::custom(4);
+        assert_eq!(observe(&c_side), observe(&rust_side));
+        for (n, &(i, op)) in steps.iter().enumerate() {
+            c_write(&mut c_side, i, op);
+            rust_write(&mut rust_side, i, op);
+            let step = format!("step {n}");
+            for e in 0..4 {
+                assert_eq!(bytes(c_side.raw(e)), bytes(rust_side.raw(e)), "{step} [{e}]");
+            }
+            assert_eq!(observe(&c_side), observe(&rust_side), "{step}");
+            assert_getters_read_c(&c_side, &step);
+            assert_getters_read_c(&rust_side, &step);
+            if n == 19 {
+                // Not vacuous: C sees the names the setters wrote.
+                let seen = observe(&rust_side);
+                assert_eq!(seen.describe, "4 channels (FL@x+SL@whole+USR63@0123456789abcde+UNK)");
+                assert_eq!(seen.index[2], -22, "`@front` is gone");
+                assert_eq!(seen.index[9], 2);
+                assert_eq!(seen.index[1], -22, "`BAD@` is no channel");
+            }
+        }
+        assert_eq!(observe(&rust_side).describe, "3.1");
+
+        // Copies: the map is duplicated byte for byte, the user pointers by
+        // address.
+        let (c_copy, rust_copy) = (c_side.copy(), rust_side.copy());
+        assert_ne!(rust_copy.custom_map(), rust_side.custom_map());
+        assert_eq!(observe(&c_copy), observe(&rust_copy));
+        for (a, b) in rust_side.handles().iter().zip(rust_copy.handles().iter()) {
+            assert_eq!(a.get(), b.get());
+        }
+        assert!(rust_copy.handles().get(1).unwrap().opaque().is_null());
+        assert_eq!(rust_copy.handles().get(2).unwrap().opaque(), cookie(2));
+        // Dropping a source leaves its copy intact.
+        drop(rust_side);
+        drop(c_side);
+        assert_getters_read_c(&rust_copy, "copy after the source is freed");
+        assert_eq!(observe(&c_copy), observe(&rust_copy));
+    }
+
+    #[test]
+    fn a_map_built_in_rust_is_read_and_freed_by_c() {
+        let reference = Layout::parse(c"FL@a+FR@bb+LFE@0123456789abcde+USR42");
+        for _ in 0..3 {
+            let mut map = alloc_cell_array_zeroed::<ChannelCustom>(reference.len()).unwrap();
+            {
+                let mut handles = map.as_handles_mut();
+                for (i, src) in reference.handles().iter().enumerate() {
+                    let mut m = handles.get_mut(i).unwrap();
+                    m.set_id(src.id());
+                    assert_eq!(m.set_name(src.name().as_c_str()), Ok(()));
+                }
+            }
+            let ours = Layout::adopt(map);
+            assert_eq!(observe(&ours), observe(&reference));
+            // Equal as C reads them, not byte for byte: C's parser reuses one
+            // `AVChannelCustom` for every channel and `av_strlcpy`s each name
+            // into it, so a parsed name keeps the previous one's bytes after
+            // its NUL, which no C reader looks at.
+            for (a, b) in ours.handles().iter().zip(reference.handles().iter()) {
+                assert_eq!(a.get(), b.get());
+            }
+            // `ours` drops here: `av_channel_layout_uninit` frees the
+            // `av_calloc` block Rust allocated.
+        }
+    }
+
+    #[test]
+    fn values_moved_in_and_out_of_c_maps_read_alike() {
+        let src = Layout::parse(c"BL@left+BR@right+USR7@seven");
+        let values: Vec<ChannelCustom> = src.handles().iter().map(|h| h.get()).collect();
+        let mut dst = Layout::custom(3);
+        for (i, v) in values.iter().enumerate() {
+            // A value read from one C map, set into another, reads as C's.
+            let from_raw = ChannelCustom::from_raw(src.raw(i));
+            assert_eq!(*v, from_raw);
+            dst.handles_mut().get_mut(i).unwrap().set(*v);
+        }
+        assert_eq!(observe(&dst), observe(&src));
+        let read: Vec<ChannelCustomRef<'_>> = dst.handles().iter().collect();
+        assert_eq!(read.len(), 3);
+        assert_eq!(read[2].name(), c"seven");
+    }
+}

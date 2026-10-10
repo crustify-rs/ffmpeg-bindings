@@ -268,3 +268,270 @@ mod channel_order {
         assert_eq!(back.iter().rev().copied().collect::<Vec<_>>(), values);
     }
 }
+
+/// `ChannelCustom`: inline values, `av_malloc`-family owners and arrays of
+/// them (the shape of a custom layout's map), names of every length from
+/// exactly sized heap strings, unterminated name fields, user pointers that
+/// dangle, every handle form, copies outliving their source, and the
+/// asserted `Send` / `Sync`.
+mod channel_custom {
+    use std::ffi::{CStr, CString};
+    use std::thread;
+
+    use ffmpeg::libavutil::channel_layout::{
+        Channel, ChannelCustom, ChannelCustomMut, ChannelCustomRef, ChannelName, NameTooLong,
+    };
+    use ffmpeg::libavutil::ffi;
+    use ffmpeg::libavutil::mem::{HeapBox, alloc_cell_array_zeroed};
+
+    /// A name of `len` bytes in an exactly sized heap allocation, so a read
+    /// past its NUL is an ASan report.
+    fn heap_name(len: usize) -> CString {
+        CString::new((0..len).map(|i| b'a' + (i % 26) as u8).collect::<Vec<_>>()).unwrap()
+    }
+
+    /// A user pointer that addresses nothing: storing and reading it back
+    /// must never dereference it.
+    fn dangling(addr: usize) -> *mut core::ffi::c_void {
+        core::ptr::without_provenance_mut(addr)
+    }
+
+    fn fields(c: ChannelCustomRef<'_>) -> (Channel, ChannelName, usize) {
+        (c.id(), c.name(), c.opaque().addr())
+    }
+
+    fn fill(m: &mut ChannelCustomMut<'_>, id: i32, name: &CStr, opaque: usize) {
+        m.set_id(Channel::from_raw(ffi::AVChannel(id)));
+        m.set_name_truncated(name);
+        m.set_opaque(dangling(opaque));
+    }
+
+    #[test]
+    fn names_of_every_length_stay_in_the_field() {
+        let mut boxed = HeapBox::<ChannelCustom>::new_zeroed().unwrap();
+        let mut value = ChannelCustom::default();
+        for len in 0..=40 {
+            let name = heap_name(len);
+            for m in [&mut boxed.as_mut(), &mut value.as_mut()] {
+                m.set_opaque(dangling(0xdead));
+                m.set_id(Channel::FRONT_LEFT);
+                let strict = m.set_name(&name);
+                assert_eq!(strict.is_ok(), len <= ChannelName::MAX_LEN);
+                if let Err(e) = strict {
+                    assert_eq!(e, NameTooLong { len });
+                    assert!(!e.to_string().is_empty());
+                }
+                assert_eq!(m.set_name_truncated(&name), len <= ChannelName::MAX_LEN);
+                let read = m.as_ref().name();
+                assert_eq!(read.as_bytes(), &name.as_bytes()[..len.min(ChannelName::MAX_LEN)]);
+                // The neighbouring fields are untouched.
+                assert_eq!(m.as_ref().opaque().addr(), 0xdead);
+                assert_eq!(m.as_ref().id(), Channel::FRONT_LEFT);
+            }
+        }
+    }
+
+    #[test]
+    fn unterminated_name_fields_read_within_the_field() {
+        let raw = ffi::AVChannelCustom {
+            id: ffi::AVChannel(i32::MIN),
+            name: [b'z' as core::ffi::c_char; 16],
+            opaque: dangling(usize::MAX),
+        };
+        let mut boxed = HeapBox::<ChannelCustom>::new_zeroed().unwrap();
+        boxed.as_mut().set(ChannelCustom::from_raw(raw));
+        let name = boxed.as_ref().name();
+        assert_eq!(name.as_bytes(), [b'z'; 16]);
+        assert_eq!(name.as_c_str().to_bytes().len(), 16);
+        assert_eq!(name.to_str(), Ok("zzzzzzzzzzzzzzzz"));
+        assert!(!format!("{:?}", boxed.as_ref()).is_empty());
+        // A name written over it is terminated again.
+        assert!(boxed.as_mut().set_name_truncated(c"ok"));
+        assert_eq!(boxed.as_ref().name(), c"ok");
+    }
+
+    #[test]
+    fn user_pointers_are_stored_never_followed() {
+        let mut v = ChannelCustom::new(Channel::BACK_LEFT);
+        let gone = {
+            let mut local = 7u32;
+            let p = (&raw mut local).cast();
+            v.as_mut().set_opaque(p);
+            p
+        };
+        // The local is gone; its address is still only a value.
+        assert_eq!(v.as_ref().opaque(), gone);
+        for addr in [0, 1, 3, usize::MAX, usize::MAX / 2] {
+            v.as_mut().set_opaque(dangling(addr));
+            let copy = v.as_ref().get();
+            assert_eq!(copy.as_ref().opaque().addr(), addr);
+            assert!(!format!("{copy:?}").is_empty());
+        }
+    }
+
+    #[test]
+    fn shared_handles_copy_and_coexist() {
+        let mut v = ChannelCustom::new(Channel::LOW_FREQUENCY);
+        v.as_mut().set_name(c"sub").unwrap();
+        let a = v.as_ref();
+        let b = a;
+        let c = v.as_ref();
+        assert_eq!(fields(a), fields(b));
+        assert_eq!(c.name(), c"sub");
+    }
+
+    fn reset(mut m: ChannelCustomMut<'_>) {
+        m.set(ChannelCustom::default());
+    }
+
+    #[test]
+    fn exclusive_handle_reborrows_without_aliasing() {
+        let mut v = ChannelCustom::new(Channel::SIDE_LEFT);
+        let mut m = v.as_mut();
+        fill(&mut m, 9, c"side", 0x40);
+        reset(m.as_mut());
+        assert_eq!(fields(m.as_ref()), (Channel::UNKNOWN, ChannelName::default(), 0));
+        m.set_name(c"again").unwrap();
+        let shared = m.as_ref();
+        assert_eq!(shared.name(), c"again");
+        m.set_id(Channel::NONE);
+        assert_eq!(v.as_ref().id(), Channel::NONE);
+    }
+
+    #[test]
+    fn copies_outlive_and_are_independent_of_their_source() {
+        let (copy, name) = {
+            let mut boxed = HeapBox::<ChannelCustom>::new_zeroed().unwrap();
+            fill(&mut boxed.as_mut(), 4, c"rear left", 0x10);
+            let copy = boxed.as_ref().get();
+            let name = boxed.as_ref().name();
+            boxed.as_mut().set_name(c"changed").unwrap();
+            (copy, name)
+            // `boxed` is freed here; `copy` and `name` hold their own bytes.
+        };
+        assert_eq!(copy.as_ref().name(), c"rear left");
+        assert_eq!(name, c"rear left");
+        assert_eq!(name.as_c_str(), c"rear left");
+        let mut b = copy;
+        b.as_mut().set_id(Channel::BACK_RIGHT);
+        assert_eq!(copy.as_ref().id(), Channel::BACK_LEFT);
+    }
+
+    #[test]
+    fn heap_box_owner_lives_reads_writes_clones_and_frees() {
+        let mut a = HeapBox::<ChannelCustom>::new_zeroed().unwrap();
+        assert_eq!(a.as_ref().id(), Channel::FRONT_LEFT);
+        fill(&mut a.as_mut(), 63, c"user", 0x99);
+        let b = a.clone();
+        let c = b.try_clone().unwrap();
+        drop(a);
+        assert_eq!(fields(b.as_ref()), fields(c.as_ref()));
+        drop(b);
+        assert_eq!(c.as_ref().name(), c"user");
+        drop(HeapBox::<ChannelCustom>::new_uninit().unwrap());
+    }
+
+    #[test]
+    fn heap_array_handles_stay_in_bounds() {
+        const N: usize = 5;
+        let mut a = alloc_cell_array_zeroed::<ChannelCustom>(N).unwrap();
+        {
+            let mut handles = a.as_handles_mut();
+            for i in 0..N {
+                let name = heap_name(i * 4);
+                fill(&mut handles.get_mut(i).unwrap(), i as i32, &name, i);
+            }
+            assert!(handles.get_mut(N).is_none());
+        }
+        for (i, h) in a.as_handles().iter().enumerate() {
+            assert_eq!(h.id().into_raw().0, i as i32);
+            assert_eq!(h.name().as_bytes().len(), (i * 4).min(ChannelName::MAX_LEN));
+            assert_eq!(h.opaque().addr(), i);
+        }
+        assert!(a.as_handles().get(N).is_none());
+        let b = a.clone();
+        drop(a);
+        assert_eq!(b.as_handles().get(N - 1).unwrap().name().as_bytes().len(), 15);
+        drop(alloc_cell_array_zeroed::<ChannelCustom>(0).unwrap());
+    }
+
+    #[test]
+    fn values_and_owners_move_across_threads() {
+        let mut v = ChannelCustom::new(Channel::TOP_CENTER);
+        v.as_mut().set_opaque(dangling(0x1000));
+        let b = HeapBox::<ChannelCustom>::new_zeroed().unwrap();
+        let (v, b) = thread::spawn(move || {
+            let mut b = b;
+            b.as_mut().set(v);
+            b.as_mut().set_name(c"moved").unwrap();
+            (v, b)
+        })
+        .join()
+        .unwrap();
+        assert_eq!(b.as_ref().id(), v.as_ref().id());
+        assert_eq!(b.as_ref().name(), c"moved");
+        thread::spawn(move || drop(b)).join().unwrap();
+    }
+
+    #[test]
+    fn shared_handles_read_concurrently() {
+        let mut v = ChannelCustom::new(Channel::WIDE_LEFT);
+        v.as_mut().set_name(c"wide").unwrap();
+        let boxed = HeapBox::<ChannelCustom>::new_zeroed().unwrap();
+        let (vr, br) = (v.as_ref(), boxed.as_ref());
+        thread::scope(|s| {
+            for _ in 0..4 {
+                s.spawn(move || {
+                    for _ in 0..1000 {
+                        assert_eq!(vr.name(), c"wide");
+                        // All-zero: `FRONT_LEFT`, unnamed, NULL.
+                        assert_eq!(br.get(), ChannelCustom::new(Channel::FRONT_LEFT));
+                    }
+                });
+            }
+        });
+    }
+
+    #[test]
+    fn exclusive_handles_write_on_other_threads() {
+        let mut values = [ChannelCustom::default(); 4];
+        let mut boxed = HeapBox::<ChannelCustom>::new_zeroed().unwrap();
+        thread::scope(|s| {
+            for (i, v) in values.iter_mut().enumerate() {
+                let mut m = v.as_mut();
+                s.spawn(move || fill(&mut m, i as i32, c"t", i));
+            }
+            let mut m = boxed.as_mut();
+            s.spawn(move || m.set_name(c"boxed").unwrap());
+        });
+        let ids: Vec<i32> = values.iter().map(|v| v.as_ref().id().into_raw().0).collect();
+        assert_eq!(ids, [0, 1, 2, 3]);
+        assert_eq!(boxed.as_ref().name(), c"boxed");
+    }
+
+    #[test]
+    fn a_shared_exclusive_handle_only_reads() {
+        let mut v = ChannelCustom::new(Channel::BINAURAL_LEFT);
+        let m = v.as_mut();
+        let m = &m;
+        thread::scope(|s| {
+            for _ in 0..4 {
+                s.spawn(move || assert_eq!(m.as_ref().id(), Channel::BINAURAL_LEFT));
+            }
+        });
+    }
+
+    #[test]
+    fn heap_array_elements_written_from_separate_threads() {
+        let mut a = alloc_cell_array_zeroed::<ChannelCustom>(4).unwrap();
+        let mut handles = a.as_handles_mut();
+        thread::scope(|s| {
+            for (i, m) in handles.iter_mut().enumerate() {
+                let mut m = m;
+                s.spawn(move || fill(&mut m, i as i32, &heap_name(i * 5), i));
+            }
+        });
+        let names: Vec<usize> = a.as_handles().iter().map(|h| h.name().as_bytes().len()).collect();
+        assert_eq!(names, [0, 5, 10, 15]);
+    }
+}
