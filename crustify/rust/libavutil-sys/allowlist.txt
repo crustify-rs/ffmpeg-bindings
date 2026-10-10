@@ -361,3 +361,15 @@ function av_frame_free
 function av_pix_fmt_desc_next
 function av_get_padded_bits_per_pixel
 function av_read_image_line2
+
+# libavutil/channel_layout.h and pixdesc.h: C readers and writers of
+# `AVChannelLayout.order` and the `AVChromaLocation` names, which observe
+# `ChannelOrder`'s and `ChromaLocation`'s encodings in equivalence tests
+# (formats wave 0, batch 1).
+function av_channel_layout_check
+function av_channel_layout_from_mask
+function av_channel_layout_custom_init
+function av_channel_layout_from_string
+function av_channel_layout_uninit
+function av_chroma_location_name
+function av_chroma_location_from_name

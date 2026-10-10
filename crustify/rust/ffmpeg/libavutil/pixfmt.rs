@@ -1775,6 +1775,127 @@ impl From<ColorRange> for ffi::AVColorRange {
 // C memory is the whole of it.
 unsafe impl CPlainElem for ColorRange {}
 
+/// Wraps: AVChromaLocation
+/// Handwritten
+///
+/// Where the first (top left) chroma sample of a subsampled picture sits
+/// relative to the luma samples:
+///
+/// ```text
+///                1st 2nd       1st 2nd horizontal luma sample positions
+///                 v   v         v   v
+///                 ______        ______
+/// 1st luma line > |X   X ...    |3 4 X ...     X are luma samples,
+///                 |             |1 2           1-6 are possible chroma positions
+/// 2nd luma line > |X   X ...    |5 6 X ...     0 is undefined/unknown position
+/// ```
+///
+/// A newtype over the C enum rather than a Rust `enum`: C stores the value in
+/// public struct fields its users write directly (`AVFrame.chroma_location`,
+/// `AVCodecParameters.chroma_location`), so it may hold any `unsigned`, and a
+/// Rust view of that memory must accept every one. Match on the associated
+/// constants, with a `_` arm for the values C does not name:
+///
+/// ```
+/// use ffmpeg::libavutil::pixfmt::ChromaLocation;
+/// fn is_cosited_left(loc: ChromaLocation) -> bool {
+///     matches!(
+///         loc,
+///         ChromaLocation::LEFT | ChromaLocation::TOPLEFT | ChromaLocation::BOTTOMLEFT
+///     )
+/// }
+/// assert!(is_cosited_left(ChromaLocation::TOPLEFT));
+/// assert!(!is_cosited_left(ChromaLocation::UNSPECIFIED));
+/// ```
+///
+/// `AVCHROMA_LOC_NB` is not part of FFmpeg's ABI and has no constant. The
+/// default is [`UNSPECIFIED`](Self::UNSPECIFIED), the zeroed C value.
+///
+/// No ffibox primitive covers a C enum: it owns nothing, has no handles, and
+/// is `Send + Sync` as the integer it is.
+#[repr(transparent)]
+#[derive(Clone, Copy, PartialEq, Eq, Hash)]
+pub struct ChromaLocation(ffi::AVChromaLocation);
+
+impl ChromaLocation {
+    /// Unknown or undefined (position 0).
+    pub const UNSPECIFIED: Self = Self(ffi::AVChromaLocation::AVCHROMA_LOC_UNSPECIFIED);
+    /// Position 1: MPEG-2/4 4:2:0, the H.264 default for 4:2:0.
+    pub const LEFT: Self = Self(ffi::AVChromaLocation::AVCHROMA_LOC_LEFT);
+    /// Position 2: MPEG-1 4:2:0, JPEG 4:2:0, H.263 4:2:0.
+    pub const CENTER: Self = Self(ffi::AVChromaLocation::AVCHROMA_LOC_CENTER);
+    /// Position 3: ITU-R 601, SMPTE 274M 296M S314M (DV 4:1:1), MPEG-2 4:2:2.
+    pub const TOPLEFT: Self = Self(ffi::AVChromaLocation::AVCHROMA_LOC_TOPLEFT);
+    /// Position 4.
+    pub const TOP: Self = Self(ffi::AVChromaLocation::AVCHROMA_LOC_TOP);
+    /// Position 5.
+    pub const BOTTOMLEFT: Self = Self(ffi::AVChromaLocation::AVCHROMA_LOC_BOTTOMLEFT);
+    /// Position 6.
+    pub const BOTTOM: Self = Self(ffi::AVChromaLocation::AVCHROMA_LOC_BOTTOM);
+
+    /// The chroma location C encodes as `raw`, whatever its value.
+    #[inline]
+    pub const fn from_raw(raw: ffi::AVChromaLocation) -> Self {
+        Self(raw)
+    }
+
+    /// The C encoding of this chroma location.
+    #[inline]
+    pub const fn into_raw(self) -> ffi::AVChromaLocation {
+        self.0
+    }
+
+    /// The name of the constant this value equals, if any.
+    const fn name(self) -> Option<&'static str> {
+        Some(match self {
+            Self::UNSPECIFIED => "UNSPECIFIED",
+            Self::LEFT => "LEFT",
+            Self::CENTER => "CENTER",
+            Self::TOPLEFT => "TOPLEFT",
+            Self::TOP => "TOP",
+            Self::BOTTOMLEFT => "BOTTOMLEFT",
+            Self::BOTTOM => "BOTTOM",
+            _ => return None,
+        })
+    }
+}
+
+impl Default for ChromaLocation {
+    #[inline]
+    fn default() -> Self {
+        Self::UNSPECIFIED
+    }
+}
+
+impl fmt::Debug for ChromaLocation {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self.name() {
+            Some(name) => f.write_str(name),
+            None => f.debug_tuple("ChromaLocation").field(&self.0.0).finish(),
+        }
+    }
+}
+
+impl From<ffi::AVChromaLocation> for ChromaLocation {
+    #[inline]
+    fn from(raw: ffi::AVChromaLocation) -> Self {
+        Self::from_raw(raw)
+    }
+}
+
+impl From<ChromaLocation> for ffi::AVChromaLocation {
+    #[inline]
+    fn from(loc: ChromaLocation) -> Self {
+        loc.into_raw()
+    }
+}
+
+// SAFETY: `ChromaLocation` is `#[repr(transparent)]` over
+// `ffi::AVChromaLocation`, itself `#[repr(transparent)]` over a `c_uint`, so
+// every bit pattern is a valid value, and it is a value with no C-side
+// identity: a copy read out of C memory is the whole of it.
+unsafe impl CPlainElem for ChromaLocation {}
+
 #[cfg(test)]
 mod unit_tests {
     use super::*;
@@ -2229,5 +2350,106 @@ mod unit_tests {
     fn color_range_default_is_the_zero_value() {
         assert_eq!(ColorRange::default(), ColorRange::UNSPECIFIED);
         assert_eq!(ColorRange::default().into_raw().0, 0);
+    }
+
+    const CHROMA_LOCATION_NAMED: [(ChromaLocation, &str); 7] = [
+        (ChromaLocation::UNSPECIFIED, "UNSPECIFIED"),
+        (ChromaLocation::LEFT, "LEFT"),
+        (ChromaLocation::CENTER, "CENTER"),
+        (ChromaLocation::TOPLEFT, "TOPLEFT"),
+        (ChromaLocation::TOP, "TOP"),
+        (ChromaLocation::BOTTOMLEFT, "BOTTOMLEFT"),
+        (ChromaLocation::BOTTOM, "BOTTOM"),
+    ];
+
+    /// Values C may store though it names none of them, `AVCHROMA_LOC_NB`
+    /// included.
+    const CHROMA_LOCATION_UNNAMED: [c_uint; 6] =
+        [7, 8, 1 << 16, 1 << 31, c_uint::MAX - 1, c_uint::MAX];
+
+    #[test]
+    fn chroma_location_layout_matches_the_c_enum() {
+        assert_eq!(
+            size_of::<ChromaLocation>(),
+            size_of::<ffi::AVChromaLocation>()
+        );
+        assert_eq!(
+            align_of::<ChromaLocation>(),
+            align_of::<ffi::AVChromaLocation>()
+        );
+        assert_eq!(size_of::<ChromaLocation>(), size_of::<c_uint>());
+        assert_eq!(
+            size_of::<Option<ChromaLocation>>(),
+            2 * size_of::<ChromaLocation>(),
+            "every bit pattern is a value, so there is no niche"
+        );
+    }
+
+    #[test]
+    fn chroma_location_constants_are_the_numbered_positions() {
+        for (i, (loc, _)) in CHROMA_LOCATION_NAMED.iter().enumerate() {
+            assert_eq!(loc.into_raw().0, i as c_uint);
+        }
+        let nb = ffi::AVChromaLocation::AVCHROMA_LOC_NB.0;
+        assert_eq!(nb as usize, CHROMA_LOCATION_NAMED.len());
+        assert!(CHROMA_LOCATION_UNNAMED.contains(&nb));
+    }
+
+    #[test]
+    fn chroma_location_debug_names_the_constants() {
+        for (loc, name) in CHROMA_LOCATION_NAMED {
+            assert_eq!(format!("{loc:?}"), name);
+            assert_eq!(loc.name(), Some(name));
+        }
+    }
+
+    #[test]
+    fn chroma_location_debug_shows_unnamed_values_raw() {
+        for raw in CHROMA_LOCATION_UNNAMED {
+            let loc = ChromaLocation::from_raw(ffi::AVChromaLocation(raw));
+            assert_eq!(loc.name(), None);
+            assert_eq!(format!("{loc:?}"), format!("ChromaLocation({raw})"));
+            assert!(CHROMA_LOCATION_NAMED.iter().all(|&(n, _)| n != loc));
+        }
+    }
+
+    #[test]
+    fn chroma_location_default_is_the_zeroed_value() {
+        assert_eq!(ChromaLocation::default(), ChromaLocation::UNSPECIFIED);
+        assert_eq!(ChromaLocation::default().into_raw().0, 0);
+    }
+
+    #[test]
+    fn chroma_location_raw_conversions_round_trip_every_value() {
+        let all = CHROMA_LOCATION_NAMED
+            .map(|(l, _)| l.into_raw().0)
+            .into_iter()
+            .chain(CHROMA_LOCATION_UNNAMED);
+        for raw in all {
+            let c = ffi::AVChromaLocation(raw);
+            assert_eq!(ChromaLocation::from(c).into_raw(), c);
+            assert_eq!(ffi::AVChromaLocation::from(ChromaLocation::from_raw(c)), c);
+            assert_eq!(ChromaLocation::from_raw(c), ChromaLocation::from(c));
+        }
+    }
+
+    #[test]
+    #[allow(clippy::clone_on_copy)]
+    fn chroma_location_clone_and_hash_follow_the_encoding() {
+        use std::collections::HashSet;
+        let all: Vec<ChromaLocation> = CHROMA_LOCATION_NAMED
+            .map(|(v, _)| v)
+            .into_iter()
+            .chain(
+                CHROMA_LOCATION_UNNAMED.map(|r| ChromaLocation::from_raw(ffi::AVChromaLocation(r))),
+            )
+            .collect();
+        for v in &all {
+            assert_eq!(v.clone().into_raw(), v.into_raw());
+        }
+        let set: HashSet<ChromaLocation> = all.iter().copied().collect();
+        assert_eq!(set.len(), all.len());
+        assert!(set.contains(&ChromaLocation::from_raw(ffi::AVChromaLocation(4))));
+        assert!(set.contains(&ChromaLocation::TOP));
     }
 }

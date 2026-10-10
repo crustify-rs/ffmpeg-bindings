@@ -381,9 +381,114 @@ impl From<MatrixEncoding> for ffi::AVMatrixEncoding {
 // identity: a copy read out of C memory is the whole of it.
 unsafe impl CPlainElem for MatrixEncoding {}
 
+/// Wraps: AVChannelOrder
+/// Handwritten
+///
+/// How a channel layout describes its channels: by count alone, as a bitmask
+/// of native channels, as an explicit map, or as ambisonic components.
+///
+/// A newtype over the C enum rather than a Rust `enum`: C stores the value in
+/// the public `AVChannelLayout.order` field its users write directly, so it
+/// may hold any `unsigned`, and a Rust view of that memory must accept every
+/// one. Match on the associated constants, with a `_` arm for the values C
+/// does not name:
+///
+/// ```
+/// use ffmpeg::libavutil::channel_layout::ChannelOrder;
+/// fn has_mask(order: ChannelOrder) -> bool {
+///     matches!(order, ChannelOrder::NATIVE | ChannelOrder::AMBISONIC)
+/// }
+/// assert!(has_mask(ChannelOrder::NATIVE));
+/// assert!(!has_mask(ChannelOrder::CUSTOM));
+/// ```
+///
+/// `FF_CHANNEL_ORDER_NB` is not part of FFmpeg's ABI or API and has no
+/// constant. The default is [`UNSPEC`](Self::UNSPEC), the zeroed C value.
+///
+/// No ffibox primitive covers a C enum: it owns nothing, has no handles, and
+/// is `Send + Sync` as the integer it is.
+#[repr(transparent)]
+#[derive(Clone, Copy, PartialEq, Eq, Hash)]
+pub struct ChannelOrder(ffi::AVChannelOrder);
+
+impl ChannelOrder {
+    /// Only the channel count is known, not which channels they are or their
+    /// order.
+    pub const UNSPEC: Self = Self(ffi::AVChannelOrder::AV_CHANNEL_ORDER_UNSPEC);
+    /// The channels are those set in the layout's mask, in the order of the
+    /// `AVChannel` values; up to 63 distinct channels.
+    pub const NATIVE: Self = Self(ffi::AVChannelOrder::AV_CHANNEL_ORDER_NATIVE);
+    /// The channels are listed one by one in the layout's map, in any order,
+    /// with unused or repeated channels and 64 or more of them allowed.
+    pub const CUSTOM: Self = Self(ffi::AVChannelOrder::AV_CHANNEL_ORDER_CUSTOM);
+    /// Each channel is one spherical harmonic of the sound field, in ACN
+    /// order (SN3D normalization); the mask, if any, marks the trailing
+    /// non-diegetic channels.
+    pub const AMBISONIC: Self = Self(ffi::AVChannelOrder::AV_CHANNEL_ORDER_AMBISONIC);
+
+    /// The channel order C encodes as `raw`, whatever its value.
+    #[inline]
+    pub const fn from_raw(raw: ffi::AVChannelOrder) -> Self {
+        Self(raw)
+    }
+
+    /// The C encoding of this channel order.
+    #[inline]
+    pub const fn into_raw(self) -> ffi::AVChannelOrder {
+        self.0
+    }
+
+    /// The name of the constant this value equals, if any.
+    const fn name(self) -> Option<&'static str> {
+        Some(match self {
+            Self::UNSPEC => "UNSPEC",
+            Self::NATIVE => "NATIVE",
+            Self::CUSTOM => "CUSTOM",
+            Self::AMBISONIC => "AMBISONIC",
+            _ => return None,
+        })
+    }
+}
+
+impl Default for ChannelOrder {
+    #[inline]
+    fn default() -> Self {
+        Self::UNSPEC
+    }
+}
+
+impl fmt::Debug for ChannelOrder {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self.name() {
+            Some(name) => f.write_str(name),
+            None => f.debug_tuple("ChannelOrder").field(&self.0.0).finish(),
+        }
+    }
+}
+
+impl From<ffi::AVChannelOrder> for ChannelOrder {
+    #[inline]
+    fn from(raw: ffi::AVChannelOrder) -> Self {
+        Self::from_raw(raw)
+    }
+}
+
+impl From<ChannelOrder> for ffi::AVChannelOrder {
+    #[inline]
+    fn from(order: ChannelOrder) -> Self {
+        order.into_raw()
+    }
+}
+
+// SAFETY: `ChannelOrder` is `#[repr(transparent)]` over `ffi::AVChannelOrder`,
+// itself `#[repr(transparent)]` over a `c_uint`, so every bit pattern is a
+// valid value, and it is a value with no C-side identity: a copy read out of C
+// memory is the whole of it.
+unsafe impl CPlainElem for ChannelOrder {}
+
 #[cfg(test)]
 mod unit_tests {
-    use core::ffi::c_int;
+    use core::ffi::{c_int, c_uint};
     use core::mem::{align_of, size_of};
 
     use super::*;
@@ -603,5 +708,98 @@ mod unit_tests {
             assert_eq!(MatrixEncoding::from(raw), e);
             assert_eq!(e.into_raw(), raw);
         }
+    }
+
+    const CHANNEL_ORDER_NAMED: [(ChannelOrder, &str); 4] = [
+        (ChannelOrder::UNSPEC, "UNSPEC"),
+        (ChannelOrder::NATIVE, "NATIVE"),
+        (ChannelOrder::CUSTOM, "CUSTOM"),
+        (ChannelOrder::AMBISONIC, "AMBISONIC"),
+    ];
+
+    /// Values C may store though it names none of them,
+    /// `FF_CHANNEL_ORDER_NB` included.
+    const CHANNEL_ORDER_UNNAMED: [c_uint; 6] =
+        [4, 5, 1 << 16, 1 << 31, c_uint::MAX - 1, c_uint::MAX];
+
+    #[test]
+    fn channel_order_layout_matches_the_c_enum() {
+        assert_eq!(size_of::<ChannelOrder>(), size_of::<ffi::AVChannelOrder>());
+        assert_eq!(
+            align_of::<ChannelOrder>(),
+            align_of::<ffi::AVChannelOrder>()
+        );
+        assert_eq!(size_of::<ChannelOrder>(), size_of::<c_uint>());
+        assert_eq!(
+            size_of::<Option<ChannelOrder>>(),
+            2 * size_of::<ChannelOrder>(),
+            "every bit pattern is a value, so there is no niche"
+        );
+    }
+
+    #[test]
+    fn channel_order_constants_are_distinct_and_in_c_order() {
+        for (i, (order, _)) in CHANNEL_ORDER_NAMED.iter().enumerate() {
+            assert_eq!(order.into_raw().0, i as c_uint);
+        }
+        let nb = ffi::AVChannelOrder::FF_CHANNEL_ORDER_NB.0;
+        assert_eq!(nb as usize, CHANNEL_ORDER_NAMED.len());
+        assert!(CHANNEL_ORDER_UNNAMED.contains(&nb));
+    }
+
+    #[test]
+    fn channel_order_debug_names_the_constants() {
+        for (order, name) in CHANNEL_ORDER_NAMED {
+            assert_eq!(format!("{order:?}"), name);
+            assert_eq!(order.name(), Some(name));
+        }
+    }
+
+    #[test]
+    fn channel_order_debug_shows_unnamed_values_raw() {
+        for raw in CHANNEL_ORDER_UNNAMED {
+            let order = ChannelOrder::from_raw(ffi::AVChannelOrder(raw));
+            assert_eq!(order.name(), None);
+            assert_eq!(format!("{order:?}"), format!("ChannelOrder({raw})"));
+            assert!(CHANNEL_ORDER_NAMED.iter().all(|&(n, _)| n != order));
+        }
+    }
+
+    #[test]
+    fn channel_order_default_is_the_zeroed_value() {
+        assert_eq!(ChannelOrder::default(), ChannelOrder::UNSPEC);
+        assert_eq!(ChannelOrder::default().into_raw().0, 0);
+    }
+
+    #[test]
+    fn channel_order_raw_conversions_round_trip_every_value() {
+        let all = CHANNEL_ORDER_NAMED
+            .map(|(o, _)| o.into_raw().0)
+            .into_iter()
+            .chain(CHANNEL_ORDER_UNNAMED);
+        for raw in all {
+            let c = ffi::AVChannelOrder(raw);
+            assert_eq!(ChannelOrder::from(c).into_raw(), c);
+            assert_eq!(ffi::AVChannelOrder::from(ChannelOrder::from_raw(c)), c);
+            assert_eq!(ChannelOrder::from_raw(c), ChannelOrder::from(c));
+        }
+    }
+
+    #[test]
+    #[allow(clippy::clone_on_copy)]
+    fn channel_order_clone_and_hash_follow_the_encoding() {
+        use std::collections::HashSet;
+        let all: Vec<ChannelOrder> = CHANNEL_ORDER_NAMED
+            .map(|(v, _)| v)
+            .into_iter()
+            .chain(CHANNEL_ORDER_UNNAMED.map(|r| ChannelOrder::from_raw(ffi::AVChannelOrder(r))))
+            .collect();
+        for v in &all {
+            assert_eq!(v.clone().into_raw(), v.into_raw());
+        }
+        let set: HashSet<ChannelOrder> = all.iter().copied().collect();
+        assert_eq!(set.len(), all.len());
+        assert!(set.contains(&ChannelOrder::from_raw(ffi::AVChannelOrder(2))));
+        assert!(set.contains(&ChannelOrder::CUSTOM));
     }
 }
