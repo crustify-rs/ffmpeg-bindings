@@ -4,6 +4,7 @@ mod avstring;
 mod avutil;
 mod bprint;
 mod bswap;
+mod channel_layout;
 mod common;
 mod cpu;
 mod error;

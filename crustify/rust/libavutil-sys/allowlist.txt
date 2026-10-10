@@ -330,3 +330,12 @@ function av_color_space_name
 function av_color_space_from_name
 function av_color_transfer_name
 function av_color_transfer_from_name
+
+# libavutil/pixdesc.h and channel_layout.h: C readers of `AVAlphaMode` and
+# `AVChannel`, which observe the encodings in equivalence tests (formats
+# wave 0, batch 0).
+function av_alpha_mode_name
+function av_alpha_mode_from_name
+function av_channel_name
+function av_channel_description
+function av_channel_from_string

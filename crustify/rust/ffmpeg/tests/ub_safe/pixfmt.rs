@@ -119,3 +119,72 @@ mod color_space_and_transfer {
         assert_eq!(t.into_iter().rev().collect::<Vec<_>>(), transfer_sample());
     }
 }
+
+/// [`AlphaMode`] (formats wave 0, batch 0): as a value, and as the plain
+/// element of `av_malloc`-family arrays.
+mod alpha_mode {
+    use std::thread;
+
+    use ffmpeg::libavutil::ffi;
+    use ffmpeg::libavutil::mem::{HeapVec, alloc_array, alloc_array_from_fn, alloc_array_zeroed};
+    use ffmpeg::libavutil::pixfmt::AlphaMode;
+
+    /// Named modes, `AVALPHA_MODE_NB`, `AVERROR(EINVAL)` and the extremes.
+    fn alpha_mode_sample() -> Vec<AlphaMode> {
+        [0, 1, 2, 3, 0xffff_ffea, 1 << 31, u32::MAX]
+            .map(|raw| AlphaMode::from_raw(ffi::AVAlphaMode(raw)))
+            .into()
+    }
+
+    #[test]
+    fn alpha_mode_debug_and_conversions_accept_every_value() {
+        for mode in alpha_mode_sample() {
+            assert!(!format!("{mode:?}").is_empty());
+            let raw: ffi::AVAlphaMode = mode.into();
+            assert_eq!(AlphaMode::from(raw), mode);
+        }
+    }
+
+    #[test]
+    fn alpha_mode_arrays_fill_clone_and_free() {
+        let values = alpha_mode_sample();
+        let mut a = alloc_array_zeroed::<AlphaMode>(values.len()).unwrap();
+        assert!(a.as_slice().iter().all(|&m| m == AlphaMode::default()));
+        a.as_mut_slice().copy_from_slice(&values);
+        assert!(a.as_slice().get(values.len()).is_none());
+        let mut u = alloc_array::<AlphaMode>(values.len()).unwrap();
+        for (slot, &m) in u.as_mut_slice().iter_mut().zip(&values) {
+            slot.write(m);
+        }
+        drop(u);
+        let f = alloc_array_from_fn(values.len(), |i| values[i]).unwrap();
+        let b = a.clone();
+        a.as_mut_slice().fill(AlphaMode::STRAIGHT);
+        drop(a);
+        assert_eq!(b.as_slice(), &values[..]);
+        assert_eq!(f.as_slice(), &values[..]);
+        drop(alloc_array_zeroed::<AlphaMode>(0).unwrap());
+        drop(HeapVec::<AlphaMode>::from_slice(&[]).unwrap());
+    }
+
+    #[test]
+    fn alpha_mode_arrays_cross_and_are_shared_between_threads() {
+        let values = alpha_mode_sample();
+        let a = HeapVec::from_slice(&values).unwrap();
+        // Shared reads from several threads at once.
+        thread::scope(|s| {
+            for _ in 0..4 {
+                s.spawn(|| assert_eq!(a.as_slice(), &values[..]));
+            }
+        });
+        // Moved to another thread, written and freed there.
+        let back = thread::spawn(move || {
+            let mut a = a;
+            a.as_mut_slice().reverse();
+            a.as_slice().to_vec()
+        })
+        .join()
+        .unwrap();
+        assert_eq!(back.iter().rev().copied().collect::<Vec<_>>(), values);
+    }
+}
