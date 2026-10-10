@@ -1,0 +1,36 @@
+{
+  "method": {
+    "c": "CRUSTIFY_FFMPEG_VARIANT=coverage (gcc gcov build), GCOV_PREFIX=/tmp/fw2b1/cov/gcov GCOV_PREFIX_STRIP=0, gcov 13 -b -c -f over pixdesc.c, imgutils.c, csp.c and channel_layout.c, driven by the module-filtered lib, equiv, ub_safe and ub_unsafe tests (cargo test -p ffmpeg --lib --tests -- pixdesc imgutils csp channel_layout --skip compile_fail: 162 + 105 + 146 + 13 tests) on the reviewed tree (693ccef878), before this review's test was added",
+    "rust": "RUSTFLAGS=-C instrument-coverage, nightly llvm-profdata merge + llvm-cov report/show over the same four test binaries and the four home files, same tree",
+    "note": "the review adds one equivalence test (tests/equiv/pixdesc.rs::random_lines) that exercises the wrappers' refusal arms at random; the measured tree already reached every line of them through the unit tests and the ub_safe edge sweeps"
+  },
+  "c": {
+    "libavutil/pixdesc.c": {
+      "av_read_image_line2": { "lines": { "count": 53, "percent": 100.0 }, "branches": "all taken" },
+      "av_read_image_line": { "lines": { "count": 3, "percent": 100.0 } },
+      "av_write_image_line2": { "lines": { "count": 55, "percent": 100.0 }, "branches": "all taken (66 of 66 across both line routines)" },
+      "av_write_image_line": { "lines": { "count": 3, "percent": 100.0 } },
+      "av_get_bits_per_pixel": { "lines": { "count": 7, "percent": 100.0 } },
+      "av_get_padded_bits_per_pixel": { "lines": { "count": 13, "percent": 100.0 } },
+      "av_pix_fmt_desc_get": { "lines": { "count": 3, "percent": 100.0 } },
+      "av_pix_fmt_desc_next": { "lines": { "count": 5, "percent": 100.0 } },
+      "av_pix_fmt_desc_get_id": { "lines": { "count": 3, "percent": 100.0 } }
+    },
+    "libavutil/imgutils.c": {
+      "av_image_fill_max_pixsteps": { "lines": { "count": 12, "percent": 100.0 }, "note": "both the NULL and the filled max_pixstep_comps arms (the wrapper always passes an array; the equivalence test calls C with NULL as well)" }
+    },
+    "libavutil/csp.c": {
+      "av_csp_luma_coeffs_from_avcsp": { "lines": { "count": 6, "percent": 100.0 } }
+    },
+    "libavutil/channel_layout.c": {
+      "av_channel_name_bprint": { "lines": { "count": 14, "percent": 100.0 } },
+      "av_channel_description_bprint": { "lines": { "count": 14, "percent": 100.0 } }
+    }
+  },
+  "rust": {
+    "crustify/rust/ffmpeg/libavutil/pixdesc.rs": { "lines": { "count": 1619, "missed": 0, "percent": 100.0 }, "regions": { "count": 2687, "missed": 2, "percent": 99.93 }, "note": "the two missed regions are not in this batch's section (lines 1435-2270); every arm of line_plan, LineArgs::new, row0, inside, c_shl, the bit counters, the table lookups and the Descriptors iterator executed" },
+    "crustify/rust/ffmpeg/libavutil/imgutils.rs": { "lines": { "count": 1425, "missed": 6, "percent": 99.58 }, "uncovered": [ "line 467 (wave 1): a bitstream plane whose widest component is chroma, which no descriptor has", "line 1434 (wave 1): int_linesizes' error arm after plane_ranges already checked the linesize" ], "note": "max_pixel_steps, MaxPixelSteps and Geometry::of's new reads are fully covered" },
+    "crustify/rust/ffmpeg/libavutil/csp.rs": { "lines": { "count": 738, "missed": 0, "percent": 100.0 } },
+    "crustify/rust/ffmpeg/libavutil/channel_layout.rs": { "lines": { "count": 1233, "missed": 7, "percent": 99.43 }, "uncovered": [ "lines 2520-2691: panic!() arms of batch-0 unit tests' match statements, test code" ], "note": "Channel::append_name / append_description fully covered" }
+  }
+}
