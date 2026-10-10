@@ -13,7 +13,10 @@
 //! Rust filled ([`ChannelLayout::from_custom_map`]), and deep-copied by
 //! `av_channel_layout_copy` ([`ChannelLayoutRef::try_clone`],
 //! [`ChannelLayoutMut::copy_from`]). [`LayoutDetails`] reads the order and
-//! the union it selects as one tagged value.
+//! the union it selects as one tagged value. The header's standard layouts
+//! are [`ChannelLayout`]'s constants (`AV_CHANNEL_LAYOUT_*`) over the
+//! [`masks`] (`AV_CH_LAYOUT_*`) of channel bits ([`Channel::mask`],
+//! `AV_CH_*`).
 
 use core::ffi::{CStr, c_char, c_int, c_uint, c_void};
 use core::hash::{Hash, Hasher};
@@ -183,6 +186,32 @@ impl Channel {
         let (raw, base) = (self.0.0, Self::AMBISONIC_BASE.0.0);
         if raw >= base && raw <= Self::AMBISONIC_END.0.0 {
             Some((raw - base) as u16)
+        } else {
+            None
+        }
+    }
+
+    /// This channel's bit in a native-order mask, `1 << id`, which C spells
+    /// `AV_CH_<NAME>` for the named channels (`AV_CH_FRONT_LEFT` is
+    /// `1ULL << AV_CHAN_FRONT_LEFT`): `None` for a channel no mask can hold,
+    /// an id outside `0..64` ([`NONE`](Self::NONE), [`UNUSED`](Self::UNUSED),
+    /// [`UNKNOWN`](Self::UNKNOWN) and the Ambisonic components).
+    ///
+    /// ```
+    /// use ffmpeg::libavutil::channel_layout::{Channel, masks};
+    /// assert_eq!(Channel::FRONT_LEFT.mask(), Some(1));
+    /// assert_eq!(
+    ///     Channel::FRONT_LEFT.mask().unwrap() | Channel::FRONT_RIGHT.mask().unwrap(),
+    ///     masks::STEREO
+    /// );
+    /// assert_eq!(Channel::UNKNOWN.mask(), None);
+    /// ```
+    #[inline]
+    #[must_use]
+    pub const fn mask(self) -> Option<u64> {
+        let id = self.0.0;
+        if id >= 0 && id < 64 {
+            Some(1 << id)
         } else {
             None
         }
@@ -1069,6 +1098,147 @@ impl Channel {
 /// `AVERROR(EINVAL)`: C's code for an argument it refuses.
 const EINVAL: i32 = -22;
 
+/// The native-order masks of the standard channel layouts, C's
+/// `AV_CH_LAYOUT_<NAME>` constants, each the bits ([`Channel::mask`]) of the
+/// channels it holds, composed as the header composes them. A C name that
+/// starts with a digit is not a Rust identifier, so those carry an `L`
+/// (`AV_CH_LAYOUT_5POINT1` is [`masks::L5POINT1`]); the deprecated
+/// `FF_API_CHANNEL_LAYOUT_BACK` aliases are left out. The layouts themselves
+/// are [`ChannelLayout`]'s constants of the same names.
+///
+/// ```
+/// use ffmpeg::libavutil::channel_layout::{ChannelLayout, LayoutDetails, masks};
+/// let l = ChannelLayout::from_mask(masks::L5POINT1).unwrap();
+/// assert_eq!(l.as_ref().channel_count(), 6);
+/// assert!(matches!(l.as_ref().details(), LayoutDetails::Native(masks::L5POINT1)));
+/// ```
+pub mod masks {
+    use super::Channel;
+
+    /// The bit of a named channel, which every one of them has.
+    const fn bit(ch: Channel) -> u64 {
+        match ch.mask() {
+            Some(bit) => bit,
+            None => panic!("a named channel has a mask bit"),
+        }
+    }
+
+    /// `AV_CH_LAYOUT_MONO`.
+    pub const MONO: u64 = bit(Channel::FRONT_CENTER);
+    /// `AV_CH_LAYOUT_STEREO`.
+    pub const STEREO: u64 = bit(Channel::FRONT_LEFT) | bit(Channel::FRONT_RIGHT);
+    /// `AV_CH_LAYOUT_2POINT1`.
+    pub const L2POINT1: u64 = STEREO | bit(Channel::LOW_FREQUENCY);
+    /// `AV_CH_LAYOUT_2_1`.
+    pub const L2_1: u64 = STEREO | bit(Channel::BACK_CENTER);
+    /// `AV_CH_LAYOUT_SURROUND`.
+    pub const SURROUND: u64 = STEREO | bit(Channel::FRONT_CENTER);
+    /// `AV_CH_LAYOUT_3POINT1`.
+    pub const L3POINT1: u64 = SURROUND | bit(Channel::LOW_FREQUENCY);
+    /// `AV_CH_LAYOUT_4POINT0`.
+    pub const L4POINT0: u64 = SURROUND | bit(Channel::BACK_CENTER);
+    /// `AV_CH_LAYOUT_4POINT1`.
+    pub const L4POINT1: u64 = L4POINT0 | bit(Channel::LOW_FREQUENCY);
+    /// `AV_CH_LAYOUT_2_2`.
+    pub const L2_2: u64 = STEREO | bit(Channel::SIDE_LEFT) | bit(Channel::SIDE_RIGHT);
+    /// `AV_CH_LAYOUT_QUAD`.
+    pub const QUAD: u64 = STEREO | bit(Channel::BACK_LEFT) | bit(Channel::BACK_RIGHT);
+    /// `AV_CH_LAYOUT_5POINT0`.
+    pub const L5POINT0: u64 = SURROUND | bit(Channel::SIDE_LEFT) | bit(Channel::SIDE_RIGHT);
+    /// `AV_CH_LAYOUT_5POINT1`.
+    pub const L5POINT1: u64 = L5POINT0 | bit(Channel::LOW_FREQUENCY);
+    /// `AV_CH_LAYOUT_5POINT0_BACK`.
+    pub const L5POINT0_BACK: u64 = SURROUND | bit(Channel::BACK_LEFT) | bit(Channel::BACK_RIGHT);
+    /// `AV_CH_LAYOUT_5POINT1_BACK`.
+    pub const L5POINT1_BACK: u64 = L5POINT0_BACK | bit(Channel::LOW_FREQUENCY);
+    /// `AV_CH_LAYOUT_6POINT0`.
+    pub const L6POINT0: u64 = L5POINT0 | bit(Channel::BACK_CENTER);
+    /// `AV_CH_LAYOUT_6POINT0_FRONT`.
+    pub const L6POINT0_FRONT: u64 =
+        L2_2 | bit(Channel::FRONT_LEFT_OF_CENTER) | bit(Channel::FRONT_RIGHT_OF_CENTER);
+    /// `AV_CH_LAYOUT_HEXAGONAL`.
+    pub const HEXAGONAL: u64 = L5POINT0_BACK | bit(Channel::BACK_CENTER);
+    /// `AV_CH_LAYOUT_3POINT1POINT2`.
+    pub const L3POINT1POINT2: u64 =
+        L3POINT1 | bit(Channel::TOP_FRONT_LEFT) | bit(Channel::TOP_FRONT_RIGHT);
+    /// `AV_CH_LAYOUT_6POINT1`.
+    pub const L6POINT1: u64 = L5POINT1 | bit(Channel::BACK_CENTER);
+    /// `AV_CH_LAYOUT_6POINT1_BACK`.
+    pub const L6POINT1_BACK: u64 = L5POINT1_BACK | bit(Channel::BACK_CENTER);
+    /// `AV_CH_LAYOUT_6POINT1_FRONT`.
+    pub const L6POINT1_FRONT: u64 = L6POINT0_FRONT | bit(Channel::LOW_FREQUENCY);
+    /// `AV_CH_LAYOUT_7POINT0`.
+    pub const L7POINT0: u64 = L5POINT0 | bit(Channel::BACK_LEFT) | bit(Channel::BACK_RIGHT);
+    /// `AV_CH_LAYOUT_7POINT0_FRONT`.
+    pub const L7POINT0_FRONT: u64 =
+        L5POINT0 | bit(Channel::FRONT_LEFT_OF_CENTER) | bit(Channel::FRONT_RIGHT_OF_CENTER);
+    /// `AV_CH_LAYOUT_7POINT1`.
+    pub const L7POINT1: u64 = L5POINT1 | bit(Channel::BACK_LEFT) | bit(Channel::BACK_RIGHT);
+    /// `AV_CH_LAYOUT_7POINT1_WIDE`.
+    pub const L7POINT1_WIDE: u64 =
+        L5POINT1 | bit(Channel::FRONT_LEFT_OF_CENTER) | bit(Channel::FRONT_RIGHT_OF_CENTER);
+    /// `AV_CH_LAYOUT_7POINT1_WIDE_BACK`.
+    pub const L7POINT1_WIDE_BACK: u64 =
+        L5POINT1_BACK | bit(Channel::FRONT_LEFT_OF_CENTER) | bit(Channel::FRONT_RIGHT_OF_CENTER);
+    /// `AV_CH_LAYOUT_5POINT1POINT2`.
+    pub const L5POINT1POINT2: u64 =
+        L5POINT1 | bit(Channel::TOP_FRONT_LEFT) | bit(Channel::TOP_FRONT_RIGHT);
+    /// `AV_CH_LAYOUT_5POINT1POINT2_BACK`.
+    pub const L5POINT1POINT2_BACK: u64 =
+        L5POINT1_BACK | bit(Channel::TOP_FRONT_LEFT) | bit(Channel::TOP_FRONT_RIGHT);
+    /// `AV_CH_LAYOUT_OCTAGONAL`.
+    pub const OCTAGONAL: u64 =
+        L5POINT0 | bit(Channel::BACK_LEFT) | bit(Channel::BACK_CENTER) | bit(Channel::BACK_RIGHT);
+    /// `AV_CH_LAYOUT_CUBE`.
+    pub const CUBE: u64 = QUAD
+        | bit(Channel::TOP_FRONT_LEFT)
+        | bit(Channel::TOP_FRONT_RIGHT)
+        | bit(Channel::TOP_BACK_LEFT)
+        | bit(Channel::TOP_BACK_RIGHT);
+    /// `AV_CH_LAYOUT_5POINT1POINT4`.
+    pub const L5POINT1POINT4: u64 =
+        L5POINT1POINT2 | bit(Channel::TOP_BACK_LEFT) | bit(Channel::TOP_BACK_RIGHT);
+    /// `AV_CH_LAYOUT_7POINT1POINT2`.
+    pub const L7POINT1POINT2: u64 =
+        L7POINT1 | bit(Channel::TOP_FRONT_LEFT) | bit(Channel::TOP_FRONT_RIGHT);
+    /// `AV_CH_LAYOUT_7POINT1POINT4`.
+    pub const L7POINT1POINT4: u64 =
+        L7POINT1POINT2 | bit(Channel::TOP_BACK_LEFT) | bit(Channel::TOP_BACK_RIGHT);
+    /// `AV_CH_LAYOUT_7POINT2POINT3`.
+    pub const L7POINT2POINT3: u64 =
+        L7POINT1POINT2 | bit(Channel::TOP_BACK_CENTER) | bit(Channel::LOW_FREQUENCY_2);
+    /// `AV_CH_LAYOUT_9POINT1POINT4`.
+    pub const L9POINT1POINT4: u64 =
+        L7POINT1POINT4 | bit(Channel::FRONT_LEFT_OF_CENTER) | bit(Channel::FRONT_RIGHT_OF_CENTER);
+    /// `AV_CH_LAYOUT_9POINT1POINT6`.
+    pub const L9POINT1POINT6: u64 =
+        L9POINT1POINT4 | bit(Channel::TOP_SIDE_LEFT) | bit(Channel::TOP_SIDE_RIGHT);
+    /// `AV_CH_LAYOUT_HEXADECAGONAL`.
+    pub const HEXADECAGONAL: u64 = OCTAGONAL
+        | bit(Channel::WIDE_LEFT)
+        | bit(Channel::WIDE_RIGHT)
+        | bit(Channel::TOP_BACK_LEFT)
+        | bit(Channel::TOP_BACK_RIGHT)
+        | bit(Channel::TOP_BACK_CENTER)
+        | bit(Channel::TOP_FRONT_CENTER)
+        | bit(Channel::TOP_FRONT_LEFT)
+        | bit(Channel::TOP_FRONT_RIGHT);
+    /// `AV_CH_LAYOUT_BINAURAL`.
+    pub const BINAURAL: u64 = bit(Channel::BINAURAL_LEFT) | bit(Channel::BINAURAL_RIGHT);
+    /// `AV_CH_LAYOUT_STEREO_DOWNMIX`.
+    pub const STEREO_DOWNMIX: u64 = bit(Channel::STEREO_LEFT) | bit(Channel::STEREO_RIGHT);
+    /// `AV_CH_LAYOUT_22POINT2`.
+    pub const L22POINT2: u64 = L9POINT1POINT6
+        | bit(Channel::BACK_CENTER)
+        | bit(Channel::LOW_FREQUENCY_2)
+        | bit(Channel::TOP_FRONT_CENTER)
+        | bit(Channel::TOP_CENTER)
+        | bit(Channel::TOP_BACK_CENTER)
+        | bit(Channel::BOTTOM_FRONT_CENTER)
+        | bit(Channel::BOTTOM_FRONT_LEFT)
+        | bit(Channel::BOTTOM_FRONT_RIGHT);
+}
+
 define_ctype!(
     /// Wraps: AVChannelLayout
     ///
@@ -1307,6 +1477,135 @@ impl ChannelLayout {
         let mut layout = Self::unspecified(0);
         layout.as_mut().set_custom_map(map)?;
         Ok(layout)
+    }
+}
+
+/// The standard layouts, C's `AV_CHANNEL_LAYOUT_<NAME>` initialisers: the
+/// native layout of each [`masks`] constant, under the same name, and the
+/// first-order Ambisonic layout. Each is a bare value owning nothing;
+/// [`ChannelLayoutVal::from`] (or `.into()`) makes it an owner, which
+/// [`ChannelLayoutMut::set`] and its siblings take.
+///
+/// ```
+/// use ffmpeg::libavutil::channel_layout::{ChannelLayout, ChannelLayoutVal, ChannelOrder};
+/// assert_eq!(ChannelLayout::L5POINT1.as_ref().channel_count(), 6);
+/// let mut l = ChannelLayoutVal::from(ChannelLayout::STEREO);
+/// l.as_mut().set(ChannelLayout::AMBISONIC_FIRST_ORDER.into());
+/// assert_eq!(l.as_ref().order(), ChannelOrder::AMBISONIC);
+/// assert_eq!(l.as_ref().channel_count(), 4);
+/// ```
+impl ChannelLayout {
+    /// The native-order layout of the channels set in `mask`, counting
+    /// them: what C's `AV_CHANNEL_LAYOUT_MASK(nb, m)` initialises for a
+    /// consistent `nb` (the only way the header and FFmpeg use it), and what
+    /// [`from_mask`](Self::from_mask) builds, with no error for an empty
+    /// mask, which leaves no channels.
+    #[must_use]
+    pub const fn native(mask: u64) -> Self {
+        Self::from_parts(ffi::AVChannelLayout {
+            order: ChannelOrder::NATIVE.into_raw(),
+            nb_channels: mask.count_ones() as c_int,
+            u: ffi::AVChannelLayout__bindgen_ty_1 { mask },
+            opaque: ptr::null_mut(),
+        })
+    }
+
+    /// `AV_CHANNEL_LAYOUT_MONO`: the native layout of [`masks::MONO`].
+    pub const MONO: Self = Self::native(masks::MONO);
+    /// `AV_CHANNEL_LAYOUT_STEREO`: the native layout of [`masks::STEREO`].
+    pub const STEREO: Self = Self::native(masks::STEREO);
+    /// `AV_CHANNEL_LAYOUT_2POINT1`: the native layout of [`masks::L2POINT1`].
+    pub const L2POINT1: Self = Self::native(masks::L2POINT1);
+    /// `AV_CHANNEL_LAYOUT_2_1`: the native layout of [`masks::L2_1`].
+    pub const L2_1: Self = Self::native(masks::L2_1);
+    /// `AV_CHANNEL_LAYOUT_SURROUND`: the native layout of [`masks::SURROUND`].
+    pub const SURROUND: Self = Self::native(masks::SURROUND);
+    /// `AV_CHANNEL_LAYOUT_3POINT1`: the native layout of [`masks::L3POINT1`].
+    pub const L3POINT1: Self = Self::native(masks::L3POINT1);
+    /// `AV_CHANNEL_LAYOUT_4POINT0`: the native layout of [`masks::L4POINT0`].
+    pub const L4POINT0: Self = Self::native(masks::L4POINT0);
+    /// `AV_CHANNEL_LAYOUT_4POINT1`: the native layout of [`masks::L4POINT1`].
+    pub const L4POINT1: Self = Self::native(masks::L4POINT1);
+    /// `AV_CHANNEL_LAYOUT_2_2`: the native layout of [`masks::L2_2`].
+    pub const L2_2: Self = Self::native(masks::L2_2);
+    /// `AV_CHANNEL_LAYOUT_QUAD`: the native layout of [`masks::QUAD`].
+    pub const QUAD: Self = Self::native(masks::QUAD);
+    /// `AV_CHANNEL_LAYOUT_5POINT0`: the native layout of [`masks::L5POINT0`].
+    pub const L5POINT0: Self = Self::native(masks::L5POINT0);
+    /// `AV_CHANNEL_LAYOUT_5POINT1`: the native layout of [`masks::L5POINT1`].
+    pub const L5POINT1: Self = Self::native(masks::L5POINT1);
+    /// `AV_CHANNEL_LAYOUT_5POINT0_BACK`: the native layout of [`masks::L5POINT0_BACK`].
+    pub const L5POINT0_BACK: Self = Self::native(masks::L5POINT0_BACK);
+    /// `AV_CHANNEL_LAYOUT_5POINT1_BACK`: the native layout of [`masks::L5POINT1_BACK`].
+    pub const L5POINT1_BACK: Self = Self::native(masks::L5POINT1_BACK);
+    /// `AV_CHANNEL_LAYOUT_6POINT0`: the native layout of [`masks::L6POINT0`].
+    pub const L6POINT0: Self = Self::native(masks::L6POINT0);
+    /// `AV_CHANNEL_LAYOUT_6POINT0_FRONT`: the native layout of [`masks::L6POINT0_FRONT`].
+    pub const L6POINT0_FRONT: Self = Self::native(masks::L6POINT0_FRONT);
+    /// `AV_CHANNEL_LAYOUT_HEXAGONAL`: the native layout of [`masks::HEXAGONAL`].
+    pub const HEXAGONAL: Self = Self::native(masks::HEXAGONAL);
+    /// `AV_CHANNEL_LAYOUT_3POINT1POINT2`: the native layout of [`masks::L3POINT1POINT2`].
+    pub const L3POINT1POINT2: Self = Self::native(masks::L3POINT1POINT2);
+    /// `AV_CHANNEL_LAYOUT_6POINT1`: the native layout of [`masks::L6POINT1`].
+    pub const L6POINT1: Self = Self::native(masks::L6POINT1);
+    /// `AV_CHANNEL_LAYOUT_6POINT1_BACK`: the native layout of [`masks::L6POINT1_BACK`].
+    pub const L6POINT1_BACK: Self = Self::native(masks::L6POINT1_BACK);
+    /// `AV_CHANNEL_LAYOUT_6POINT1_FRONT`: the native layout of [`masks::L6POINT1_FRONT`].
+    pub const L6POINT1_FRONT: Self = Self::native(masks::L6POINT1_FRONT);
+    /// `AV_CHANNEL_LAYOUT_7POINT0`: the native layout of [`masks::L7POINT0`].
+    pub const L7POINT0: Self = Self::native(masks::L7POINT0);
+    /// `AV_CHANNEL_LAYOUT_7POINT0_FRONT`: the native layout of [`masks::L7POINT0_FRONT`].
+    pub const L7POINT0_FRONT: Self = Self::native(masks::L7POINT0_FRONT);
+    /// `AV_CHANNEL_LAYOUT_7POINT1`: the native layout of [`masks::L7POINT1`].
+    pub const L7POINT1: Self = Self::native(masks::L7POINT1);
+    /// `AV_CHANNEL_LAYOUT_7POINT1_WIDE`: the native layout of [`masks::L7POINT1_WIDE`].
+    pub const L7POINT1_WIDE: Self = Self::native(masks::L7POINT1_WIDE);
+    /// `AV_CHANNEL_LAYOUT_7POINT1_WIDE_BACK`: the native layout of [`masks::L7POINT1_WIDE_BACK`].
+    pub const L7POINT1_WIDE_BACK: Self = Self::native(masks::L7POINT1_WIDE_BACK);
+    /// `AV_CHANNEL_LAYOUT_5POINT1POINT2`: the native layout of [`masks::L5POINT1POINT2`].
+    pub const L5POINT1POINT2: Self = Self::native(masks::L5POINT1POINT2);
+    /// `AV_CHANNEL_LAYOUT_5POINT1POINT2_BACK`: the native layout of [`masks::L5POINT1POINT2_BACK`].
+    pub const L5POINT1POINT2_BACK: Self = Self::native(masks::L5POINT1POINT2_BACK);
+    /// `AV_CHANNEL_LAYOUT_OCTAGONAL`: the native layout of [`masks::OCTAGONAL`].
+    pub const OCTAGONAL: Self = Self::native(masks::OCTAGONAL);
+    /// `AV_CHANNEL_LAYOUT_CUBE`: the native layout of [`masks::CUBE`].
+    pub const CUBE: Self = Self::native(masks::CUBE);
+    /// `AV_CHANNEL_LAYOUT_5POINT1POINT4`: the native layout of [`masks::L5POINT1POINT4`].
+    pub const L5POINT1POINT4: Self = Self::native(masks::L5POINT1POINT4);
+    /// `AV_CHANNEL_LAYOUT_7POINT1POINT2`: the native layout of [`masks::L7POINT1POINT2`].
+    pub const L7POINT1POINT2: Self = Self::native(masks::L7POINT1POINT2);
+    /// `AV_CHANNEL_LAYOUT_7POINT1POINT4`: the native layout of [`masks::L7POINT1POINT4`].
+    pub const L7POINT1POINT4: Self = Self::native(masks::L7POINT1POINT4);
+    /// `AV_CHANNEL_LAYOUT_7POINT2POINT3`: the native layout of [`masks::L7POINT2POINT3`].
+    pub const L7POINT2POINT3: Self = Self::native(masks::L7POINT2POINT3);
+    /// `AV_CHANNEL_LAYOUT_9POINT1POINT4`: the native layout of [`masks::L9POINT1POINT4`].
+    pub const L9POINT1POINT4: Self = Self::native(masks::L9POINT1POINT4);
+    /// `AV_CHANNEL_LAYOUT_9POINT1POINT6`: the native layout of [`masks::L9POINT1POINT6`].
+    pub const L9POINT1POINT6: Self = Self::native(masks::L9POINT1POINT6);
+    /// `AV_CHANNEL_LAYOUT_HEXADECAGONAL`: the native layout of [`masks::HEXADECAGONAL`].
+    pub const HEXADECAGONAL: Self = Self::native(masks::HEXADECAGONAL);
+    /// `AV_CHANNEL_LAYOUT_BINAURAL`: the native layout of [`masks::BINAURAL`].
+    pub const BINAURAL: Self = Self::native(masks::BINAURAL);
+    /// `AV_CHANNEL_LAYOUT_STEREO_DOWNMIX`: the native layout of [`masks::STEREO_DOWNMIX`].
+    pub const STEREO_DOWNMIX: Self = Self::native(masks::STEREO_DOWNMIX);
+    /// `AV_CHANNEL_LAYOUT_22POINT2`: the native layout of [`masks::L22POINT2`].
+    pub const L22POINT2: Self = Self::native(masks::L22POINT2);
+    /// `AV_CHANNEL_LAYOUT_AMBISONIC_FIRST_ORDER`: the four first-order
+    /// Ambisonic components and no non-diegetic channel.
+    pub const AMBISONIC_FIRST_ORDER: Self = Self::from_parts(ffi::AVChannelLayout {
+        order: ChannelOrder::AMBISONIC.into_raw(),
+        nb_channels: 4,
+        u: ffi::AVChannelLayout__bindgen_ty_1 { mask: 0 },
+        opaque: ptr::null_mut(),
+    });
+}
+
+/// Takes a bare layout, such as one of [`ChannelLayout`]'s standard
+/// constants, into an owner that disposes it.
+impl From<ChannelLayout> for ChannelLayoutVal {
+    #[inline]
+    fn from(layout: ChannelLayout) -> Self {
+        Self::new(layout)
     }
 }
 
@@ -2424,6 +2723,15 @@ mod unit_tests {
         ptr::without_provenance_mut(addr)
     }
 
+    /// Whether `av_channel_layout_from_string` may be given a description it
+    /// parses through glibc `strtol` end pointers (the `ambisonic` forms and
+    /// whatever `parse_channel_list` rejects): not under BSan, which reports
+    /// a stale stack shadow there as a use after free (see
+    /// `tests/common/channel_layout.rs`).
+    fn c_parser_takes_numbers() -> bool {
+        std::env::var("CRUSTIFY_FFMPEG_VARIANT").as_deref() != Ok("bsan")
+    }
+
     #[test]
     fn channel_layout_layout_is_the_c_struct() {
         use core::mem::offset_of;
@@ -2701,10 +3009,16 @@ mod unit_tests {
         assert_eq!(layout_raw(l.as_ref()), (1, 2, 0x3, 0));
         let l = ChannelLayout::default_for(-4);
         assert_eq!(layout_raw(l.as_ref()), (0, -4, 0, 0));
-        let l = ChannelLayout::parse(c"ambisonic 1+FL@x").unwrap();
+        let l = ChannelLayout::parse(c"FL@x+FR").unwrap();
         assert_eq!(l.as_ref().order(), ChannelOrder::CUSTOM);
-        assert_eq!(l.as_ref().channel_count(), 5);
-        assert!(ChannelLayout::parse(c"no such layout").is_err());
+        assert_eq!(l.as_ref().channel_count(), 2);
+        assert!(ChannelLayout::parse(c"FL+NOPE").is_err());
+        if c_parser_takes_numbers() {
+            let l = ChannelLayout::parse(c"ambisonic 1+FL@x").unwrap();
+            assert_eq!(l.as_ref().order(), ChannelOrder::CUSTOM);
+            assert_eq!(l.as_ref().channel_count(), 5);
+            assert!(ChannelLayout::parse(c"no such layout").is_err());
+        }
     }
 
     /// Allocation failures, under a process-wide `av_max_alloc` limit, so in
@@ -2736,10 +3050,12 @@ mod unit_tests {
         assert_eq!(layout_raw(dst.as_ref()), (0, 0, 0, 0));
         assert_eq!(ChannelLayout::custom(2).unwrap_err(), ENOMEM);
         assert_eq!(ChannelLayout::parse(c"FL+FR").unwrap_err(), ENOMEM);
-        assert_eq!(
-            ChannelLayout::parse(c"ambisonic 1+FL@x").unwrap_err(),
-            ENOMEM
-        );
+        if c_parser_takes_numbers() {
+            assert_eq!(
+                ChannelLayout::parse(c"ambisonic 1+FL@x").unwrap_err(),
+                ENOMEM
+            );
+        }
         // Native copies allocate nothing.
         let native = ChannelLayout::from_mask(0x3).unwrap();
         assert_eq!(
@@ -2759,5 +3075,129 @@ mod unit_tests {
         assert_send_sync::<ChannelLayoutMut<'static>>();
         assert_send_sync::<LayoutDetails<'static>>();
         assert_send_sync::<ChannelLayoutUninit>();
+    }
+
+    #[test]
+    fn channel_mask_is_the_bit_of_ids_below_64() {
+        for raw in (-3..0)
+            .chain(64..70)
+            .chain([c_int::MIN, 0x200, 0x300, 0x400, c_int::MAX])
+        {
+            assert_eq!(channel(raw).mask(), None, "raw {raw}");
+        }
+        for raw in 0..64 {
+            assert_eq!(channel(raw).mask(), Some(1u64 << raw), "raw {raw}");
+        }
+        for (ch, raw, _) in CHANNEL_NAMED {
+            let want = (0..64).contains(&raw).then(|| 1u64 << raw);
+            assert_eq!(ch.mask(), want, "{ch:?}");
+        }
+        assert_eq!(Channel::NONE.mask(), None);
+        assert_eq!(Channel::AMBISONIC_BASE.mask(), None);
+        assert_eq!(Channel::BINAURAL_RIGHT.mask(), Some(1 << 62));
+        // `mask` is usable in constants.
+        const FL: Option<u64> = Channel::FRONT_LEFT.mask();
+        assert_eq!(FL, Some(1));
+    }
+
+    #[test]
+    fn masks_compose_as_the_header_and_count_their_channels() {
+        let bit = |ch: Channel| ch.mask().unwrap();
+        assert_eq!(masks::MONO, bit(Channel::FRONT_CENTER));
+        assert_eq!(masks::STEREO, 0x3);
+        assert_eq!(masks::L2POINT1, masks::STEREO | bit(Channel::LOW_FREQUENCY));
+        assert_eq!(masks::L2_1, masks::STEREO | bit(Channel::BACK_CENTER));
+        assert_eq!(masks::L5POINT1, 0x60f);
+        assert_eq!(masks::L7POINT1, 0x63f);
+        assert_eq!(masks::L5POINT1_BACK, 0x3f);
+        assert_eq!(masks::QUAD, 0x33);
+        assert_eq!(masks::STEREO_DOWNMIX, (1 << 29) | (1 << 30));
+        assert_eq!(masks::BINAURAL, (1 << 61) | (1 << 62));
+        assert_eq!(masks::L22POINT2.count_ones(), 24);
+        assert_eq!(masks::HEXADECAGONAL.count_ones(), 16);
+        assert_eq!(masks::L9POINT1POINT6.count_ones(), 16);
+        // Every mask holds named channels only, and the header's supersets
+        // hold their subsets.
+        let named: u64 = CHANNEL_NAMED
+            .iter()
+            .filter_map(|&(ch, _, _)| ch.mask())
+            .fold(0, |m, b| m | b);
+        for (name, mask) in [
+            ("L7POINT1POINT4", masks::L7POINT1POINT4),
+            ("L9POINT1POINT4", masks::L9POINT1POINT4),
+            ("CUBE", masks::CUBE),
+            ("OCTAGONAL", masks::OCTAGONAL),
+        ] {
+            assert_eq!(mask & !named, 0, "{name}");
+        }
+        assert_eq!(masks::L7POINT1POINT4 & masks::L7POINT1, masks::L7POINT1);
+        assert_eq!(
+            masks::L22POINT2 & masks::L9POINT1POINT6,
+            masks::L9POINT1POINT6
+        );
+        assert_eq!(masks::CUBE & masks::QUAD, masks::QUAD);
+    }
+
+    #[test]
+    fn standard_layouts_are_native_over_their_masks() {
+        for (name, layout, mask) in [
+            ("MONO", ChannelLayout::MONO, masks::MONO),
+            ("STEREO", ChannelLayout::STEREO, masks::STEREO),
+            ("L2POINT1", ChannelLayout::L2POINT1, masks::L2POINT1),
+            ("L5POINT1", ChannelLayout::L5POINT1, masks::L5POINT1),
+            (
+                "L7POINT1_WIDE_BACK",
+                ChannelLayout::L7POINT1_WIDE_BACK,
+                masks::L7POINT1_WIDE_BACK,
+            ),
+            (
+                "HEXADECAGONAL",
+                ChannelLayout::HEXADECAGONAL,
+                masks::HEXADECAGONAL,
+            ),
+            (
+                "STEREO_DOWNMIX",
+                ChannelLayout::STEREO_DOWNMIX,
+                masks::STEREO_DOWNMIX,
+            ),
+            ("L22POINT2", ChannelLayout::L22POINT2, masks::L22POINT2),
+        ] {
+            assert_eq!(
+                layout_raw(layout.as_ref()),
+                (1, mask.count_ones() as c_int, mask, 0),
+                "{name}"
+            );
+            assert!(matches!(layout.as_ref().details(), LayoutDetails::Native(m) if m == mask));
+        }
+        assert_eq!(
+            layout_raw(ChannelLayout::AMBISONIC_FIRST_ORDER.as_ref()),
+            (3, 4, 0, 0)
+        );
+        assert!(matches!(
+            ChannelLayout::AMBISONIC_FIRST_ORDER.as_ref().details(),
+            LayoutDetails::Ambisonic(0)
+        ));
+        // `native` counts any mask, the empty one included, as `set_native`.
+        for mask in [0, 1, 0x3, 1 << 63, u64::MAX, 0x8000_0000_0000_0001] {
+            let l = ChannelLayout::native(mask);
+            assert_eq!(
+                layout_raw(l.as_ref()),
+                (1, mask.count_ones() as c_int, mask, 0)
+            );
+            let mut set = ChannelLayout::unspecified(9);
+            set.as_mut().set_native(mask);
+            assert_eq!(layout_raw(set.as_ref()), layout_raw(l.as_ref()));
+        }
+        const QUAD: ChannelLayout = ChannelLayout::native(masks::QUAD);
+        assert_eq!(QUAD.as_ref().channel_count(), 4);
+        // A constant is a fresh value at each use: an owner made of it and
+        // written stays its own.
+        let mut owned = ChannelLayoutVal::from(ChannelLayout::STEREO);
+        owned.as_mut().set_opaque(cookie(64));
+        owned.as_mut().set(ChannelLayout::L5POINT1.into());
+        assert_eq!(layout_raw(owned.as_ref()), (1, 6, masks::L5POINT1, 0));
+        assert_eq!(layout_raw(ChannelLayout::STEREO.as_ref()), (1, 2, 0x3, 0));
+        let copy = ChannelLayout::L7POINT1.as_ref().try_clone().unwrap();
+        assert_eq!(layout_raw(copy.as_ref()), (1, 8, masks::L7POINT1, 0));
     }
 }

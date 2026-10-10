@@ -8,6 +8,57 @@ use ffmpeg::libavutil::channel_layout::Channel;
 use ffmpeg::libavutil::ffi;
 use ffmpeg::libavutil::mem::{HeapVec, alloc_array, alloc_array_from_fn, alloc_array_zeroed};
 
+/// Which descriptions C's parser may be given under BSan.
+#[path = "../common/channel_layout.rs"]
+mod parser_inputs;
+
+/// The BSan input filter keeps exactly the descriptions C matches by name or
+/// accepts as a channel list, and skips every other spelling.
+#[test]
+fn parser_input_filter_classifies_cs_paths() {
+    use parser_inputs::parsed_before_strtol;
+    for s in [
+        c"mono",
+        c"5.1(side)",
+        c"7.1(wide-side)",
+        c"22.2",
+        c"FL+FR",
+        c"FL@left+FR@right+LFE",
+        c"USR63@x+AMBI4@amb",
+        c"FL@a+FL@a+FL@b",
+        c"USR0@\xc3\xa9+BL",
+        c"FL@",
+        c"2 channels (FL+FR)",
+        c"2 channels (FL+FR)x",
+        c"3 channels (FL+FR)",
+    ] {
+        assert!(parsed_before_strtol(s), "{s:?}");
+    }
+    for s in [
+        c"ambisonic 0",
+        c"ambisonic 1+FL@x",
+        c"ambisonic ",
+        c"0x3",
+        c"-1",
+        c"3c",
+        c"4C",
+        c"4 channels",
+        c"2 channels ()",
+        c"2 channels (FL+NOPE)",
+        c"@x",
+        c"+",
+        c"",
+        c"FL+NOPE",
+        c"FL + FR",
+        c"'FL'+FR",
+        c"FL\\+FR",
+        c"Stereo",
+        c"\xff",
+    ] {
+        assert!(!parsed_before_strtol(s), "{s:?}");
+    }
+}
+
 /// Named ids, the Ambisonic bounds and their neighbours, user ids and the
 /// `int` extremes.
 fn channel_sample() -> Vec<Channel> {
@@ -728,6 +779,8 @@ mod layout {
     use ffmpeg::libavutil::ffi;
     use ffmpeg::libavutil::mem::{HeapVec, alloc_cell_array_zeroed};
 
+    use super::parser_inputs::{CHANNEL_BITS, LAYOUT_MASKS, STANDARD_LAYOUTS, allowed, under_bsan};
+
     /// Descriptions C parses, fails to parse, or stops short in: standard
     /// names, channel lists with and without names, masks, counts,
     /// ambisonic orders at the `int` bound, and malformed spellings.
@@ -846,7 +899,7 @@ mod layout {
             }
         }
         let mut parsed = 0;
-        for s in DESCRIPTIONS {
+        for s in allowed(&DESCRIPTIONS) {
             if let Ok(l) = ChannelLayout::parse(s) {
                 walk(l.as_ref());
                 let copy = l.as_ref().try_clone().unwrap();
@@ -855,7 +908,7 @@ mod layout {
                 parsed += 1;
             }
         }
-        assert!(parsed > 15, "{parsed}");
+        assert!(parsed > if under_bsan() { 8 } else { 15 }, "{parsed}");
         for n in [1, 2, 63, 64, 65, 300] {
             let l = ChannelLayout::from_custom_map(map(n)).unwrap();
             assert_eq!(walk(l.as_ref()), n);
@@ -933,8 +986,9 @@ mod layout {
                 }
             }
             5 => {
+                let descriptions: Vec<_> = allowed(&DESCRIPTIONS).collect();
                 if let Ok(parsed) =
-                    ChannelLayout::parse(DESCRIPTIONS[arg as usize % DESCRIPTIONS.len()])
+                    ChannelLayout::parse(descriptions[arg as usize % descriptions.len()])
                 {
                     drop(l.as_mut().replace(parsed));
                 }
@@ -1041,8 +1095,7 @@ mod layout {
 
     #[test]
     fn owners_move_and_drop_across_threads() {
-        let layouts: Vec<ChannelLayoutVal> = DESCRIPTIONS
-            .iter()
+        let layouts: Vec<ChannelLayoutVal> = allowed(&DESCRIPTIONS)
             .filter_map(|s| ChannelLayout::parse(s).ok())
             .collect();
         let back = thread::spawn(move || {
@@ -1111,5 +1164,91 @@ mod layout {
                 s.spawn(move || assert_eq!(walk(m.as_ref()), 2));
             }
         });
+    }
+
+    /// `Channel::mask` at every id class, and the mask constants as inputs
+    /// to every mask-taking path.
+    #[test]
+    fn masks_and_bits_feed_every_mask_path() {
+        for raw in [
+            i32::MIN,
+            -1,
+            0,
+            1,
+            63,
+            64,
+            0x200,
+            0x300,
+            0x400,
+            0x7ff,
+            i32::MAX,
+        ] {
+            let ch = Channel::from_raw(ffi::AVChannel(raw));
+            assert_eq!(ch.mask().is_some(), (0..64).contains(&raw), "{raw}");
+        }
+        let mut all = 0;
+        for (name, ch) in CHANNEL_BITS {
+            let bit = ch.mask().unwrap_or_else(|| panic!("{name}"));
+            assert_eq!(all & bit, 0, "{name}");
+            all |= bit;
+        }
+        for (name, mask) in LAYOUT_MASKS {
+            assert_eq!(mask & !all, 0, "{name}");
+            let l = ChannelLayout::from_mask(mask).unwrap();
+            assert_eq!(walk(l.as_ref()), 0, "{name}");
+            let mut set = ChannelLayout::custom(3).unwrap();
+            set.as_mut().set_native(mask);
+            assert_eq!(
+                l.as_ref().channel_count(),
+                set.as_ref().channel_count(),
+                "{name}"
+            );
+            assert!(set.as_mut().set_ambisonic(1, mask).is_ok(), "{name}");
+            walk(set.as_ref());
+        }
+    }
+
+    /// Every standard layout is read, copied, owned, overwritten, moved
+    /// across threads and dropped without touching anything it does not own.
+    #[test]
+    fn standard_layouts_are_plain_values() {
+        for (name, layout) in STANDARD_LAYOUTS {
+            assert_eq!(walk(layout.as_ref()), 0, "{name}");
+            let copy = layout.as_ref().try_clone().unwrap();
+            walk(copy.as_ref());
+            let mut owned = ChannelLayoutVal::from(layout);
+            owned.as_mut().set_opaque(dangling(0x40));
+            owned.as_mut().set(ChannelLayout::custom(2).unwrap());
+            assert_eq!(walk(owned.as_ref()), 2);
+            owned.as_mut().set(ChannelLayout::STEREO.into());
+            assert_eq!(owned.as_ref().channel_count(), 2);
+            drop(owned.as_mut().take());
+            // The constant is untouched by whatever its owners did.
+            assert_eq!(walk(ChannelLayout::STEREO.as_ref()), 0);
+        }
+        let owners: Vec<ChannelLayoutVal> = STANDARD_LAYOUTS
+            .into_iter()
+            .map(|(_, l)| ChannelLayoutVal::from(l))
+            .collect();
+        let back = thread::spawn(move || {
+            owners
+                .iter()
+                .map(|l| l.as_ref().try_clone().unwrap())
+                .collect::<Vec<_>>()
+        })
+        .join()
+        .unwrap();
+        assert_eq!(back.len(), STANDARD_LAYOUTS.len());
+        thread::scope(|s| {
+            for l in &back {
+                s.spawn(move || walk(l.as_ref()));
+            }
+        });
+        // A bare native value given up by its owner owns nothing to leak.
+        let bare = ChannelLayoutVal::from(ChannelLayout::L22POINT2).into_inner();
+        assert_eq!(bare.as_ref().channel_count(), 24);
+        let custom = ChannelLayout::native(u64::MAX);
+        assert_eq!(walk(custom.as_ref()), 0);
+        assert_eq!(walk(ChannelLayout::native(0).as_ref()), 0);
     }
 }

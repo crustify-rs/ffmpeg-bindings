@@ -10,6 +10,10 @@ use ffmpeg::libavutil::channel_layout::Channel;
 use ffmpeg::libavutil::ffi;
 use ffmpeg::libavutil::mem::{HeapVec, alloc_array_zeroed};
 
+/// Which descriptions C's parser may be given under BSan.
+#[path = "../common/channel_layout.rs"]
+mod parser_inputs;
+
 /// Every named channel beside its C enumerator and C name.
 const CHANNEL_NAMED: [(Channel, ffi::AVChannel, &str); 41] = {
     use ffi::AVChannel as C;
@@ -426,6 +430,8 @@ mod channel_order {
     use ffmpeg::libavutil::ffi;
     use ffmpeg::libavutil::mem::{HeapVec, alloc_array_zeroed};
 
+    use super::parser_inputs::skipped_under_bsan;
+
     /// Every named constant beside its C enumerator.
     const NAMED: [(ChannelOrder, ffi::AVChannelOrder); 4] = [
         (
@@ -571,6 +577,9 @@ mod channel_order {
             (c"ambisonic 2+stereo", ChannelOrder::AMBISONIC),
             (c"ambisonic 1+FR@x", ChannelOrder::CUSTOM),
         ] {
+            if skipped_under_bsan(s) {
+                continue;
+            }
             let l = CLayout::from_string(s);
             assert_eq!(l.order(), want, "{s:?}");
             assert_eq!(l.order().into_raw(), l.0.order);
@@ -1496,6 +1505,8 @@ mod layout {
     use ffmpeg::libavutil::ffi;
     use ffmpeg::libavutil::mem::{HeapVec, alloc_cell_array_zeroed};
 
+    use super::parser_inputs::{CHANNEL_BITS, LAYOUT_MASKS, STANDARD_LAYOUTS, allowed, under_bsan};
+
     const EINVAL: c_int = -22;
 
     /// A layout C owns, uninitialised by C on drop.
@@ -1725,6 +1736,25 @@ mod layout {
         (ret, c)
     }
 
+    /// What `c_parse("ambisonic <order>[+<mask>]")` returns, written as C's
+    /// parser writes it (`channel_layout.c:340-368`, the native-extra path)
+    /// without calling it: the ambisonic forms are parsed through glibc end
+    /// pointers, which BSan cannot be given (`parser_inputs`), so under BSan
+    /// the C twin of an ambisonic step is built by hand; the parse itself is
+    /// compared under the other instruments.
+    fn c_ambisonic(order: u32, mask: u64) -> (c_int, CLayout) {
+        let mut c = CLayout::zeroed();
+        let n = i64::from(order) + 1;
+        let extra = i64::from(mask.count_ones());
+        if n > i64::from(c_int::MAX) / n || extra >= i64::from(c_int::MAX) - n * n {
+            return (EINVAL, c);
+        }
+        c.0.order = ffi::AVChannelOrder::AV_CHANNEL_ORDER_AMBISONIC;
+        c.0.nb_channels = c_int::try_from(n * n + extra).unwrap();
+        c.0.u.mask = mask;
+        (0, c)
+    }
+
     fn result<T>(r: &Result<T, c_int>) -> c_int {
         r.as_ref().map_or_else(|&e| e, |_| 0)
     }
@@ -1759,7 +1789,7 @@ mod layout {
             assert_twins(&r, &c, &format!("default {n}"));
         }
         let mut parsed = 0;
-        for s in DESCRIPTIONS {
+        for s in allowed(&DESCRIPTIONS) {
             let r = ChannelLayout::parse(s);
             let (ret, c) = c_parse(s);
             assert_eq!(result(&r), ret, "{s:?}");
@@ -1768,16 +1798,14 @@ mod layout {
                 parsed += 1;
             }
         }
-        assert!(parsed >= 20, "{parsed}");
+        assert!(parsed >= if under_bsan() { 10 } else { 20 }, "{parsed}");
         let zero = ChannelLayout::unspecified(0);
         assert_twins(&zero, &CLayout::zeroed(), "zeroed");
     }
 
     #[test]
     fn copies_match_c_copy_over_every_destination() {
-        let sources: Vec<&CStr> = DESCRIPTIONS
-            .iter()
-            .copied()
+        let sources: Vec<&CStr> = allowed(&DESCRIPTIONS)
             .filter(|s| c_parse(s).0 == 0)
             .collect();
         for &src in &sources {
@@ -1789,7 +1817,7 @@ mod layout {
             assert_eq!(unsafe { ffi::av_channel_layout_copy(&mut cc.0, &cs.0) }, 0);
             assert_twins(&rc, &cc, &format!("clone of {src:?}"));
             // Over a destination of every kind, which C uninitialises first.
-            for &dst in &[c"FL@a+FR@b+LFE", c"stereo", c"ambisonic 1", c"3C"] {
+            for dst in allowed(&[c"FL@a+FR@b+LFE", c"stereo", c"ambisonic 1", c"3C"]) {
                 let (mut rd, (_, mut cd)) = (ChannelLayout::parse(dst).unwrap(), c_parse(dst));
                 assert_eq!(rd.as_mut().copy_from(rs.as_ref()), Ok(()));
                 // SAFETY: both are valid, distinct layouts.
@@ -1839,7 +1867,11 @@ mod layout {
                 } else {
                     format!("ambisonic {order}+{mask:#x}")
                 };
-                let (ret, parsed) = c_parse(&CString::new(s).unwrap());
+                let (ret, parsed) = if under_bsan() {
+                    c_ambisonic(order, mask)
+                } else {
+                    c_parse(&CString::new(s).unwrap())
+                };
                 if ret == 0 {
                     let opaque = c.uninit_keeping_opaque();
                     // Move the parsed layout in.
@@ -2008,7 +2040,13 @@ mod layout {
             Parse(c"FL@x+FR@y"),
             Take,
             Native(u64::MAX),
-            Parse(c"ambisonic 1+FL@x+FR"),
+            // The same custom map as `ambisonic 1+FL@x+FR`, which C parses
+            // through glibc end pointers BSan cannot be given.
+            Parse(if under_bsan() {
+                c"AMBI0+AMBI1+AMBI2+AMBI3+FL@x+FR"
+            } else {
+                c"ambisonic 1+FL@x+FR"
+            }),
             Edit(0, 0x401, c"z"),
             Take,
             CustomMap(MAP_B),
@@ -2103,5 +2141,132 @@ mod layout {
                 .set_ambisonic(46340, 0)
                 .unwrap_err()
         );
+    }
+
+    /// The entries of a `crustify_AV_CH*` table shim, by name, read until
+    /// the NULL name past the last one.
+    fn c_table<T>(mut entry: impl FnMut(usize, &mut *const c_char) -> T) -> Vec<(String, T)> {
+        let mut out = Vec::new();
+        for i in 0.. {
+            let mut name: *const c_char = ptr::null();
+            let value = entry(i, &mut name);
+            if name.is_null() {
+                break;
+            }
+            // SAFETY: the shim stored a static NUL-terminated literal.
+            let name = unsafe { CStr::from_ptr(name) }.to_str().unwrap().to_owned();
+            out.push((name, value));
+        }
+        out
+    }
+
+    /// `ChannelLayout::mask` is every `AV_CH_<name>` macro, and C's native
+    /// bit of every id below 64.
+    #[test]
+    fn channel_bits_match_the_c_av_ch_macros() {
+        // SAFETY: `name` is a valid slot for the shim's output.
+        let table = c_table(|i, name| unsafe { ffi::crustify_AV_CH(i, name) });
+        assert_eq!(table.len(), CHANNEL_BITS.len());
+        for ((c_name, c_mask), (name, ch)) in table.iter().zip(CHANNEL_BITS) {
+            assert_eq!(c_name, name);
+            assert_eq!(ch.mask(), Some(*c_mask), "{name}");
+            assert_eq!(c_mask.count_ones(), 1, "{name}");
+        }
+        for id in 0..64 {
+            let ch = Channel::from_raw(ffi::AVChannel(id));
+            let bit = ch.mask().unwrap();
+            let l = ChannelLayout::from_mask(bit).unwrap();
+            // SAFETY: a valid native layout C only reads.
+            let (at, index) = unsafe {
+                (
+                    ffi::av_channel_layout_channel_from_index(rust_ptr(&l), 0),
+                    ffi::av_channel_layout_index_from_channel(rust_ptr(&l), ch.into_raw()),
+                )
+            };
+            assert_eq!((at.0, index), (id, 0), "id {id}");
+        }
+    }
+
+    /// `masks::*` are the `AV_CH_LAYOUT_<name>` macros, which C's
+    /// `av_channel_layout_from_mask` accepts as the standard layouts.
+    #[test]
+    fn layout_masks_match_the_c_av_ch_layout_macros() {
+        // SAFETY: `name` is a valid slot for the shim's output.
+        let table = c_table(|i, name| unsafe { ffi::crustify_AV_CH_LAYOUT(i, name) });
+        assert_eq!(table.len(), LAYOUT_MASKS.len());
+        for ((c_name, c_mask), (name, mask)) in table.iter().zip(LAYOUT_MASKS) {
+            assert_eq!(c_name, name);
+            assert_eq!(mask, *c_mask, "{name}");
+            let r = ChannelLayout::from_mask(mask).unwrap();
+            let mut c = CLayout::zeroed();
+            // SAFETY: a zeroed layout C may initialise.
+            let ret = unsafe { ffi::av_channel_layout_from_mask(&mut c.0, *c_mask) };
+            assert_eq!(ret, 0);
+            assert_twins(&r, &c, name);
+            assert_eq!(observe(rust_ptr(&r)).check, 1, "{name}");
+        }
+    }
+
+    /// `ChannelLayout::<NAME>` is each `AV_CHANNEL_LAYOUT_<NAME>` compound
+    /// literal, as C's readers see it, and describes as the standard name
+    /// C parses back into the same layout.
+    #[test]
+    fn standard_layouts_match_the_c_av_channel_layout_macros() {
+        let table = c_table(|i, name| {
+            let mut c = CLayout::zeroed();
+            // SAFETY: `name` and `c.0` are valid slots for the shim's output.
+            let found = unsafe { ffi::crustify_AV_CHANNEL_LAYOUT(i, name, &mut c.0) };
+            assert_eq!(found, c_int::from(!name.is_null()));
+            c
+        });
+        assert_eq!(table.len(), STANDARD_LAYOUTS.len());
+        for (name, layout) in STANDARD_LAYOUTS {
+            let (_, c) = table
+                .iter()
+                .find(|(c_name, _)| c_name == name)
+                .unwrap_or_else(|| panic!("{name} is not a C macro"));
+            let r = ChannelLayoutVal::from(layout);
+            assert_twins(&r, c, name);
+            let observed = observe(rust_ptr(&r));
+            assert_eq!(observed.check, 1, "{name}");
+            let described = CString::new(observed.describe.unwrap()).unwrap();
+            let (parsed, (ret, c_parsed)) = (ChannelLayout::parse(&described), c_parse(&described));
+            assert_eq!(ret, 0, "{name} as {described:?}");
+            assert_twins(
+                &parsed.unwrap(),
+                &c_parsed,
+                &format!("{name} as {described:?}"),
+            );
+            // SAFETY: valid layouts C only reads.
+            let same = unsafe { ffi::av_channel_layout_compare(rust_ptr(&r), &c_parsed.0) };
+            assert_eq!(same, 0, "{name} as {described:?}");
+        }
+        // The C header's table is the Rust constants, name for name.
+        let mut c_names: Vec<&str> = table.iter().map(|(n, _)| n.as_str()).collect();
+        let mut r_names: Vec<&str> = STANDARD_LAYOUTS.iter().map(|(n, _)| *n).collect();
+        c_names.sort_unstable();
+        r_names.sort_unstable();
+        assert_eq!(c_names, r_names);
+    }
+
+    /// `ChannelLayout::native(m)` is `AV_CHANNEL_LAYOUT_MASK(popcount(m), m)`,
+    /// the empty mask included, and `av_channel_layout_from_mask` otherwise.
+    #[test]
+    fn native_matches_the_c_av_channel_layout_mask_macro() {
+        for mask in [0, 1, 0x3, 0x60f, 1 << 63, u64::MAX, 0x8000_0000_0000_0001] {
+            let r = ChannelLayoutVal::from(ChannelLayout::native(mask));
+            let mut c = CLayout::zeroed();
+            let nb = mask.count_ones() as c_int;
+            // SAFETY: `c.0` is a valid slot for the macro's value.
+            unsafe { ffi::crustify_AV_CHANNEL_LAYOUT_MASK(nb, mask, &mut c.0) };
+            assert_twins(&r, &c, &format!("mask {mask:#x}"));
+            if mask != 0 {
+                let mut init = CLayout::zeroed();
+                // SAFETY: a zeroed layout C may initialise.
+                let ret = unsafe { ffi::av_channel_layout_from_mask(&mut init.0, mask) };
+                assert_eq!(ret, 0);
+                assert_twins(&r, &init, &format!("from_mask {mask:#x}"));
+            }
+        }
     }
 }

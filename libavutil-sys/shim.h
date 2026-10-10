@@ -6,6 +6,7 @@
 #include <stdint.h>
 
 #include "libavutil/bprint.h"
+#include "libavutil/channel_layout.h"
 #include "libavutil/log.h"
 #include "libavutil/pixfmt.h"
 
@@ -50,5 +51,18 @@ void crustify_AV_ZERO32(void *d);
  * i-th alias and stores its <name> in *name, or returns AV_PIX_FMT_NONE and
  * stores NULL once i is past the last one. */
 enum AVPixelFormat crustify_AV_PIX_FMT_NE(size_t i, const char **name);
+
+/* libavutil/channel_layout.h's channel bits AV_CH_<name> (1ULL << AV_CHAN_<name>),
+ * standard layout masks AV_CH_LAYOUT_<name> and standard layouts
+ * AV_CHANNEL_LAYOUT_<name> (AV_CHANNEL_LAYOUT_MASK compound literals), which
+ * bindgen cannot evaluate: the C references for the channel_layout module's
+ * constants in equivalence tests. Each returns the i-th entry of its table
+ * and stores its <name> in *name, or stores NULL (and returns 0) once i is
+ * past the last one; the deprecated FF_API_CHANNEL_LAYOUT_BACK aliases are
+ * left out. crustify_AV_CHANNEL_LAYOUT_MASK(nb, m) is the macro itself. */
+uint64_t crustify_AV_CH(size_t i, const char **name);
+uint64_t crustify_AV_CH_LAYOUT(size_t i, const char **name);
+int crustify_AV_CHANNEL_LAYOUT(size_t i, const char **name, AVChannelLayout *out);
+void crustify_AV_CHANNEL_LAYOUT_MASK(int nb, uint64_t m, AVChannelLayout *out);
 
 #endif /* CRUSTIFY_LIBAVUTIL_SHIM_H */
