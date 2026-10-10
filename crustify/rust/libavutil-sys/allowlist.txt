@@ -411,6 +411,17 @@ function av_channel_layout_channel_from_index
 function av_channel_layout_channel_from_string
 function av_csp_luma_coeffs_from_avcsp
 
+# libavutil/channel_layout.h: the AVChannelLayout initialiser the formats
+# wave-2 batch-0 type run binds as ChannelLayout::default_for, and the C
+# readers (compare, retype, index_from_channel, ambisonic_order) that observe
+# its layouts in equivalence tests.
+function av_channel_layout_default
+function av_channel_layout_compare
+function av_channel_layout_retype
+function av_channel_layout_index_from_channel
+function av_channel_layout_ambisonic_order
+var AV_CHANNEL_LAYOUT_RETYPE_FLAG_.*
+
 # libavutil/samplefmt.h and pixdesc.h: the sample buffer routines and the
 # pixel format byte-order swap (formats wave 1, batch 5).
 function av_samples_get_buffer_size

@@ -20,6 +20,12 @@
 //! weights of luma as three [`Rational`]s, a value type reached as a
 //! [`LumaCoefficientsRef`] or [`LumaCoefficientsMut`], each coefficient as a
 //! [`RationalRef`] or [`RationalMut`] over its own.
+//!
+//! [`PrimaryCoefficients`] is `AVPrimaryCoefficients`: the chromaticities of
+//! the red, green and blue primaries of a gamut as three [`CieXy`]s, a value
+//! type C embeds in its gamut descriptions (`AVColorPrimariesDesc.prim`),
+//! reached as a [`PrimaryCoefficientsRef`] or [`PrimaryCoefficientsMut`],
+//! each primary as a [`CieXyRef`] or [`CieXyMut`] over its own.
 
 use core::fmt;
 use core::ptr::{addr_of, addr_of_mut};
@@ -532,6 +538,258 @@ impl LumaCoefficientsMut<'_> {
         // exclusive handle's pointer to a live one; the old value owns
         // nothing to leak.
         unsafe { self.as_mut_ptr().write(c.into_raw()) }
+    }
+}
+
+define_ctype!(
+    /// Wraps: AVPrimaryCoefficients
+    ///
+    /// The red, green and blue primaries of a gamut, each a chromaticity in
+    /// the CIE 1931 xy plane ([`CieXy`]). Its getters are on
+    /// [`PrimaryCoefficientsRef`] (`as_ref()`), its setters on
+    /// [`PrimaryCoefficientsMut`] (`as_mut()`).
+    ///
+    /// C embeds these by value in its gamut descriptions
+    /// (`AVColorPrimariesDesc.prim`), which it hands out as shared borrows of
+    /// its static, never-written table (`av_csp_primaries_desc_from_id`) and
+    /// reads field by field (`av_csp_primaries_id_from_desc`); nothing
+    /// allocates, frees or clones one on its own, so it is a value type with
+    /// no owner, built by [`PrimaryCoefficients::new`],
+    /// [`from_raw`](PrimaryCoefficients::from_raw) or `zeroed()`. No
+    /// coordinate is checked, by C or here: each takes any pair of `int`s, as
+    /// a [`Rational`] does.
+    #[derive(Clone, Copy)]
+    PrimaryCoefficients,
+    PrimaryCoefficientsRef,
+    PrimaryCoefficientsMut,
+    ffi::AVPrimaryCoefficients
+);
+
+// SAFETY: all-zero is three chromaticities of `0/0` coordinates, the primaries
+// C's own table holds for every gamut it leaves unspecified (and skips on
+// `r.x.num == 0`); every accessor takes it as the twelve integers it is, and
+// the type has no teardown to reject it.
+unsafe impl CZeroable for PrimaryCoefficients {}
+
+// SAFETY: an `AVPrimaryCoefficients` is 48 bytes of plain data, three
+// `AVCIExy`s of two `AVRational`s each, with no pointer, sub-allocation or tie
+// to the thread that wrote them, so a value, or an exclusive handle to one,
+// moves between threads as an `[i32; 12]` does.
+unsafe impl Send for PrimaryCoefficients {}
+// SAFETY: as for `PrimaryCoefficients`: the handle is the only access to the
+// primaries, and the primary handles it lends borrow it.
+unsafe impl Send for PrimaryCoefficientsMut<'_> {}
+
+// SAFETY: nothing reachable through a shared handle writes:
+// `PrimaryCoefficientsRef` has getters only, whose `CieXyRef`s have getters
+// only too, and the struct has no interior mutability, so concurrent shared
+// access reads unchanging bytes, as through `&[i32; 12]`.
+unsafe impl Sync for PrimaryCoefficients {}
+// SAFETY: as for `Sync for PrimaryCoefficients`: copies of a shared handle
+// only read.
+unsafe impl Send for PrimaryCoefficientsRef<'_> {}
+// SAFETY: as above.
+unsafe impl Sync for PrimaryCoefficientsRef<'_> {}
+// SAFETY: `&PrimaryCoefficientsMut` reaches the primaries only through
+// `as_ref`, a shared handle; the setters and the exclusive primary handles
+// need `&mut`.
+unsafe impl Sync for PrimaryCoefficientsMut<'_> {}
+
+impl PrimaryCoefficients {
+    /// The primaries `r`, `g` and `b`, as given.
+    #[inline]
+    #[must_use]
+    pub const fn new(r: CieXy, g: CieXy, b: CieXy) -> Self {
+        Self::from_raw(ffi::AVPrimaryCoefficients {
+            r: r.into_raw(),
+            g: g.into_raw(),
+            b: b.into_raw(),
+        })
+    }
+
+    /// The primaries C encodes as `raw`, whatever their coordinates.
+    #[inline]
+    #[must_use]
+    pub const fn from_raw(raw: ffi::AVPrimaryCoefficients) -> Self {
+        Self(raw, core::marker::PhantomData)
+    }
+
+    /// The C encoding of these primaries, for passing them or storing them
+    /// in a C struct by value.
+    #[inline]
+    #[must_use]
+    pub const fn into_raw(self) -> ffi::AVPrimaryCoefficients {
+        self.0
+    }
+}
+
+/// Three chromaticities of `0/0` coordinates: the primaries of an
+/// unspecified gamut.
+impl Default for PrimaryCoefficients {
+    #[inline]
+    fn default() -> Self {
+        Self::zeroed()
+    }
+}
+
+impl From<ffi::AVPrimaryCoefficients> for PrimaryCoefficients {
+    #[inline]
+    fn from(raw: ffi::AVPrimaryCoefficients) -> Self {
+        Self::from_raw(raw)
+    }
+}
+
+impl From<PrimaryCoefficients> for ffi::AVPrimaryCoefficients {
+    #[inline]
+    fn from(p: PrimaryCoefficients) -> Self {
+        p.into_raw()
+    }
+}
+
+/// Primary by primary, each by [`CieXy`]'s equality: coordinates compare by
+/// [`Rational`]'s value equality, so `1/2` equals `2/4`, and a `0/0`
+/// coordinate equals nothing, itself included.
+impl PartialEq for PrimaryCoefficients {
+    fn eq(&self, other: &Self) -> bool {
+        let (a, b) = (self.as_ref(), other.as_ref());
+        a.r().get() == b.r().get() && a.g().get() == b.g().get() && a.b().get() == b.b().get()
+    }
+}
+
+impl fmt::Debug for PrimaryCoefficients {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        self.as_ref().fmt(f)
+    }
+}
+
+impl fmt::Debug for PrimaryCoefficientsRef<'_> {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.debug_struct("PrimaryCoefficients")
+            .field("r", &self.r())
+            .field("g", &self.g())
+            .field("b", &self.b())
+            .finish()
+    }
+}
+
+impl<'a> PrimaryCoefficientsRef<'a> {
+    /// Field: AVPrimaryCoefficients.r
+    ///
+    /// The red primary, read through a shared handle over the field that
+    /// lives as long as this one.
+    #[must_use]
+    pub fn r(&self) -> CieXyRef<'a> {
+        // SAFETY: the `r` field, projected without a reference through the
+        // shared handle's pointer to a live, initialised
+        // `AVPrimaryCoefficients`, is a live, initialised `AVCIExy` for as
+        // long as the primaries are borrowed (`'a`); `CieXyRef` only reads
+        // through the pointer, and a field address is never NULL.
+        unsafe { CieXyRef::from_ptr(addr_of!((*self.as_ptr()).r).cast_mut()) }
+            .expect("a field address is not NULL")
+    }
+
+    /// Field: AVPrimaryCoefficients.g
+    ///
+    /// The green primary, read through a shared handle over the field that
+    /// lives as long as this one.
+    #[must_use]
+    pub fn g(&self) -> CieXyRef<'a> {
+        // SAFETY: as for `r`, for the `g` field.
+        unsafe { CieXyRef::from_ptr(addr_of!((*self.as_ptr()).g).cast_mut()) }
+            .expect("a field address is not NULL")
+    }
+
+    /// Field: AVPrimaryCoefficients.b
+    ///
+    /// The blue primary, read through a shared handle over the field that
+    /// lives as long as this one.
+    #[must_use]
+    pub fn b(&self) -> CieXyRef<'a> {
+        // SAFETY: as for `r`, for the `b` field.
+        unsafe { CieXyRef::from_ptr(addr_of!((*self.as_ptr()).b).cast_mut()) }
+            .expect("a field address is not NULL")
+    }
+
+    /// A copy of all three primaries, independent of the place they were
+    /// read from.
+    #[must_use]
+    pub fn get(&self) -> PrimaryCoefficients {
+        // SAFETY: a read of the whole live, initialised
+        // `AVPrimaryCoefficients` through the shared handle's pointer; it is
+        // twelve `int`s, so the byte copy is a complete, independent value.
+        PrimaryCoefficients::from_raw(unsafe { self.as_ptr().read() })
+    }
+}
+
+impl PrimaryCoefficientsMut<'_> {
+    /// Field: AVPrimaryCoefficients.r
+    ///
+    /// The red primary, written through an exclusive handle over the field,
+    /// which borrows these primaries exclusively while it lives.
+    #[must_use]
+    pub fn r_mut(&mut self) -> CieXyMut<'_> {
+        // SAFETY: the `r` field, projected without a reference through the
+        // exclusive handle's pointer to a live `AVPrimaryCoefficients`, is a
+        // live `AVCIExy` that only the result reaches while it borrows `self`
+        // exclusively; a field address is never NULL.
+        unsafe { CieXyMut::from_ptr(addr_of_mut!((*self.as_mut_ptr()).r)) }
+            .expect("a field address is not NULL")
+    }
+
+    /// Field: AVPrimaryCoefficients.g
+    ///
+    /// The green primary, written through an exclusive handle over the
+    /// field, which borrows these primaries exclusively while it lives.
+    #[must_use]
+    pub fn g_mut(&mut self) -> CieXyMut<'_> {
+        // SAFETY: as for `r_mut`, for the `g` field.
+        unsafe { CieXyMut::from_ptr(addr_of_mut!((*self.as_mut_ptr()).g)) }
+            .expect("a field address is not NULL")
+    }
+
+    /// Field: AVPrimaryCoefficients.b
+    ///
+    /// The blue primary, written through an exclusive handle over the field,
+    /// which borrows these primaries exclusively while it lives.
+    #[must_use]
+    pub fn b_mut(&mut self) -> CieXyMut<'_> {
+        // SAFETY: as for `r_mut`, for the `b` field.
+        unsafe { CieXyMut::from_ptr(addr_of_mut!((*self.as_mut_ptr()).b)) }
+            .expect("a field address is not NULL")
+    }
+
+    /// Field: AVPrimaryCoefficients.r
+    ///
+    /// Sets the red primary, leaving the others as they are.
+    pub fn set_r(&mut self, r: CieXy) {
+        // SAFETY: a write of the `r` field projected through the exclusive
+        // handle's pointer to a live `AVPrimaryCoefficients`; the old value
+        // owns nothing to leak.
+        unsafe { addr_of_mut!((*self.as_mut_ptr()).r).write(r.into_raw()) }
+    }
+
+    /// Field: AVPrimaryCoefficients.g
+    ///
+    /// Sets the green primary, leaving the others as they are.
+    pub fn set_g(&mut self, g: CieXy) {
+        // SAFETY: as in `set_r`, for the `g` field.
+        unsafe { addr_of_mut!((*self.as_mut_ptr()).g).write(g.into_raw()) }
+    }
+
+    /// Field: AVPrimaryCoefficients.b
+    ///
+    /// Sets the blue primary, leaving the others as they are.
+    pub fn set_b(&mut self, b: CieXy) {
+        // SAFETY: as in `set_r`, for the `b` field.
+        unsafe { addr_of_mut!((*self.as_mut_ptr()).b).write(b.into_raw()) }
+    }
+
+    /// Overwrites all three primaries with `p`'s.
+    pub fn set(&mut self, p: PrimaryCoefficients) {
+        // SAFETY: a write of the whole `AVPrimaryCoefficients` through the
+        // exclusive handle's pointer to a live one; the old value owns
+        // nothing to leak.
+        unsafe { self.as_mut_ptr().write(p.into_raw()) }
     }
 }
 
@@ -1129,5 +1387,225 @@ mod unit_tests {
         assert!(ColorTransfer::V_LOG.trc_function().is_some());
         assert!(ColorTransfer::V_LOG.eotf().is_none());
         assert!(ColorTransfer::LOG.eotf().is_none() && ColorTransfer::LOG.trc_function().is_some());
+    }
+
+    fn primaries_raw(f: [i32; 12]) -> ffi::AVPrimaryCoefficients {
+        let xy = |i: usize| ffi::AVCIExy {
+            x: q(f[i], f[i + 1]),
+            y: q(f[i + 2], f[i + 3]),
+        };
+        ffi::AVPrimaryCoefficients {
+            r: xy(0),
+            g: xy(4),
+            b: xy(8),
+        }
+    }
+
+    fn primaries_fields(p: PrimaryCoefficientsRef<'_>) -> [i32; 12] {
+        let mut out = [0; 12];
+        for (i, xy) in [p.r(), p.g(), p.b()].into_iter().enumerate() {
+            out[4 * i..4 * i + 4].copy_from_slice(&parts(xy));
+        }
+        out
+    }
+
+    const PRIMARIES: [i32; 12] = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12];
+
+    #[test]
+    fn primary_coefficients_layout_is_the_c_struct() {
+        use core::mem::{align_of, offset_of, size_of};
+        assert_eq!(
+            size_of::<PrimaryCoefficients>(),
+            size_of::<ffi::AVPrimaryCoefficients>()
+        );
+        assert_eq!(size_of::<PrimaryCoefficients>(), 48);
+        assert_eq!(
+            align_of::<PrimaryCoefficients>(),
+            align_of::<ffi::AVPrimaryCoefficients>()
+        );
+        assert_eq!(offset_of!(ffi::AVPrimaryCoefficients, g), 16);
+        assert_eq!(offset_of!(ffi::AVPrimaryCoefficients, b), 32);
+    }
+
+    #[test]
+    fn primary_coefficients_new_zeroed_default_and_raw_round_trip() {
+        let xy = |a, b, c, d| CieXy::new(r(a, b), r(c, d));
+        let p = PrimaryCoefficients::new(
+            xy(64, 100, 33, 100),
+            xy(30, 100, 60, 100),
+            xy(15, 100, 6, 100),
+        );
+        assert_eq!(
+            primaries_fields(p.as_ref()),
+            [64, 100, 33, 100, 30, 100, 60, 100, 15, 100, 6, 100]
+        );
+        assert_eq!(
+            primaries_fields(PrimaryCoefficients::zeroed().as_ref()),
+            [0; 12]
+        );
+        assert_eq!(
+            primaries_fields(PrimaryCoefficients::default().as_ref()),
+            [0; 12]
+        );
+        let f = [
+            i32::MIN,
+            -1,
+            0,
+            i32::MAX,
+            1,
+            0,
+            -7,
+            7,
+            i32::MAX,
+            i32::MIN,
+            3,
+            -3,
+        ];
+        let back: ffi::AVPrimaryCoefficients = PrimaryCoefficients::from(primaries_raw(f)).into();
+        let back = PrimaryCoefficients::from_raw(back);
+        assert_eq!(primaries_fields(back.as_ref()), f);
+        assert_eq!(
+            primaries_fields(PrimaryCoefficients::from_raw(primaries_raw(f)).as_ref()),
+            f
+        );
+        let raw = PrimaryCoefficients::from_raw(primaries_raw(f)).into_raw();
+        assert_eq!(
+            (raw.r.x.num, raw.g.y.den, raw.b.x.den),
+            (i32::MIN, 7, i32::MIN)
+        );
+        // `new` is usable in constants.
+        const ZERO: PrimaryCoefficients = PrimaryCoefficients::new(
+            CieXy::from_raw(ffi::AVCIExy {
+                x: ffi::AVRational { num: 0, den: 0 },
+                y: ffi::AVRational { num: 0, den: 0 },
+            }),
+            CieXy::from_raw(ffi::AVCIExy {
+                x: ffi::AVRational { num: 0, den: 0 },
+                y: ffi::AVRational { num: 0, den: 0 },
+            }),
+            CieXy::from_raw(ffi::AVCIExy {
+                x: ffi::AVRational { num: 0, den: 0 },
+                y: ffi::AVRational { num: 0, den: 0 },
+            }),
+        );
+        assert_eq!(primaries_fields(ZERO.as_ref()), [0; 12]);
+    }
+
+    #[test]
+    fn primary_coefficients_primary_handles_write_their_field_alone() {
+        let mut p = PrimaryCoefficients::from_raw(primaries_raw(PRIMARIES));
+        let mut m = p.as_mut();
+        m.r_mut().x_mut().set_num(-10);
+        assert_eq!(
+            primaries_fields(m.as_ref()),
+            [-10, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12]
+        );
+        m.g_mut().set_y(r(60, 70));
+        assert_eq!(
+            primaries_fields(m.as_ref()),
+            [-10, 2, 3, 4, 5, 6, 60, 70, 9, 10, 11, 12]
+        );
+        m.b_mut().set(CieXy::zeroed());
+        assert_eq!(
+            primaries_fields(m.as_ref()),
+            [-10, 2, 3, 4, 5, 6, 60, 70, 0, 0, 0, 0]
+        );
+        m.set(PrimaryCoefficients::zeroed());
+        assert_eq!(primaries_fields(p.as_ref()), [0; 12]);
+    }
+
+    #[test]
+    fn primary_coefficients_value_setters_write_their_field_alone() {
+        let mut p = PrimaryCoefficients::from_raw(primaries_raw(PRIMARIES));
+        let mut m = p.as_mut();
+        m.set_r(CieXy::new(r(-1, -2), r(-3, -4)));
+        assert_eq!(
+            primaries_fields(m.as_ref()),
+            [-1, -2, -3, -4, 5, 6, 7, 8, 9, 10, 11, 12]
+        );
+        m.set_g(CieXy::new(r(i32::MIN, 0), r(0, i32::MAX)));
+        assert_eq!(
+            primaries_fields(m.as_ref()),
+            [-1, -2, -3, -4, i32::MIN, 0, 0, i32::MAX, 9, 10, 11, 12]
+        );
+        m.set_b(CieXy::zeroed());
+        assert_eq!(
+            primaries_fields(p.as_ref()),
+            [-1, -2, -3, -4, i32::MIN, 0, 0, i32::MAX, 0, 0, 0, 0]
+        );
+    }
+
+    #[test]
+    fn primary_coefficients_primary_handles_outlive_the_parent_handle() {
+        let p = PrimaryCoefficients::from_raw(primaries_raw(PRIMARIES));
+        // The primary handles borrow the value, not the temporary handle.
+        let (red, blue) = {
+            let h = p.as_ref();
+            (h.r(), h.b())
+        };
+        assert_eq!((red.x().num(), blue.y().den()), (1, 12));
+        let copy = p.as_ref().get();
+        assert_eq!(primaries_fields(copy.as_ref()), PRIMARIES);
+    }
+
+    #[test]
+    fn primary_coefficients_equality_is_by_value() {
+        let a = PrimaryCoefficients::from_raw(primaries_raw([1, 2, 1, 3, 1, 4, 1, 5, 1, 6, 1, 7]));
+        let b =
+            PrimaryCoefficients::from_raw(primaries_raw([2, 4, 3, 9, 4, 16, 5, 25, 6, 36, 7, 49]));
+        assert_eq!(a, b);
+        for i in 0..12 {
+            let mut f = [1, 2, 1, 3, 1, 4, 1, 5, 1, 6, 1, 7];
+            f[i] += 1;
+            assert_ne!(a, PrimaryCoefficients::from_raw(primaries_raw(f)), "{i}");
+        }
+        // `0/0` is unordered, like NaN.
+        let z = PrimaryCoefficients::zeroed();
+        assert_ne!(z, z);
+    }
+
+    #[test]
+    fn primary_coefficients_debug_names_every_primary() {
+        let p = PrimaryCoefficients::from_raw(primaries_raw(PRIMARIES));
+        let xy = |a, b, c, d| {
+            format!(
+                "CieXy {{ x: Rational {{ num: {a}, den: {b} }}, y: Rational {{ num: {c}, den: {d} }} }}"
+            )
+        };
+        assert_eq!(
+            format!("{p:?}"),
+            format!(
+                "PrimaryCoefficients {{ r: {}, g: {}, b: {} }}",
+                xy(1, 2, 3, 4),
+                xy(5, 6, 7, 8),
+                xy(9, 10, 11, 12)
+            )
+        );
+        assert_eq!(format!("{:?}", p.as_ref()), format!("{p:?}"));
+    }
+
+    #[test]
+    fn primary_coefficients_handles_borrow_raw_storage() {
+        let mut raw = primaries_raw([0; 12]);
+        // SAFETY: `raw` is a live, initialised `AVPrimaryCoefficients` on
+        // this frame, outliving the handle, and nothing else touches it
+        // meanwhile.
+        let mut m = unsafe { PrimaryCoefficientsMut::from_ptr(&raw mut raw) }.unwrap();
+        m.g_mut().y_mut().set_num(595);
+        m.set_b(CieXy::new(r(155, 1000), r(70, 1000)));
+        assert_eq!((raw.g.y.num, raw.b.x.num, raw.b.y.den), (595, 155, 1000));
+        // SAFETY: NULL is accepted and yields `None`.
+        assert!(unsafe { PrimaryCoefficientsRef::from_ptr(core::ptr::null_mut()) }.is_none());
+        // SAFETY: as above.
+        assert!(unsafe { PrimaryCoefficientsMut::from_ptr(core::ptr::null_mut()) }.is_none());
+    }
+
+    #[test]
+    fn primary_coefficients_are_plain_shareable_values() {
+        fn assert_traits<T: Copy + Send + Sync + core::fmt::Debug + Default + 'static>() {}
+        fn assert_handle<T: Send + Sync>() {}
+        assert_traits::<PrimaryCoefficients>();
+        assert_handle::<PrimaryCoefficientsRef<'static>>();
+        assert_handle::<PrimaryCoefficientsMut<'static>>();
     }
 }

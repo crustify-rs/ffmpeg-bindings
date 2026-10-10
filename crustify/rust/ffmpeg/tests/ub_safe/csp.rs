@@ -498,6 +498,266 @@ mod luma_coefficients {
     }
 }
 
+/// `PrimaryCoefficients` as a value, behind a `HeapBox`, as the element of
+/// `av_malloc`-family arrays, and through its primary handles, on every
+/// coordinate edge and across threads.
+mod primary_coefficients {
+    use std::thread;
+
+    use ffmpeg::libavutil::csp::{
+        CieXy, PrimaryCoefficients, PrimaryCoefficientsMut, PrimaryCoefficientsRef,
+    };
+    use ffmpeg::libavutil::ffi;
+    use ffmpeg::libavutil::mem::{HeapBox, alloc_cell_array_zeroed};
+    use ffmpeg::libavutil::rational::Rational;
+
+    /// Coordinate tuples at every edge: all-zero, BT.709's primaries, and
+    /// the `int` limits.
+    const FIELDS: [[i32; 12]; 5] = [
+        [0; 12],
+        [64, 100, 33, 100, 30, 100, 60, 100, 15, 100, 6, 100],
+        [i32::MIN; 12],
+        [i32::MAX; 12],
+        [
+            -1,
+            0,
+            0,
+            -1,
+            i32::MIN,
+            i32::MAX,
+            1,
+            1,
+            -1,
+            -1,
+            i32::MAX,
+            i32::MIN,
+        ],
+    ];
+
+    fn fields(p: PrimaryCoefficientsRef<'_>) -> [i32; 12] {
+        let mut out = [0; 12];
+        for (i, xy) in [p.r(), p.g(), p.b()].into_iter().enumerate() {
+            let (x, y) = (xy.x(), xy.y());
+            out[4 * i..4 * i + 4].copy_from_slice(&[x.num(), x.den(), y.num(), y.den()]);
+        }
+        out
+    }
+
+    fn fill(m: &mut PrimaryCoefficientsMut<'_>, f: [i32; 12]) {
+        for i in 0..3 {
+            let mut xy = match i {
+                0 => m.r_mut(),
+                1 => m.g_mut(),
+                _ => m.b_mut(),
+            };
+            xy.x_mut().set_num(f[4 * i]);
+            xy.x_mut().set_den(f[4 * i + 1]);
+            xy.y_mut().set_num(f[4 * i + 2]);
+            xy.y_mut().set_den(f[4 * i + 3]);
+        }
+    }
+
+    /// Primaries built without a C call, so the tests using them also run
+    /// under Miri.
+    fn p(f: [i32; 12]) -> PrimaryCoefficients {
+        let q = |num, den| Rational::from_raw(ffi::AVRational { num, den });
+        let xy = |i: usize| CieXy::new(q(f[i], f[i + 1]), q(f[i + 2], f[i + 3]));
+        PrimaryCoefficients::new(xy(0), xy(4), xy(8))
+    }
+
+    #[test]
+    fn every_field_tuple_builds_and_reads_back() {
+        for f in FIELDS {
+            let mut v = PrimaryCoefficients::default();
+            fill(&mut v.as_mut(), f);
+            assert_eq!(fields(v.as_ref()), f);
+            assert_eq!(fields(p(f).as_ref()), f);
+            let back: ffi::AVPrimaryCoefficients = v.into();
+            assert_eq!(fields(PrimaryCoefficients::from(back).as_ref()), f);
+            assert!(!format!("{v:?}").is_empty());
+        }
+    }
+
+    #[test]
+    fn primary_handles_copy_coexist_and_outlive_the_parent_handle() {
+        let v = p(FIELDS[1]);
+        // The primary handles borrow `v`, not the parent handle they came
+        // from, and so do the coordinate handles they lend.
+        let (r, g, bx) = {
+            let h = v.as_ref();
+            (h.r(), h.g(), h.b().x())
+        };
+        let r2 = r;
+        assert_eq!(
+            (r.x().num(), r2.y().num(), g.x().num(), bx.num()),
+            (64, 33, 30, 15)
+        );
+        assert!(!format!("{g:?}").is_empty());
+    }
+
+    #[test]
+    fn exclusive_primary_handles_reborrow_one_at_a_time() {
+        let mut v = p(FIELDS[1]);
+        let mut m = v.as_mut();
+        {
+            let mut r = m.r_mut();
+            r.set_x(Rational::from_raw(ffi::AVRational { num: 1, den: 3 }));
+            let mut again = r.as_mut();
+            again.y_mut().set_den(4);
+            assert_eq!(r.as_ref().y().den(), 4);
+        }
+        m.b_mut().x_mut().set_num(-5);
+        m.set_g(CieXy::default());
+        let shared = m.as_ref();
+        assert_eq!((shared.r().x().num(), shared.g().x().num()), (1, 0));
+        m.set(PrimaryCoefficients::default());
+        assert_eq!(fields(v.as_ref()), [0; 12]);
+    }
+
+    #[test]
+    fn copies_outlive_and_are_independent_of_their_source() {
+        let (copy, g) = {
+            let mut boxed = HeapBox::<PrimaryCoefficients>::new_zeroed().unwrap();
+            boxed.as_mut().set(p(FIELDS[4]));
+            let copy = boxed.as_ref().get();
+            let g = boxed.as_ref().g().get();
+            boxed.as_mut().g_mut().x_mut().set_num(9);
+            (copy, g)
+            // `boxed` is freed here; the copies hold their own bytes.
+        };
+        assert_eq!(fields(copy.as_ref()), FIELDS[4]);
+        assert_eq!((g.as_ref().x().num(), g.as_ref().y().den()), (i32::MIN, 1));
+        let mut b = copy;
+        b.as_mut().r_mut().x_mut().set_num(3);
+        #[allow(clippy::clone_on_copy)] // exercises the explicit `Clone` impl
+        let cl = Clone::clone(&b);
+        assert_eq!(fields(copy.as_ref()), FIELDS[4]);
+        assert_eq!(fields(cl.as_ref())[0], 3);
+    }
+
+    #[test]
+    fn heap_box_owner_lives_reads_writes_clones_and_frees() {
+        let mut a = HeapBox::<PrimaryCoefficients>::new_zeroed().unwrap();
+        assert_eq!(fields(a.as_ref()), [0; 12]);
+        for f in FIELDS {
+            fill(&mut a.as_mut(), f);
+            assert_eq!(fields(a.as_ref()), f);
+        }
+        let b = a.clone();
+        let cl = b.try_clone().unwrap();
+        drop(a);
+        assert_eq!(fields(b.as_ref()), FIELDS[4]);
+        drop(b);
+        assert_eq!(fields(cl.as_ref()), FIELDS[4]);
+        drop(HeapBox::<PrimaryCoefficients>::new_uninit().unwrap());
+    }
+
+    #[test]
+    fn heap_array_handles_stay_in_bounds() {
+        let mut a = alloc_cell_array_zeroed::<PrimaryCoefficients>(FIELDS.len()).unwrap();
+        {
+            let mut handles = a.as_handles_mut();
+            for (i, f) in FIELDS.into_iter().enumerate() {
+                fill(&mut handles.get_mut(i).unwrap(), f);
+            }
+            assert!(handles.get_mut(FIELDS.len()).is_none());
+        }
+        let read: Vec<[i32; 12]> = a.as_handles().iter().map(fields).collect();
+        assert_eq!(read, FIELDS);
+        assert!(a.as_handles().get(FIELDS.len()).is_none());
+        // The last element's last coordinate reads the array's last bytes.
+        let last = a.as_handles().get(FIELDS.len() - 1).unwrap().b().y();
+        assert_eq!(last.den(), i32::MIN);
+        let b = a.clone();
+        drop(a);
+        assert_eq!(
+            b.as_handles().iter().map(fields).collect::<Vec<_>>(),
+            FIELDS
+        );
+    }
+
+    #[test]
+    fn values_and_owners_move_across_threads() {
+        let v = p(FIELDS[1]);
+        let b = HeapBox::<PrimaryCoefficients>::new_zeroed().unwrap();
+        let (v, b) = thread::spawn(move || {
+            let mut b = b;
+            b.as_mut().set(v);
+            (v, b)
+        })
+        .join()
+        .unwrap();
+        assert_eq!(fields(b.as_ref()), fields(v.as_ref()));
+        thread::spawn(move || drop(b)).join().unwrap();
+    }
+
+    #[test]
+    fn shared_handles_and_primary_handles_read_concurrently() {
+        let v = p(FIELDS[1]);
+        let boxed = HeapBox::<PrimaryCoefficients>::new_zeroed().unwrap();
+        let (vr, br) = (v.as_ref(), boxed.as_ref());
+        let g = vr.g();
+        thread::scope(|s| {
+            for _ in 0..4 {
+                s.spawn(move || {
+                    for _ in 0..1000 {
+                        assert_eq!(fields(vr), FIELDS[1]);
+                        assert_eq!(g.y().num(), 60);
+                        assert_eq!(fields(br), [0; 12]);
+                    }
+                });
+            }
+        });
+    }
+
+    #[test]
+    fn exclusive_handles_write_on_other_threads() {
+        let mut values = [PrimaryCoefficients::default(); 4];
+        let mut boxed = HeapBox::<PrimaryCoefficients>::new_zeroed().unwrap();
+        let mut boxed_mut = boxed.as_mut();
+        thread::scope(|s| {
+            for (i, v) in values.iter_mut().enumerate() {
+                let mut m = v.as_mut();
+                s.spawn(move || m.g_mut().x_mut().set_num(i as i32));
+            }
+            // A primary handle sent on its own.
+            let mut b = boxed_mut.b_mut();
+            s.spawn(move || b.y_mut().set_den(i32::MIN));
+        });
+        let g: Vec<i32> = values.iter().map(|v| v.as_ref().g().x().num()).collect();
+        assert_eq!(g, [0, 1, 2, 3]);
+        let mut expect = [0; 12];
+        expect[11] = i32::MIN;
+        assert_eq!(fields(boxed.as_ref()), expect);
+    }
+
+    #[test]
+    fn a_shared_exclusive_handle_only_reads() {
+        let mut v = p(FIELDS[1]);
+        let m = v.as_mut();
+        let m = &m;
+        thread::scope(|s| {
+            for _ in 0..4 {
+                s.spawn(move || assert_eq!(fields(m.as_ref()), FIELDS[1]));
+            }
+        });
+    }
+
+    #[test]
+    fn heap_array_elements_written_from_separate_threads() {
+        let mut a = alloc_cell_array_zeroed::<PrimaryCoefficients>(4).unwrap();
+        let mut handles = a.as_handles_mut();
+        thread::scope(|s| {
+            for (m, f) in handles.iter_mut().zip(FIELDS) {
+                let mut m = m;
+                s.spawn(move || fill(&mut m, f));
+            }
+        });
+        let read: Vec<[i32; 12]> = a.as_handles().iter().map(fields).collect();
+        assert_eq!(read, FIELDS[..4]);
+    }
+}
+
 /// The `ColorTransfer` getters on every value, the `unsigned` extremes
 /// included, and the handles they return called on every input class, from
 /// other threads, and after the getters ran again: the EOTFs on exactly

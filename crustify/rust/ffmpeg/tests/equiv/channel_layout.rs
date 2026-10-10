@@ -1474,3 +1474,634 @@ mod name_appenders {
         }
     }
 }
+
+/// `ChannelLayout` against C's own handling of `AVChannelLayout`: each C
+/// initialiser through the Rust constructors against the same call on a C
+/// layout, the getters against the raw fields, copies against
+/// `av_channel_layout_copy` over every kind of destination, and sequences of
+/// every setter against the C writes they stand for (the documented `{0}`
+/// plus field writes, `av_channel_layout_from_mask`,
+/// `av_channel_layout_from_string`, `av_channel_layout_retype`), compared
+/// after every step through C's own readers on both layouts.
+mod layout {
+    use core::ffi::{CStr, c_char, c_int, c_uint, c_void};
+    use core::mem::size_of;
+    use core::ptr;
+    use std::ffi::CString;
+
+    use ffmpeg::libavutil::channel_layout::{
+        Channel, ChannelCustom, ChannelLayout, ChannelLayoutRef, ChannelLayoutVal, ChannelOrder,
+        LayoutDetails,
+    };
+    use ffmpeg::libavutil::ffi;
+    use ffmpeg::libavutil::mem::{HeapVec, alloc_cell_array_zeroed};
+
+    const EINVAL: c_int = -22;
+
+    /// A layout C owns, uninitialised by C on drop.
+    struct CLayout(ffi::AVChannelLayout);
+
+    impl CLayout {
+        fn zeroed() -> Self {
+            Self(ffi::AVChannelLayout {
+                order: ffi::AVChannelOrder::AV_CHANNEL_ORDER_UNSPEC,
+                nb_channels: 0,
+                u: ffi::AVChannelLayout__bindgen_ty_1 { mask: 0 },
+                opaque: ptr::null_mut(),
+            })
+        }
+
+        /// C's `av_channel_layout_uninit` keeping the user pointer, as
+        /// `av_channel_layout_retype` does before it rebuilds a layout.
+        fn uninit_keeping_opaque(&mut self) -> *mut c_void {
+            let opaque = self.0.opaque;
+            // SAFETY: `self.0` is a valid layout C may uninitialise.
+            unsafe { ffi::av_channel_layout_uninit(&mut self.0) };
+            opaque
+        }
+    }
+
+    impl Drop for CLayout {
+        fn drop(&mut self) {
+            // SAFETY: `self.0` is a valid layout whose map, if any, C owns.
+            unsafe { ffi::av_channel_layout_uninit(&mut self.0) }
+        }
+    }
+
+    /// The C layout a Rust owner holds, for C's readers.
+    fn rust_ptr(l: &ChannelLayoutVal) -> *const ffi::AVChannelLayout {
+        const { assert!(size_of::<ChannelLayoutVal>() == size_of::<ffi::AVChannelLayout>()) };
+        // `CVal` is `#[repr(C)]` with the value first and a zero-sized
+        // policy, and `ChannelLayout` is transparent over the C struct.
+        ptr::from_ref(l).cast()
+    }
+
+    /// One map element as C observes it: id, name up to its NUL, user
+    /// pointer.
+    type Elem = (c_int, Vec<u8>, usize);
+
+    fn c_elem(e: &ffi::AVChannelCustom) -> Elem {
+        let bytes: Vec<u8> = e
+            .name
+            .iter()
+            .map(|&c| c as u8)
+            .take_while(|&b| b != 0)
+            .collect();
+        (e.id.0, bytes, e.opaque as usize)
+    }
+
+    /// The raw fields of a layout: order, count, the mask (outside custom
+    /// order), the map's elements (in it), the user pointer.
+    #[derive(Debug, PartialEq)]
+    struct Fields {
+        order: c_uint,
+        nb_channels: c_int,
+        mask: Option<u64>,
+        map: Option<Vec<Elem>>,
+        opaque: usize,
+    }
+
+    fn c_fields(p: *const ffi::AVChannelLayout) -> Fields {
+        // SAFETY: `p` addresses a live, valid layout.
+        let l = unsafe { p.read() };
+        let custom = l.order == ffi::AVChannelOrder::AV_CHANNEL_ORDER_CUSTOM;
+        let unspec = l.order == ffi::AVChannelOrder::AV_CHANNEL_ORDER_UNSPEC;
+        let map = custom.then(|| {
+            // SAFETY: a custom layout's `u` holds the map.
+            let map = unsafe { l.u.map };
+            (0..l.nb_channels.max(0) as usize)
+                // SAFETY: a valid custom layout's map holds `nb_channels`
+                // elements.
+                .map(|i| c_elem(unsafe { &*map.add(i) }))
+                .collect()
+        });
+        // SAFETY: outside custom order `u` holds the mask; in custom order
+        // its 8 bytes are the map pointer's, read as plain bits and unused.
+        let mask = unsafe { l.u.mask };
+        Fields {
+            order: l.order.0,
+            nb_channels: l.nb_channels,
+            mask: (!custom && !unspec).then_some(mask),
+            map,
+            opaque: l.opaque as usize,
+        }
+    }
+
+    /// The same fields read through the safe getters.
+    fn rust_fields(l: ChannelLayoutRef<'_>) -> Fields {
+        let (mask, map) = match l.details() {
+            LayoutDetails::Unspecified => (None, None),
+            LayoutDetails::Native(m) | LayoutDetails::Ambisonic(m) => (Some(m), None),
+            LayoutDetails::Custom(map) => {
+                let elems = map
+                    .iter()
+                    .map(|c| {
+                        (
+                            c.id().into_raw().0,
+                            c.name().as_bytes().to_vec(),
+                            c.opaque() as usize,
+                        )
+                    })
+                    .collect();
+                (None, Some(elems))
+            }
+            LayoutDetails::Unknown(order) => panic!("{order:?}"),
+        };
+        Fields {
+            order: l.order().into_raw().0,
+            nb_channels: l.channel_count(),
+            mask,
+            map,
+            opaque: l.opaque() as usize,
+        }
+    }
+
+    /// Everything C's readers report about a layout, beside its fields.
+    #[derive(Debug, PartialEq)]
+    struct Observed {
+        fields: Fields,
+        describe: Result<String, c_int>,
+        check: c_int,
+        at: Vec<c_int>,
+        index: Vec<c_int>,
+        ambisonic_order: c_int,
+    }
+
+    fn observe(p: *const ffi::AVChannelLayout) -> Observed {
+        // SAFETY: `p` addresses a live, valid layout every call below only
+        // reads; NULL with size 0 asks `describe` for the length only, and
+        // `buf` holds the `need` bytes it asks for.
+        unsafe {
+            let need = ffi::av_channel_layout_describe(p, ptr::null_mut(), 0);
+            let describe = if need < 0 {
+                Err(need)
+            } else {
+                let mut buf = vec![0 as c_char; need as usize];
+                assert_eq!(
+                    ffi::av_channel_layout_describe(p, buf.as_mut_ptr(), buf.len()),
+                    need
+                );
+                Ok(CStr::from_ptr(buf.as_ptr()).to_string_lossy().into_owned())
+            };
+            let n = (*p).nb_channels.clamp(0, 70) as c_uint;
+            let at = (0..=n)
+                .map(|i| ffi::av_channel_layout_channel_from_index(p, i).0)
+                .collect();
+            let index = [0, 1, 3, 40, 63, 64, 0x400, 0x401, -1]
+                .map(|ch| ffi::av_channel_layout_index_from_channel(p, ffi::AVChannel(ch)))
+                .into();
+            Observed {
+                fields: c_fields(p),
+                describe,
+                check: ffi::av_channel_layout_check(p),
+                at,
+                index,
+                ambisonic_order: ffi::av_channel_layout_ambisonic_order(p),
+            }
+        }
+    }
+
+    /// Both twins agree as C reads them, and the getters read the Rust one's
+    /// fields.
+    fn assert_twins(r: &ChannelLayoutVal, c: &CLayout, step: &str) {
+        let (ro, co) = (observe(rust_ptr(r)), observe(&c.0));
+        assert_eq!(ro, co, "{step}");
+        assert_eq!(rust_fields(r.as_ref()), ro.fields, "{step}");
+        // SAFETY: both are live, valid layouts C only reads.
+        let cmp = unsafe { ffi::av_channel_layout_compare(rust_ptr(r), &c.0) };
+        if ro.check == 1 {
+            assert_eq!(cmp, 0, "{step}");
+        }
+    }
+
+    /// Descriptions both sides parse (or refuse) alike.
+    const DESCRIPTIONS: [&CStr; 33] = [
+        c"mono",
+        c"stereo",
+        c"5.1(side)",
+        c"7.1.4",
+        c"22.2",
+        c"downmix",
+        c"FL+FR+LFE",
+        c"FR+FL",
+        c"FL@front+FR@0123456789abcdefghij+USR63@x+AMBI4@amb",
+        c"FL@a+FL@a+FL@b",
+        c"USR0@\xc3\xa9+BL",
+        c"0x3",
+        c"0xffffffffffffffff",
+        c"-1",
+        c"4c",
+        c"9c",
+        c"4C",
+        c"4 channels",
+        c"2 channels (FL+FR)",
+        c"2 channels (FL+FR)x",
+        c"3 channels (FL+FR)",
+        c"ambisonic 0",
+        c"ambisonic 2+stereo",
+        c"ambisonic 1+FL@x+FR",
+        c"ambisonic 1+AMBI0",
+        c"ambisonic 46339",
+        c"ambisonic 46340",
+        // The extras at and one below the `int` bound: C refuses the first,
+        // and runs out of memory mapping the second.
+        c"ambisonic 46339+88047C",
+        c"ambisonic 46339+88046C",
+        c"ambisonic 1+3C",
+        c"FL@",
+        c"",
+        c"FL+NOPE",
+    ];
+
+    fn c_parse(s: &CStr) -> (c_int, CLayout) {
+        let mut c = CLayout::zeroed();
+        // SAFETY: a zeroed layout C may initialise; `s` is a C string.
+        let ret = unsafe { ffi::av_channel_layout_from_string(&mut c.0, s.as_ptr()) };
+        if ret < 0 {
+            // C leaves the layout uninitialised: start the twin afresh.
+            drop(c);
+            c = CLayout::zeroed();
+        }
+        (ret, c)
+    }
+
+    fn result<T>(r: &Result<T, c_int>) -> c_int {
+        r.as_ref().map_or_else(|&e| e, |_| 0)
+    }
+
+    #[test]
+    fn initialisers_match_c_for_every_input() {
+        for mask in [0, 1, 0x3, 0x60f, 1 << 63, u64::MAX] {
+            let r = ChannelLayout::from_mask(mask);
+            let mut c = CLayout::zeroed();
+            // SAFETY: a zeroed layout C may initialise.
+            let ret = unsafe { ffi::av_channel_layout_from_mask(&mut c.0, mask) };
+            assert_eq!(result(&r), ret, "{mask:#x}");
+            if let Ok(r) = r {
+                assert_twins(&r, &c, &format!("mask {mask:#x}"));
+            }
+        }
+        for n in [i32::MIN, -1, 0, 1, 2, 3, 64, 300, i32::MAX] {
+            let r = ChannelLayout::custom(n);
+            let mut c = CLayout::zeroed();
+            // SAFETY: a zeroed layout C may initialise.
+            let ret = unsafe { ffi::av_channel_layout_custom_init(&mut c.0, n) };
+            assert_eq!(result(&r), ret, "custom {n}");
+            if let Ok(r) = r {
+                assert_twins(&r, &c, &format!("custom {n}"));
+            }
+        }
+        for n in (-5..=80).chain([i32::MIN, i32::MAX]) {
+            let r = ChannelLayout::default_for(n);
+            let mut c = CLayout::zeroed();
+            // SAFETY: a zeroed layout C may initialise.
+            unsafe { ffi::av_channel_layout_default(&mut c.0, n) };
+            assert_twins(&r, &c, &format!("default {n}"));
+        }
+        let mut parsed = 0;
+        for s in DESCRIPTIONS {
+            let r = ChannelLayout::parse(s);
+            let (ret, c) = c_parse(s);
+            assert_eq!(result(&r), ret, "{s:?}");
+            if let Ok(r) = r {
+                assert_twins(&r, &c, &format!("{s:?}"));
+                parsed += 1;
+            }
+        }
+        assert!(parsed >= 20, "{parsed}");
+        let zero = ChannelLayout::unspecified(0);
+        assert_twins(&zero, &CLayout::zeroed(), "zeroed");
+    }
+
+    #[test]
+    fn copies_match_c_copy_over_every_destination() {
+        let sources: Vec<&CStr> = DESCRIPTIONS
+            .iter()
+            .copied()
+            .filter(|s| c_parse(s).0 == 0)
+            .collect();
+        for &src in &sources {
+            let (rs, (_, cs)) = (ChannelLayout::parse(src).unwrap(), c_parse(src));
+            // Into a fresh layout.
+            let rc = rs.as_ref().try_clone().unwrap();
+            let mut cc = CLayout::zeroed();
+            // SAFETY: both are valid layouts; the destination is zeroed.
+            assert_eq!(unsafe { ffi::av_channel_layout_copy(&mut cc.0, &cs.0) }, 0);
+            assert_twins(&rc, &cc, &format!("clone of {src:?}"));
+            // Over a destination of every kind, which C uninitialises first.
+            for &dst in &[c"FL@a+FR@b+LFE", c"stereo", c"ambisonic 1", c"3C"] {
+                let (mut rd, (_, mut cd)) = (ChannelLayout::parse(dst).unwrap(), c_parse(dst));
+                assert_eq!(rd.as_mut().copy_from(rs.as_ref()), Ok(()));
+                // SAFETY: both are valid, distinct layouts.
+                assert_eq!(unsafe { ffi::av_channel_layout_copy(&mut cd.0, &cs.0) }, 0);
+                assert_twins(&rd, &cd, &format!("{src:?} over {dst:?}"));
+            }
+        }
+    }
+
+    /// One state change, applied to the Rust layout through the safe API
+    /// and to the C layout through the C writes it stands for.
+    #[derive(Clone, Copy, Debug)]
+    enum Op {
+        Opaque(usize),
+        Unspecified(c_int),
+        Native(u64),
+        Ambisonic(u32, u64),
+        CustomMap(&'static [(c_int, &'static CStr)]),
+        TakeCustomMap,
+        Edit(usize, c_int, &'static CStr),
+        Parse(&'static CStr),
+        Take,
+        Clear,
+        CopyFromOther,
+    }
+
+    /// `C` writes `op`; returns what the step reports, to compare.
+    fn c_apply(c: &mut CLayout, other: &CLayout, op: Op) -> Option<Vec<Elem>> {
+        match op {
+            Op::Opaque(p) => c.0.opaque = ptr::without_provenance_mut(p),
+            Op::Unspecified(n) => {
+                let opaque = c.uninit_keeping_opaque();
+                c.0.order = ffi::AVChannelOrder::AV_CHANNEL_ORDER_UNSPEC;
+                c.0.nb_channels = n;
+                c.0.opaque = opaque;
+            }
+            Op::Native(mask) => {
+                let opaque = c.uninit_keeping_opaque();
+                // SAFETY: an uninitialised layout C may initialise.
+                let ret = unsafe { ffi::av_channel_layout_from_mask(&mut c.0, mask) };
+                assert_eq!(ret, 0);
+                c.0.opaque = opaque;
+            }
+            Op::Ambisonic(order, mask) => {
+                let s = if mask == 0 {
+                    format!("ambisonic {order}")
+                } else {
+                    format!("ambisonic {order}+{mask:#x}")
+                };
+                let (ret, parsed) = c_parse(&CString::new(s).unwrap());
+                if ret == 0 {
+                    let opaque = c.uninit_keeping_opaque();
+                    // Move the parsed layout in.
+                    c.0 = parsed.0;
+                    core::mem::forget(parsed);
+                    c.0.opaque = opaque;
+                }
+                return Some(vec![(ret, vec![], 0)]);
+            }
+            Op::CustomMap(chans) => {
+                let opaque = c.uninit_keeping_opaque();
+                let n = chans.len() as c_int;
+                // SAFETY: an uninitialised layout C may initialise.
+                let ret = unsafe { ffi::av_channel_layout_custom_init(&mut c.0, n) };
+                assert_eq!(ret, 0);
+                for (i, &(id, name)) in chans.iter().enumerate() {
+                    // SAFETY: `i` is in bounds of the map C allocated;
+                    // `av_strlcpy` writes at most the field's 16 bytes.
+                    unsafe {
+                        let e = c.0.u.map.add(i);
+                        (*e).id = ffi::AVChannel(id);
+                        ffi::av_strlcpy((*e).name.as_mut_ptr(), name.as_ptr(), 16);
+                    }
+                }
+                c.0.opaque = opaque;
+            }
+            Op::TakeCustomMap => {
+                if c.0.order != ffi::AVChannelOrder::AV_CHANNEL_ORDER_CUSTOM {
+                    return Some(vec![]);
+                }
+                let taken = c_fields(&c.0).map;
+                // SAFETY: a valid layout; C keeps the count and the user
+                // pointer and frees the map, lossily when it named channels.
+                let ret = unsafe {
+                    ffi::av_channel_layout_retype(
+                        &mut c.0,
+                        ffi::AVChannelOrder::AV_CHANNEL_ORDER_UNSPEC,
+                        0,
+                    )
+                };
+                assert!(ret >= 0, "{ret}");
+                return taken;
+            }
+            Op::Edit(i, id, name) => {
+                if c.0.order == ffi::AVChannelOrder::AV_CHANNEL_ORDER_CUSTOM {
+                    let i = i % c.0.nb_channels as usize;
+                    // SAFETY: `i` is in bounds of the custom map.
+                    unsafe {
+                        let e = c.0.u.map.add(i);
+                        (*e).id = ffi::AVChannel(id);
+                        ffi::av_strlcpy((*e).name.as_mut_ptr(), name.as_ptr(), 16);
+                    }
+                }
+            }
+            Op::Parse(s) => {
+                let (ret, parsed) = c_parse(s);
+                assert_eq!(ret, 0);
+                *c = parsed;
+            }
+            Op::Take => {
+                let old = core::mem::replace(c, CLayout::zeroed());
+                return c_fields(&old.0)
+                    .map
+                    .or(Some(vec![(old.0.nb_channels, vec![], 0)]));
+            }
+            Op::Clear => {
+                // SAFETY: a valid layout.
+                unsafe { ffi::av_channel_layout_uninit(&mut c.0) }
+            }
+            Op::CopyFromOther => {
+                // SAFETY: valid, distinct layouts.
+                let ret = unsafe { ffi::av_channel_layout_copy(&mut c.0, &other.0) };
+                assert_eq!(ret, 0);
+            }
+        }
+        None
+    }
+
+    /// The safe API applies `op`.
+    fn rust_apply(r: &mut ChannelLayoutVal, other: &ChannelLayoutVal, op: Op) -> Option<Vec<Elem>> {
+        let elems = |map: &HeapVec<ChannelCustom>| -> Vec<Elem> {
+            map.as_handles()
+                .iter()
+                .map(|c| {
+                    (
+                        c.id().into_raw().0,
+                        c.name().as_bytes().to_vec(),
+                        c.opaque() as usize,
+                    )
+                })
+                .collect()
+        };
+        match op {
+            Op::Opaque(p) => r.as_mut().set_opaque(ptr::without_provenance_mut(p)),
+            Op::Unspecified(n) => r.as_mut().set_unspecified(n),
+            Op::Native(mask) => r.as_mut().set_native(mask),
+            Op::Ambisonic(order, mask) => {
+                let ret = r
+                    .as_mut()
+                    .set_ambisonic(order, mask)
+                    .map_or_else(|e| e, |()| 0);
+                return Some(vec![(ret, vec![], 0)]);
+            }
+            Op::CustomMap(chans) => {
+                let mut map = alloc_cell_array_zeroed::<ChannelCustom>(chans.len()).unwrap();
+                for (mut m, &(id, name)) in map.as_handles_mut().iter_mut().zip(chans) {
+                    m.set_id(Channel::from_raw(ffi::AVChannel(id)));
+                    m.set_name_truncated(name);
+                }
+                r.as_mut().set_custom_map(map).unwrap();
+            }
+            Op::TakeCustomMap => {
+                return Some(
+                    r.as_mut()
+                        .take_custom_map()
+                        .map_or_else(Vec::new, |m| elems(&m)),
+                );
+            }
+            Op::Edit(i, id, name) => {
+                if let Some(mut map) = r.as_mut().custom_map_mut() {
+                    let i = i % map.len();
+                    let mut m = map.get_mut(i).unwrap();
+                    m.set_id(Channel::from_raw(ffi::AVChannel(id)));
+                    m.set_name_truncated(name);
+                }
+            }
+            Op::Parse(s) => r.as_mut().set(ChannelLayout::parse(s).unwrap()),
+            Op::Take => {
+                let old = r.as_mut().take();
+                return match old.as_ref().details() {
+                    LayoutDetails::Custom(_) => rust_fields(old.as_ref()).map,
+                    _ => Some(vec![(old.as_ref().channel_count(), vec![], 0)]),
+                };
+            }
+            Op::Clear => r.as_mut().clear(),
+            Op::CopyFromOther => r.as_mut().copy_from(other.as_ref()).unwrap(),
+        }
+        None
+    }
+
+    const MAP_A: &[(c_int, &CStr)] = &[(0, c"front"), (1, c"right"), (3, c"")];
+    const MAP_B: &[(c_int, &CStr)] = &[(63, c"0123456789abcdefghij"), (0x400, c"amb")];
+    const MAP_C: &[(c_int, &CStr)] = &[(0, c""), (1, c""), (2, c""), (3, c"")];
+
+    #[test]
+    fn setter_sequences_match_c_writes_after_every_step() {
+        use Op::*;
+        let steps = [
+            Opaque(0x10),
+            Native(0x3),
+            CustomMap(MAP_A),
+            Edit(1, 5, c"bl"),
+            Edit(4, 0x401, c"0123456789abcdefgh"),
+            TakeCustomMap,
+            Unspecified(7),
+            TakeCustomMap,
+            Ambisonic(2, 0x3),
+            Ambisonic(46339, 0),
+            Ambisonic(46340, 0x1),
+            Ambisonic(u32::MAX, 0),
+            CustomMap(MAP_B),
+            CopyFromOther,
+            Opaque(0x20),
+            CustomMap(MAP_C),
+            TakeCustomMap,
+            Parse(c"FL@x+FR@y"),
+            Take,
+            Native(u64::MAX),
+            Parse(c"ambisonic 1+FL@x+FR"),
+            Edit(0, 0x401, c"z"),
+            Take,
+            CustomMap(MAP_B),
+            Unspecified(-3),
+            Clear,
+            CustomMap(MAP_A),
+            Clear,
+        ];
+        let mut r = ChannelLayout::unspecified(0);
+        let mut c = CLayout::zeroed();
+        let r_other = ChannelLayout::parse(c"FL@o+LFE@p").unwrap();
+        let (_, c_other) = c_parse(c"FL@o+LFE@p");
+        assert_twins(&r, &c, "start");
+        for (n, op) in steps.into_iter().enumerate() {
+            let step = format!("step {n} {op:?}");
+            let rr = rust_apply(&mut r, &r_other, op);
+            let cr = c_apply(&mut c, &c_other, op);
+            assert_eq!(rr, cr, "{step}");
+            assert_twins(&r, &c, &step);
+        }
+    }
+
+    #[test]
+    fn maps_built_in_rust_read_like_c_parsed_ones() {
+        for s in [
+            c"FL@front+FR@right+LFE@lfe",
+            c"USR63@x+AMBI4@amb+BL@b",
+            c"FC@0123456789abcde",
+        ] {
+            let (_, reference) = c_parse(s);
+            let Some(elems) = c_fields(&reference.0).map else {
+                panic!("{s:?}")
+            };
+            let mut map = alloc_cell_array_zeroed::<ChannelCustom>(elems.len()).unwrap();
+            for (mut m, (id, name, _)) in map.as_handles_mut().iter_mut().zip(&elems) {
+                m.set_id(Channel::from_raw(ffi::AVChannel(*id)));
+                assert_eq!(m.set_name(&CString::new(name.clone()).unwrap()), Ok(()));
+            }
+            let ours = ChannelLayout::from_custom_map(map).unwrap();
+            assert_twins(&ours, &reference, &format!("{s:?}"));
+            assert_eq!(ours.as_ref().order(), ChannelOrder::CUSTOM);
+            // `ours` drops here: `av_channel_layout_uninit` frees the block
+            // Rust allocated.
+        }
+    }
+
+    #[test]
+    fn native_and_ambisonic_setters_match_cs_initialisers() {
+        for mask in [1, 0x3, 0x60f, 1 << 63, u64::MAX] {
+            let mut r = ChannelLayout::parse(c"FL@a+FR").unwrap();
+            let mut c = c_parse(c"FL@a+FR").1;
+            rust_apply(&mut r, &ChannelLayout::unspecified(0), Op::Native(mask));
+            c_apply(&mut c, &CLayout::zeroed(), Op::Native(mask));
+            assert_twins(&r, &c, &format!("native {mask:#x}"));
+        }
+        // An empty mask C refuses; the setter writes it as C users may.
+        let mut r = ChannelLayout::from_mask(0x3).unwrap();
+        r.as_mut().set_native(0);
+        let mut c = CLayout::zeroed();
+        c.0.order = ffi::AVChannelOrder::AV_CHANNEL_ORDER_NATIVE;
+        assert_twins(&r, &c, "empty native");
+        for order in [
+            0,
+            1,
+            2,
+            5,
+            15,
+            46338,
+            46339,
+            46340,
+            46341,
+            1 << 31,
+            u32::MAX,
+        ] {
+            for mask in [0, 0x3, 0x60f, u64::MAX] {
+                let mut r = ChannelLayout::unspecified(0);
+                let mut c = CLayout::zeroed();
+                let step = format!("ambisonic {order}+{mask:#x}");
+                let other = ChannelLayout::unspecified(0);
+                assert_eq!(
+                    rust_apply(&mut r, &other, Op::Ambisonic(order, mask)),
+                    c_apply(&mut c, &CLayout::zeroed(), Op::Ambisonic(order, mask)),
+                    "{step}"
+                );
+                assert_twins(&r, &c, &step);
+            }
+        }
+        assert_eq!(
+            EINVAL,
+            ChannelLayout::unspecified(0)
+                .as_mut()
+                .set_ambisonic(46340, 0)
+                .unwrap_err()
+        );
+    }
+}
