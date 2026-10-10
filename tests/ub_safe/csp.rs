@@ -914,3 +914,318 @@ mod luma_lookup {
         });
     }
 }
+
+/// `ColorPrimariesDescriptor` as a value, behind a `HeapBox`, as the element
+/// of `av_malloc`-family arrays, and through its white point and primaries
+/// handles down to each coordinate, on every coordinate edge and across
+/// threads.
+mod color_primaries_descriptor {
+    use std::thread;
+
+    use ffmpeg::libavutil::csp::{
+        CieXy, CieXyMut, ColorPrimariesDescriptor, ColorPrimariesDescriptorMut,
+        ColorPrimariesDescriptorRef, PrimaryCoefficients, WhitepointCoefficients,
+    };
+    use ffmpeg::libavutil::ffi;
+    use ffmpeg::libavutil::mem::{HeapBox, alloc_cell_array_zeroed};
+    use ffmpeg::libavutil::rational::Rational;
+
+    /// Coordinate tuples at every edge, white point first: all-zero, BT.709,
+    /// the `int` limits and a mix of signs and zero denominators.
+    const FIELDS: [[i32; 16]; 5] = [
+        [0; 16],
+        [
+            3127, 10000, 3290, 10000, 64, 100, 33, 100, 30, 100, 60, 100, 15, 100, 6, 100,
+        ],
+        [i32::MIN; 16],
+        [i32::MAX; 16],
+        [
+            1,
+            0,
+            -1,
+            0,
+            -1,
+            0,
+            0,
+            -1,
+            i32::MIN,
+            i32::MAX,
+            1,
+            1,
+            -1,
+            -1,
+            i32::MAX,
+            i32::MIN,
+        ],
+    ];
+
+    fn fields(d: ColorPrimariesDescriptorRef<'_>) -> [i32; 16] {
+        let p = d.primaries();
+        let mut out = [0; 16];
+        for (i, xy) in [d.white_point(), p.r(), p.g(), p.b()]
+            .into_iter()
+            .enumerate()
+        {
+            let (x, y) = (xy.x(), xy.y());
+            out[4 * i..4 * i + 4].copy_from_slice(&[x.num(), x.den(), y.num(), y.den()]);
+        }
+        out
+    }
+
+    fn set_parts(xy: &mut CieXyMut<'_>, p: &[i32]) {
+        xy.x_mut().set_num(p[0]);
+        xy.x_mut().set_den(p[1]);
+        xy.y_mut().set_num(p[2]);
+        xy.y_mut().set_den(p[3]);
+    }
+
+    fn fill(m: &mut ColorPrimariesDescriptorMut<'_>, f: [i32; 16]) {
+        set_parts(&mut m.white_point_mut(), &f[..4]);
+        let mut p = m.primaries_mut();
+        set_parts(&mut p.r_mut(), &f[4..8]);
+        set_parts(&mut p.g_mut(), &f[8..12]);
+        set_parts(&mut p.b_mut(), &f[12..]);
+    }
+
+    /// A description built without a C call, so the tests using it also run
+    /// under Miri.
+    fn d(f: [i32; 16]) -> ColorPrimariesDescriptor {
+        let q = |num, den| Rational::from_raw(ffi::AVRational { num, den });
+        let xy = |i: usize| CieXy::new(q(f[i], f[i + 1]), q(f[i + 2], f[i + 3]));
+        ColorPrimariesDescriptor::new(xy(0), PrimaryCoefficients::new(xy(4), xy(8), xy(12)))
+    }
+
+    #[test]
+    fn every_field_tuple_builds_and_reads_back() {
+        for f in FIELDS {
+            let mut v = ColorPrimariesDescriptor::default();
+            fill(&mut v.as_mut(), f);
+            assert_eq!(fields(v.as_ref()), f);
+            assert_eq!(fields(d(f).as_ref()), f);
+            let back: ffi::AVColorPrimariesDesc = v.into();
+            assert_eq!(fields(ColorPrimariesDescriptor::from(back).as_ref()), f);
+            assert!(!format!("{v:?}").is_empty());
+        }
+    }
+
+    #[test]
+    fn field_handles_copy_coexist_and_outlive_the_parent_handle() {
+        let v = d(FIELDS[1]);
+        // The field handles borrow `v`, not the parent handle they came
+        // from, and so do the primary and coordinate handles they lend.
+        let (wp, prim, r, by) = {
+            let h = v.as_ref();
+            (
+                h.white_point(),
+                h.primaries(),
+                h.primaries().r(),
+                h.primaries().b().y(),
+            )
+        };
+        let (wp2, prim2) = (wp, prim);
+        assert_eq!(
+            (
+                wp.x().num(),
+                wp2.y().num(),
+                prim2.g().x().num(),
+                r.y().num(),
+                by.num()
+            ),
+            (3127, 3290, 30, 33, 6)
+        );
+        assert!(!format!("{prim:?} {wp:?}").is_empty());
+    }
+
+    #[test]
+    fn exclusive_field_handles_reborrow_one_at_a_time() {
+        let mut v = d(FIELDS[1]);
+        let mut m = v.as_mut();
+        {
+            let mut p = m.primaries_mut();
+            let mut r = p.r_mut();
+            r.set_x(Rational::from_raw(ffi::AVRational { num: 1, den: 3 }));
+            r.as_mut().y_mut().set_den(4);
+            assert_eq!(r.as_ref().y().den(), 4);
+            let mut again = p.as_mut();
+            again.set_g(CieXy::default());
+            assert_eq!(p.as_ref().r().x().den(), 3);
+        }
+        {
+            let mut wp = m.white_point_mut();
+            wp.x_mut().set_num(-5);
+            let mut again = wp.as_mut();
+            again.set_y(Rational::from_raw(ffi::AVRational { num: 1, den: 1 }));
+        }
+        let shared = m.as_ref();
+        assert_eq!(
+            (
+                shared.white_point().x().num(),
+                shared.white_point().y().den(),
+                shared.primaries().r().x().num(),
+                shared.primaries().g().x().num()
+            ),
+            (-5, 1, 1, 0)
+        );
+        let mut again = m.as_mut();
+        again.set_primaries(PrimaryCoefficients::default());
+        again.set_white_point(WhitepointCoefficients::default());
+        assert_eq!(fields(m.as_ref()), [0; 16]);
+        m.set(d(FIELDS[4]));
+        assert_eq!(fields(v.as_ref()), FIELDS[4]);
+    }
+
+    #[test]
+    fn copies_outlive_and_are_independent_of_their_source() {
+        let (copy, wp, prim) = {
+            let mut boxed = HeapBox::<ColorPrimariesDescriptor>::new_zeroed().unwrap();
+            boxed.as_mut().set(d(FIELDS[4]));
+            let copy = boxed.as_ref().get();
+            let wp = boxed.as_ref().white_point().get();
+            let prim = boxed.as_ref().primaries().get();
+            boxed.as_mut().white_point_mut().x_mut().set_num(9);
+            boxed.as_mut().primaries_mut().r_mut().x_mut().set_num(9);
+            (copy, wp, prim)
+            // `boxed` is freed here; the copies hold their own bytes.
+        };
+        assert_eq!(fields(copy.as_ref()), FIELDS[4]);
+        assert_eq!((wp.as_ref().x().num(), wp.as_ref().y().den()), (1, 0));
+        assert_eq!(prim.as_ref().r().x().num(), -1);
+        let mut b = copy;
+        b.as_mut().white_point_mut().x_mut().set_num(3);
+        #[allow(clippy::clone_on_copy)] // exercises the explicit `Clone` impl
+        let cl = Clone::clone(&b);
+        assert_eq!(fields(copy.as_ref()), FIELDS[4]);
+        assert_eq!(fields(cl.as_ref())[0], 3);
+    }
+
+    #[test]
+    fn heap_box_owner_lives_reads_writes_clones_and_frees() {
+        let mut a = HeapBox::<ColorPrimariesDescriptor>::new_zeroed().unwrap();
+        assert_eq!(fields(a.as_ref()), [0; 16]);
+        for f in FIELDS {
+            fill(&mut a.as_mut(), f);
+            assert_eq!(fields(a.as_ref()), f);
+        }
+        let b = a.clone();
+        let cl = b.try_clone().unwrap();
+        drop(a);
+        assert_eq!(fields(b.as_ref()), FIELDS[4]);
+        drop(b);
+        assert_eq!(fields(cl.as_ref()), FIELDS[4]);
+        drop(HeapBox::<ColorPrimariesDescriptor>::new_uninit().unwrap());
+    }
+
+    #[test]
+    fn heap_array_handles_stay_in_bounds() {
+        let mut a = alloc_cell_array_zeroed::<ColorPrimariesDescriptor>(FIELDS.len()).unwrap();
+        {
+            let mut handles = a.as_handles_mut();
+            for (i, f) in FIELDS.into_iter().enumerate() {
+                fill(&mut handles.get_mut(i).unwrap(), f);
+            }
+            assert!(handles.get_mut(FIELDS.len()).is_none());
+        }
+        let read: Vec<[i32; 16]> = a.as_handles().iter().map(fields).collect();
+        assert_eq!(read, FIELDS);
+        assert!(a.as_handles().get(FIELDS.len()).is_none());
+        // The last element's last coordinate reads the array's last bytes.
+        let last = a.as_handles().get(FIELDS.len() - 1).unwrap();
+        assert_eq!(last.primaries().b().y().den(), i32::MIN);
+        let b = a.clone();
+        drop(a);
+        assert_eq!(
+            b.as_handles().iter().map(fields).collect::<Vec<_>>(),
+            FIELDS
+        );
+    }
+
+    #[test]
+    fn values_and_owners_move_across_threads() {
+        let v = d(FIELDS[1]);
+        let b = HeapBox::<ColorPrimariesDescriptor>::new_zeroed().unwrap();
+        let (v, b) = thread::spawn(move || {
+            let mut b = b;
+            b.as_mut().set(v);
+            (v, b)
+        })
+        .join()
+        .unwrap();
+        assert_eq!(fields(b.as_ref()), fields(v.as_ref()));
+        thread::spawn(move || drop(b)).join().unwrap();
+    }
+
+    #[test]
+    fn shared_handles_and_field_handles_read_concurrently() {
+        let v = d(FIELDS[1]);
+        let boxed = HeapBox::<ColorPrimariesDescriptor>::new_zeroed().unwrap();
+        let (vr, br) = (v.as_ref(), boxed.as_ref());
+        let (wp, prim) = (vr.white_point(), vr.primaries());
+        thread::scope(|s| {
+            for _ in 0..4 {
+                s.spawn(move || {
+                    for _ in 0..1000 {
+                        assert_eq!(fields(vr), FIELDS[1]);
+                        assert_eq!((wp.y().num(), prim.g().y().num()), (3290, 60));
+                        assert_eq!(fields(br), [0; 16]);
+                    }
+                });
+            }
+        });
+    }
+
+    #[test]
+    fn exclusive_handles_write_on_other_threads() {
+        let mut values = [ColorPrimariesDescriptor::default(); 4];
+        let mut boxed = HeapBox::<ColorPrimariesDescriptor>::new_zeroed().unwrap();
+        let mut boxed_mut = boxed.as_mut();
+        thread::scope(|s| {
+            for (i, v) in values.iter_mut().enumerate() {
+                let mut m = v.as_mut();
+                s.spawn(move || m.white_point_mut().x_mut().set_num(i as i32));
+            }
+            // A primaries handle sent on its own.
+            let mut p = boxed_mut.primaries_mut();
+            s.spawn(move || p.b_mut().y_mut().set_den(i32::MIN));
+        });
+        // Then a white point handle, once the primaries handle is gone.
+        thread::scope(|s| {
+            let mut wp = boxed_mut.white_point_mut();
+            s.spawn(move || wp.y_mut().set_num(7));
+        });
+        let wp: Vec<i32> = values
+            .iter()
+            .map(|v| v.as_ref().white_point().x().num())
+            .collect();
+        assert_eq!(wp, [0, 1, 2, 3]);
+        let mut expect = [0; 16];
+        expect[2] = 7;
+        expect[15] = i32::MIN;
+        assert_eq!(fields(boxed.as_ref()), expect);
+    }
+
+    #[test]
+    fn a_shared_exclusive_handle_only_reads() {
+        let mut v = d(FIELDS[1]);
+        let m = v.as_mut();
+        let m = &m;
+        thread::scope(|s| {
+            for _ in 0..4 {
+                s.spawn(move || assert_eq!(fields(m.as_ref()), FIELDS[1]));
+            }
+        });
+    }
+
+    #[test]
+    fn heap_array_elements_written_from_separate_threads() {
+        let mut a = alloc_cell_array_zeroed::<ColorPrimariesDescriptor>(4).unwrap();
+        let mut handles = a.as_handles_mut();
+        thread::scope(|s| {
+            for (m, f) in handles.iter_mut().zip(FIELDS) {
+                let mut m = m;
+                s.spawn(move || fill(&mut m, f));
+            }
+        });
+        let read: Vec<[i32; 16]> = a.as_handles().iter().map(fields).collect();
+        assert_eq!(read, FIELDS[..4]);
+    }
+}

@@ -276,6 +276,12 @@
    "fields": []
   },
   {
+   "name": "AVColorPrimariesDesc",
+   "defined_in": "libavutil/csp.h",
+   "_comment_agent": "formats wave-3 batch-0 (wrap): a white point (wp, AVWhitepointCoefficients = AVCIExy) and the gamut's primaries (prim, AVPrimaryCoefficients), both embedded by value: 64 bytes of AVRationals, no pointer fields, no allocator, disposer or cloner anywhere in the public API. C's only producer is av_csp_primaries_desc_from_id, a const pointer into csp.c's static const color_primaries / color_primaries_ext tables (a 'static shared borrow, never written; NULL for entries with prim.r.x.num == 0), and its only libavutil reader is av_csp_primaries_id_from_desc (borrows a const pointer for the call, reads every coordinate). Other consumers (libswscale csputils/format/cms, libavfilter vf_colorspace, libavcodec png and dovi_rpu, fflcms2 out-parameter) read fields or copy the struct by value; AVDOVIDmLevel9/10 embed it by value. All-zero is valid (the tables' unspecified entries). Wrapped as a value type ColorPrimariesDescriptor with CieXyRef/CieXyMut and PrimaryCoefficientsRef/Mut handles over the projected fields.",
+   "fields": []
+  },
+  {
    "name": "AVColorRange",
    "defined_in": "libavutil/pixfmt.h",
    "_comment_agent": "C enum (unsigned int encoding), no fields, no pointers, no lifecycle: a plain value copied by value. Public struct fields (AVFrame, AVCodecContext, AVCodecParameters, AVFilterLink, AVBufferSrcParameters, ...) store it and users write them directly, so any c_uint is observed; AVCOL_RANGE_NB is 'not part of ABI'. Zero is AVCOL_RANGE_UNSPECIFIED, which C initialisers also write. Wrapped as the open newtype ffmpeg::libavutil::pixfmt::ColorRange (CPlainElem).",

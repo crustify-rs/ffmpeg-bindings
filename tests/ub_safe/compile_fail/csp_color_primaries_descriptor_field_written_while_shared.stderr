@@ -1,0 +1,9 @@
+error[E0502]: cannot borrow `d` as mutable because it is also borrowed as immutable
+ --> tests/ub_safe/compile_fail/csp_color_primaries_descriptor_field_written_while_shared.rs
+  |
+  |     let p = d.as_ref().primaries();
+  |             - immutable borrow occurs here
+  |     d.as_mut().set_primaries(Default::default());
+  |     ^^^^^^^^^^ mutable borrow occurs here
+  |     println!("{}", p.r().x().num());
+  |                    - immutable borrow later used here

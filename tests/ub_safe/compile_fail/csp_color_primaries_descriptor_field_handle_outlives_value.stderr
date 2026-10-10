@@ -1,0 +1,11 @@
+error[E0597]: `d` does not live long enough
+ --> tests/ub_safe/compile_fail/csp_color_primaries_descriptor_field_handle_outlives_value.rs
+  |
+  |     let p = {
+  |         - borrow later stored here
+  |         let d = ColorPrimariesDescriptor::default();
+  |             - binding `d` declared here
+  |         d.as_ref().primaries()
+  |         ^ borrowed value does not live long enough
+  |     };
+  |     - `d` dropped here while still borrowed

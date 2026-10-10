@@ -1,0 +1,5 @@
+error[E0599]: no method named `x_mut` found for struct `CieXyRef<'a>` in the current scope
+ --> tests/ub_safe/compile_fail/csp_color_primaries_descriptor_shared_field_handle_has_no_setter.rs
+  |
+  |     wp.x_mut().set_num(1);
+  |        ^^^^^ method not found in `CieXyRef<'_>`
