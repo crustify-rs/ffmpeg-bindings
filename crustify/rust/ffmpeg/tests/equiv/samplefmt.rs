@@ -1018,3 +1018,93 @@ mod sample_format_forms {
         }
     }
 }
+
+/// `SampleFormat`'s C name lookups, planar form and description line
+/// against `av_get_sample_fmt_name`, `av_get_sample_fmt`,
+/// `av_get_planar_sample_fmt` and `av_get_sample_fmt_string`, over every
+/// named value, values C does not name, and buffers of every size up to the
+/// longest line, compared byte for byte after each write.
+mod lookups {
+    use core::ffi::{CStr, c_int};
+
+    use ffmpeg::libavutil::ffi;
+    use ffmpeg::libavutil::samplefmt::SampleFormat;
+
+    /// Every value worth asking about: the named ones and their neighbours.
+    fn values() -> impl Iterator<Item = c_int> {
+        (-3..16).chain([c_int::MIN, c_int::MIN + 1, c_int::MAX])
+    }
+
+    #[test]
+    fn name_matches_c() {
+        for raw in values() {
+            // SAFETY: by value; C returns NULL or a static string.
+            let c = unsafe { ffi::av_get_sample_fmt_name(ffi::AVSampleFormat(raw)) };
+            // SAFETY: a non-NULL `c` is a static NUL-terminated string.
+            let c = (!c.is_null()).then(|| unsafe { CStr::from_ptr(c) });
+            assert_eq!(
+                SampleFormat::from_raw(ffi::AVSampleFormat(raw)).name(),
+                c,
+                "{raw}"
+            );
+        }
+    }
+
+    #[test]
+    fn from_name_matches_c() {
+        let names: [&CStr; 16] = [
+            c"u8", c"s16", c"s32", c"flt", c"dbl", c"u8p", c"s16p", c"s32p", c"fltp", c"dblp",
+            c"s64", c"s64p", c"", c"none", c"S16", c"s16 ",
+        ];
+        for name in names {
+            // SAFETY: a live NUL-terminated string C only compares.
+            let c = unsafe { ffi::av_get_sample_fmt(name.as_ptr()) };
+            let c =
+                (c != ffi::AVSampleFormat::AV_SAMPLE_FMT_NONE).then_some(SampleFormat::from_raw(c));
+            assert_eq!(SampleFormat::from_name(name), c, "{name:?}");
+        }
+    }
+
+    #[test]
+    fn planar_matches_c_twice() {
+        for raw in values() {
+            let mut rust = Some(SampleFormat::from_raw(ffi::AVSampleFormat(raw)));
+            let mut c = ffi::AVSampleFormat(raw);
+            for _ in 0..2 {
+                // SAFETY: by value; C range-checks it.
+                c = unsafe { ffi::av_get_planar_sample_fmt(c) };
+                rust = rust.and_then(SampleFormat::planar);
+                let expect = (c != ffi::AVSampleFormat::AV_SAMPLE_FMT_NONE)
+                    .then_some(SampleFormat::from_raw(c));
+                assert_eq!(rust, expect, "{raw}");
+            }
+        }
+    }
+
+    #[test]
+    fn describe_writes_what_c_writes() {
+        for raw in values() {
+            let mut rust_buf = [b'#'; 24];
+            let mut c_buf = [b'#'; 24];
+            // Shrinking buffers, each written over the previous text.
+            for size in (0..=c_buf.len()).rev() {
+                let f = SampleFormat::from_raw(ffi::AVSampleFormat(raw));
+                let rust = f.describe(&mut rust_buf[..size]).map(CStr::to_owned);
+                // SAFETY: `size` writable bytes; C writes nothing for values
+                // past its table and returns `c_buf`.
+                let ret = unsafe {
+                    ffi::av_get_sample_fmt_string(
+                        c_buf.as_mut_ptr().cast(),
+                        size as c_int,
+                        ffi::AVSampleFormat(raw),
+                    )
+                };
+                assert_eq!(ret.cast::<u8>(), c_buf.as_mut_ptr());
+                assert_eq!(rust_buf, c_buf, "{raw} {size}");
+                let wrote = size > 0 && raw < SampleFormat::COUNT as c_int;
+                let c_text = wrote.then(|| CStr::from_bytes_until_nul(&c_buf).unwrap().to_owned());
+                assert_eq!(rust, c_text, "{raw} {size}");
+            }
+        }
+    }
+}

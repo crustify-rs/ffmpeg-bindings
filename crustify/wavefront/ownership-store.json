@@ -2692,8 +2692,133 @@
    }
   },
   {
+   "name": "av_get_pix_fmt_string",
+   "defined_in": "libavutil/pixdesc.c",
+   "ptr_args": [
+    {
+     "name": "buf",
+     "ptr": {
+      "scalar": null,
+      "array": {
+       "by_val": true
+      },
+      "string": true,
+      "owned": false,
+      "borrowed": {
+       "lifetime": "arg:buf"
+      },
+      "nullable": false,
+      "mutable": true,
+      "note": "buf: caller buffer of buf_size bytes, filled by snprintf (truncated, NUL-terminated when buf_size > 0) with the header line for a negative pix_fmt or the descriptor's name / nb_components / bits per pixel. Not retained. pix_fmt >= AV_PIX_FMT_NB indexes av_pix_fmt_descriptors out of bounds (no range check in C); buf_size 0 writes nothing."
+     }
+    }
+   ],
+   "ptr_ret": {
+    "ptr": {
+     "scalar": null,
+     "array": {
+      "by_val": true
+     },
+     "string": true,
+     "owned": false,
+     "borrowed": {
+      "lifetime": "arg:buf"
+     },
+     "nullable": false,
+     "mutable": true,
+     "note": "Always buf itself; NUL-terminated only when buf_size > 0."
+    }
+   }
+  },
+  {
+   "name": "av_get_planar_sample_fmt",
+   "defined_in": "libavutil/samplefmt.c"
+  },
+  {
    "name": "av_get_random_seed",
    "defined_in": "libavutil/random_seed.c"
+  },
+  {
+   "name": "av_get_sample_fmt",
+   "defined_in": "libavutil/samplefmt.c",
+   "ptr_args": [
+    {
+     "name": "name",
+     "ptr": {
+      "scalar": null,
+      "array": {
+       "by_val": true
+      },
+      "string": true,
+      "owned": false,
+      "borrowed": {
+       "lifetime": "arg:name"
+      },
+      "nullable": false,
+      "mutable": false,
+      "note": "name: NUL-terminated string compared with strcmp against each table name during the call; must not be NULL. Not retained."
+     }
+    }
+   ]
+  },
+  {
+   "name": "av_get_sample_fmt_name",
+   "defined_in": "libavutil/samplefmt.c",
+   "ptr_ret": {
+    "ptr": {
+     "scalar": null,
+     "array": {
+      "by_val": true
+     },
+     "string": true,
+     "owned": false,
+     "borrowed": {
+      "lifetime": "static"
+     },
+     "nullable": true,
+     "mutable": false,
+     "note": "The name field of the static sample_fmt_info table (immutable, process lifetime); NULL for a format outside 0..AV_SAMPLE_FMT_NB."
+    }
+   }
+  },
+  {
+   "name": "av_get_sample_fmt_string",
+   "defined_in": "libavutil/samplefmt.c",
+   "ptr_args": [
+    {
+     "name": "buf",
+     "ptr": {
+      "scalar": null,
+      "array": {
+       "by_val": true
+      },
+      "string": true,
+      "owned": false,
+      "borrowed": {
+       "lifetime": "arg:buf"
+      },
+      "nullable": false,
+      "mutable": true,
+      "note": "buf: caller buffer of buf_size bytes, filled by snprintf (truncated, NUL-terminated when buf_size > 0) with the header line for a negative sample_fmt or the format's name and bits. For sample_fmt >= AV_SAMPLE_FMT_NB nothing is written (buf is returned unterminated as it was). Not retained."
+     }
+    }
+   ],
+   "ptr_ret": {
+    "ptr": {
+     "scalar": null,
+     "array": {
+      "by_val": true
+     },
+     "string": true,
+     "owned": false,
+     "borrowed": {
+      "lifetime": "arg:buf"
+     },
+     "nullable": false,
+     "mutable": true,
+     "note": "Always buf itself; holds text only when buf_size > 0 and sample_fmt < AV_SAMPLE_FMT_NB."
+    }
+   }
   },
   {
    "name": "av_get_time_base_q",
@@ -2777,6 +2902,14 @@
    "defined_in": "libavutil/time.c"
   },
   {
+   "name": "av_image_alloc",
+   "defined_in": "libavutil/imgutils.c"
+  },
+  {
+   "name": "av_image_check_sar",
+   "defined_in": "libavutil/imgutils.c"
+  },
+  {
    "name": "av_image_check_size",
    "defined_in": "libavutil/imgutils.c",
    "ptr_args": [
@@ -2798,6 +2931,37 @@
      }
     }
    ]
+  },
+  {
+   "name": "av_image_check_size2",
+   "defined_in": "libavutil/imgutils.c",
+   "ptr_args": [
+    {
+     "name": "log_ctx",
+     "ptr": {
+      "scalar": {
+       "by_val": true
+      },
+      "array": null,
+      "string": false,
+      "owned": false,
+      "borrowed": {
+       "lifetime": "arg:log_ctx"
+      },
+      "nullable": true,
+      "mutable": false,
+      "note": "log_ctx: stored in a stack ImgUtils as the parent log context (imgutils_class.parent_log_context_offset) and only read by av_log on the error paths during the call; NULL means no parent. Must point to a struct whose first member is a const AVClass * (type-erased). Not written, not retained."
+     }
+    }
+   ]
+  },
+  {
+   "name": "av_image_copy",
+   "defined_in": "libavutil/imgutils.c"
+  },
+  {
+   "name": "av_image_copy2",
+   "defined_in": "libavutil/imgutils.h"
   },
   {
    "name": "av_image_copy_plane",
@@ -2878,6 +3042,103 @@
      }
     }
    ]
+  },
+  {
+   "name": "av_image_copy_to_buffer",
+   "defined_in": "libavutil/imgutils.c",
+   "ptr_args": [
+    {
+     "name": "dst",
+     "ptr": {
+      "scalar": null,
+      "array": {
+       "by_val": true
+      },
+      "string": false,
+      "owned": false,
+      "borrowed": {
+       "lifetime": "arg:dst"
+      },
+      "nullable": false,
+      "mutable": true,
+      "note": "dst: caller buffer of dst_size bytes; C writes exactly av_image_get_buffer_size(pix_fmt, width, height, align) bytes (rows of linesize bytes at FFALIGN(linesize, align) strides, then the 1024-byte palette for PAL formats) after checking that size <= dst_size. Not retained. src_data (an array parameter wavefront does not record) is read: h rows of linesize[i] bytes per plane at src_linesize strides, and 1024 bytes of src_data[1] for PAL formats."
+     }
+    }
+   ]
+  },
+  {
+   "name": "av_image_copy_uc_from",
+   "defined_in": "libavutil/imgutils.c"
+  },
+  {
+   "name": "av_image_fill_arrays",
+   "defined_in": "libavutil/imgutils.c",
+   "ptr_args": [
+    {
+     "name": "src",
+     "ptr": {
+      "scalar": null,
+      "array": {
+       "by_val": true
+      },
+      "string": false,
+      "owned": false,
+      "borrowed": {
+       "lifetime": "arg:src"
+      },
+      "nullable": true,
+      "mutable": false,
+      "note": "src: the image buffer the plane pointers are computed into; C never dereferences it, only does pointer arithmetic, and stores src + offsets into dst_data (an array parameter wavefront does not record), which therefore borrow from src and are typed non-const though src is const. NULL: dst_data is zeroed and only the buffer size is returned. Not retained by C."
+     }
+    }
+   ]
+  },
+  {
+   "name": "av_image_fill_black",
+   "defined_in": "libavutil/imgutils.c"
+  },
+  {
+   "name": "av_image_fill_color",
+   "defined_in": "libavutil/imgutils.c"
+  },
+  {
+   "name": "av_image_fill_linesizes",
+   "defined_in": "libavutil/imgutils.c"
+  },
+  {
+   "name": "av_image_fill_plane_sizes",
+   "defined_in": "libavutil/imgutils.c"
+  },
+  {
+   "name": "av_image_fill_pointers",
+   "defined_in": "libavutil/imgutils.c",
+   "ptr_args": [
+    {
+     "name": "ptr",
+     "ptr": {
+      "scalar": null,
+      "array": {
+       "by_val": true
+      },
+      "string": false,
+      "owned": false,
+      "borrowed": {
+       "lifetime": "arg:ptr"
+      },
+      "nullable": true,
+      "mutable": false,
+      "note": "ptr: the image buffer; C never dereferences it, only stores ptr and ptr + cumulative plane sizes into data (an array parameter wavefront does not record), which borrow from ptr. NULL: data stays zeroed and only the total size is returned. The arithmetic runs past ptr's allocation when it is shorter than the returned size. Not retained."
+     }
+    }
+   ]
+  },
+  {
+   "name": "av_image_get_buffer_size",
+   "defined_in": "libavutil/imgutils.c"
+  },
+  {
+   "name": "av_image_get_linesize",
+   "defined_in": "libavutil/imgutils.c"
   },
   {
    "name": "av_int2double",
@@ -3952,6 +4213,50 @@
       "nullable": false,
       "mutable": false,
       "note": "Flags string, read for the call only, split at '+'/'-' into <=255-byte tokens, each a const name or an av_expr expression. Must not be NULL."
+     }
+    }
+   ]
+  },
+  {
+   "name": "av_pix_fmt_count_planes",
+   "defined_in": "libavutil/pixdesc.c"
+  },
+  {
+   "name": "av_pix_fmt_get_chroma_sub_sample",
+   "defined_in": "libavutil/pixdesc.c",
+   "ptr_args": [
+    {
+     "name": "h_shift",
+     "ptr": {
+      "scalar": {
+       "by_val": true
+      },
+      "array": null,
+      "string": false,
+      "owned": false,
+      "borrowed": {
+       "lifetime": "arg:h_shift"
+      },
+      "nullable": false,
+      "mutable": true,
+      "note": "h_shift: out-parameter, written with desc->log2_chroma_w when pix_fmt has a descriptor, untouched (AVERROR(ENOSYS)) otherwise. Not retained."
+     }
+    },
+    {
+     "name": "v_shift",
+     "ptr": {
+      "scalar": {
+       "by_val": true
+      },
+      "array": null,
+      "string": false,
+      "owned": false,
+      "borrowed": {
+       "lifetime": "arg:v_shift"
+      },
+      "nullable": false,
+      "mutable": true,
+      "note": "v_shift: out-parameter, written with desc->log2_chroma_h when pix_fmt has a descriptor, untouched (AVERROR(ENOSYS)) otherwise. Not retained."
      }
     }
    ]

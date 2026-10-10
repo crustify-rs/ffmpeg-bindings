@@ -99,3 +99,101 @@ fn shared_context_on_many_threads() {
         }
     });
 }
+
+/// UB tests for `check_size_max_pixels_with_context`, each call within its
+/// `# Safety` contract: NULL, class-less and classed parent contexts, with
+/// level offsets up to the overflow bound, on sizes valid and invalid by
+/// dimension and by pixel count, for formats with and without linesizes,
+/// including monochrome widths whose linesize overflows in C, on several
+/// threads.
+mod max_pixels {
+    use core::ffi::{c_int, c_void};
+    use core::ptr;
+    use std::thread;
+
+    use ffmpeg::libavutil::ffi;
+    use ffmpeg::libavutil::imgutils::check_size_max_pixels_with_context;
+    use ffmpeg::libavutil::pixfmt::PixelFormat;
+
+    use super::{Ctx, EINVAL, class};
+
+    /// The checks every context runs.
+    ///
+    /// # Safety
+    ///
+    /// `ctx` must be valid for `check_size_max_pixels_with_context`
+    /// throughout.
+    unsafe fn checks(ctx: *mut c_void) {
+        let max = c_int::MAX - ffi::AV_LOG_ERROR as c_int;
+        let mono = PixelFormat::MONOBLACK;
+        let formats = [
+            PixelFormat::YUV420P,
+            mono,
+            PixelFormat::BGR4,
+            PixelFormat::NONE,
+        ];
+        for offset in [c_int::MIN, -8, 0, 8, max] {
+            for f in formats {
+                // SAFETY: the caller vouches for `ctx`.
+                unsafe {
+                    let check =
+                        |w, h, px| check_size_max_pixels_with_context(w, h, px, f, offset, ctx);
+                    assert_eq!(check(64, 48, i64::MAX), Ok(()));
+                    assert_eq!(check(64, 48, 64 * 48), Ok(()));
+                    assert_eq!(check(64, 48, 64 * 48 - 1), Err(EINVAL));
+                    assert_eq!(check(64, 48, i64::MIN), Err(EINVAL));
+                    assert_eq!(check(0, 48, i64::MAX), Err(EINVAL));
+                    assert_eq!(check(u32::MAX, u32::MAX, i64::MAX), Err(EINVAL));
+                    for w in [i32::MAX as u32 - 6, i32::MAX as u32, 536_870_911] {
+                        assert_eq!(check(w, 1, i64::MAX), Err(EINVAL));
+                    }
+                }
+            }
+        }
+        for offset in [max + 1, c_int::MAX] {
+            // SAFETY: as above; rejected before C runs.
+            unsafe {
+                let r = check_size_max_pixels_with_context(64, 48, i64::MAX, mono, offset, ctx);
+                assert_eq!(r, Err(EINVAL));
+            }
+        }
+    }
+
+    #[test]
+    fn null_context() {
+        // SAFETY: NULL is "no parent context".
+        unsafe { checks(ptr::null_mut()) };
+    }
+
+    #[test]
+    fn classless_context() {
+        let mut ctx = Box::new(Ctx { class: ptr::null() });
+        // SAFETY: a live struct led by a NULL class pointer, unwritten while
+        // the checks run.
+        unsafe { checks((&raw mut *ctx).cast()) };
+    }
+
+    #[test]
+    fn context_with_a_class() {
+        let class = Box::new(class());
+        let mut ctx = Box::new(Ctx { class: &*class });
+        // SAFETY: a live struct led by a pointer to a valid, live class.
+        unsafe { checks((&raw mut *ctx).cast()) };
+    }
+
+    #[test]
+    fn shared_context_on_many_threads() {
+        let class = class();
+        let ctx = Ctx { class: &class };
+        let addr = &raw const ctx as usize;
+        thread::scope(|s| {
+            for _ in 0..4 {
+                s.spawn(move || {
+                    // SAFETY: the context and its class outlive the scope
+                    // and are only read, which C does too.
+                    unsafe { checks(addr as *mut c_void) };
+                });
+            }
+        });
+    }
+}

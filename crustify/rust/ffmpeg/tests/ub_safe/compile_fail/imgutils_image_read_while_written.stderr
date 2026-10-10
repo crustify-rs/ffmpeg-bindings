@@ -1,0 +1,9 @@
+error[E0502]: cannot borrow `image` as immutable because it is also borrowed as mutable
+ --> tests/ub_safe/compile_fail/imgutils_image_read_while_written.rs
+  |
+  |     let written = image.planes_mut();
+  |                   ----- mutable borrow occurs here
+  |     let read = image.planes();
+  |                ^^^^^ immutable borrow occurs here
+  |     written.data[0][0] = 1;
+  |     --------------- mutable borrow later used here

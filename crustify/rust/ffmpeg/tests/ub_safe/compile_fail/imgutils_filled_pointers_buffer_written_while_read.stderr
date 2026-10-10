@@ -1,0 +1,9 @@
+error[E0502]: cannot borrow `buf` as mutable because it is also borrowed as immutable
+ --> tests/ub_safe/compile_fail/imgutils_filled_pointers_buffer_written_while_read.rs
+  |
+  |     let planes = fill_pointers(&buf, PixelFormat::GRAY8, 8, [8, 0, 0, 0]).unwrap();
+  |                                ---- immutable borrow occurs here
+  |     buf[0] = 1;
+  |     ^^^ mutable borrow occurs here
+  |     println!("{}", planes.data[0][0]);
+  |                    -------------- immutable borrow later used here

@@ -21,9 +21,9 @@
 //! types they produce, such as [`ColorRange::from_name`], and so are their
 //! inverses (`av_color_range_name` and its siblings), such as
 //! [`ColorRange::name`]: C returns its names from static tables, so they are
-//! `&'static CStr`s that the lookups take back. The pixel format name lookups
-//! and conversion loss queries are methods of [`PixelFormat`], reporting a
-//! [`Loss`].
+//! `&'static CStr`s that the lookups take back. The pixel format name lookups,
+//! descriptor queries ([`PixelFormat::plane_count`]) and conversion loss
+//! queries are methods of [`PixelFormat`], the last reporting a [`Loss`].
 
 use core::ffi::{CStr, c_char, c_int, c_uint};
 use core::fmt;
@@ -1342,6 +1342,88 @@ impl PixelFormat {
     }
 }
 
+impl PixelFormat {
+    /// Wraps: av_get_pix_fmt_string
+    ///
+    /// Writes a line describing this pixel format into `buf` and returns it,
+    /// borrowed from `buf`: its name left-aligned in 11 columns, then its
+    /// number of components and bits per pixel right-aligned in 7 and 10
+    /// (`"yuv420p           3         12"`), or, for [`NONE`](Self::NONE)
+    /// and every other negative value, the header
+    /// `"name nb_components nb_bits"` of a table of such lines.
+    ///
+    /// The text is truncated to fit `buf`, NUL included. `None` for an empty
+    /// `buf`, into which C writes nothing, and for a value past the last
+    /// format these bindings know (`AV_PIX_FMT_NB`), for which C would read
+    /// past its descriptor table.
+    ///
+    /// ```
+    /// use ffmpeg::libavutil::pixfmt::PixelFormat;
+    /// let mut buf = [0u8; 64];
+    /// assert_eq!(
+    ///     PixelFormat::YUV420P.describe(&mut buf),
+    ///     Some(c"yuv420p           3         12")
+    /// );
+    /// assert_eq!(PixelFormat::NONE.describe(&mut buf), Some(c"name nb_components nb_bits"));
+    /// ```
+    pub fn describe(self, buf: &mut [u8]) -> Option<&CStr> {
+        if buf.is_empty() || self.into_raw().0 >= ffi::AVPixelFormat::AV_PIX_FMT_NB.0 {
+            // C's `snprintf` writes nothing into an empty buffer, and C
+            // indexes its table without a bound check.
+            return None;
+        }
+        // A smaller bound than `buf` holds is still a sound one.
+        let size = c_int::try_from(buf.len()).unwrap_or(c_int::MAX);
+        // SAFETY: `buf` is `size` or more writable bytes, the bound C gives
+        // `snprintf`; the value is negative (the header) or below
+        // `AV_PIX_FMT_NB`, so it indexes C's table, every entry of which
+        // names its format. The returned pointer is `buf`, which C does not
+        // retain.
+        unsafe { ffi::av_get_pix_fmt_string(buf.as_mut_ptr().cast(), size, self.into_raw()) };
+        // `snprintf` NUL-terminated its output within `buf`.
+        CStr::from_bytes_until_nul(buf).ok()
+    }
+
+    /// Wraps: av_pix_fmt_count_planes
+    ///
+    /// The number of planes this pixel format stores its components in: 1
+    /// for packed formats, up to 4 for planar ones, 0 for hardware formats.
+    /// `None` for [`NONE`](Self::NONE) and any value without a descriptor.
+    ///
+    /// A palettized format ([`PAL8`](Self::PAL8)) counts its one plane of
+    /// indices, not the palette C keeps beside it.
+    #[must_use]
+    pub fn plane_count(self) -> Option<usize> {
+        // SAFETY: `av_pix_fmt_count_planes` takes the enum by value and
+        // looks it up through `av_pix_fmt_desc_get`, which range-checks it.
+        let ret = unsafe { ffi::av_pix_fmt_count_planes(self.into_raw()) };
+        usize::try_from(ret).ok()
+    }
+
+    /// Wraps: av_pix_fmt_get_chroma_sub_sample
+    ///
+    /// The chroma subsampling of this pixel format, as base-2 logarithms:
+    /// `(horizontal, vertical)`, the amounts to right-shift (rounding up) a
+    /// luma width and height by to get the chroma ones. `(1, 1)` for
+    /// [`YUV420P`](Self::YUV420P), `(0, 0)` for formats without subsampled
+    /// chroma. `None` for [`NONE`](Self::NONE) and any value without a
+    /// descriptor.
+    #[must_use]
+    pub fn chroma_subsampling(self) -> Option<(u8, u8)> {
+        let (mut h_shift, mut v_shift): (c_int, c_int) = (0, 0);
+        // SAFETY: both out-parameters are live, writable `int`s C writes
+        // only during the call; the enum is range-checked by C.
+        let ret = unsafe {
+            ffi::av_pix_fmt_get_chroma_sub_sample(self.into_raw(), &mut h_shift, &mut v_shift)
+        };
+        if ret < 0 {
+            return None;
+        }
+        // C copies the descriptor's `uint8_t` fields.
+        Some((h_shift as u8, v_shift as u8))
+    }
+}
+
 #[cfg(test)]
 mod unit_tests {
     use std::collections::hash_map::DefaultHasher;
@@ -1969,5 +2051,49 @@ mod unit_tests {
         }
         let offsets: Vec<i32> = d.as_ref().components().iter().map(|c| c.offset()).collect();
         assert_eq!(offsets, [0, -1, 0, 7]);
+    }
+
+    #[test]
+    fn describe_refuses_values_past_the_table_untouched() {
+        let mut buf = [b'x'; 40];
+        let nb = ffi::AVPixelFormat::AV_PIX_FMT_NB.0;
+        for raw in [nb, nb + 1, c_int::MAX] {
+            let f = PixelFormat::from_raw(ffi::AVPixelFormat(raw));
+            assert_eq!(f.describe(&mut buf), None);
+        }
+        assert_eq!(PixelFormat::YUV420P.describe(&mut []), None);
+        assert_eq!(buf, [b'x'; 40]);
+        let last = PixelFormat::from_raw(ffi::AVPixelFormat(nb - 1));
+        assert!(last.describe(&mut buf).is_some());
+    }
+
+    #[test]
+    fn describe_prints_headers_for_negatives_and_truncates() {
+        let mut buf = [b'x'; 40];
+        for raw in [c_int::MIN, -2, -1] {
+            let f = PixelFormat::from_raw(ffi::AVPixelFormat(raw));
+            assert_eq!(f.describe(&mut buf), Some(c"name nb_components nb_bits"));
+        }
+        assert_eq!(PixelFormat::RGB24.describe(&mut buf[..4]), Some(c"rgb"));
+        assert_eq!(&buf[..5], b"rgb\0 ");
+    }
+
+    #[test]
+    fn plane_count_and_chroma_subsampling_of_known_formats() {
+        assert_eq!(PixelFormat::YUV420P.plane_count(), Some(3));
+        assert_eq!(PixelFormat::NV12.plane_count(), Some(2));
+        assert_eq!(PixelFormat::RGB24.plane_count(), Some(1));
+        assert_eq!(PixelFormat::PAL8.plane_count(), Some(1));
+        assert_eq!(PixelFormat::YUVA420P.plane_count(), Some(4));
+        assert_eq!(PixelFormat::VAAPI.plane_count(), Some(0));
+        assert_eq!(PixelFormat::NONE.plane_count(), None);
+        assert_eq!(PixelFormat::YUV420P.chroma_subsampling(), Some((1, 1)));
+        assert_eq!(PixelFormat::YUV422P.chroma_subsampling(), Some((1, 0)));
+        assert_eq!(PixelFormat::YUV410P.chroma_subsampling(), Some((2, 2)));
+        assert_eq!(PixelFormat::RGB24.chroma_subsampling(), Some((0, 0)));
+        assert_eq!(PixelFormat::NONE.chroma_subsampling(), None);
+        let nb = PixelFormat::from_raw(ffi::AVPixelFormat::AV_PIX_FMT_NB);
+        assert_eq!(nb.plane_count(), None);
+        assert_eq!(nb.chroma_subsampling(), None);
     }
 }

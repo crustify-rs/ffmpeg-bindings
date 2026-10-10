@@ -1,0 +1,11 @@
+error[E0597]: `buf` does not live long enough
+ --> tests/ub_safe/compile_fail/imgutils_filled_arrays_outlive_buffer.rs
+  |
+  |         let mut buf = vec![0u8; 64];
+  |             ------- binding `buf` declared here
+  |         planes = fill_arrays_mut(&mut buf, PixelFormat::GRAY8, 8, 8, 1).unwrap();
+  |                                  ^^^^^^^^ borrowed value does not live long enough
+  |     }
+  |     - `buf` dropped here while still borrowed
+  |     planes.data[0][0] = 1;
+  |     -------------- borrow later used here
