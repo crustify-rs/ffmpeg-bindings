@@ -344,3 +344,13 @@ function av_channel_from_string
 # batch 5), whose descriptor table names exactly the enumerators, in
 # equivalence tests.
 function av_get_pix_fmt_name
+
+# libavutil/pixdesc.h, frame.h: the C consumers of `AVColorPrimaries` and
+# `AVColorRange` (formats wave 0, batch 2) and the frame defaults C writes into
+# them, which observe their encodings in equivalence tests.
+function av_color_primaries_name
+function av_color_primaries_from_name
+function av_color_range_name
+function av_color_range_from_name
+function av_frame_alloc
+function av_frame_free

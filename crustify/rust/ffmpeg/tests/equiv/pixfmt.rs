@@ -1012,3 +1012,516 @@ mod pixel_format {
         assert_eq!(rust_as_c(&rust), rust_as_c(&copy));
     }
 }
+
+/// [`ColorPrimaries`] and [`ColorRange`] against `AVColorPrimaries` and
+/// `AVColorRange` (formats wave 0, batch 2): through `av_color_primaries_name`
+/// / `av_color_range_name` and their `_from_name` inverses, the defaults
+/// `av_frame_alloc` writes, and C-allocated storage holding the values.
+mod color_primaries_and_range {
+    use core::ffi::{CStr, c_int, c_uint, c_void};
+    use core::mem::size_of;
+    use core::ptr::{addr_of, addr_of_mut};
+
+    use ffmpeg::libavutil::ffi;
+    use ffmpeg::libavutil::mem::{HeapVec, alloc_array_zeroed};
+    use ffmpeg::libavutil::pixfmt::{ColorPrimaries, ColorRange};
+
+    /// Every primaries constant, aliases included, beside its C enumerator and
+    /// the name `av_color_primaries_name` gives it.
+    const PRIMARIES_NAMED: [(ColorPrimaries, ffi::AVColorPrimaries, &str); 18] = [
+        (
+            ColorPrimaries::RESERVED0,
+            ffi::AVColorPrimaries::AVCOL_PRI_RESERVED0,
+            "reserved",
+        ),
+        (
+            ColorPrimaries::BT709,
+            ffi::AVColorPrimaries::AVCOL_PRI_BT709,
+            "bt709",
+        ),
+        (
+            ColorPrimaries::UNSPECIFIED,
+            ffi::AVColorPrimaries::AVCOL_PRI_UNSPECIFIED,
+            "unknown",
+        ),
+        (
+            ColorPrimaries::RESERVED,
+            ffi::AVColorPrimaries::AVCOL_PRI_RESERVED,
+            "reserved",
+        ),
+        (
+            ColorPrimaries::BT470M,
+            ffi::AVColorPrimaries::AVCOL_PRI_BT470M,
+            "bt470m",
+        ),
+        (
+            ColorPrimaries::BT470BG,
+            ffi::AVColorPrimaries::AVCOL_PRI_BT470BG,
+            "bt470bg",
+        ),
+        (
+            ColorPrimaries::SMPTE170M,
+            ffi::AVColorPrimaries::AVCOL_PRI_SMPTE170M,
+            "smpte170m",
+        ),
+        (
+            ColorPrimaries::SMPTE240M,
+            ffi::AVColorPrimaries::AVCOL_PRI_SMPTE240M,
+            "smpte240m",
+        ),
+        (
+            ColorPrimaries::FILM,
+            ffi::AVColorPrimaries::AVCOL_PRI_FILM,
+            "film",
+        ),
+        (
+            ColorPrimaries::BT2020,
+            ffi::AVColorPrimaries::AVCOL_PRI_BT2020,
+            "bt2020",
+        ),
+        (
+            ColorPrimaries::SMPTE428,
+            ffi::AVColorPrimaries::AVCOL_PRI_SMPTE428,
+            "smpte428",
+        ),
+        (
+            ColorPrimaries::SMPTEST428_1,
+            ffi::AVColorPrimaries::AVCOL_PRI_SMPTEST428_1,
+            "smpte428",
+        ),
+        (
+            ColorPrimaries::SMPTE431,
+            ffi::AVColorPrimaries::AVCOL_PRI_SMPTE431,
+            "smpte431",
+        ),
+        (
+            ColorPrimaries::SMPTE432,
+            ffi::AVColorPrimaries::AVCOL_PRI_SMPTE432,
+            "smpte432",
+        ),
+        (
+            ColorPrimaries::EBU3213,
+            ffi::AVColorPrimaries::AVCOL_PRI_EBU3213,
+            "ebu3213",
+        ),
+        (
+            ColorPrimaries::JEDEC_P22,
+            ffi::AVColorPrimaries::AVCOL_PRI_JEDEC_P22,
+            "ebu3213",
+        ),
+        (
+            ColorPrimaries::EXT_BASE,
+            ffi::AVColorPrimaries::AVCOL_PRI_EXT_BASE,
+            "vgamut",
+        ),
+        (
+            ColorPrimaries::V_GAMUT,
+            ffi::AVColorPrimaries::AVCOL_PRI_V_GAMUT,
+            "vgamut",
+        ),
+    ];
+
+    /// Every range constant beside its C enumerator and C name.
+    const RANGE_NAMED: [(ColorRange, ffi::AVColorRange, &str); 3] = [
+        (
+            ColorRange::UNSPECIFIED,
+            ffi::AVColorRange::AVCOL_RANGE_UNSPECIFIED,
+            "unknown",
+        ),
+        (ColorRange::MPEG, ffi::AVColorRange::AVCOL_RANGE_MPEG, "tv"),
+        (ColorRange::JPEG, ffi::AVColorRange::AVCOL_RANGE_JPEG, "pc"),
+    ];
+
+    /// Primaries values C may store though it names none of them: the H.273
+    /// gap, both `NB` values, and the far ends of the encoding.
+    const PRIMARIES_UNNAMED: [c_uint; 9] =
+        [13, 17, 21, 23, 255, 257, 1 << 20, 1 << 31, c_uint::MAX];
+
+    /// Range values C may store though it names none of them, `NB` included.
+    const RANGE_UNNAMED: [c_uint; 6] = [3, 4, 255, 1 << 20, 1 << 31, c_uint::MAX];
+
+    /// A static C string as `str`, NULL as `None`.
+    fn c_str(name: *const core::ffi::c_char) -> Option<&'static str> {
+        if name.is_null() {
+            return None;
+        }
+        // SAFETY: a non-NULL result of the pixdesc.c name getters is one of
+        // the static string literals in its name tables.
+        Some(unsafe { CStr::from_ptr(name) }.to_str().unwrap())
+    }
+
+    /// What C calls `p`: `av_color_primaries_name`, NULL as `None`.
+    fn c_primaries_name(p: ffi::AVColorPrimaries) -> Option<&'static str> {
+        // SAFETY: takes the enum by value; any value is range-checked in C.
+        c_str(unsafe { ffi::av_color_primaries_name(p) })
+    }
+
+    /// What C calls `r`: `av_color_range_name`, NULL as `None`.
+    fn c_range_name(r: ffi::AVColorRange) -> Option<&'static str> {
+        // SAFETY: takes the enum by value; any value is range-checked in C.
+        c_str(unsafe { ffi::av_color_range_name(r) })
+    }
+
+    fn c_primaries_from_name(name: &CStr) -> c_int {
+        // SAFETY: `name` is a live NUL-terminated string C only reads.
+        unsafe { ffi::av_color_primaries_from_name(name.as_ptr()) }
+    }
+
+    fn c_range_from_name(name: &CStr) -> c_int {
+        // SAFETY: `name` is a live NUL-terminated string C only reads.
+        unsafe { ffi::av_color_range_from_name(name.as_ptr()) }
+    }
+
+    fn debug_is_named<T: core::fmt::Debug>(t: T, type_name: &str) -> bool {
+        !format!("{t:?}").starts_with(&format!("{type_name}("))
+    }
+
+    /// A C block of `len` 4-byte enum values, freed with `av_free` on drop.
+    struct CBlock<E>(*mut E, usize);
+
+    impl<E: Copy> CBlock<E> {
+        fn zeroed(len: usize) -> Self {
+            // SAFETY: `av_calloc` takes its sizes by value.
+            let ptr = unsafe { ffi::av_calloc(len, size_of::<E>()) };
+            assert!(!ptr.is_null());
+            Self(ptr.cast(), len)
+        }
+
+        fn get(&self, i: usize) -> E {
+            assert!(i < self.1);
+            // SAFETY: `i` is in bounds of the live, initialised block.
+            unsafe { self.0.add(i).read() }
+        }
+
+        fn set(&mut self, i: usize, v: E) {
+            assert!(i < self.1);
+            // SAFETY: `i` is in bounds of the live block, which we own.
+            unsafe { self.0.add(i).write(v) }
+        }
+
+        fn values(&self) -> Vec<E> {
+            (0..self.1).map(|i| self.get(i)).collect()
+        }
+
+        /// Hands the block over, as a C field accessor would hand a Rust
+        /// owner an `av_malloc`ed array.
+        fn into_raw(self) -> (*mut E, usize) {
+            let parts = (self.0, self.1);
+            core::mem::forget(self);
+            parts
+        }
+    }
+
+    impl<E> Drop for CBlock<E> {
+        fn drop(&mut self) {
+            // SAFETY: `self.0` is a live `av_calloc` block we own.
+            unsafe { ffi::av_free(self.0.cast::<c_void>()) }
+        }
+    }
+
+    /// A wrapper and the C enum it is `#[repr(transparent)]` over.
+    trait Wrapped: Copy {
+        type C: Copy;
+    }
+
+    impl Wrapped for ColorPrimaries {
+        type C = ffi::AVColorPrimaries;
+    }
+
+    impl Wrapped for ColorRange {
+        type C = ffi::AVColorRange;
+    }
+
+    /// The C values a Rust array holds, read back through its C-typed pointer.
+    fn rust_as_c<T: Wrapped>(a: &HeapVec<T>) -> Vec<T::C> {
+        let ptr = a.as_ptr().cast::<T::C>();
+        (0..a.len())
+            // SAFETY: each `Wrapped` implementor is `#[repr(transparent)]` over
+            // its `C`, and `i` is in bounds of the live, initialised array `a`
+            // borrows.
+            .map(|i| unsafe { ptr.add(i).read() })
+            .collect()
+    }
+
+    /// A frame from `av_frame_alloc`, freed with `av_frame_free` on drop.
+    struct CFrame(*mut ffi::AVFrame);
+
+    impl CFrame {
+        fn new() -> Self {
+            // SAFETY: no arguments; NULL on failure, checked below.
+            let f = unsafe { ffi::av_frame_alloc() };
+            assert!(!f.is_null());
+            Self(f)
+        }
+
+        fn primaries(&self) -> ffi::AVColorPrimaries {
+            // SAFETY: `self.0` is a live frame; the field is read in place.
+            unsafe { addr_of!((*self.0).color_primaries).read() }
+        }
+
+        fn range(&self) -> ffi::AVColorRange {
+            // SAFETY: `self.0` is a live frame; the field is read in place.
+            unsafe { addr_of!((*self.0).color_range).read() }
+        }
+
+        fn set(&mut self, p: ffi::AVColorPrimaries, r: ffi::AVColorRange) {
+            // SAFETY: `self.0` is a live frame we own; the fields are written
+            // in place.
+            unsafe {
+                addr_of_mut!((*self.0).color_primaries).write(p);
+                addr_of_mut!((*self.0).color_range).write(r);
+            }
+        }
+    }
+
+    impl Drop for CFrame {
+        fn drop(&mut self) {
+            // SAFETY: `self.0` is a live `av_frame_alloc` frame we own;
+            // `av_frame_free` frees it and NULLs the slot.
+            unsafe { ffi::av_frame_free(&mut self.0) }
+        }
+    }
+
+    #[test]
+    fn primaries_constants_are_the_c_enumerators() {
+        for (p, c, name) in PRIMARIES_NAMED {
+            assert_eq!(p.into_raw(), c);
+            assert_eq!(ColorPrimaries::from_raw(c), p);
+            assert_eq!(c_primaries_name(p.into_raw()), Some(name));
+        }
+    }
+
+    #[test]
+    fn range_constants_are_the_c_enumerators() {
+        for (r, c, name) in RANGE_NAMED {
+            assert_eq!(r.into_raw(), c);
+            assert_eq!(ColorRange::from_raw(c), r);
+            assert_eq!(c_range_name(r.into_raw()), Some(name));
+        }
+    }
+
+    #[test]
+    fn c_name_lookups_land_on_the_constants() {
+        // "reserved" names two primaries; C's lookup returns the first.
+        for (p, _, name) in PRIMARIES_NAMED {
+            let name = std::ffi::CString::new(name).unwrap();
+            let raw = c_primaries_from_name(&name);
+            assert!(raw >= 0, "{name:?}");
+            let back = ColorPrimaries::from_raw(ffi::AVColorPrimaries(raw as c_uint));
+            assert_eq!(
+                c_primaries_name(back.into_raw()),
+                c_primaries_name(p.into_raw())
+            );
+            if p != ColorPrimaries::RESERVED {
+                assert_eq!(back, p);
+            } else {
+                assert_eq!(back, ColorPrimaries::RESERVED0);
+            }
+        }
+        for (r, _, name) in RANGE_NAMED {
+            let name = std::ffi::CString::new(name).unwrap();
+            let raw = c_range_from_name(&name);
+            assert_eq!(ColorRange::from_raw(ffi::AVColorRange(raw as c_uint)), r);
+        }
+        assert!(c_primaries_from_name(c"no-such-primaries") < 0);
+        assert!(c_range_from_name(c"no-such-range") < 0);
+    }
+
+    #[test]
+    fn debug_names_exactly_the_values_c_names() {
+        let sweep = (0..=300).chain(PRIMARIES_UNNAMED);
+        for raw in sweep.clone() {
+            let p = ColorPrimaries::from_raw(ffi::AVColorPrimaries(raw));
+            assert_eq!(
+                debug_is_named(p, "ColorPrimaries"),
+                c_primaries_name(p.into_raw()).is_some(),
+                "primaries {raw}"
+            );
+            assert_eq!(p.into_raw().0, raw);
+        }
+        for raw in sweep.chain(RANGE_UNNAMED) {
+            let r = ColorRange::from_raw(ffi::AVColorRange(raw));
+            assert_eq!(
+                debug_is_named(r, "ColorRange"),
+                c_range_name(r.into_raw()).is_some(),
+                "range {raw}"
+            );
+            assert_eq!(r.into_raw().0, raw);
+        }
+    }
+
+    #[test]
+    fn defaults_are_what_c_initialises_a_frame_with() {
+        let frame = CFrame::new();
+        assert_eq!(ColorPrimaries::default().into_raw(), frame.primaries());
+        assert_eq!(ColorRange::default().into_raw(), frame.range());
+        assert_eq!(
+            c_primaries_name(ColorPrimaries::default().into_raw()),
+            Some("unknown")
+        );
+        assert_eq!(
+            c_range_name(ColorRange::default().into_raw()),
+            Some("unknown")
+        );
+    }
+
+    #[test]
+    fn frame_fields_carry_rust_values_to_c_after_every_step() {
+        let mut frame = CFrame::new();
+        let primaries: Vec<ColorPrimaries> = PRIMARIES_NAMED
+            .map(|(p, _, _)| p)
+            .into_iter()
+            .chain(PRIMARIES_UNNAMED.map(|r| ffi::AVColorPrimaries(r).into()))
+            .collect();
+        let ranges: Vec<ColorRange> = RANGE_NAMED
+            .map(|(r, _, _)| r)
+            .into_iter()
+            .chain(RANGE_UNNAMED.map(|r| ffi::AVColorRange(r).into()))
+            .collect();
+        for (step, &p) in primaries.iter().enumerate() {
+            let r = ranges[step % ranges.len()];
+            frame.set(p.into(), r.into());
+            assert_eq!(ColorPrimaries::from(frame.primaries()), p, "step {step}");
+            assert_eq!(ColorRange::from(frame.range()), r, "step {step}");
+            assert_eq!(
+                c_primaries_name(frame.primaries()),
+                c_primaries_name(p.into_raw())
+            );
+            assert_eq!(c_range_name(frame.range()), c_range_name(r.into_raw()));
+        }
+    }
+
+    #[test]
+    fn zeroed_storage_reads_as_c_zeroed_storage() {
+        const LEN: usize = 8;
+        let p = alloc_array_zeroed::<ColorPrimaries>(LEN).unwrap();
+        let cp = CBlock::<ffi::AVColorPrimaries>::zeroed(LEN);
+        assert_eq!(rust_as_c(&p), cp.values());
+        // A zero-filled C struct's primaries are `AVCOL_PRI_RESERVED0`, not
+        // the `UNSPECIFIED` C's initialisers write.
+        assert!(p.as_slice().iter().all(|&v| v == ColorPrimaries::RESERVED0));
+        let r = alloc_array_zeroed::<ColorRange>(LEN).unwrap();
+        let cr = CBlock::<ffi::AVColorRange>::zeroed(LEN);
+        assert_eq!(rust_as_c(&r), cr.values());
+        assert!(r.as_slice().iter().all(|&v| v == ColorRange::default()));
+    }
+
+    #[test]
+    fn writes_through_each_side_agree_after_every_step() {
+        let values: Vec<ffi::AVColorPrimaries> = PRIMARIES_NAMED
+            .iter()
+            .map(|&(_, c, _)| c)
+            .chain(PRIMARIES_UNNAMED.map(ffi::AVColorPrimaries))
+            .collect();
+        let ranges: Vec<ffi::AVColorRange> = RANGE_NAMED
+            .iter()
+            .map(|&(_, c, _)| c)
+            .chain(RANGE_UNNAMED.map(ffi::AVColorRange))
+            .collect();
+        let len = values.len();
+        let mut rp = alloc_array_zeroed::<ColorPrimaries>(len).unwrap();
+        let mut cp = CBlock::zeroed(len);
+        let mut rr = alloc_array_zeroed::<ColorRange>(len).unwrap();
+        let mut cr = CBlock::zeroed(len);
+        for (step, &v) in values.iter().enumerate() {
+            // Each step writes slot `step` and rotates an earlier one.
+            rp.as_mut_slice()[step] = ColorPrimaries::from_raw(v);
+            cp.set(step, v);
+            let back = (step * 7) % len;
+            let w = values[(step + 5) % len];
+            rp.as_mut_slice()[back] = w.into();
+            cp.set(back, w);
+            let r = ranges[step % ranges.len()];
+            rr.as_mut_slice()[step] = r.into();
+            cr.set(step, r);
+            assert_eq!(rust_as_c(&rp), cp.values(), "step {step}");
+            assert_eq!(rust_as_c(&rr), cr.values(), "step {step}");
+            for i in 0..len {
+                assert_eq!(
+                    c_primaries_name(rp.as_slice()[i].into_raw()),
+                    c_primaries_name(cp.get(i)),
+                    "step {step} slot {i}"
+                );
+                assert_eq!(
+                    c_range_name(rr.as_slice()[i].into_raw()),
+                    c_range_name(cr.get(i))
+                );
+            }
+        }
+    }
+
+    #[test]
+    fn values_c_writes_are_read_back_unchanged() {
+        let values: Vec<_> = PRIMARIES_NAMED
+            .map(|(_, c, _)| c)
+            .into_iter()
+            .chain(PRIMARIES_UNNAMED.map(ffi::AVColorPrimaries))
+            .collect();
+        let mut c = CBlock::zeroed(values.len());
+        for (i, &v) in values.iter().enumerate() {
+            c.set(i, v);
+        }
+        let (ptr, len) = c.into_raw();
+        // SAFETY: `ptr` is a live `av_calloc` block of `len` initialised
+        // `ffi::AVColorPrimaries`, whose ownership `into_raw` gave up;
+        // `ColorPrimaries` is layout-compatible with it, and `av_free`
+        // releases it.
+        let adopted = unsafe { HeapVec::<ColorPrimaries>::from_raw_parts(ptr.cast(), len) };
+        let adopted = adopted.unwrap();
+        for (i, &v) in values.iter().enumerate() {
+            assert_eq!(adopted.as_slice()[i], ColorPrimaries::from_raw(v));
+            assert_eq!(
+                debug_is_named(adopted.as_slice()[i], "ColorPrimaries"),
+                c_primaries_name(v).is_some()
+            );
+        }
+
+        let ranges: Vec<_> = RANGE_NAMED
+            .map(|(_, c, _)| c)
+            .into_iter()
+            .chain(RANGE_UNNAMED.map(ffi::AVColorRange))
+            .collect();
+        let mut c = CBlock::zeroed(ranges.len());
+        for (i, &v) in ranges.iter().enumerate() {
+            c.set(i, v);
+        }
+        let (ptr, len) = c.into_raw();
+        // SAFETY: `ptr` is a live `av_calloc` block of `len` initialised
+        // `ffi::AVColorRange`, whose ownership `into_raw` gave up; `ColorRange`
+        // is layout-compatible with it, and `av_free` releases it.
+        let adopted = unsafe { HeapVec::<ColorRange>::from_raw_parts(ptr.cast(), len) };
+        let adopted = adopted.unwrap();
+        for (i, &v) in ranges.iter().enumerate() {
+            assert_eq!(adopted.as_slice()[i], ColorRange::from_raw(v));
+        }
+    }
+
+    #[test]
+    fn clone_copies_the_c_encoding() {
+        let src: Vec<ColorPrimaries> = PRIMARIES_NAMED
+            .map(|(p, _, _)| p)
+            .into_iter()
+            .chain(PRIMARIES_UNNAMED.map(|r| ffi::AVColorPrimaries(r).into()))
+            .collect();
+        let rust = HeapVec::from_slice(&src).unwrap();
+        let copy = rust.clone();
+        let mut c = CBlock::zeroed(src.len());
+        for (i, p) in src.iter().enumerate() {
+            c.set(i, p.into_raw());
+        }
+        assert_eq!(rust_as_c(&copy), c.values());
+        assert_eq!(rust_as_c(&rust), rust_as_c(&copy));
+
+        let src: Vec<ColorRange> = RANGE_NAMED
+            .map(|(r, _, _)| r)
+            .into_iter()
+            .chain(RANGE_UNNAMED.map(|r| ffi::AVColorRange(r).into()))
+            .collect();
+        let copy = HeapVec::from_slice(&src).unwrap().clone();
+        let mut c = CBlock::zeroed(src.len());
+        for (i, r) in src.iter().enumerate() {
+            c.set(i, r.into_raw());
+        }
+        assert_eq!(rust_as_c(&copy), c.values());
+    }
+}

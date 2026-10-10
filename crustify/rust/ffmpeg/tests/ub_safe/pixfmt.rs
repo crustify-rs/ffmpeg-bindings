@@ -292,3 +292,111 @@ mod pixel_format {
         assert!(names.iter().all(|n| n == &format!("{f:?}")));
     }
 }
+
+/// [`ColorPrimaries`] and [`ColorRange`] (formats wave 0, batch 2): as values,
+/// and as the plain elements of `av_malloc`-family arrays.
+mod color_primaries_and_range {
+    use std::thread;
+
+    use ffmpeg::libavutil::ffi;
+    use ffmpeg::libavutil::mem::{HeapVec, alloc_array, alloc_array_from_fn, alloc_array_zeroed};
+    use ffmpeg::libavutil::pixfmt::{ColorPrimaries, ColorRange};
+
+    /// Named primaries, the H.273 gap, both `NB` values and `u32::MAX`.
+    fn primaries_sample() -> Vec<ColorPrimaries> {
+        [0, 1, 2, 9, 12, 13, 22, 23, 255, 256, 257, 1 << 31, u32::MAX]
+            .map(|raw| ColorPrimaries::from_raw(ffi::AVColorPrimaries(raw)))
+            .into()
+    }
+
+    /// Named ranges, `NB` and the far end of the encoding.
+    fn range_sample() -> Vec<ColorRange> {
+        [0, 1, 2, 3, 4, 1 << 31, u32::MAX]
+            .map(|raw| ColorRange::from_raw(ffi::AVColorRange(raw)))
+            .into()
+    }
+
+    #[test]
+    fn debug_and_conversions_accept_every_value() {
+        for p in primaries_sample() {
+            assert!(!format!("{p:?}").is_empty());
+            let raw: ffi::AVColorPrimaries = p.into();
+            assert_eq!(ColorPrimaries::from(raw), p);
+        }
+        for r in range_sample() {
+            assert!(!format!("{r:?}").is_empty());
+            let raw: ffi::AVColorRange = r.into();
+            assert_eq!(ColorRange::from(raw), r);
+        }
+    }
+
+    #[test]
+    fn primaries_arrays_fill_clone_and_free() {
+        let values = primaries_sample();
+        let mut a = alloc_array_zeroed::<ColorPrimaries>(values.len()).unwrap();
+        assert!(a.as_slice().iter().all(|&p| p == ColorPrimaries::RESERVED0));
+        a.as_mut_slice().copy_from_slice(&values);
+        assert!(a.as_slice().get(values.len()).is_none());
+        let mut u = alloc_array::<ColorPrimaries>(values.len()).unwrap();
+        for (slot, &p) in u.as_mut_slice().iter_mut().zip(&values) {
+            slot.write(p);
+        }
+        drop(u);
+        let f = alloc_array_from_fn(values.len(), |i| values[i]).unwrap();
+        let b = a.clone();
+        a.as_mut_slice().fill(ColorPrimaries::default());
+        drop(a);
+        assert_eq!(b.as_slice(), &values[..]);
+        assert_eq!(f.as_slice(), &values[..]);
+        drop(alloc_array_zeroed::<ColorPrimaries>(0).unwrap());
+        drop(HeapVec::<ColorPrimaries>::from_slice(&[]).unwrap());
+    }
+
+    #[test]
+    fn range_arrays_fill_clone_and_free() {
+        let values = range_sample();
+        let mut a = alloc_array_zeroed::<ColorRange>(values.len()).unwrap();
+        assert!(a.as_slice().iter().all(|&r| r == ColorRange::default()));
+        a.as_mut_slice().copy_from_slice(&values);
+        assert!(a.as_slice().get(values.len()).is_none());
+        let mut u = alloc_array::<ColorRange>(values.len()).unwrap();
+        for (slot, &r) in u.as_mut_slice().iter_mut().zip(&values) {
+            slot.write(r);
+        }
+        drop(u);
+        let f = alloc_array_from_fn(values.len(), |i| values[i]).unwrap();
+        let b = a.clone();
+        a.as_mut_slice().fill(ColorRange::JPEG);
+        drop(a);
+        assert_eq!(b.as_slice(), &values[..]);
+        assert_eq!(f.as_slice(), &values[..]);
+        drop(alloc_array_zeroed::<ColorRange>(0).unwrap());
+        drop(HeapVec::<ColorRange>::from_slice(&[]).unwrap());
+    }
+
+    #[test]
+    fn arrays_cross_and_are_shared_between_threads() {
+        let primaries = primaries_sample();
+        let ranges = range_sample();
+        let p = HeapVec::from_slice(&primaries).unwrap();
+        let r = HeapVec::from_slice(&ranges).unwrap();
+        // Shared reads from several threads at once.
+        thread::scope(|s| {
+            for _ in 0..4 {
+                s.spawn(|| assert_eq!(p.as_slice(), &primaries[..]));
+                s.spawn(|| assert_eq!(r.as_slice(), &ranges[..]));
+            }
+        });
+        // Moved to another thread, written and freed there.
+        let (back_p, back_r) = thread::spawn(move || {
+            let (mut p, mut r) = (p, r);
+            p.as_mut_slice().reverse();
+            r.as_mut_slice().reverse();
+            (p.as_slice().to_vec(), r.as_slice().to_vec())
+        })
+        .join()
+        .unwrap();
+        assert_eq!(back_p.iter().rev().copied().collect::<Vec<_>>(), primaries);
+        assert_eq!(back_r.iter().rev().copied().collect::<Vec<_>>(), ranges);
+    }
+}
