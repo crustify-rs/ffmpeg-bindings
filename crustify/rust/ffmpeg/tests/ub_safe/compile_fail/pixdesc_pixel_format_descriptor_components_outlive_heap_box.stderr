@@ -1,0 +1,16 @@
+error[E0505]: cannot move out of `b` because it is borrowed
+ --> tests/ub_safe/compile_fail/pixdesc_pixel_format_descriptor_components_outlive_heap_box.rs
+  |
+  |     let b = HeapBox::<PixelFormatDescriptor>::new_zeroed().unwrap();
+  |         - binding `b` declared here
+  |     let run = b.as_ref().components();
+  |               - borrow of `b` occurs here
+  |     drop(b);
+  |          ^ move out of `b` occurs here
+  |     println!("{}", run.get(0).unwrap().depth());
+  |                    --- borrow later used here
+  |
+help: consider cloning the value if the performance cost is acceptable
+  |
+7 |     let run = b.clone().as_ref().components();
+  |                ++++++++

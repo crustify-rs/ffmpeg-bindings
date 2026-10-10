@@ -1,0 +1,13 @@
+error[E0597]: `name` does not live long enough
+ --> tests/ub_safe/compile_fail/pixdesc_pixel_format_descriptor_name_needs_static_string.rs
+  |
+  |     let name = CString::new("short-lived").unwrap();
+  |         ---- binding `name` declared here
+  |     d.as_mut().set_name(Some(&name));
+  |     -------------------------^^^^^--
+  |     |                        |
+  |     |                        borrowed value does not live long enough
+  |     argument requires that `name` is borrowed for `'static`
+  |     println!("{:?}", d.as_ref().name());
+  | }
+  | - `name` dropped here while still borrowed

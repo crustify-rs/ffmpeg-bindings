@@ -1,0 +1,5 @@
+error[E0599]: no method named `get_mut` found for struct `ffibox::refs::CSlice<'a, T>` in the current scope
+ --> tests/ub_safe/compile_fail/pixdesc_pixel_format_descriptor_shared_run_has_no_exclusive_slot.rs
+  |
+  |     run.get_mut(0).unwrap().set_depth(8);
+  |         ^^^^^^^ method not found in `ffibox::refs::CSlice<'_, ComponentDescriptor>`

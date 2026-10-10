@@ -6,3 +6,4 @@ mod file;
 mod imgutils;
 mod log;
 mod opt;
+mod pixdesc;

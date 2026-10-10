@@ -422,6 +422,43 @@
    "fields": []
   },
   {
+   "name": "AVPixFmtDescriptor",
+   "defined_in": "libavutil/pixdesc.h",
+   "_comment_agent": "No lifecycle routine: descriptors live only in pixdesc.c's static const table (av_pix_fmt_desc_get / av_pix_fmt_desc_next return pointers into it, av_pix_fmt_desc_get_id maps them back by pointer arithmetic) or in caller storage built by value; nothing allocates, frees or clones one. comp[4] is embedded AVComponentDescriptor by value. C readers of a whole descriptor (av_get_bits_per_pixel, av_get_padded_bits_per_pixel, av_read_image_line2, av_write_image_line2) index comp[] by nb_components and plane and shift by log2_chroma_* and depth without range checks, so wrappers passing a Rust-built descriptor to them must validate those fields. Wrapped (formats wave 1 batch 2) as a value type PixelFormatDescriptor with Ref/Mut handles.",
+   "fields": [
+    {
+     "name": "alias",
+     "ptr": {
+      "scalar": null,
+      "array": null,
+      "string": true,
+      "owned": false,
+      "borrowed": {
+       "lifetime": "static"
+      },
+      "nullable": true,
+      "mutable": false,
+      "note": "Comma-separated alternative names as a string literal in the static descriptor table (e.g. gray: \"gray8,y8\"); NULL for most entries. Read by get_pix_fmt_internal (av_get_pix_fmt) via av_match_name; never allocated, freed or written. Rust: Option<&CStr>, set only from a &'static CStr."
+     }
+    },
+    {
+     "name": "name",
+     "ptr": {
+      "scalar": null,
+      "array": null,
+      "string": true,
+      "owned": false,
+      "borrowed": {
+       "lifetime": "static"
+      },
+      "nullable": true,
+      "mutable": false,
+      "note": "Every AVPixFmtDescriptor C hands out is an element of pixdesc.c's `static const av_pix_fmt_descriptors[AV_PIX_FMT_NB]`, whose `.name` is a string literal: never allocated, freed or written. Entries the designated initialisers skip are zero, so `name` is NULL there; av_pix_fmt_desc_next skips them on `!prev->name` and av_get_pix_fmt_name returns the NULL as is. No C path stores a non-literal name. Rust: Option<&CStr>, set only from a &'static CStr."
+     }
+    }
+   ]
+  },
+  {
    "name": "AVPixelFormat",
    "defined_in": "libavutil/pixfmt.h",
    "_comment_agent": "C enum (int-based: AV_PIX_FMT_NONE = -1 .. AV_PIX_FMT_NB), no fields or pointers, no lifecycle: a plain value. Public C structs store it in fields users write directly (AVCodecContext.pix_fmt/sw_pix_fmt, AVHWFramesContext.format/sw_format, AVCodecParserContext.format as int, AVFrame.format as int) and in AV_PIX_FMT_NONE-terminated arrays (AVCodec.pix_fmts, AVHWFramesConstraints.valid_hw_formats/valid_sw_formats, av_hwframe_transfer_get_formats out-array freed with av_free); a newer libavutil may return values beyond this header's enumerators. C readers bounds-check before indexing (av_pix_fmt_desc_get: 0 <= fmt < AV_PIX_FMT_NB), so every int is a valid stored value. Wrapped as a repr(transparent) newtype accepting every value, with associated constants for the enumerators, the three in-enum aliases and the 104 native-endian AV_PIX_FMT_NE macro aliases; CPlainElem for C-allocated arrays.",

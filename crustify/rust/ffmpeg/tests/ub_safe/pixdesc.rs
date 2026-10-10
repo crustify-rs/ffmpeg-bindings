@@ -669,3 +669,401 @@ mod pixel_format_loss {
         });
     }
 }
+
+/// `PixelFormatDescriptor`: inline values, `av_malloc`-family owners and
+/// arrays of them, every handle form and its component runs, strings from
+/// literals and from exactly sized heap allocations (so a read past the NUL
+/// is an ASan report), names that outlive the descriptor they were read
+/// from, copies outliving their source, and the asserted `Send` / `Sync`.
+/// Tests without `heap` in their name make no C call and also run under
+/// Miri.
+mod pixel_format_descriptor {
+    use core::ffi::CStr;
+    use std::ffi::CString;
+    use std::sync::Mutex;
+    use std::thread;
+
+    use ffmpeg::libavutil::mem::{HeapBox, alloc_cell_array_zeroed};
+    use ffmpeg::libavutil::pixdesc::{
+        ComponentDescriptor, PixelFormatDescriptor, PixelFormatDescriptorMut,
+        PixelFormatDescriptorRef, PixelFormatFlags,
+    };
+
+    /// `bytes` as an exactly sized heap C string that lives for the rest of
+    /// the program, kept reachable from a static so that neither
+    /// LeakSanitizer nor Miri reports it.
+    fn leaked(bytes: &[u8]) -> &'static CStr {
+        static KEEP: Mutex<Vec<&'static CStr>> = Mutex::new(Vec::new());
+        let s: &'static CStr = Box::leak(CString::new(bytes).unwrap().into_boxed_c_str());
+        KEEP.lock().unwrap().push(s);
+        s
+    }
+
+    /// Scalar fields at every edge: component count, chroma shifts, flags.
+    const SCALARS: [(u8, u8, u8, u64); 4] = [
+        (0, 0, 0, 0),
+        (3, 1, 1, 1 << 4),
+        (4, 2, 0, 1 << 5 | 1 << 7),
+        (u8::MAX, u8::MAX, u8::MAX, u64::MAX),
+    ];
+
+    /// Everything the getters read, strings by content.
+    type Snapshot = (
+        Option<Vec<u8>>,
+        Option<Vec<u8>>,
+        u8,
+        u8,
+        u8,
+        u64,
+        [[i32; 5]; 4],
+    );
+
+    fn snapshot(d: PixelFormatDescriptorRef<'_>) -> Snapshot {
+        let comps = d.components();
+        (
+            d.name().map(|s| s.to_bytes().to_vec()),
+            d.alias().map(|s| s.to_bytes().to_vec()),
+            d.component_count(),
+            d.log2_chroma_w(),
+            d.log2_chroma_h(),
+            d.flags().bits(),
+            core::array::from_fn(|i| {
+                let c = comps.get(i).unwrap();
+                [c.plane(), c.step(), c.offset(), c.shift(), c.depth()]
+            }),
+        )
+    }
+
+    /// Writes every field of `m`: the strings, the scalars of `SCALARS[k]`,
+    /// and component `i` = `i + k` in every component field.
+    fn fill(m: &mut PixelFormatDescriptorMut<'_>, name: Option<&'static CStr>, k: usize) {
+        let (count, w, h, flags) = SCALARS[k % SCALARS.len()];
+        m.set_name(name);
+        m.set_alias(name);
+        m.set_component_count(count);
+        m.set_log2_chroma_w(w);
+        m.set_log2_chroma_h(h);
+        m.set_flags(PixelFormatFlags::from_bits_retain(flags));
+        let mut comps = m.components_mut();
+        for i in 0..4 {
+            let v = (i + k) as i32;
+            let mut c = comps.get_mut(i).unwrap();
+            c.set_plane(v);
+            c.set_step(-v);
+            c.set_offset(i32::MIN + v);
+            c.set_shift(i32::MAX - v);
+            c.set_depth(v);
+        }
+        assert!(comps.get_mut(4).is_none());
+    }
+
+    #[test]
+    fn every_field_edge_builds_and_reads_back() {
+        let names = [
+            None,
+            Some(c""),
+            Some(c"yuv420p"),
+            Some(leaked(b"")),
+            Some(leaked(b"\xff\xfe")),
+            Some(leaked(&vec![b'n'; 4096])),
+        ];
+        for (k, name) in names.into_iter().enumerate() {
+            let mut d = PixelFormatDescriptor::new();
+            fill(&mut d.as_mut(), name, k);
+            let s = snapshot(d.as_ref());
+            assert_eq!(s.0.as_deref(), name.map(CStr::to_bytes));
+            assert_eq!(s.1, s.0);
+            let (count, w, h, flags) = SCALARS[k % SCALARS.len()];
+            assert_eq!((s.2, s.3, s.4, s.5), (count, w, h, flags));
+            assert_eq!(
+                s.6[3],
+                [
+                    3 + k as i32,
+                    -3 - k as i32,
+                    i32::MIN + 3 + k as i32,
+                    i32::MAX - 3 - k as i32,
+                    3 + k as i32
+                ]
+            );
+            assert!(!format!("{d:?}").is_empty());
+            let raw = d.into_raw();
+            assert_eq!(raw.name, name.map_or(core::ptr::null(), CStr::as_ptr));
+        }
+        assert_eq!(
+            snapshot(PixelFormatDescriptor::default().as_ref()),
+            snapshot(PixelFormatDescriptor::new().as_ref())
+        );
+    }
+
+    #[test]
+    fn names_outlive_the_descriptor_they_were_read_from() {
+        let name = leaked(b"gray10le");
+        let (n, a) = {
+            let mut d = PixelFormatDescriptor::new();
+            d.as_mut().set_name(Some(name));
+            d.as_mut().set_alias(Some(c"y10"));
+            (d.as_ref().name(), d.as_ref().alias())
+            // `d` goes out of scope; the strings are the program's.
+        };
+        assert_eq!(n.unwrap().to_bytes(), b"gray10le");
+        assert_eq!(a, Some(c"y10"));
+        // And move into another descriptor.
+        let mut e = PixelFormatDescriptor::new();
+        e.as_mut().set_name(n);
+        assert_eq!(e.as_ref().name().unwrap().as_ptr(), name.as_ptr());
+    }
+
+    #[test]
+    fn shared_handles_and_component_runs_copy_and_coexist() {
+        let mut v = PixelFormatDescriptor::new();
+        fill(&mut v.as_mut(), Some(c"rgb24"), 1);
+        let a = v.as_ref();
+        let b = a;
+        let run = a.components();
+        let run2 = run;
+        let elem = run.get(2).unwrap();
+        let (lo, hi) = run.split_at(1).unwrap();
+        assert_eq!((lo.len(), hi.len()), (1, 3));
+        assert!(run.split_at(5).is_none());
+        assert_eq!(run.slice(1..3).unwrap().get(1).unwrap().plane(), 3);
+        assert!(run.slice(2..5).is_none());
+        assert!(run2.get(4).is_none());
+        assert_eq!(snapshot(a), snapshot(b));
+        assert_eq!(elem.plane(), 3);
+        assert_eq!(hi.get(0).unwrap().plane(), 2);
+    }
+
+    #[test]
+    fn exclusive_handle_reborrows_without_aliasing() {
+        let mut v = PixelFormatDescriptor::new();
+        let mut m = v.as_mut();
+        fill(&mut m.as_mut(), Some(c"nv12"), 2);
+        {
+            let mut comps = m.components_mut();
+            let (mut lo, mut hi) = comps.split_at_mut(2).unwrap();
+            lo.get_mut(0).unwrap().set_depth(-1);
+            hi.get_mut(1).unwrap().set_depth(i32::MAX);
+            assert!(lo.get_mut(2).is_none());
+            let mut sub = comps.slice_mut(1..3).unwrap();
+            sub.get_mut(0).unwrap().set_plane(9);
+        }
+        let shared = m.as_ref();
+        assert_eq!(shared.components().get(0).unwrap().depth(), -1);
+        m.set_name(None);
+        let depths: Vec<i32> = v.as_ref().components().iter().map(|c| c.depth()).collect();
+        assert_eq!(depths, [-1, 3, 4, i32::MAX]);
+        assert_eq!(v.as_ref().components().get(1).unwrap().plane(), 9);
+        assert_eq!(v.as_ref().name(), None);
+    }
+
+    #[test]
+    fn a_consumed_handle_hands_out_its_components_for_its_lifetime() {
+        let mut v = PixelFormatDescriptor::new();
+        let mut run = v.as_mut().into_components_mut();
+        for i in 0..4 {
+            run.get_mut(i).unwrap().set(ComponentDescriptor::new());
+            run.get_mut(i).unwrap().set_step(i as i32 + 1);
+        }
+        let mut last = run.into_mut(3).unwrap();
+        last.set_depth(16);
+        let steps: Vec<i32> = v.as_ref().components().iter().map(|c| c.step()).collect();
+        assert_eq!(steps, [1, 2, 3, 4]);
+        assert_eq!(v.as_ref().components().get(3).unwrap().depth(), 16);
+    }
+
+    #[test]
+    fn copies_and_whole_sets_are_independent_of_their_source() {
+        let mut a = PixelFormatDescriptor::new();
+        fill(&mut a.as_mut(), Some(leaked(b"p010le")), 3);
+        let copy = a.as_ref().get();
+        a.as_mut().set_component_count(0);
+        a.as_mut()
+            .components_mut()
+            .get_mut(0)
+            .unwrap()
+            .set_plane(-7);
+        assert_eq!(copy.as_ref().component_count(), u8::MAX);
+        assert_eq!(copy.as_ref().components().get(0).unwrap().plane(), 3);
+        let mut b = PixelFormatDescriptor::new();
+        b.as_mut().set(copy);
+        assert_eq!(b, copy);
+        #[allow(clippy::clone_on_copy)] // exercises the explicit `Clone` impl
+        let c = Clone::clone(&b);
+        assert_eq!(snapshot(c.as_ref()), snapshot(copy.as_ref()));
+        assert_ne!(a, copy);
+    }
+
+    #[test]
+    fn heap_box_owner_lives_reads_writes_clones_and_frees() {
+        let mut a = HeapBox::<PixelFormatDescriptor>::new_zeroed().unwrap();
+        assert_eq!(
+            snapshot(a.as_ref()),
+            snapshot(PixelFormatDescriptor::new().as_ref())
+        );
+        for k in 0..SCALARS.len() {
+            fill(
+                &mut a.as_mut(),
+                Some(leaked(format!("fmt{k}").as_bytes())),
+                k,
+            );
+        }
+        let b = a.clone();
+        let c = b.try_clone().unwrap();
+        let name = a.as_ref().name();
+        let copy = a.as_ref().get();
+        // The source may go first: the copies own their own blocks, and the
+        // strings are the program's.
+        drop(a);
+        assert_eq!(name.unwrap().to_bytes(), b"fmt3");
+        assert_eq!(snapshot(b.as_ref()), snapshot(copy.as_ref()));
+        drop(b);
+        assert_eq!(snapshot(c.as_ref()), snapshot(copy.as_ref()));
+        assert_eq!(copy.as_ref().name(), name);
+        drop(HeapBox::<PixelFormatDescriptor>::new_uninit().unwrap());
+    }
+
+    #[test]
+    fn heap_array_handles_and_component_runs_stay_in_bounds() {
+        let n = 5;
+        let mut arr = alloc_cell_array_zeroed::<PixelFormatDescriptor>(n).unwrap();
+        {
+            let mut handles = arr.as_handles_mut();
+            for k in 0..n {
+                fill(
+                    &mut handles.get_mut(k).unwrap(),
+                    Some(leaked(&vec![b'a' + k as u8; k])),
+                    k,
+                );
+            }
+            assert!(handles.get_mut(n).is_none());
+        }
+        for (k, h) in arr.as_handles().iter().enumerate() {
+            assert_eq!(h.name().unwrap().to_bytes(), vec![b'a' + k as u8; k]);
+            assert_eq!(h.components().get(3).unwrap().plane(), 3 + k as i32);
+            assert!(h.components().get(4).is_none());
+        }
+        assert!(arr.as_handles().get(n).is_none());
+        let copy = arr.clone();
+        drop(arr);
+        assert_eq!(copy.as_handles().get(3).unwrap().component_count(), u8::MAX);
+        drop(alloc_cell_array_zeroed::<PixelFormatDescriptor>(0).unwrap());
+    }
+
+    #[test]
+    fn heap_values_and_owners_move_across_threads() {
+        let mut v = PixelFormatDescriptor::new();
+        fill(&mut v.as_mut(), Some(leaked(b"bgra")), 2);
+        let b = HeapBox::<PixelFormatDescriptor>::new_zeroed().unwrap();
+        let (v, b) = thread::spawn(move || {
+            let mut b = b;
+            b.as_mut().set(v);
+            (v, b)
+        })
+        .join()
+        .unwrap();
+        assert_eq!(b.as_ref().get(), v);
+        // Freed on another thread than the one that allocated it.
+        thread::spawn(move || drop(b)).join().unwrap();
+    }
+
+    #[test]
+    fn shared_handles_read_concurrently() {
+        let mut v = PixelFormatDescriptor::new();
+        fill(&mut v.as_mut(), Some(leaked(b"ya16be")), 1);
+        let expect = snapshot(v.as_ref());
+        let r = v.as_ref();
+        let run = r.components();
+        thread::scope(|s| {
+            for _ in 0..4 {
+                let expect = &expect;
+                s.spawn(move || {
+                    for _ in 0..200 {
+                        assert_eq!(&snapshot(r), expect);
+                        assert_eq!(run.get(1).unwrap().plane(), 2);
+                    }
+                });
+            }
+        });
+    }
+
+    #[test]
+    fn heap_shared_handles_read_concurrently() {
+        let mut b = HeapBox::<PixelFormatDescriptor>::new_zeroed().unwrap();
+        fill(&mut b.as_mut(), Some(c"gbrp"), 2);
+        let r = b.as_ref();
+        thread::scope(|s| {
+            for _ in 0..4 {
+                s.spawn(move || {
+                    for _ in 0..200 {
+                        assert_eq!(r.name(), Some(c"gbrp"));
+                        assert_eq!(r.get().as_ref().component_count(), 4);
+                    }
+                });
+            }
+        });
+    }
+
+    #[test]
+    fn exclusive_handles_write_on_other_threads() {
+        let mut values = [PixelFormatDescriptor::new(); 4];
+        thread::scope(|s| {
+            for (i, v) in values.iter_mut().enumerate() {
+                let mut m = v.as_mut();
+                s.spawn(move || {
+                    m.set_component_count(i as u8);
+                    m.set_name(Some(c"x"));
+                });
+            }
+        });
+        let counts: Vec<u8> = values
+            .iter()
+            .map(|v| v.as_ref().component_count())
+            .collect();
+        assert_eq!(counts, [0, 1, 2, 3]);
+    }
+
+    #[test]
+    fn component_slots_written_from_separate_threads() {
+        let mut v = PixelFormatDescriptor::new();
+        let mut run = v.as_mut().into_components_mut();
+        thread::scope(|s| {
+            for (i, m) in run.iter_mut().enumerate() {
+                let mut m = m;
+                s.spawn(move || m.set_depth(i as i32 * 8));
+            }
+        });
+        let depths: Vec<i32> = v.as_ref().components().iter().map(|c| c.depth()).collect();
+        assert_eq!(depths, [0, 8, 16, 24]);
+    }
+
+    #[test]
+    fn a_shared_exclusive_handle_only_reads() {
+        let mut v = PixelFormatDescriptor::new();
+        fill(&mut v.as_mut(), Some(c"monob"), 0);
+        let m = v.as_mut();
+        let m = &m;
+        thread::scope(|s| {
+            for _ in 0..4 {
+                s.spawn(move || assert_eq!(m.as_ref().name(), Some(c"monob")));
+            }
+        });
+    }
+
+    #[test]
+    fn heap_array_elements_written_from_separate_threads() {
+        let mut arr = alloc_cell_array_zeroed::<PixelFormatDescriptor>(4).unwrap();
+        let mut handles = arr.as_handles_mut();
+        thread::scope(|s| {
+            for (k, m) in handles.iter_mut().enumerate() {
+                let mut m = m;
+                s.spawn(move || fill(&mut m, Some(c"t"), k));
+            }
+        });
+        let counts: Vec<u8> = arr
+            .as_handles()
+            .iter()
+            .map(|h| h.component_count())
+            .collect();
+        assert_eq!(counts, [0, 3, 4, u8::MAX]);
+    }
+}
