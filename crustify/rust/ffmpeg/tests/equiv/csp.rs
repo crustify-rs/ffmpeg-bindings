@@ -903,3 +903,289 @@ mod luma_lookup {
         }
     }
 }
+
+/// [`ColorPrimariesDescriptor`] against C's `AVColorPrimariesDesc`: the safe
+/// getters against every gamut C describes (`av_csp_primaries_desc_from_id`),
+/// read in place in C's static tables; descriptions rebuilt coordinate by
+/// coordinate and field by field through the safe setters, in
+/// `av_malloc`-owned storage that C reads in place, against the same writes
+/// to an independent C struct, as `av_csp_primaries_id_from_desc` identifies
+/// both after each step; and equality against C's `av_cmp_q` on all eight
+/// coordinates.
+///
+/// [`ColorPrimariesDescriptor`]: ffmpeg::libavutil::csp::ColorPrimariesDescriptor
+mod color_primaries_descriptor {
+    use core::mem::{align_of, offset_of, size_of};
+    use core::ptr::NonNull;
+
+    use ffibox::CSlice;
+    use ffmpeg::libavutil::csp::{
+        CieXy, CieXyMut, ColorPrimariesDescriptor, ColorPrimariesDescriptorMut,
+        ColorPrimariesDescriptorRef, PrimaryCoefficients,
+    };
+    use ffmpeg::libavutil::ffi;
+    use ffmpeg::libavutil::mem::HeapBox;
+    use ffmpeg::libavutil::rational::Rational;
+
+    /// Every primaries value C may describe, past the end of both ranges
+    /// included.
+    fn primaries() -> impl Iterator<Item = ffi::AVColorPrimaries> {
+        let nb = ffi::AVColorPrimaries::AVCOL_PRI_NB.0;
+        let ext = ffi::AVColorPrimaries::AVCOL_PRI_EXT_BASE.0;
+        let ext_nb = ffi::AVColorPrimaries::AVCOL_PRI_EXT_NB.0;
+        (0..=nb).chain(ext..=ext_nb).map(ffi::AVColorPrimaries)
+    }
+
+    /// C's description for `p`, if it has one, as a safe handle over C's
+    /// static storage: the test's one adoption of a C-owned
+    /// `AVColorPrimariesDesc`.
+    fn c_entry(p: ffi::AVColorPrimaries) -> Option<ColorPrimariesDescriptorRef<'static>> {
+        // SAFETY: takes any value and returns NULL or a pointer into C's
+        // static, never-written tables.
+        let d = NonNull::new(unsafe { ffi::av_csp_primaries_desc_from_id(p) }.cast_mut())?;
+        let d = d.cast::<ColorPrimariesDescriptor>();
+        // SAFETY: `d` addresses one live, initialised, never-written
+        // `AVColorPrimariesDesc` of a static table;
+        // `ColorPrimariesDescriptor` is transparent over it.
+        let one: CSlice<'static, _> = unsafe { CSlice::from_raw_parts(d, 1) };
+        one.get(0)
+    }
+
+    /// Copies of every gamut description C holds, with its primaries value.
+    fn c_gamuts() -> Vec<(ffi::AVColorPrimaries, ffi::AVColorPrimariesDesc)> {
+        primaries()
+            .filter_map(|p| {
+                // SAFETY: as in `c_entry`.
+                let d = unsafe { ffi::av_csp_primaries_desc_from_id(p) };
+                // SAFETY: a non-NULL result is a live, initialised
+                // description; the copy is plain data.
+                (!d.is_null()).then(|| (p, unsafe { d.read() }))
+            })
+            .collect()
+    }
+
+    /// The four chromaticities of a C description, white point first.
+    fn c_points(d: &ffi::AVColorPrimariesDesc) -> [ffi::AVCIExy; 4] {
+        [d.wp, d.prim.r, d.prim.g, d.prim.b]
+    }
+
+    fn c_fields(d: &ffi::AVColorPrimariesDesc) -> [i32; 16] {
+        let mut out = [0; 16];
+        for (i, xy) in c_points(d).iter().enumerate() {
+            out[4 * i..4 * i + 4].copy_from_slice(&[xy.x.num, xy.x.den, xy.y.num, xy.y.den]);
+        }
+        out
+    }
+
+    fn rust_fields(d: ColorPrimariesDescriptorRef<'_>) -> [i32; 16] {
+        let p = d.primaries();
+        let mut out = [0; 16];
+        for (i, xy) in [d.white_point(), p.r(), p.g(), p.b()]
+            .into_iter()
+            .enumerate()
+        {
+            let (x, y) = (xy.x(), xy.y());
+            out[4 * i..4 * i + 4].copy_from_slice(&[x.num(), x.den(), y.num(), y.den()]);
+        }
+        out
+    }
+
+    /// Part `i` (in `c_fields` order) of C's struct.
+    fn c_part_mut(d: &mut ffi::AVColorPrimariesDesc, i: usize) -> &mut i32 {
+        let xy = match i / 4 {
+            0 => &mut d.wp,
+            1 => &mut d.prim.r,
+            2 => &mut d.prim.g,
+            _ => &mut d.prim.b,
+        };
+        match i % 4 {
+            0 => &mut xy.x.num,
+            1 => &mut xy.x.den,
+            2 => &mut xy.y.num,
+            _ => &mut xy.y.den,
+        }
+    }
+
+    fn rust_set_xy_part(xy: &mut CieXyMut<'_>, i: usize, v: i32) {
+        match i % 4 {
+            0 => xy.x_mut().set_num(v),
+            1 => xy.x_mut().set_den(v),
+            2 => xy.y_mut().set_num(v),
+            _ => xy.y_mut().set_den(v),
+        }
+    }
+
+    /// The same part through the safe field, primary and coordinate handles.
+    fn rust_set_part(m: &mut ColorPrimariesDescriptorMut<'_>, i: usize, v: i32) {
+        if i < 4 {
+            return rust_set_xy_part(&mut m.white_point_mut(), i, v);
+        }
+        let mut p = m.primaries_mut();
+        let mut xy = match i / 4 {
+            1 => p.r_mut(),
+            2 => p.g_mut(),
+            _ => p.b_mut(),
+        };
+        rust_set_xy_part(&mut xy, i, v);
+    }
+
+    /// C's identification of the description `d`.
+    fn c_id_at(d: &ffi::AVColorPrimariesDesc) -> ffi::AVColorPrimaries {
+        // SAFETY: `d` is a live, initialised description, which C only reads
+        // during the call.
+        unsafe { ffi::av_csp_primaries_id_from_desc(d) }
+    }
+
+    /// C's identification of the Rust-owned description, read by C in place.
+    fn rust_id(d: &HeapBox<ColorPrimariesDescriptor>) -> ffi::AVColorPrimaries {
+        // SAFETY: `as_c_ptr` addresses the live, initialised box, which the
+        // shared borrow of `d` keeps unwritten while C reads it.
+        unsafe { ffi::av_csp_primaries_id_from_desc(d.as_c_ptr()) }
+    }
+
+    #[test]
+    fn layout_matches_c() {
+        assert_eq!(
+            size_of::<ColorPrimariesDescriptor>(),
+            size_of::<ffi::AVColorPrimariesDesc>()
+        );
+        assert_eq!(
+            align_of::<ColorPrimariesDescriptor>(),
+            align_of::<ffi::AVColorPrimariesDesc>()
+        );
+        assert_eq!(offset_of!(ffi::AVColorPrimariesDesc, wp), 0);
+        assert_eq!(
+            offset_of!(ffi::AVColorPrimariesDesc, prim),
+            size_of::<ffi::AVCIExy>()
+        );
+    }
+
+    #[test]
+    fn getters_read_c_s_tables_for_every_gamut() {
+        let gamuts = c_gamuts();
+        assert!(gamuts.len() >= 11, "C describes {} gamuts", gamuts.len());
+        for (p, d) in &gamuts {
+            let entry = c_entry(*p).unwrap();
+            assert_eq!(rust_fields(entry), c_fields(d), "{p:?}");
+            assert_eq!(rust_fields(entry.get().as_ref()), c_fields(d));
+            let copy = ColorPrimariesDescriptor::from_raw(*d);
+            assert_eq!(rust_fields(copy.as_ref()), c_fields(d));
+            assert_eq!(c_fields(&copy.into_raw()), c_fields(d));
+            let built = ColorPrimariesDescriptor::new(
+                CieXy::from_raw(d.wp),
+                PrimaryCoefficients::from_raw(d.prim),
+            );
+            assert_eq!(rust_fields(built.as_ref()), c_fields(d));
+            let rebuilt =
+                ColorPrimariesDescriptor::new(entry.white_point().get(), entry.primaries().get());
+            assert_eq!(c_fields(&rebuilt.into_raw()), c_fields(d));
+            // C hands out only described gamuts, red x numerator set.
+            assert_ne!(entry.primaries().r().x().num(), 0);
+            assert_eq!(c_id_at(&rebuilt.into_raw()), c_id_at(d));
+        }
+        let bt709 = c_entry(ffi::AVColorPrimaries::AVCOL_PRI_BT709).unwrap();
+        assert!((bt709.white_point().x().get().to_f64() - 0.3127).abs() < 1e-9);
+        let v_gamut = c_entry(ffi::AVColorPrimaries::AVCOL_PRI_V_GAMUT).unwrap();
+        assert!(v_gamut.primaries().b().y().num() < 0);
+        assert!(c_entry(ffi::AVColorPrimaries::AVCOL_PRI_UNSPECIFIED).is_none());
+    }
+
+    #[test]
+    fn descriptions_rebuilt_through_the_setters_identify_as_c_after_each_step() {
+        for (p, reference) in c_gamuts() {
+            // Rust's description in an `av_malloc` block, C's in its own
+            // struct: independently owned, written in the same order.
+            let mut rust = HeapBox::<ColorPrimariesDescriptor>::new_zeroed().unwrap();
+            let mut c = ffi::AVColorPrimariesDesc::default();
+            assert_eq!(rust_id(&rust), c_id_at(&c));
+            for (i, &v) in c_fields(&reference).iter().enumerate() {
+                rust_set_part(&mut rust.as_mut(), i, v);
+                *c_part_mut(&mut c, i) = v;
+                assert_eq!(rust_fields(rust.as_ref()), c_fields(&c), "{p:?} part {i}");
+                assert_eq!(rust_id(&rust), c_id_at(&c), "{p:?} part {i}");
+            }
+            let id = c_id_at(&c);
+            // Whole fields through `set_white_point`, `set_primaries` and
+            // `set`, with the white point moved past C's 1/1000 tolerance
+            // and back.
+            let wp = reference.wp;
+            let far = ffi::AVCIExy {
+                x: ffi::AVRational {
+                    // x + 2/1000, exact for every denominator (D65's
+                    // 10000, equal energy's 3).
+                    num: wp.x.num * 1000 + wp.x.den * 2,
+                    den: wp.x.den * 1000,
+                },
+                y: wp.y,
+            };
+            for (step, white) in [("far", far), ("back", wp)] {
+                rust.as_mut().set_white_point(CieXy::from_raw(white));
+                c.wp = white;
+                assert_eq!(rust_fields(rust.as_ref()), c_fields(&c), "{p:?} {step}");
+                assert_eq!(rust_id(&rust), c_id_at(&c), "{p:?} {step}");
+                if step == "far" && p.0 < ffi::AVColorPrimaries::AVCOL_PRI_NB.0 {
+                    assert_ne!(c_id_at(&c), id, "{p:?}: the nudge leaves C's tolerance");
+                }
+            }
+            rust.as_mut().set_primaries(PrimaryCoefficients::default());
+            c.prim = ffi::AVPrimaryCoefficients::default();
+            assert_eq!(rust_id(&rust), c_id_at(&c), "{p:?} no primaries");
+            rust.as_mut()
+                .set_primaries(PrimaryCoefficients::from_raw(reference.prim));
+            c.prim = reference.prim;
+            assert_eq!(rust_id(&rust), id, "{p:?}");
+            assert_eq!(c_id_at(&c), id, "{p:?}");
+            // A copy written into another owner through `set`.
+            let mut other = HeapBox::<ColorPrimariesDescriptor>::new_zeroed().unwrap();
+            other.as_mut().set(rust.as_ref().get());
+            assert_eq!(rust_id(&other), id, "{p:?} copy");
+            rust.as_mut().set(ColorPrimariesDescriptor::default());
+            assert_eq!(
+                rust_id(&rust),
+                c_id_at(&ffi::AVColorPrimariesDesc::default())
+            );
+            assert_eq!(rust_id(&other), id, "{p:?} copy after source reset");
+        }
+    }
+
+    #[test]
+    fn equality_is_c_comparison_on_every_coordinate() {
+        let q = |num, den| ffi::AVRational { num, den };
+        let mut entries: Vec<ffi::AVColorPrimariesDesc> =
+            c_gamuts().into_iter().map(|(_, d)| d).collect();
+        // An unreduced twin of BT.709's, a twin differing in the white point
+        // only, and an all-`0/0` entry.
+        let mut twin = entries[0];
+        twin.wp.x = q(twin.wp.x.num * 3, twin.wp.x.den * 3);
+        twin.prim.b.y = q(twin.prim.b.y.num * -2, twin.prim.b.y.den * -2);
+        let mut other_wp = entries[0];
+        other_wp.wp.y = q(other_wp.wp.y.num + 1, other_wp.wp.y.den);
+        entries.extend([twin, other_wp, ffi::AVColorPrimariesDesc::default()]);
+        for a in &entries {
+            for b in &entries {
+                let c_equal = c_points(a).iter().zip(c_points(b)).all(|(x, y)| {
+                    // SAFETY: `av_cmp_q` takes both by value.
+                    unsafe { ffi::av_cmp_q(x.x, y.x) == 0 && ffi::av_cmp_q(x.y, y.y) == 0 }
+                });
+                assert_eq!(
+                    ColorPrimariesDescriptor::from_raw(*a)
+                        == ColorPrimariesDescriptor::from_raw(*b),
+                    c_equal,
+                    "{:?} {:?}",
+                    c_fields(a),
+                    c_fields(b)
+                );
+            }
+        }
+        let rust_twin = ColorPrimariesDescriptor::from_raw(twin);
+        assert_eq!(rust_twin, ColorPrimariesDescriptor::from_raw(entries[0]));
+        assert_ne!(
+            ColorPrimariesDescriptor::from_raw(other_wp),
+            ColorPrimariesDescriptor::from_raw(entries[0])
+        );
+        assert_eq!(
+            Rational::from_raw(twin.wp.x),
+            Rational::from_raw(entries[0].wp.x)
+        );
+    }
+}

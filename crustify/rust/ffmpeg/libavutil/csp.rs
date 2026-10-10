@@ -26,6 +26,14 @@
 //! type C embeds in its gamut descriptions (`AVColorPrimariesDesc.prim`),
 //! reached as a [`PrimaryCoefficientsRef`] or [`PrimaryCoefficientsMut`],
 //! each primary as a [`CieXyRef`] or [`CieXyMut`] over its own.
+//!
+//! [`ColorPrimariesDescriptor`] is `AVColorPrimariesDesc`: the complete
+//! description of a gamut, a white point ([`CieXy`]) and its primaries
+//! ([`PrimaryCoefficients`]), a value type C hands out as shared borrows of
+//! its static tables and embeds in Dolby Vision metadata, reached as a
+//! [`ColorPrimariesDescriptorRef`] or [`ColorPrimariesDescriptorMut`], the
+//! white point as a [`CieXyRef`] or [`CieXyMut`] and the primaries as a
+//! [`PrimaryCoefficientsRef`] or [`PrimaryCoefficientsMut`] over their own.
 
 use core::fmt;
 use core::ptr::{addr_of, addr_of_mut};
@@ -790,6 +798,234 @@ impl PrimaryCoefficientsMut<'_> {
         // exclusive handle's pointer to a live one; the old value owns
         // nothing to leak.
         unsafe { self.as_mut_ptr().write(p.into_raw()) }
+    }
+}
+
+define_ctype!(
+    /// Wraps: AVColorPrimariesDesc
+    ///
+    /// The complete description of a colour gamut: its white point and the
+    /// chromaticities of its red, green and blue primaries, all in the CIE
+    /// 1931 xy plane. Its getters are on [`ColorPrimariesDescriptorRef`]
+    /// (`as_ref()`), its setters on [`ColorPrimariesDescriptorMut`]
+    /// (`as_mut()`).
+    ///
+    /// C hands these out as shared borrows of its static, never-written
+    /// tables (`av_csp_primaries_desc_from_id`), reads them field by field
+    /// (`av_csp_primaries_id_from_desc`) and embeds them by value in Dolby
+    /// Vision metadata (`AVDOVIDmLevel9`, `AVDOVIDmLevel10`); nothing
+    /// allocates, frees or clones one on its own, so it is a value type with
+    /// no owner, built by [`ColorPrimariesDescriptor::new`],
+    /// [`from_raw`](ColorPrimariesDescriptor::from_raw) or `zeroed()`. No
+    /// coordinate is checked, by C or here: each takes any pair of `int`s, as
+    /// a [`Rational`] does.
+    #[derive(Clone, Copy)]
+    ColorPrimariesDescriptor,
+    ColorPrimariesDescriptorRef,
+    ColorPrimariesDescriptorMut,
+    ffi::AVColorPrimariesDesc
+);
+
+// SAFETY: all-zero is a white point and three primaries of `0/0`
+// coordinates, the description C's own tables hold for every gamut they leave
+// unspecified (and skip on `prim.r.x.num == 0`); every accessor takes it as
+// the sixteen integers it is, and the type has no teardown to reject it.
+unsafe impl CZeroable for ColorPrimariesDescriptor {}
+
+// SAFETY: an `AVColorPrimariesDesc` is 64 bytes of plain data, an `AVCIExy`
+// and an `AVPrimaryCoefficients`, eight `AVRational`s in all, with no
+// pointer, sub-allocation or tie to the thread that wrote them, so a value, or
+// an exclusive handle to one, moves between threads as an `[i32; 16]` does.
+unsafe impl Send for ColorPrimariesDescriptor {}
+// SAFETY: as for `ColorPrimariesDescriptor`: the handle is the only access to
+// the description, and the white point and primaries handles it lends borrow
+// it.
+unsafe impl Send for ColorPrimariesDescriptorMut<'_> {}
+
+// SAFETY: nothing reachable through a shared handle writes:
+// `ColorPrimariesDescriptorRef` has getters only, whose `CieXyRef` and
+// `PrimaryCoefficientsRef` have getters only too, and the struct has no
+// interior mutability, so concurrent shared access reads unchanging bytes, as
+// through `&[i32; 16]`.
+unsafe impl Sync for ColorPrimariesDescriptor {}
+// SAFETY: as for `Sync for ColorPrimariesDescriptor`: copies of a shared
+// handle only read.
+unsafe impl Send for ColorPrimariesDescriptorRef<'_> {}
+// SAFETY: as above.
+unsafe impl Sync for ColorPrimariesDescriptorRef<'_> {}
+// SAFETY: `&ColorPrimariesDescriptorMut` reaches the description only through
+// `as_ref`, a shared handle; the setters and the exclusive field handles need
+// `&mut`.
+unsafe impl Sync for ColorPrimariesDescriptorMut<'_> {}
+
+impl ColorPrimariesDescriptor {
+    /// The gamut of white point `white_point` and primaries `primaries`, as
+    /// given.
+    #[inline]
+    #[must_use]
+    pub const fn new(white_point: WhitepointCoefficients, primaries: PrimaryCoefficients) -> Self {
+        Self::from_raw(ffi::AVColorPrimariesDesc {
+            wp: white_point.into_raw(),
+            prim: primaries.into_raw(),
+        })
+    }
+
+    /// The gamut C encodes as `raw`, whatever its coordinates.
+    #[inline]
+    #[must_use]
+    pub const fn from_raw(raw: ffi::AVColorPrimariesDesc) -> Self {
+        Self(raw, core::marker::PhantomData)
+    }
+
+    /// The C encoding of this gamut, for passing it or storing it in a C
+    /// struct by value.
+    #[inline]
+    #[must_use]
+    pub const fn into_raw(self) -> ffi::AVColorPrimariesDesc {
+        self.0
+    }
+}
+
+/// A white point and primaries of `0/0` coordinates: an unspecified gamut.
+impl Default for ColorPrimariesDescriptor {
+    #[inline]
+    fn default() -> Self {
+        Self::zeroed()
+    }
+}
+
+impl From<ffi::AVColorPrimariesDesc> for ColorPrimariesDescriptor {
+    #[inline]
+    fn from(raw: ffi::AVColorPrimariesDesc) -> Self {
+        Self::from_raw(raw)
+    }
+}
+
+impl From<ColorPrimariesDescriptor> for ffi::AVColorPrimariesDesc {
+    #[inline]
+    fn from(d: ColorPrimariesDescriptor) -> Self {
+        d.into_raw()
+    }
+}
+
+/// White point and primaries by [`CieXy`]'s and [`PrimaryCoefficients`]'
+/// equality: coordinates compare by [`Rational`]'s value equality, so `1/2`
+/// equals `2/4`, and a `0/0` coordinate equals nothing, itself included. This
+/// is exact equality, not the 1/1000 tolerance within which C identifies a
+/// gamut (`av_csp_primaries_id_from_desc`).
+impl PartialEq for ColorPrimariesDescriptor {
+    fn eq(&self, other: &Self) -> bool {
+        let (a, b) = (self.as_ref(), other.as_ref());
+        a.white_point().get() == b.white_point().get() && a.primaries().get() == b.primaries().get()
+    }
+}
+
+impl fmt::Debug for ColorPrimariesDescriptor {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        self.as_ref().fmt(f)
+    }
+}
+
+impl fmt::Debug for ColorPrimariesDescriptorRef<'_> {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.debug_struct("ColorPrimariesDescriptor")
+            .field("white_point", &self.white_point())
+            .field("primaries", &self.primaries())
+            .finish()
+    }
+}
+
+impl<'a> ColorPrimariesDescriptorRef<'a> {
+    /// Field: AVColorPrimariesDesc.wp
+    ///
+    /// The white point, read through a shared handle over the field that
+    /// lives as long as this one.
+    #[must_use]
+    pub fn white_point(&self) -> CieXyRef<'a> {
+        // SAFETY: the `wp` field, projected without a reference through the
+        // shared handle's pointer to a live, initialised
+        // `AVColorPrimariesDesc`, is a live, initialised `AVCIExy` for as
+        // long as the description is borrowed (`'a`); `CieXyRef` only reads
+        // through the pointer, and a field address is never NULL.
+        unsafe { CieXyRef::from_ptr(addr_of!((*self.as_ptr()).wp).cast_mut()) }
+            .expect("a field address is not NULL")
+    }
+
+    /// Field: AVColorPrimariesDesc.prim
+    ///
+    /// The red, green and blue primaries, read through a shared handle over
+    /// the field that lives as long as this one.
+    #[must_use]
+    pub fn primaries(&self) -> PrimaryCoefficientsRef<'a> {
+        // SAFETY: as in `white_point`, for the `prim` field, a live,
+        // initialised `AVPrimaryCoefficients` that `PrimaryCoefficientsRef`
+        // only reads.
+        unsafe { PrimaryCoefficientsRef::from_ptr(addr_of!((*self.as_ptr()).prim).cast_mut()) }
+            .expect("a field address is not NULL")
+    }
+
+    /// A copy of the whole description, independent of the place it was
+    /// read from.
+    #[must_use]
+    pub fn get(&self) -> ColorPrimariesDescriptor {
+        // SAFETY: a read of the whole live, initialised
+        // `AVColorPrimariesDesc` through the shared handle's pointer; it is
+        // sixteen `int`s, so the byte copy is a complete, independent value.
+        ColorPrimariesDescriptor::from_raw(unsafe { self.as_ptr().read() })
+    }
+}
+
+impl ColorPrimariesDescriptorMut<'_> {
+    /// Field: AVColorPrimariesDesc.wp
+    ///
+    /// The white point, written through an exclusive handle over the field,
+    /// which borrows this description exclusively while it lives.
+    #[must_use]
+    pub fn white_point_mut(&mut self) -> CieXyMut<'_> {
+        // SAFETY: the `wp` field, projected without a reference through the
+        // exclusive handle's pointer to a live `AVColorPrimariesDesc`, is a
+        // live `AVCIExy` that only the result reaches while it borrows `self`
+        // exclusively; a field address is never NULL.
+        unsafe { CieXyMut::from_ptr(addr_of_mut!((*self.as_mut_ptr()).wp)) }
+            .expect("a field address is not NULL")
+    }
+
+    /// Field: AVColorPrimariesDesc.prim
+    ///
+    /// The primaries, written through an exclusive handle over the field,
+    /// which borrows this description exclusively while it lives.
+    #[must_use]
+    pub fn primaries_mut(&mut self) -> PrimaryCoefficientsMut<'_> {
+        // SAFETY: as in `white_point_mut`, for the `prim` field, a live
+        // `AVPrimaryCoefficients`.
+        unsafe { PrimaryCoefficientsMut::from_ptr(addr_of_mut!((*self.as_mut_ptr()).prim)) }
+            .expect("a field address is not NULL")
+    }
+
+    /// Field: AVColorPrimariesDesc.wp
+    ///
+    /// Sets the white point, leaving the primaries as they are.
+    pub fn set_white_point(&mut self, white_point: WhitepointCoefficients) {
+        // SAFETY: a write of the `wp` field projected through the exclusive
+        // handle's pointer to a live `AVColorPrimariesDesc`; the old value
+        // owns nothing to leak.
+        unsafe { addr_of_mut!((*self.as_mut_ptr()).wp).write(white_point.into_raw()) }
+    }
+
+    /// Field: AVColorPrimariesDesc.prim
+    ///
+    /// Sets the primaries, leaving the white point as it is.
+    pub fn set_primaries(&mut self, primaries: PrimaryCoefficients) {
+        // SAFETY: as in `set_white_point`, for the `prim` field.
+        unsafe { addr_of_mut!((*self.as_mut_ptr()).prim).write(primaries.into_raw()) }
+    }
+
+    /// Overwrites the white point and the primaries with `d`'s.
+    pub fn set(&mut self, d: ColorPrimariesDescriptor) {
+        // SAFETY: a write of the whole `AVColorPrimariesDesc` through the
+        // exclusive handle's pointer to a live one; the old value owns
+        // nothing to leak.
+        unsafe { self.as_mut_ptr().write(d.into_raw()) }
     }
 }
 
@@ -1607,5 +1843,220 @@ mod unit_tests {
         assert_traits::<PrimaryCoefficients>();
         assert_handle::<PrimaryCoefficientsRef<'static>>();
         assert_handle::<PrimaryCoefficientsMut<'static>>();
+    }
+
+    fn descriptor_raw(f: [i32; 16]) -> ffi::AVColorPrimariesDesc {
+        let mut prim = [0; 12];
+        prim.copy_from_slice(&f[4..]);
+        ffi::AVColorPrimariesDesc {
+            wp: ffi::AVCIExy {
+                x: q(f[0], f[1]),
+                y: q(f[2], f[3]),
+            },
+            prim: primaries_raw(prim),
+        }
+    }
+
+    fn descriptor_fields(d: ColorPrimariesDescriptorRef<'_>) -> [i32; 16] {
+        let mut out = [0; 16];
+        out[..4].copy_from_slice(&parts(d.white_point()));
+        out[4..].copy_from_slice(&primaries_fields(d.primaries()));
+        out
+    }
+
+    const DESCRIPTOR: [i32; 16] = [21, 22, 23, 24, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12];
+
+    #[test]
+    fn color_primaries_descriptor_layout_is_the_c_struct() {
+        use core::mem::{align_of, offset_of, size_of};
+        assert_eq!(
+            size_of::<ColorPrimariesDescriptor>(),
+            size_of::<ffi::AVColorPrimariesDesc>()
+        );
+        assert_eq!(size_of::<ColorPrimariesDescriptor>(), 64);
+        assert_eq!(
+            align_of::<ColorPrimariesDescriptor>(),
+            align_of::<ffi::AVColorPrimariesDesc>()
+        );
+        assert_eq!(offset_of!(ffi::AVColorPrimariesDesc, wp), 0);
+        assert_eq!(offset_of!(ffi::AVColorPrimariesDesc, prim), 16);
+    }
+
+    #[test]
+    fn color_primaries_descriptor_new_zeroed_default_and_raw_round_trip() {
+        let wp = CieXy::new(r(3127, 10000), r(3290, 10000));
+        let prim = PrimaryCoefficients::from_raw(primaries_raw(PRIMARIES));
+        let d = ColorPrimariesDescriptor::new(wp, prim);
+        assert_eq!(
+            descriptor_fields(d.as_ref()),
+            [
+                3127, 10000, 3290, 10000, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12
+            ]
+        );
+        assert_eq!(
+            descriptor_fields(ColorPrimariesDescriptor::zeroed().as_ref()),
+            [0; 16]
+        );
+        assert_eq!(
+            descriptor_fields(ColorPrimariesDescriptor::default().as_ref()),
+            [0; 16]
+        );
+        let mut f = [i32::MIN; 16];
+        f[3] = i32::MAX;
+        f[15] = -1;
+        let back: ffi::AVColorPrimariesDesc =
+            ColorPrimariesDescriptor::from(descriptor_raw(f)).into();
+        assert_eq!(
+            descriptor_fields(ColorPrimariesDescriptor::from_raw(back).as_ref()),
+            f
+        );
+        let raw = ColorPrimariesDescriptor::from_raw(descriptor_raw(f)).into_raw();
+        assert_eq!(
+            (raw.wp.y.den, raw.prim.r.x.num, raw.prim.b.y.den),
+            (i32::MAX, i32::MIN, -1)
+        );
+        // `new` is usable in constants.
+        const ZERO: ColorPrimariesDescriptor = ColorPrimariesDescriptor::new(
+            CieXy::from_raw(ffi::AVCIExy {
+                x: ffi::AVRational { num: 0, den: 0 },
+                y: ffi::AVRational { num: 0, den: 0 },
+            }),
+            PrimaryCoefficients::from_raw(ffi::AVPrimaryCoefficients {
+                r: ffi::AVCIExy {
+                    x: ffi::AVRational { num: 0, den: 0 },
+                    y: ffi::AVRational { num: 0, den: 0 },
+                },
+                g: ffi::AVCIExy {
+                    x: ffi::AVRational { num: 0, den: 0 },
+                    y: ffi::AVRational { num: 0, den: 0 },
+                },
+                b: ffi::AVCIExy {
+                    x: ffi::AVRational { num: 0, den: 0 },
+                    y: ffi::AVRational { num: 0, den: 0 },
+                },
+            }),
+        );
+        assert_eq!(descriptor_fields(ZERO.as_ref()), [0; 16]);
+    }
+
+    #[test]
+    fn color_primaries_descriptor_field_handles_write_their_field_alone() {
+        let mut d = ColorPrimariesDescriptor::from_raw(descriptor_raw(DESCRIPTOR));
+        let mut m = d.as_mut();
+        m.white_point_mut().x_mut().set_num(-21);
+        let mut expect = DESCRIPTOR;
+        expect[0] = -21;
+        assert_eq!(descriptor_fields(m.as_ref()), expect);
+        m.primaries_mut().g_mut().y_mut().set_den(80);
+        expect[11] = 80;
+        assert_eq!(descriptor_fields(m.as_ref()), expect);
+        m.primaries_mut().set_b(CieXy::zeroed());
+        expect[12..].copy_from_slice(&[0; 4]);
+        assert_eq!(descriptor_fields(m.as_ref()), expect);
+        m.white_point_mut().set(CieXy::zeroed());
+        expect[..4].copy_from_slice(&[0; 4]);
+        assert_eq!(descriptor_fields(m.as_ref()), expect);
+        m.set(ColorPrimariesDescriptor::zeroed());
+        assert_eq!(descriptor_fields(d.as_ref()), [0; 16]);
+    }
+
+    #[test]
+    fn color_primaries_descriptor_value_setters_write_their_field_alone() {
+        let mut d = ColorPrimariesDescriptor::from_raw(descriptor_raw(DESCRIPTOR));
+        let mut m = d.as_mut();
+        m.set_white_point(CieXy::new(r(1, 3), r(i32::MIN, i32::MAX)));
+        let mut expect = DESCRIPTOR;
+        expect[..4].copy_from_slice(&[1, 3, i32::MIN, i32::MAX]);
+        assert_eq!(descriptor_fields(m.as_ref()), expect);
+        m.set_primaries(PrimaryCoefficients::zeroed());
+        expect[4..].copy_from_slice(&[0; 12]);
+        assert_eq!(descriptor_fields(d.as_ref()), expect);
+    }
+
+    #[test]
+    fn color_primaries_descriptor_field_handles_outlive_the_parent_handle() {
+        let d = ColorPrimariesDescriptor::from_raw(descriptor_raw(DESCRIPTOR));
+        // The field handles borrow the value, not the temporary handle, and
+        // so do the handles they lend in turn.
+        let (wp, prim, gx) = {
+            let h = d.as_ref();
+            (h.white_point(), h.primaries(), h.primaries().g().x())
+        };
+        assert_eq!((wp.y().num(), prim.b().y().den(), gx.num()), (23, 12, 5));
+        let copy = d.as_ref().get();
+        assert_eq!(descriptor_fields(copy.as_ref()), DESCRIPTOR);
+    }
+
+    #[test]
+    fn color_primaries_descriptor_equality_is_by_value() {
+        let base = [1, 3, 1, 3, 1, 2, 1, 3, 1, 4, 1, 5, 1, 6, 1, 7];
+        let mut scaled = base;
+        for (i, v) in scaled.iter_mut().enumerate() {
+            *v *= (i / 2 + 2) as i32;
+        }
+        let a = ColorPrimariesDescriptor::from_raw(descriptor_raw(base));
+        assert_eq!(
+            a,
+            ColorPrimariesDescriptor::from_raw(descriptor_raw(scaled))
+        );
+        for i in 0..16 {
+            let mut f = base;
+            f[i] += 1;
+            assert_ne!(
+                a,
+                ColorPrimariesDescriptor::from_raw(descriptor_raw(f)),
+                "{i}"
+            );
+        }
+        // `0/0` is unordered, like NaN, in the white point alone too.
+        let z = ColorPrimariesDescriptor::zeroed();
+        assert_ne!(z, z);
+        let mut no_wp = a;
+        no_wp.as_mut().set_white_point(CieXy::zeroed());
+        assert_ne!(no_wp, no_wp);
+    }
+
+    #[test]
+    fn color_primaries_descriptor_debug_names_every_field() {
+        let d = ColorPrimariesDescriptor::from_raw(descriptor_raw(DESCRIPTOR));
+        assert_eq!(
+            format!("{d:?}"),
+            format!(
+                "ColorPrimariesDescriptor {{ white_point: {:?}, primaries: {:?} }}",
+                d.as_ref().white_point(),
+                d.as_ref().primaries()
+            )
+        );
+        assert!(format!("{d:?}").contains("white_point: CieXy { x: Rational { num: 21, den: 22 }"));
+        assert_eq!(format!("{:?}", d.as_ref()), format!("{d:?}"));
+    }
+
+    #[test]
+    fn color_primaries_descriptor_handles_borrow_raw_storage() {
+        let mut raw = descriptor_raw([0; 16]);
+        // SAFETY: `raw` is a live, initialised `AVColorPrimariesDesc` on
+        // this frame, outliving the handle, and nothing else touches it
+        // meanwhile.
+        let mut m = unsafe { ColorPrimariesDescriptorMut::from_ptr(&raw mut raw) }.unwrap();
+        m.white_point_mut().y_mut().set_num(3290);
+        m.primaries_mut()
+            .set_r(CieXy::new(r(640, 1000), r(330, 1000)));
+        assert_eq!(
+            (raw.wp.y.num, raw.prim.r.x.num, raw.prim.r.y.den),
+            (3290, 640, 1000)
+        );
+        // SAFETY: NULL is accepted and yields `None`.
+        assert!(unsafe { ColorPrimariesDescriptorRef::from_ptr(core::ptr::null_mut()) }.is_none());
+        // SAFETY: as above.
+        assert!(unsafe { ColorPrimariesDescriptorMut::from_ptr(core::ptr::null_mut()) }.is_none());
+    }
+
+    #[test]
+    fn color_primaries_descriptors_are_plain_shareable_values() {
+        fn assert_traits<T: Copy + Send + Sync + core::fmt::Debug + Default + 'static>() {}
+        fn assert_handle<T: Send + Sync>() {}
+        assert_traits::<ColorPrimariesDescriptor>();
+        assert_handle::<ColorPrimariesDescriptorRef<'static>>();
+        assert_handle::<ColorPrimariesDescriptorMut<'static>>();
     }
 }
