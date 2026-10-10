@@ -761,10 +761,25 @@ impl BPrintRef<'_> {
     /// Wraps: av_bprint_is_complete
     ///
     /// Whether everything appended is stored: `false` once an append was
-    /// truncated, by the `size_max` limit or a failed allocation (and always
-    /// for a count-only buffer that was appended to). Compare
+    /// truncated, by the `size_max` limit or a failed allocation. Compare
     /// [`size`](Self::size) with [`size_max`](Self::size_max) to tell them
-    /// apart.
+    /// apart. C tests `len < size`, so a count-only buffer (`size` 0) is
+    /// never complete, not even before anything is appended, and
+    /// [`clear`](BPrintMut::clear) or [`truncate`](BPrintMut::truncate)
+    /// cannot make it so.
+    ///
+    /// ```
+    /// use ffmpeg::libavutil::bprint::BPrint;
+    /// let mut buf = BPrint::new(0, BPrint::SIZE_COUNT_ONLY).unwrap();
+    /// assert!(!buf.as_ref().is_complete());
+    /// buf.as_mut().append_bytes(b"counted");
+    /// buf.as_mut().clear();
+    /// assert!(!buf.as_ref().is_complete());
+    /// let on_empty = BPrint::for_buffer(&mut []).unwrap();
+    /// assert!(!on_empty.as_ref().is_complete());
+    /// let stored = BPrint::new(0, BPrint::SIZE_AUTOMATIC).unwrap();
+    /// assert!(stored.as_ref().is_complete());
+    /// ```
     #[must_use]
     pub fn is_complete(&self) -> bool {
         // SAFETY: `av_bprint_is_complete` only reads `len` and `size` of the
@@ -828,7 +843,8 @@ impl BPrintMut<'_> {
     /// Wraps: av_bprint_clear
     ///
     /// Empties the buffer, keeping its storage: [`len`](BPrintRef::len)
-    /// becomes 0, which also makes a truncated buffer complete again.
+    /// becomes 0, which also makes a truncated buffer with storage
+    /// [complete](BPrintRef::is_complete) again.
     pub fn clear(&mut self) {
         // SAFETY: the exclusive handle addresses an initialised buffer;
         // `av_bprint_clear` writes `len` and, when it was non-zero, the
@@ -1054,7 +1070,8 @@ define_ctype!(
 
 // SAFETY: all-zero is a NULL `tm_zone` and zero integers: every getter
 // accepts it (`zone` reads NULL as `None`), and so does `strftime`, which
-// substitutes a zone name for a NULL `tm_zone`; no teardown exists.
+// substitutes the local zone's name (or nothing) for a NULL `tm_zone`; no
+// teardown exists.
 unsafe impl CZeroable for Tm {}
 
 // SAFETY: the fields are integers and `tm_zone`, NULL or a `&'static CStr`
@@ -1173,7 +1190,21 @@ tm_fields! {
 
 impl<'a> TmRef<'a> {
     /// `tm_zone`: the time zone's abbreviation, which `%Z` formats, or
-    /// `None` when NULL (`strftime` then names the local zone).
+    /// `None` when NULL. For `None` or an empty name, glibc's `strftime`
+    /// names the local zone (`tzname[tm_isdst != 0]`) when `tm_isdst` is
+    /// not negative, and nothing otherwise.
+    ///
+    /// ```
+    /// use ffmpeg::libavutil::bprint::{BPrint, Tm};
+    /// let mut tm = Tm::new();
+    /// tm.as_mut().set_isdst(-1);
+    /// let mut buf = BPrint::new(0, BPrint::SIZE_UNLIMITED).unwrap();
+    /// buf.as_mut().append_strftime(c"[%Z]", tm.as_ref());
+    /// assert_eq!(buf.as_ref().as_bytes(), b"[]");
+    /// tm.as_mut().set_zone(Some(c"XST"));
+    /// buf.as_mut().append_strftime(c"[%Z]", tm.as_ref());
+    /// assert_eq!(buf.as_ref().as_bytes(), b"[][XST]");
+    /// ```
     #[must_use]
     pub fn zone(&self) -> Option<&'a CStr> {
         // SAFETY: a read of the `tm_zone` field projected through the shared
