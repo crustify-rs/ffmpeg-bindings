@@ -1599,6 +1599,96 @@
    ]
   },
   {
+   "name": "av_channel_layout_retype",
+   "defined_in": "libavutil/channel_layout.c",
+   "ptr_args": [
+    {
+     "name": "channel_layout",
+     "ptr": {
+      "scalar": {
+       "by_val": true
+      },
+      "array": null,
+      "string": false,
+      "owned": false,
+      "borrowed": {
+       "lifetime": "arg:channel_layout"
+      },
+      "nullable": false,
+      "mutable": true,
+      "note": "The layout to convert in place, borrowed exclusively for the call; the storage is the caller's (stack, embedded AVFrame/AVCodecContext.ch_layout, Rust CVal). C first rejects any layout av_channel_layout_check refuses (count <= 0, native count != popcount, custom map NULL or holding AV_CHAN_NONE, ambisonic count <= popcount, unknown order) with EINVAL, reading nb_channels map elements' ids. Lossy or impossible conversions return ENOSYS and custom_init failure ENOMEM, each leaving the layout untouched. On success it keeps opaque, and either uninits (freeing a custom u.map via av_freep) and rebuilds a mapless layout (unspec/native/ambisonic), or builds a fresh av_calloc map (custom target) that the layout then owns, released by av_channel_layout_uninit. Names are only tested by name[0], never strlen'd. Returns 0 (lossless or already in that order) or 1 (lossy). Rust: ChannelLayoutMut::retype / canonicalize on the exclusive handle."
+     }
+    }
+   ]
+  },
+  {
+   "name": "av_channel_layout_standard",
+   "defined_in": "libavutil/channel_layout.c",
+   "ptr_args": [
+    {
+     "name": "opaque",
+     "ptr": {
+      "scalar": {
+       "by_ref": {
+        "owned": false,
+        "borrowed": {
+         "lifetime": "other"
+        }
+       }
+      },
+      "array": null,
+      "string": false,
+      "owned": false,
+      "borrowed": {
+       "lifetime": "arg:opaque"
+      },
+      "nullable": false,
+      "mutable": true,
+      "note": "Iteration state slot, read and written during the call (dereferenced unconditionally, so never NULL). *opaque is not a pointer to anything: C casts it to uintptr_t as the index of the next channel_layout_map entry (NULL starts at entry 0) and stores index+1 back while entries remain; past the end it leaves *opaque unchanged, so further calls keep returning NULL. Rust: the StandardLayouts iterator keeps the index as a usize and passes ptr::without_provenance_mut(index) in a local slot."
+     }
+    }
+   ],
+   "ptr_ret": {
+    "ptr": {
+     "scalar": {
+      "by_val": true
+     },
+     "array": null,
+     "string": false,
+     "owned": false,
+     "borrowed": {
+      "lifetime": "static"
+     },
+     "nullable": true,
+     "mutable": false,
+     "note": "&channel_layout_map[i].layout, an entry of channel_layout.c's static const table: AV_CHANNEL_LAYOUT_* native layouts (mask, count = popcount) and AV_CHANNEL_LAYOUT_AMBISONIC_FIRST_ORDER, none in custom order, so no map; never written or freed. NULL past the last entry. Rust: Option<ChannelLayoutRef<'static>> as the iterator's item."
+    }
+   }
+  },
+  {
+   "name": "av_channel_layout_subset",
+   "defined_in": "libavutil/channel_layout.c",
+   "ptr_args": [
+    {
+     "name": "channel_layout",
+     "ptr": {
+      "scalar": {
+       "by_val": true
+      },
+      "array": null,
+      "string": false,
+      "owned": false,
+      "borrowed": {
+       "lifetime": "arg:channel_layout"
+      },
+      "nullable": false,
+      "mutable": false,
+      "note": "Read-only for the call. Native and ambisonic orders return u.mask & mask without reading more; custom order tests each of the 64 mask bits with av_channel_layout_index_from_channel, which reads the ids of nb_channels map elements (dereferencing u.map with no NULL check, so a custom layout with a NULL map and a positive count would crash C; no safe Rust path leaves one); unspecified or unknown orders return 0. Rust: ChannelLayoutRef::subset, which answers 0 for a mapless custom layout without calling C."
+     }
+    }
+   ]
+  },
+  {
    "name": "av_channel_layout_uninit",
    "defined_in": "libavutil/channel_layout.c",
    "lifetime": {
