@@ -1,5 +1,6 @@
 #include <stdarg.h>
 
+#include "libavutil/bprint.h"
 #include "libavutil/intreadwrite.h"
 #include "libavutil/log.h"
 #include "libavutil/macros.h"
@@ -11,6 +12,14 @@ void crustify_av_vlog(void *avcl, int level, const char *fmt, ...)
     va_list vl;
     va_start(vl, fmt);
     av_vlog(avcl, level, fmt, vl);
+    va_end(vl);
+}
+
+void crustify_av_vbprintf(AVBPrint *buf, const char *fmt, ...)
+{
+    va_list vl;
+    va_start(vl, fmt);
+    av_vbprintf(buf, fmt, vl);
     va_end(vl);
 }
 

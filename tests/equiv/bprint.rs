@@ -229,11 +229,12 @@ mod fields {
 /// sequence of C appends, clears and truncations, the string each finalizer
 /// hands out, and what a caller buffer holds afterwards.
 mod owners {
-    use core::ffi::{CStr, c_char, c_uint};
+    use core::ffi::{CStr, c_char, c_int, c_long, c_uint};
     use core::mem::MaybeUninit;
     use core::ptr::{self, addr_of, addr_of_mut};
 
-    use ffmpeg::libavutil::bprint::{BPrint, BPrintMut, BPrintRef};
+    use ffmpeg::libavutil::avstring::{EscapeFlags, EscapeMode};
+    use ffmpeg::libavutil::bprint::{BPrint, BPrintMut, BPrintRef, Tm};
     use ffmpeg::libavutil::ffi;
 
     /// A C-side buffer on its own heap storage, which C initialises in place
@@ -266,7 +267,8 @@ mod owners {
             Self { buf, owned: false }
         }
 
-        /// `(len, size, size_max, inline, stored bytes, string up to NUL)`.
+        /// `(len, size, size_max, inline, complete, stored bytes, string up
+        /// to NUL)`.
         fn state(&self) -> State {
             let b = self.buf;
             // SAFETY: `b` is an initialised buffer; fields are read by value,
@@ -292,6 +294,7 @@ mod owners {
                     size,
                     size_max: addr_of!((*b).size_max).read(),
                     inline: ptr::eq(str, addr_of_mut!((*b).reserved_internal_buffer).cast()),
+                    complete: ffi::av_bprint_is_complete(b) != 0,
                     bytes,
                     c_str,
                 }
@@ -335,6 +338,7 @@ mod owners {
         size: u32,
         size_max: u32,
         inline: bool,
+        complete: bool,
         bytes: Vec<u8>,
         c_str: Vec<u8>,
     }
@@ -345,9 +349,52 @@ mod owners {
             size: r.size(),
             size_max: r.size_max(),
             inline: r.is_inline(),
+            complete: r.is_complete(),
             bytes: r.as_bytes().to_vec(),
             c_str: r.as_c_str().to_bytes().to_vec(),
         }
+    }
+
+    /// The broken-down time the `Strftime` steps format: 2000-12-20
+    /// 07:08:09, a Wednesday, day 354, in a named zone east of UTC.
+    const TIME: [c_int; 9] = [9, 8, 7, 20, 11, 100, 3, 354, 0];
+    const GMTOFF: c_long = 5400;
+
+    /// [`TIME`] as C's `struct tm`.
+    fn c_tm() -> ffi::tm {
+        let [tm_sec, tm_min, tm_hour, tm_mday, tm_mon, tm_year, tm_wday, tm_yday, tm_isdst] = TIME;
+        ffi::tm {
+            tm_sec,
+            tm_min,
+            tm_hour,
+            tm_mday,
+            tm_mon,
+            tm_year,
+            tm_wday,
+            tm_yday,
+            tm_isdst,
+            tm_gmtoff: GMTOFF,
+            tm_zone: c"XST".as_ptr(),
+        }
+    }
+
+    /// [`TIME`] as a [`Tm`], built independently through its setters.
+    fn rust_tm() -> Tm {
+        let [sec, min, hour, mday, mon, year, wday, yday, isdst] = TIME;
+        let mut tm = Tm::new();
+        let mut m = tm.as_mut();
+        m.set_sec(sec);
+        m.set_min(min);
+        m.set_hour(hour);
+        m.set_mday(mday);
+        m.set_mon(mon);
+        m.set_year(year);
+        m.set_wday(wday);
+        m.set_yday(yday);
+        m.set_isdst(isdst);
+        m.set_gmtoff(GMTOFF);
+        m.set_zone(Some(c"XST"));
+        tm
     }
 
     /// One step, applied alike to both buffers.
@@ -357,10 +404,31 @@ mod owners {
         Chars(u8, u32),
         Clear,
         Truncate(u32),
+        /// `"%d-%s"` with these arguments, `"{}-{}"` in Rust.
+        Fmt(i32, &'static CStr),
+        /// `av_vbprintf(buf, "%s", ...)`.
+        CStr(&'static CStr),
+        Escape(&'static CStr, Option<&'static CStr>, EscapeMode, EscapeFlags),
+        /// [`TIME`] in this format.
+        Strftime(&'static CStr),
+        /// `av_bprint_get_buffer(buf, size)`, then as much of the data as the
+        /// storage (short of the NUL's byte, at most `size`) takes, committed
+        /// as pngdec.c does; C zeroes that storage first, as Rust does.
+        GetBuffer(u32, &'static [u8]),
     }
 
+    const QUOTED: EscapeFlags = EscapeFlags::XML_SINGLE_QUOTES;
+    const ALL_FLAGS: EscapeFlags = EscapeFlags::from_bits_retain(
+        EscapeFlags::WHITESPACE.bits()
+            | EscapeFlags::STRICT.bits()
+            | EscapeFlags::XML_SINGLE_QUOTES.bits()
+            | EscapeFlags::XML_DOUBLE_QUOTES.bits(),
+    );
+
     /// Appends binary data with NULs, grows past the inline storage,
-    /// truncates within and past the stored part, clears, and appends again.
+    /// truncates within and past the stored part, clears, and appends again;
+    /// then every appender, through storage C hands out, into truncation and
+    /// out again.
     const OPS: &[Op] = &[
         Op::Append(b"head\0bin\x01"),
         Op::Chars(b'x', 3),
@@ -376,12 +444,37 @@ mod owners {
         Op::Chars(b'z', 0),
         Op::Truncate(0),
         Op::Chars(b'w', 2),
+        Op::Fmt(-42, c"fmt"),
+        Op::CStr(c"c-str"),
+        Op::CStr(c""),
+        Op::Escape(c" a'b\\c:d ", Some(c":"), EscapeMode::Backslash, EscapeFlags::empty()),
+        Op::Escape(c" a b ", None, EscapeMode::Auto, EscapeFlags::WHITESPACE),
+        Op::Escape(c"it's", None, EscapeMode::Quote, EscapeFlags::empty()),
+        Op::Escape(c"<a href='x' t=\"y\">&</a>", None, EscapeMode::Xml, QUOTED),
+        Op::Escape(c"'\"", Some(c"'"), EscapeMode::Xml, ALL_FLAGS),
+        Op::Strftime(c"%Y-%m-%d %H:%M:%S %a %j %z %Z"),
+        Op::Strftime(c""),
+        Op::Strftime(c"%p"),
+        Op::GetBuffer(5, b"12345678"),
+        Op::GetBuffer(0, b"never"),
+        Op::GetBuffer(3000, &[b'g'; 2500]),
+        Op::Strftime(c"%c|%c|%c|%c|%c|%c|%c|%c|%c|%c|%c|%c|%c|%c|%c|%c|%c|%c|%c|%c"),
+        Op::Chars(b'v', 5000),
+        Op::Fmt(7, c"past"),
+        Op::GetBuffer(10, b"truncated"),
+        Op::Strftime(c"%Y"),
+        Op::Truncate(4),
+        Op::GetBuffer(10, b"again"),
+        Op::Clear,
+        Op::Escape(c"", None, EscapeMode::Quote, EscapeFlags::empty()),
     ];
 
-    /// `op` on a C buffer, truncation as C callers write it (avcodec.c).
-    fn c_op(b: *mut ffi::AVBPrint, op: Op) {
+    /// `op` on a C buffer, truncation as C callers write it (avcodec.c), and
+    /// what a `GetBuffer` committed.
+    fn c_op(b: *mut ffi::AVBPrint, op: Op) -> Option<usize> {
         // SAFETY: `b` is an initialised buffer, which these routines append
-        // to within its `size`; the truncation writes within `size`.
+        // to within its `size`; the truncation writes within `size`, and the
+        // committed write within the room C reports, short of its last byte.
         unsafe {
             match op {
                 Op::Append(d) => {
@@ -397,17 +490,60 @@ mod owners {
                         }
                     }
                 }
+                Op::Fmt(i, s) => ffi::av_bprintf(b, c"%d-%s".as_ptr(), i, s.as_ptr()),
+                Op::CStr(s) => ffi::crustify_av_vbprintf(b, c"%s".as_ptr(), s.as_ptr()),
+                Op::Escape(src, special, mode, flags) => ffi::av_bprint_escape(
+                    b,
+                    src.as_ptr(),
+                    special.map_or(ptr::null(), CStr::as_ptr),
+                    mode.into(),
+                    flags.bits(),
+                ),
+                Op::Strftime(fmt) => ffi::av_bprint_strftime(b, fmt.as_ptr(), &c_tm()),
+                Op::GetBuffer(size, data) => {
+                    let mut mem = ptr::null_mut();
+                    let mut room = 0;
+                    ffi::av_bprint_get_buffer(b, size, &mut mem, &mut room);
+                    let spare = room.saturating_sub(1).min(size) as usize;
+                    // The documented divergence: Rust zeroes the storage it
+                    // hands out (it may not expose uninitialised bytes),
+                    // which a caller buffer shows past the string afterwards.
+                    if spare > 0 {
+                        ptr::write_bytes(mem, 0, spare);
+                    }
+                    let n = data.len().min(spare);
+                    if n > 0 {
+                        ptr::copy_nonoverlapping(data.as_ptr(), mem, n);
+                        (*b).len += n as c_uint;
+                        *(*b).str_.add((*b).len as usize) = 0;
+                    }
+                    return Some(n);
+                }
             }
         }
+        None
     }
 
-    /// `op` on a Rust buffer: C's appends through the owner's pointer, the
-    /// truncation through the safe setter.
-    fn rust_op(b: *mut ffi::AVBPrint, m: &mut BPrintMut<'_>, op: Op) {
+    /// `op` on a Rust buffer, through the safe API.
+    fn rust_op(m: &mut BPrintMut<'_>, op: Op) -> Option<usize> {
         match op {
+            Op::Append(d) => m.append_bytes(d),
+            Op::Chars(c, n) => m.append_repeated(c, n),
+            Op::Clear => m.clear(),
             Op::Truncate(n) => m.truncate(n),
-            _ => c_op(b, op),
+            Op::Fmt(i, s) => m.append_fmt(format_args!("{}-{}", i, s.to_str().unwrap())),
+            Op::CStr(s) => m.append_c_str(s),
+            Op::Escape(src, special, mode, flags) => m.append_escaped(src, special, mode, flags),
+            Op::Strftime(fmt) => m.append_strftime(fmt, rust_tm().as_ref()),
+            Op::GetBuffer(size, data) => {
+                return Some(m.append_with(size, |spare| {
+                    let n = data.len().min(spare.len());
+                    spare[..n].copy_from_slice(&data[..n]);
+                    n
+                }));
+            }
         }
+        None
     }
 
     const INITS: [(u32, u32); 9] = [
@@ -430,9 +566,8 @@ mod owners {
             let ctx = format!("init({size_init}, {size_max})");
             assert_eq!(rust_state(r.as_ref()), c.state(), "{ctx}");
             for &op in OPS {
-                let p = r.as_c_ptr();
-                c_op(c.buf, op);
-                rust_op(p, &mut r.as_mut(), op);
+                let n = c_op(c.buf, op);
+                assert_eq!(rust_op(&mut r.as_mut(), op), n, "{ctx} {op:?}");
                 assert_eq!(rust_state(r.as_ref()), c.state(), "{ctx} {op:?}");
             }
             let expect = c.state();
@@ -456,9 +591,7 @@ mod owners {
             let c = CBuf::init(size_init, size_max);
             let mut r = BPrint::new(size_init, size_max).unwrap();
             for &op in OPS {
-                let p = r.as_c_ptr();
-                c_op(c.buf, op);
-                rust_op(p, &mut r.as_mut(), op);
+                assert_eq!(rust_op(&mut r.as_mut(), op), c_op(c.buf, op));
             }
             let (ret, c_bytes) = c.finalize();
             let s = BPrint::into_string(r).unwrap();
@@ -490,9 +623,8 @@ mod owners {
             let mut r = BPrint::for_buffer(&mut r_data).unwrap();
             assert_eq!(rust_state(r.as_ref()), c.state(), "for_buffer({len})");
             for &op in OPS {
-                let p = r.as_c_ptr();
-                c_op(c.buf, op);
-                rust_op(p, &mut r.as_mut(), op);
+                let n = c_op(c.buf, op);
+                assert_eq!(rust_op(&mut r.as_mut(), op), n, "for_buffer({len}) {op:?}");
                 assert_eq!(
                     rust_state(r.as_ref()),
                     c.state(),
@@ -523,7 +655,7 @@ mod owners {
     /// Fills both buffers with `n` bytes of `c`.
     fn fill(c: &CBuf, r: &mut ffmpeg::libavutil::bprint::BPrintBox, n: u32) {
         c_op(c.buf, Op::Chars(b'f', n));
-        c_op(r.as_c_ptr(), Op::Chars(b'f', n));
+        r.as_mut().append_repeated(b'f', n);
     }
 
     /// The finalizers' allocation failures, forced by the `av_max_alloc`
@@ -604,7 +736,7 @@ mod owners {
         assert_eq!(rust_state(r.as_ref()), c.state());
         assert!(r.as_ref().is_inline());
         c_op(c.buf, Op::Truncate(3));
-        r.as_mut().truncate(3);
+        rust_op(&mut r.as_mut(), Op::Truncate(3));
         assert_eq!(rust_state(r.as_ref()), c.state());
         // First move inline bytes to the heap, then grow that allocation
         // twice: both the memcpy and realloc branches preserve the prefix.
@@ -616,5 +748,180 @@ mod owners {
         let (ret, bytes) = c.finalize();
         assert_eq!(ret, 0);
         assert_eq!(BPrint::into_bytes(r).unwrap().as_slice(), bytes.unwrap());
+    }
+
+    /// Builds a C and a Rust buffer alike: `Some(size_max)` through
+    /// `av_bprint_init(0, size_max)`, `None` on caller buffers of `len`.
+    fn pairs(lens: &[usize], size_maxes: &[u32]) -> Vec<(String, u32, Option<usize>)> {
+        let mut v: Vec<_> = size_maxes.iter().map(|&m| (format!("init(0, {m})"), m, None)).collect();
+        v.extend(lens.iter().map(|&l| (format!("for_buffer({l})"), 0, Some(l))));
+        v
+    }
+
+    /// Runs `ops` on a fresh C and Rust buffer of each shape, comparing the
+    /// state and any count after every step, then the caller buffers.
+    fn run_on_every_shape(ops: &[Op]) {
+        const SIZE_MAX: [u32; 9] = [
+            BPrint::SIZE_COUNT_ONLY,
+            BPrint::SIZE_AUTOMATIC,
+            8,
+            30,
+            1000,
+            1024,
+            1500,
+            3000,
+            BPrint::SIZE_UNLIMITED,
+        ];
+        for (ctx, size_max, len) in pairs(&[1, 8, 30, 1100], &SIZE_MAX) {
+            let mut c_data = vec![0x5a_u8; len.unwrap_or(0)];
+            let mut r_data = c_data.clone();
+            {
+                let (c, mut r_new, mut r_on);
+                let mut r = if len.is_some() {
+                    c = CBuf::for_buffer(&mut c_data);
+                    r_on = BPrint::for_buffer(&mut r_data).unwrap();
+                    r_on.as_mut()
+                } else {
+                    c = CBuf::init(0, size_max);
+                    r_new = BPrint::new(0, size_max).unwrap();
+                    r_new.as_mut()
+                };
+                for &op in ops {
+                    let n = c_op(c.buf, op);
+                    assert_eq!(rust_op(&mut r.as_mut(), op), n, "{ctx} {op:?}");
+                    assert_eq!(rust_state(r.as_ref()), c.state(), "{ctx} {op:?}");
+                }
+            }
+            assert_eq!(r_data, c_data, "{ctx}");
+        }
+    }
+
+    /// Twenty `%c`s: about 480 bytes in the C locale.
+    const C20: &CStr = c"%c|%c|%c|%c|%c|%c|%c|%c|%c|%c|%c|%c|%c|%c|%c|%c|%c|%c|%c|%c";
+
+    /// Every path of `av_bprint_strftime`: output that fits, growth by
+    /// doubling, the empty expansion it gives up on (`%Z` of an unknown DST
+    /// state with no zone), and, at a limit, the 1 KiB fallback and the
+    /// forced truncation with its stock text; each on a fresh buffer, after
+    /// text, and once truncated.
+    #[test]
+    fn strftime_matches_c_on_every_shape_and_path() {
+        // `%2000c` is wider than the 1 KiB fallback, so a truncated buffer
+        // gets nothing at all.
+        for fmt in [c"%Y-%m-%d", c"%c", c"", c"%p %Z %z", C20, c"%2000c"] {
+            run_on_every_shape(&[Op::Strftime(fmt)]);
+            run_on_every_shape(&[Op::Chars(b'p', 990), Op::Strftime(fmt), Op::Strftime(fmt)]);
+            run_on_every_shape(&[Op::Strftime(C20), Op::Strftime(C20), Op::Strftime(fmt)]);
+            run_on_every_shape(&[Op::Chars(b't', 4000), Op::Strftime(fmt)]);
+        }
+        // The empty expansion, through its own `struct tm` on each side.
+        let c = CBuf::init(0, BPrint::SIZE_UNLIMITED);
+        let mut r = BPrint::new(0, BPrint::SIZE_UNLIMITED).unwrap();
+        let mut c_tm = c_tm();
+        c_tm.tm_isdst = -1;
+        c_tm.tm_zone = ptr::null();
+        let mut tm = rust_tm();
+        tm.as_mut().set_isdst(-1);
+        tm.as_mut().set_zone(None);
+        for fmt in [c"%Z", c"[%Z]", c"%Z"] {
+            // SAFETY: an initialised buffer; `fmt` and `c_tm` are live.
+            unsafe { ffi::av_bprint_strftime(c.buf, fmt.as_ptr(), &c_tm) };
+            r.as_mut().append_strftime(fmt, tm.as_ref());
+            assert_eq!(rust_state(r.as_ref()), c.state(), "{fmt:?}");
+        }
+    }
+
+    /// Every mode, every flag set and each kind of special list, on text
+    /// with every character the modes treat specially.
+    #[test]
+    fn escape_matches_c_for_every_mode_and_flag() {
+        const SRC: [&CStr; 5] = [
+            c"",
+            c" ",
+            c"\tlead and trail\n",
+            c"a'b\\c\"d<e>f&g:h\ri j",
+            c"<]]>'\"'\"&amp;",
+        ];
+        const SPECIAL: [Option<&CStr>; 4] = [None, Some(c""), Some(c":ab"), Some(c" '\\")];
+        let modes = [EscapeMode::Auto, EscapeMode::Backslash, EscapeMode::Quote, EscapeMode::Xml];
+        let c = CBuf::init(0, BPrint::SIZE_UNLIMITED);
+        let mut r = BPrint::new(0, BPrint::SIZE_UNLIMITED).unwrap();
+        for mode in modes {
+            for bits in 0..16 {
+                let flags = EscapeFlags::from_bits_retain(
+                    [
+                        EscapeFlags::WHITESPACE,
+                        EscapeFlags::STRICT,
+                        EscapeFlags::XML_SINGLE_QUOTES,
+                        EscapeFlags::XML_DOUBLE_QUOTES,
+                    ]
+                    .iter()
+                    .enumerate()
+                    .filter(|(i, _)| bits & (1 << i) != 0)
+                    .fold(0, |acc, (_, f)| acc | f.bits()),
+                );
+                for src in SRC {
+                    for special in SPECIAL {
+                        let op = Op::Escape(src, special, mode, flags);
+                        c_op(c.buf, op);
+                        rust_op(&mut r.as_mut(), op);
+                        assert_eq!(rust_state(r.as_ref()), c.state(), "{op:?}");
+                        c_op(c.buf, Op::Clear);
+                        r.as_mut().clear();
+                    }
+                }
+            }
+        }
+        // Escaping into limited and caller buffers truncates alike.
+        run_on_every_shape(&[
+            Op::Escape(SRC[3], Some(c"ab"), EscapeMode::Backslash, EscapeFlags::WHITESPACE),
+            Op::Escape(SRC[4], None, EscapeMode::Xml, ALL_FLAGS),
+            Op::Escape(SRC[3], None, EscapeMode::Quote, EscapeFlags::empty()),
+        ]);
+    }
+
+    /// The formatting appenders, the raw appenders and storage handed out,
+    /// on every shape: growth, limits and truncation alike.
+    #[test]
+    fn appenders_match_c_on_every_shape() {
+        run_on_every_shape(OPS);
+        run_on_every_shape(&[
+            Op::CStr(c"0123456789abcdef0123456789abcdef"),
+            Op::Fmt(i32::MIN, c"min"),
+            Op::GetBuffer(1, b"xy"),
+            Op::GetBuffer(2000, &[b'h'; 2000]),
+            Op::GetBuffer(u32::MAX, b"max"),
+            Op::Append(&[0; 1100]),
+            Op::GetBuffer(1, b"z"),
+            Op::Clear,
+            Op::GetBuffer(1, b"z"),
+        ]);
+    }
+
+    /// Appenders whose growth fails at the `av_max_alloc` limit, in an
+    /// isolated child: `av_bprint_strftime`'s 1 KiB fallback and its forced
+    /// truncation on an unlimited buffer, and storage handed out short.
+    #[test]
+    fn appenders_at_the_av_max_alloc_limit_match_c() {
+        if !isolated("bprint::owners::appenders_at_the_av_max_alloc_limit_match_c") {
+            return;
+        }
+        let cases: [&[Op]; 4] = [
+            &[Op::Chars(b'a', 990), Op::Strftime(C20), Op::Strftime(c"%Y")],
+            &[Op::Chars(b'b', 10), Op::Strftime(C20), Op::Strftime(C20), Op::Strftime(C20)],
+            &[Op::Chars(b'c', 10), Op::GetBuffer(5000, &[b'd'; 5000]), Op::GetBuffer(5, b"e")],
+            &[Op::Fmt(1, c"x"), Op::CStr(c"y"), Op::Append(&[b'f'; 2000]), Op::Clear, Op::Fmt(2, c"z")],
+        ];
+        for ops in cases {
+            let c = CBuf::init(0, BPrint::SIZE_UNLIMITED);
+            let mut r = BPrint::new(0, BPrint::SIZE_UNLIMITED).unwrap();
+            ffmpeg::libavutil::mem::set_max_alloc(1100);
+            for &op in ops {
+                let n = c_op(c.buf, op);
+                assert_eq!(rust_op(&mut r.as_mut(), op), n, "{op:?}");
+                assert_eq!(rust_state(r.as_ref()), c.state(), "{op:?}");
+            }
+            ffmpeg::libavutil::mem::set_max_alloc(i32::MAX as usize);
+        }
     }
 }
