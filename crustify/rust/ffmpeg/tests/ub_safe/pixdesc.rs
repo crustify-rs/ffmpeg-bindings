@@ -1113,3 +1113,399 @@ mod pixel_format_queries {
         });
     }
 }
+
+/// The descriptor table: `'static` handles kept past every call, walked and
+/// looked up from many threads, and the whole-descriptor bit counters over
+/// Rust-built descriptors at every edge (C indexes `steps[4]` by plane).
+mod descriptor_table {
+    use std::sync::OnceLock;
+    use std::thread;
+
+    use ffmpeg::libavutil::ffi;
+    use ffmpeg::libavutil::pixdesc::{
+        ComponentDescriptor, PixelFormatDescriptor, PixelFormatDescriptorRef, PixelFormatFlags,
+        descriptors,
+    };
+    use ffmpeg::libavutil::pixfmt::PixelFormat;
+
+    const NB: i32 = ffi::AVPixelFormat::AV_PIX_FMT_NB.0;
+
+    fn format(raw: i32) -> PixelFormat {
+        PixelFormat::from_raw(ffi::AVPixelFormat(raw))
+    }
+
+    #[test]
+    fn every_value_looks_up_without_ub() {
+        for raw in (-3..NB + 3).chain([i32::MIN, i32::MAX]) {
+            if let Some(d) = format(raw).descriptor() {
+                assert_eq!(d.pixel_format(), Some(format(raw)));
+                let _ = (
+                    d.next_in_table(),
+                    d.bits_per_pixel(),
+                    d.padded_bits_per_pixel(),
+                );
+            }
+        }
+    }
+
+    #[test]
+    fn static_handles_outlive_their_lookups_and_cross_threads() {
+        static KEPT: OnceLock<Vec<PixelFormatDescriptorRef<'static>>> = OnceLock::new();
+        let kept = KEPT.get_or_init(|| descriptors().collect());
+        thread::scope(|s| {
+            for t in 0..4 {
+                s.spawn(move || {
+                    for (i, d) in kept.iter().enumerate().skip(t) {
+                        assert!(d.name().is_some());
+                        assert_eq!(
+                            d.pixel_format()
+                                .and_then(PixelFormat::descriptor)
+                                .map(|e| e.get()),
+                            Some(d.get()),
+                            "{i}"
+                        );
+                        let _ = (d.bits_per_pixel(), d.padded_bits_per_pixel());
+                    }
+                    assert_eq!(descriptors().count(), kept.len());
+                });
+            }
+        });
+    }
+
+    #[test]
+    fn walking_from_copies_and_fresh_descriptors_stops() {
+        let first = descriptors().next().unwrap();
+        let name = {
+            let copy = first.get();
+            assert!(copy.as_ref().next_in_table().is_none());
+            // The copy borrowed nothing: its strings are 'static.
+            copy.as_ref().name()
+        };
+        assert!(
+            PixelFormatDescriptor::new()
+                .as_ref()
+                .next_in_table()
+                .is_none()
+        );
+        assert_eq!(name, first.name());
+    }
+
+    const EDGES: [i32; 10] = [i32::MIN, -1, 0, 1, 3, 4, 8, 1 << 27, 1 << 28, i32::MAX];
+
+    #[test]
+    fn bit_counters_take_every_edge_descriptor() {
+        let mut accepted = 0;
+        for count in [0, 1, 4, 5, u8::MAX] {
+            for (w, h) in [(0, 0), (1, 2), (15, 16), (16, 16), (u8::MAX, u8::MAX)] {
+                for &plane in &EDGES {
+                    for &v in &EDGES {
+                        for flags in [PixelFormatFlags::empty(), PixelFormatFlags::BITSTREAM] {
+                            let mut d = PixelFormatDescriptor::new();
+                            let mut m = d.as_mut();
+                            m.set_component_count(count);
+                            m.set_log2_chroma_w(w);
+                            m.set_log2_chroma_h(h);
+                            m.set_flags(flags);
+                            for (c, mut slot) in m.components_mut().iter_mut().enumerate() {
+                                slot.set(ComponentDescriptor::from_raw(
+                                    ffi::AVComponentDescriptor {
+                                        plane: if c == 2 { plane } else { c as i32 },
+                                        step: v,
+                                        offset: v,
+                                        shift: v,
+                                        depth: if c == 1 { 8 } else { v },
+                                    },
+                                ));
+                            }
+                            accepted += usize::from(d.as_ref().bits_per_pixel().is_ok());
+                            accepted += usize::from(d.as_ref().padded_bits_per_pixel().is_ok());
+                        }
+                    }
+                }
+            }
+        }
+        assert!(accepted > 0);
+    }
+}
+
+/// `read_image_line` / `write_image_line` and their `u16` forms: C's table
+/// and Rust-built descriptors at every edge, each line on planes sized to
+/// exactly the bytes the wrapper checked, so a byte C touches past either
+/// end is an ASan report, and lines on many threads at once.
+mod image_lines {
+    use std::thread;
+
+    use ffmpeg::libavutil::ffi;
+    use ffmpeg::libavutil::imgutils::{Image, Planes, PlanesMut};
+    use ffmpeg::libavutil::pixdesc::{
+        ComponentDescriptor, ImageLineError, PixelFormatDescriptor, PixelFormatDescriptorRef,
+        PixelFormatFlags, read_image_line, read_image_line_u16, write_image_line,
+        write_image_line_u16,
+    };
+    use ffmpeg::libavutil::pixfmt::PixelFormat;
+
+    const NB: i32 = ffi::AVPixelFormat::AV_PIX_FMT_NB.0;
+    /// The largest plane the searches try.
+    const CAP: usize = 1 << 12;
+
+    /// The bytes every probe of the searches reads from: one block, so a
+    /// search allocates nothing.
+    static PROBE: [u8; CAP] = [0x5a; CAP];
+
+    fn under_bsan() -> bool {
+        std::env::var("CRUSTIFY_FFMPEG_VARIANT").as_deref() == Ok("bsan")
+    }
+
+    /// Planes with `lens` bytes, plane `p`'s rows `linesize` apart.
+    fn sized(lens: [usize; 4]) -> [Vec<u8>; 4] {
+        lens.map(|n| vec![0x5a; n])
+    }
+
+    fn planes(img: &[Vec<u8>; 4], linesize: isize) -> Planes<'_> {
+        Planes {
+            data: img.each_ref().map(|p| &p[..]),
+            linesizes: [linesize; 4],
+        }
+    }
+
+    /// The shortest length of plane `p` (the others `others` long) for which
+    /// `accepts` holds, when one up to `CAP` does: acceptance only grows with
+    /// a top-down plane's length.
+    fn shortest(p: usize, others: usize, accepts: impl Fn([usize; 4]) -> bool) -> Option<usize> {
+        let lens = |n| core::array::from_fn(|i| if i == p { n } else { others });
+        if !accepts(lens(CAP)) {
+            return None;
+        }
+        let (mut lo, mut hi) = (0, CAP);
+        while lo < hi {
+            let mid = (lo + hi) / 2;
+            if accepts(lens(mid)) {
+                hi = mid;
+            } else {
+                lo = mid + 1;
+            }
+        }
+        Some(lo)
+    }
+
+    /// Every read and write of one line on planes each exactly as long as the
+    /// wrapper requires, top-down from row `y`; the number of calls that
+    /// reached C.
+    fn exercise(
+        d: PixelFormatDescriptorRef<'_>,
+        (x, y, c, w): (usize, usize, usize, usize),
+        linesize: isize,
+    ) -> usize {
+        let read = |lens: [usize; 4], pal: bool| {
+            let probe = Planes {
+                data: lens.map(|n| &PROBE[..n]),
+                linesizes: [linesize; 4],
+            };
+            let mut dst = vec![0u32; w];
+            read_image_line(&mut dst, probe, d, x, y, c, pal).is_ok()
+        };
+        let plane = d.components().get(c).map_or(0, |comp| comp.plane());
+        let Ok(p) = usize::try_from(plane) else {
+            // Refused whatever the planes (C cannot index its arrays), or
+            // an absent component, which reads nothing.
+            read([CAP; 4], false);
+            return 0;
+        };
+        let Some(len) = shortest(p.min(3), 0, |lens| read(lens, false)) else {
+            return 0;
+        };
+        let p = p.min(3);
+        let mut calls = 0;
+        let mut lens = [0; 4];
+        lens[p] = len;
+        let img = sized(lens);
+        let mut wide = vec![0u32; w];
+        let mut narrow = vec![0u16; w];
+        read_image_line(&mut wide, planes(&img, linesize), d, x, y, c, false).unwrap();
+        read_image_line_u16(&mut narrow, planes(&img, linesize), d, x, y, c, false).unwrap();
+        let mut img = img;
+        let mut out = PlanesMut {
+            data: img.each_mut().map(|p| &mut p[..]),
+            linesizes: [linesize; 4],
+        };
+        let src: Vec<u32> = (0..w as u32).map(|i| u32::MAX >> i).collect();
+        let src16: Vec<u16> = (0..w as u16).map(|i| u16::MAX >> i).collect();
+        write_image_line(&src, &mut out, d, x, y, c).unwrap();
+        write_image_line(&src16, &mut out, d, x, y, c).unwrap();
+        write_image_line_u16(&src16, &mut out, d, x, y, c).unwrap();
+        calls += 5;
+        // Palette lookups, with plane 1 exactly as long as they need.
+        if p != 1 {
+            let pal_lens = |n| {
+                core::array::from_fn(|i| {
+                    if i == p {
+                        len
+                    } else if i == 1 {
+                        n
+                    } else {
+                        0
+                    }
+                })
+            };
+            if let Some(pal) = shortest(1, 0, |l| read(pal_lens(l[1]), true)) {
+                let img = sized(pal_lens(pal));
+                read_image_line(&mut wide, planes(&img, linesize), d, x, y, c, true).unwrap();
+                read_image_line_u16(&mut narrow, planes(&img, linesize), d, x, y, c, true).unwrap();
+                calls += 2;
+            }
+        }
+        calls
+    }
+
+    #[test]
+    fn table_lines_touch_only_the_bytes_checked() {
+        let mut calls = 0;
+        let lines: &[(usize, usize, usize)] = if under_bsan() {
+            &[(3, 1, 4)]
+        } else {
+            &[(0, 0, 1), (3, 1, 4), (1, 2, 9)]
+        };
+        for raw in 0..NB {
+            let Some(d) = PixelFormat::from_raw(ffi::AVPixelFormat(raw)).descriptor() else {
+                continue;
+            };
+            if under_bsan() && raw % 8 != 0 {
+                continue;
+            }
+            for c in 0..4 {
+                for &(x, y, w) in lines {
+                    calls += exercise(d, (x, y, c, w), 64);
+                }
+            }
+        }
+        assert!(calls > 100, "{calls}");
+    }
+
+    #[test]
+    fn bottom_up_lines_stop_at_the_planes_first_byte() {
+        // Row 1 of a bottom-up plane is its first: a byte C reads before the
+        // line's start is before the allocation.
+        for f in [
+            PixelFormat::RGB565BE,
+            PixelFormat::BGR565BE,
+            PixelFormat::MONOBLACK,
+            PixelFormat::YUYV422,
+            PixelFormat::GRAY16BE,
+        ] {
+            let d = f.descriptor().unwrap();
+            for c in 0..4 {
+                let img = sized([65, 65, 65, 65]);
+                let mut dst = [0u32; 4];
+                match read_image_line(&mut dst, planes(&img, -64), d, 0, 1, c, false) {
+                    Ok(()) | Err(ImageLineError::OutsidePlane) => {}
+                    Err(e) => panic!("{f:?} {c}: {e:?}"),
+                }
+                let mut img = img;
+                let mut out = PlanesMut {
+                    data: img.each_mut().map(|p| &mut p[..]),
+                    linesizes: [-64; 4],
+                };
+                match write_image_line(&[1u16; 4], &mut out, d, 0, 1, c) {
+                    Ok(()) | Err(ImageLineError::OutsidePlane) => {}
+                    Err(e) => panic!("{f:?} {c}: {e:?}"),
+                }
+            }
+        }
+    }
+
+    /// Component field values at every edge of C's arithmetic.
+    const PLANES: [i32; 3] = [0, 4, -1];
+    const STEPS: [i32; 11] = [i32::MIN, -3, -1, 0, 1, 2, 7, 8, 9, 33, i32::MAX];
+    const OFFSETS: [i32; 8] = [i32::MIN, -9, -1, 0, 1, 7, 31, 32];
+    const SHIFTS: [i32; 8] = [-1, 0, 1, 7, 8, 16, 31, 32];
+    const DEPTHS: [i32; 15] = [-1, 0, 1, 5, 8, 9, 16, 24, 29, 30, 31, 32, 33, 63, 64];
+
+    #[test]
+    fn edge_descriptors_touch_only_the_bytes_checked() {
+        let flag_sets = [
+            PixelFormatFlags::empty(),
+            PixelFormatFlags::BIG_ENDIAN,
+            PixelFormatFlags::BITSTREAM,
+            PixelFormatFlags::BITSTREAM | PixelFormatFlags::BIG_ENDIAN,
+        ];
+        let (mut n, mut calls) = (0usize, 0);
+        let thin = if under_bsan() { 61 } else { 1 };
+        for plane in PLANES {
+            for step in STEPS {
+                for offset in OFFSETS {
+                    for shift in SHIFTS {
+                        for depth in DEPTHS {
+                            for flags in flag_sets {
+                                n += 1;
+                                if n % thin != 0 {
+                                    continue;
+                                }
+                                let mut d = PixelFormatDescriptor::new();
+                                let mut m = d.as_mut();
+                                m.set_component_count(1);
+                                m.set_flags(flags);
+                                m.components_mut().get_mut(0).unwrap().set(
+                                    ComponentDescriptor::from_raw(ffi::AVComponentDescriptor {
+                                        plane,
+                                        step,
+                                        offset,
+                                        shift,
+                                        depth,
+                                    }),
+                                );
+                                for (x, w) in [(0, 1), (5, 4)] {
+                                    calls += exercise(d.as_ref(), (x, 1, 0, w), 48);
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+        assert!(calls > 0, "{calls}");
+    }
+
+    #[test]
+    fn lines_on_many_threads_at_once() {
+        // Formats whose every component has the image's full size.
+        let formats = [
+            PixelFormat::YUV444P,
+            PixelFormat::RGB24,
+            PixelFormat::MONOWHITE,
+            PixelFormat::PAL8,
+            PixelFormat::RGB48BE,
+            PixelFormat::GBRP,
+        ];
+        // Shared planes, read from several threads at once.
+        let shared = Image::alloc(64, 4, PixelFormat::NV12, 32).unwrap();
+        thread::scope(|s| {
+            for (t, f) in formats.into_iter().enumerate() {
+                s.spawn(move || {
+                    let d = f.descriptor().unwrap();
+                    let mut image = Image::alloc(33, 9, f, 16).unwrap();
+                    for round in 0..20 {
+                        let y = (round + t) % 9;
+                        for c in 0..4 {
+                            let src = [round as u16; 33];
+                            write_image_line(&src, &mut image.planes_mut(), d, 0, y, c).unwrap();
+                            let mut back = [0u32; 33];
+                            read_image_line(&mut back, image.planes(), d, 0, y, c, false).unwrap();
+                        }
+                    }
+                });
+            }
+            let image = &shared;
+            for t in 0..4 {
+                s.spawn(move || {
+                    let d = PixelFormat::NV12.descriptor().unwrap();
+                    // Half-width chroma: 16 pixels of 2 rows.
+                    for c in 0..3 {
+                        let mut line = [0u16; 16];
+                        read_image_line_u16(&mut line, image.planes(), d, t, t % 2, c, false)
+                            .unwrap();
+                    }
+                });
+            }
+        });
+    }
+}

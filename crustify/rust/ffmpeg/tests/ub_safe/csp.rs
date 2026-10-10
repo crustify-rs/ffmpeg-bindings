@@ -612,3 +612,45 @@ mod color_transfer {
         assert_eq!(moved, 34);
     }
 }
+
+/// `ColorSpace::luma_coefficients`: every value, the `'static` handles kept
+/// past the lookup and read from many threads.
+mod luma_lookup {
+    use std::sync::OnceLock;
+    use std::thread;
+
+    use ffmpeg::libavutil::csp::LumaCoefficientsRef;
+    use ffmpeg::libavutil::ffi;
+    use ffmpeg::libavutil::pixfmt::ColorSpace;
+
+    fn values() -> impl Iterator<Item = u32> {
+        (0..ffi::AVColorSpace::AVCOL_SPC_NB.0 + 3).chain([u32::MAX, 1 << 31, (1 << 31) - 1])
+    }
+
+    #[test]
+    fn every_value_looks_up_and_handles_cross_threads() {
+        static KEPT: OnceLock<Vec<LumaCoefficientsRef<'static>>> = OnceLock::new();
+        let kept = KEPT.get_or_init(|| {
+            values()
+                .filter_map(|raw| ColorSpace::from_raw(ffi::AVColorSpace(raw)).luma_coefficients())
+                .collect()
+        });
+        assert!(!kept.is_empty());
+        thread::scope(|s| {
+            for _ in 0..4 {
+                s.spawn(|| {
+                    for c in kept {
+                        let sum = [c.cr(), c.cg(), c.cb()]
+                            .map(|q| q.get().to_f64())
+                            .iter()
+                            .sum::<f64>();
+                        assert!(sum > 0.9, "{sum}");
+                    }
+                    for raw in values() {
+                        let _ = ColorSpace::from_raw(ffi::AVColorSpace(raw)).luma_coefficients();
+                    }
+                });
+            }
+        });
+    }
+}

@@ -1,0 +1,10 @@
+error[E0502]: cannot borrow `row` as mutable because it is also borrowed as immutable
+ --> tests/ub_safe/compile_fail/pixdesc_line_destination_aliases_planes.rs
+  |
+  |     let bytes: &[u8] = view_of(&row);
+  |                                ---- immutable borrow occurs here
+...
+  |     read_image_line(&mut row, planes, desc, 0, 0, 0, false).unwrap();
+  |                     ^^^^^^^^  ------ immutable borrow later used here
+  |                     |
+  |                     mutable borrow occurs here

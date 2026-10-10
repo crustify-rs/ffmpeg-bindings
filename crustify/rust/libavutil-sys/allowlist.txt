@@ -471,3 +471,13 @@ function av_image_get_linesize
 function av_pix_fmt_count_planes
 function av_pix_fmt_get_chroma_sub_sample
 var AVPALETTE_SIZE
+
+# libavutil/pixdesc.h, imgutils.h, channel_layout.h: the descriptor lookups,
+# image line readers and writers, per-plane pixel steps and channel name
+# appenders that formats wave 2, batch 1 wraps (the other symbols of that
+# batch are listed above).
+function av_read_image_line
+function av_write_image_line
+function av_image_fill_max_pixsteps
+function av_channel_name_bprint
+function av_channel_description_bprint

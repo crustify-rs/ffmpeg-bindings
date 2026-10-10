@@ -14,7 +14,7 @@
 //! [`PlanesMut`] (C's `data[4]` and `linesize[4]`), or owned by an
 //! [`Image`] that `av_image_alloc` lays out in one `av_malloc` block. The
 //! layout functions give a pixel format's row widths ([`linesize`],
-//! [`fill_linesizes`]), plane sizes ([`fill_plane_sizes`],
+//! [`fill_linesizes`], and per pixel, [`max_pixel_steps`]), plane sizes ([`fill_plane_sizes`],
 //! [`buffer_size_for_linesizes`], [`buffer_size`]) and planes laid out back
 //! to back in a caller's buffer ([`fill_pointers`], [`fill_arrays`]);
 //! [`copy`], [`copy_from_mut`], [`copy_from_uncacheable`] and
@@ -31,6 +31,7 @@ use core::ptr;
 
 use super::ffi;
 use super::mem::HeapVec;
+use super::pixdesc::{InvalidDescriptor, PixelFormatDescriptorRef};
 use super::pixfmt::{ColorRange, PixelFormat};
 use super::rational::Rational;
 
@@ -391,10 +392,7 @@ fn ceil_rshift(a: usize, b: u32) -> usize {
 }
 
 /// The parts of a pixel format's descriptor its plane layout depends on,
-/// copied out of C's descriptor table.
-///
-/// A raw seam: `av_pix_fmt_desc_get` (formats wave 2) gets the safe
-/// descriptor handle that replaces this copy.
+/// read from C's descriptor table.
 #[derive(Clone, Copy, Debug)]
 struct Geometry {
     flags: u64,
@@ -404,33 +402,27 @@ struct Geometry {
     /// The plane and step of each of the four component slots, unused ones
     /// included (all-zero, as C stores them).
     comps: [(usize, c_int); 4],
+    /// The largest step of each plane, and its first component.
+    max_steps: MaxPixelSteps,
 }
 
 impl Geometry {
     /// `format`'s descriptor, or `None` when it has none (or one whose plane
     /// numbers C could not index its four-plane arrays with).
     fn of(format: PixelFormat) -> Option<Self> {
-        // SAFETY: `av_pix_fmt_desc_get` takes the enum by value, checks its
-        // range, and returns NULL or a pointer into C's static table.
-        let desc = unsafe { ffi::av_pix_fmt_desc_get(format.into_raw()) };
-        if desc.is_null() {
-            return None;
-        }
-        // SAFETY: a non-NULL `desc` points to an initialised descriptor of
-        // the immutable static table, alive for the process; the copy holds
-        // integers and two string pointers this code never follows.
-        let desc = unsafe { desc.read() };
+        let desc = format.descriptor()?;
         let mut comps = [(0, 0); 4];
-        for (slot, comp) in comps.iter_mut().zip(&desc.comp) {
-            let plane = usize::try_from(comp.plane).ok().filter(|&p| p < 4)?;
-            *slot = (plane, comp.step);
+        for (slot, comp) in comps.iter_mut().zip(desc.components().iter()) {
+            let plane = usize::try_from(comp.plane()).ok().filter(|&p| p < 4)?;
+            *slot = (plane, comp.step());
         }
         Some(Self {
-            flags: desc.flags,
-            nb_components: usize::from(desc.nb_components).min(4),
-            log2_chroma_w: desc.log2_chroma_w.into(),
-            log2_chroma_h: desc.log2_chroma_h.into(),
+            flags: desc.flags().bits(),
+            nb_components: usize::from(desc.component_count()).min(4),
+            log2_chroma_w: desc.log2_chroma_w().into(),
+            log2_chroma_h: desc.log2_chroma_h().into(),
             comps,
+            max_steps: max_pixel_steps(desc).ok()?,
         })
     }
 
@@ -466,14 +458,11 @@ impl Geometry {
         if !self.has(ffi::AV_PIX_FMT_FLAG_BITSTREAM) || width < 0 {
             return false;
         }
-        // `av_image_fill_max_pixsteps`: the plane's largest step, and the
-        // first component with it.
-        let (mut step, mut comp) = (0, 0);
-        for (i, &(p, s)) in self.comps.iter().enumerate() {
-            if p == plane && s > step {
-                (step, comp) = (s, i);
-            }
-        }
+        // The plane's largest step, and the first component with it.
+        let (step, comp) = (
+            self.max_steps.steps[plane],
+            self.max_steps.components[plane],
+        );
         let shift = if comp == 1 || comp == 2 {
             self.log2_chroma_w
         } else {
@@ -488,6 +477,67 @@ impl Geometry {
         }
         step * shifted > i64::from(c_int::MAX - 7)
     }
+}
+
+/// The largest pixel step of each plane of an image, and the first
+/// component with it, as [`max_pixel_steps`] gives them.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash)]
+pub struct MaxPixelSteps {
+    /// The largest step among the components in each plane: the distance
+    /// between a component of one pixel and the same component of the next,
+    /// in bytes (bits for a
+    /// [bitstream](super::pixdesc::PixelFormatFlags::BITSTREAM) format); 0
+    /// for a plane no component uses.
+    pub steps: [i32; 4],
+    /// The first component, in descriptor order, with each plane's step; 0
+    /// for a plane no component uses.
+    pub components: [usize; 4],
+}
+
+/// Wraps: av_image_fill_max_pixsteps
+///
+/// The largest pixel step of each of the four planes of an image laid out
+/// as `desc` describes, and the first component with it: what a row of a
+/// plane advances by per pixel. C considers all four component slots,
+/// unused ones included (all-zero in C's table, so they count for nothing),
+/// and only steps above 0.
+///
+/// # Errors
+///
+/// [`InvalidDescriptor`] for a descriptor with a component slot in a plane
+/// outside 0 to 3, which C would index its four-plane arrays with. C's own
+/// table has none.
+///
+/// ```
+/// use ffmpeg::libavutil::imgutils::max_pixel_steps;
+/// use ffmpeg::libavutil::pixfmt::PixelFormat;
+/// let nv12 = max_pixel_steps(PixelFormat::NV12.descriptor().unwrap()).unwrap();
+/// assert_eq!(nv12.steps, [1, 2, 0, 0]);
+/// assert_eq!(nv12.components, [0, 1, 0, 0]);
+/// ```
+pub fn max_pixel_steps(
+    desc: PixelFormatDescriptorRef<'_>,
+) -> Result<MaxPixelSteps, InvalidDescriptor> {
+    if desc
+        .components()
+        .iter()
+        .any(|c| !(0..4).contains(&c.plane()))
+    {
+        return Err(InvalidDescriptor);
+    }
+    let (mut steps, mut components) = ([0; 4], [0; 4]);
+    // SAFETY: `steps` and `components` are the `int[4]` arrays C fills,
+    // indexed by the planes of the descriptor's four component slots, all
+    // checked to be 0 to 3; the descriptor is live and only read. C keeps no
+    // pointer.
+    unsafe {
+        ffi::av_image_fill_max_pixsteps(steps.as_mut_ptr(), components.as_mut_ptr(), desc.as_ptr())
+    };
+    Ok(MaxPixelSteps {
+        steps,
+        // A component index, 0 to 3.
+        components: components.map(|c: c_int| c as usize),
+    })
 }
 
 /// Wraps: av_image_check_size2
@@ -2279,5 +2329,41 @@ mod unit_tests {
             assert_eq!(rust.0, plain.0, "{w}x{h} {offset}");
             assert_eq!(rust.0[1024..2048], *src.planes().data[1]);
         }
+    }
+
+    #[test]
+    fn max_pixel_steps_refuses_planes_c_cannot_index() {
+        use super::super::pixdesc::{ComponentDescriptor, PixelFormatDescriptor};
+        for plane in [4, -1, i32::MAX, i32::MIN] {
+            let mut d = PixelFormatDescriptor::new();
+            // An unused slot (past the count, depth 0) still counts: C reads
+            // all four.
+            d.as_mut()
+                .components_mut()
+                .get_mut(3)
+                .unwrap()
+                .set(ComponentDescriptor::from_raw(ffi::AVComponentDescriptor {
+                    plane,
+                    step: 0,
+                    offset: 0,
+                    shift: 0,
+                    depth: 0,
+                }));
+            assert_eq!(
+                max_pixel_steps(d.as_ref()),
+                Err(InvalidDescriptor),
+                "{plane}"
+            );
+        }
+    }
+
+    #[test]
+    fn geometry_reads_steps_through_the_safe_descriptor() {
+        // nv12: Y in plane 0, interleaved U and V in plane 1.
+        let g = Geometry::of(PixelFormat::NV12).unwrap();
+        assert_eq!(g.max_steps.steps, [1, 2, 0, 0]);
+        assert_eq!(g.max_steps.components, [0, 1, 0, 0]);
+        assert_eq!(g.comps, [(0, 1), (1, 2), (1, 2), (0, 0)]);
+        assert_eq!(g.planes(), 2);
     }
 }
