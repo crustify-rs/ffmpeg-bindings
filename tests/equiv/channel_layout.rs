@@ -1343,3 +1343,134 @@ mod channel_names {
         }
     }
 }
+
+mod name_appenders {
+    use core::ffi::{c_int, c_uint};
+    use core::mem::MaybeUninit;
+    use core::ptr::{self, addr_of};
+
+    use ffmpeg::libavutil::bprint::{BPrint, BPrintRef};
+    use ffmpeg::libavutil::channel_layout::Channel;
+    use ffmpeg::libavutil::ffi;
+
+    type CAppender = unsafe extern "C" fn(*mut ffi::AVBPrint, ffi::AVChannel);
+    type RustAppender = fn(Channel, ffmpeg::libavutil::bprint::BPrintMut<'_>);
+
+    const APPENDERS: [(CAppender, RustAppender); 2] = [
+        (ffi::av_channel_name_bprint, Channel::append_name),
+        (
+            ffi::av_channel_description_bprint,
+            Channel::append_description,
+        ),
+    ];
+
+    fn ids() -> Vec<c_int> {
+        (-4..70)
+            .chain(1020..1030)
+            .chain(2040..2052)
+            .chain([0x10000, i32::MAX, i32::MIN])
+            .collect()
+    }
+
+    /// A C-side print buffer on its own heap storage, which never moves.
+    struct CBuf(*mut ffi::AVBPrint, bool);
+
+    impl CBuf {
+        fn new(buffer: Option<&mut [u8]>) -> Self {
+            let b: *mut ffi::AVBPrint =
+                Box::into_raw(Box::new(MaybeUninit::<ffi::AVBPrint>::uninit())).cast();
+            let owned = buffer.is_none();
+            // SAFETY: `b` is writable storage for one `AVBPrint`; a caller
+            // buffer is writable for its length and outlives every use of
+            // `b` in these tests.
+            unsafe {
+                match buffer {
+                    Some(data) => ffi::av_bprint_init_for_buffer(
+                        b,
+                        data.as_mut_ptr().cast(),
+                        data.len() as c_uint,
+                    ),
+                    None => ffi::av_bprint_init(b, 0, c_uint::MAX),
+                }
+            };
+            Self(b, owned)
+        }
+
+        /// `(len, stored bytes, complete)`.
+        fn state(&self) -> (u32, Vec<u8>, bool) {
+            // SAFETY: an initialised buffer, whose string holds
+            // `min(len, size - 1)` bytes before its NUL.
+            unsafe {
+                let len = addr_of!((*self.0).len).read();
+                let size = addr_of!((*self.0).size).read();
+                let stored = len.min(size.saturating_sub(1)) as usize;
+                let s = addr_of!((*self.0).str_).read().cast::<u8>();
+                let bytes = core::slice::from_raw_parts(s, stored).to_vec();
+                (len, bytes, ffi::av_bprint_is_complete(self.0) != 0)
+            }
+        }
+    }
+
+    impl Drop for CBuf {
+        fn drop(&mut self) {
+            if self.1 {
+                // SAFETY: an owned, initialised buffer, whose string C frees.
+                unsafe { ffi::av_bprint_finalize(self.0, ptr::null_mut()) };
+            }
+            // SAFETY: the storage `Box` that `new` leaked.
+            drop(unsafe { Box::from_raw(self.0.cast::<MaybeUninit<ffi::AVBPrint>>()) });
+        }
+    }
+
+    fn rust_state(b: BPrintRef<'_>) -> (u32, Vec<u8>, bool) {
+        (b.len(), b.as_bytes().to_vec(), b.is_complete())
+    }
+
+    #[test]
+    fn appending_sequences_match_c_after_every_step() {
+        for (i, chunk) in ids().chunks(16).enumerate() {
+            let mut rust = BPrint::new(0, BPrint::SIZE_UNLIMITED).unwrap();
+            let c = CBuf::new(None);
+            for (j, &id) in chunk.iter().enumerate() {
+                let (c_append, rust_append) = APPENDERS[(i + j) % 2];
+                rust_append(Channel::from_raw(ffi::AVChannel(id)), rust.as_mut());
+                // SAFETY: an initialised buffer; any channel value.
+                unsafe { c_append(c.0, ffi::AVChannel(id)) };
+                assert_eq!(rust_state(rust.as_ref()), c.state(), "{id}");
+            }
+        }
+    }
+
+    #[test]
+    fn appending_to_small_caller_buffers_truncates_like_c() {
+        for size in [1, 2, 5, 16] {
+            for &id in &[0, 3, 1024, 2047, -1, i32::MIN, 100] {
+                let (mut rust_data, mut c_data) = (vec![0xAAu8; size], vec![0xAAu8; size]);
+                {
+                    let mut rust = BPrint::for_buffer(&mut rust_data).unwrap();
+                    let c = CBuf::new(Some(&mut c_data));
+                    for (c_append, rust_append) in APPENDERS {
+                        rust_append(Channel::from_raw(ffi::AVChannel(id)), rust.as_mut());
+                        // SAFETY: an initialised buffer on `c_data`.
+                        unsafe { c_append(c.0, ffi::AVChannel(id)) };
+                        assert_eq!(rust_state(rust.as_ref()), c.state(), "{id} {size}");
+                    }
+                }
+                assert_eq!(rust_data, c_data, "{id} {size}");
+            }
+        }
+    }
+
+    #[test]
+    fn appended_names_are_the_channel_names() {
+        for id in ids() {
+            let ch = Channel::from_raw(ffi::AVChannel(id));
+            let mut b = BPrint::new(0, BPrint::SIZE_UNLIMITED).unwrap();
+            ch.append_name(b.as_mut());
+            assert_eq!(b.as_ref().as_bytes(), ch.name().as_bytes(), "{id}");
+            b.as_mut().clear();
+            ch.append_description(b.as_mut());
+            assert_eq!(b.as_ref().as_bytes(), ch.description().as_bytes(), "{id}");
+        }
+    }
+}

@@ -27,7 +27,7 @@ use core::ptr::{addr_of, addr_of_mut};
 use ffibox::{CZeroable, define_ctype};
 
 use super::ffi;
-use super::pixfmt::ColorTransfer;
+use super::pixfmt::{ColorSpace, ColorTransfer};
 use super::rational::{Rational, RationalMut, RationalRef};
 
 /// Wraps: av_csp_trc_function
@@ -619,6 +619,35 @@ impl ColorTransfer {
     pub fn inverse_eotf(self) -> Option<EotfFunction> {
         // SAFETY: as in `eotf`, for the inverse table.
         unsafe { ffi::av_csp_itu_eotf_inv(self.into_raw()) }.map(EotfFunction)
+    }
+}
+
+impl ColorSpace {
+    /// Wraps: av_csp_luma_coeffs_from_avcsp
+    ///
+    /// The luma coefficients of this colour space, borrowed from C's static,
+    /// never-written table for the whole program: `0.2126`, `0.7152` and
+    /// `0.0722` for [`BT709`](Self::BT709), all `1` for
+    /// [`RGB`](Self::RGB). `None` for a colour space C has none for, such as
+    /// the unspecified and reserved values, the chroma-derived and ICtCp
+    /// spaces, and every value C does not know.
+    ///
+    /// ```
+    /// use ffmpeg::libavutil::pixfmt::ColorSpace;
+    /// let bt709 = ColorSpace::BT709.luma_coefficients().unwrap();
+    /// assert_eq!((bt709.cg().num(), bt709.cg().den()), (71520, 100000));
+    /// assert!(ColorSpace::UNSPECIFIED.luma_coefficients().is_none());
+    /// ```
+    #[must_use]
+    pub fn luma_coefficients(self) -> Option<LumaCoefficientsRef<'static>> {
+        // SAFETY: `av_csp_luma_coeffs_from_avcsp` takes the enum by value,
+        // checks it against its table, and returns NULL or the address of an
+        // entry of `csp.c`'s static `const` table, which lives, unwritten,
+        // for the whole program; a shared `'static` handle only reads it.
+        unsafe {
+            let p = ffi::av_csp_luma_coeffs_from_avcsp(self.into_raw());
+            LumaCoefficientsRef::from_ptr(p.cast_mut())
+        }
     }
 }
 

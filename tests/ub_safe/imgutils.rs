@@ -839,3 +839,53 @@ mod images {
         });
     }
 }
+
+/// `max_pixel_steps`: C's table, and Rust-built descriptors with every slot's
+/// plane at the edges of C's four-plane arrays, which live on the wrapper's
+/// stack (so an index past them is an ASan report).
+mod pixel_steps {
+    use ffmpeg::libavutil::ffi;
+    use ffmpeg::libavutil::imgutils::max_pixel_steps;
+    use ffmpeg::libavutil::pixdesc::{
+        ComponentDescriptor, InvalidDescriptor, PixelFormatDescriptor,
+    };
+    use ffmpeg::libavutil::pixfmt::PixelFormat;
+
+    #[test]
+    fn every_table_entry_has_steps() {
+        for raw in 0..ffi::AVPixelFormat::AV_PIX_FMT_NB.0 {
+            let d = PixelFormat::from_raw(ffi::AVPixelFormat(raw))
+                .descriptor()
+                .unwrap();
+            let s = max_pixel_steps(d).unwrap();
+            assert!(s.components.iter().all(|&c| c < 4));
+            assert!(s.steps.iter().all(|&st| st >= 0));
+        }
+    }
+
+    #[test]
+    fn edge_planes_are_refused_and_the_rest_accepted() {
+        let planes = [i32::MIN, -1, 0, 1, 2, 3, 4, 5, i32::MAX];
+        for (slot, plane) in (0..4).flat_map(|s| planes.map(|p| (s, p))) {
+            for step in [i32::MIN, -1, 0, 1, i32::MAX] {
+                let mut d = PixelFormatDescriptor::new();
+                d.as_mut().components_mut().get_mut(slot).unwrap().set(
+                    ComponentDescriptor::from_raw(ffi::AVComponentDescriptor {
+                        plane,
+                        step,
+                        offset: 0,
+                        shift: 0,
+                        depth: 0,
+                    }),
+                );
+                let r = max_pixel_steps(d.as_ref());
+                if (0..4).contains(&plane) {
+                    let s = r.unwrap();
+                    assert_eq!(s.steps[plane as usize], step.max(0));
+                } else {
+                    assert_eq!(r, Err(InvalidDescriptor));
+                }
+            }
+        }
+    }
+}

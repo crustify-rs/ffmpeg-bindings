@@ -1301,6 +1301,29 @@
    ]
   },
   {
+   "name": "av_channel_description_bprint",
+   "defined_in": "libavutil/channel_layout.c",
+   "ptr_args": [
+    {
+     "name": "bp",
+     "ptr": {
+      "scalar": {
+       "by_val": true
+      },
+      "array": null,
+      "string": false,
+      "owned": false,
+      "borrowed": {
+       "lifetime": "arg:bp"
+      },
+      "nullable": false,
+      "mutable": true,
+      "note": "As av_channel_name_bprint: an initialised AVBPrint borrowed mutably for the call, appended to with av_bprintf, not retained. Wrapped as Channel::append_description(self, &mut BPrintMut)."
+     }
+    }
+   ]
+  },
+  {
    "name": "av_channel_from_string",
    "defined_in": "libavutil/channel_layout.c",
    "ptr_args": [
@@ -1340,6 +1363,29 @@
       "nullable": true,
       "mutable": true,
       "note": "Caller output buffer of buf_size bytes: av_bprint_init_for_buffer writes a NUL at buf[0] and av_bprintf writes the abbreviated channel name (FL, AMBI<n>, USR<n>, NONE, UNK, UNSD) truncated to fit with its NUL. NULL is allowed only with buf_size 0 (count-only: nothing written, the needed size returned); NULL with a nonzero size returns AVERROR(EINVAL). buf_size is narrowed to `unsigned` by av_bprint_init_for_buffer, so a size >= 2^32 is truncated (2^32 itself becomes count-only). Not retained. Wrapped as `&mut [u8]` (empty slice -> NULL, 0; length clamped to u32::MAX) and as an owned CString builder measuring first."
+     }
+    }
+   ]
+  },
+  {
+   "name": "av_channel_name_bprint",
+   "defined_in": "libavutil/channel_layout.c",
+   "ptr_args": [
+    {
+     "name": "bp",
+     "ptr": {
+      "scalar": {
+       "by_val": true
+      },
+      "array": null,
+      "string": false,
+      "owned": false,
+      "borrowed": {
+       "lifetime": "arg:bp"
+      },
+      "nullable": false,
+      "mutable": true,
+      "note": "An initialised AVBPrint (av_bprint_init / av_bprint_init_for_buffer), borrowed mutably for the call only and not retained; C appends the channel's abbreviation through av_bprintf (truncating, never failing). Any enum value is accepted (USR<n> fallback). Wrapped as Channel::append_name(self, &mut BPrintMut)."
      }
     }
    ]
@@ -1719,6 +1765,26 @@
      "nullable": true,
      "mutable": false,
      "note": "av_csp_itu_eotf_inv returns NULL for a transfer outside its table or with no inverse eotf (NULL slot), else one of csp.c's static functions from `eotf_inv_funcs (no extended range)`: code with static lifetime, stateless and reentrant, never freed. Wrapped as Option<EotfFunction>, the formats wave-0 callable handle."
+    }
+   }
+  },
+  {
+   "name": "av_csp_luma_coeffs_from_avcsp",
+   "defined_in": "libavutil/csp.c",
+   "ptr_ret": {
+    "ptr": {
+     "scalar": {
+      "by_val": true
+     },
+     "array": null,
+     "string": false,
+     "owned": false,
+     "borrowed": {
+      "lifetime": "static"
+     },
+     "nullable": true,
+     "mutable": false,
+     "note": "NULL for a colour space outside 0..AVCOL_SPC_NB (unsigned compare) or whose static luma_coefficients entry has cr.num == 0; otherwise the address of an entry of csp.c's static const table: immutable, never freed, process lifetime. Callers only read it. Wrapped as ColorSpace::luma_coefficients() -> Option<LumaCoefficientsRef<'static>>."
     }
    }
   },
@@ -2615,6 +2681,29 @@
    "defined_in": "libavutil/samplefmt.c"
   },
   {
+   "name": "av_get_bits_per_pixel",
+   "defined_in": "libavutil/pixdesc.c",
+   "ptr_args": [
+    {
+     "name": "pixdesc",
+     "ptr": {
+      "scalar": {
+       "by_val": true
+      },
+      "array": null,
+      "string": false,
+      "owned": false,
+      "borrowed": {
+       "lifetime": "arg:pixdesc"
+      },
+      "nullable": false,
+      "mutable": false,
+      "note": "An AVPixFmtDescriptor borrowed shared for the call only and never retained: C's own static table entry (av_pix_fmt_desc_get) or a caller-built descriptor. Reads nb_components, log2_chroma_w/h and comp[0..nb_components].depth: nb_components > 4 reads past comp[4], and depth << (log2_chroma_w + log2_chroma_h) is UB for negative depths, shifts >= 32 or int overflow; the safe wrapper checks a Rust-built descriptor for those first."
+     }
+    }
+   ]
+  },
+  {
    "name": "av_get_bytes_per_sample",
    "defined_in": "libavutil/samplefmt.c"
   },
@@ -2643,6 +2732,29 @@
   {
    "name": "av_get_packed_sample_fmt",
    "defined_in": "libavutil/samplefmt.c"
+  },
+  {
+   "name": "av_get_padded_bits_per_pixel",
+   "defined_in": "libavutil/pixdesc.c",
+   "ptr_args": [
+    {
+     "name": "pixdesc",
+     "ptr": {
+      "scalar": {
+       "by_val": true
+      },
+      "array": null,
+      "string": false,
+      "owned": false,
+      "borrowed": {
+       "lifetime": "arg:pixdesc"
+      },
+      "nullable": false,
+      "mutable": false,
+      "note": "An AVPixFmtDescriptor borrowed shared for the call only and never retained: C's own static table entry (av_pix_fmt_desc_get) or a caller-built descriptor. Reads comp[0..nb_components].plane/step and flags; writes steps[comp->plane] on a local int[4], so a plane outside 0..4 is a stack overflow, and step << shift, the sum and the *8 may overflow int; the wrapper checks those first."
+     }
+    }
+   ]
   },
   {
    "name": "av_get_picture_type_char",
@@ -3104,6 +3216,29 @@
   {
    "name": "av_image_fill_linesizes",
    "defined_in": "libavutil/imgutils.c"
+  },
+  {
+   "name": "av_image_fill_max_pixsteps",
+   "defined_in": "libavutil/imgutils.c",
+   "ptr_args": [
+    {
+     "name": "pixdesc",
+     "ptr": {
+      "scalar": {
+       "by_val": true
+      },
+      "array": null,
+      "string": false,
+      "owned": false,
+      "borrowed": {
+       "lifetime": "arg:pixdesc"
+      },
+      "nullable": false,
+      "mutable": false,
+      "note": "An AVPixFmtDescriptor borrowed shared for the call only and never retained: C's own static table entry (av_pix_fmt_desc_get) or a caller-built descriptor. Reads all four comp[].plane/step (not just nb_components) and indexes the caller's int[4] arrays by plane, so every slot's plane must be 0..4. The out arrays max_pixsteps[4] (written, required) and max_pixstep_comps[4] (written, nullable) are array params wavefront does not record; both are caller storage written during the call only, returned by value by the Rust wrapper."
+     }
+    }
+   ]
   },
   {
    "name": "av_image_fill_plane_sizes",
@@ -4222,6 +4357,88 @@
    "defined_in": "libavutil/pixdesc.c"
   },
   {
+   "name": "av_pix_fmt_desc_get",
+   "defined_in": "libavutil/pixdesc.c",
+   "ptr_ret": {
+    "ptr": {
+     "scalar": {
+      "by_val": true
+     },
+     "array": null,
+     "string": false,
+     "owned": false,
+     "borrowed": {
+      "lifetime": "static"
+     },
+     "nullable": true,
+     "mutable": false,
+     "note": "NULL for a value outside 0..AV_PIX_FMT_NB, else &av_pix_fmt_descriptors[fmt], an entry of pixdesc.c's static const table: immutable (name/alias string literals), never freed, process lifetime; entries for formats the table leaves out are all-zero (NULL name). Wrapped as PixelFormat::descriptor() -> Option<PixelFormatDescriptorRef<'static>>."
+    }
+   }
+  },
+  {
+   "name": "av_pix_fmt_desc_get_id",
+   "defined_in": "libavutil/pixdesc.c",
+   "ptr_args": [
+    {
+     "name": "desc",
+     "ptr": {
+      "scalar": {
+       "by_val": true
+      },
+      "array": null,
+      "string": false,
+      "owned": false,
+      "borrowed": {
+       "lifetime": "arg:desc"
+      },
+      "nullable": true,
+      "mutable": false,
+      "note": "Never dereferenced: C only compares the address against the bounds of its static table and subtracts the base, returning AV_PIX_FMT_NONE for any pointer outside it (NULL and Rust-held copies included). Borrowed for the call only. Wrapped as PixelFormatDescriptorRef::pixel_format()."
+     }
+    }
+   ]
+  },
+  {
+   "name": "av_pix_fmt_desc_next",
+   "defined_in": "libavutil/pixdesc.c",
+   "ptr_args": [
+    {
+     "name": "prev",
+     "ptr": {
+      "scalar": {
+       "by_val": true
+      },
+      "array": null,
+      "string": false,
+      "owned": false,
+      "borrowed": {
+       "lifetime": "arg:prev"
+      },
+      "nullable": true,
+      "mutable": false,
+      "note": "NULL starts the iteration (returns entry 0); otherwise must point into C's static descriptor table, since C does pointer arithmetic on it relative to the table and reads the following entries' names: a pointer to a copy is UB. Borrowed for the call. The Rust wrapper only passes NULL or a pointer av_pix_fmt_desc_get_id recognises."
+     }
+    }
+   ],
+   "ptr_ret": {
+    "ptr": {
+     "scalar": {
+      "by_val": true
+     },
+     "array": null,
+     "string": false,
+     "owned": false,
+     "borrowed": {
+      "lifetime": "static"
+     },
+     "nullable": true,
+     "mutable": false,
+     "note": "NULL past the last named entry, else the next table entry with a non-NULL name (static, immutable, never freed)."
+    }
+   }
+  },
+  {
    "name": "av_pix_fmt_get_chroma_sub_sample",
    "defined_in": "libavutil/pixdesc.c",
    "ptr_args": [
@@ -4379,6 +4596,86 @@
       "nullable": false,
       "mutable": true,
       "note": "Caller buffer of len bytes, write-only (fread from /dev/urandom on this build); fully written on success, possibly partly on failure. Not retained. Must be valid even for len 0 (passed to fread)."
+     }
+    }
+   ]
+  },
+  {
+   "name": "av_read_image_line",
+   "defined_in": "libavutil/pixdesc.c",
+   "ptr_args": [
+    {
+     "name": "desc",
+     "ptr": {
+      "scalar": {
+       "by_val": true
+      },
+      "array": null,
+      "string": false,
+      "owned": false,
+      "borrowed": {
+       "lifetime": "arg:desc"
+      },
+      "nullable": false,
+      "mutable": false,
+      "note": "An AVPixFmtDescriptor borrowed shared for the call only and never retained: C's own static table entry (av_pix_fmt_desc_get) or a caller-built descriptor. As av_read_image_line2."
+     }
+    },
+    {
+     "name": "dst",
+     "ptr": {
+      "scalar": null,
+      "array": {
+       "by_val": true
+      },
+      "string": false,
+      "owned": false,
+      "borrowed": {
+       "lifetime": "arg:dst"
+      },
+      "nullable": false,
+      "mutable": true,
+      "note": "Caller output array of w uint16_t written during the call only; forwards to av_read_image_line2 with element size 2. Read-only image planes uint8_t *data[4] and linesize[4] are array params wavefront does not record: C reads data[comp.plane] rows and, with read_pal_component, data[1] as a palette indexed 4*val + c. "
+     }
+    }
+   ]
+  },
+  {
+   "name": "av_read_image_line2",
+   "defined_in": "libavutil/pixdesc.c",
+   "ptr_args": [
+    {
+     "name": "desc",
+     "ptr": {
+      "scalar": {
+       "by_val": true
+      },
+      "array": null,
+      "string": false,
+      "owned": false,
+      "borrowed": {
+       "lifetime": "arg:desc"
+      },
+      "nullable": false,
+      "mutable": false,
+      "note": "An AVPixFmtDescriptor borrowed shared for the call only and never retained: C's own static table entry (av_pix_fmt_desc_get) or a caller-built descriptor. Only comp[c] and flags are read; c must be 0..4, and comp[c]'s depth/shift/offset/step drive shifts and pointer walks the wrapper validates before calling."
+     }
+    },
+    {
+     "name": "dst",
+     "ptr": {
+      "scalar": null,
+      "array": {
+       "by_val": true
+      },
+      "string": false,
+      "owned": false,
+      "borrowed": {
+       "lifetime": "arg:dst"
+      },
+      "nullable": false,
+      "mutable": true,
+      "note": "Caller output array of w elements of dst_element_size bytes (4: uint32_t, otherwise uint16_t), written during the call only; type-erased, wrapped generically over a sealed u16/u32 element trait. Read-only image planes uint8_t *data[4] and linesize[4] are array params wavefront does not record: C reads data[comp.plane] rows and, with read_pal_component, data[1] as a palette indexed 4*val + c. "
      }
     }
    ]
@@ -5978,6 +6275,86 @@
       "nullable": false,
       "mutable": false,
       "note": "printf format consumed with the va_list by the log callback during the call. Must not be NULL."
+     }
+    }
+   ]
+  },
+  {
+   "name": "av_write_image_line",
+   "defined_in": "libavutil/pixdesc.c",
+   "ptr_args": [
+    {
+     "name": "desc",
+     "ptr": {
+      "scalar": {
+       "by_val": true
+      },
+      "array": null,
+      "string": false,
+      "owned": false,
+      "borrowed": {
+       "lifetime": "arg:desc"
+      },
+      "nullable": false,
+      "mutable": false,
+      "note": "An AVPixFmtDescriptor borrowed shared for the call only and never retained: C's own static table entry (av_pix_fmt_desc_get) or a caller-built descriptor. As av_read_image_line2."
+     }
+    },
+    {
+     "name": "src",
+     "ptr": {
+      "scalar": null,
+      "array": {
+       "by_val": true
+      },
+      "string": false,
+      "owned": false,
+      "borrowed": {
+       "lifetime": "arg:src"
+      },
+      "nullable": false,
+      "mutable": false,
+      "note": "Caller input array of w uint16_t read during the call only; forwards to av_write_image_line2 with element size 2. Planes uint8_t *data[4] (written: read-modify-write ORs into data[comp.plane] rows, which C expects zeroed) and linesize[4] are array params wavefront does not record. "
+     }
+    }
+   ]
+  },
+  {
+   "name": "av_write_image_line2",
+   "defined_in": "libavutil/pixdesc.c",
+   "ptr_args": [
+    {
+     "name": "desc",
+     "ptr": {
+      "scalar": {
+       "by_val": true
+      },
+      "array": null,
+      "string": false,
+      "owned": false,
+      "borrowed": {
+       "lifetime": "arg:desc"
+      },
+      "nullable": false,
+      "mutable": false,
+      "note": "An AVPixFmtDescriptor borrowed shared for the call only and never retained: C's own static table entry (av_pix_fmt_desc_get) or a caller-built descriptor. As av_read_image_line2."
+     }
+    },
+    {
+     "name": "src",
+     "ptr": {
+      "scalar": null,
+      "array": {
+       "by_val": true
+      },
+      "string": false,
+      "owned": false,
+      "borrowed": {
+       "lifetime": "arg:src"
+      },
+      "nullable": false,
+      "mutable": false,
+      "note": "Caller input array of w elements of src_element_size bytes (4: uint32_t, otherwise uint16_t), read during the call only. Planes uint8_t *data[4] (written: read-modify-write ORs into data[comp.plane] rows, which C expects zeroed) and linesize[4] are array params wavefront does not record. "
      }
     }
    ]

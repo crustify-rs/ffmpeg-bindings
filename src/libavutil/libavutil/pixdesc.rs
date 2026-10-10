@@ -24,16 +24,26 @@
 //! `&'static CStr`s that the lookups take back. The pixel format name lookups,
 //! descriptor queries ([`PixelFormat::plane_count`]) and conversion loss
 //! queries are methods of [`PixelFormat`], the last reporting a [`Loss`].
+//!
+//! [`PixelFormat::descriptor`] borrows a format's descriptor from C's table
+//! for the whole program, and [`descriptors`] walks the table; a descriptor
+//! counts its bits per pixel ([`PixelFormatDescriptorRef::bits_per_pixel`]).
+//! [`read_image_line`] and [`write_image_line`] move one component of a row
+//! of pixels between an image's [`Planes`] and a `u16` or `u32` line, as a
+//! descriptor lays them out. C trusts every descriptor it is given, so these
+//! check one first, refusing what only a Rust-built descriptor can hold
+//! ([`InvalidDescriptor`], [`ImageLineError`]).
 
 use core::ffi::{CStr, c_char, c_int, c_uint};
 use core::fmt;
 use core::hash::{Hash, Hasher};
-use core::ops::{BitAnd, BitOr, BitOrAssign};
+use core::ops::{BitAnd, BitOr, BitOrAssign, Range};
 use core::ptr::{self, NonNull, addr_of, addr_of_mut};
 
 use ffibox::{CSlice, CSliceMut, CZeroable, define_ctype};
 
 use super::ffi;
+use super::imgutils::{Planes, PlanesMut};
 use super::pixfmt::{
     AlphaMode, ChromaLocation, ColorPrimaries, ColorRange, ColorSpace, ColorTransfer, PixelFormat,
 };
@@ -1422,6 +1432,839 @@ impl PixelFormat {
     }
 }
 
+impl PixelFormat {
+    /// Wraps: av_pix_fmt_desc_get
+    ///
+    /// This pixel format's descriptor in C's table, borrowed for the whole
+    /// program: the table is static and never written. `None` for
+    /// [`NONE`](Self::NONE) and every value past the last format these
+    /// bindings know (`AV_PIX_FMT_NB`).
+    ///
+    /// A value inside that range always has an entry, but one C's table
+    /// leaves out is all-zero: it has no [`name`](PixelFormatDescriptorRef::name)
+    /// and no component.
+    ///
+    /// The handle is shared, as C's table is never written; a descriptor to
+    /// edit is a copy, [`get`](PixelFormatDescriptorRef::get):
+    ///
+    /// ```compile_fail,E0599
+    /// use ffmpeg::libavutil::pixfmt::PixelFormat;
+    /// let mut desc = PixelFormat::YUV420P.descriptor().unwrap();
+    /// desc.set_component_count(0);
+    /// ```
+    ///
+    /// ```
+    /// use ffmpeg::libavutil::pixfmt::PixelFormat;
+    /// let desc = PixelFormat::YUV420P.descriptor().unwrap();
+    /// assert_eq!(desc.name(), Some(c"yuv420p"));
+    /// assert_eq!(desc.pixel_format(), Some(PixelFormat::YUV420P));
+    /// assert!(PixelFormat::NONE.descriptor().is_none());
+    /// ```
+    #[must_use]
+    pub fn descriptor(self) -> Option<PixelFormatDescriptorRef<'static>> {
+        // SAFETY: `av_pix_fmt_desc_get` takes the enum by value, checks its
+        // range, and returns NULL or the address of an entry of C's static
+        // `const` table, which lives, unwritten, for the whole program and
+        // whose `name` and `alias` are NULL or string literals, the type's
+        // invariant; a shared `'static` handle only reads it.
+        unsafe {
+            let p = ffi::av_pix_fmt_desc_get(self.into_raw());
+            PixelFormatDescriptorRef::from_ptr(p.cast_mut())
+        }
+    }
+}
+
+impl PixelFormatDescriptorRef<'_> {
+    /// Wraps: av_pix_fmt_desc_get_id
+    ///
+    /// The pixel format whose entry in C's table this handle addresses;
+    /// `None` for a descriptor anywhere else, such as a copy of an entry
+    /// held in Rust. C compares the address only, never reading through it.
+    #[must_use]
+    pub fn pixel_format(&self) -> Option<PixelFormat> {
+        // SAFETY: C compares `desc` against the bounds of its static table
+        // and subtracts the table's base from it only when it lies inside,
+        // where a handle to an entry points at an entry's start; it never
+        // dereferences `desc`.
+        let raw = unsafe { ffi::av_pix_fmt_desc_get_id(self.as_ptr()) };
+        Some(PixelFormat::from_raw(raw)).filter(|&f| f != PixelFormat::NONE)
+    }
+
+    /// Wraps: av_pix_fmt_desc_next
+    ///
+    /// The next named descriptor in C's table after the entry this handle
+    /// addresses, skipping the entries the table leaves out; `None` past the
+    /// last one, and for a descriptor that is not an entry of C's table.
+    #[must_use]
+    pub fn next_in_table(&self) -> Option<PixelFormatDescriptorRef<'static>> {
+        next_descriptor(Some(*self))
+    }
+}
+
+/// The named C table entry after `prev`, or the first entry for `None`, as a
+/// `'static` handle; `None` past the last one, and after a descriptor that
+/// is not an entry of C's table.
+fn next_descriptor(
+    prev: Option<PixelFormatDescriptorRef<'_>>,
+) -> Option<PixelFormatDescriptorRef<'static>> {
+    let prev = match prev {
+        // C walks forward from `prev` inside its own table, so only one of
+        // its entries may be passed.
+        Some(d) => {
+            d.pixel_format()?;
+            d.as_ptr()
+        }
+        None => ptr::null(),
+    };
+    // SAFETY: `prev` is NULL, from which C starts at its first entry, or an
+    // entry of C's static table (`pixel_format` found its address there),
+    // from which C steps through the following entries. C returns NULL or
+    // the address of one of them, which lives, unwritten, for the whole
+    // program with `name` and `alias` NULL or literals, the type's
+    // invariant; a shared `'static` handle only reads it.
+    unsafe { PixelFormatDescriptorRef::from_ptr(ffi::av_pix_fmt_desc_next(prev).cast_mut()) }
+}
+
+/// Wraps: av_pix_fmt_desc_next
+///
+/// Every named pixel format descriptor in C's table, in the table's order:
+/// the order of [`PixelFormat`]'s values, skipping the ones the table leaves
+/// out. Each is borrowed for the whole program.
+///
+/// ```
+/// use ffmpeg::libavutil::pixdesc::descriptors;
+/// use ffmpeg::libavutil::pixfmt::PixelFormat;
+/// let first = descriptors().next().unwrap();
+/// assert_eq!(first.pixel_format(), Some(PixelFormat::YUV420P));
+/// assert!(descriptors().any(|d| d.name() == Some(c"rgb24")));
+/// ```
+#[must_use]
+pub fn descriptors() -> Descriptors {
+    Descriptors {
+        prev: None,
+        done: false,
+    }
+}
+
+/// The iterator over C's pixel format descriptors that [`descriptors`]
+/// returns.
+#[derive(Clone, Copy, Debug)]
+pub struct Descriptors {
+    /// The descriptor returned last, `None` before the first.
+    prev: Option<PixelFormatDescriptorRef<'static>>,
+    /// Whether C reported the end of its table.
+    done: bool,
+}
+
+impl Iterator for Descriptors {
+    type Item = PixelFormatDescriptorRef<'static>;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        if self.done {
+            return None;
+        }
+        let next = next_descriptor(self.prev);
+        self.done = next.is_none();
+        self.prev = next;
+        next
+    }
+}
+
+impl core::iter::FusedIterator for Descriptors {}
+
+/// Why a whole-descriptor reader refused a descriptor: a field C would read
+/// out of bounds with, or whose arithmetic would overflow `int` or shift by
+/// more than its width. C's own table never has one; only a descriptor
+/// built or edited in Rust can.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+pub struct InvalidDescriptor;
+
+impl fmt::Display for InvalidDescriptor {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.write_str("pixel format descriptor outside C's arithmetic range")
+    }
+}
+
+impl std::error::Error for InvalidDescriptor {}
+
+/// `(value << shift)` as C computes it on an `int`, when that is defined: a
+/// non-negative value, a shift below 32 and a result in range.
+fn c_shl(value: c_int, shift: c_int) -> Option<c_int> {
+    if value < 0 || !(0..32).contains(&shift) {
+        return None;
+    }
+    c_int::try_from(i64::from(value) << shift).ok()
+}
+
+impl PixelFormatDescriptorRef<'_> {
+    /// The number of components C's bit counters read, and the sum of the
+    /// chroma shifts they scale by, when C can index its four component
+    /// slots with the one and shift an `int` by the other.
+    fn counted_components(&self) -> Result<(usize, c_int), InvalidDescriptor> {
+        let count = usize::from(self.component_count());
+        let log2_pixels = c_int::from(self.log2_chroma_w()) + c_int::from(self.log2_chroma_h());
+        if count > 4 || log2_pixels >= 32 {
+            return Err(InvalidDescriptor);
+        }
+        Ok((count, log2_pixels))
+    }
+
+    /// `av_get_bits_per_pixel`'s arithmetic, refused where C's is undefined.
+    fn checked_bits_per_pixel(&self) -> Result<c_int, InvalidDescriptor> {
+        let (count, log2_pixels) = self.counted_components()?;
+        let mut bits: c_int = 0;
+        for (c, comp) in self.components().iter().take(count).enumerate() {
+            let s = if c == 1 || c == 2 { 0 } else { log2_pixels };
+            let scaled = c_shl(comp.depth(), s).ok_or(InvalidDescriptor)?;
+            bits = bits.checked_add(scaled).ok_or(InvalidDescriptor)?;
+        }
+        Ok(bits >> log2_pixels)
+    }
+
+    /// `av_get_padded_bits_per_pixel`'s arithmetic, refused where C's is
+    /// undefined.
+    fn checked_padded_bits_per_pixel(&self) -> Result<c_int, InvalidDescriptor> {
+        let (count, log2_pixels) = self.counted_components()?;
+        let mut steps: [c_int; 4] = [0; 4];
+        for (c, comp) in self.components().iter().take(count).enumerate() {
+            let s = if c == 1 || c == 2 { 0 } else { log2_pixels };
+            // C stores into its own `int steps[4]` by plane.
+            let plane = usize::try_from(comp.plane())
+                .ok()
+                .filter(|&p| p < 4)
+                .ok_or(InvalidDescriptor)?;
+            steps[plane] = c_shl(comp.step(), s).ok_or(InvalidDescriptor)?;
+        }
+        let mut bits = steps
+            .iter()
+            .try_fold(0 as c_int, |sum, &s| sum.checked_add(s))
+            .ok_or(InvalidDescriptor)?;
+        if !self.flags().contains(PixelFormatFlags::BITSTREAM) {
+            bits = bits.checked_mul(8).ok_or(InvalidDescriptor)?;
+        }
+        Ok(bits >> log2_pixels)
+    }
+
+    /// Wraps: av_get_bits_per_pixel
+    ///
+    /// The number of bits that represent a pixel, averaged over the chroma
+    /// subsampling and excluding padding: 12 for
+    /// [`YUV420P`](PixelFormat::YUV420P), 24 for
+    /// [`RGB24`](PixelFormat::RGB24) and [`RGB0`](PixelFormat::RGB0).
+    ///
+    /// # Errors
+    ///
+    /// [`InvalidDescriptor`] for a descriptor with more than four
+    /// components, chroma shifts summing to 32 or more, or a component depth
+    /// that is negative or overflows C's `int` sum, on which C would read
+    /// past its component slots or overflow. C's own table has none.
+    ///
+    /// ```
+    /// use ffmpeg::libavutil::pixfmt::PixelFormat;
+    /// let desc = PixelFormat::YUV420P.descriptor().unwrap();
+    /// assert_eq!(desc.bits_per_pixel(), Ok(12));
+    /// ```
+    pub fn bits_per_pixel(&self) -> Result<u32, InvalidDescriptor> {
+        self.checked_bits_per_pixel()?;
+        // SAFETY: the handle addresses a live, initialised descriptor, which
+        // C only reads during the call; `checked_bits_per_pixel` found C's
+        // component count, shifts and sums in range for it.
+        let bits = unsafe { ffi::av_get_bits_per_pixel(self.as_ptr()) };
+        // Non-negative: a sum of non-negative terms, shifted right.
+        Ok(bits as u32)
+    }
+
+    /// Wraps: av_get_padded_bits_per_pixel
+    ///
+    /// The number of bits a pixel occupies, padding and unused bits
+    /// included, averaged over the chroma subsampling: 12 for
+    /// [`YUV420P`](PixelFormat::YUV420P), 32 for [`RGB0`](PixelFormat::RGB0).
+    /// C counts the largest step of each plane among the used components
+    /// (in bytes, or bits for a [bitstream](PixelFormatFlags::BITSTREAM)
+    /// format).
+    ///
+    /// # Errors
+    ///
+    /// [`InvalidDescriptor`] for a descriptor with more than four
+    /// components, chroma shifts summing to 32 or more, a used component in
+    /// a plane outside 0 to 3 (C would write past its four-plane array), or a
+    /// step that is negative or overflows C's `int` sum. C's own table has
+    /// none.
+    ///
+    /// ```
+    /// use ffmpeg::libavutil::pixfmt::PixelFormat;
+    /// let desc = PixelFormat::RGB0.descriptor().unwrap();
+    /// assert_eq!(desc.padded_bits_per_pixel(), Ok(32));
+    /// ```
+    pub fn padded_bits_per_pixel(&self) -> Result<u32, InvalidDescriptor> {
+        self.checked_padded_bits_per_pixel()?;
+        // SAFETY: the handle addresses a live, initialised descriptor, which
+        // C only reads during the call; `checked_padded_bits_per_pixel` found
+        // the used components' planes inside C's `steps[4]` and its shifts
+        // and sums in range.
+        let bits = unsafe { ffi::av_get_padded_bits_per_pixel(self.as_ptr()) };
+        // Non-negative: a sum of non-negative terms, shifted right.
+        Ok(bits as u32)
+    }
+}
+
+mod sealed {
+    pub trait Sealed {}
+    impl Sealed for u16 {}
+    impl Sealed for u32 {}
+}
+
+/// An element of the lines [`read_image_line`] fills and
+/// [`write_image_line`] reads: `u16` or `u32`, the two sizes C takes.
+///
+/// Sealed: C knows no other element size, so a line of any other element
+/// does not compile:
+///
+/// ```compile_fail,E0277
+/// use ffmpeg::libavutil::imgutils::Planes;
+/// use ffmpeg::libavutil::pixdesc::read_image_line;
+/// use ffmpeg::libavutil::pixfmt::PixelFormat;
+/// let desc = PixelFormat::GRAY8.descriptor().unwrap();
+/// let mut bytes = [0u8; 4];
+/// let _ = read_image_line(&mut bytes, Planes::default(), desc, 0, 0, 0, false);
+/// ```
+pub trait LineElement: sealed::Sealed + Copy {
+    /// The element size C is told, in bytes.
+    const SIZE: c_int;
+}
+
+impl LineElement for u16 {
+    const SIZE: c_int = 2;
+}
+
+impl LineElement for u32 {
+    const SIZE: c_int = 4;
+}
+
+/// Why [`read_image_line`] or [`write_image_line`] refused a line.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+pub enum ImageLineError {
+    /// The component is not one of the descriptor's four slots.
+    Component,
+    /// A position, linesize or line length beyond `i32`, or C's `int`
+    /// arithmetic on them overflowing.
+    OutOfRange,
+    /// The component's layout makes C shift by more than a value's width or
+    /// overflow `int`. C's own table has no such component.
+    InvalidDescriptor,
+    /// Part of the line lies outside its plane's slice.
+    OutsidePlane,
+    /// Plane 1 is too short for every palette entry the read may index.
+    OutsidePalette,
+}
+
+impl fmt::Display for ImageLineError {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.write_str(match self {
+            Self::Component => "component index past the descriptor's four slots",
+            Self::OutOfRange => "line position, linesize or length out of range",
+            Self::InvalidDescriptor => "component layout outside C's arithmetic range",
+            Self::OutsidePlane => "line lies outside its plane",
+            Self::OutsidePalette => "palette shorter than the entries the line may index",
+        })
+    }
+}
+
+impl std::error::Error for ImageLineError {}
+
+/// Whether a line is read, with or without palette lookups, or written.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+enum LineAccess {
+    Read { palette: bool },
+    Write,
+}
+
+/// The bytes C touches for one line: the byte offsets `span` from row 0 of
+/// the component's plane, and, for palette lookups, the bytes of plane 1
+/// from its row 0 the lookups may index.
+#[derive(Clone, Debug, PartialEq, Eq)]
+struct LinePlan {
+    plane: usize,
+    span: Range<i64>,
+    palette: Option<u64>,
+}
+
+/// What `av_read_image_line2` or `av_write_image_line2` touches when it
+/// moves `w > 0` values of component `c`, laid out as `comp` (`[plane,
+/// step, offset, shift, depth]`), from pixel `x` of row `y`, mirroring C's
+/// `int` arithmetic and refusing where it is undefined; with the plane's
+/// linesize as C takes it, or `None` when C returns before touching the
+/// image.
+fn line_plan(
+    [plane, step, offset, shift, depth]: [c_int; 5],
+    flags: u64,
+    (x, y, c, w): (c_int, c_int, c_int, c_int),
+    linesizes: &[isize; 4],
+    access: LineAccess,
+) -> Result<Option<(LinePlan, c_int)>, ImageLineError> {
+    use ImageLineError::{InvalidDescriptor as Invalid, OutOfRange};
+    let reading = access != LineAccess::Write;
+    // The reader computes `(1ULL << depth) - 1` before anything else.
+    if reading && !(0..64).contains(&depth) {
+        return Err(Invalid);
+    }
+    if depth == 0 {
+        return Ok(None);
+    }
+    // C indexes `data[4]` and `linesize[4]` by the plane.
+    let plane = usize::try_from(plane)
+        .ok()
+        .filter(|&p| p < 4)
+        .ok_or(Invalid)?;
+    let linesize = c_int::try_from(linesizes[plane]).map_err(|_| OutOfRange)?;
+    let row = i64::from(y.checked_mul(linesize).ok_or(OutOfRange)?);
+    // The mask the reader applies, as C's `unsigned`.
+    let mask = if reading {
+        ((1u64 << depth) - 1) as u32
+    } else {
+        0
+    };
+    let bitstream = flags & u64::from(ffi::AV_PIX_FMT_FLAG_BITSTREAM) != 0;
+    let big_endian = flags & u64::from(ffi::AV_PIX_FMT_FLAG_BE) != 0;
+    let shift_ok = |s: c_int| (0..32).contains(&s);
+    // The span, and the largest value a palette lookup may index with.
+    let (span, max_val) = if bitstream && step > 8 {
+        // Whole 32-bit words from the row's start: `val >> offset`, or
+        // `((1ULL << depth) - 1) << offset` and `val << offset`.
+        if !shift_ok(offset) || !(0..64).contains(&depth) {
+            return Err(Invalid);
+        }
+        (row..row + 4 * i64::from(w), u64::from(mask))
+    } else if bitstream {
+        let skip = x
+            .checked_mul(step)
+            .and_then(|s| s.checked_add(offset))
+            .ok_or(OutOfRange)?;
+        let mut shift = 8_i32
+            .checked_sub(depth)
+            .and_then(|s| s.checked_sub(skip & 7))
+            .ok_or(Invalid)?;
+        let mut p = row + i64::from(skip >> 3);
+        let (mut lo, mut hi) = (i64::MAX, i64::MIN);
+        for _ in 0..w {
+            // `*p >> shift` or `val << shift`.
+            if !shift_ok(shift) {
+                return Err(Invalid);
+            }
+            (lo, hi) = (lo.min(p), hi.max(p + 1));
+            shift = shift.checked_sub(step).ok_or(Invalid)?;
+            p -= i64::from(shift >> 3);
+            shift &= 7;
+        }
+        // A byte, shifted and masked.
+        (lo..hi, u64::from(mask.min(0xff)))
+    } else {
+        let base = row + i64::from(x.checked_mul(step).ok_or(OutOfRange)?) + i64::from(offset);
+        let width = shift.checked_add(depth).ok_or(Invalid)?;
+        // `val >> shift` or `val << shift` on an `unsigned`.
+        if !shift_ok(shift) {
+            return Err(Invalid);
+        }
+        let (size, base): (i64, i64) = if width <= 8 {
+            (1, base + i64::from(big_endian))
+        } else if width <= 16 {
+            (2, base)
+        } else {
+            (4, base)
+        };
+        let last = i64::from(w - 1) * i64::from(step);
+        let read_max = (u64::MAX >> (64 - 8 * size as u32)) >> shift;
+        (
+            base + last.min(0)..base + last.max(0) + size,
+            u64::from(mask).min(read_max),
+        )
+    };
+    let palette = match access {
+        LineAccess::Read { palette: true } => {
+            // `data[1][4 * val + c]`, with `val` an `int` in the bitstream
+            // readers.
+            let top = 4 * max_val + c as u64;
+            if top > c_int::MAX as u64 {
+                return Err(Invalid);
+            }
+            Some(top + 1)
+        }
+        _ => None,
+    };
+    Ok(Some((
+        LinePlan {
+            plane,
+            span,
+            palette,
+        },
+        linesize,
+    )))
+}
+
+/// The offset of row 0 in a plane slice of `len` bytes, rows `linesize`
+/// apart: its start for a non-negative linesize, and the start of the last
+/// whole row for a negative one, as the [`imgutils`](super::imgutils)
+/// module docs lay a plane out.
+fn row0(len: usize, linesize: isize) -> usize {
+    if linesize >= 0 || len == 0 {
+        return 0;
+    }
+    let l = linesize.unsigned_abs();
+    (len - 1) / l * l
+}
+
+/// Whether `range`, in bytes from offset `at` of a slice of `len` bytes,
+/// lies inside it.
+fn inside(len: usize, at: usize, range: &Range<i64>) -> bool {
+    let at = at as i64;
+    at.checked_add(range.start).is_some_and(|s| s >= 0)
+        && at.checked_add(range.end).is_some_and(|e| e <= len as i64)
+}
+
+/// The checked arguments of one line read or write: C's `int`s, and the
+/// offsets of row 0 in the planes C reaches (`None` for the others).
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+struct LineArgs {
+    at: [Option<usize>; 4],
+    linesizes: [c_int; 4],
+    x: c_int,
+    y: c_int,
+    c: c_int,
+    w: c_int,
+}
+
+impl LineArgs {
+    /// The arguments for moving `len` values of `component` of `desc` at
+    /// pixel `x` of row `y` of planes of `lens` bytes, rows `linesizes`
+    /// apart; `None` when C touches nothing.
+    fn new(
+        desc: PixelFormatDescriptorRef<'_>,
+        (lens, linesizes): ([usize; 4], &[isize; 4]),
+        (x, y, component, len): (usize, usize, usize, usize),
+        access: LineAccess,
+    ) -> Result<Option<Self>, ImageLineError> {
+        let comp = desc
+            .components()
+            .get(component)
+            .ok_or(ImageLineError::Component)?;
+        let int = |v: usize| c_int::try_from(v).map_err(|_| ImageLineError::OutOfRange);
+        let (x, y, c, w) = (int(x)?, int(y)?, component as c_int, int(len)?);
+        if w == 0 {
+            return Ok(None);
+        }
+        let fields = [
+            comp.plane(),
+            comp.step(),
+            comp.offset(),
+            comp.shift(),
+            comp.depth(),
+        ];
+        let Some((plan, linesize)) =
+            line_plan(fields, desc.flags().bits(), (x, y, c, w), linesizes, access)?
+        else {
+            return Ok(None);
+        };
+        let mut args = Self {
+            at: [None; 4],
+            linesizes: [0; 4],
+            x,
+            y,
+            c,
+            w,
+        };
+        let p = plan.plane;
+        let at = row0(lens[p], linesizes[p]);
+        if !inside(lens[p], at, &plan.span) {
+            return Err(ImageLineError::OutsidePlane);
+        }
+        (args.at[p], args.linesizes[p]) = (Some(at), linesize);
+        if let Some(need) = plan.palette {
+            let at = row0(lens[1], linesizes[1]);
+            if ((lens[1] - at) as u64) < need {
+                return Err(ImageLineError::OutsidePalette);
+            }
+            args.at[1] = Some(at);
+        }
+        Ok(Some(args))
+    }
+}
+
+/// Reads a line as [`read_image_line`] describes, calling `read` with the
+/// checked arguments and C's plane pointers.
+fn read_line_with(
+    len: usize,
+    planes: Planes<'_>,
+    desc: PixelFormatDescriptorRef<'_>,
+    (x, y, component): (usize, usize, usize),
+    palette: bool,
+    read: impl FnOnce(&LineArgs, &mut [*const u8; 4]),
+) -> Result<(), ImageLineError> {
+    let lens = planes.data.map(<[u8]>::len);
+    let Some(args) = LineArgs::new(
+        desc,
+        (lens, &planes.linesizes),
+        (x, y, component, len),
+        LineAccess::Read { palette },
+    )?
+    else {
+        return Ok(());
+    };
+    let mut data = [ptr::null(); 4];
+    for ((p, plane), at) in data.iter_mut().zip(planes.data).zip(args.at) {
+        if let Some(at) = at {
+            // `row0` is at most the slice's length; the pointer derives from
+            // the whole slice, so C may reach rows on either side of row 0.
+            *p = plane.as_ptr().wrapping_add(at);
+        }
+    }
+    read(&args, &mut data);
+    Ok(())
+}
+
+/// Wraps: av_read_image_line2
+///
+/// Reads `dst.len()` values of component `component` (0 to 3, in the
+/// order of [`components`](PixelFormatDescriptorRef::components)) of the
+/// pixels from `x` on of row `y` of an image in `planes`, laid out as
+/// `desc` describes, into `dst`, each as a `u16` or `u32`, truncated to the
+/// element. With `palette`, each value read is an index, and the byte C
+/// stores is the component's entry of plane 1's palette (four bytes per
+/// entry, at `4 * index + component`), as for [`PAL8`](PixelFormat::PAL8).
+///
+/// Row `y` lies `y * linesize` bytes from row 0 of the component's plane,
+/// laid out as the [`imgutils`](super::imgutils) module docs describe: row
+/// 0 starts the slice for a non-negative linesize, and is its last whole
+/// row (the last offset that is a multiple of the linesize) for a negative
+/// one. A component with a depth of 0 (absent) reads nothing and leaves
+/// `dst` as it is, as does an empty `dst`.
+///
+/// # Errors
+///
+/// Without touching `dst`: [`ImageLineError::Component`] for a component
+/// past 3, [`ImageLineError::OutOfRange`] for a position, linesize or
+/// length beyond `i32` or C's `int` arithmetic on them overflowing,
+/// [`ImageLineError::InvalidDescriptor`] for a component whose layout makes
+/// C's arithmetic undefined, and [`ImageLineError::OutsidePlane`] or
+/// [`ImageLineError::OutsidePalette`] when the bytes C would read are not
+/// all inside `planes`. With `palette`, plane 1 must hold an entry for every
+/// value the component's depth can hold (1024 bytes for an 8-bit index).
+///
+/// ```
+/// use ffmpeg::libavutil::imgutils::Planes;
+/// use ffmpeg::libavutil::pixdesc::read_image_line;
+/// use ffmpeg::libavutil::pixfmt::PixelFormat;
+/// let desc = PixelFormat::RGB24.descriptor().unwrap();
+/// let row = [1, 2, 3, 4, 5, 6];
+/// let planes = Planes { data: [&row[..], &[], &[], &[]], linesizes: [6, 0, 0, 0] };
+/// let mut green = [0u16; 2];
+/// read_image_line(&mut green, planes, desc, 0, 0, 1, false).unwrap();
+/// assert_eq!(green, [2, 5]);
+/// ```
+pub fn read_image_line<T: LineElement>(
+    dst: &mut [T],
+    planes: Planes<'_>,
+    desc: PixelFormatDescriptorRef<'_>,
+    x: usize,
+    y: usize,
+    component: usize,
+    palette: bool,
+) -> Result<(), ImageLineError> {
+    let len = dst.len();
+    read_line_with(
+        len,
+        planes,
+        desc,
+        (x, y, component),
+        palette,
+        |args, data| {
+            // SAFETY: `LineArgs::new` mirrored C's arithmetic for this component
+            // and found it defined, and every byte C reads (row `y` from pixel
+            // `x` for `w` values, and the palette entries) inside the planes
+            // whose row-0 pointers `data` holds; C reads no other plane. `dst`
+            // holds `w` elements of `T::SIZE` bytes, the size C writes, and is
+            // borrowed apart from the planes; the descriptor is live and only
+            // read. C keeps no pointer.
+            unsafe {
+                ffi::av_read_image_line2(
+                    dst.as_mut_ptr().cast(),
+                    data.as_mut_ptr(),
+                    args.linesizes.as_ptr(),
+                    desc.as_ptr(),
+                    args.x,
+                    args.y,
+                    args.c,
+                    args.w,
+                    c_int::from(palette),
+                    T::SIZE,
+                )
+            }
+        },
+    )
+}
+
+/// Wraps: av_read_image_line
+///
+/// [`read_image_line`] into `u16`s, through C's original entry point.
+///
+/// # Errors
+///
+/// As for [`read_image_line`].
+pub fn read_image_line_u16(
+    dst: &mut [u16],
+    planes: Planes<'_>,
+    desc: PixelFormatDescriptorRef<'_>,
+    x: usize,
+    y: usize,
+    component: usize,
+    palette: bool,
+) -> Result<(), ImageLineError> {
+    let len = dst.len();
+    read_line_with(
+        len,
+        planes,
+        desc,
+        (x, y, component),
+        palette,
+        |args, data| {
+            // SAFETY: as in `read_image_line`, for `w` 2-byte elements, the size
+            // `av_read_image_line` passes on.
+            unsafe {
+                ffi::av_read_image_line(
+                    dst.as_mut_ptr(),
+                    data.as_mut_ptr(),
+                    args.linesizes.as_ptr(),
+                    desc.as_ptr(),
+                    args.x,
+                    args.y,
+                    args.c,
+                    args.w,
+                    c_int::from(palette),
+                )
+            }
+        },
+    )
+}
+
+/// Writes a line as [`write_image_line`] describes, calling `write` with
+/// the checked arguments and C's plane pointers.
+fn write_line_with(
+    len: usize,
+    planes: &mut PlanesMut<'_>,
+    desc: PixelFormatDescriptorRef<'_>,
+    (x, y, component): (usize, usize, usize),
+    write: impl FnOnce(&LineArgs, &mut [*mut u8; 4]),
+) -> Result<(), ImageLineError> {
+    let lens = planes.data.each_ref().map(|d| d.len());
+    let Some(args) = LineArgs::new(
+        desc,
+        (lens, &planes.linesizes),
+        (x, y, component, len),
+        LineAccess::Write,
+    )?
+    else {
+        return Ok(());
+    };
+    let mut data = [ptr::null_mut(); 4];
+    for ((p, plane), at) in data.iter_mut().zip(&mut planes.data).zip(args.at) {
+        if let Some(at) = at {
+            // As in `read_line_with`.
+            *p = plane.as_mut_ptr().wrapping_add(at);
+        }
+    }
+    write(&args, &mut data);
+    Ok(())
+}
+
+/// Wraps: av_write_image_line2
+///
+/// Writes the values of `src` to component `component` (0 to 3) of the
+/// pixels from `x` on of row `y` of an image in `planes`, laid out as
+/// `desc` describes and as [`read_image_line`] reads them.
+///
+/// C ORs each value, shifted into place, into the bytes already there, as
+/// it expects a zeroed image: the bits of earlier values stay set, and
+/// value bits beyond the component's depth spill into its neighbours.
+/// Nothing is written for a component with a depth of 0 or an empty `src`.
+///
+/// # Errors
+///
+/// As for [`read_image_line`], without touching `planes`, except that no
+/// palette is involved.
+///
+/// ```
+/// use ffmpeg::libavutil::imgutils::{Planes, PlanesMut};
+/// use ffmpeg::libavutil::pixdesc::{read_image_line, write_image_line};
+/// use ffmpeg::libavutil::pixfmt::PixelFormat;
+/// let desc = PixelFormat::RGB565LE.descriptor().unwrap();
+/// let mut row = [0u8; 4];
+/// let mut planes = PlanesMut { data: [&mut row[..], &mut [], &mut [], &mut []], linesizes: [4, 0, 0, 0] };
+/// write_image_line(&[31u32, 1], &mut planes, desc, 0, 0, 0).unwrap();
+/// assert_eq!(row, [0x00, 0xf8, 0x00, 0x08]);
+/// ```
+pub fn write_image_line<T: LineElement>(
+    src: &[T],
+    planes: &mut PlanesMut<'_>,
+    desc: PixelFormatDescriptorRef<'_>,
+    x: usize,
+    y: usize,
+    component: usize,
+) -> Result<(), ImageLineError> {
+    write_line_with(src.len(), planes, desc, (x, y, component), |args, data| {
+        // SAFETY: `LineArgs::new` mirrored C's arithmetic for this component
+        // and found it defined, and every byte C reads and writes (row `y`
+        // from pixel `x` for `w` values) inside the plane whose row-0
+        // pointer `data` holds, borrowed exclusively; C touches no other
+        // plane. `src` holds `w` elements of `T::SIZE` bytes, the size C
+        // reads; the descriptor is live and only read. C keeps no pointer.
+        unsafe {
+            ffi::av_write_image_line2(
+                src.as_ptr().cast(),
+                data.as_mut_ptr(),
+                args.linesizes.as_ptr(),
+                desc.as_ptr(),
+                args.x,
+                args.y,
+                args.c,
+                args.w,
+                T::SIZE,
+            )
+        }
+    })
+}
+
+/// Wraps: av_write_image_line
+///
+/// [`write_image_line`] from `u16`s, through C's original entry point.
+///
+/// # Errors
+///
+/// As for [`write_image_line`].
+pub fn write_image_line_u16(
+    src: &[u16],
+    planes: &mut PlanesMut<'_>,
+    desc: PixelFormatDescriptorRef<'_>,
+    x: usize,
+    y: usize,
+    component: usize,
+) -> Result<(), ImageLineError> {
+    write_line_with(src.len(), planes, desc, (x, y, component), |args, data| {
+        // SAFETY: as in `write_image_line`, for `w` 2-byte elements, the
+        // size `av_write_image_line` passes on.
+        unsafe {
+            ffi::av_write_image_line(
+                src.as_ptr(),
+                data.as_mut_ptr(),
+                args.linesizes.as_ptr(),
+                desc.as_ptr(),
+                args.x,
+                args.y,
+                args.c,
+                args.w,
+            )
+        }
+    })
+}
+
 #[cfg(test)]
 mod unit_tests {
     use std::collections::hash_map::DefaultHasher;
@@ -2105,5 +2948,402 @@ mod unit_tests {
         let nb = PixelFormat::from_raw(ffi::AVPixelFormat::AV_PIX_FMT_NB);
         assert_eq!(nb.plane_count(), None);
         assert_eq!(nb.chroma_subsampling(), None);
+    }
+
+    const READ: LineAccess = LineAccess::Read { palette: false };
+    const PAL: LineAccess = LineAccess::Read { palette: true };
+    const WRITE: LineAccess = LineAccess::Write;
+    const BE: u64 = ffi::AV_PIX_FMT_FLAG_BE as u64;
+    const BITSTREAM: u64 = ffi::AV_PIX_FMT_FLAG_BITSTREAM as u64;
+
+    /// `line_plan` for the span alone.
+    fn span(
+        comp: [c_int; 5],
+        flags: u64,
+        at: (c_int, c_int, c_int, c_int),
+        linesize: isize,
+        access: LineAccess,
+    ) -> Result<Option<Range<i64>>, ImageLineError> {
+        line_plan(comp, flags, at, &[linesize; 4], access).map(|p| p.map(|(p, _)| p.span))
+    }
+
+    #[test]
+    fn line_plan_spans_bytes_words_and_steps() {
+        // rgb24's green: byte 1 of 3-byte pixels, row 1 of 10-byte rows.
+        let plan = line_plan([0, 3, 1, 0, 8], 0, (2, 1, 1, 4), &[10; 4], READ)
+            .unwrap()
+            .unwrap();
+        assert_eq!(
+            plan,
+            (
+                LinePlan {
+                    plane: 0,
+                    span: 17..27,
+                    palette: None
+                },
+                10
+            )
+        );
+        // gray16: one 2-byte value a pixel; a 32-bit value past 16 bits.
+        assert_eq!(
+            span([0, 2, 0, 0, 16], 0, (1, 0, 0, 3), 8, READ),
+            Ok(Some(2..8))
+        );
+        assert_eq!(
+            span([0, 4, 0, 4, 20], 0, (0, 0, 0, 2), 8, WRITE),
+            Ok(Some(0..8))
+        );
+        // A negative step walks backwards from pixel `x`.
+        assert_eq!(
+            span([0, -2, 0, 0, 8], 0, (3, 0, 0, 3), 8, READ),
+            Ok(Some(-10..-5))
+        );
+        // rgb565be's red is at offset -1, read from the byte after it.
+        assert_eq!(
+            span([0, 2, -1, 3, 5], BE, (0, 0, 0, 1), 2, READ),
+            Ok(Some(0..1))
+        );
+        assert_eq!(
+            span([0, 2, -1, 3, 5], 0, (0, 0, 0, 1), 2, READ),
+            Ok(Some(-1..0))
+        );
+        // Bit-packed: monob's pixels 3 to 12 are bits 3 to 12.
+        assert_eq!(
+            span([0, 1, 0, 0, 1], BITSTREAM, (3, 0, 0, 10), 2, READ),
+            Ok(Some(0..2))
+        );
+        assert_eq!(
+            span([0, 4, 0, 0, 4], BITSTREAM, (1, 0, 0, 2), 2, WRITE),
+            Ok(Some(0..2))
+        );
+        // Packed into 32-bit words from the row's start, whatever `x` is.
+        assert_eq!(
+            span([0, 32, 4, 0, 10], BITSTREAM, (9, 2, 0, 3), 16, READ),
+            Ok(Some(32..44))
+        );
+    }
+
+    #[test]
+    fn line_plan_returns_nothing_for_absent_components() {
+        for access in [READ, PAL, WRITE] {
+            assert_eq!(span([7, 0, 0, 99, 0], 0, (0, 0, 0, 1), 8, access), Ok(None));
+        }
+        // Only the reader shifts by the depth before returning.
+        assert_eq!(
+            span([0, 1, 0, 0, 64], 0, (0, 0, 0, 1), 8, WRITE),
+            Ok(Some(0..4))
+        );
+        assert_eq!(
+            span([0, 1, 0, 0, 64], 0, (0, 0, 0, 1), 8, READ),
+            Err(ImageLineError::InvalidDescriptor)
+        );
+        assert_eq!(
+            span([0, 1, 0, 0, -1], 0, (0, 0, 0, 1), 8, READ),
+            Err(ImageLineError::InvalidDescriptor)
+        );
+    }
+
+    #[test]
+    fn line_plan_refuses_what_c_cannot_compute() {
+        use ImageLineError::{InvalidDescriptor as Invalid, OutOfRange};
+        let one = (0, 0, 0, 1);
+        // Planes C cannot index its arrays with.
+        assert_eq!(span([4, 1, 0, 0, 8], 0, one, 8, READ), Err(Invalid));
+        assert_eq!(span([-1, 1, 0, 0, 8], 0, one, 8, WRITE), Err(Invalid));
+        // Shifts by a value's width or more, or by a negative amount.
+        assert_eq!(span([0, 4, 0, 32, 1], 0, one, 8, READ), Err(Invalid));
+        assert_eq!(span([0, 4, 0, -1, 1], 0, one, 8, WRITE), Err(Invalid));
+        assert_eq!(span([0, 1, 0, 0, 9], BITSTREAM, one, 8, READ), Err(Invalid));
+        assert_eq!(
+            span([0, 32, 32, 0, 8], BITSTREAM, one, 8, READ),
+            Err(Invalid)
+        );
+        assert_eq!(
+            span([0, 32, 0, 0, -1], BITSTREAM, one, 8, WRITE),
+            Err(Invalid)
+        );
+        // `shift + depth` and `shift - step` overflowing `int`.
+        assert_eq!(
+            span([0, 1, 0, 8, c_int::MAX], 0, one, 8, WRITE),
+            Err(Invalid)
+        );
+        assert_eq!(
+            span([0, c_int::MIN, 0, 0, 1], BITSTREAM, (0, 0, 0, 2), 8, READ),
+            Err(Invalid)
+        );
+        assert_eq!(
+            span([0, 1, 0, 0, c_int::MIN], BITSTREAM, one, 8, WRITE),
+            Err(Invalid)
+        );
+        // `y * linesize`, `x * step` and `skip` overflowing `int`.
+        assert_eq!(
+            span([0, 1, 0, 0, 8], 0, (0, 2, 0, 1), 1 << 30, READ),
+            Err(OutOfRange)
+        );
+        assert_eq!(
+            span([0, 1 << 30, 0, 0, 8], 0, (2, 0, 0, 1), 8, READ),
+            Err(OutOfRange)
+        );
+        assert_eq!(
+            span([0, 1, c_int::MAX, 0, 1], BITSTREAM, (1, 0, 0, 1), 8, READ),
+            Err(OutOfRange)
+        );
+        // A linesize beyond `int`.
+        assert_eq!(
+            span([0, 1, 0, 0, 8], 0, one, 1 << 31, READ),
+            Err(OutOfRange)
+        );
+    }
+
+    #[test]
+    fn line_plan_sizes_palettes_by_the_largest_index() {
+        let pal = |comp, flags, c| {
+            line_plan(comp, flags, (0, 0, c, 1), &[8; 4], PAL).map(|p| p.unwrap().0.palette)
+        };
+        // pal8: 256 entries of 4 bytes, the last read at `4 * 255 + c`.
+        assert_eq!(pal([0, 1, 0, 0, 8], 0, 0), Ok(Some(1021)));
+        assert_eq!(pal([0, 1, 0, 0, 8], 0, 3), Ok(Some(1024)));
+        // A shift leaves fewer bits of the byte read.
+        assert_eq!(pal([0, 1, 0, 4, 4], 0, 0), Ok(Some(4 * 15 + 1)));
+        // A bit-packed byte holds at most 255.
+        assert_eq!(pal([0, 1, 0, 0, 1], BITSTREAM, 2), Ok(Some(4 + 3)));
+        // `4 * val + c` must stay in `int` where `val` is one.
+        assert_eq!(
+            pal([0, 32, 0, 0, 29], BITSTREAM, 3),
+            Ok(Some(4 * ((1 << 29) - 1) + 4))
+        );
+        assert_eq!(
+            pal([0, 32, 0, 0, 30], BITSTREAM, 0),
+            Err(ImageLineError::InvalidDescriptor)
+        );
+        assert_eq!(
+            line_plan([0, 1, 0, 0, 8], 0, (0, 0, 0, 1), &[8; 4], READ)
+                .map(|p| p.unwrap().0.palette),
+            Ok(None)
+        );
+    }
+
+    #[test]
+    fn row0_is_the_first_or_last_whole_row() {
+        assert_eq!(row0(0, -4), 0);
+        assert_eq!(row0(10, 4), 0);
+        assert_eq!(row0(10, 0), 0);
+        assert_eq!(row0(10, -4), 8);
+        assert_eq!(row0(12, -4), 8);
+        assert_eq!(row0(13, -4), 12);
+        assert_eq!(row0(3, -4), 0);
+        assert_eq!(row0(5, isize::MIN), 0);
+    }
+
+    #[test]
+    fn inside_checks_both_ends() {
+        assert!(inside(10, 0, &(0..10)));
+        assert!(inside(10, 4, &(-4..6)));
+        assert!(!inside(10, 4, &(-5..6)));
+        assert!(!inside(10, 4, &(0..7)));
+        assert!(inside(0, 0, &(0..0)));
+        assert!(!inside(10, 0, &(i64::MIN..0)));
+        assert!(!inside(10, 9, &(0..i64::MAX)));
+    }
+
+    /// A descriptor with one component, `comp`, in slot 0.
+    fn one_component(comp: [c_int; 5], flags: PixelFormatFlags) -> PixelFormatDescriptor {
+        let mut d = PixelFormatDescriptor::new();
+        let mut m = d.as_mut();
+        m.set_component_count(1);
+        m.set_flags(flags);
+        let [plane, step, offset, shift, depth] = comp;
+        m.components_mut()
+            .get_mut(0)
+            .unwrap()
+            .set(ComponentDescriptor::from_raw(raw(
+                plane, step, offset, shift, depth,
+            )));
+        d
+    }
+
+    #[test]
+    fn line_args_check_positions_and_planes() {
+        use ImageLineError::{Component, OutOfRange, OutsidePalette, OutsidePlane};
+        let d = one_component([1, 1, 0, 0, 8], PixelFormatFlags::empty());
+        let desc = d.as_ref();
+        let geometry = |lens| (lens, &[4isize, -4, 4, 4]);
+        let args = |lens, at, access| LineArgs::new(desc, geometry(lens), at, access);
+        // Plane 1 holds three rows of four bytes, bottom-up: row 0 is last.
+        let lens = [0, 12, 0, 0];
+        let ok = args(lens, (1, 2, 0, 3), READ).unwrap().unwrap();
+        assert_eq!(ok.at, [None, Some(8), None, None]);
+        assert_eq!(ok.linesizes, [0, -4, 0, 0]);
+        assert_eq!((ok.x, ok.y, ok.c, ok.w), (1, 2, 0, 3));
+        // Row 2 is the slice's first; the line may run on into row 1.
+        assert!(args(lens, (6, 2, 0, 3), READ).is_ok());
+        assert_eq!(args(lens, (10, 2, 0, 3), READ), Err(OutsidePlane));
+        assert_eq!(args(lens, (0, 3, 0, 1), WRITE), Err(OutsidePlane));
+        assert_eq!(args(lens, (0, 0, 4, 1), READ), Err(Component));
+        assert_eq!(args(lens, (1 << 31, 0, 0, 1), READ), Err(OutOfRange));
+        assert_eq!(args(lens, (0, 1 << 31, 0, 1), READ), Err(OutOfRange));
+        assert_eq!(args(lens, (0, 0, 0, 1 << 31), READ), Err(OutOfRange));
+        // Nothing to move, or an absent component: no plane is reached.
+        assert_eq!(args([0; 4], (99, 99, 0, 0), READ), Ok(None));
+        assert_eq!(args([0; 4], (0, 0, 2, 1), WRITE), Ok(None));
+        // The palette is plane 1 from its row 0: the last row of a bottom-up
+        // plane, from which the entries run on.
+        assert_eq!(args(lens, (0, 0, 0, 1), PAL), Err(OutsidePalette));
+        let pal = args([0, 8 + 1021, 0, 0], (0, 0, 0, 1), PAL);
+        assert_eq!(pal, Err(OutsidePalette));
+        // pal8's indices in plane 0, and its palette in plane 1.
+        let d = one_component([0, 1, 0, 0, 8], PixelFormatFlags::PALETTE);
+        let pal8 = |lens| LineArgs::new(d.as_ref(), (lens, &[4, 0, 0, 0]), (0, 0, 0, 1), PAL);
+        assert_eq!(pal8([4, 1020, 0, 0]), Err(OutsidePalette));
+        let ok = pal8([4, 1021, 0, 0]).unwrap().unwrap();
+        assert_eq!(ok.at, [Some(0), Some(0), None, None]);
+        assert_eq!(ok.linesizes, [4, 0, 0, 0]);
+    }
+
+    #[test]
+    fn whole_descriptor_checks_mirror_c_arithmetic() {
+        let d = yuv420p_like();
+        // 8 + 8/8 + 8/8 bits a pixel: chroma 1 x 2 subsampled.
+        assert_eq!(d.as_ref().checked_bits_per_pixel(), Ok(10));
+        assert_eq!(d.as_ref().checked_padded_bits_per_pixel(), Ok(10));
+        let refused = |edit: &dyn Fn(&mut PixelFormatDescriptorMut<'_>)| {
+            let mut d = yuv420p_like();
+            edit(&mut d.as_mut());
+            (
+                d.as_ref().checked_bits_per_pixel(),
+                d.as_ref().checked_padded_bits_per_pixel(),
+            )
+        };
+        let both = (Err(InvalidDescriptor), Err(InvalidDescriptor));
+        assert_eq!(refused(&|m| m.set_component_count(5)), both);
+        assert_eq!(refused(&|m| m.set_log2_chroma_w(31)), both);
+        let comp = |i: usize, f: [i32; 5]| {
+            move |m: &mut PixelFormatDescriptorMut<'_>| {
+                let [p, s, o, sh, d] = f;
+                m.components_mut()
+                    .get_mut(i)
+                    .unwrap()
+                    .set(ComponentDescriptor::from_raw(raw(p, s, o, sh, d)));
+            }
+        };
+        // A negative depth, or one whose scaling overflows `int`.
+        assert_eq!(
+            refused(&comp(0, [0, 1, 0, 0, -1])).0,
+            Err(InvalidDescriptor)
+        );
+        assert_eq!(
+            refused(&comp(0, [0, 1, 0, 0, 1 << 28])).0,
+            Err(InvalidDescriptor)
+        );
+        // Chroma depths are not scaled, but their sum may overflow.
+        assert_eq!(
+            refused(&comp(1, [1, 1, 0, 0, 1 << 28])).0,
+            Ok((64 + (1 << 28) + 8) >> 3)
+        );
+        assert_eq!(
+            refused(&comp(1, [1, 1, 0, 0, c_int::MAX])).0,
+            Err(InvalidDescriptor)
+        );
+        // A used component's plane indexes C's `steps[4]`.
+        assert_eq!(refused(&comp(2, [4, 1, 0, 0, 8])).1, Err(InvalidDescriptor));
+        assert_eq!(
+            refused(&comp(2, [-1, 1, 0, 0, 8])).1,
+            Err(InvalidDescriptor)
+        );
+        assert_eq!(
+            refused(&comp(0, [0, -1, 0, 0, 8])).1,
+            Err(InvalidDescriptor)
+        );
+        // `bits * 8` overflowing, unless the format is bit-packed.
+        let wide = comp(1, [1, 1 << 28, 0, 0, 8]);
+        assert_eq!(refused(&wide).1, Err(InvalidDescriptor));
+        let packed = |m: &mut PixelFormatDescriptorMut<'_>| {
+            wide(m);
+            m.set_flags(PixelFormatFlags::BITSTREAM);
+        };
+        assert_eq!(refused(&packed).1, Ok((8 + (1 << 28) + 1) >> 3));
+        // Unused slots past the count are never read.
+        assert_eq!(refused(&comp(3, [9, -1, 0, 0, -1])), (Ok(10), Ok(10)));
+    }
+
+    #[test]
+    fn c_shl_is_defined_shifts_only() {
+        assert_eq!(c_shl(1, 0), Some(1));
+        assert_eq!(c_shl(1, 30), Some(1 << 30));
+        assert_eq!(c_shl(1, 31), None);
+        assert_eq!(c_shl(0, 31), Some(0));
+        assert_eq!(c_shl(3, 32), None);
+        assert_eq!(c_shl(3, -1), None);
+        assert_eq!(c_shl(-1, 0), None);
+    }
+
+    #[test]
+    fn line_errors_display_their_cause() {
+        let all = [
+            ImageLineError::Component,
+            ImageLineError::OutOfRange,
+            ImageLineError::InvalidDescriptor,
+            ImageLineError::OutsidePlane,
+            ImageLineError::OutsidePalette,
+        ];
+        let texts: Vec<String> = all.iter().map(ToString::to_string).collect();
+        for (i, t) in texts.iter().enumerate() {
+            assert!(!t.is_empty());
+            assert!(!texts[..i].contains(t), "{t}");
+        }
+        assert!(!InvalidDescriptor.to_string().is_empty());
+        let _: &dyn std::error::Error = &InvalidDescriptor;
+        let _: &dyn std::error::Error = &ImageLineError::Component;
+    }
+
+    #[test]
+    fn line_wrappers_return_early_without_reaching_c() {
+        // No element to move: neither the planes nor `dst` are looked at.
+        let d = one_component([0, 1, 0, 0, 8], PixelFormatFlags::empty());
+        let mut dst: [u32; 0] = [];
+        assert_eq!(
+            read_image_line(&mut dst, Planes::default(), d.as_ref(), 7, 7, 0, true),
+            Ok(())
+        );
+        let mut planes = PlanesMut::default();
+        assert_eq!(
+            write_image_line::<u16>(&[], &mut planes, d.as_ref(), 0, 0, 0),
+            Ok(())
+        );
+        // An absent component reads nothing, and leaves `dst` as it is.
+        let mut dst = [9u16; 3];
+        assert_eq!(
+            read_image_line_u16(&mut dst, Planes::default(), d.as_ref(), 0, 0, 1, false),
+            Ok(())
+        );
+        assert_eq!(dst, [9; 3]);
+        assert_eq!(
+            write_image_line_u16(&[1], &mut planes, d.as_ref(), 0, 0, 4),
+            Err(ImageLineError::Component)
+        );
+    }
+
+    #[test]
+    fn descriptors_iterator_is_fused_and_walks_the_table() {
+        let mut it = descriptors();
+        let first = it.next().unwrap();
+        assert_eq!(first.pixel_format(), Some(PixelFormat::YUV420P));
+        let rest = it.by_ref().count();
+        assert!(rest > 100, "{rest}");
+        assert!(it.next().is_none());
+        assert!(it.next().is_none());
+        // Every one has a name, and the walk from any entry matches.
+        assert!(descriptors().all(|d| d.name().is_some()));
+        let mut from = first;
+        for d in descriptors().skip(1) {
+            let next = from.next_in_table().unwrap();
+            assert_eq!(next.as_ptr(), d.as_ptr());
+            from = next;
+        }
+        assert!(from.next_in_table().is_none());
+        // A copy is not in the table.
+        let copy = first.get();
+        assert_eq!(copy.as_ref().pixel_format(), None);
+        assert!(copy.as_ref().next_in_table().is_none());
     }
 }

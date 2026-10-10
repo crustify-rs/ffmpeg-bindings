@@ -1552,3 +1552,82 @@ mod images {
         }
     }
 }
+
+mod pixel_steps {
+    use core::ffi::c_int;
+    use core::ptr;
+
+    use ffmpeg::libavutil::ffi;
+    use ffmpeg::libavutil::imgutils::max_pixel_steps;
+    use ffmpeg::libavutil::pixfmt::PixelFormat;
+
+    const NB: c_int = ffi::AVPixelFormat::AV_PIX_FMT_NB.0;
+
+    fn format(raw: c_int) -> PixelFormat {
+        PixelFormat::from_raw(ffi::AVPixelFormat(raw))
+    }
+
+    fn c_get(raw: c_int) -> *const ffi::AVPixFmtDescriptor {
+        // SAFETY: by value; C range-checks it.
+        unsafe { ffi::av_pix_fmt_desc_get(ffi::AVPixelFormat(raw)) }
+    }
+
+    #[test]
+    fn max_pixel_steps_match_c_with_and_without_components() {
+        for raw in 0..NB {
+            let p = c_get(raw);
+            let (mut steps, mut comps) = ([-9; 4], [-9; 4]);
+            let mut steps_only = [-9; 4];
+            // SAFETY: two `int[4]` out-arrays, or one and NULL, and an entry
+            // of C's table, whose planes are 0 to 3.
+            unsafe {
+                ffi::av_image_fill_max_pixsteps(steps.as_mut_ptr(), comps.as_mut_ptr(), p);
+                ffi::av_image_fill_max_pixsteps(steps_only.as_mut_ptr(), ptr::null_mut(), p);
+            }
+            let rust = max_pixel_steps(format(raw).descriptor().unwrap()).unwrap();
+            assert_eq!(rust.steps, steps, "{raw}");
+            assert_eq!(rust.steps, steps_only, "{raw}");
+            assert_eq!(rust.components, comps.map(|c| c as usize), "{raw}");
+        }
+    }
+
+    #[test]
+    fn max_pixel_steps_of_rust_built_descriptors_match_c() {
+        use ffmpeg::libavutil::pixdesc::{ComponentDescriptor, PixelFormatDescriptor};
+        let steps = [c_int::MIN, -1, 0, 1, 2, 7, c_int::MAX];
+        for planes in [[0, 0, 0, 0], [0, 1, 1, 0], [3, 2, 1, 0], [2, 2, 3, 3]] {
+            for (i, &a) in steps.iter().enumerate() {
+                for &b in &steps[i..] {
+                    let mut d = PixelFormatDescriptor::new();
+                    for (c, mut slot) in d.as_mut().components_mut().iter_mut().enumerate() {
+                        slot.set(ComponentDescriptor::from_raw(ffi::AVComponentDescriptor {
+                            plane: planes[c],
+                            step: if c % 2 == 0 { a } else { b },
+                            offset: 0,
+                            shift: 0,
+                            depth: 8,
+                        }));
+                    }
+                    let raw = d.into_raw();
+                    let (mut c_steps, mut c_comps) = ([-9; 4], [-9; 4]);
+                    // SAFETY: two `int[4]` out-arrays and a descriptor whose
+                    // four slots are in planes 0 to 3.
+                    unsafe {
+                        ffi::av_image_fill_max_pixsteps(
+                            c_steps.as_mut_ptr(),
+                            c_comps.as_mut_ptr(),
+                            &raw,
+                        )
+                    };
+                    let rust = max_pixel_steps(d.as_ref()).unwrap();
+                    assert_eq!(rust.steps, c_steps, "{planes:?} {a} {b}");
+                    assert_eq!(
+                        rust.components,
+                        c_comps.map(|c| c as usize),
+                        "{planes:?} {a} {b}"
+                    );
+                }
+            }
+        }
+    }
+}

@@ -636,3 +636,77 @@ mod channel_names {
         });
     }
 }
+
+/// `Channel::append_name` / `append_description` into every print buffer
+/// owner: growing, automatic, count-only, and exactly sized caller buffers of
+/// every small length (so a byte past the end is an ASan report), handles
+/// reborrowed from owners and from other handles, and buffers on many
+/// threads at once.
+mod name_appenders {
+    use std::thread;
+
+    use ffmpeg::libavutil::bprint::{BPrint, BPrintMut};
+    use ffmpeg::libavutil::channel_layout::Channel;
+
+    use super::channel_sample;
+
+    fn append_both(ch: Channel, mut buf: BPrintMut<'_>) {
+        ch.append_name(buf.as_mut());
+        buf.append_bytes(b"/");
+        ch.append_description(buf);
+    }
+
+    #[test]
+    fn every_owner_takes_every_channel() {
+        for size_max in [
+            BPrint::SIZE_UNLIMITED,
+            BPrint::SIZE_AUTOMATIC,
+            BPrint::SIZE_COUNT_ONLY,
+            7,
+        ] {
+            let mut buf = BPrint::new(0, size_max).unwrap();
+            for ch in channel_sample() {
+                append_both(ch, buf.as_mut());
+                let r = buf.as_ref();
+                assert!(r.as_bytes().len() <= r.len() as usize);
+            }
+            if size_max == BPrint::SIZE_UNLIMITED {
+                assert!(buf.as_ref().is_complete());
+                let s = BPrint::into_string(buf).unwrap();
+                assert!(!s.as_bytes().is_empty());
+            }
+        }
+    }
+
+    #[test]
+    fn exactly_sized_caller_buffers_truncate_in_bounds() {
+        for len in 1..24 {
+            for ch in channel_sample() {
+                let mut data = vec![0xAAu8; len].into_boxed_slice();
+                let mut buf = BPrint::for_buffer(&mut data).unwrap();
+                append_both(ch, buf.as_mut());
+                let stored = buf.as_ref().as_bytes().len();
+                assert!(stored < len);
+                drop(buf);
+                assert_eq!(data[stored], 0);
+            }
+        }
+    }
+
+    #[test]
+    fn buffers_on_many_threads_at_once() {
+        thread::scope(|s| {
+            for t in 0..4 {
+                s.spawn(move || {
+                    let mut buf = BPrint::new(0, BPrint::SIZE_UNLIMITED).unwrap();
+                    for ch in channel_sample().into_iter().skip(t) {
+                        append_both(ch, buf.as_mut());
+                        if buf.as_ref().len() > 512 {
+                            buf.as_mut().clear();
+                        }
+                    }
+                });
+            }
+        });
+    }
+}

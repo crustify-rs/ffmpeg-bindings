@@ -2,7 +2,8 @@
 //!
 //! [`Channel::name`] and [`Channel::from_name`] convert a channel to and from
 //! the abbreviation C writes in channel layout strings; C writes names into a
-//! caller buffer, which [`Channel::write_name`] exposes as is.
+//! caller buffer, which [`Channel::write_name`] exposes as is, or appends
+//! them to a print buffer ([`Channel::append_name`]).
 
 use core::ffi::{CStr, c_char, c_int, c_uint, c_void};
 use core::hash::{Hash, Hasher};
@@ -12,6 +13,7 @@ use std::ffi::CString;
 
 use ffibox::{CPlainElem, CZeroable, define_ctype};
 
+use super::bprint::BPrintMut;
 use super::ffi;
 
 /// Wraps: AVChannel
@@ -997,6 +999,39 @@ impl Channel {
     #[must_use]
     pub fn description(self) -> CString {
         self.to_c_string(ffi::av_channel_description)
+    }
+
+    /// Wraps: av_channel_name_bprint
+    ///
+    /// Appends this channel's abbreviated name, as [`name`](Self::name)
+    /// returns it, to `buf`, truncated as `buf` truncates what does not fit.
+    /// `buf` is a handle, which `as_mut()` reborrows from an owner or another
+    /// handle.
+    ///
+    /// ```
+    /// use ffmpeg::libavutil::bprint::BPrint;
+    /// use ffmpeg::libavutil::channel_layout::Channel;
+    /// let mut buf = BPrint::new(0, BPrint::SIZE_UNLIMITED).unwrap();
+    /// Channel::FRONT_LEFT.append_name(buf.as_mut());
+    /// buf.as_mut().append_bytes(b"+");
+    /// Channel::LOW_FREQUENCY.append_name(buf.as_mut());
+    /// assert_eq!(buf.as_ref().as_bytes(), b"FL+LFE");
+    /// ```
+    pub fn append_name(self, mut buf: BPrintMut<'_>) {
+        // SAFETY: the exclusive handle addresses an initialised buffer,
+        // which C appends to with `av_bprintf` within its `size`; C accepts
+        // any channel value and keeps no pointer.
+        unsafe { ffi::av_channel_name_bprint(buf.as_mut_ptr(), self.into_raw()) }
+    }
+
+    /// Wraps: av_channel_description_bprint
+    ///
+    /// Appends this channel's description, as
+    /// [`description`](Self::description) returns it, to `buf`, truncated
+    /// as `buf` truncates what does not fit.
+    pub fn append_description(self, mut buf: BPrintMut<'_>) {
+        // SAFETY: as in `append_name`.
+        unsafe { ffi::av_channel_description_bprint(buf.as_mut_ptr(), self.into_raw()) }
     }
 
     /// Wraps: av_channel_from_string

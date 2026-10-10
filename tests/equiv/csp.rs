@@ -602,3 +602,46 @@ mod color_transfer {
         }
     }
 }
+
+mod luma_lookup {
+    use ffmpeg::libavutil::csp::LumaCoefficients;
+    use ffmpeg::libavutil::ffi;
+    use ffmpeg::libavutil::pixfmt::ColorSpace;
+
+    /// Every value C has a table slot for, its neighbours, and the extremes,
+    /// as C's `unsigned` enum takes them.
+    fn values() -> impl Iterator<Item = u32> {
+        (0..ffi::AVColorSpace::AVCOL_SPC_NB.0 + 3).chain([u32::MAX, u32::MAX - 1, 1 << 31])
+    }
+
+    #[test]
+    fn luma_coefficients_are_cs_table_entries() {
+        let mut found = 0;
+        for raw in values() {
+            // SAFETY: by value; C checks the value against its table.
+            let c = unsafe { ffi::av_csp_luma_coeffs_from_avcsp(ffi::AVColorSpace(raw)) };
+            let rust = ColorSpace::from_raw(ffi::AVColorSpace(raw)).luma_coefficients();
+            assert_eq!(rust.is_some(), !c.is_null(), "{raw}");
+            if let Some(r) = rust {
+                // SAFETY: a non-NULL return is an entry of C's static table.
+                let c = unsafe { c.read() };
+                let [cr, cg, cb] = [c.cr, c.cg, c.cb].map(|q| (q.num, q.den));
+                assert_eq!((r.cr().num(), r.cr().den()), cr, "{raw}");
+                assert_eq!((r.cg().num(), r.cg().den()), cg, "{raw}");
+                assert_eq!((r.cb().num(), r.cb().den()), cb, "{raw}");
+                assert_eq!(r.get(), LumaCoefficients::from_raw(c), "{raw}");
+                found += 1;
+            }
+        }
+        assert!(found >= 9, "{found}");
+    }
+
+    #[test]
+    fn repeated_lookups_return_the_same_entry() {
+        for raw in values() {
+            let cs = ColorSpace::from_raw(ffi::AVColorSpace(raw));
+            let (a, b) = (cs.luma_coefficients(), cs.luma_coefficients());
+            assert_eq!(a.map(|r| r.get()), b.map(|r| r.get()), "{raw}");
+        }
+    }
+}
