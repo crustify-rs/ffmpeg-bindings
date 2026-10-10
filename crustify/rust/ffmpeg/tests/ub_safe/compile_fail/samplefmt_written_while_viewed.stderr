@@ -1,0 +1,9 @@
+error[E0502]: cannot borrow `buffer` as mutable because it is also borrowed as immutable
+ --> tests/ub_safe/compile_fail/samplefmt_written_while_viewed.rs
+  |
+  |     let plane = buffer.as_ref().plane(0).unwrap();
+  |                 ------ immutable borrow occurs here
+  |     buffer.as_mut().set_silence(0, 16).unwrap();
+  |     ^^^^^^^^^^^^^^^ mutable borrow occurs here
+  |     println!("{}", plane[0]);
+  |                    -------- immutable borrow later used here

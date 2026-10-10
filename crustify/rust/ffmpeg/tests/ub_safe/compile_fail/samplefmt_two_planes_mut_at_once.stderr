@@ -1,0 +1,9 @@
+error[E0499]: cannot borrow `view` as mutable more than once at a time
+ --> tests/ub_safe/compile_fail/samplefmt_two_planes_mut_at_once.rs
+  |
+  |     let first = view.plane_mut(0).unwrap();
+  |                 ---- first mutable borrow occurs here
+  |     let second = view.plane_mut(1).unwrap();
+  |                  ^^^^ second mutable borrow occurs here
+  |     first.copy_from_slice(second);
+  |     ----- first borrow later used here

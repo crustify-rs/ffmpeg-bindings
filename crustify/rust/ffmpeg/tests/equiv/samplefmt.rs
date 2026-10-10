@@ -350,3 +350,594 @@ fn default_is_the_format_c_gives_a_fresh_frame() {
         SampleFormat::default()
     );
 }
+
+/// The sample buffer API against `av_samples_*`: layouts and errors for
+/// every format and a grid of counts and alignments, buffers C allocates and
+/// lays out for both sides, and sequences of writes, silences and copies run
+/// on a Rust buffer and its C twin, compared after every step.
+mod buffers {
+    use core::ffi::{c_int, c_void};
+    use core::ptr;
+
+    use ffmpeg::libavutil::ffi;
+    use ffmpeg::libavutil::samplefmt::{
+        BufferSize, SampleBuffer, SampleBufferWithPointers, SampleFormat, SamplesError, SamplesMut,
+        SamplesRef, samples_buffer_size,
+    };
+
+    use super::all_values;
+
+    const FORMATS: [SampleFormat; 12] = [
+        SampleFormat::U8,
+        SampleFormat::S16,
+        SampleFormat::S32,
+        SampleFormat::FLT,
+        SampleFormat::DBL,
+        SampleFormat::U8P,
+        SampleFormat::S16P,
+        SampleFormat::S32P,
+        SampleFormat::FLTP,
+        SampleFormat::DBLP,
+        SampleFormat::S64,
+        SampleFormat::S64P,
+    ];
+
+    /// Counts and alignments small enough to allocate, with C's default
+    /// alignment (0) and a non-power-of-two one (3).
+    const CHANNELS: [usize; 4] = [1, 2, 3, 9];
+    const SAMPLES: [usize; 4] = [1, 5, 32, 33];
+    const ALIGNS: [u32; 6] = [0, 1, 2, 3, 16, 64];
+
+    struct Rng(u64);
+
+    impl Rng {
+        fn next(&mut self) -> u64 {
+            self.0 ^= self.0 << 13;
+            self.0 ^= self.0 >> 7;
+            self.0 ^= self.0 << 17;
+            self.0
+        }
+
+        fn below(&mut self, n: usize) -> usize {
+            (self.next() % n as u64) as usize
+        }
+    }
+
+    /// `AVERROR(EINVAL)`.
+    const EINVAL: c_int = -(ffi::EINVAL as c_int);
+
+    fn is_planar(f: SampleFormat) -> bool {
+        // SAFETY: C bounds-checks the value.
+        unsafe { ffi::av_sample_fmt_is_planar(f.into_raw()) != 0 }
+    }
+
+    fn bytes_per_sample(f: SampleFormat) -> usize {
+        // SAFETY: C bounds-checks the value.
+        unsafe { ffi::av_get_bytes_per_sample(f.into_raw()) as usize }
+    }
+
+    /// `av_samples_get_buffer_size`, as its return and linesize.
+    fn c_buffer_size(
+        channels: c_int,
+        samples: c_int,
+        f: SampleFormat,
+        align: c_int,
+    ) -> (c_int, c_int) {
+        let mut linesize = -1;
+        // SAFETY: C writes only the live local `linesize`.
+        let ret = unsafe {
+            ffi::av_samples_get_buffer_size(&mut linesize, channels, samples, f.into_raw(), align)
+        };
+        (ret, linesize)
+    }
+
+    /// Planes as C's routines take them: plane pointers C computed, and the
+    /// counts C was given.
+    struct CPlanes {
+        slots: Vec<*mut u8>,
+        linesize: usize,
+        channels: c_int,
+        format: SampleFormat,
+        samples: usize,
+    }
+
+    impl CPlanes {
+        fn plane_len(&self) -> usize {
+            let per_plane = if is_planar(self.format) {
+                1
+            } else {
+                self.channels as usize
+            };
+            self.samples * bytes_per_sample(self.format) * per_plane
+        }
+
+        fn plane(&self, i: usize) -> &[u8] {
+            // SAFETY: C placed plane `i` inside a live buffer of the layout
+            // it computed, and every plane is initialised.
+            unsafe { core::slice::from_raw_parts(self.slots[i], self.plane_len()) }
+        }
+
+        fn plane_mut(&mut self, i: usize) -> &mut [u8] {
+            // SAFETY: as in `plane`, borrowed exclusively through `self`.
+            unsafe { core::slice::from_raw_parts_mut(self.slots[i], self.plane_len()) }
+        }
+
+        fn set_silence(&mut self, offset: usize, count: usize) {
+            // SAFETY: the caller keeps the range inside the planes.
+            let ret = unsafe {
+                ffi::av_samples_set_silence(
+                    self.slots.as_ptr(),
+                    offset as c_int,
+                    count as c_int,
+                    self.channels,
+                    self.format.into_raw(),
+                )
+            };
+            assert_eq!(ret, 0);
+        }
+
+        fn copy(
+            &mut self,
+            src: Option<&CPlanes>,
+            src_offset: usize,
+            dst_offset: usize,
+            count: usize,
+        ) {
+            let src_slots = src.map_or(self.slots.as_ptr(), |s| s.slots.as_ptr());
+            // SAFETY: the caller keeps both ranges inside the planes.
+            let ret = unsafe {
+                ffi::av_samples_copy(
+                    self.slots.as_ptr(),
+                    src_slots,
+                    dst_offset as c_int,
+                    src_offset as c_int,
+                    count as c_int,
+                    self.channels,
+                    self.format.into_raw(),
+                )
+            };
+            assert_eq!(ret, 0);
+        }
+    }
+
+    /// A buffer `av_samples_alloc` allocated, freed with `av_freep` on drop.
+    struct CAlloc(CPlanes);
+
+    impl Drop for CAlloc {
+        fn drop(&mut self) {
+            // SAFETY: slot 0 owns the `av_malloc` block; `av_freep` frees
+            // it once and NULLs the slot.
+            unsafe { ffi::av_freep((&raw mut self.0.slots[0]).cast::<c_void>()) };
+        }
+    }
+
+    fn c_alloc(
+        channels: usize,
+        samples: usize,
+        f: SampleFormat,
+        align: u32,
+    ) -> Result<CAlloc, c_int> {
+        let planes = if is_planar(f) { channels } else { 1 };
+        let mut slots = vec![ptr::null_mut(); planes.max(1)];
+        let mut linesize = -1;
+        // SAFETY: `slots` holds the pointers C writes on success.
+        let ret = unsafe {
+            ffi::av_samples_alloc(
+                slots.as_mut_ptr(),
+                &mut linesize,
+                channels as c_int,
+                samples as c_int,
+                f.into_raw(),
+                align as c_int,
+            )
+        };
+        if ret < 0 {
+            assert!(slots.iter().all(|p| p.is_null()));
+            return Err(ret);
+        }
+        Ok(CAlloc(CPlanes {
+            slots,
+            linesize: linesize as usize,
+            channels: channels as c_int,
+            format: f,
+            samples,
+        }))
+    }
+
+    /// Both blocks `av_samples_alloc_array_and_samples` allocated, freed
+    /// with `av_freep` on drop.
+    struct CArray(*mut *mut u8, CPlanes);
+
+    impl Drop for CArray {
+        fn drop(&mut self) {
+            // SAFETY: slot 0 of the array owns the sample block, and the
+            // array is itself an `av_calloc` block; each is freed once.
+            unsafe {
+                ffi::av_freep(self.0.cast::<c_void>());
+                ffi::av_freep((&raw mut self.0).cast::<c_void>());
+            }
+        }
+    }
+
+    fn c_alloc_array(
+        channels: usize,
+        samples: usize,
+        f: SampleFormat,
+        align: u32,
+    ) -> Result<CArray, c_int> {
+        let mut array = ptr::null_mut();
+        let mut linesize = -1;
+        // SAFETY: C writes the live locals only.
+        let ret = unsafe {
+            ffi::av_samples_alloc_array_and_samples(
+                &mut array,
+                &mut linesize,
+                channels as c_int,
+                samples as c_int,
+                f.into_raw(),
+                align as c_int,
+            )
+        };
+        if ret < 0 {
+            assert!(array.is_null());
+            return Err(ret);
+        }
+        let planes = if is_planar(f) { channels } else { 1 };
+        // SAFETY: the array holds `planes` pointers on success.
+        let slots = unsafe { core::slice::from_raw_parts(array, planes) }.to_vec();
+        Ok(CArray(
+            array,
+            CPlanes {
+                slots,
+                linesize: linesize as usize,
+                channels: channels as c_int,
+                format: f,
+                samples,
+            },
+        ))
+    }
+
+    /// The Rust view and the C planes hold the same layout and samples.
+    fn assert_same(rust: SamplesRef<'_>, c: &CPlanes, what: &str) {
+        assert_eq!(rust.plane_count(), c.slots.len(), "{what}");
+        assert_eq!(rust.linesize(), c.linesize, "{what}");
+        let base = rust.plane(0).unwrap().as_ptr();
+        for (i, plane) in rust.planes().enumerate() {
+            assert_eq!(
+                plane.as_ptr().addr() - base.addr(),
+                c.slots[i].addr() - c.slots[0].addr(),
+                "{what} plane {i}"
+            );
+            assert_eq!(plane, c.plane(i), "{what} plane {i}");
+        }
+    }
+
+    /// `steps` random writes, silences and copies on both sides, each
+    /// compared; `src` is a second pair of equal buffers to copy from.
+    fn run_ops(
+        rng: &mut Rng,
+        rust: &mut SamplesMut<'_>,
+        c: &mut CPlanes,
+        src: (SamplesRef<'_>, &CPlanes),
+        steps: usize,
+    ) {
+        let n = c.samples;
+        for step in 0..steps {
+            // Offsets and counts up to one past the end, so some run out.
+            let (a, b, k) = (rng.below(n + 2), rng.below(n + 2), rng.below(n + 2));
+            let fits = |offset: usize, count: usize, len: usize| offset + count <= len;
+            match rng.below(4) {
+                0 => {
+                    let p = rng.below(c.slots.len());
+                    let byte = rng.next() as u8;
+                    let len = c.plane_len();
+                    let (lo, hi) = (rng.below(len), rng.below(len + 1));
+                    let (lo, hi) = (lo.min(hi), lo.max(hi));
+                    rust.plane_mut(p).unwrap()[lo..hi].fill(byte);
+                    c.plane_mut(p)[lo..hi].fill(byte);
+                }
+                1 => {
+                    let r = rust.set_silence(a, k);
+                    if fits(a, k, n) {
+                        assert_eq!(r, Ok(()));
+                        c.set_silence(a, k);
+                    } else {
+                        assert_eq!(r, Err(SamplesError::OutOfRange));
+                    }
+                }
+                2 => {
+                    let r = rust.copy_within(a, b, k);
+                    if fits(a, k, n) && fits(b, k, n) {
+                        assert_eq!(r, Ok(()));
+                        c.copy(None, a, b, k);
+                    } else {
+                        assert_eq!(r, Err(SamplesError::OutOfRange));
+                    }
+                }
+                _ => {
+                    let a = rng.below(src.1.samples + 2);
+                    let r = rust.copy_from(src.0, a, b, k);
+                    if fits(a, k, src.1.samples) && fits(b, k, n) {
+                        assert_eq!(r, Ok(()));
+                        c.copy(Some(src.1), a, b, k);
+                    } else {
+                        assert_eq!(r, Err(SamplesError::OutOfRange));
+                    }
+                }
+            }
+            assert_same(rust.as_ref(), c, &format!("step {step}"));
+        }
+    }
+
+    /// A random source pair of `samples` samples for copies into buffers of
+    /// `f` and `channels`.
+    fn source(
+        rng: &mut Rng,
+        channels: usize,
+        samples: usize,
+        f: SampleFormat,
+    ) -> (SampleBuffer, CAlloc) {
+        let mut rust = SampleBuffer::new(channels, samples, f, 1).unwrap();
+        let mut c = c_alloc(channels, samples, f, 1).unwrap();
+        for p in 0..c.0.slots.len() {
+            let bytes: Vec<u8> = (0..c.0.plane_len()).map(|_| rng.next() as u8).collect();
+            rust.as_mut().plane_mut(p).unwrap().copy_from_slice(&bytes);
+            c.0.plane_mut(p).copy_from_slice(&bytes);
+        }
+        (rust, c)
+    }
+
+    #[test]
+    fn is_planar_matches_c_for_every_value() {
+        for raw in all_values() {
+            let f = SampleFormat::from_raw(raw);
+            assert_eq!(f.is_planar(), is_planar(f), "{f:?}");
+        }
+    }
+
+    #[test]
+    fn buffer_size_matches_c_across_the_int_range() {
+        let max = c_int::MAX;
+        let counts = [
+            0,
+            1,
+            2,
+            3,
+            31,
+            32,
+            33,
+            1 << 20,
+            max / 2,
+            max - 31,
+            max - 30,
+            max,
+        ];
+        let aligns = [0, 1, 2, 3, 4, 16, 32, 64, 1 << 20, max];
+        for raw in all_values() {
+            let f = SampleFormat::from_raw(raw);
+            for &channels in &counts {
+                for &samples in &counts {
+                    for &align in &aligns {
+                        // C overflows rounding the default alignment's
+                        // `INT_MAX - 31` samples, a multiple of 32: its
+                        // layout is the one for no alignment (1).
+                        let c_align = if align == 0 && samples == max - 31 {
+                            1
+                        } else {
+                            align
+                        };
+                        let (ret, linesize) = c_buffer_size(channels, samples, f, c_align);
+                        let rust = samples_buffer_size(
+                            channels as usize,
+                            samples as usize,
+                            f,
+                            align as u32,
+                        );
+                        let c = if ret < 0 {
+                            Err(ret)
+                        } else {
+                            Ok(BufferSize {
+                                size: ret as usize,
+                                linesize: linesize as usize,
+                            })
+                        };
+                        assert_eq!(rust, c, "{channels} {samples} {f:?} {align}");
+                    }
+                }
+            }
+        }
+    }
+
+    #[test]
+    fn counts_beyond_an_int_fail_as_c_fails_their_negative_twins() {
+        for f in FORMATS {
+            // C sees a `u32` alignment past `INT_MAX` as negative.
+            for align in [c_int::MAX as u32 + 1, u32::MAX] {
+                assert_eq!(c_buffer_size(2, 10, f, align as c_int).0, EINVAL);
+                assert_eq!(samples_buffer_size(2, 10, f, align), Err(EINVAL));
+                assert_eq!(SampleBuffer::new(2, 10, f, align).unwrap_err(), EINVAL);
+                assert_eq!(c_alloc(2, 10, f, align).err(), Some(EINVAL));
+            }
+            for big in [c_int::MAX as usize + 1, usize::MAX] {
+                assert_eq!(samples_buffer_size(big, 1, f, 1), Err(EINVAL));
+                assert_eq!(samples_buffer_size(1, big, f, 1), Err(EINVAL));
+                assert_eq!(c_buffer_size(-1, 1, f, 1).0, EINVAL);
+                assert_eq!(c_buffer_size(1, -1, f, 1).0, EINVAL);
+            }
+        }
+    }
+
+    #[test]
+    fn alloc_lays_out_and_silences_as_c() {
+        let mut rng = Rng(0x9e37_79b9_7f4a_7c15);
+        for f in FORMATS {
+            for channels in CHANNELS {
+                for samples in SAMPLES {
+                    for align in ALIGNS {
+                        let what = format!("{channels} {samples} {f:?} {align}");
+                        let mut rust = SampleBuffer::new(channels, samples, f, align).unwrap();
+                        let mut c = c_alloc(channels, samples, f, align).unwrap();
+                        assert_eq!(
+                            rust.size(),
+                            c_buffer_size(channels as c_int, samples as c_int, f, align as c_int).0
+                                as usize
+                        );
+                        assert_same(rust.as_ref(), &c.0, &what);
+                        let (src, c_src) = source(&mut rng, channels, samples + 3, f);
+                        run_ops(
+                            &mut rng,
+                            &mut rust.as_mut(),
+                            &mut c.0,
+                            (src.as_ref(), &c_src.0),
+                            12,
+                        );
+                    }
+                }
+            }
+        }
+    }
+
+    #[test]
+    fn alloc_array_lays_out_and_silences_as_c() {
+        let mut rng = Rng(0x2545_f491_4f6c_dd1d);
+        for f in FORMATS {
+            for channels in CHANNELS {
+                for samples in SAMPLES {
+                    for align in ALIGNS {
+                        let what = format!("{channels} {samples} {f:?} {align}");
+                        let mut rust =
+                            SampleBufferWithPointers::new(channels, samples, f, align).unwrap();
+                        let mut c = c_alloc_array(channels, samples, f, align).unwrap();
+                        assert_same(rust.as_ref(), &c.1, &what);
+                        let (src, c_src) = source(&mut rng, channels, samples, f);
+                        run_ops(
+                            &mut rng,
+                            &mut rust.as_mut(),
+                            &mut c.1,
+                            (src.as_ref(), &c_src.0),
+                            6,
+                        );
+                        // The planes outlive the pointer array alone.
+                        let rust = rust.into_buffer();
+                        assert_same(rust.as_ref(), &c.1, &what);
+                    }
+                }
+            }
+        }
+    }
+
+    #[test]
+    fn alloc_failures_return_c_s_errors() {
+        for raw in all_values() {
+            let f = SampleFormat::from_raw(raw);
+            for (channels, samples, align) in
+                [(0, 1, 1), (1, 0, 0), (2, 3, 1), (1, c_int::MAX as usize, 1)]
+            {
+                let c = c_alloc(channels, samples, f, align).err();
+                assert_eq!(
+                    SampleBuffer::new(channels, samples, f, align).err(),
+                    c,
+                    "{f:?} {channels} {samples}"
+                );
+                let c = c_alloc_array(channels, samples, f, align).err();
+                assert_eq!(
+                    SampleBufferWithPointers::new(channels, samples, f, align).err(),
+                    c,
+                    "{f:?} {channels} {samples}"
+                );
+            }
+        }
+    }
+
+    #[test]
+    fn fill_arrays_lays_planes_over_the_buffer_as_c() {
+        let mut rng = Rng(0x1234_5678_9abc_def1);
+        for f in FORMATS {
+            for channels in CHANNELS {
+                for align in ALIGNS {
+                    let samples = 1 + rng.below(40);
+                    let what = format!("{channels} {samples} {f:?} {align}");
+                    let size = samples_buffer_size(channels, samples, f, align)
+                        .unwrap()
+                        .size;
+                    let bytes: Vec<u8> =
+                        (0..size + rng.below(8)).map(|_| rng.next() as u8).collect();
+                    let (mut rust_buf, mut c_buf) = (bytes.clone(), bytes);
+                    let planes = if is_planar(f) { channels } else { 1 };
+                    let mut slots = vec![ptr::null_mut(); planes];
+                    let mut linesize = -1;
+                    // SAFETY: `slots` holds the pointers C writes, and
+                    // `c_buf` holds the `size` bytes they span.
+                    let ret = unsafe {
+                        ffi::av_samples_fill_arrays(
+                            slots.as_mut_ptr(),
+                            &mut linesize,
+                            c_buf.as_mut_ptr(),
+                            channels as c_int,
+                            samples as c_int,
+                            f.into_raw(),
+                            align as c_int,
+                        )
+                    };
+                    assert_eq!(ret as usize, size, "{what}");
+                    assert_eq!(slots[0], c_buf.as_mut_ptr());
+                    let mut c = CPlanes {
+                        slots,
+                        linesize: linesize as usize,
+                        channels: channels as c_int,
+                        format: f,
+                        samples,
+                    };
+                    {
+                        let shared =
+                            SamplesRef::from_buffer(&rust_buf, channels, samples, f, align)
+                                .unwrap();
+                        assert_eq!(shared.plane(0).unwrap().as_ptr(), rust_buf.as_ptr());
+                        assert_same(shared, &c, &what);
+                    }
+                    let (src, c_src) = source(&mut rng, channels, samples, f);
+                    let mut rust =
+                        SamplesMut::from_buffer(&mut rust_buf, channels, samples, f, align)
+                            .unwrap();
+                    assert_same(rust.as_ref(), &c, &what);
+                    run_ops(&mut rng, &mut rust, &mut c, (src.as_ref(), &c_src.0), 8);
+                    // Bytes outside the planes are the caller's, untouched
+                    // on both sides.
+                    assert_eq!(rust_buf, c_buf, "{what}");
+                    // One byte short of what C lays out is refused.
+                    assert_eq!(
+                        SamplesRef::from_buffer(&rust_buf[..size - 1], channels, samples, f, align)
+                            .unwrap_err(),
+                        EINVAL
+                    );
+                }
+            }
+        }
+        // C's own errors pass through.
+        for (channels, samples, f) in [
+            (0, 1, SampleFormat::U8),
+            (1, 0, SampleFormat::U8),
+            (1, 1, SampleFormat::NONE),
+        ] {
+            let mut slot = ptr::null_mut();
+            // SAFETY: C writes at most one slot, and nothing on failure; a
+            // NULL buffer is only offset.
+            let ret = unsafe {
+                ffi::av_samples_fill_arrays(
+                    &mut slot,
+                    ptr::null_mut(),
+                    ptr::null(),
+                    channels,
+                    samples,
+                    f.into_raw(),
+                    1,
+                )
+            };
+            assert_eq!(
+                SamplesRef::from_buffer(&[0; 64], channels as usize, samples as usize, f, 1)
+                    .unwrap_err(),
+                ret
+            );
+        }
+    }
+}

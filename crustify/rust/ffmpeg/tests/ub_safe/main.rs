@@ -18,6 +18,7 @@ mod log;
 mod mathematics;
 mod mem;
 mod pixdesc;
+mod pixelutils;
 mod pixfmt;
 mod random_seed;
 mod rational;

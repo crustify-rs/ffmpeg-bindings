@@ -21,7 +21,9 @@ use core::ptr::{addr_of, addr_of_mut};
 use ffibox::{CZeroable, define_ctype};
 
 use super::ffi;
-use super::pixfmt::{ChromaLocation, ColorPrimaries, ColorRange, ColorSpace, ColorTransfer};
+use super::pixfmt::{
+    ChromaLocation, ColorPrimaries, ColorRange, ColorSpace, ColorTransfer, PixelFormat,
+};
 
 define_ctype!(
     /// Wraps: AVComponentDescriptor
@@ -367,6 +369,25 @@ impl ChromaLocation {
     }
 }
 
+impl PixelFormat {
+    /// Wraps: av_pix_fmt_swap_endianness
+    ///
+    /// The same format in the other byte order: [`RGB48LE`](Self::RGB48LE)
+    /// for [`RGB48BE`](Self::RGB48BE) and back. `None` for a format with no
+    /// byte order (one whose C name does not end in `be` or `le`, such as
+    /// [`YUV420P`](Self::YUV420P)), for one whose other-endian twin C does
+    /// not list, and for [`NONE`](Self::NONE) and every value C does not
+    /// name.
+    pub fn swap_endianness(self) -> Option<Self> {
+        // SAFETY: C bounds-checks the value against its descriptor table
+        // (any `int` is accepted) and only reads the table and a local copy
+        // of the name.
+        let raw = unsafe { ffi::av_pix_fmt_swap_endianness(self.into_raw()) };
+        let swapped = Self::from_raw(raw);
+        (swapped != Self::NONE).then_some(swapped)
+    }
+}
+
 #[cfg(test)]
 mod unit_tests {
     use std::collections::hash_map::DefaultHasher;
@@ -493,5 +514,25 @@ mod unit_tests {
         );
         assert_eq!(ColorRange::from_name(c"PC"), None);
         assert_eq!(ChromaLocation::from_name(c""), None);
+    }
+
+    #[test]
+    fn swap_endianness_pairs_be_and_le() {
+        let pairs = [
+            (PixelFormat::RGB48BE, PixelFormat::RGB48LE),
+            (PixelFormat::GRAY16BE, PixelFormat::GRAY16LE),
+            (PixelFormat::YUV420P10BE, PixelFormat::YUV420P10LE),
+        ];
+        for (be, le) in pairs {
+            assert_eq!(be.swap_endianness(), Some(le));
+            assert_eq!(le.swap_endianness(), Some(be));
+        }
+        for f in [PixelFormat::YUV420P, PixelFormat::RGB24, PixelFormat::NONE] {
+            assert_eq!(f.swap_endianness(), None, "{f:?}");
+        }
+        for raw in [c_int::MIN, -2, 100_000, c_int::MAX] {
+            let f = PixelFormat::from_raw(ffi::AVPixelFormat(raw));
+            assert_eq!(f.swap_endianness(), None, "{raw}");
+        }
     }
 }
