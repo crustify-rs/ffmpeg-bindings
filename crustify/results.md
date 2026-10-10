@@ -27,15 +27,15 @@ Copy this template into the campaign checkout, then fill it as work lands.
 Thin batches with `"objective": "review"`, LLM-as-a-Judge over each landed wave.
 
 - **agent backend** — `claude`
-- **model** — `openrouter/anthropic/claude-opus-5.5`
+- **model** — `openrouter/anthropic/claude-fable-5.1`
 - **`--billing`** — `api`
 - **`--max-types`** — `2` (wave 0); the wave's types from wave 1
 - **`--max-syms`** — `25` (wave 0); the wave's symbols from wave 1
 - **`--max-loc`** — `500` (wave 0); unbounded from wave 1
 - **`--min-fields`** — `20`
 - **orchestrator parallelism** — `10` concurrent batch processes
-- **branch** — `crustify/reviews/20261005/libavutil/core/wave-1`, tip `532c537e67`
-- **agents** — `20` (one stopped by the provider), over `4` wave(s)
+- **branch** — `crustify/reviews/20261005/libavutil/core/wave-2`, tip `d12fc40bb3`
+- **agents** — `21` (one stopped by the provider), over `5` wave(s)
 
 `rv`-prefixed columns below carry the review pass; the unprefixed ones remain
 the campaign's.
@@ -140,6 +140,7 @@ Implementation `openrouter/anthropic/claude-opus-5.5` via `claude`; review
 |---|---:|---:|---|---:|---:|---:|---:|---:|
 | `raw-lifetime-void` | `0` | `6` | `78m48s` | `$8.46` | `$4.69` | `$13.15` | — | `$2.19` |
 | `raw-lifetime-string` | `0` | `3` | `48m03s` | `$3.77` | `$5.25` | `$9.02` | — | `$3.01` |
+| `libavutil/core` | `21` | `159` | `47h12m32s` | `$214.04` | `$207.73` | `$421.77` | `$7.10` | `$1.72` |
 | `<link-unit>/<subsystem>` | `<n>` | `<n>` | `<n>h<n>m<n>s` | `$<n>` | `$<n>` | `$<n>` | `$<n>` | `$<n>` |
 | orchestrator | `<n>` | `<n>` | — | — | — | `$<n>`+ | — | — |
 | **Σ recorded agents** | **`<n>`** | **`<n>`** | **`<n>h<n>m`** | **`$<n>`** | **`$<n>`** | **`$<n>`** | **`$<n>`** | **`$<n>`** |
@@ -296,7 +297,8 @@ Implementation `openrouter/anthropic/claude-opus-5.5` via `claude`; review
 |`0`|`14`| wrap | `21` | `1561` |`+1561/-1`| `10.37`% / `89.92`% | `+1` | `+1` | `$11.38` | `62m02s` | `$0.54` | `$0.007` |
 |`1`|`2`| wrap | `25` | `2218` |`+2218/-1`| `20.40`% / `96.05`% | `+1` | `+1` | `$15.41` | `63m58s` | `$0.62` | `$0.007` |
 |`1`|`3`| wrap | `1` | `264` |`+264/-0`| `19.23`% / `95.00`% | `0` | `0` | `$1.71` | `11m10s` | `$1.71` | `$0.006` |
-| **Σ** |  |  | **`147`** | **`12710`** | **`+12710/-198`** | **`20.40`% / `96.05`%** | **`+10`** | **`+13`** | **`$147.76`** | — | **`$1.01`** | **`$0.012`** |
+|`2`|`0`| wrap | `12` | `925` |`+925/-18`| `20.57`% / `96.22`% | `0` | `0` | `$7.58` | `31m30s` | `$0.63` | `$0.008` |
+| **Σ** |  |  | **`159`** | **`13635`** | **`+13635/-216`** | **`20.57`% / `96.22`%** | **`+10`** | **`+13`** | **`$155.34`** | — | **`$0.98`** | **`$0.011`** |
 
 ### Batches: tests
 
@@ -311,7 +313,8 @@ Implementation `openrouter/anthropic/claude-opus-5.5` via `claude`; review
 |`0`|`14`|`+20` (`+2.05`/`+4.45` pp)|`+5` (`+1.19`/`-0.57` pp)|`+26` (`+1.05`/`+5.47` pp)|`+12` (`+0.46`/`-4.07` pp)|
 |`1`|`2`|`+21` (`+1.48`/`+0.86` pp)|`+6` (`+0.02`/`-0.89` pp)|`+28` (`+0.91`/`+0.49` pp)|`+30` (`+1.54`/`+1.70` pp)|
 |`1`|`3`|`+4` (`+0.10`/`+0.10` pp)|`+0` (`+0.00`/`-0.04` pp)|`+4` (`+0.10`/`+0.09` pp)|`+2` (`+0.10`/`+0.21` pp)|
-| **Σ** |  | **`+128` (`+13.75`/`+13.96` pp)** | **`+37` (`+2.20`/`+4.38` pp)** | **`+156` (`+12.15`/`+17.55` pp)** | **`+134` (`+6.53`/`-1.40` pp)** |
+|`2`|`0`|`+5` (`+0.21`/`+0.30` pp)|`+0` (`+0.00`/`-0.46` pp)|`+4` (`+0.17`/`-0.07` pp)|`+8` (`+0.13`/`-0.22` pp)|
+| **Σ** |  | **`+133` (`+13.96`/`+14.26` pp)** | **`+37` (`+2.20`/`+3.92` pp)** | **`+160` (`+12.32`/`+17.48` pp)** | **`+142` (`+6.66`/`-1.62` pp)** |
 
 ### Batches — review
 
@@ -325,7 +328,8 @@ Implementation `openrouter/anthropic/claude-opus-5.5` via `claude`; review
 |`0`|`13`| `25` |`+163/-9`| `19.14`% / `94.92`% | `0` | `0` | `+230/-19` | `$25.37` | `53m00s` | `$1.01` |
 |`0`|`14`| `21` |`+65/-12`| `19.00`% / `94.83`% | `0` | `0` | `+93/-23` | `$10.99` | `32m35s` | `$0.52` |
 |`1`|`1`| `26` |`+56/-5`| `20.40`% / `96.06`% | `0` | `0` | `+89/-13` | `$10.27` | `29m53s` | `$0.39` |
-| **Σ** |  | **`147`** | **`+549/-33`** | **`20.40`% / `96.06`%** | **`0`** | **`0`** | **`+796/-87`** | **`$107.17`** | — | **`$0.73`** |
+|`2`|`0`| `12` |`+0/-0`| `20.57`% / `96.22`% | `0` | `0` | `+37/-6` | `$10.25` | `20m24s` | `$0.85` |
+| **Σ** |  | **`159`** | **`+549/-33`** | **`20.57`% / `96.22`%** | **`0`** | **`0`** | **`+833/-93`** | **`$117.42`** | — | **`$0.74`** |
 
 ### Batches — review: tests
 
@@ -339,6 +343,7 @@ Implementation `openrouter/anthropic/claude-opus-5.5` via `claude`; review
 |`0`|`13`|`+0` (`+0.00`/`+0.02` pp)|`+0` (`+0.00`/`-0.18` pp)|`+2` (`+0.10`/`+0.30` pp)|`+2` (`+0.20`/`+0.29` pp)|
 |`0`|`14`|`+0` (`+0.00`/`+0.00` pp)|`+0` (`+0.00`/`+0.00` pp)|`+1` (`+0.00`/`+0.00` pp)|`+0` (`+0.00`/`+0.00` pp)|
 |`1`|`1`|`+0` (`+0.00`/`+0.05` pp)|`+0` (`+0.00`/`-0.03` pp)|`+1` (`+0.00`/`+0.05` pp)|`+0` (`+0.00`/`+0.03` pp)|
+|`2`|`0`|`+0` (`+0.00`/`+0.00` pp)|`+0` (`+0.00`/`+0.00` pp)|`+0` (`+0.00`/`+0.00` pp)|`+0` (`+0.00`/`+0.00` pp)|
 | **Σ** |  | **`+1` (`+0.00`/`+0.33` pp)** | **`+1` (`+0.00`/`-0.25` pp)** | **`+5` (`+0.12`/`+0.63` pp)** | **`+6` (`+0.20`/`+0.56` pp)** |
 
 ### Batches — review: PoC + reports
@@ -353,7 +358,8 @@ Implementation `openrouter/anthropic/claude-opus-5.5` via `claude`; review
 | `0` | `13` | — | `+0` | `+0` | `+0` | `+1` | `+0` | `+0` | `+0` | `1` | `0` |
 | `0` | `14` | — | `+0` | `+0` | `+0` | `+0` | `+0` | `+2` | `+1` | `3` | `0` |
 | `1` | `1` | — | `+0` | `+0` | `+0` | `+1` | `+0` | `+0` | `+0` | `1` | `0` |
-| **Σ** |  | — | **`+1`** | **`+1`** | **`+0`** | **`+2`** | **`+0`** | **`+3`** | **`+3`** | **`10`** | **`0`** |
+| `2` | `0` | — | `+0` | `+0` | `+0` | `+0` | `+0` | `+0` | `+2` | `2` | `0` |
+| **Σ** |  | — | **`+1`** | **`+1`** | **`+0`** | **`+2`** | **`+0`** | **`+3`** | **`+5`** | **`12`** | **`0`** |
 
 ## Safety audit
 
@@ -983,3 +989,71 @@ untyped `AVClass`-enabled object, and the 14 public `c_void` smells are those ob
 parameters. Nested counting found two public raw pointers into C memory from the safe API:
 `OptionRangesRef::ranges` and `get` return `*const ffi::AVOptionRange` until that type is
 wrapped in `libavutil/options`.
+
+### `libavutil/core` wave 2
+
+Wave 2 is one `wrap` batch of 12 `bprint.h` symbols, based on `0f140fccf2` (the reviewed
+wave-1 tip `532c537e67` plus the updated task settings). It landed `9ff8fb29d7` at 00:47Z on
+2026-10-10 on its first push, and every scheduled item carries its anchor there. Translation
+cost `$7.58` for 20.9M tokens and 31m30s of agent wall time.
+
+- `av_bprint_init`, `av_bprint_init_for_buffer` and `av_bprint_finalize` were already anchored
+  by wave 1's `AVBPrint` type batch (`364c59df9b`) as `BPrint`'s constructors and finalizers;
+  the batch left them as completed work. It wrapped the other nine as `BPrintMut` and
+  `BPrintRef` methods, routed `av_vbprintf` through a new `crustify_av_vbprintf` shim (Rust
+  cannot build a `va_list`), and implemented `fmt::Write` on `BPrintMut`.
+- `av_bprint_strftime` takes libc's `struct tm`, which no batch schedules, so the batch mirrored
+  it as a handwritten, Rust-owned `Tm` in `bprint.rs`. Later `struct tm` users
+  (`av_small_strptime`, `av_timegm`) can reuse or move it.
+- One documented divergence: `append_with` (`av_bprint_get_buffer`) zeroes the storage it hands
+  out, which a caller-supplied buffer shows past the string afterwards.
+- Neither smell moved (22 `unsafe fn`, 39 raw-pointer) and the public API gained no `unsafe fn`
+  or raw pointer; `unsafe` blocks went from 431 to 474.
+
+The wave tip passes `clippy --all-targets -D warnings` and the plain, `asan-ubsan`, `tsan` and
+`bsan` suites: 284 unit, 279 equivalence, 259 `ub_safe` and 59 `ub_unsafe` tests under `bsan`.
+From this wave the orchestrator runs `bsan` as one invocation per test binary, in parallel;
+`ub_safe` took 30m18s and equivalence 14m22s. The gate passed, so the review got no
+`bsan-gate.log`.
+
+### `libavutil/core` review wave 2
+
+From this wave on, per the updated task, every review runs on
+`openrouter/anthropic/claude-fable-5.1` (api, `claude`) after every wave, with review caps sized
+to the wave. Wave 2 has symbols only, so its review is one batch over the translation batch's
+12 items.
+
+- **Landings:** the reviewer ran 20m24s for `$10.25` (13.5M tokens) and landed `d4608c5e90`
+  (reports) and `d12fc40bb3` (fixes).
+- **Reports:** 2 `misc`, both documentation. `is-complete-doc-count-only`: `is_complete`'s doc
+  implied a fresh count-only buffer is complete, where C's `len < size` is false at `size` 0
+  from initialisation. `tm-zone-doc-null-zone`: `TmRef::zone`'s doc said a NULL `tm_zone`
+  always names the local zone, where glibc formats nothing when `tm_isdst < 0`. Each fix
+  rewords the doc and adds a doctest; behaviour was already equivalent, and both claims match
+  C's `av_bprint_is_complete` and the reviewer's glibc harness. Nothing was rejected.
+- **Probe:** `probe/` is a differential sweep, not a defect reproducer: random appender
+  sequences over every init shape, with `av_max_alloc` switched mid-sequence, compared after
+  every step. Rerun on `d12fc40bb3`: 20 000 sequences, 0 failures.
+- **Observation, not changed:** `BPrint::into_string` and `into_bytes` consume the owner, so when
+  `av_bprint_finalize` fails to copy an inline string out (`ENOMEM`, reachable only through
+  `av_max_alloc`) the string is lost, where C's caller keeps a usable buffer. Changing it would
+  change wave 1's landed API.
+- The review moved no smell and no `#[test]` count (its two doctests are outside it), so its
+  `: tests` row reads zero. Its `+LoC` reads `+0/-0` because it changed only comments and
+  doctests; `rv loc` counts them.
+
+The reviewed tip passes `clippy --all-targets -D warnings` and the plain, `asan-ubsan`, `tsan`
+and `bsan` suites, with the same counts as the wave tip. It was promoted to
+`crustify/subcampaigns/20261005/libavutil/core`, which completes the sub-campaign, and the
+sub-campaign to `crustify/campaigns/20261005`.
+
+### `libavutil/core` sub-campaign totals
+
+- The Overview row counts 21 types and 159 symbols (147 in waves 0–1, 12 in wave 2). Its
+  `$/type` and `$/sym` divide each kind's translation and review cost by its units: types
+  `$149.02` over 21, symbols `$272.75` over 159. `review` excludes the stopped Astra attempt
+  (`$3.46`).
+- `sub-campaign wall` runs from wave 0's first launch (02:54Z on 2026-10-08) to the reviewed
+  wave-2 gate (02:06Z on 2026-10-10), including the interruption before the wave-0 resume
+  and the pauses for the user. Agent wall time sums to 25h56m: 16h31m translating and 9h25m
+  reviewing.
