@@ -1686,7 +1686,7 @@ mod layout {
     }
 
     /// Descriptions both sides parse (or refuse) alike.
-    const DESCRIPTIONS: [&CStr; 33] = [
+    const DESCRIPTIONS: [&CStr; 39] = [
         c"mono",
         c"stereo",
         c"5.1(side)",
@@ -1722,6 +1722,18 @@ mod layout {
         c"FL@",
         c"",
         c"FL+NOPE",
+        // Orders C narrows from `long` to `int` modulo 2^32 (1 and 2), and
+        // the largest it refuses by its own range check; `INT_MAX` itself,
+        // which C overflows on, is the wrapper's refusal (`ub_safe`).
+        c"ambisonic 4294967297",
+        c"ambisonic 0x100000002+FL",
+        c"ambisonic 2147483646",
+        // A byte other than `+` after the order, a mask `strtoull` cannot
+        // hold (`errno` set), and a channel list missing its closing
+        // parenthesis.
+        c"ambisonic 1x",
+        c"18446744073709551616",
+        c"2 channels (FL+FR",
     ];
 
     fn c_parse(s: &CStr) -> (c_int, CLayout) {

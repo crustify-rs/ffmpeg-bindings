@@ -1822,7 +1822,7 @@
       },
       "nullable": false,
       "mutable": false,
-      "note": "The layout description, a NUL-terminated string read during the call only (strcmp, av_strdup'd copy for parsing, strtol/strtoull)."
+      "note": "The layout description, a NUL-terminated string read during the call only (strcmp, av_strdup'd copy for parsing, strtol/strtoull). Not every string is a defined input: an `ambisonic <order>` segment whose order strtol narrows to exactly INT_MAX (\"2147483647\", \"0x7fffffff\", \"-2147483649\", ...; in the first segment or in one a `+` chains after a valid order) makes C's range check compute order + 1 and square it in int (channel_layout.c:341, :346), signed overflows, after which C returns 0 with an ambisonic layout of nb_channels 0. The wrapper (ChannelLayout::parse) mirrors strtol and refuses those descriptions with AVERROR(EINVAL) before the call (formats wave-3 batch-1 review). The other numeric paths saturate or narrow without overflow: the %d of av_sscanf, strtoull's mask (errno checked), strtol's count (`channels > 0`)."
      }
     }
    ]
