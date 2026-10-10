@@ -410,3 +410,13 @@ function av_channel_layout_index_from_string
 function av_channel_layout_channel_from_index
 function av_channel_layout_channel_from_string
 function av_csp_luma_coeffs_from_avcsp
+
+# libavutil/samplefmt.h and pixdesc.h: the sample buffer routines and the
+# pixel format byte-order swap (formats wave 1, batch 5).
+function av_samples_get_buffer_size
+function av_samples_fill_arrays
+function av_samples_alloc
+function av_samples_alloc_array_and_samples
+function av_samples_copy
+function av_samples_set_silence
+function av_pix_fmt_swap_endianness

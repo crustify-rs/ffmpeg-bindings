@@ -1,11 +1,13 @@
 //! Safe wrappers over `libavutil/pixelutils.h`.
 //!
 //! [`SadFn`] calls a sum-of-absolute-differences function C selected for a
-//! square block size and an [`SadAlignment`] (`av_pixelutils_sad_fn`).
+//! square block size and an [`SadAlignment`] (`av_pixelutils_sad_fn`), as
+//! [`SadFn::new`] asks C for one (`av_pixelutils_get_sad_fn`).
 
 use core::ffi::c_int;
 use core::fmt;
 
+use super::ffi;
 use super::imgutils::plane_origin;
 
 /// What a [`SadFn`] assumes of its blocks' addresses, as requested from
@@ -19,6 +21,17 @@ pub enum SadAlignment {
     First,
     /// Both blocks aligned on the block size (`2`).
     Both,
+}
+
+impl SadAlignment {
+    /// The `aligned` argument of `av_pixelutils_get_sad_fn`.
+    fn into_c(self) -> c_int {
+        match self {
+            Self::Unaligned => 0,
+            Self::First => 1,
+            Self::Both => 2,
+        }
+    }
 }
 
 /// Why [`SadFn::call`] refused a block pair.
@@ -70,6 +83,33 @@ pub struct SadFn {
 }
 
 impl SadFn {
+    /// Wraps: av_pixelutils_get_sad_fn
+    ///
+    /// The function C selects for blocks of `2^log2_size` x `2^log2_size`
+    /// bytes whose addresses meet `alignment`: SIMD code when the CPU has it
+    /// (as `av_get_cpu_flags` reports), plain C otherwise. `None` for a block
+    /// size C has no function for: `log2_size` outside `1..=5` (2 to 32
+    /// bytes). C compares square blocks only, so one size stands for both
+    /// sides.
+    ///
+    /// C's log context is used only by a libavutil built without
+    /// pixelutils, which logs that it is missing; this passes none.
+    pub fn new(log2_size: u32, alignment: SadAlignment) -> Option<Self> {
+        let bits = c_int::try_from(log2_size).ok()?;
+        // SAFETY: C only reads its integer arguments and the CPU flags; the
+        // log context, which it reads only to log that pixelutils is not
+        // compiled in, is NULL.
+        let sad = unsafe {
+            ffi::av_pixelutils_get_sad_fn(bits, bits, alignment.into_c(), core::ptr::null_mut())
+        }?;
+        Some(Self {
+            sad,
+            // C returned a function, so `bits` is within its table, `1..=5`.
+            log2_size: u8::try_from(log2_size).ok()?,
+            alignment,
+        })
+    }
+
     /// The side of the square blocks the function compares, in bytes: 2, 4,
     /// 8, 16 or 32.
     #[inline]
@@ -136,7 +176,6 @@ impl SadFn {
 #[cfg(test)]
 mod unit_tests {
     use super::*;
-    use crate::libavutil::ffi;
 
     /// A 64-byte aligned buffer, so tests choose every row's alignment.
     #[repr(C, align(64))]
@@ -148,19 +187,9 @@ mod unit_tests {
         (SadAlignment::Both, 2),
     ];
 
-    /// The function C selects for `log2_size` and `alignment`, as the
-    /// `av_pixelutils_get_sad_fn` wrapper adopts it.
+    /// The function C selects for `log2_size` and `alignment`.
     fn sad_fn(log2_size: u8, alignment: SadAlignment) -> SadFn {
-        let aligned = ALIGNMENTS.iter().find(|a| a.0 == alignment).unwrap().1;
-        let bits = c_int::from(log2_size);
-        // SAFETY: a NULL log context; C only selects a function.
-        let sad =
-            unsafe { ffi::av_pixelutils_get_sad_fn(bits, bits, aligned, core::ptr::null_mut()) };
-        SadFn {
-            sad: sad.expect("a supported block size"),
-            log2_size,
-            alignment,
-        }
+        SadFn::new(log2_size.into(), alignment).expect("a supported block size")
     }
 
     /// Every function C selects, by block size and alignment.
@@ -200,6 +229,40 @@ mod unit_tests {
             x ^= x << 5;
             x as u8
         }))
+    }
+
+    #[test]
+    fn alignment_encodes_as_c_s_aligned_argument() {
+        for (a, c) in ALIGNMENTS {
+            assert_eq!(a.into_c(), c);
+        }
+    }
+
+    #[test]
+    fn new_selects_exactly_the_supported_sizes() {
+        for (a, _) in ALIGNMENTS {
+            for bits in 1..=5u32 {
+                let f = SadFn::new(bits, a).unwrap();
+                assert_eq!((f.size(), f.alignment()), (1 << bits, a));
+                assert_eq!(u32::from(f.log2_size), bits);
+            }
+            for bits in [0, 6, 7, 31, 32, 255, 256, u32::MAX] {
+                assert!(SadFn::new(bits, a).is_none(), "{bits} {a:?}");
+            }
+        }
+    }
+
+    #[test]
+    fn new_returns_the_function_c_selects() {
+        for (a, c) in ALIGNMENTS {
+            for bits in 1..=5 {
+                // SAFETY: a NULL log context; C only selects a function.
+                let raw =
+                    unsafe { ffi::av_pixelutils_get_sad_fn(bits, bits, c, core::ptr::null_mut()) };
+                let f = SadFn::new(bits as u32, a).unwrap();
+                assert_eq!(raw.map(|p| p as usize), Some(f.sad as usize));
+            }
+        }
     }
 
     #[test]

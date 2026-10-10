@@ -384,3 +384,44 @@ mod color_names {
         });
     }
 }
+
+/// [`PixelFormat::swap_endianness`] for every value, named or not, and from
+/// several threads at once.
+///
+/// [`PixelFormat::swap_endianness`]: ffmpeg::libavutil::pixfmt::PixelFormat::swap_endianness
+mod swap_endianness {
+    use std::thread;
+
+    use ffmpeg::libavutil::ffi;
+    use ffmpeg::libavutil::pixfmt::PixelFormat;
+
+    fn values() -> impl Iterator<Item = PixelFormat> {
+        (-4..300)
+            .chain([i32::MIN, i32::MIN + 1, 1 << 24, i32::MAX - 1, i32::MAX])
+            .map(|raw| PixelFormat::from_raw(ffi::AVPixelFormat(raw)))
+    }
+
+    #[test]
+    fn every_value_swaps_or_refuses() {
+        for f in values() {
+            if let Some(g) = f.swap_endianness() {
+                assert_ne!(g, f);
+                assert_eq!(g.swap_endianness(), Some(f));
+            }
+        }
+    }
+
+    #[test]
+    fn swaps_from_threads_at_once() {
+        let expect: Vec<_> = values().map(PixelFormat::swap_endianness).collect();
+        thread::scope(|s| {
+            for _ in 0..8 {
+                let expect = &expect;
+                s.spawn(move || {
+                    let got: Vec<_> = values().map(PixelFormat::swap_endianness).collect();
+                    assert_eq!(&got, expect);
+                });
+            }
+        });
+    }
+}

@@ -416,3 +416,57 @@ mod color_names {
         );
     }
 }
+
+/// [`PixelFormat::swap_endianness`] against `av_pix_fmt_swap_endianness`, for
+/// every value C names and those around them, swapped once and back.
+///
+/// [`PixelFormat::swap_endianness`]: ffmpeg::libavutil::pixfmt::PixelFormat::swap_endianness
+mod swap_endianness {
+    use core::ffi::c_int;
+
+    use ffmpeg::libavutil::ffi;
+    use ffmpeg::libavutil::pixfmt::PixelFormat;
+
+    /// `av_pix_fmt_swap_endianness(raw)`.
+    fn c_swap(raw: c_int) -> c_int {
+        // SAFETY: C takes the enum by value and bounds-checks it.
+        unsafe { ffi::av_pix_fmt_swap_endianness(ffi::AVPixelFormat(raw)) }.0
+    }
+
+    /// The Rust result as C encodes it: `AV_PIX_FMT_NONE` for `None`.
+    fn rust_swap(raw: c_int) -> c_int {
+        PixelFormat::from_raw(ffi::AVPixelFormat(raw))
+            .swap_endianness()
+            .map_or(ffi::AVPixelFormat::AV_PIX_FMT_NONE.0, |f| f.into_raw().0)
+    }
+
+    fn candidates() -> impl Iterator<Item = c_int> {
+        let nb = ffi::AVPixelFormat::AV_PIX_FMT_NB.0;
+        (-3..nb + 3).chain([c_int::MIN, c_int::MIN + 1, 1 << 20, c_int::MAX])
+    }
+
+    #[test]
+    fn every_value_swaps_as_c_swaps_it() {
+        let mut swapped = 0;
+        for raw in candidates() {
+            let (c, rust) = (c_swap(raw), rust_swap(raw));
+            assert_eq!(rust, c, "{raw}");
+            swapped += usize::from(c != ffi::AVPixelFormat::AV_PIX_FMT_NONE.0);
+        }
+        // Every byte-ordered format has its twin: C's table lists pairs.
+        assert!(swapped > 100 && swapped % 2 == 0, "{swapped}");
+    }
+
+    #[test]
+    fn swapping_twice_returns_where_c_returns() {
+        for raw in candidates() {
+            let (c1, r1) = (c_swap(raw), rust_swap(raw));
+            assert_eq!(r1, c1, "{raw}");
+            let (c2, r2) = (c_swap(c1), rust_swap(r1));
+            assert_eq!(r2, c2, "{raw}");
+            if c1 != ffi::AVPixelFormat::AV_PIX_FMT_NONE.0 {
+                assert_eq!((c2, r2), (raw, raw));
+            }
+        }
+    }
+}

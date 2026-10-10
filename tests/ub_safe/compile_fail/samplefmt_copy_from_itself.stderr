@@ -1,0 +1,8 @@
+error[E0502]: cannot borrow `buffer` as immutable because it is also borrowed as mutable
+ --> tests/ub_safe/compile_fail/samplefmt_copy_from_itself.rs
+  |
+  |     buffer.as_mut().copy_from(buffer.as_ref(), 0, 8, 8).unwrap();
+  |     ------          --------- ^^^^^^ immutable borrow occurs here
+  |     |               |
+  |     |               mutable borrow later used by call
+  |     mutable borrow occurs here

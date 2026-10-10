@@ -1,0 +1,11 @@
+error[E0597]: `bytes` does not live long enough
+ --> tests/ub_safe/compile_fail/samplefmt_view_outlives_bytes.rs
+  |
+  |     let mut view = {
+  |         -------- borrow later stored here
+  |         let mut bytes = vec![0u8; 256];
+  |             --------- binding `bytes` declared here
+  |         SamplesMut::from_buffer(&mut bytes, 2, 16, SampleFormat::S32, 1).unwrap()
+  |                                 ^^^^^^^^^^ borrowed value does not live long enough
+  |     };
+  |     - `bytes` dropped here while still borrowed

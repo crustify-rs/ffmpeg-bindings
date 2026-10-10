@@ -3514,6 +3514,49 @@
    ]
   },
   {
+   "name": "av_pix_fmt_swap_endianness",
+   "defined_in": "libavutil/pixdesc.c"
+  },
+  {
+   "name": "av_pixelutils_get_sad_fn",
+   "defined_in": "libavutil/pixelutils.c",
+   "ptr_args": [
+    {
+     "name": "log_ctx",
+     "ptr": {
+      "scalar": {
+       "by_val": true
+      },
+      "array": null,
+      "string": false,
+      "owned": false,
+      "borrowed": {
+       "lifetime": "arg:log_ctx"
+      },
+      "nullable": true,
+      "mutable": false,
+      "note": "log_ctx: read only by av_log when libavutil is built without CONFIG_PIXELUTILS (then it must be NULL or point to a struct led by a const AVClass *); with pixelutils (every crustify build) it is never read. Not retained. The Rust wrapper SadFn::new passes NULL."
+     }
+    }
+   ],
+   "ptr_ret": {
+    "ptr": {
+     "scalar": {
+      "by_val": true
+     },
+     "array": null,
+     "string": false,
+     "owned": false,
+     "borrowed": {
+      "lifetime": "static"
+     },
+     "nullable": true,
+     "mutable": false,
+     "note": "Function pointer into libavutil's static sad_c table or an x86 SIMD routine (chosen by av_get_cpu_flags and aligned 0/1/2); never freed, valid for the process. NULL when w_bits/h_bits are outside 1..=5 or differ (only square blocks), or without CONFIG_PIXELUTILS. Wrapped as pixelutils::SadFn (Copy, Send, Sync)."
+    }
+   }
+  },
+  {
    "name": "av_pixelutils_sad_fn",
    "defined_in": null,
    "ptr_args": [
@@ -3839,6 +3882,279 @@
   {
    "name": "av_rescale_rnd",
    "defined_in": "libavutil/mathematics.c"
+  },
+  {
+   "name": "av_sample_fmt_is_planar",
+   "defined_in": "libavutil/samplefmt.c"
+  },
+  {
+   "name": "av_samples_alloc",
+   "defined_in": "libavutil/samplefmt.c",
+   "lifetime": {
+    "for": "audio_data",
+    "is_dropper": false,
+    "is_disposer": false,
+    "is_cloner": null,
+    "is_constructor": {
+     "alloc": true,
+     "init": false
+    }
+   },
+   "ptr_args": [
+    {
+     "name": "audio_data",
+     "ptr": {
+      "scalar": null,
+      "array": {
+       "by_ref": {
+        "owned": true,
+        "borrowed": null
+       }
+      },
+      "string": false,
+      "owned": false,
+      "borrowed": {
+       "lifetime": "arg:audio_data"
+      },
+      "nullable": false,
+      "mutable": true,
+      "note": "Caller array of planar ? nb_channels : 1 plane slots (C writes that many). On success slot 0 owns one av_malloc block of the returned size (release: av_freep(&audio_data[0]) / av_free), and slots 1.. borrow it at i * linesize. Each plane's first nb_samples * block_align bytes are set to silence (0x80 for U8/U8P, else 0); the alignment padding stays uninitialised. Untouched on failure (the block is freed). Wrapped as samplefmt::SampleBuffer::new."
+     }
+    },
+    {
+     "name": "linesize",
+     "ptr": {
+      "scalar": {
+       "by_val": true
+      },
+      "array": null,
+      "string": false,
+      "owned": false,
+      "borrowed": {
+       "lifetime": "arg:linesize"
+      },
+      "nullable": true,
+      "mutable": true,
+      "note": "Optional out-param, the aligned plane size; written on success."
+     }
+    }
+   ]
+  },
+  {
+   "name": "av_samples_alloc_array_and_samples",
+   "defined_in": "libavutil/samplefmt.c",
+   "lifetime": {
+    "for": "audio_data",
+    "is_dropper": false,
+    "is_disposer": false,
+    "is_cloner": null,
+    "is_constructor": {
+     "alloc": true,
+     "init": false
+    }
+   },
+   "ptr_args": [
+    {
+     "name": "audio_data",
+     "ptr": {
+      "scalar": {
+       "by_ref": {
+        "owned": true,
+        "borrowed": null
+       }
+      },
+      "array": null,
+      "string": false,
+      "owned": false,
+      "borrowed": {
+       "lifetime": "arg:audio_data"
+      },
+      "nullable": false,
+      "mutable": true,
+      "note": "Out-slot: on success an av_calloc array of planar ? nb_channels : 1 plane pointers, owned by the caller (av_freep(audio_data)), whose slot 0 owns the av_malloc sample block (av_freep(&(*audio_data)[0])) as av_samples_alloc fills it. On failure *audio_data is NULL (av_freep). A negative nb_channels makes av_calloc fail (ENOMEM) for planar formats before validation. Wrapped as samplefmt::SampleBufferWithPointers::new."
+     }
+    },
+    {
+     "name": "linesize",
+     "ptr": {
+      "scalar": {
+       "by_val": true
+      },
+      "array": null,
+      "string": false,
+      "owned": false,
+      "borrowed": {
+       "lifetime": "arg:linesize"
+      },
+      "nullable": true,
+      "mutable": true,
+      "note": "Optional out-param, the aligned plane size; written on success."
+     }
+    }
+   ]
+  },
+  {
+   "name": "av_samples_copy",
+   "defined_in": "libavutil/samplefmt.c",
+   "ptr_args": [
+    {
+     "name": "dst",
+     "ptr": {
+      "scalar": null,
+      "array": {
+       "by_ref": {
+        "owned": false,
+        "borrowed": {
+         "lifetime": "other"
+        }
+       }
+      },
+      "string": false,
+      "owned": false,
+      "borrowed": {
+       "lifetime": "arg:dst"
+      },
+      "nullable": false,
+      "mutable": true,
+      "note": "planar ? nb_channels : 1 plane pointers; each plane written for nb_samples * block_align bytes at dst_offset * block_align. Not retained. memcpy unless |dst[0] - src[0]| < data_size (offsets ignored), then memmove: copies within one buffer go through memmove only when plane 0 of dst and src coincide closely. All products are int (overflow UB for unchecked counts)."
+     }
+    },
+    {
+     "name": "src",
+     "ptr": {
+      "scalar": null,
+      "array": {
+       "by_ref": {
+        "owned": false,
+        "borrowed": {
+         "lifetime": "other"
+        }
+       }
+      },
+      "string": false,
+      "owned": false,
+      "borrowed": {
+       "lifetime": "arg:src"
+      },
+      "nullable": false,
+      "mutable": false,
+      "note": "planar ? nb_channels : 1 plane pointers read for nb_samples * block_align bytes at src_offset * block_align; may be the same array as dst (memmove path). Not retained."
+     }
+    }
+   ]
+  },
+  {
+   "name": "av_samples_fill_arrays",
+   "defined_in": "libavutil/samplefmt.c",
+   "ptr_args": [
+    {
+     "name": "audio_data",
+     "ptr": {
+      "scalar": null,
+      "array": {
+       "by_ref": {
+        "owned": false,
+        "borrowed": {
+         "lifetime": "arg:buf"
+        }
+       }
+      },
+      "string": false,
+      "owned": false,
+      "borrowed": {
+       "lifetime": "arg:audio_data"
+      },
+      "nullable": false,
+      "mutable": true,
+      "note": "Caller array of plane pointers: on success C zeroes planar ? nb_channels : 1 slots, then (buf non-NULL) sets slot i to buf + i * linesize. The elements borrow buf; the array itself is not retained. Untouched on failure."
+     }
+    },
+    {
+     "name": "buf",
+     "ptr": {
+      "scalar": null,
+      "array": {
+       "by_val": true
+      },
+      "string": false,
+      "owned": false,
+      "borrowed": {
+       "lifetime": "arg:buf"
+      },
+      "nullable": true,
+      "mutable": false,
+      "note": "Sample buffer, never dereferenced: only offset into audio_data (const cast away, so callers write through the slots). Must hold the returned size, else the plane pointers are computed past its end (pointer arithmetic UB). NULL only computes size and linesize and zeroes the slots."
+     }
+    },
+    {
+     "name": "linesize",
+     "ptr": {
+      "scalar": {
+       "by_val": true
+      },
+      "array": null,
+      "string": false,
+      "owned": false,
+      "borrowed": {
+       "lifetime": "arg:linesize"
+      },
+      "nullable": true,
+      "mutable": true,
+      "note": "Optional out-param, the av_samples_get_buffer_size linesize; written on success."
+     }
+    }
+   ]
+  },
+  {
+   "name": "av_samples_get_buffer_size",
+   "defined_in": "libavutil/samplefmt.c",
+   "ptr_args": [
+    {
+     "name": "linesize",
+     "ptr": {
+      "scalar": {
+       "by_val": true
+      },
+      "array": null,
+      "string": false,
+      "owned": false,
+      "borrowed": {
+       "lifetime": "arg:linesize"
+      },
+      "nullable": true,
+      "mutable": true,
+      "note": "Optional out-param: the aligned bytes per plane (planar) or of the single packed plane; written only on success. Validation guarantees nb_channels * nb_samples * bytes <= INT_MAX - align * nb_channels, so every later int product is in range; negative align always fails (INT_MAX / align <= 0 < nb_channels). A non-power-of-two align is accepted and FFALIGN then rounds to a non-multiple, still >= the data size. C defect: with align 0 the range check admits nb_samples == INT_MAX - 31, and FFALIGN(nb_samples, 32) computes nb_samples + 32 first (signed overflow, UBSan samplefmt.c:137); that count is already a multiple of 32, so the Rust wrappers pass align 1 for it (c_align), the same layout. Every other input is UB-free (5M-input edge fuzz under UBSan)."
+     }
+    }
+   ]
+  },
+  {
+   "name": "av_samples_set_silence",
+   "defined_in": "libavutil/samplefmt.c",
+   "ptr_args": [
+    {
+     "name": "audio_data",
+     "ptr": {
+      "scalar": null,
+      "array": {
+       "by_ref": {
+        "owned": false,
+        "borrowed": {
+         "lifetime": "other"
+        }
+       }
+      },
+      "string": false,
+      "owned": false,
+      "borrowed": {
+       "lifetime": "arg:audio_data"
+      },
+      "nullable": false,
+      "mutable": true,
+      "note": "planar ? nb_channels : 1 plane pointers; each plane memset for nb_samples * block_align bytes at offset * block_align (0x80 for U8/U8P, 0 otherwise). Not retained; int products overflow for unchecked counts."
+     }
+    }
+   ]
   },
   {
    "name": "av_sat_add32_c",
