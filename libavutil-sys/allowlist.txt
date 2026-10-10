@@ -315,3 +315,10 @@ function av_get_time_base_q
 var AV_TIME_BASE
 var AV_ESCAPE_FLAG_.*
 function av_ts_make_time_string
+
+# libavutil/samplefmt.h: C consumers of `AVSampleFormat` (formats wave 0,
+# batch 6), which observe its encoding in equivalence tests.
+function av_get_sample_fmt_name
+function av_get_sample_fmt
+function av_get_bytes_per_sample
+function av_sample_fmt_is_planar
