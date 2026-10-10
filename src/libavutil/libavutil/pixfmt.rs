@@ -317,6 +317,104 @@ impl From<ColorTransfer> for ffi::AVColorTransferCharacteristic {
 // C-side identity: a copy read out of C memory is the whole of it.
 unsafe impl CPlainElem for ColorTransfer {}
 
+/// Wraps: AVAlphaMode
+/// Handwritten
+///
+/// How a picture's alpha channel relates to its colour values.
+///
+/// A newtype over the C enum rather than a Rust `enum`: C stores the value in
+/// a public struct field its users write directly (`AVFrame.alpha_mode`), and
+/// `av_alpha_mode_from_name` returns `AVERROR(EINVAL)` typed as the enum, so
+/// it may hold any value, and a Rust view of that memory must accept every
+/// one. Match on the associated constants, with a `_` arm for the values C
+/// does not name:
+///
+/// ```
+/// use ffmpeg::libavutil::pixfmt::AlphaMode;
+/// fn needs_unpremultiply(mode: AlphaMode) -> bool {
+///     matches!(mode, AlphaMode::PREMULTIPLIED)
+/// }
+/// assert!(needs_unpremultiply(AlphaMode::PREMULTIPLIED));
+/// assert!(!needs_unpremultiply(AlphaMode::default()));
+/// ```
+///
+/// `AVALPHA_MODE_NB` is not part of FFmpeg's ABI and has no constant. The
+/// default is [`AlphaMode::UNSPECIFIED`], the zeroed C value and the one
+/// `av_frame_unref` resets a frame to.
+///
+/// No ffibox primitive covers a C enum: it owns nothing, has no handles, and
+/// is `Send + Sync` as the integer it is.
+#[repr(transparent)]
+#[derive(Clone, Copy, PartialEq, Eq, Hash)]
+pub struct AlphaMode(ffi::AVAlphaMode);
+
+impl AlphaMode {
+    /// Unknown alpha handling, or no alpha channel.
+    pub const UNSPECIFIED: Self = Self(ffi::AVAlphaMode::AVALPHA_MODE_UNSPECIFIED);
+    /// The alpha channel is multiplied into the colour values.
+    pub const PREMULTIPLIED: Self = Self(ffi::AVAlphaMode::AVALPHA_MODE_PREMULTIPLIED);
+    /// The alpha channel is independent of the colour values.
+    pub const STRAIGHT: Self = Self(ffi::AVAlphaMode::AVALPHA_MODE_STRAIGHT);
+
+    /// The alpha mode C encodes as `raw`, whatever its value.
+    #[inline]
+    pub const fn from_raw(raw: ffi::AVAlphaMode) -> Self {
+        Self(raw)
+    }
+
+    /// The C encoding of this alpha mode.
+    #[inline]
+    pub const fn into_raw(self) -> ffi::AVAlphaMode {
+        self.0
+    }
+
+    /// The name of the constant this value equals, if any.
+    const fn name(self) -> Option<&'static str> {
+        Some(match self {
+            Self::UNSPECIFIED => "UNSPECIFIED",
+            Self::PREMULTIPLIED => "PREMULTIPLIED",
+            Self::STRAIGHT => "STRAIGHT",
+            _ => return None,
+        })
+    }
+}
+
+impl Default for AlphaMode {
+    #[inline]
+    fn default() -> Self {
+        Self::UNSPECIFIED
+    }
+}
+
+impl fmt::Debug for AlphaMode {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self.name() {
+            Some(name) => f.write_str(name),
+            None => f.debug_tuple("AlphaMode").field(&self.0.0).finish(),
+        }
+    }
+}
+
+impl From<ffi::AVAlphaMode> for AlphaMode {
+    #[inline]
+    fn from(raw: ffi::AVAlphaMode) -> Self {
+        Self::from_raw(raw)
+    }
+}
+
+impl From<AlphaMode> for ffi::AVAlphaMode {
+    #[inline]
+    fn from(mode: AlphaMode) -> Self {
+        mode.into_raw()
+    }
+}
+
+// SAFETY: `AlphaMode` is `#[repr(transparent)]` over `ffi::AVAlphaMode`,
+// itself `#[repr(transparent)]` over a `c_uint`, so every bit pattern is a
+// valid value, and it is a value with no C-side identity: a copy read out of C
+// memory is the whole of it.
+unsafe impl CPlainElem for AlphaMode {}
+
 #[cfg(test)]
 mod unit_tests {
     use super::*;
@@ -477,6 +575,69 @@ mod unit_tests {
                 ffi::AVColorTransferCharacteristic::from(ColorTransfer::from_raw(c)),
                 c
             );
+        }
+    }
+
+    const ALPHA_MODE_NAMED: [(AlphaMode, &str); 3] = [
+        (AlphaMode::UNSPECIFIED, "UNSPECIFIED"),
+        (AlphaMode::PREMULTIPLIED, "PREMULTIPLIED"),
+        (AlphaMode::STRAIGHT, "STRAIGHT"),
+    ];
+
+    /// `AVALPHA_MODE_NB`, `AVERROR(EINVAL)` as C's `c_uint` and the extremes.
+    const ALPHA_MODE_UNNAMED: [c_uint; 5] = [3, 4, (-22i32) as c_uint, 1 << 31, c_uint::MAX];
+
+    #[test]
+    fn alpha_mode_layout_matches_the_c_enum() {
+        assert_eq!(size_of::<AlphaMode>(), size_of::<ffi::AVAlphaMode>());
+        assert_eq!(align_of::<AlphaMode>(), align_of::<ffi::AVAlphaMode>());
+        assert_eq!(size_of::<AlphaMode>(), size_of::<c_uint>());
+    }
+
+    #[test]
+    fn alpha_mode_constants_are_the_c_enumerators() {
+        let raw = ALPHA_MODE_NAMED.map(|(m, _)| m.into_raw().0);
+        assert_eq!(raw, [0, 1, 2]);
+        assert_eq!(ffi::AVAlphaMode::AVALPHA_MODE_NB.0, 3);
+    }
+
+    #[test]
+    fn alpha_mode_debug_names_the_constants() {
+        for (m, name) in ALPHA_MODE_NAMED {
+            assert_eq!(format!("{m:?}"), name);
+        }
+    }
+
+    #[test]
+    fn alpha_mode_debug_shows_unnamed_values_raw() {
+        for raw in ALPHA_MODE_UNNAMED {
+            let m = AlphaMode::from_raw(ffi::AVAlphaMode(raw));
+            assert_eq!(format!("{m:?}"), format!("AlphaMode({raw})"));
+        }
+    }
+
+    #[test]
+    fn alpha_mode_default_is_the_zeroed_value() {
+        assert_eq!(AlphaMode::default(), AlphaMode::UNSPECIFIED);
+        assert_eq!(AlphaMode::default().into_raw().0, 0);
+    }
+
+    #[test]
+    fn alpha_mode_raw_conversions_round_trip_every_value() {
+        let named = ALPHA_MODE_NAMED.map(|(m, _)| m.into_raw().0);
+        for raw in named.into_iter().chain(ALPHA_MODE_UNNAMED) {
+            let c = ffi::AVAlphaMode(raw);
+            assert_eq!(AlphaMode::from(c).into_raw(), c);
+            assert_eq!(ffi::AVAlphaMode::from(AlphaMode::from_raw(c)), c);
+        }
+    }
+
+    #[test]
+    fn alpha_mode_constants_are_distinct() {
+        for (i, (a, _)) in ALPHA_MODE_NAMED.iter().enumerate() {
+            for (b, _) in &ALPHA_MODE_NAMED[i + 1..] {
+                assert_ne!(a, b);
+            }
         }
     }
 }

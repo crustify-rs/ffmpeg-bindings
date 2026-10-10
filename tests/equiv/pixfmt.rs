@@ -438,3 +438,185 @@ mod color_space_and_transfer {
         }
     }
 }
+
+/// [`AlphaMode`] against `AVAlphaMode` (formats wave 0, batch 0): through
+/// `av_alpha_mode_name` and `av_alpha_mode_from_name`, and through
+/// C-allocated storage holding the values.
+mod alpha_mode {
+    use core::ffi::{CStr, c_uint, c_void};
+    use core::mem::size_of;
+
+    use ffmpeg::libavutil::ffi;
+    use ffmpeg::libavutil::mem::{HeapVec, alloc_array_zeroed};
+    use ffmpeg::libavutil::pixfmt::AlphaMode;
+
+    /// Every named alpha mode beside its C enumerator and C name.
+    const ALPHA_MODE_NAMED: [(AlphaMode, ffi::AVAlphaMode, &CStr); 3] = [
+        (
+            AlphaMode::UNSPECIFIED,
+            ffi::AVAlphaMode::AVALPHA_MODE_UNSPECIFIED,
+            c"unspecified",
+        ),
+        (
+            AlphaMode::PREMULTIPLIED,
+            ffi::AVAlphaMode::AVALPHA_MODE_PREMULTIPLIED,
+            c"premultiplied",
+        ),
+        (
+            AlphaMode::STRAIGHT,
+            ffi::AVAlphaMode::AVALPHA_MODE_STRAIGHT,
+            c"straight",
+        ),
+    ];
+
+    /// Values C may store though it names none of them: `AVALPHA_MODE_NB`,
+    /// `av_alpha_mode_from_name`'s `AVERROR(EINVAL)` and the extremes.
+    const ALPHA_MODE_UNNAMED: [c_uint; 6] = [3, 4, 255, (-22i32) as c_uint, 1 << 31, c_uint::MAX];
+
+    /// What C calls `mode`: `av_alpha_mode_name`, NULL as `None`.
+    fn c_name(mode: ffi::AVAlphaMode) -> Option<&'static CStr> {
+        // SAFETY: `av_alpha_mode_name` takes the enum by value and range-checks
+        // it before indexing.
+        let name = unsafe { ffi::av_alpha_mode_name(mode) };
+        // SAFETY: a non-NULL result is one of the static string literals in
+        // `pixdesc.c`.
+        (!name.is_null()).then(|| unsafe { CStr::from_ptr(name) })
+    }
+
+    /// The mode C parses `name` as: `av_alpha_mode_from_name`.
+    fn c_from_name(name: &CStr) -> ffi::AVAlphaMode {
+        // SAFETY: `name` is a NUL-terminated string `av_alpha_mode_from_name`
+        // only reads.
+        unsafe { ffi::av_alpha_mode_from_name(name.as_ptr()) }
+    }
+
+    /// Every alpha mode the tests compare, named first.
+    fn values() -> Vec<ffi::AVAlphaMode> {
+        ALPHA_MODE_NAMED
+            .iter()
+            .map(|&(_, c, _)| c)
+            .chain(ALPHA_MODE_UNNAMED.map(ffi::AVAlphaMode))
+            .collect()
+    }
+
+    /// A C block of `ffi::AVAlphaMode`, freed with `av_free` on drop.
+    struct CModes(*mut ffi::AVAlphaMode, usize);
+
+    impl CModes {
+        fn zeroed(len: usize) -> Self {
+            // SAFETY: `av_calloc` takes its sizes by value.
+            let ptr = unsafe { ffi::av_calloc(len, size_of::<ffi::AVAlphaMode>()) };
+            assert!(!ptr.is_null());
+            Self(ptr.cast(), len)
+        }
+
+        fn get(&self, i: usize) -> ffi::AVAlphaMode {
+            assert!(i < self.1);
+            // SAFETY: `i` is in bounds of the live, initialised block.
+            unsafe { self.0.add(i).read() }
+        }
+
+        fn set(&mut self, i: usize, mode: ffi::AVAlphaMode) {
+            assert!(i < self.1);
+            // SAFETY: `i` is in bounds of the live block, which we own.
+            unsafe { self.0.add(i).write(mode) }
+        }
+    }
+
+    impl Drop for CModes {
+        fn drop(&mut self) {
+            // SAFETY: `self.0` is a live `av_calloc` block we own.
+            unsafe { ffi::av_free(self.0.cast::<c_void>()) }
+        }
+    }
+
+    #[test]
+    fn alpha_mode_constants_are_the_c_enumerators() {
+        for (mode, c, name) in ALPHA_MODE_NAMED {
+            assert_eq!(mode.into_raw(), c);
+            assert_eq!(AlphaMode::from_raw(c), mode);
+            assert_eq!(c_name(mode.into_raw()), Some(name));
+            assert_eq!(AlphaMode::from_raw(c_from_name(name)), mode);
+        }
+        for raw in ALPHA_MODE_UNNAMED {
+            let mode = AlphaMode::from_raw(ffi::AVAlphaMode(raw));
+            assert!(ALPHA_MODE_NAMED.iter().all(|&(n, _, _)| n != mode));
+            assert_eq!(c_name(mode.into_raw()), None, "raw {raw}");
+            assert_eq!(format!("{mode:?}"), format!("AlphaMode({raw})"));
+        }
+    }
+
+    #[test]
+    fn alpha_mode_holds_c_parse_errors_unchanged() {
+        for name in [c"", c"Straight", c"premultiplied ", c"none", c"unknown"] {
+            let c = c_from_name(name);
+            let mode = AlphaMode::from(c);
+            assert_eq!(mode.into_raw(), c);
+            assert_eq!(c.0, (-22i32) as c_uint, "{name:?}");
+            assert!(ALPHA_MODE_NAMED.iter().all(|&(n, _, _)| n != mode));
+            assert_eq!(c_name(mode.into_raw()), None);
+        }
+    }
+
+    #[test]
+    fn alpha_mode_zeroed_storage_reads_as_c_zeroed_storage() {
+        const LEN: usize = 8;
+        let rust = alloc_array_zeroed::<AlphaMode>(LEN).unwrap();
+        let c = CModes::zeroed(LEN);
+        for (i, mode) in rust.as_slice().iter().enumerate() {
+            assert_eq!(mode.into_raw(), c.get(i));
+            assert_eq!(c_name(mode.into_raw()), c_name(c.get(i)));
+        }
+        // A zero-filled C frame's alpha mode is `AVALPHA_MODE_UNSPECIFIED`.
+        assert!(rust.as_slice().iter().all(|&m| m == AlphaMode::default()));
+    }
+
+    #[test]
+    fn alpha_mode_writes_through_each_side_agree_after_every_step() {
+        let values = values();
+        let len = values.len();
+        let mut rust = alloc_array_zeroed::<AlphaMode>(len).unwrap();
+        let mut c = CModes::zeroed(len);
+        for (step, &v) in values.iter().enumerate() {
+            // Each step writes slot `step` and rotates an earlier one.
+            let back = (step * 5) % len;
+            let w = values[(step + 4) % len];
+            rust.as_mut_slice()[step] = AlphaMode::from_raw(v);
+            rust.as_mut_slice()[back] = w.into();
+            c.set(step, v);
+            c.set(back, w);
+            for i in 0..len {
+                let ri = rust.as_slice()[i];
+                assert_eq!(ri.into_raw(), c.get(i), "step {step} slot {i}");
+                assert_eq!(c_name(ri.into_raw()), c_name(c.get(i)));
+            }
+        }
+        // A clone is `av_memdup`'s copy of the same encodings.
+        let copy = rust.clone();
+        drop(rust);
+        for i in 0..len {
+            assert_eq!(copy.as_slice()[i].into_raw(), c.get(i));
+        }
+    }
+
+    #[test]
+    fn alpha_mode_values_c_writes_are_read_back_unchanged() {
+        let values = values();
+        let mut c = CModes::zeroed(values.len());
+        for (i, &v) in values.iter().enumerate() {
+            c.set(i, v);
+        }
+        // The path a field accessor over C-written storage takes: adopt the C
+        // block and read it as `AlphaMode`s.
+        let (ptr, len) = (c.0, c.1);
+        core::mem::forget(c);
+        // SAFETY: `ptr` is a live `av_calloc` block of `len` initialised
+        // `ffi::AVAlphaMode`, whose ownership `forget` gave up; `AlphaMode` is
+        // layout-compatible with it, and `av_free` releases it.
+        let adopted = unsafe { HeapVec::<AlphaMode>::from_raw_parts(ptr.cast(), len) }.unwrap();
+        for (i, &v) in values.iter().enumerate() {
+            assert_eq!(adopted.as_slice()[i], AlphaMode::from_raw(v));
+            assert_eq!(c_name(adopted.as_slice()[i].into_raw()), c_name(v));
+        }
+    }
+}

@@ -2,6 +2,12 @@
  "_comment": "Authored analysis: ownership, lifecycle, refcount and locking judgements that no composer can derive, keyed to the C entities they describe. The structural half of each record (field layout, signatures, footprints, casts) is composed from the CodeQL tables on demand and merged in at read time, so a re-extract rewrites nothing here. Written only by `wavefront <repo> <target> query {types,symbols} --update`; read through wavefront.manifests. Hand-edit at your own risk: `--update` validates a submission against the composed skeleton (unknown field, wrong kind, ptr-invariant violation) and this file does not.",
  "types": [
   {
+   "name": "AVAlphaMode",
+   "defined_in": "libavutil/pixfmt.h",
+   "_comment_agent": "C enum (c_uint under bindgen), no fields, no lifecycle. Open value set: AVFrame.alpha_mode is a public field C users write directly, frame.c copies it verbatim, and av_alpha_mode_from_name returns AVERROR(EINVAL) (-22, i.e. 0xffffffea as c_uint) typed as enum AVAlphaMode; av_alpha_mode_name maps (unsigned)mode >= AVALPHA_MODE_NB to NULL. AVALPHA_MODE_NB is 'Not part of ABI'. Zero (UNSPECIFIED) is the zeroed and get_frame_defaults value. Wrapped as a transparent newtype accepting every bit pattern.",
+   "fields": []
+  },
+  {
    "name": "AVBPrint",
    "defined_in": "libavutil/bprint.h",
    "_comment_agent": "AVBPrint (FF_PAD_STRUCTURE, 1024 bytes) is caller storage initialised in place by av_bprint_init / av_bprint_init_for_buffer and torn down by av_bprint_finalize (a disposer: frees str when allocated, keeps the struct). Rust holds it behind an av_malloc block (str may point into the struct): BPrintBox = CBox<BPrint, BPrintFinalize> (finalize(NULL) + av_free) for av_bprint_init, and CBox<BPrint, BufferStorage<'b>> (av_free only, borrowing the caller buffer) for av_bprint_init_for_buffer. len/size/size_max are maintained by bprint.c; external writers only shrink len and re-terminate (avcodec.c) or commit av_bprint_get_buffer writes (pngdec.c).",
@@ -22,6 +28,12 @@
      }
     }
    ]
+  },
+  {
+   "name": "AVChannel",
+   "defined_in": "libavutil/channel_layout.h",
+   "_comment_agent": "C enum (c_int under bindgen, AV_CHAN_NONE = -1), no fields, no lifecycle. Open value set: AVChannelCustom.id is a public field; av_channel_from_string returns any non-negative strtol result for 'USR<n>' and AMBISONIC_BASE + n for 'AMBI<n>' (n in 0..=1023); av_channel_name/description name every int (AMBI%d, NONE, UNK, UNSD, USR%d). Ambisonic ACN index = id - AV_CHAN_AMBISONIC_BASE over AMBISONIC_BASE..=AMBISONIC_END. Native-order mask bit is 1ULL << id for id < 64. Wrapped as a transparent newtype accepting every bit pattern.",
+   "fields": []
   },
   {
    "name": "AVClass",
