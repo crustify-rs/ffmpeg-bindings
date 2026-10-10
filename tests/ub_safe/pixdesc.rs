@@ -227,3 +227,160 @@ mod component_descriptor {
         assert_eq!(read, FIELDS[..4]);
     }
 }
+
+/// The color property lookups by name (`ColorRange::from_name` and its
+/// siblings): empty, long, non-UTF-8 and near-miss names in exactly sized
+/// heap strings (so a read past the NUL is an ASan report), the names C's
+/// tables hold, and lookups on several threads at once.
+mod color_names {
+    use core::ffi::CStr;
+    use std::ffi::CString;
+    use std::thread;
+
+    use ffmpeg::libavutil::pixfmt::{
+        ChromaLocation, ColorPrimaries, ColorRange, ColorSpace, ColorTransfer,
+    };
+
+    /// Every name C's tables hold, each kind's names together, with the
+    /// spellings around them a lookup must refuse.
+    const RANGES: [&str; 3] = ["unknown", "tv", "pc"];
+    const PRIMARIES: [&str; 14] = [
+        "reserved",
+        "bt709",
+        "unknown",
+        "bt470m",
+        "bt470bg",
+        "smpte170m",
+        "smpte240m",
+        "film",
+        "bt2020",
+        "smpte428",
+        "smpte431",
+        "smpte432",
+        "ebu3213",
+        "vgamut",
+    ];
+    const TRANSFERS: [&str; 20] = [
+        "reserved",
+        "bt709",
+        "unknown",
+        "bt470m",
+        "bt470bg",
+        "smpte170m",
+        "smpte240m",
+        "linear",
+        "log100",
+        "log316",
+        "iec61966-2-4",
+        "bt1361e",
+        "iec61966-2-1",
+        "bt2020-10",
+        "bt2020-12",
+        "smpte2084",
+        "smpte428",
+        "arib-std-b67",
+        "vlog",
+        "unspecified",
+    ];
+    const SPACES: [&str; 18] = [
+        "gbr",
+        "bt709",
+        "unknown",
+        "reserved",
+        "fcc",
+        "bt470bg",
+        "smpte170m",
+        "smpte240m",
+        "ycgco",
+        "bt2020nc",
+        "bt2020c",
+        "smpte2085",
+        "chroma-derived-nc",
+        "chroma-derived-c",
+        "ictcp",
+        "ipt-c2",
+        "ycgco-re",
+        "ycgco-ro",
+    ];
+    const LOCATIONS: [&str; 7] = [
+        "unspecified",
+        "left",
+        "center",
+        "topleft",
+        "top",
+        "bottomleft",
+        "bottom",
+    ];
+
+    /// Whether each property's lookup finds `name`.
+    fn found(name: &CStr) -> [bool; 5] {
+        [
+            ColorRange::from_name(name).is_some(),
+            ColorPrimaries::from_name(name).is_some(),
+            ColorTransfer::from_name(name).is_some(),
+            ColorSpace::from_name(name).is_some(),
+            ChromaLocation::from_name(name).is_some(),
+        ]
+    }
+
+    /// `bytes` as an exactly sized heap C string.
+    fn heap(bytes: &[u8]) -> CString {
+        CString::new(bytes).unwrap()
+    }
+
+    #[test]
+    fn degenerate_names_are_refused() {
+        for name in [
+            &b""[..],
+            b" ",
+            b"\xff",
+            b"\x01\x02\x03",
+            b"bt709 ",
+            b"BT709",
+            b"bt70",
+            b"gbrx",
+        ] {
+            assert_eq!(found(&heap(name)), [false; 5], "{name:?}");
+        }
+        assert_eq!(found(&heap(&vec![b'b'; 1 << 16])), [false; 5]);
+        let long = [b"bt709".as_slice(), &vec![b'9'; 8192]].concat();
+        assert_eq!(found(&heap(&long)), [false; 5]);
+    }
+
+    #[test]
+    fn table_names_are_found_by_their_property() {
+        let tables: [&[&str]; 5] = [&RANGES, &PRIMARIES, &TRANSFERS[..19], &SPACES, &LOCATIONS];
+        for (i, table) in tables.into_iter().enumerate() {
+            for name in table {
+                assert!(found(&heap(name.as_bytes()))[i], "property {i}, {name}");
+            }
+        }
+        assert_eq!(found(c"unknown"), [true, true, true, true, false]);
+        assert_eq!(found(c"unspecified"), [false, false, false, false, true]);
+        assert_eq!(found(c"vgamut"), [false, true, false, false, false]);
+        assert_eq!(found(c"vlog"), [false, false, true, false, false]);
+    }
+
+    #[test]
+    fn lookups_run_on_many_threads() {
+        let names: Vec<CString> = RANGES
+            .iter()
+            .chain(&PRIMARIES)
+            .chain(&TRANSFERS)
+            .chain(&SPACES)
+            .chain(&LOCATIONS)
+            .map(|n| heap(n.as_bytes()))
+            .collect();
+        let expect: Vec<[bool; 5]> = names.iter().map(|n| found(n)).collect();
+        thread::scope(|s| {
+            for t in 0..8 {
+                let (names, expect) = (&names, &expect);
+                s.spawn(move || {
+                    for (name, e) in names.iter().zip(expect).cycle().skip(t).take(200) {
+                        assert_eq!(&found(name), e);
+                    }
+                });
+            }
+        });
+    }
+}

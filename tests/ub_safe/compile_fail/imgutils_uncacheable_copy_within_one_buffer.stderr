@@ -1,0 +1,8 @@
+error[E0502]: cannot borrow `buf` as immutable because it is also borrowed as mutable
+ --> tests/ub_safe/compile_fail/imgutils_uncacheable_copy_within_one_buffer.rs
+  |
+  |     let _ = copy_plane_from_uncacheable(&mut buf, 64, &buf, 64, 64, 2);
+  |             --------------------------- --------      ^^^^ immutable borrow occurs here
+  |             |                           |
+  |             |                           mutable borrow occurs here
+  |             mutable borrow later used by call

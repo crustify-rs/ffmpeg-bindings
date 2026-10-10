@@ -8,7 +8,12 @@
 //! does not use is all-zero, which [`ComponentDescriptor::new`] builds. A
 //! field of a wrapped C struct is reached as a [`ComponentDescriptorRef`] or
 //! [`ComponentDescriptorMut`] over the projected place.
+//!
+//! The color property lookups by name (`av_color_range_from_name` and its
+//! siblings) are associated functions of the [`pixfmt`](super::pixfmt)
+//! types they produce, such as [`ColorRange::from_name`].
 
+use core::ffi::{CStr, c_int, c_uint};
 use core::fmt;
 use core::hash::{Hash, Hasher};
 use core::ptr::{addr_of, addr_of_mut};
@@ -16,6 +21,7 @@ use core::ptr::{addr_of, addr_of_mut};
 use ffibox::{CZeroable, define_ctype};
 
 use super::ffi;
+use super::pixfmt::{ChromaLocation, ColorPrimaries, ColorRange, ColorSpace, ColorTransfer};
 
 define_ctype!(
     /// Wraps: AVComponentDescriptor
@@ -290,6 +296,77 @@ impl ComponentDescriptorMut<'_> {
     }
 }
 
+/// The value a `*_from_name` lookup returned, or `None` for the
+/// `AVERROR(EINVAL)` it returns for an unknown name.
+fn found(ret: c_int) -> Option<c_uint> {
+    c_uint::try_from(ret).ok()
+}
+
+impl ColorRange {
+    /// Wraps: av_color_range_from_name
+    ///
+    /// The color range `name` names: `unknown`, `tv` or `pc`; `None` for any
+    /// other name. Names are matched exactly, case included.
+    pub fn from_name(name: &CStr) -> Option<Self> {
+        // SAFETY: `name` is a live NUL-terminated string, which C only
+        // compares during the call.
+        let ret = unsafe { ffi::av_color_range_from_name(name.as_ptr()) };
+        found(ret).map(|raw| Self::from_raw(ffi::AVColorRange(raw)))
+    }
+}
+
+impl ColorPrimaries {
+    /// Wraps: av_color_primaries_from_name
+    ///
+    /// The color primaries `name` names, such as `bt709` or `vgamut`; `None`
+    /// for any other name. Names are matched exactly, case included; the
+    /// `reserved` name shared by two values yields the first,
+    /// [`RESERVED0`](Self::RESERVED0).
+    pub fn from_name(name: &CStr) -> Option<Self> {
+        // SAFETY: as in `ColorRange::from_name`.
+        let ret = unsafe { ffi::av_color_primaries_from_name(name.as_ptr()) };
+        found(ret).map(|raw| Self::from_raw(ffi::AVColorPrimaries(raw)))
+    }
+}
+
+impl ColorTransfer {
+    /// Wraps: av_color_transfer_from_name
+    ///
+    /// The transfer characteristic `name` names, such as `bt709`,
+    /// `smpte2084` or `vlog`; `None` for any other name. Names are matched
+    /// exactly, case included; the `reserved` name shared by two values
+    /// yields the first, [`RESERVED0`](Self::RESERVED0).
+    pub fn from_name(name: &CStr) -> Option<Self> {
+        // SAFETY: as in `ColorRange::from_name`.
+        let ret = unsafe { ffi::av_color_transfer_from_name(name.as_ptr()) };
+        found(ret).map(|raw| Self::from_raw(ffi::AVColorTransferCharacteristic(raw)))
+    }
+}
+
+impl ColorSpace {
+    /// Wraps: av_color_space_from_name
+    ///
+    /// The color space `name` names, such as `gbr` or `bt709`; `None` for any
+    /// other name. Names are matched exactly, case included.
+    pub fn from_name(name: &CStr) -> Option<Self> {
+        // SAFETY: as in `ColorRange::from_name`.
+        let ret = unsafe { ffi::av_color_space_from_name(name.as_ptr()) };
+        found(ret).map(|raw| Self::from_raw(ffi::AVColorSpace(raw)))
+    }
+}
+
+impl ChromaLocation {
+    /// Wraps: av_chroma_location_from_name
+    ///
+    /// The chroma location `name` names, such as `left` or `center`; `None`
+    /// for any other name. Names are matched exactly, case included.
+    pub fn from_name(name: &CStr) -> Option<Self> {
+        // SAFETY: as in `ColorRange::from_name`.
+        let ret = unsafe { ffi::av_chroma_location_from_name(name.as_ptr()) };
+        found(ret).map(|raw| Self::from_raw(ffi::AVChromaLocation(raw)))
+    }
+}
+
 #[cfg(test)]
 mod unit_tests {
     use std::collections::hash_map::DefaultHasher;
@@ -388,5 +465,33 @@ mod unit_tests {
         d.as_mut().set_depth(9);
         assert_eq!(copy.as_ref().fields(), [1, 1, 1, 1, 1]);
         assert_eq!(d.as_ref().fields(), [1, 1, 1, 1, 9]);
+    }
+
+    #[test]
+    fn from_name_reads_c_errors_as_not_found() {
+        assert_eq!(found(0), Some(0));
+        assert_eq!(found(256), Some(256));
+        assert_eq!(found(-(ffi::EINVAL as c_int)), None);
+        assert_eq!(found(c_int::MIN), None);
+    }
+
+    #[test]
+    fn from_name_finds_each_property() {
+        assert_eq!(ColorRange::from_name(c"pc"), Some(ColorRange::JPEG));
+        assert_eq!(
+            ColorPrimaries::from_name(c"bt2020"),
+            Some(ColorPrimaries::BT2020)
+        );
+        assert_eq!(
+            ColorTransfer::from_name(c"smpte2084"),
+            Some(ColorTransfer::SMPTE2084)
+        );
+        assert_eq!(ColorSpace::from_name(c"gbr"), Some(ColorSpace::RGB));
+        assert_eq!(
+            ChromaLocation::from_name(c"topleft"),
+            Some(ChromaLocation::TOPLEFT)
+        );
+        assert_eq!(ColorRange::from_name(c"PC"), None);
+        assert_eq!(ChromaLocation::from_name(c""), None);
     }
 }

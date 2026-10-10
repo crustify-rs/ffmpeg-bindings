@@ -1,0 +1,10 @@
+error[E0502]: cannot borrow `buf` as immutable because it is also borrowed as mutable
+ --> tests/ub_safe/compile_fail/imgutils_copy_plane_within_one_buffer.rs
+  |
+  |     let _ = copy_plane(&mut buf[..32], 8, &buf[16..], 8, 8, 2);
+  |             ----------      ---            ^^^ immutable borrow occurs here
+  |             |               |
+  |             |               mutable borrow occurs here
+  |             mutable borrow later used by call
+  |
+  = help: use `.split_at_mut(position)` to obtain two mutable non-overlapping sub-slices

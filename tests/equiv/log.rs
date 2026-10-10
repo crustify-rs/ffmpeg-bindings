@@ -857,12 +857,12 @@ mod item_name {
     }
 }
 
-/// Serializes the tests here that touch the process-wide log callback, level
+/// Serializes the tests here (and in `imgutils`) that touch the process-wide log callback, level
 /// or flags; restores the defaults when dropped.
-struct LogState(#[allow(dead_code)] MutexGuard<'static, ()>);
+pub(crate) struct LogState(#[allow(dead_code)] MutexGuard<'static, ()>);
 
 impl LogState {
-    fn lock() -> Self {
+    pub(crate) fn lock() -> Self {
         static LOCK: Mutex<()> = Mutex::new(());
         Self(LOCK.lock().unwrap_or_else(PoisonError::into_inner))
     }

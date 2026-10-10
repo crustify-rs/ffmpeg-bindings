@@ -201,3 +201,218 @@ mod component_descriptor {
         assert!(observed_reads > 500, "{observed_reads}");
     }
 }
+
+/// The color property lookups by name (`ColorRange::from_name` and its
+/// siblings) against `av_color_range_from_name` and its siblings: every name
+/// in C's tables, each looked up as every property, and the near misses
+/// around them, in repeated sequences.
+mod color_names {
+    use core::ffi::{CStr, c_char, c_int};
+    use std::ffi::CString;
+
+    use ffmpeg::libavutil::ffi;
+    use ffmpeg::libavutil::pixfmt::{
+        ChromaLocation, ColorPrimaries, ColorRange, ColorSpace, ColorTransfer,
+    };
+
+    /// Every name C's tables hold, each kind's names together, with the
+    /// spellings around them a lookup must refuse.
+    const RANGES: [&str; 3] = ["unknown", "tv", "pc"];
+    const PRIMARIES: [&str; 14] = [
+        "reserved",
+        "bt709",
+        "unknown",
+        "bt470m",
+        "bt470bg",
+        "smpte170m",
+        "smpte240m",
+        "film",
+        "bt2020",
+        "smpte428",
+        "smpte431",
+        "smpte432",
+        "ebu3213",
+        "vgamut",
+    ];
+    const TRANSFERS: [&str; 20] = [
+        "reserved",
+        "bt709",
+        "unknown",
+        "bt470m",
+        "bt470bg",
+        "smpte170m",
+        "smpte240m",
+        "linear",
+        "log100",
+        "log316",
+        "iec61966-2-4",
+        "bt1361e",
+        "iec61966-2-1",
+        "bt2020-10",
+        "bt2020-12",
+        "smpte2084",
+        "smpte428",
+        "arib-std-b67",
+        "vlog",
+        "unspecified",
+    ];
+    const SPACES: [&str; 18] = [
+        "gbr",
+        "bt709",
+        "unknown",
+        "reserved",
+        "fcc",
+        "bt470bg",
+        "smpte170m",
+        "smpte240m",
+        "ycgco",
+        "bt2020nc",
+        "bt2020c",
+        "smpte2085",
+        "chroma-derived-nc",
+        "chroma-derived-c",
+        "ictcp",
+        "ipt-c2",
+        "ycgco-re",
+        "ycgco-ro",
+    ];
+    const LOCATIONS: [&str; 7] = [
+        "unspecified",
+        "left",
+        "center",
+        "topleft",
+        "top",
+        "bottomleft",
+        "bottom",
+    ];
+
+    /// Every table name and the spellings around it: case, padding, prefixes,
+    /// suffixes, truncations, the empty name, bytes past ASCII and a long name.
+    fn candidates() -> Vec<CString> {
+        let mut names: Vec<Vec<u8>> = vec![
+            b"".to_vec(),
+            b" ".to_vec(),
+            b"\xff\xfe".to_vec(),
+            vec![b'a'; 4096],
+        ];
+        for name in RANGES
+            .iter()
+            .chain(&PRIMARIES)
+            .chain(&TRANSFERS)
+            .chain(&SPACES)
+            .chain(&LOCATIONS)
+        {
+            let n = name.as_bytes();
+            names.push(n.to_vec());
+            names.push(name.to_uppercase().into_bytes());
+            names.push([n, b" "].concat());
+            names.push([b" ", n].concat());
+            names.push([n, b"x"].concat());
+            names.push(n[..n.len() - 1].to_vec());
+            names.push([n, b"\xc3\xa9"].concat());
+        }
+        names
+            .into_iter()
+            .map(|n| CString::new(n).unwrap())
+            .collect()
+    }
+
+    /// A C lookup's result as the Rust one reports it: `None` for its
+    /// `AVERROR(EINVAL)`.
+    fn c_lookup(f: unsafe extern "C" fn(*const c_char) -> c_int, name: &CStr) -> Option<u32> {
+        // SAFETY: `name` is a live NUL-terminated string, only read.
+        let ret = unsafe { f(name.as_ptr()) };
+        if ret < 0 {
+            assert_eq!(ret, -22, "{name:?}");
+            None
+        } else {
+            Some(ret as u32)
+        }
+    }
+
+    /// Every property's lookup of `name`, Rust's and C's.
+    fn lookups(name: &CStr) -> [(Option<u32>, Option<u32>); 5] {
+        [
+            (
+                ColorRange::from_name(name).map(|v| v.into_raw().0),
+                c_lookup(ffi::av_color_range_from_name, name),
+            ),
+            (
+                ColorPrimaries::from_name(name).map(|v| v.into_raw().0),
+                c_lookup(ffi::av_color_primaries_from_name, name),
+            ),
+            (
+                ColorTransfer::from_name(name).map(|v| v.into_raw().0),
+                c_lookup(ffi::av_color_transfer_from_name, name),
+            ),
+            (
+                ColorSpace::from_name(name).map(|v| v.into_raw().0),
+                c_lookup(ffi::av_color_space_from_name, name),
+            ),
+            (
+                ChromaLocation::from_name(name).map(|v| v.into_raw().0),
+                c_lookup(ffi::av_chroma_location_from_name, name),
+            ),
+        ]
+    }
+
+    #[test]
+    fn lookups_match_c_for_every_candidate() {
+        for name in candidates() {
+            for (i, (rust, c)) in lookups(&name).into_iter().enumerate() {
+                assert_eq!(rust, c, "property {i}, {name:?}");
+            }
+        }
+    }
+
+    #[test]
+    fn every_table_name_is_found() {
+        let tables: [&[&str]; 5] = [&RANGES, &PRIMARIES, &TRANSFERS[..19], &SPACES, &LOCATIONS];
+        for (i, table) in tables.into_iter().enumerate() {
+            for name in table {
+                let name = CString::new(*name).unwrap();
+                let (rust, c) = lookups(&name)[i];
+                assert!(rust.is_some(), "property {i}, {name:?}");
+                assert_eq!(rust, c);
+            }
+        }
+        // C's tables name no transfer `unspecified`.
+        assert_eq!(lookups(c"unspecified")[2], (None, None));
+    }
+
+    #[test]
+    fn repeated_interleaved_lookups_match_c() {
+        let names = candidates();
+        let first: Vec<_> = names.iter().map(|n| lookups(n)).collect();
+        for round in 0..3 {
+            for (name, expect) in names.iter().zip(&first).rev().step_by(round + 1) {
+                assert_eq!(&lookups(name), expect, "round {round}, {name:?}");
+            }
+        }
+    }
+
+    #[test]
+    fn shared_names_resolve_as_c_does() {
+        // `reserved` names two primaries and two transfers: both sides take the
+        // first, value 0.
+        assert_eq!(lookups(c"reserved")[1], (Some(0), Some(0)));
+        assert_eq!(lookups(c"reserved")[2], (Some(0), Some(0)));
+        assert_eq!(
+            ColorPrimaries::from_name(c"reserved"),
+            Some(ColorPrimaries::RESERVED0)
+        );
+        assert_eq!(
+            ColorTransfer::from_name(c"reserved"),
+            Some(ColorTransfer::RESERVED0)
+        );
+        // The extended ranges start past the plain ones.
+        assert_eq!(
+            lookups(c"vgamut")[1].0,
+            Some(ffi::AVColorPrimaries::AVCOL_PRI_V_GAMUT.0)
+        );
+        assert_eq!(
+            lookups(c"vlog")[2].0,
+            Some(ffi::AVColorTransferCharacteristic::AVCOL_TRC_V_LOG.0)
+        );
+    }
+}
