@@ -36,6 +36,10 @@ use super::ffi;
 /// Values order as C compares them: the native channel order is the order of
 /// the ids.
 ///
+/// The default is [`NONE`](Self::NONE), the value C returns for a channel it
+/// cannot name (`av_channel_from_string`) or index
+/// (`av_channel_layout_channel_from_index`).
+///
 /// No ffibox primitive covers a C enum: it owns nothing, has no handles, and
 /// is `Send + Sync` as the integer it is.
 #[repr(transparent)]
@@ -211,6 +215,13 @@ impl Channel {
     }
 }
 
+impl Default for Channel {
+    #[inline]
+    fn default() -> Self {
+        Self::NONE
+    }
+}
+
 /// Named constants print their name, Ambisonic components
 /// `AMBISONIC(<acn>)`, and every other value `Channel(<id>)`.
 impl fmt::Debug for Channel {
@@ -289,6 +300,11 @@ unsafe impl CPlainElem for Channel {}
 /// assert!(!is_dolby(MatrixEncoding::NONE));
 /// ```
 ///
+/// `AV_MATRIX_ENCODING_NB` is a count, not an encoding, and has no constant
+/// of its own: see [`COUNT`](Self::COUNT). The default is
+/// [`NONE`](Self::NONE), the zeroed C value and the default of
+/// libswresample's `matrix_encoding` option.
+///
 /// No ffibox primitive covers a C enum: it owns nothing, has no handles, and
 /// is `Send + Sync` as the integer it is.
 #[repr(transparent)]
@@ -349,6 +365,13 @@ impl MatrixEncoding {
             Self::DOLBY_HEADPHONE => "DOLBY_HEADPHONE",
             _ => return None,
         })
+    }
+}
+
+impl Default for MatrixEncoding {
+    #[inline]
+    fn default() -> Self {
+        Self::NONE
     }
 }
 
@@ -661,6 +684,14 @@ mod unit_tests {
         }
     }
 
+    #[test]
+    fn channel_default_is_none() {
+        assert_eq!(Channel::default(), Channel::NONE);
+        assert_eq!(Channel::default().into_raw().0, -1);
+        assert_eq!(Channel::default().ambisonic_index(), None);
+        assert_eq!(format!("{:?}", Channel::default()), "NONE");
+    }
+
     const MATRIX_ENCODING_NAMED: [MatrixEncoding; 7] = [
         MatrixEncoding::NONE,
         MatrixEncoding::DOLBY,
@@ -708,6 +739,14 @@ mod unit_tests {
             assert_eq!(MatrixEncoding::from(raw), e);
             assert_eq!(e.into_raw(), raw);
         }
+    }
+
+    #[test]
+    fn matrix_encoding_default_is_none_the_zeroed_value() {
+        assert_eq!(MatrixEncoding::default(), MatrixEncoding::NONE);
+        assert_eq!(MatrixEncoding::default().into_raw().0, 0);
+        assert_eq!(MatrixEncoding::default().index(), Some(0));
+        assert_eq!(format!("{:?}", MatrixEncoding::default()), "NONE");
     }
 
     const CHANNEL_ORDER_NAMED: [(ChannelOrder, &str); 4] = [

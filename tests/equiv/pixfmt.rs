@@ -1748,3 +1748,69 @@ mod chroma_location {
         }
     }
 }
+
+/// The `Default` of every `pixfmt.h` type a frame stores against the values
+/// `av_frame_alloc` (`get_frame_defaults`) writes into a fresh `AVFrame`
+/// (formats wave 0 review): the colour properties, the alpha mode, and the
+/// `-1` the shared `format` field holds for [`PixelFormat::NONE`].
+mod frame_defaults {
+    use core::ptr::addr_of;
+
+    use ffmpeg::libavutil::ffi;
+    use ffmpeg::libavutil::pixfmt::{
+        AlphaMode, ChromaLocation, ColorPrimaries, ColorRange, ColorSpace, ColorTransfer,
+        PixelFormat,
+    };
+
+    /// Each default's C encoding in a fresh frame, in the field order of
+    /// `AVFrame`.
+    #[derive(Debug, PartialEq)]
+    struct FrameDefaults {
+        format: i32,
+        color_primaries: ffi::AVColorPrimaries,
+        color_trc: ffi::AVColorTransferCharacteristic,
+        colorspace: ffi::AVColorSpace,
+        color_range: ffi::AVColorRange,
+        chroma_location: ffi::AVChromaLocation,
+        alpha_mode: ffi::AVAlphaMode,
+    }
+
+    fn c_fresh_frame() -> FrameDefaults {
+        // SAFETY: no arguments; NULL on failure, checked below.
+        let mut f = unsafe { ffi::av_frame_alloc() };
+        assert!(!f.is_null());
+        // SAFETY: `f` is a live frame `av_frame_alloc` initialised; every
+        // field is read in place as its own type, and `av_frame_free` then
+        // releases the frame and NULLs the slot.
+        unsafe {
+            let d = FrameDefaults {
+                format: addr_of!((*f).format).read(),
+                color_primaries: addr_of!((*f).color_primaries).read(),
+                color_trc: addr_of!((*f).color_trc).read(),
+                colorspace: addr_of!((*f).colorspace).read(),
+                color_range: addr_of!((*f).color_range).read(),
+                chroma_location: addr_of!((*f).chroma_location).read(),
+                alpha_mode: addr_of!((*f).alpha_mode).read(),
+            };
+            ffi::av_frame_free(&mut f);
+            d
+        }
+    }
+
+    #[test]
+    fn every_default_is_what_c_writes_into_a_fresh_frame() {
+        let rust = FrameDefaults {
+            format: PixelFormat::default().into_raw().0,
+            color_primaries: ColorPrimaries::default().into_raw(),
+            color_trc: ColorTransfer::default().into_raw(),
+            colorspace: ColorSpace::default().into_raw(),
+            color_range: ColorRange::default().into_raw(),
+            chroma_location: ChromaLocation::default().into_raw(),
+            alpha_mode: AlphaMode::default().into_raw(),
+        };
+        // Two frames: the defaults are the same for every frame C allocates.
+        assert_eq!(rust, c_fresh_frame());
+        assert_eq!(rust, c_fresh_frame());
+        assert_eq!(PixelFormat::default(), PixelFormat::NONE);
+    }
+}

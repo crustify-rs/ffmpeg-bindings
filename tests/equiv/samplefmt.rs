@@ -322,3 +322,31 @@ fn clone_copies_the_c_encoding() {
     assert_eq!(rust_as_c(&copy), c_values(&c));
     assert_eq!(rust_as_c(&rust), rust_as_c(&copy));
 }
+
+#[test]
+fn default_is_the_format_c_gives_a_fresh_frame() {
+    // `av_frame_alloc` writes `-1` into the `format` an audio frame reads
+    // as its sample format: `AV_SAMPLE_FMT_NONE`.
+    // SAFETY: no arguments; NULL on failure, checked below.
+    let mut f = unsafe { ffi::av_frame_alloc() };
+    assert!(!f.is_null());
+    // SAFETY: `f` is a live frame `av_frame_alloc` initialised; `format` is
+    // read in place, and `av_frame_free` then releases the frame and NULLs
+    // the slot.
+    let format = unsafe {
+        let format = core::ptr::addr_of!((*f).format).read();
+        ffi::av_frame_free(&mut f);
+        format
+    };
+    assert_eq!(SampleFormat::default().into_raw().0, format);
+    assert_eq!(
+        SampleFormat::from_raw(ffi::AVSampleFormat(format)),
+        SampleFormat::default()
+    );
+    assert_eq!(c_name(SampleFormat::default().into_raw()), None);
+    // ... and what C parses an unknown name as.
+    assert_eq!(
+        SampleFormat::from_raw(c_parse(c"no-such")),
+        SampleFormat::default()
+    );
+}

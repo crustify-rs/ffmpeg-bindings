@@ -459,6 +459,10 @@ unsafe impl CPlainElem for AlphaMode {}
 /// between library versions, and the header warns against using it with a
 /// shared libavutil.
 ///
+/// The default is [`NONE`](Self::NONE), the value C gives an unset format:
+/// `av_frame_alloc` writes it (as `-1`) into `AVFrame.format`, and it is the
+/// default of `AVCodecContext.pix_fmt`.
+///
 /// No ffibox primitive covers a C enum: it owns nothing, has no handles, and
 /// is `Send + Sync` as the integer it is.
 #[repr(transparent)]
@@ -1494,6 +1498,13 @@ impl PixelFormat {
     pub const RGBA128: Self = native_endian(Self::RGBA128BE, Self::RGBA128LE);
 }
 
+impl Default for PixelFormat {
+    #[inline]
+    fn default() -> Self {
+        Self::NONE
+    }
+}
+
 impl fmt::Debug for PixelFormat {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self.name() {
@@ -2215,6 +2226,13 @@ mod unit_tests {
             assert_eq!(PixelFormat::from(c).into_raw(), c);
             assert_eq!(ffi::AVPixelFormat::from(PixelFormat::from_raw(c)), c);
         }
+    }
+
+    #[test]
+    fn pixel_format_default_is_none() {
+        assert_eq!(PixelFormat::default(), PixelFormat::NONE);
+        assert_eq!(PixelFormat::default().into_raw().0, -1);
+        assert_eq!(format!("{:?}", PixelFormat::default()), "NONE");
     }
 
     /// Every named primaries value with its `Debug` name, aliases folded.
