@@ -1,0 +1,11 @@
+error[E0597]: `v` does not live long enough
+ --> tests/ub_safe/compile_fail/csp_cie_xy_coordinate_outlives_value.rs
+  |
+  |     let x = {
+  |         - borrow later stored here
+  |         let v = CieXy::default();
+  |             - binding `v` declared here
+  |         v.as_ref().x()
+  |         ^ borrowed value does not live long enough
+  |     };
+  |     - `v` dropped here while still borrowed

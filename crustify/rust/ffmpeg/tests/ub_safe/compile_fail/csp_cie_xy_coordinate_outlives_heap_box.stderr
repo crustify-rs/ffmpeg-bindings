@@ -1,0 +1,16 @@
+error[E0505]: cannot move out of `boxed` because it is borrowed
+ --> tests/ub_safe/compile_fail/csp_cie_xy_coordinate_outlives_heap_box.rs
+  |
+  |     let boxed = HeapBox::<CieXy>::new_zeroed().unwrap();
+  |         ----- binding `boxed` declared here
+  |     let y = boxed.as_ref().y();
+  |             ----- borrow of `boxed` occurs here
+  |     drop(boxed);
+  |          ^^^^^ move out of `boxed` occurs here
+  |     println!("{}", y.den());
+  |                    - borrow later used here
+  |
+help: consider cloning the value if the performance cost is acceptable
+  |
+8 |     let y = boxed.clone().as_ref().y();
+  |                  ++++++++

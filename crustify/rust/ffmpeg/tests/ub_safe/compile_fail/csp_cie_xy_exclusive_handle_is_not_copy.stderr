@@ -1,0 +1,10 @@
+error[E0382]: borrow of moved value: `a`
+ --> tests/ub_safe/compile_fail/csp_cie_xy_exclusive_handle_is_not_copy.rs
+  |
+  |     let mut a = v.as_mut();
+  |         ----- move occurs because `a` has type `CieXyMut<'_>`, which does not implement the `Copy` trait
+  |     let mut b = a;
+  |                 - value moved here
+  |     b.set_x(Rational::new(1, 2));
+  |     a.set_y(Rational::new(1, 3));
+  |     ^ value borrowed here after move

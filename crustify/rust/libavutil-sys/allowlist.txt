@@ -394,3 +394,9 @@ function av_csp_trc_func_inv_from_id
 function av_csp_itu_eotf
 function av_csp_itu_eotf_inv
 function av_pixelutils_get_sad_fn
+
+# libavutil/csp.h: the C producer and reader of the `AVCIExy` coordinates in
+# its gamut descriptions (formats wave 1, batch 0), the equivalence reference
+# for csp.rs's CieXy.
+function av_csp_primaries_desc_from_id
+function av_csp_primaries_id_from_desc

@@ -8,6 +8,7 @@ mod bswap;
 mod channel_layout;
 mod common;
 mod cpu;
+mod csp;
 mod error;
 mod file;
 mod imgutils;
