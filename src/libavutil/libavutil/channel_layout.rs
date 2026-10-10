@@ -1,8 +1,10 @@
 //! Safe wrappers over `libavutil/channel_layout.h`.
 
+use core::ffi::{CStr, c_char, c_void};
+use core::ptr::{addr_of, addr_of_mut};
 use core::{cmp, fmt};
 
-use ffibox::CPlainElem;
+use ffibox::{CPlainElem, CZeroable, define_ctype};
 
 use super::ffi;
 
@@ -509,10 +511,375 @@ impl From<ChannelOrder> for ffi::AVChannelOrder {
 // memory is the whole of it.
 unsafe impl CPlainElem for ChannelOrder {}
 
+define_ctype!(
+    /// Wraps: AVChannelCustom
+    ///
+    /// One channel of a custom-order channel layout: its id, an optional
+    /// name, and an untyped user pointer. Its getters are on
+    /// [`ChannelCustomRef`] (`as_ref()`), its setters on
+    /// [`ChannelCustomMut`] (`as_mut()`).
+    ///
+    /// C keeps these in the array a custom-order `AVChannelLayout` owns
+    /// (`u.map`), which `av_channel_layout_custom_init` and
+    /// `av_channel_layout_from_string` allocate with `av_calloc`,
+    /// `av_channel_layout_copy` duplicates byte for byte, and
+    /// `av_channel_layout_uninit` frees with `av_freep`; nothing allocates,
+    /// frees or clones one on its own, so it is a value type with no owner.
+    /// An element of such an array is reached as a [`ChannelCustomRef`] or
+    /// [`ChannelCustomMut`] over the element, and a Rust-held value is a
+    /// `ChannelCustom`, copied in and out with [`from_raw`](Self::from_raw)
+    /// and [`into_raw`](Self::into_raw).
+    #[derive(Clone, Copy)]
+    ChannelCustom,
+    ChannelCustomRef,
+    ChannelCustomMut,
+    ffi::AVChannelCustom
+);
+
+// SAFETY: all-zero is `FRONT_LEFT`, an empty name and a NULL `opaque`: the
+// `AVChannelCustom custom = {0}` that `av_channel_layout_from_string` starts
+// each channel from, and the element `av_calloc` gives
+// `av_channel_layout_custom_init` before it sets the id. Every accessor takes
+// any id, reads the name within its 16 bytes, and never dereferences
+// `opaque`; the type has no teardown to reject it.
+unsafe impl CZeroable for ChannelCustom {}
+
+// SAFETY: an `AVChannelCustom` is plain data: an `int`, 16 `char`s and a
+// pointer that neither FFmpeg (no C path reads, writes through or frees it)
+// nor this crate dereferences, so a value, or an exclusive handle to one,
+// moves between threads as an `(i32, [u8; 16], usize)` does; whoever
+// dereferences the pointer does so in their own `unsafe` code, on their own
+// terms.
+unsafe impl Send for ChannelCustom {}
+// SAFETY: as for `ChannelCustom`: the handle is the only access to the
+// fields.
+unsafe impl Send for ChannelCustomMut<'_> {}
+
+// SAFETY: nothing reachable through a shared handle writes:
+// `ChannelCustomRef` has getters only, which copy the fields out, and the
+// struct has no interior mutability, so concurrent shared access reads
+// unchanging bytes.
+unsafe impl Sync for ChannelCustom {}
+// SAFETY: as for `Sync for ChannelCustom`: copies of a shared handle only
+// read.
+unsafe impl Send for ChannelCustomRef<'_> {}
+// SAFETY: as above.
+unsafe impl Sync for ChannelCustomRef<'_> {}
+// SAFETY: `&ChannelCustomMut` reaches the fields only through `as_ref`, a
+// shared handle; the setters need `&mut`.
+unsafe impl Sync for ChannelCustomMut<'_> {}
+
+impl ChannelCustom {
+    /// The channel `id`, with no name and a NULL user pointer.
+    #[inline]
+    #[must_use]
+    pub fn new(id: Channel) -> Self {
+        let mut ch = Self::zeroed();
+        ch.as_mut().set_id(id);
+        ch
+    }
+
+    /// The channel C encodes as `raw`, whatever its fields.
+    #[inline]
+    #[must_use]
+    pub const fn from_raw(raw: ffi::AVChannelCustom) -> Self {
+        Self(raw, core::marker::PhantomData)
+    }
+
+    /// The C encoding of this channel, for storing it in a channel map by
+    /// value.
+    #[inline]
+    #[must_use]
+    pub const fn into_raw(self) -> ffi::AVChannelCustom {
+        self.0
+    }
+}
+
+/// [`Channel::UNKNOWN`] with no name and a NULL user pointer: what
+/// `av_channel_layout_custom_init` fills a new map with.
+impl Default for ChannelCustom {
+    #[inline]
+    fn default() -> Self {
+        Self::new(Channel::UNKNOWN)
+    }
+}
+
+impl From<ffi::AVChannelCustom> for ChannelCustom {
+    #[inline]
+    fn from(raw: ffi::AVChannelCustom) -> Self {
+        Self::from_raw(raw)
+    }
+}
+
+impl From<ChannelCustom> for ffi::AVChannelCustom {
+    #[inline]
+    fn from(ch: ChannelCustom) -> Self {
+        ch.into_raw()
+    }
+}
+
+/// Field by field, as C observes them: the id, the name up to its NUL, and
+/// the user pointer's address.
+impl PartialEq for ChannelCustom {
+    fn eq(&self, other: &Self) -> bool {
+        let (a, b) = (self.as_ref(), other.as_ref());
+        a.id() == b.id() && a.name() == b.name() && a.opaque() == b.opaque()
+    }
+}
+
+impl Eq for ChannelCustom {}
+
+impl fmt::Debug for ChannelCustom {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        self.as_ref().fmt(f)
+    }
+}
+
+impl fmt::Debug for ChannelCustomRef<'_> {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.debug_struct("ChannelCustom")
+            .field("id", &self.id())
+            .field("name", &self.name())
+            .field("opaque", &self.opaque())
+            .finish()
+    }
+}
+
+impl ChannelCustomRef<'_> {
+    /// Field: AVChannelCustom.id
+    ///
+    /// The channel's id: any value, user-defined ids included.
+    #[must_use]
+    pub fn id(&self) -> Channel {
+        // SAFETY: a read of the `id` field projected through the shared
+        // handle's pointer to a live, initialised `AVChannelCustom`; `Channel`
+        // accepts every `int` C may store there.
+        Channel::from_raw(unsafe { addr_of!((*self.as_ptr()).id).read() })
+    }
+
+    /// Field: AVChannelCustom.name
+    ///
+    /// A copy of the channel's name, empty when it has none: the bytes before
+    /// the first NUL of the 16-byte field. A field with no NUL, which only a
+    /// raw write can leave and C's readers would read past, reads as all 16
+    /// bytes.
+    #[must_use]
+    pub fn name(&self) -> ChannelName {
+        // SAFETY: a read of the 16-`char` `name` array projected through the
+        // shared handle's pointer to a live, initialised `AVChannelCustom`;
+        // every bit pattern is a valid `c_char`, and the copy reads no byte
+        // outside the field.
+        ChannelName::from_field(unsafe { addr_of!((*self.as_ptr()).name).read() })
+    }
+
+    /// Field: AVChannelCustom.opaque
+    ///
+    /// The user pointer, NULL unless a user stored one. FFmpeg never reads
+    /// what it points at, never frees it, and copies the address as is when
+    /// it copies the layout (`av_channel_layout_copy`), so what it points at
+    /// and how long that lives are the user's alone: it is handed back as the
+    /// raw cookie it is, and dereferencing it is the caller's `unsafe`
+    /// business.
+    #[must_use]
+    pub fn opaque(&self) -> *mut c_void {
+        // SAFETY: a read of the `opaque` field projected through the shared
+        // handle's pointer to a live, initialised `AVChannelCustom`; the
+        // pointer is copied, not dereferenced.
+        unsafe { addr_of!((*self.as_ptr()).opaque).read() }
+    }
+
+    /// A copy of the whole channel, independent of the place it was read
+    /// from; the user pointer is copied, not what it points at, as
+    /// `av_channel_layout_copy` does.
+    #[must_use]
+    pub fn get(&self) -> ChannelCustom {
+        // SAFETY: a read of the whole live, initialised `AVChannelCustom`
+        // through the shared handle's pointer; it owns nothing, so the byte
+        // copy is a complete, independent value.
+        ChannelCustom::from_raw(unsafe { self.as_ptr().read() })
+    }
+}
+
+impl ChannelCustomMut<'_> {
+    /// Field: AVChannelCustom.id
+    ///
+    /// Sets the channel's id, which C stores as given.
+    pub fn set_id(&mut self, id: Channel) {
+        // SAFETY: a write of the `id` field projected through the exclusive
+        // handle's pointer to a live `AVChannelCustom`; the old value owns
+        // nothing to leak.
+        unsafe { addr_of_mut!((*self.as_mut_ptr()).id).write(id.into_raw()) }
+    }
+
+    /// Field: AVChannelCustom.name
+    ///
+    /// Sets the channel's name to `name` if it fits the field with its NUL
+    /// (at most [`ChannelName::MAX_LEN`] bytes); otherwise leaves the name as
+    /// it was and returns the error. An empty name clears it.
+    pub fn set_name(&mut self, name: &CStr) -> Result<(), NameTooLong> {
+        let len = name.to_bytes().len();
+        if len > ChannelName::MAX_LEN {
+            return Err(NameTooLong { len });
+        }
+        self.write_name(name.to_bytes());
+        Ok(())
+    }
+
+    /// Field: AVChannelCustom.name
+    ///
+    /// Sets the channel's name to the first [`ChannelName::MAX_LEN`] bytes of
+    /// `name`, as `av_channel_layout_from_string` stores a parsed name
+    /// (`av_strlcpy`): the bytes and a NUL are written, and the field's bytes
+    /// after them are left as they were. Returns whether `name` fit whole.
+    pub fn set_name_truncated(&mut self, name: &CStr) -> bool {
+        let bytes = name.to_bytes();
+        let kept = &bytes[..bytes.len().min(ChannelName::MAX_LEN)];
+        self.write_name(kept);
+        kept.len() == bytes.len()
+    }
+
+    /// Writes `bytes`, which hold no NUL and fit with one, and a NUL to the
+    /// start of the `name` field.
+    fn write_name(&mut self, bytes: &[u8]) {
+        debug_assert!(bytes.len() <= ChannelName::MAX_LEN);
+        let len = bytes.len().min(ChannelName::MAX_LEN);
+        // SAFETY: projects the `name` field through the exclusive handle's
+        // pointer to a live `AVChannelCustom`, without forming a reference.
+        let field = unsafe { addr_of_mut!((*self.as_mut_ptr()).name) }.cast::<u8>();
+        // SAFETY: `field` addresses the 16-byte `name` array of the live
+        // `AVChannelCustom` the exclusive handle covers, so its first
+        // `len + 1 <= 16` bytes are writable; `bytes` is a Rust slice, which
+        // cannot overlap C memory only this handle reaches; `u8` and `c_char`
+        // share size, alignment and every bit pattern.
+        unsafe {
+            core::ptr::copy_nonoverlapping(bytes.as_ptr(), field, len);
+            field.add(len).write(0);
+        }
+    }
+
+    /// Field: AVChannelCustom.opaque
+    ///
+    /// Stores the user pointer `opaque`, NULL included. Nothing in FFmpeg or
+    /// this crate dereferences or frees it, so any address is safe to store:
+    /// keeping what it points at alive for as long as the caller means to
+    /// read it back is the caller's concern, as is whatever it leaks when
+    /// the map is freed.
+    // The lint reads the write of `opaque` as a dereference of it: the
+    // pointer is the value stored, through the handle's own pointer.
+    #[allow(clippy::not_unsafe_ptr_arg_deref)]
+    pub fn set_opaque(&mut self, opaque: *mut c_void) {
+        // SAFETY: a write of the `opaque` field projected through the
+        // exclusive handle's pointer to a live `AVChannelCustom`; the old
+        // pointer is a cookie nothing frees, so overwriting it leaks nothing
+        // C or this crate owns.
+        unsafe { addr_of_mut!((*self.as_mut_ptr()).opaque).write(opaque) }
+    }
+
+    /// Overwrites the whole channel with `ch`'s fields, the name's bytes
+    /// after its NUL included.
+    pub fn set(&mut self, ch: ChannelCustom) {
+        // SAFETY: a write of the whole `AVChannelCustom` through the
+        // exclusive handle's pointer to a live one; the old value owns
+        // nothing to leak.
+        unsafe { self.as_mut_ptr().write(ch.into_raw()) }
+    }
+}
+
+/// A copy of an [`AVChannelCustom`](ChannelCustom)'s name: up to
+/// [`MAX_LEN`](Self::MAX_LEN) bytes with no NUL, read as a [`CStr`] or as
+/// bytes. Names compare, hash and print by their bytes.
+#[derive(Clone, Copy, Default, PartialEq, Eq, Hash)]
+pub struct ChannelName([u8; ChannelName::FIELD_LEN + 1]);
+
+impl ChannelName {
+    /// Size of the C field, `char name[16]`, its NUL included.
+    const FIELD_LEN: usize = 16;
+
+    /// The longest name the field stores with its NUL.
+    pub const MAX_LEN: usize = Self::FIELD_LEN - 1;
+
+    /// The name in `field`: its bytes before the first NUL, or all of them,
+    /// with zeros after them.
+    fn from_field(field: [c_char; Self::FIELD_LEN]) -> Self {
+        let mut buf = [0; Self::FIELD_LEN + 1];
+        for (b, c) in buf.iter_mut().zip(field) {
+            if c == 0 {
+                break;
+            }
+            *b = c as u8;
+        }
+        Self(buf)
+    }
+
+    /// The name as a C string: the bytes up to the copy's NUL.
+    #[must_use]
+    pub fn as_c_str(&self) -> &CStr {
+        // The copy always ends in a NUL, after at most `FIELD_LEN` bytes.
+        CStr::from_bytes_until_nul(&self.0).unwrap_or_default()
+    }
+
+    /// The name's bytes, without a NUL.
+    #[must_use]
+    pub fn as_bytes(&self) -> &[u8] {
+        self.as_c_str().to_bytes()
+    }
+
+    /// The name as UTF-8, if it is.
+    pub fn to_str(&self) -> Result<&str, core::str::Utf8Error> {
+        self.as_c_str().to_str()
+    }
+
+    /// Whether the channel has no name.
+    #[must_use]
+    pub fn is_empty(&self) -> bool {
+        self.0[0] == 0
+    }
+}
+
+impl PartialEq<CStr> for ChannelName {
+    fn eq(&self, other: &CStr) -> bool {
+        self.as_c_str() == other
+    }
+}
+
+impl PartialEq<&CStr> for ChannelName {
+    fn eq(&self, other: &&CStr) -> bool {
+        self.as_c_str() == *other
+    }
+}
+
+impl fmt::Debug for ChannelName {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        self.as_c_str().fmt(f)
+    }
+}
+
+/// [`ChannelCustomMut::set_name`]'s refusal: the name is longer than the
+/// field holds with its NUL.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct NameTooLong {
+    /// The refused name's length, in bytes.
+    pub len: usize,
+}
+
+impl fmt::Display for NameTooLong {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(
+            f,
+            "channel name of {} bytes exceeds the {}-byte limit",
+            self.len,
+            ChannelName::MAX_LEN
+        )
+    }
+}
+
+impl core::error::Error for NameTooLong {}
+
 #[cfg(test)]
 mod unit_tests {
     use core::ffi::{c_int, c_uint};
     use core::mem::{align_of, size_of};
+    use std::ffi::CString;
 
     use super::*;
 
@@ -840,5 +1207,235 @@ mod unit_tests {
         assert_eq!(set.len(), all.len());
         assert!(set.contains(&ChannelOrder::from_raw(ffi::AVChannelOrder(2))));
         assert!(set.contains(&ChannelOrder::CUSTOM));
+    }
+
+    /// A raw channel whose name field holds `name`'s bytes, a NUL if they
+    /// leave room for one, then `fill` up to the end of the field.
+    fn channel_custom_raw(id: c_int, name: &[u8], fill: u8, opaque: usize) -> ffi::AVChannelCustom {
+        let mut field = [fill as c_char; 16];
+        for (f, &b) in field.iter_mut().zip(name) {
+            *f = b as c_char;
+        }
+        if let Some(nul) = field.get_mut(name.len()) {
+            *nul = 0;
+        }
+        ffi::AVChannelCustom {
+            id: ffi::AVChannel(id),
+            name: field,
+            opaque: core::ptr::without_provenance_mut(opaque),
+        }
+    }
+
+    /// Every byte of a raw channel, as a comparable tuple.
+    fn channel_custom_bytes(r: ffi::AVChannelCustom) -> (c_int, [c_char; 16], *mut c_void) {
+        (r.id.0, r.name, r.opaque)
+    }
+
+    #[test]
+    fn channel_custom_layout_is_the_c_struct() {
+        assert_eq!(size_of::<ChannelCustom>(), size_of::<ffi::AVChannelCustom>());
+        assert_eq!(size_of::<ChannelCustom>(), 32);
+        assert_eq!(align_of::<ChannelCustom>(), align_of::<ffi::AVChannelCustom>());
+        assert_eq!(ChannelName::MAX_LEN, 15);
+    }
+
+    #[test]
+    fn channel_custom_new_default_and_zeroed() {
+        let z = ChannelCustom::zeroed();
+        assert_eq!(z.as_ref().id(), Channel::FRONT_LEFT);
+        assert!(z.as_ref().name().is_empty());
+        assert!(z.as_ref().opaque().is_null());
+        let d = ChannelCustom::default();
+        assert_eq!(d.as_ref().id(), Channel::UNKNOWN);
+        assert!(d.as_ref().name().is_empty());
+        assert!(d.as_ref().opaque().is_null());
+        let n = ChannelCustom::new(Channel::LOW_FREQUENCY);
+        assert_eq!(n.into_raw().id, ffi::AVChannel::AV_CHAN_LOW_FREQUENCY);
+        assert_eq!(n.into_raw().name, [0; 16]);
+        assert_ne!(n, d);
+        assert_eq!(ChannelCustom::new(Channel::UNKNOWN), d);
+    }
+
+    #[test]
+    fn channel_custom_raw_round_trips() {
+        let raw = channel_custom_raw(-7, b"abc", 0x55, 0x1234);
+        let ch = ChannelCustom::from(raw);
+        let back = ffi::AVChannelCustom::from(ch);
+        assert_eq!(back.id, raw.id);
+        assert_eq!(back.name, raw.name);
+        assert_eq!(back.opaque, raw.opaque);
+        assert_eq!(ch.as_ref().id(), Channel::from_raw(ffi::AVChannel(-7)));
+        assert_eq!(ch.as_ref().name(), c"abc");
+        assert!(ch.as_ref().name() == *c"abc");
+        assert!(ch.as_ref().name() != *c"ab");
+        assert_eq!(ch.as_ref().opaque().addr(), 0x1234);
+        assert_eq!(ch.as_ref().get().into_raw().name, raw.name);
+    }
+
+    #[test]
+    fn channel_custom_setters_write_each_field_alone() {
+        let mut ch = ChannelCustom::from_raw(channel_custom_raw(1, b"x", 0, 0));
+        let mut m = ch.as_mut();
+        m.set_id(Channel::from_raw(ffi::AVChannel(c_int::MAX)));
+        assert_eq!(m.as_ref().name(), c"x");
+        let mut cookie = 5u64;
+        m.set_opaque((&raw mut cookie).cast());
+        assert_eq!(m.as_ref().id().into_raw().0, c_int::MAX);
+        assert_eq!(m.as_ref().name(), c"x");
+        assert_eq!(m.set_name(c"rear"), Ok(()));
+        assert_eq!(m.as_ref().opaque(), (&raw mut cookie).cast());
+        assert_eq!(m.as_ref().id().into_raw().0, c_int::MAX);
+        m.set_opaque(core::ptr::null_mut());
+        assert!(ch.as_ref().opaque().is_null());
+        assert_eq!(ch.as_ref().name(), c"rear");
+    }
+
+    #[test]
+    fn channel_custom_set_name_accepts_up_to_fifteen_bytes() {
+        let long = c"0123456789abcdefXYZ";
+        for len in 0..=long.to_bytes().len() {
+            let mut ch = ChannelCustom::from_raw(channel_custom_raw(0, b"previous", 0x7f, 0));
+            let name = CString::new(&long.to_bytes()[..len]).unwrap();
+            let r = ch.as_mut().set_name(&name);
+            if len <= 15 {
+                assert_eq!(r, Ok(()), "{len}");
+                assert_eq!(ch.as_ref().name(), name.as_c_str());
+                assert_eq!(ch.into_raw().name[len], 0);
+            } else {
+                assert_eq!(r, Err(NameTooLong { len }));
+                // Refused: the old name is untouched.
+                assert_eq!(ch.as_ref().name(), c"previous");
+                assert_eq!(
+                    channel_custom_bytes(ch.into_raw()),
+                    channel_custom_bytes(channel_custom_raw(0, b"previous", 0x7f, 0))
+                );
+            }
+        }
+    }
+
+    #[test]
+    fn channel_custom_set_name_truncated_mirrors_strlcpy() {
+        let long = c"0123456789abcdefXYZ";
+        for len in 0..=long.to_bytes().len() {
+            let mut ch = ChannelCustom::from_raw(channel_custom_raw(0, b"", 0x7f, 0));
+            let name = CString::new(&long.to_bytes()[..len]).unwrap();
+            let whole = ch.as_mut().set_name_truncated(&name);
+            assert_eq!(whole, len <= 15, "{len}");
+            let kept = len.min(15);
+            assert_eq!(ch.as_ref().name().as_bytes(), &long.to_bytes()[..kept]);
+            // The bytes and a NUL; the rest of the field is left as it was,
+            // as `av_strlcpy` leaves it.
+            let raw = ch.into_raw().name;
+            assert_eq!(raw[kept], 0);
+            assert!(raw[kept + 1..].iter().all(|&c| c == 0x7f), "{len}");
+        }
+        // A shorter name over a longer one keeps the longer one's tail.
+        let mut ch = ChannelCustom::zeroed();
+        assert!(ch.as_mut().set_name_truncated(c"abcdef"));
+        assert!(ch.as_mut().set_name_truncated(c"xy"));
+        assert_eq!(ch.as_ref().name(), c"xy");
+        assert_eq!(&ch.into_raw().name[..7], &[120, 121, 0, 100, 101, 102, 0]);
+    }
+
+    #[test]
+    fn channel_name_reads_within_the_field() {
+        // Unterminated: all 16 bytes, and no byte past the field.
+        let ch = ChannelCustom::from_raw(channel_custom_raw(0, b"0123456789abcdef", 0, 0));
+        assert_eq!(ch.as_ref().name().as_bytes(), b"0123456789abcdef");
+        assert_eq!(ch.as_ref().name().as_c_str(), c"0123456789abcdef");
+        // The first NUL ends it; bytes after it do not count.
+        let a = ChannelCustom::from_raw(channel_custom_raw(0, b"ab\0cd", 0x41, 0));
+        let b = ChannelCustom::from_raw(channel_custom_raw(0, b"ab", 0, 0));
+        assert_eq!(a.as_ref().name(), b.as_ref().name());
+        assert_eq!(a, b);
+        assert_eq!(a.as_ref().name().to_str(), Ok("ab"));
+        // Non-UTF-8 bytes are kept.
+        let c = ChannelCustom::from_raw(channel_custom_raw(0, b"\xff\xfe", 0, 0));
+        assert_eq!(c.as_ref().name().as_bytes(), b"\xff\xfe");
+        assert!(c.as_ref().name().to_str().is_err());
+        assert!(!c.as_ref().name().is_empty());
+        assert_eq!(format!("{:?}", c.as_ref().name()), format!("{:?}", c"\xff\xfe"));
+        assert_eq!(ChannelName::default().as_c_str(), c"");
+    }
+
+    #[test]
+    fn channel_name_compares_and_hashes_by_bytes() {
+        use std::collections::HashSet;
+        let names: HashSet<ChannelName> = [b"ab".as_slice(), b"ab\0x", b"abc", b""]
+            .into_iter()
+            .map(|n| ChannelCustom::from_raw(channel_custom_raw(0, n, 0x30, 0)).as_ref().name())
+            .collect();
+        // `"ab\0x"` and `"ab"` (tail `0x30`s after the NUL) are the same
+        // name; `""` is an empty one.
+        assert_eq!(names.len(), 3);
+    }
+
+    #[test]
+    fn channel_custom_equality_is_by_c_observable_fields() {
+        let base = channel_custom_raw(3, b"lfe", 0, 0x10);
+        let a = ChannelCustom::from_raw(base);
+        assert_eq!(a, ChannelCustom::from_raw(channel_custom_raw(3, b"lfe", 0x44, 0x10)));
+        assert_ne!(a, ChannelCustom::from_raw(channel_custom_raw(4, b"lfe", 0, 0x10)));
+        assert_ne!(a, ChannelCustom::from_raw(channel_custom_raw(3, b"lf", 0, 0x10)));
+        assert_ne!(a, ChannelCustom::from_raw(channel_custom_raw(3, b"lfe", 0, 0x11)));
+    }
+
+    #[test]
+    fn channel_custom_get_and_set_copy_whole_values() {
+        let src = ChannelCustom::from_raw(channel_custom_raw(9, b"side", 0x22, 0x99));
+        let mut dst = ChannelCustom::zeroed();
+        dst.as_mut().set(src);
+        assert_eq!(channel_custom_bytes(dst.into_raw()), channel_custom_bytes(src.into_raw()));
+        let copy = dst.as_ref().get();
+        dst.as_mut().set_id(Channel::NONE);
+        assert_eq!(copy, src);
+        #[allow(clippy::clone_on_copy)] // exercises the explicit `Clone` impl
+        let c = Clone::clone(&copy);
+        assert_eq!(c, src);
+    }
+
+    #[test]
+    fn channel_custom_debug_names_every_field() {
+        let ch = ChannelCustom::from_raw(channel_custom_raw(3, b"sub", 0, 0));
+        let s = format!("{ch:?}");
+        assert!(s.starts_with("ChannelCustom {"), "{s}");
+        assert!(s.contains("id: LOW_FREQUENCY"), "{s}");
+        assert!(s.contains("name: \"sub\""), "{s}");
+        assert!(s.contains("opaque: 0x0"), "{s}");
+    }
+
+    #[test]
+    fn channel_custom_name_too_long_displays_both_lengths() {
+        let e = NameTooLong { len: 20 };
+        assert_eq!(e.to_string(), "channel name of 20 bytes exceeds the 15-byte limit");
+        let _: &dyn core::error::Error = &e;
+    }
+
+    #[test]
+    fn channel_custom_handles_borrow_raw_storage() {
+        let mut raw = channel_custom_raw(2, b"c", 0, 0);
+        // SAFETY: `raw` is a live, initialised `AVChannelCustom` on this
+        // frame, outliving the handle, and nothing else touches it meanwhile.
+        let mut m = unsafe { ChannelCustomMut::from_ptr(&raw mut raw) }.unwrap();
+        m.set_id(Channel::FRONT_CENTER);
+        assert_eq!(m.set_name(c"centre"), Ok(()));
+        assert_eq!(raw.id, ffi::AVChannel::AV_CHAN_FRONT_CENTER);
+        // SAFETY: as above, for a shared handle.
+        let r = unsafe { ChannelCustomRef::from_ptr(&raw mut raw) }.unwrap();
+        assert_eq!(r.name(), c"centre");
+        // SAFETY: NULL is accepted and yields `None`.
+        assert!(unsafe { ChannelCustomRef::from_ptr(core::ptr::null_mut()) }.is_none());
+        // SAFETY: as above.
+        assert!(unsafe { ChannelCustomMut::from_ptr(core::ptr::null_mut()) }.is_none());
+    }
+
+    #[test]
+    fn channel_custom_is_a_plain_shareable_value() {
+        fn assert_traits<T: Copy + Send + Sync + Eq + core::fmt::Debug + Default + 'static>() {}
+        fn assert_handles<T: Send + Sync>() {}
+        assert_traits::<ChannelCustom>();
+        assert_traits::<ChannelName>();
+        assert_handles::<ChannelCustomRef<'static>>();
+        assert_handles::<ChannelCustomMut<'static>>();
     }
 }

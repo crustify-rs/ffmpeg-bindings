@@ -263,3 +263,237 @@ mod cie_xy {
         assert_ne!(xy(PARTS[4]), xy(PARTS[5]));
     }
 }
+
+/// `LumaCoefficients`: inline values, `av_malloc`-family owners and arrays
+/// of them, the shared and exclusive field handles over each coefficient,
+/// copies outliving their source, and the asserted `Send` / `Sync`.
+mod luma_coefficients {
+    use std::thread;
+
+    use ffmpeg::libavutil::csp::{LumaCoefficients, LumaCoefficientsMut, LumaCoefficientsRef};
+    use ffmpeg::libavutil::ffi;
+    use ffmpeg::libavutil::mem::{HeapBox, alloc_cell_array_zeroed};
+    use ffmpeg::libavutil::rational::Rational;
+
+    /// Coefficient tuples at every edge: all-zero, BT.709's, and the `int`
+    /// limits.
+    const FIELDS: [[i32; 6]; 5] = [
+        [0; 6],
+        [2126, 10000, 7152, 10000, 722, 10000],
+        [i32::MIN; 6],
+        [i32::MAX; 6],
+        [-1, 0, 0, -1, i32::MIN, i32::MAX],
+    ];
+
+    fn fields(c: LumaCoefficientsRef<'_>) -> [i32; 6] {
+        [
+            c.cr().num(),
+            c.cr().den(),
+            c.cg().num(),
+            c.cg().den(),
+            c.cb().num(),
+            c.cb().den(),
+        ]
+    }
+
+    fn fill(m: &mut LumaCoefficientsMut<'_>, f: [i32; 6]) {
+        m.cr_mut().set_num(f[0]);
+        m.cr_mut().set_den(f[1]);
+        m.cg_mut().set_num(f[2]);
+        m.cg_mut().set_den(f[3]);
+        m.cb_mut().set_num(f[4]);
+        m.cb_mut().set_den(f[5]);
+    }
+
+    /// Coefficients built without a C call, so the tests using them also
+    /// run under Miri.
+    fn c(f: [i32; 6]) -> LumaCoefficients {
+        let q = |num, den| Rational::from_raw(ffi::AVRational { num, den });
+        LumaCoefficients::new(q(f[0], f[1]), q(f[2], f[3]), q(f[4], f[5]))
+    }
+
+    #[test]
+    fn every_field_tuple_builds_and_reads_back() {
+        for f in FIELDS {
+            let mut v = LumaCoefficients::default();
+            fill(&mut v.as_mut(), f);
+            assert_eq!(fields(v.as_ref()), f);
+            assert_eq!(fields(c(f).as_ref()), f);
+            let back: ffi::AVLumaCoefficients = v.into();
+            assert_eq!(fields(LumaCoefficients::from(back).as_ref()), f);
+            assert!(!format!("{v:?}").is_empty());
+        }
+    }
+
+    #[test]
+    fn field_handles_copy_coexist_and_outlive_the_parent_handle() {
+        let v = c(FIELDS[1]);
+        // The field handles borrow `v`, not the parent handle they came from.
+        let (cr, cg, cb) = {
+            let r = v.as_ref();
+            (r.cr(), r.cg(), r.cb())
+        };
+        let cr2 = cr;
+        assert_eq!(
+            (cr.num(), cr2.den(), cg.num(), cb.den()),
+            (2126, 10000, 7152, 10000)
+        );
+        assert!(!format!("{cg:?}").is_empty());
+    }
+
+    #[test]
+    fn exclusive_field_handles_reborrow_one_at_a_time() {
+        let mut v = c(FIELDS[1]);
+        let mut m = v.as_mut();
+        {
+            let mut cr = m.cr_mut();
+            cr.set(Rational::from_raw(ffi::AVRational { num: 1, den: 3 }));
+            let mut again = cr.as_mut();
+            again.set_den(4);
+            assert_eq!(cr.as_ref().den(), 4);
+        }
+        m.cb_mut().set_num(-5);
+        let shared = m.as_ref();
+        assert_eq!(shared.cr().num(), 1);
+        m.set(LumaCoefficients::default());
+        assert_eq!(fields(v.as_ref()), [0; 6]);
+    }
+
+    #[test]
+    fn copies_outlive_and_are_independent_of_their_source() {
+        let (copy, cg) = {
+            let mut boxed = HeapBox::<LumaCoefficients>::new_zeroed().unwrap();
+            boxed.as_mut().set(c(FIELDS[4]));
+            let copy = boxed.as_ref().get();
+            let cg = boxed.as_ref().cg().get();
+            boxed.as_mut().cg_mut().set_num(9);
+            (copy, cg)
+            // `boxed` is freed here; the copies hold their own bytes.
+        };
+        assert_eq!(fields(copy.as_ref()), FIELDS[4]);
+        assert_eq!((cg.as_ref().num(), cg.as_ref().den()), (0, -1));
+        let mut b = copy;
+        b.as_mut().cr_mut().set_num(3);
+        #[allow(clippy::clone_on_copy)] // exercises the explicit `Clone` impl
+        let cl = Clone::clone(&b);
+        assert_eq!(fields(copy.as_ref()), FIELDS[4]);
+        assert_eq!(fields(cl.as_ref())[0], 3);
+    }
+
+    #[test]
+    fn heap_box_owner_lives_reads_writes_clones_and_frees() {
+        let mut a = HeapBox::<LumaCoefficients>::new_zeroed().unwrap();
+        assert_eq!(fields(a.as_ref()), [0; 6]);
+        for f in FIELDS {
+            fill(&mut a.as_mut(), f);
+            assert_eq!(fields(a.as_ref()), f);
+        }
+        let b = a.clone();
+        let cl = b.try_clone().unwrap();
+        drop(a);
+        assert_eq!(fields(b.as_ref()), FIELDS[4]);
+        drop(b);
+        assert_eq!(fields(cl.as_ref()), FIELDS[4]);
+        drop(HeapBox::<LumaCoefficients>::new_uninit().unwrap());
+    }
+
+    #[test]
+    fn heap_array_handles_stay_in_bounds() {
+        let mut a = alloc_cell_array_zeroed::<LumaCoefficients>(FIELDS.len()).unwrap();
+        {
+            let mut handles = a.as_handles_mut();
+            for (i, f) in FIELDS.into_iter().enumerate() {
+                fill(&mut handles.get_mut(i).unwrap(), f);
+            }
+            assert!(handles.get_mut(FIELDS.len()).is_none());
+        }
+        let read: Vec<[i32; 6]> = a.as_handles().iter().map(fields).collect();
+        assert_eq!(read, FIELDS);
+        assert!(a.as_handles().get(FIELDS.len()).is_none());
+        // The last element's last field handle reads the array's last bytes.
+        let last = a.as_handles().get(FIELDS.len() - 1).unwrap().cb();
+        assert_eq!(last.den(), i32::MAX);
+        let b = a.clone();
+        drop(a);
+        assert_eq!(b.as_handles().iter().map(fields).collect::<Vec<_>>(), FIELDS);
+    }
+
+    #[test]
+    fn values_and_owners_move_across_threads() {
+        let v = c(FIELDS[1]);
+        let b = HeapBox::<LumaCoefficients>::new_zeroed().unwrap();
+        let (v, b) = thread::spawn(move || {
+            let mut b = b;
+            b.as_mut().set(v);
+            (v, b)
+        })
+        .join()
+        .unwrap();
+        assert_eq!(fields(b.as_ref()), fields(v.as_ref()));
+        thread::spawn(move || drop(b)).join().unwrap();
+    }
+
+    #[test]
+    fn shared_handles_and_field_handles_read_concurrently() {
+        let v = c(FIELDS[1]);
+        let boxed = HeapBox::<LumaCoefficients>::new_zeroed().unwrap();
+        let (vr, br) = (v.as_ref(), boxed.as_ref());
+        let cg = vr.cg();
+        thread::scope(|s| {
+            for _ in 0..4 {
+                s.spawn(move || {
+                    for _ in 0..1000 {
+                        assert_eq!(fields(vr), FIELDS[1]);
+                        assert_eq!(cg.num(), 7152);
+                        assert_eq!(fields(br), [0; 6]);
+                    }
+                });
+            }
+        });
+    }
+
+    #[test]
+    fn exclusive_handles_write_on_other_threads() {
+        let mut values = [LumaCoefficients::default(); 4];
+        let mut boxed = HeapBox::<LumaCoefficients>::new_zeroed().unwrap();
+        let mut boxed_mut = boxed.as_mut();
+        thread::scope(|s| {
+            for (i, v) in values.iter_mut().enumerate() {
+                let mut m = v.as_mut();
+                s.spawn(move || m.cg_mut().set_num(i as i32));
+            }
+            // A field handle sent on its own.
+            let mut cb = boxed_mut.cb_mut();
+            s.spawn(move || cb.set_den(i32::MIN));
+        });
+        let g: Vec<i32> = values.iter().map(|v| v.as_ref().cg().num()).collect();
+        assert_eq!(g, [0, 1, 2, 3]);
+        assert_eq!(fields(boxed.as_ref()), [0, 0, 0, 0, 0, i32::MIN]);
+    }
+
+    #[test]
+    fn a_shared_exclusive_handle_only_reads() {
+        let mut v = c(FIELDS[1]);
+        let m = v.as_mut();
+        let m = &m;
+        thread::scope(|s| {
+            for _ in 0..4 {
+                s.spawn(move || assert_eq!(fields(m.as_ref()), FIELDS[1]));
+            }
+        });
+    }
+
+    #[test]
+    fn heap_array_elements_written_from_separate_threads() {
+        let mut a = alloc_cell_array_zeroed::<LumaCoefficients>(4).unwrap();
+        let mut handles = a.as_handles_mut();
+        thread::scope(|s| {
+            for (m, f) in handles.iter_mut().zip(FIELDS) {
+                let mut m = m;
+                s.spawn(move || fill(&mut m, f));
+            }
+        });
+        let read: Vec<[i32; 6]> = a.as_handles().iter().map(fields).collect();
+        assert_eq!(read, FIELDS[..4]);
+    }
+}

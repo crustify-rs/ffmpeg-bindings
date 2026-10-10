@@ -53,6 +53,32 @@
    "fields": []
   },
   {
+   "name": "AVChannelCustom",
+   "defined_in": "libavutil/channel_layout.h",
+   "_comment_agent": "formats wave-1 batch-1 (wrap): by-value POD element of the custom-order AVChannelLayout.u.map array; no lifecycle routine of its own. The array is allocated by av_channel_layout_custom_init / av_channel_layout_from_string / av_channel_layout_retype (av_calloc / av_malloc_array), copied by av_channel_layout_copy (av_malloc_array + memcpy) and freed by av_channel_layout_uninit (av_freep), all AVChannelLayout lifecycle owned by the wave-2 type. sizeof(AVChannelCustom) is public ABI (32 bytes). name is char[16], written by av_strlcpy (always NUL-terminated by C writers) and read with strcmp/%s/name[0]; a raw writer could leave it unterminated, so the Rust getter copies the 16 bytes and stops at 16. id is any int (AV_CHAN_UNKNOWN default from custom_init, user ids from USR<n>). All-zero is valid (C's own `AVChannelCustom custom = {0}`).",
+   "fields": [
+    {
+     "name": "opaque",
+     "ptr": {
+      "scalar": {
+       "by_val": true
+      },
+      "array": null,
+      "string": false,
+      "owned": false,
+      "borrowed": {
+       "lifetime": "other"
+      },
+      "nullable": true,
+      "mutable": null,
+      "note": "User cookie. No FFmpeg code reads, writes through or frees it (field-touchers: none tree-wide); av_channel_layout_from_string/custom_init leave it NULL (zeroed {0} / av_calloc), av_channel_layout_copy duplicates the map with memcpy so the address is shallow-copied into the new map, and av_channel_layout_uninit frees the map without touching it. Its pointee type, cardinality and lifetime are the user's alone (recorded as scalar/other for want of a vocabulary for 'never dereferenced'); mutable undeterminable because FFmpeg never dereferences it. Wrapped as a raw *mut c_void getter/setter that are safe: storing or reading the address dereferences nothing."
+     },
+     "refcount": false,
+     "locked_by": null
+    }
+   ]
+  },
+  {
    "name": "AVChannelOrder",
    "defined_in": "libavutil/channel_layout.h",
    "_comment_agent": "C enum (unsigned underlying type, values 0..=3 named; FF_CHANNEL_ORDER_NB is not part of ABI/API). No pointers, no lifecycle: a plain value. Stored in the public field AVChannelLayout.order, which users write directly (and C compound-literal macros AV_CHANNEL_LAYOUT_* initialise), and passed by value to av_channel_layout_retype; av_channel_layout_check/compare/describe switch on it with a default arm, so any value can reach C storage. The Rust wrapper must therefore be an open, layout-compatible newtype accepting every value, plain-data (CPlainElem), Send+Sync as an integer.",
@@ -260,6 +286,12 @@
    "name": "AVEscapeMode",
    "defined_in": "libavutil/avstring.h",
    "_comment_agent": "Plain C enum, no fields, no lifecycle. Values flow Rust->C only: a by-value `mode` argument of av_escape (avstring.c:323) and av_bprint_escape (bprint.c:264); no struct field, return or out-parameter stores it, so C never hands one back. bprint.c:268-313 maps AUTO to BACKSLASH and treats any unknown value as BACKSLASH. Rust representation: closed Rust enum EscapeMode {Auto, Backslash, Quote, Xml} with an infallible conversion into ffi::AVEscapeMode; out-of-range modes are not representable (they only alias BACKSLASH).",
+   "fields": []
+  },
+  {
+   "name": "AVLumaCoefficients",
+   "defined_in": "libavutil/csp.h",
+   "_comment_agent": "formats wave-1 batch-1 (wrap): three AVRational values by value (cr, cg, cb), no pointer fields, no allocator, disposer or cloner. C's only producer is av_csp_luma_coeffs_from_avcsp, which returns a const pointer into the static const luma_coefficients[AVCOL_SPC_NB] table (a 'static shared borrow, never written) or NULL for out-of-range ids and all-zero entries (cr.num == 0). Consumers (libswscale/format.c, libavfilter colorspace/drawutils/tonemap) read fields or copy the struct by value. All-zero is valid (the table's unset entries). Wrapped as a value type with RationalRef/RationalMut handles over the projected fields.",
    "fields": []
   },
   {

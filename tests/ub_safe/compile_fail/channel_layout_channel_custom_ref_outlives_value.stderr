@@ -1,0 +1,11 @@
+error[E0597]: `ch` does not live long enough
+ --> tests/ub_safe/compile_fail/channel_layout_channel_custom_ref_outlives_value.rs
+  |
+  |     let r = {
+  |         - borrow later stored here
+  |         let ch = ChannelCustom::new(Channel::FRONT_LEFT);
+  |             -- binding `ch` declared here
+  |         ch.as_ref()
+  |         ^^ borrowed value does not live long enough
+  |     };
+  |     - `ch` dropped here while still borrowed

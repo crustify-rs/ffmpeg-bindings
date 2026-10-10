@@ -239,3 +239,187 @@ mod cie_xy {
         assert!(equal > points.len(), "{equal}");
     }
 }
+
+/// [`LumaCoefficients`] against C's `AVLumaCoefficients`: the safe getters,
+/// over C's own static table (`av_csp_luma_coeffs_from_avcsp`) and over
+/// copies of it, against C's fields for every colour space, and twin values
+/// built field by field, by C-layout writes and through the safe field
+/// handles in `av_malloc`-owned storage, compared after every write.
+///
+/// [`LumaCoefficients`]: ffmpeg::libavutil::csp::LumaCoefficients
+mod luma_coefficients {
+    use core::ptr::NonNull;
+
+    use ffibox::CSlice;
+    use ffmpeg::libavutil::csp::{LumaCoefficients, LumaCoefficientsRef};
+    use ffmpeg::libavutil::ffi;
+    use ffmpeg::libavutil::mem::HeapBox;
+    use ffmpeg::libavutil::rational::Rational;
+
+    /// Every colour space id, out-of-range ones on both sides included.
+    fn spaces() -> impl Iterator<Item = ffi::AVColorSpace> {
+        let nb = ffi::AVColorSpace::AVCOL_SPC_NB.0 as i32;
+        (-2..nb + 3).map(|v| ffi::AVColorSpace(v as _))
+    }
+
+    /// C's table entry for `csp`, if it has one, as a safe handle over C's
+    /// static storage: the test's one adoption of C-owned
+    /// `AVLumaCoefficients`.
+    fn c_entry(csp: ffi::AVColorSpace) -> Option<LumaCoefficientsRef<'static>> {
+        // SAFETY: takes any value and returns NULL or a pointer into C's
+        // static, never-written table.
+        let p = unsafe { ffi::av_csp_luma_coeffs_from_avcsp(csp) };
+        let p = NonNull::new(p.cast_mut())?;
+        // SAFETY: `p` addresses one live, initialised, never-written entry of
+        // a static table; `LumaCoefficients` is transparent over
+        // `AVLumaCoefficients`.
+        let one: CSlice<'static, LumaCoefficients> = unsafe { CSlice::from_raw_parts(p.cast(), 1) };
+        one.get(0)
+    }
+
+    /// One write, to the C side and to the Rust side.
+    type Step<'a> = dyn Fn(&mut ffi::AVLumaCoefficients, &mut HeapBox<LumaCoefficients>) + 'a;
+
+    fn c_fields(c: &ffi::AVLumaCoefficients) -> [i32; 6] {
+        [c.cr.num, c.cr.den, c.cg.num, c.cg.den, c.cb.num, c.cb.den]
+    }
+
+    fn rust_fields(c: LumaCoefficientsRef<'_>) -> [i32; 6] {
+        [
+            c.cr().num(),
+            c.cr().den(),
+            c.cg().num(),
+            c.cg().den(),
+            c.cb().num(),
+            c.cb().den(),
+        ]
+    }
+
+    #[test]
+    fn getters_read_c_s_table_for_every_colour_space() {
+        let mut found = 0;
+        for csp in spaces() {
+            // SAFETY: as in `c_entry`.
+            let p = unsafe { ffi::av_csp_luma_coeffs_from_avcsp(csp) };
+            let entry = c_entry(csp);
+            assert_eq!(entry.is_some(), !p.is_null(), "{csp:?}");
+            let Some(entry) = entry else { continue };
+            // SAFETY: `p` is a live entry of C's static table.
+            let raw = unsafe { p.read() };
+            assert_eq!(rust_fields(entry), c_fields(&raw), "{csp:?}");
+            assert_eq!(rust_fields(entry.get().as_ref()), c_fields(&raw));
+            let copy = LumaCoefficients::from_raw(raw);
+            assert_eq!(rust_fields(copy.as_ref()), c_fields(&raw));
+            assert_eq!(c_fields(&copy.into_raw()), c_fields(&raw));
+            // C hands out only entries with a numerator for red.
+            assert_ne!(entry.cr().num(), 0);
+            found += 1;
+        }
+        // FCC, BT470BG, SMPTE170M, BT709, SMPTE240M, YCOCG, RGB, BT2020 x2.
+        assert_eq!(found, 9);
+        let bt709 = c_entry(ffi::AVColorSpace::AVCOL_SPC_BT709).unwrap();
+        assert!((bt709.cr().get().to_f64() - 0.2126).abs() < 1e-9);
+        assert!((bt709.cg().get().to_f64() - 0.7152).abs() < 1e-9);
+        assert!((bt709.cb().get().to_f64() - 0.0722).abs() < 1e-9);
+    }
+
+    #[test]
+    fn equality_matches_c_s_comparison_of_every_coefficient() {
+        let mut entries: Vec<ffi::AVLumaCoefficients> =
+            spaces().filter_map(c_entry).map(|e| e.get().into_raw()).collect();
+        // Unreduced twins and a `0/0` entry, beside C's own.
+        let mut twin = entries[0];
+        twin.cg.num *= 3;
+        twin.cg.den *= 3;
+        entries.push(twin);
+        entries.push(LumaCoefficients::default().into_raw());
+        let mut equal = 0;
+        for a in &entries {
+            for b in &entries {
+                // SAFETY: `av_cmp_q` takes any two rationals by value.
+                let c_eq = unsafe {
+                    ffi::av_cmp_q(a.cr, b.cr) == 0
+                        && ffi::av_cmp_q(a.cg, b.cg) == 0
+                        && ffi::av_cmp_q(a.cb, b.cb) == 0
+                };
+                let rust_eq = LumaCoefficients::from_raw(*a) == LumaCoefficients::from_raw(*b);
+                assert_eq!(rust_eq, c_eq, "{a:?} {b:?}");
+                equal += usize::from(rust_eq);
+            }
+        }
+        // Each entry equals itself, but the `0/0` one; BT.470BG, SMPTE170M
+        // and the two BT.2020s pair up; the twin equals its source.
+        assert_eq!(equal, entries.len() - 1 + 2 + 2 + 2);
+    }
+
+    #[test]
+    fn values_written_through_field_handles_match_c_writes() {
+        for csp in spaces() {
+            let Some(entry) = c_entry(csp) else { continue };
+            let target = entry.get().into_raw();
+            // C side: a zeroed struct, then C-layout writes, part by part.
+            let mut c_side = ffi::AVLumaCoefficients {
+                cr: ffi::AVRational { num: 0, den: 0 },
+                cg: ffi::AVRational { num: 0, den: 0 },
+                cb: ffi::AVRational { num: 0, den: 0 },
+            };
+            // Rust side: an `av_malloc`-owned value written through the
+            // field handles.
+            let mut rust_side = HeapBox::<LumaCoefficients>::new_zeroed().unwrap();
+            assert_eq!(rust_fields(rust_side.as_ref()), c_fields(&c_side));
+            let steps: [&Step<'_>; 8] = [
+                &|c, r| {
+                    c.cr.num = target.cr.num;
+                    r.as_mut().cr_mut().set_num(target.cr.num);
+                },
+                &|c, r| {
+                    c.cr.den = target.cr.den;
+                    r.as_mut().cr_mut().set_den(target.cr.den);
+                },
+                &|c, r| {
+                    c.cg = target.cg;
+                    r.as_mut().cg_mut().set(Rational::from_raw(target.cg));
+                },
+                &|c, r| {
+                    c.cb.den = target.cb.den;
+                    r.as_mut().cb_mut().set_den(target.cb.den);
+                },
+                &|c, r| {
+                    c.cr = target.cg;
+                    c.cg = target.cb;
+                    let mut m = r.as_mut();
+                    m.set_cr(Rational::from_raw(target.cg));
+                    m.set_cg(Rational::from_raw(target.cb));
+                },
+                &|c, r| {
+                    c.cr = target.cr;
+                    c.cg = target.cg;
+                    c.cb = target.cb;
+                    let mut m = r.as_mut();
+                    m.set_cr(Rational::from_raw(target.cr));
+                    m.set_cb(Rational::from_raw(target.cb));
+                    m.set_cg(Rational::from_raw(target.cg));
+                },
+                &|c, r| {
+                    c.cb.num = target.cb.num;
+                    r.as_mut().cb_mut().set_num(target.cb.num);
+                },
+                &|c, r| {
+                    *c = target;
+                    r.as_mut().set(LumaCoefficients::from_raw(target));
+                },
+            ];
+            for (n, step) in steps.iter().enumerate() {
+                step(&mut c_side, &mut rust_side);
+                assert_eq!(rust_fields(rust_side.as_ref()), c_fields(&c_side), "{csp:?} step {n}");
+            }
+            assert_eq!(rust_fields(rust_side.as_ref()), rust_fields(entry));
+            // A clone (`av_memdup`) and a value built by `new` read alike.
+            let cloned = rust_side.clone();
+            drop(rust_side);
+            assert_eq!(rust_fields(cloned.as_ref()), c_fields(&target));
+            let built = LumaCoefficients::new(entry.cr().get(), entry.cg().get(), entry.cb().get());
+            assert_eq!(c_fields(&built.into_raw()), c_fields(&target));
+        }
+    }
+}
