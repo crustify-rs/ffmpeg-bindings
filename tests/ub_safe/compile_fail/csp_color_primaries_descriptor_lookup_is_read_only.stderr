@@ -1,0 +1,11 @@
+error[E0599]: no method named `white_point_mut` found for struct `ColorPrimariesDescriptorRef<'a>` in the current scope
+ --> tests/ub_safe/compile_fail/csp_color_primaries_descriptor_lookup_is_read_only.rs
+  |
+  |     d.white_point_mut().set(CieXy::default());
+  |       ^^^^^^^^^^^^^^^
+  |
+help: there is a method `white_point` with a similar name
+  |
+7 -     d.white_point_mut().set(CieXy::default());
+7 +     d.white_point().set(CieXy::default());
+  |
