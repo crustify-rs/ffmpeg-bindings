@@ -1596,3 +1596,75 @@ mod pixel_format_descriptor {
         }
     }
 }
+
+/// `PixelFormat`'s descriptor queries against `av_get_pix_fmt_string`,
+/// `av_pix_fmt_count_planes` and `av_pix_fmt_get_chroma_sub_sample`, for
+/// every pixel format C knows and values around it, with description lines
+/// written into shrinking buffers and compared byte for byte after each
+/// write.
+mod pixel_format_queries {
+    use core::ffi::{CStr, c_int};
+
+    use ffmpeg::libavutil::ffi;
+    use ffmpeg::libavutil::pixfmt::PixelFormat;
+
+    const NB: c_int = ffi::AVPixelFormat::AV_PIX_FMT_NB.0;
+
+    fn format(raw: c_int) -> PixelFormat {
+        PixelFormat::from_raw(ffi::AVPixelFormat(raw))
+    }
+
+    #[test]
+    fn describe_writes_what_c_writes() {
+        for raw in (-3..NB).chain([c_int::MIN]) {
+            let mut rust_buf = [b'#'; 40];
+            let mut c_buf = [b'#'; 40];
+            for size in [40, 33, 32, 31, 12, 11, 2, 1, 0] {
+                let rust = format(raw)
+                    .describe(&mut rust_buf[..size])
+                    .map(CStr::to_owned);
+                // SAFETY: `size` writable bytes, and a value C has a
+                // descriptor for or a negative one (the header).
+                let ret = unsafe {
+                    ffi::av_get_pix_fmt_string(
+                        c_buf.as_mut_ptr().cast(),
+                        size as c_int,
+                        ffi::AVPixelFormat(raw),
+                    )
+                };
+                assert_eq!(ret.cast::<u8>(), c_buf.as_mut_ptr());
+                assert_eq!(rust_buf, c_buf, "{raw} {size}");
+                let c_text =
+                    (size > 0).then(|| CStr::from_bytes_until_nul(&c_buf).unwrap().to_owned());
+                assert_eq!(rust, c_text, "{raw} {size}");
+            }
+        }
+    }
+
+    #[test]
+    fn plane_count_matches_c() {
+        for raw in (-3..NB + 3).chain([c_int::MIN, c_int::MAX]) {
+            // SAFETY: by value; C looks the value up through a range check.
+            let c = unsafe { ffi::av_pix_fmt_count_planes(ffi::AVPixelFormat(raw)) };
+            let c = usize::try_from(c).ok();
+            assert_eq!(format(raw).plane_count(), c, "{raw}");
+        }
+    }
+
+    #[test]
+    fn chroma_subsampling_matches_c() {
+        for raw in (-3..NB + 3).chain([c_int::MIN, c_int::MAX]) {
+            let (mut h, mut v) = (-7, -7);
+            // SAFETY: two live `int` out-parameters; the value is
+            // range-checked by C.
+            let ret = unsafe {
+                ffi::av_pix_fmt_get_chroma_sub_sample(ffi::AVPixelFormat(raw), &mut h, &mut v)
+            };
+            let c = (ret >= 0).then_some((h as u8, v as u8));
+            if ret < 0 {
+                assert_eq!((h, v), (-7, -7));
+            }
+            assert_eq!(format(raw).chroma_subsampling(), c, "{raw}");
+        }
+    }
+}

@@ -446,3 +446,52 @@ mod sample_format_forms {
         });
     }
 }
+
+/// UB tests for `SampleFormat`'s C lookups and description line: every
+/// value, named or not, into exactly sized heap buffers of every length (so
+/// a write past the end is an ASan report), and on several threads.
+mod lookups {
+    use std::thread;
+
+    use ffmpeg::libavutil::ffi;
+    use ffmpeg::libavutil::samplefmt::SampleFormat;
+
+    fn values() -> impl Iterator<Item = SampleFormat> {
+        (-3..16)
+            .chain([i32::MIN, i32::MAX])
+            .map(|raw| SampleFormat::from_raw(ffi::AVSampleFormat(raw)))
+    }
+
+    #[test]
+    fn lookups_of_every_value_stay_in_bounds() {
+        for f in values() {
+            let _ = f.name();
+            let _ = f.planar();
+            if let Some(name) = f.name() {
+                assert_eq!(SampleFormat::from_name(name), Some(f));
+            }
+            for len in 0..16 {
+                let mut buf = vec![b'#'; len].into_boxed_slice();
+                if let Some(s) = f.describe(&mut buf) {
+                    assert!(s.to_bytes().len() < len);
+                }
+            }
+        }
+        assert_eq!(SampleFormat::from_name(c"x"), None);
+    }
+
+    #[test]
+    fn lookups_on_many_threads() {
+        thread::scope(|s| {
+            for _ in 0..8 {
+                s.spawn(|| {
+                    let mut buf = [0u8; 16];
+                    for f in values() {
+                        let _ = f.describe(&mut buf);
+                        let _ = f.name();
+                    }
+                });
+            }
+        });
+    }
+}

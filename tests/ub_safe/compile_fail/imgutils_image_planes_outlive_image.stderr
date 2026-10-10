@@ -1,0 +1,11 @@
+error[E0597]: `image` does not live long enough
+ --> tests/ub_safe/compile_fail/imgutils_image_planes_outlive_image.rs
+  |
+  |         let image = Image::alloc(8, 8, PixelFormat::GRAY8, 1).unwrap();
+  |             ----- binding `image` declared here
+  |         planes = image.planes();
+  |                  ^^^^^ borrowed value does not live long enough
+  |     }
+  |     - `image` dropped here while still borrowed
+  |     println!("{}", planes.data[0].len());
+  |                    -------------- borrow later used here

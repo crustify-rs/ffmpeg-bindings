@@ -321,3 +321,488 @@ fn planes_copy_on_many_threads() {
         }
     });
 }
+
+/// UB tests for the image layout, allocation, copy and fill wrappers: every
+/// pixel format's planes in exactly sized heap allocations (so a row past
+/// either end of a plane is an ASan report), one byte short, bottom-up and
+/// misaligned; the inputs on which C overflows `int`, divides by zero,
+/// indexes past its arrays or reads past its descriptor table (each refused
+/// before C, so no UBSan report); and images allocated, filled, copied and
+/// dropped on several threads.
+mod images {
+    use std::thread;
+
+    use ffmpeg::libavutil::ffi::AVPixelFormat;
+    use ffmpeg::libavutil::imgutils::{
+        Image, ImageCopyError, PlaneCopyError, Planes, PlanesMut, buffer_size,
+        buffer_size_for_linesizes, check_fill_black, check_fill_color, check_sar,
+        check_size_max_pixels, copy, copy_from_mut, copy_from_uncacheable, copy_to_buffer,
+        fill_arrays, fill_arrays_mut, fill_black, fill_color, fill_linesizes, fill_plane_sizes,
+        fill_pointers, fill_pointers_mut, linesize,
+    };
+    use ffmpeg::libavutil::pixfmt::{ColorRange, PixelFormat};
+    use ffmpeg::libavutil::rational::Rational;
+
+    use super::{placed, plane, span};
+
+    const EINVAL: i32 = -22;
+
+    /// Every pixel format these bindings know, by value.
+    fn formats() -> impl Iterator<Item = PixelFormat> {
+        (0..AVPixelFormat::AV_PIX_FMT_NB.0).map(|raw| PixelFormat::from_raw(AVPixelFormat(raw)))
+    }
+
+    /// Each plane's bytes a `w x h` copy of `format` touches, `(row width,
+    /// rows)`, as the wrappers document; `None` past the format's planes.
+    fn extents(format: PixelFormat, w: i32, h: i32) -> [Option<(usize, usize)>; 4] {
+        let (_, v) = format.chroma_subsampling().unwrap();
+        let planes = format.plane_count().unwrap();
+        core::array::from_fn(|i| {
+            let width = linesize(format, w, i).ok()? as usize;
+            let rows = if i == 1 || i == 2 {
+                (h as usize).div_ceil(1 << v)
+            } else {
+                h as usize
+            };
+            (i < planes && width > 0).then_some((width, rows))
+        })
+    }
+
+    /// Exactly sized heap planes, rows `pad` bytes wider than their extent
+    /// apart (negated for `bottom_up`), for a `w x h` image of `format`; the
+    /// palette of a palettized format in plane 1.
+    fn exact_planes(
+        format: PixelFormat,
+        w: i32,
+        h: i32,
+        pad: usize,
+        bottom_up: bool,
+        seed: u8,
+    ) -> ([Vec<u8>; 4], [isize; 4]) {
+        let ext = extents(format, w, h);
+        let mut linesizes = [0isize; 4];
+        let bufs = core::array::from_fn(|i| match ext[i] {
+            Some((width, rows)) => {
+                let ls = (width + pad) as isize;
+                linesizes[i] = if bottom_up { -ls } else { ls };
+                plane(span(ls, width, rows), seed.wrapping_add(i as u8))
+            }
+            None if i == 1 && format == PixelFormat::PAL8 => plane(1024, seed),
+            None => Vec::new(),
+        });
+        (bufs, linesizes)
+    }
+
+    fn view<'a>(bufs: &'a [Vec<u8>; 4], linesizes: [isize; 4]) -> Planes<'a> {
+        Planes {
+            data: bufs.each_ref().map(|b| &b[..]),
+            linesizes,
+        }
+    }
+
+    fn view_mut<'a>(bufs: &'a mut [Vec<u8>; 4], linesizes: [isize; 4]) -> PlanesMut<'a> {
+        PlanesMut {
+            data: bufs.each_mut().map(|b| &mut b[..]),
+            linesizes,
+        }
+    }
+
+    /// Whether the wrappers can copy `format` at all (C copies nothing of
+    /// hardware formats).
+    fn copyable(format: PixelFormat) -> bool {
+        format.plane_count().is_some_and(|n| n > 0)
+    }
+
+    #[test]
+    fn exact_planes_of_every_format_copy_and_fill() {
+        for format in formats().filter(|&f| copyable(f)) {
+            for (w, h) in [(1, 1), (7, 5), (16, 3)] {
+                for (pad, bottom_up) in [(0, false), (3, false), (0, true), (5, true)] {
+                    let (src, sl) = exact_planes(format, w, h, pad, bottom_up, 1);
+                    let (mut dst, dl) = exact_planes(format, w, h, pad, !bottom_up, 77);
+                    let what = format!("{format:?} {w}x{h} {pad} {bottom_up}");
+                    copy(&mut view_mut(&mut dst, dl), view(&src, sl), format, w, h)
+                        .unwrap_or_else(|e| panic!("{what}: {e}"));
+                    copy_from_uncacheable(
+                        &mut view_mut(&mut dst, dl),
+                        view(&src, sl),
+                        format,
+                        w,
+                        h,
+                    )
+                    .unwrap_or_else(|e| panic!("{what}: {e}"));
+                    let (mut other, ol) = exact_planes(format, w, h, pad, bottom_up, 9);
+                    copy_from_mut(
+                        &mut view_mut(&mut other, ol),
+                        &view_mut(&mut dst, dl),
+                        format,
+                        w,
+                        h,
+                    )
+                    .unwrap_or_else(|e| panic!("{what}: {e}"));
+                    let _ = fill_color(&mut view_mut(&mut dst, dl), format, [!0; 4], w, h);
+                    let _ = fill_black(&mut view_mut(&mut dst, dl), format, ColorRange::MPEG, w, h);
+                    for align in [1, 8, 64] {
+                        let size = buffer_size(format, w, h, align).unwrap();
+                        let mut out = plane(size, 3);
+                        let n = copy_to_buffer(&mut out, view(&src, sl), format, w, h, align);
+                        assert_eq!(n, Ok(size), "{what} {align}");
+                        let mut short = plane(size - 1, 3);
+                        let before = short.clone();
+                        assert_eq!(
+                            copy_to_buffer(&mut short, view(&src, sl), format, w, h, align),
+                            Err(EINVAL)
+                        );
+                        assert_eq!(short, before);
+                    }
+                }
+            }
+        }
+    }
+
+    #[test]
+    fn one_byte_short_planes_are_refused_untouched() {
+        for format in [
+            PixelFormat::YUV420P,
+            PixelFormat::NV12,
+            PixelFormat::RGB24,
+            PixelFormat::PAL8,
+            PixelFormat::YUVA444P16LE,
+            PixelFormat::MONOBLACK,
+        ] {
+            let (w, h) = (9, 7);
+            for i in 0..4 {
+                let (src, sl) = exact_planes(format, w, h, 2, i % 2 == 1, 1);
+                let (mut dst, dl) = exact_planes(format, w, h, 2, false, 50);
+                if dst[i].is_empty() {
+                    continue;
+                }
+                dst[i].pop();
+                dst[i].shrink_to_fit();
+                let before = dst.clone();
+                let err =
+                    copy(&mut view_mut(&mut dst, dl), view(&src, sl), format, w, h).unwrap_err();
+                assert_eq!(
+                    err,
+                    ImageCopyError::Plane {
+                        index: i,
+                        error: PlaneCopyError::DestinationTooShort
+                    },
+                    "{format:?} {i}"
+                );
+                let err = copy_from_uncacheable(
+                    &mut view_mut(&mut dst, dl),
+                    view(&src, sl),
+                    format,
+                    w,
+                    h,
+                );
+                assert!(err.is_err());
+                let palette = format == PixelFormat::PAL8 && i == 1;
+                if !palette {
+                    assert_eq!(
+                        fill_color(&mut view_mut(&mut dst, dl), format, [0; 4], w, h),
+                        Err(EINVAL)
+                    );
+                    assert_eq!(
+                        fill_black(&mut view_mut(&mut dst, dl), format, ColorRange::JPEG, w, h),
+                        Err(EINVAL)
+                    );
+                }
+                assert_eq!(dst, before, "{format:?} {i}");
+                // A short source plane.
+                let (mut src, sl) = (src, sl);
+                let (mut dst, dl) = exact_planes(format, w, h, 2, false, 50);
+                src[i].pop();
+                src[i].shrink_to_fit();
+                let before = dst.clone();
+                let err =
+                    copy(&mut view_mut(&mut dst, dl), view(&src, sl), format, w, h).unwrap_err();
+                assert_eq!(
+                    err,
+                    ImageCopyError::Plane {
+                        index: i,
+                        error: PlaneCopyError::SourceTooShort
+                    }
+                );
+                assert_eq!(dst, before);
+                let mut out = vec![0u8; buffer_size(format, w, h, 1).unwrap()];
+                assert_eq!(
+                    copy_to_buffer(&mut out, view(&src, sl), format, w, h, 1),
+                    Err(EINVAL)
+                );
+            }
+        }
+    }
+
+    #[test]
+    fn rows_wider_than_a_linesize_are_refused_instead_of_aborting() {
+        let format = PixelFormat::GRAY8;
+        let src = plane(64, 1);
+        let mut dst = plane(64, 2);
+        let narrow = Planes {
+            data: [&src, &[], &[], &[]],
+            linesizes: [4, 0, 0, 0],
+        };
+        let mut planes = PlanesMut {
+            data: [&mut dst, &mut [], &mut [], &mut []],
+            linesizes: [8, 0, 0, 0],
+        };
+        let wide = ImageCopyError::Plane {
+            index: 0,
+            error: PlaneCopyError::RowTooWide,
+        };
+        assert_eq!(copy(&mut planes, narrow, format, 6, 3), Err(wide));
+        assert_eq!(copy(&mut planes, narrow, format, 6, 0), Err(wide));
+        assert_eq!(
+            copy_from_uncacheable(&mut planes, narrow, format, 6, 3),
+            Err(wide)
+        );
+        // Fills take overlapping rows inside the plane.
+        assert_eq!(fill_color(&mut planes, format, [9; 4], 16, 3), Ok(()));
+    }
+
+    #[test]
+    fn inputs_c_mishandles_are_refused_before_c() {
+        let i32_max = i32::MAX;
+        // `int` overflow rounding a bitstream row up to bytes.
+        for (f, w) in [
+            (PixelFormat::MONOBLACK, i32_max),
+            (PixelFormat::MONOWHITE, i32_max - 6),
+            (PixelFormat::BGR4, 536_870_911),
+            (PixelFormat::RGB4, 536_870_911),
+        ] {
+            assert_eq!(linesize(f, w, 0), Err(EINVAL));
+            assert_eq!(fill_linesizes(f, w), Err(EINVAL));
+            assert_eq!(check_size_max_pixels(w as u32, 1, i64::MAX, f), Err(EINVAL));
+            assert_eq!(check_fill_color(f, [0; 4], w), Err(EINVAL));
+            assert_eq!(check_fill_black(f, ColorRange::MPEG, w), Err(EINVAL));
+            let mut buf = [0u8; 16];
+            let mut planes = PlanesMut {
+                data: [&mut buf, &mut [], &mut [], &mut []],
+                linesizes: [16, 0, 0, 0],
+            };
+            assert_eq!(fill_color(&mut planes, f, [0; 4], w, 1), Err(EINVAL));
+            assert_eq!(
+                fill_black(&mut planes, f, ColorRange::MPEG, w, 1),
+                Err(EINVAL)
+            );
+            let src = [0u8; 16];
+            let src = Planes {
+                data: [&src, &[], &[], &[]],
+                linesizes: [16, 0, 0, 0],
+            };
+            assert_eq!(
+                copy(&mut planes, src, f, w, 1),
+                Err(ImageCopyError::InvalidSize)
+            );
+        }
+        // Planes past C's arrays.
+        assert_eq!(linesize(PixelFormat::YUV420P, 8, 4), Err(EINVAL));
+        assert_eq!(linesize(PixelFormat::YUV420P, 8, usize::MAX), Err(EINVAL));
+        // Heights C divides by.
+        for h in [0, -1, -2, i32::MIN] {
+            assert_eq!(
+                fill_plane_sizes(PixelFormat::YUV420P, h, [1; 4]),
+                Err(EINVAL)
+            );
+            assert_eq!(
+                buffer_size_for_linesizes(PixelFormat::YUV420P, h, [1; 4]),
+                Err(EINVAL)
+            );
+            assert_eq!(
+                fill_pointers(&[0; 8], PixelFormat::YUV420P, h, [1; 4]).unwrap_err(),
+                EINVAL
+            );
+        }
+        // Alignments C's rounding overflows or ignores.
+        for align in [0, 3, 6, 1 << 31, usize::MAX] {
+            assert_eq!(buffer_size(PixelFormat::YUV420P, 8, 8, align), Err(EINVAL));
+            assert_eq!(
+                Image::alloc(8, 8, PixelFormat::YUV420P, align).unwrap_err(),
+                EINVAL
+            );
+            assert_eq!(
+                fill_arrays(&[0; 256], PixelFormat::YUV420P, 8, 8, align).unwrap_err(),
+                EINVAL
+            );
+            let mut out = [0u8; 256];
+            let src = Image::alloc(8, 8, PixelFormat::YUV420P, 1).unwrap();
+            assert_eq!(
+                copy_to_buffer(&mut out, src.planes(), PixelFormat::YUV420P, 8, 8, align),
+                Err(EINVAL)
+            );
+        }
+        // Heights whose chroma rounding overflows in C.
+        let mut img = Image::alloc(8, 8, PixelFormat::YUV420P, 1).unwrap();
+        assert_eq!(
+            fill_color(
+                &mut img.planes_mut(),
+                PixelFormat::YUV420P,
+                [1; 4],
+                8,
+                i32::MIN
+            ),
+            Ok(())
+        );
+        assert_eq!(
+            fill_black(
+                &mut img.planes_mut(),
+                PixelFormat::YUV420P,
+                ColorRange::MPEG,
+                8,
+                -1
+            ),
+            Ok(())
+        );
+        assert!(img.planes().data.iter().all(|p| p.iter().all(|&b| b == 0)));
+        let src = Image::alloc(8, 8, PixelFormat::YUV420P, 1).unwrap();
+        for (w, h) in [(-1, 8), (8, -1), (i32::MIN, i32::MIN)] {
+            assert_eq!(
+                copy(
+                    &mut img.planes_mut(),
+                    src.planes(),
+                    PixelFormat::YUV420P,
+                    w,
+                    h
+                ),
+                Err(ImageCopyError::InvalidSize)
+            );
+        }
+        // Formats past the descriptor table, and unknown or hardware ones.
+        let nb = AVPixelFormat::AV_PIX_FMT_NB;
+        for f in [
+            PixelFormat::from_raw(nb),
+            PixelFormat::from_raw(AVPixelFormat(i32::MAX)),
+            PixelFormat::NONE,
+            PixelFormat::VAAPI,
+        ] {
+            let mut buf = [0u8; 64];
+            assert_eq!(
+                f.describe(&mut buf).is_none(),
+                f != PixelFormat::NONE && f != PixelFormat::VAAPI
+            );
+            assert!(fill_linesizes(f, 8).is_err());
+            assert!(Image::alloc(8, 8, f, 1).is_err());
+            assert_eq!(
+                copy(&mut img.planes_mut(), src.planes(), f, 8, 8),
+                Err(ImageCopyError::UnsupportedFormat)
+            );
+            assert!(fill_color(&mut img.planes_mut(), f, [0; 4], 8, 8).is_err());
+        }
+        // Extreme sample aspect ratios and sizes.
+        for (num, den) in [
+            (i32::MIN, 1),
+            (1, i32::MIN),
+            (i32::MAX, i32::MAX),
+            (1, i32::MAX),
+        ] {
+            let _ = check_sar(u32::MAX, u32::MAX, Rational::new(num, den));
+        }
+        assert_eq!(
+            Image::alloc(i32::MAX, i32::MAX, PixelFormat::RGBAF32LE, 64).unwrap_err(),
+            EINVAL
+        );
+    }
+
+    #[test]
+    fn layouts_hand_out_disjoint_exact_planes() {
+        for format in formats().filter(|&f| copyable(f)) {
+            let Ok(size) = buffer_size(format, 13, 7, 4) else {
+                continue;
+            };
+            let mut buf = plane(size, 0);
+            let planes = fill_arrays_mut(&mut buf, format, 13, 7, 4).unwrap();
+            let total: usize = planes.data.iter().map(|d| d.len()).sum();
+            assert_eq!(total, size, "{format:?}");
+            for (i, d) in planes.data.into_iter().enumerate() {
+                d.fill(i as u8 + 1);
+            }
+            let read = fill_arrays(&buf, format, 13, 7, 4).unwrap();
+            for (i, d) in read.data.iter().enumerate() {
+                assert!(d.iter().all(|&b| b == i as u8 + 1));
+            }
+            let ls = fill_linesizes(format, 13).unwrap();
+            let size = buffer_size_for_linesizes(format, 7, ls).unwrap();
+            let mut buf = plane(size, 0);
+            let planes = fill_pointers_mut(&mut buf, format, 7, ls).unwrap();
+            for d in planes.data {
+                d.fill(0xee);
+            }
+            assert!(fill_pointers(&buf[..size - 1], format, 7, ls).is_err());
+        }
+    }
+
+    #[test]
+    fn misaligned_uncacheable_images_never_fault_or_overrun() {
+        let format = PixelFormat::YUV420P;
+        let (w, h) = (100, 6);
+        let mut src = Image::alloc(w, h, format, 64).unwrap();
+        for d in src.planes_mut().data {
+            d.fill(0x42);
+        }
+        for (off, short) in [(0, false), (1, false), (8, false), (0, true), (17, true)] {
+            let ls = [128isize, 64, 64, 0];
+            let ext = [(100usize, 6usize), (50, 3), (50, 3)];
+            let mut bufs: Vec<(Box<[u8]>, usize)> = ext
+                .iter()
+                .zip(ls)
+                .map(|(&(bw, rows), l)| {
+                    let width = if short { bw } else { bw.next_multiple_of(64) };
+                    placed(span(l, width, rows), off, 7)
+                })
+                .collect();
+            let mut it = bufs.iter_mut();
+            let mut slot = || {
+                let (b, at) = it.next().unwrap();
+                &mut b[*at..]
+            };
+            let mut planes = PlanesMut {
+                data: [slot(), slot(), slot(), &mut []],
+                linesizes: ls,
+            };
+            copy_from_uncacheable(&mut planes, src.planes(), format, w, h).unwrap();
+            for (i, &(bw, rows)) in ext.iter().enumerate() {
+                for r in 0..rows {
+                    let at = r * ls[i] as usize;
+                    assert!(planes.data[i][at..at + bw].iter().all(|&b| b == 0x42));
+                }
+            }
+        }
+    }
+
+    #[test]
+    fn images_live_and_die_on_many_threads() {
+        let format = PixelFormat::YUV420P;
+        let mut src = Image::alloc(40, 30, format, 32).unwrap();
+        fill_color(&mut src.planes_mut(), format, [10, 20, 30, 0], 40, 30).unwrap();
+        let shared = src.planes();
+        let made: Vec<Image> = thread::scope(|s| {
+            let handles: Vec<_> = (0..8)
+                .map(|t| {
+                    s.spawn(move || {
+                        let mut img = Image::alloc(40, 30, format, 1 << (t % 7)).unwrap();
+                        copy(&mut img.planes_mut(), shared, format, 40, 30).unwrap();
+                        copy_from_uncacheable(&mut img.planes_mut(), shared, format, 40, 30)
+                            .unwrap();
+                        fill_black(&mut img.planes_mut(), format, ColorRange::JPEG, 20, 15)
+                            .unwrap();
+                        let mut out = vec![0u8; buffer_size(format, 40, 30, 4).unwrap()];
+                        copy_to_buffer(&mut out, img.planes(), format, 40, 30, 4).unwrap();
+                        img
+                    })
+                })
+                .collect();
+            handles.into_iter().map(|h| h.join().unwrap()).collect()
+        });
+        // Dropped on other threads than they were made on.
+        thread::scope(|s| {
+            for img in made {
+                s.spawn(move || {
+                    assert_eq!(img.planes().data[0][39], 10);
+                    drop(img);
+                });
+            }
+        });
+    }
+}

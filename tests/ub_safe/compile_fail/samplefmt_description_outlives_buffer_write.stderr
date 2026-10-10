@@ -1,0 +1,9 @@
+error[E0506]: cannot assign to `buf[_]` because it is borrowed
+ --> tests/ub_safe/compile_fail/samplefmt_description_outlives_buffer_write.rs
+  |
+  |     let text = SampleFormat::S16.describe(&mut buf).unwrap();
+  |                                           -------- `buf[_]` is borrowed here
+  |     buf[0] = b'x';
+  |     ^^^^^^^^^^^^^ `buf[_]` is assigned to here but it was already borrowed
+  |     println!("{text:?} {}", buf[0]);
+  |                ---- borrow later used here

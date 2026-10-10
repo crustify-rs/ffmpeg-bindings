@@ -10,8 +10,13 @@
 //! view an owner's planes, or lay them out over a caller's bytes
 //! (`av_samples_fill_arrays`); the exclusive view sets samples to silence
 //! (`av_samples_set_silence`) and copies them (`av_samples_copy`).
+//!
+//! [`SampleFormat`]'s C names and lookups ([`SampleFormat::name`],
+//! [`SampleFormat::from_name`], [`SampleFormat::describe`]) and its packed
+//! and planar forms ([`SampleFormat::packed`], [`SampleFormat::planar`]) are
+//! methods on it.
 
-use core::ffi::c_int;
+use core::ffi::{CStr, c_int};
 use core::fmt;
 use core::mem::MaybeUninit;
 use core::ptr;
@@ -120,7 +125,7 @@ impl SampleFormat {
     }
 
     /// The name of the constant this value equals, if any.
-    const fn name(self) -> Option<&'static str> {
+    const fn constant_name(self) -> Option<&'static str> {
         Some(match self {
             Self::NONE => "NONE",
             Self::U8 => "U8",
@@ -149,7 +154,7 @@ impl Default for SampleFormat {
 
 impl fmt::Debug for SampleFormat {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        match self.name() {
+        match self.constant_name() {
             Some(name) => f.write_str(name),
             None => f.debug_tuple("SampleFormat").field(&self.0.0).finish(),
         }
@@ -993,6 +998,99 @@ impl SampleFormat {
     }
 }
 
+impl SampleFormat {
+    /// Wraps: av_get_sample_fmt_name
+    ///
+    /// The name C gives this sample format: `u8`, `s16`, `s32`, `flt`,
+    /// `dbl`, `s64`, and the same with a `p` suffix for the planar forms;
+    /// `None` for [`NONE`](Self::NONE) and any value C does not name.
+    ///
+    /// ```
+    /// use ffmpeg::libavutil::samplefmt::SampleFormat;
+    /// assert_eq!(SampleFormat::FLTP.name(), Some(c"fltp"));
+    /// assert_eq!(SampleFormat::NONE.name(), None);
+    /// ```
+    #[must_use]
+    pub fn name(self) -> Option<&'static CStr> {
+        // SAFETY: `av_get_sample_fmt_name` takes the enum by value, checks
+        // its range, and returns NULL or a pointer into its static table.
+        let name = unsafe { ffi::av_get_sample_fmt_name(self.0) };
+        // SAFETY: a non-NULL `name` is a NUL-terminated `char[8]` of the
+        // immutable static `sample_fmt_info` table, alive for the process.
+        (!name.is_null()).then(|| unsafe { CStr::from_ptr(name) })
+    }
+
+    /// Wraps: av_get_sample_fmt
+    ///
+    /// The sample format C names `name` (see [`name`](Self::name)), or
+    /// `None` for any other string. Names are matched exactly, case
+    /// included.
+    ///
+    /// ```
+    /// use ffmpeg::libavutil::samplefmt::SampleFormat;
+    /// assert_eq!(SampleFormat::from_name(c"s16p"), Some(SampleFormat::S16P));
+    /// assert_eq!(SampleFormat::from_name(c"S16P"), None);
+    /// ```
+    #[must_use]
+    pub fn from_name(name: &CStr) -> Option<Self> {
+        // SAFETY: `name` is a live NUL-terminated string, which C only
+        // compares during the call.
+        let raw = unsafe { ffi::av_get_sample_fmt(name.as_ptr()) };
+        let found = Self(raw);
+        (found != Self::NONE).then_some(found)
+    }
+
+    /// Wraps: av_get_planar_sample_fmt
+    ///
+    /// The planar form of this sample format: itself when it is planar, its
+    /// planar alternative when packed ([`S16`](Self::S16) gives
+    /// [`S16P`](Self::S16P)); `None` for [`NONE`](Self::NONE) and any value
+    /// C does not name.
+    #[must_use]
+    pub fn planar(self) -> Option<Self> {
+        // SAFETY: `av_get_planar_sample_fmt` takes the enum by value and
+        // range-checks it before indexing its table.
+        let raw = unsafe { ffi::av_get_planar_sample_fmt(self.0) };
+        let planar = Self(raw);
+        (planar != Self::NONE).then_some(planar)
+    }
+
+    /// Wraps: av_get_sample_fmt_string
+    ///
+    /// Writes a line describing this sample format into `buf` and returns
+    /// it, borrowed from `buf`: the name left-aligned in 6 columns and the
+    /// bits per sample right-aligned in 5 (`"s16      16 "`), or, for
+    /// [`NONE`](Self::NONE) and every other negative value, the header
+    /// `"name   depth"` of a table of such lines.
+    ///
+    /// The text is truncated to fit `buf`, NUL included. `None` when C
+    /// writes nothing: for an empty `buf`, and for a non-negative value C
+    /// does not name.
+    ///
+    /// ```
+    /// use ffmpeg::libavutil::samplefmt::SampleFormat;
+    /// let mut buf = [0u8; 32];
+    /// assert_eq!(SampleFormat::S16.describe(&mut buf), Some(c"s16      16 "));
+    /// assert_eq!(SampleFormat::NONE.describe(&mut buf), Some(c"name   depth"));
+    /// assert_eq!(SampleFormat::DBLP.describe(&mut buf[..4]), Some(c"dbl"));
+    /// ```
+    pub fn describe(self, buf: &mut [u8]) -> Option<&CStr> {
+        if buf.is_empty() || self.0.0 >= Self::COUNT as c_int {
+            // C's `snprintf` writes nothing into an empty buffer, and C
+            // skips values past its table, leaving `buf` unterminated.
+            return None;
+        }
+        // A smaller bound than `buf` holds is still a sound one.
+        let size = c_int::try_from(buf.len()).unwrap_or(c_int::MAX);
+        // SAFETY: `buf` is `size` or more writable bytes, the bound C gives
+        // `snprintf`; the value is negative (the header) or indexes C's
+        // table. The returned pointer is `buf`, which C does not retain.
+        unsafe { ffi::av_get_sample_fmt_string(buf.as_mut_ptr().cast(), size, self.0) };
+        // `snprintf` NUL-terminated its output within `buf`.
+        CStr::from_bytes_until_nul(buf).ok()
+    }
+}
+
 #[cfg(test)]
 mod unit_tests {
     use super::*;
@@ -1572,5 +1670,54 @@ mod unit_tests {
             assert_eq!((f.alt(false), f.alt(true), f.packed()), (None, None, None));
             assert_eq!(f.bytes_per_sample(), 0);
         }
+    }
+
+    #[test]
+    fn name_and_from_name_round_trip_every_counted_format() {
+        for &(f, _) in &NAMED[1..] {
+            let name = f.name().unwrap();
+            assert_eq!(SampleFormat::from_name(name), Some(f), "{name:?}");
+        }
+        assert_eq!(SampleFormat::NONE.name(), None);
+        assert_eq!(SampleFormat::from_name(c"none"), None);
+        assert_eq!(SampleFormat::from_name(c""), None);
+    }
+
+    #[test]
+    fn planar_is_planar_and_idempotent() {
+        for &(f, _) in &NAMED[1..] {
+            let planar = f.planar().unwrap();
+            assert!(planar.name().unwrap().to_bytes().ends_with(b"p"), "{f:?}");
+            assert_eq!(planar.planar(), Some(planar));
+        }
+        for raw in [c_int::MIN, -1, 12, c_int::MAX] {
+            assert_eq!(
+                SampleFormat::from_raw(ffi::AVSampleFormat(raw)).planar(),
+                None
+            );
+        }
+    }
+
+    #[test]
+    fn describe_writes_nothing_where_c_does_not() {
+        let mut buf = [b'x'; 16];
+        assert_eq!(SampleFormat::S16.describe(&mut buf[..0]), None);
+        for raw in [12, 13, c_int::MAX] {
+            let f = SampleFormat::from_raw(ffi::AVSampleFormat(raw));
+            assert_eq!(f.describe(&mut buf), None);
+        }
+        assert_eq!(buf, [b'x'; 16]);
+    }
+
+    #[test]
+    fn describe_truncates_and_prints_headers_for_negatives() {
+        let mut buf = [b'x'; 16];
+        assert_eq!(SampleFormat::U8.describe(&mut buf[..1]), Some(c""));
+        assert_eq!(&buf[..2], b"\0x");
+        for raw in [c_int::MIN, -2, -1] {
+            let f = SampleFormat::from_raw(ffi::AVSampleFormat(raw));
+            assert_eq!(f.describe(&mut buf), Some(c"name   depth"));
+        }
+        assert_eq!(SampleFormat::S64P.describe(&mut buf), Some(c"s64p     64 "));
     }
 }

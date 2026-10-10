@@ -1,0 +1,8 @@
+error[E0502]: cannot borrow `image` as immutable because it is also borrowed as mutable
+ --> tests/ub_safe/compile_fail/imgutils_copy_into_own_source.rs
+  |
+  |     let _ = copy(&mut image.planes_mut(), image.planes(), PixelFormat::GRAY8, 8, 8);
+  |             ----      -----               ^^^^^ immutable borrow occurs here
+  |             |         |
+  |             |         mutable borrow occurs here
+  |             mutable borrow later used by call

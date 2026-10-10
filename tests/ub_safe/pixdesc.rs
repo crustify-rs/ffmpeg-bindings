@@ -1067,3 +1067,49 @@ mod pixel_format_descriptor {
         assert_eq!(counts, [0, 3, 4, u8::MAX]);
     }
 }
+
+/// UB tests for `PixelFormat`'s descriptor queries: every value C knows and
+/// values past its table (on which C would read past it), into exactly
+/// sized heap buffers of every length, and on several threads.
+mod pixel_format_queries {
+    use std::thread;
+
+    use ffmpeg::libavutil::ffi;
+    use ffmpeg::libavutil::pixfmt::PixelFormat;
+
+    fn values() -> impl Iterator<Item = PixelFormat> {
+        let nb = ffi::AVPixelFormat::AV_PIX_FMT_NB.0;
+        (-3..nb + 3)
+            .chain([i32::MIN, i32::MAX])
+            .map(|raw| PixelFormat::from_raw(ffi::AVPixelFormat(raw)))
+    }
+
+    #[test]
+    fn queries_of_every_value_stay_in_bounds() {
+        for f in values() {
+            let _ = f.plane_count();
+            let _ = f.chroma_subsampling();
+            for len in [0, 1, 2, 11, 12, 31, 32, 33] {
+                let mut buf = vec![b'#'; len].into_boxed_slice();
+                if let Some(s) = f.describe(&mut buf) {
+                    assert!(s.to_bytes().len() < len);
+                }
+            }
+        }
+    }
+
+    #[test]
+    fn queries_on_many_threads() {
+        thread::scope(|s| {
+            for _ in 0..8 {
+                s.spawn(|| {
+                    let mut buf = [0u8; 40];
+                    for f in values() {
+                        let _ = f.describe(&mut buf);
+                        let _ = f.plane_count();
+                    }
+                });
+            }
+        });
+    }
+}

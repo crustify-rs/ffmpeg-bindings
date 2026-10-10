@@ -444,3 +444,30 @@ function av_pix_fmt_desc_get
 function av_pix_fmt_desc_get_id
 function av_get_bits_per_pixel
 function av_write_image_line2
+
+# libavutil/imgutils.h, pixdesc.h, samplefmt.h: image layout, allocation,
+# copies and fills, and the pixel and sample format queries (formats wave 1,
+# batch 4; av_image_copy2 is static inline, compiled by bindgen's
+# wrap_static_fns). imgutils.rs also reads the plane geometry it validates
+# slices against through batch 2's av_pix_fmt_desc_get and AV_PIX_FMT_FLAG_*.
+function av_get_pix_fmt_string
+function av_get_planar_sample_fmt
+function av_get_sample_fmt_string
+function av_image_alloc
+function av_image_check_sar
+function av_image_check_size2
+function av_image_copy
+function av_image_copy2
+function av_image_copy_to_buffer
+function av_image_copy_uc_from
+function av_image_fill_arrays
+function av_image_fill_black
+function av_image_fill_color
+function av_image_fill_linesizes
+function av_image_fill_plane_sizes
+function av_image_fill_pointers
+function av_image_get_buffer_size
+function av_image_get_linesize
+function av_pix_fmt_count_planes
+function av_pix_fmt_get_chroma_sub_sample
+var AVPALETTE_SIZE
