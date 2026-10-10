@@ -2,10 +2,12 @@
 #ifndef CRUSTIFY_LIBAVUTIL_SHIM_H
 #define CRUSTIFY_LIBAVUTIL_SHIM_H
 
+#include <stddef.h>
 #include <stdint.h>
 
 #include "libavutil/bprint.h"
 #include "libavutil/log.h"
+#include "libavutil/pixfmt.h"
 
 /* av_vlog with its va_list built from the trailing arguments: stable Rust
  * can call a C variadic function but cannot construct a va_list. */
@@ -41,5 +43,12 @@ uint32_t crustify_AV_RN32A(const void *p);
 void crustify_AV_WN32A(void *p, uint32_t v);
 void crustify_AV_COPY32(void *d, const void *s);
 void crustify_AV_ZERO32(void *d);
+
+/* The native-endian AV_PIX_FMT_<name> aliases of libavutil/pixfmt.h, which
+ * paste tokens through AV_PIX_FMT_NE and so escape bindgen: the C references
+ * for PixelFormat's native-endian constants in equivalence tests. Returns the
+ * i-th alias and stores its <name> in *name, or returns AV_PIX_FMT_NONE and
+ * stores NULL once i is past the last one. */
+enum AVPixelFormat crustify_AV_PIX_FMT_NE(size_t i, const char **name);
 
 #endif /* CRUSTIFY_LIBAVUTIL_SHIM_H */

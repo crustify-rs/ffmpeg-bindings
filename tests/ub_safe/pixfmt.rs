@@ -188,3 +188,107 @@ mod alpha_mode {
         assert_eq!(back.iter().rev().copied().collect::<Vec<_>>(), values);
     }
 }
+
+/// [`PixelFormat`] (formats wave 0, batch 5): as a value, and as the plain
+/// element of `av_malloc`-family arrays.
+mod pixel_format {
+    use std::collections::HashSet;
+    use std::thread;
+
+    use ffmpeg::libavutil::ffi;
+    use ffmpeg::libavutil::mem::{HeapVec, alloc_array, alloc_array_from_fn, alloc_array_zeroed};
+    use ffmpeg::libavutil::pixfmt::PixelFormat;
+
+    /// Named formats, `AV_PIX_FMT_NB` and its neighbours, and the `int` extremes.
+    fn sample() -> Vec<PixelFormat> {
+        let nb = ffi::AVPixelFormat::AV_PIX_FMT_NB.0;
+        [
+            i32::MIN,
+            -2,
+            -1,
+            0,
+            1,
+            56,
+            71,
+            nb - 1,
+            nb,
+            nb + 1,
+            1 << 30,
+            i32::MAX,
+        ]
+        .map(|raw| PixelFormat::from_raw(ffi::AVPixelFormat(raw)))
+        .into()
+    }
+
+    #[test]
+    fn debug_and_conversions_accept_every_value() {
+        for f in sample() {
+            assert!(!format!("{f:?}").is_empty());
+            let raw: ffi::AVPixelFormat = f.into();
+            assert_eq!(PixelFormat::from(raw), f);
+            assert_eq!(PixelFormat::from_raw(f.into_raw()), f);
+        }
+    }
+
+    #[test]
+    fn hash_and_eq_agree_on_every_value() {
+        let set: HashSet<PixelFormat> = sample().into_iter().chain(sample()).collect();
+        assert_eq!(set.len(), sample().len());
+        // An alias is the same value as its primary constant.
+        assert!(set.contains(&PixelFormat::Y400A));
+        assert!(set.contains(&PixelFormat::GBR24P));
+    }
+
+    #[test]
+    fn arrays_fill_clone_and_free() {
+        let values = sample();
+        let mut a = alloc_array_zeroed::<PixelFormat>(values.len()).unwrap();
+        assert!(a.as_slice().iter().all(|&f| f == PixelFormat::YUV420P));
+        a.as_mut_slice().copy_from_slice(&values);
+        assert!(a.as_slice().get(values.len()).is_none());
+        let mut u = alloc_array::<PixelFormat>(values.len()).unwrap();
+        for (slot, &f) in u.as_mut_slice().iter_mut().zip(&values) {
+            slot.write(f);
+        }
+        drop(u);
+        let f = alloc_array_from_fn(values.len(), |i| values[i]).unwrap();
+        let b = a.clone();
+        a.as_mut_slice().fill(PixelFormat::NONE);
+        drop(a);
+        assert_eq!(b.as_slice(), &values[..]);
+        assert_eq!(f.as_slice(), &values[..]);
+        drop(alloc_array_zeroed::<PixelFormat>(0).unwrap());
+        drop(HeapVec::<PixelFormat>::from_slice(&[]).unwrap());
+    }
+
+    #[test]
+    fn arrays_cross_and_are_shared_between_threads() {
+        let values = sample();
+        let a = HeapVec::from_slice(&values).unwrap();
+        // Shared reads from several threads at once.
+        thread::scope(|s| {
+            for _ in 0..4 {
+                s.spawn(|| assert_eq!(a.as_slice(), &values[..]));
+            }
+        });
+        // Moved to another thread, written and freed there.
+        let back = thread::spawn(move || {
+            let mut a = a;
+            a.as_mut_slice().reverse();
+            a.as_slice().to_vec()
+        })
+        .join()
+        .unwrap();
+        assert_eq!(back.iter().rev().copied().collect::<Vec<_>>(), values);
+    }
+
+    #[test]
+    fn values_cross_threads_by_copy() {
+        let f = PixelFormat::YUV420P10;
+        let names: Vec<String> = thread::scope(|s| {
+            let hs: Vec<_> = (0..4).map(|_| s.spawn(move || format!("{f:?}"))).collect();
+            hs.into_iter().map(|h| h.join().unwrap()).collect()
+        });
+        assert!(names.iter().all(|n| n == &format!("{f:?}")));
+    }
+}
