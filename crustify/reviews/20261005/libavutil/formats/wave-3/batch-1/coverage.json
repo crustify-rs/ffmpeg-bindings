@@ -1,0 +1,35 @@
+{
+  "method": {
+    "c": "CRUSTIFY_FFMPEG_VARIANT=coverage (gcc gcov build), GCOV_PREFIX=/tmp/fw3r1/cov/gcov GCOV_PREFIX_STRIP=0, gcov 13 -b -c -f over channel_layout.c, driven by the module-filtered lib, equiv, ub_safe and ub_unsafe tests (cargo test -p ffmpeg --lib --tests -- channel_layout --skip compile_fail: 72 + 59 + 47 + 0 tests) on the reviewed tree (0cc48b6804) plus this review's unit tests, before the three parser inputs below were added",
+    "rust": "RUSTFLAGS=-C instrument-coverage, nightly llvm-profdata merge + llvm-cov report/show over the same four test binaries and the home file, same tree",
+    "note": "the review adds parser inputs that take three reachable C branches the measured run left untaken (`ambisonic 1x`: a byte other than `+` after the order, channel_layout.c:342; `18446744073709551616`: strtoull/strtol set errno, :417/:426/:433; `2 channels (FL+FR`: no closing parenthesis, :405), and a unit test that takes the native index walk off the end of the mask (:693, a count above the mask's bits, which no safe path builds)"
+  },
+  "c": {
+    "libavutil/channel_layout.c": {
+      "av_channel_layout_custom_init": { "lines": { "count": 11, "percent": 100.0 } },
+      "av_channel_layout_from_mask": { "lines": { "count": 6, "percent": 100.0 } },
+      "av_channel_layout_from_string": { "lines": { "count": 76, "percent": 100.0 }, "branches_untaken_before_review": [ ":342 `*endptr != '+'` with a nonzero endptr", ":405 `!end_par` (no closing parenthesis)", ":417/:426/:433 `!errno` false (ERANGE)", ":401 ENOMEM from parse_channel_list" ], "note": "the first three are now taken by the added inputs; the ENOMEM arm is out-of-memory only" },
+      "parse_channel_list": { "lines": { "count": 31, "percent": 96.77 }, "uncovered": [ ":277 av_freep after av_opt_get_key_value fails (ENOMEM only)", ":297 ENOMEM from av_dynarray2_add", ":308 av_assert0 failure" ] },
+      "av_channel_layout_uninit": { "lines": { "count": 7, "percent": 100.0 } },
+      "av_channel_layout_copy": { "lines": { "count": 9, "percent": 100.0 } },
+      "av_channel_layout_ambisonic_order": { "lines": { "count": 18, "percent": 100.0 } },
+      "av_channel_layout_describe_bprint": { "lines": { "count": 35, "percent": 100.0 }, "note": ":619 `mask > 0` false (a custom layout of 0 channels with a map) is unreachable: C's own initialisers and the safe setters refuse an empty map" },
+      "try_describe_ambisonic": { "lines": { "count": 23, "percent": 100.0 }, "note": ":580 `mask > 0` false is unreachable for the same reason" },
+      "canonical_order": { "lines": { "count": 12, "percent": 100.0 } },
+      "av_channel_layout_describe": { "lines": { "count": 9, "percent": 100.0 }, "branches_untaken": [ ":660 NULL buffer with a size (the wrapper never passes one)", ":665 describe_bprint failure (an order C does not know, which no safe path builds)", ":668 len >= INT_MAX" ] },
+      "av_channel_layout_channel_from_index": { "lines": { "count": 13, "percent": 100.0 }, "note": ":693 the 64-bit walk running off the mask is taken by the added unit test" },
+      "av_channel_layout_channel_from_string": { "lines": { "count": 4, "percent": 100.0 } },
+      "av_channel_layout_index_from_channel": { "lines": { "count": 15, "percent": 100.0 } },
+      "av_channel_layout_index_from_string": { "lines": { "count": 22, "percent": 100.0 } },
+      "av_channel_layout_check": { "lines": { "count": 19, "percent": 100.0 } },
+      "av_channel_layout_compare": { "lines": { "count": 12, "percent": 100.0 } },
+      "av_channel_layout_default": { "lines": { "count": 8, "percent": 100.0 } },
+      "av_channel_layout_standard": { "lines": { "count": 7, "percent": 100.0 } },
+      "av_channel_layout_subset": { "lines": { "count": 9, "percent": 100.0 } },
+      "av_channel_layout_retype": { "lines": { "count": 71, "percent": 100.0 } }
+    }
+  },
+  "rust": {
+    "crustify/rust/ffmpeg/libavutil/channel_layout.rs": { "lines": { "count": 1847, "missed": 15, "percent": 99.19 }, "regions": { "count": 2785, "missed": 19, "percent": 99.32 }, "uncovered": [ "lines 1131-1136: `masks::bit`, a const fn evaluated at compile time (wave 2)", "lines 3549-3779: `panic!()` arms of wave-2 unit tests' match statements, test code" ], "note": "every line of the wave-3 sections (the readers from `walkable` to `PartialEq`, `subset`, the retype family, `standard_layouts`) and of this review's `c_strtol` / `ambisonic_order_overflows` executed" }
+  }
+}
