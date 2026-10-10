@@ -2326,7 +2326,7 @@ mod layout {
         const WITH_NONE: &[(c_int, &CStr)] = &[(0, c""), (-1, c"")];
 
         /// Setter sequences building each starting layout on both twins.
-        fn starts() -> Vec<Vec<Op>> {
+        pub(super) fn starts() -> Vec<Vec<Op>> {
             use Op::*;
             let maps = [
                 MAP_A,
@@ -2373,7 +2373,7 @@ mod layout {
         }
 
         /// Twins built by `ops`.
-        fn twins(ops: &[Op]) -> (ChannelLayoutVal, CLayout) {
+        pub(super) fn twins(ops: &[Op]) -> (ChannelLayoutVal, CLayout) {
             let (r_other, c_other) = (ChannelLayout::unspecified(0), CLayout::zeroed());
             let mut r = ChannelLayout::unspecified(0);
             let mut c = CLayout::zeroed();
@@ -2388,13 +2388,13 @@ mod layout {
             (r, c)
         }
 
-        fn c_retype(c: &mut CLayout, order: c_uint, flags: c_int) -> c_int {
+        pub(super) fn c_retype(c: &mut CLayout, order: c_uint, flags: c_int) -> c_int {
             // SAFETY: a valid layout C may convert in place.
             unsafe { ffi::av_channel_layout_retype(&mut c.0, ffi::AVChannelOrder(order), flags) }
         }
 
         /// The safe call standing for `flags`, its result as C reports it.
-        fn rust_retype(r: &mut ChannelLayoutVal, order: c_uint, flags: c_int) -> c_int {
+        pub(super) fn rust_retype(r: &mut ChannelLayoutVal, order: c_uint, flags: c_int) -> c_int {
             let order = ChannelOrder::from_raw(ffi::AVChannelOrder(order));
             let done = |res: Result<(), c_int>| res.map_or_else(|e| e, |()| 0);
             if flags & CANONICAL != 0 {
@@ -2609,6 +2609,347 @@ mod layout {
                 let resumed: Vec<_> = it.map(rust_fields).collect();
                 let want: Vec<_> = c[k..].iter().map(|&p| c_fields(p)).collect();
                 assert_eq!(resumed, want, "after {k}");
+            }
+        }
+    }
+
+    /// The readers of `ChannelLayoutRef` (`is_valid`, `ambisonic_order`,
+    /// `channel`, `index_of`, `index_by_name`, `channel_by_name`,
+    /// `write_description`, `description`, `append_description`) and `==`
+    /// against `av_channel_layout_check`, `_ambisonic_order`,
+    /// `_channel_from_index`, `_index_from_channel`, `_index_from_string`,
+    /// `_channel_from_string`, `_describe`, `_describe_bprint` and
+    /// `_compare` on twin layouts: every start state, every standard layout,
+    /// every buffer size around the description's, every pair of starts, and
+    /// sequences of conversions and setters compared after every step
+    /// (formats wave-3 batch 1).
+    mod readers {
+        use core::mem::MaybeUninit;
+
+        use ffmpeg::libavutil::bprint::BPrint;
+        use ffmpeg::libavutil::channel_layout::masks;
+
+        use super::order_changes::{c_retype, rust_retype, starts, twins};
+        use super::*;
+
+        /// Channel ids at every class: `NONE`, native, user, the Ambisonic
+        /// bounds, the markers and the `int` extremes.
+        const IDS: [c_int; 17] = [
+            -1,
+            0,
+            1,
+            3,
+            40,
+            62,
+            63,
+            64,
+            0x200,
+            0x300,
+            0x400,
+            0x403,
+            0x404,
+            0x7ff,
+            0x800,
+            c_int::MAX,
+            c_int::MIN,
+        ];
+
+        /// Lookups of every shape, the start maps' names included.
+        const NAMES: [&CStr; 24] = [
+            c"",
+            c"@",
+            c"FL",
+            c"FR",
+            c"LFE",
+            c"USR40",
+            c"USR63",
+            c"AMBI0",
+            c"AMBI4",
+            c"UNK",
+            c"FL@",
+            c"@x",
+            c"FR@y",
+            c"FL@y",
+            c"@front",
+            c"FL@front",
+            c"FR@front",
+            c"XX@front",
+            c"@right",
+            c"@amb",
+            c"AMBI4@amb",
+            c"@0123456789abcde",
+            c"USR63@0123456789abcde",
+            c"nope",
+        ];
+
+        /// Everything the readers report about one layout, in the Rust
+        /// API's terms.
+        #[derive(Debug, PartialEq)]
+        struct Reads {
+            valid: bool,
+            ambisonic_order: Option<u32>,
+            at: Vec<Option<c_int>>,
+            index: Vec<Option<usize>>,
+            by_name: Vec<(Option<usize>, Option<c_int>)>,
+            description: Result<Vec<u8>, c_int>,
+            /// `(result, buffer)` written into each size around the
+            /// description's.
+            sized: Vec<(Result<usize, c_int>, Vec<u8>)>,
+            /// A print buffer holding `"x:"` with the description appended.
+            appended: (Result<(), c_int>, Vec<u8>),
+        }
+
+        /// Indices around the layout's channels and `unsigned`'s extremes.
+        fn indices(nb_channels: c_int) -> Vec<c_uint> {
+            let n = nb_channels.clamp(0, 70) as c_uint;
+            (0..=n + 1)
+                .chain([c_int::MAX as c_uint, c_int::MAX as c_uint + 1, c_uint::MAX])
+                .collect()
+        }
+
+        /// Buffer sizes from empty to past the description's `need`.
+        fn sizes(need: usize) -> Vec<usize> {
+            let mut s: Vec<usize> = (0..need.min(6)).collect();
+            s.extend([need.saturating_sub(1), need, need + 3]);
+            s
+        }
+
+        fn none_to_option(ch: ffi::AVChannel) -> Option<c_int> {
+            (ch != ffi::AVChannel::AV_CHAN_NONE).then_some(ch.0)
+        }
+
+        fn rust_reads(l: ChannelLayoutRef<'_>) -> Reads {
+            let need = l.write_description(&mut []).unwrap_or(0);
+            let sized = sizes(need)
+                .into_iter()
+                .map(|len| {
+                    let mut buf = vec![0xAAu8; len];
+                    (l.write_description(&mut buf), buf)
+                })
+                .collect();
+            let mut b = BPrint::new(0, BPrint::SIZE_UNLIMITED).unwrap();
+            b.as_mut().append_bytes(b"x:");
+            let res = l.append_description(b.as_mut());
+            Reads {
+                valid: l.is_valid(),
+                ambisonic_order: l.ambisonic_order(),
+                at: indices(l.channel_count())
+                    .into_iter()
+                    .map(|i| l.channel(i as usize).map(|ch| ch.into_raw().0))
+                    .collect(),
+                index: IDS
+                    .map(|id| l.index_of(Channel::from_raw(ffi::AVChannel(id))))
+                    .into(),
+                by_name: NAMES
+                    .map(|s| {
+                        let ch = l.channel_by_name(s).map(|ch| ch.into_raw().0);
+                        (l.index_by_name(s), ch)
+                    })
+                    .into(),
+                description: l.description().map(CString::into_bytes),
+                sized,
+                appended: (res, b.as_ref().as_bytes().to_vec()),
+            }
+        }
+
+        /// What C's readers report, mapped onto the Rust API's terms: a
+        /// negative index or order is `None`, as is `AV_CHAN_NONE`.
+        fn c_reads(p: *const ffi::AVChannelLayout) -> Reads {
+            // SAFETY: `p` addresses a live, valid layout every call below
+            // only reads; each buffer is valid for the size passed (NULL
+            // with size 0 asks for the length only); the print buffer is
+            // initialised before use and finalised once.
+            unsafe {
+                let nb = (*p).nb_channels;
+                let need = ffi::av_channel_layout_describe(p, ptr::null_mut(), 0);
+                let description = if need < 0 {
+                    Err(need)
+                } else {
+                    let mut buf = vec![0 as c_char; need as usize];
+                    let ret = ffi::av_channel_layout_describe(p, buf.as_mut_ptr(), buf.len());
+                    assert_eq!(ret, need);
+                    Ok(CStr::from_ptr(buf.as_ptr()).to_bytes().to_vec())
+                };
+                let sized = sizes(usize::try_from(need).unwrap_or(0))
+                    .into_iter()
+                    .map(|len| {
+                        let mut buf = vec![0xAAu8; len];
+                        let ptr = if len == 0 {
+                            ptr::null_mut()
+                        } else {
+                            buf.as_mut_ptr().cast()
+                        };
+                        let ret = ffi::av_channel_layout_describe(p, ptr, len);
+                        (usize::try_from(ret).map_err(|_| ret), buf)
+                    })
+                    .collect();
+                let mut bp = MaybeUninit::<ffi::AVBPrint>::uninit();
+                ffi::av_bprint_init(bp.as_mut_ptr(), 0, c_uint::MAX);
+                ffi::av_bprintf(bp.as_mut_ptr(), c"x:".as_ptr());
+                let ret = ffi::av_channel_layout_describe_bprint(p, bp.as_mut_ptr());
+                let appended = CStr::from_ptr((*bp.as_ptr()).str_).to_bytes().to_vec();
+                ffi::av_bprint_finalize(bp.as_mut_ptr(), ptr::null_mut());
+                Reads {
+                    valid: ffi::av_channel_layout_check(p) == 1,
+                    ambisonic_order: u32::try_from(ffi::av_channel_layout_ambisonic_order(p)).ok(),
+                    at: indices(nb)
+                        .into_iter()
+                        .map(|i| none_to_option(ffi::av_channel_layout_channel_from_index(p, i)))
+                        .collect(),
+                    index: IDS
+                        .map(|id| {
+                            let ret =
+                                ffi::av_channel_layout_index_from_channel(p, ffi::AVChannel(id));
+                            usize::try_from(ret).ok()
+                        })
+                        .into(),
+                    by_name: NAMES
+                        .map(|s| {
+                            let at = ffi::av_channel_layout_index_from_string(p, s.as_ptr());
+                            let ch = ffi::av_channel_layout_channel_from_string(p, s.as_ptr());
+                            (usize::try_from(at).ok(), none_to_option(ch))
+                        })
+                        .into(),
+                    description,
+                    sized,
+                    appended: (if ret < 0 { Err(ret) } else { Ok(()) }, appended),
+                }
+            }
+        }
+
+        /// The twins read alike through the safe readers and C's.
+        fn assert_reads(r: &ChannelLayoutVal, c: &CLayout, step: &str) {
+            let (rr, cr) = (rust_reads(r.as_ref()), c_reads(&c.0));
+            assert_eq!(rr, cr, "{step}");
+            // The Rust twin read through C, too, is the C twin.
+            assert_eq!(c_reads(rust_ptr(r)), cr, "{step}");
+        }
+
+        #[test]
+        fn readers_match_c_on_every_start() {
+            let mut described = 0;
+            for ops in starts() {
+                let step = format!("{ops:?}");
+                let (r, c) = twins(&ops);
+                assert_reads(&r, &c, &step);
+                described += usize::from(r.as_ref().description().is_ok());
+            }
+            assert!(described > 20, "{described}");
+        }
+
+        #[test]
+        fn readers_match_c_on_every_standard_layout_and_description() {
+            for (name, layout) in STANDARD_LAYOUTS {
+                let r = ChannelLayoutVal::from(layout);
+                let mut c = CLayout::zeroed();
+                // SAFETY: both are valid, distinct layouts.
+                let ret = unsafe { ffi::av_channel_layout_copy(&mut c.0, rust_ptr(&r)) };
+                assert_eq!(ret, 0);
+                assert_reads(&r, &c, name);
+            }
+            for s in allowed(&DESCRIPTIONS) {
+                let (ret, c) = c_parse(s);
+                if ret == 0 {
+                    assert_reads(&ChannelLayout::parse(s).unwrap(), &c, &format!("{s:?}"));
+                }
+            }
+        }
+
+        #[test]
+        fn equality_matches_c_compare_for_every_pair() {
+            let all: Vec<_> = starts().iter().map(|ops| twins(ops)).collect();
+            let mut equal = 0;
+            for (i, (ra, ca)) in all.iter().enumerate() {
+                for (j, (rb, cb)) in all.iter().enumerate() {
+                    // SAFETY: two valid layouts C only reads.
+                    let want = unsafe { ffi::av_channel_layout_compare(&ca.0, &cb.0) };
+                    assert!(want == 0 || want == 1, "{want}");
+                    let eq = ra.as_ref() == rb.as_ref();
+                    assert_eq!(eq, want == 0, "{i} {j}");
+                    // SAFETY: as above, a Rust-held layout against a C one.
+                    let mixed = unsafe { ffi::av_channel_layout_compare(rust_ptr(ra), &cb.0) };
+                    assert_eq!(mixed, want, "{i} {j}");
+                    equal += usize::from(eq && i != j);
+                }
+            }
+            assert!(equal > 0);
+            // The bare values compare as their handles do.
+            let entry = |i: usize| STANDARD_LAYOUTS.into_iter().nth(i).unwrap();
+            for i in 0..STANDARD_LAYOUTS.len() {
+                for j in 0..STANDARD_LAYOUTS.len() {
+                    let ((na, a), (nb, b)) = (entry(i), entry(j));
+                    let eq = a == b;
+                    let (ra, rb) = (ChannelLayoutVal::from(a), ChannelLayoutVal::from(b));
+                    let (pa, pb) = (rust_ptr(&ra), rust_ptr(&rb));
+                    // SAFETY: two valid layouts C only reads.
+                    let want = unsafe { ffi::av_channel_layout_compare(pa, pb) };
+                    assert_eq!(eq, want == 0, "{na} {nb}");
+                }
+            }
+        }
+
+        #[test]
+        fn readers_match_c_after_every_step_of_a_sequence() {
+            use Op::*;
+            /// One step: a conversion (order, flags) or a setter.
+            #[derive(Clone, Copy, Debug)]
+            enum Step {
+                Retype(c_uint, c_int),
+                Set(Op),
+            }
+            use Step::*;
+            const LOSSLESS: c_int = ffi::AV_CHANNEL_LAYOUT_RETYPE_FLAG_LOSSLESS as c_int;
+            const CANONICAL: c_int = ffi::AV_CHANNEL_LAYOUT_RETYPE_FLAG_CANONICAL as c_int;
+            let steps = [
+                Set(Native(masks::L7POINT1)),
+                Retype(2, 0),
+                Set(Edit(2, 0x300, c"centre")),
+                Set(Edit(5, 40, c"")),
+                Retype(0, CANONICAL),
+                Set(Edit(2, 2, c"")),
+                Retype(0, CANONICAL),
+                Retype(3, 0),
+                Set(Ambisonic(2, 0x3)),
+                Retype(2, 0),
+                Set(Edit(9, 0x401, c"w")),
+                Retype(3, LOSSLESS),
+                Set(Edit(9, 1, c"")),
+                Retype(3, LOSSLESS),
+                Retype(2, 0),
+                Set(Edit(0, -1, c"")),
+                Retype(1, 0),
+                Set(Parse(c"FL@x+FR@y")),
+                Set(Edit(1, 0, c"x")),
+                Retype(1, 0),
+                Set(Unspecified(5)),
+                Retype(2, 0),
+                Set(Opaque(0x70)),
+                Set(CustomMap(MAP_B)),
+                Set(Take),
+                Set(Ambisonic(46339, 1 << 63)),
+                Set(Native(u64::MAX)),
+                Retype(2, 0),
+                Set(Clear),
+            ];
+            let (r_other, c_other) = (ChannelLayout::unspecified(0), CLayout::zeroed());
+            let mut r = ChannelLayout::unspecified(0);
+            let mut c = CLayout::zeroed();
+            assert_reads(&r, &c, "start");
+            for (n, s) in steps.into_iter().enumerate() {
+                let step = format!("step {n} {s:?}");
+                match s {
+                    Retype(order, flags) => {
+                        let want = c_retype(&mut c, order, flags);
+                        assert_eq!(rust_retype(&mut r, order, flags), want, "{step}");
+                    }
+                    Set(op) => assert_eq!(
+                        rust_apply(&mut r, &r_other, op),
+                        c_apply(&mut c, &c_other, op),
+                        "{step}"
+                    ),
+                }
+                assert_twins(&r, &c, &step);
+                assert_reads(&r, &c, &step);
             }
         }
     }

@@ -497,3 +497,7 @@ function av_channel_description_bprint
 # subset query (formats wave-3 batch 2).
 function av_channel_layout_standard
 function av_channel_layout_subset
+
+# libavutil/channel_layout.h: the layout description appender that formats
+# wave-3 batch 1 wraps (its other C readers are listed above).
+function av_channel_layout_describe_bprint
