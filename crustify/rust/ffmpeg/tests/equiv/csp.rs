@@ -916,7 +916,7 @@ mod luma_lookup {
 /// [`ColorPrimariesDescriptor`]: ffmpeg::libavutil::csp::ColorPrimariesDescriptor
 mod color_primaries_descriptor {
     use core::mem::{align_of, offset_of, size_of};
-    use core::ptr::NonNull;
+    use core::ptr::{self, NonNull, addr_of};
 
     use ffibox::CSlice;
     use ffmpeg::libavutil::csp::{
@@ -1187,5 +1187,97 @@ mod color_primaries_descriptor {
             Rational::from_raw(twin.wp.x),
             Rational::from_raw(entries[0].wp.x)
         );
+    }
+
+    /// `AVDOVIDmLevel10`, the C struct that embeds a description by value,
+    /// mirrored with the wrapper in the field's place: Rust-owned storage
+    /// C reads through a pointer to the parent.
+    #[repr(C)]
+    struct DmLevel10 {
+        target_display_index: u8,
+        target_max_pq: u16,
+        target_min_pq: u16,
+        target_primary_index: u8,
+        target_display_primaries: ColorPrimariesDescriptor,
+    }
+
+    /// C's identification of the description embedded in the Rust-owned
+    /// parent, read in place through the parent's C layout.
+    fn embedded_id(parent: &DmLevel10) -> ffi::AVColorPrimaries {
+        let c = ptr::from_ref(parent).cast::<ffi::AVDOVIDmLevel10>();
+        // SAFETY: `DmLevel10` mirrors `AVDOVIDmLevel10` field for field
+        // (sizes and the field offset asserted by the test), and the shared
+        // borrow keeps the parent live and unwritten while C reads the
+        // projected field.
+        unsafe { ffi::av_csp_primaries_id_from_desc(addr_of!((*c).target_display_primaries)) }
+    }
+
+    #[test]
+    fn embedded_in_a_c_parent_is_read_by_c_in_place_after_each_step() {
+        assert_eq!(size_of::<DmLevel10>(), size_of::<ffi::AVDOVIDmLevel10>());
+        assert_eq!(align_of::<DmLevel10>(), align_of::<ffi::AVDOVIDmLevel10>());
+        assert_eq!(
+            offset_of!(DmLevel10, target_display_primaries),
+            offset_of!(ffi::AVDOVIDmLevel10, target_display_primaries)
+        );
+        for (p, reference) in c_gamuts() {
+            let mut rust = DmLevel10 {
+                target_display_index: 1,
+                target_max_pq: 2,
+                target_min_pq: 3,
+                target_primary_index: 4,
+                target_display_primaries: ColorPrimariesDescriptor::default(),
+            };
+            let mut c = ffi::AVDOVIDmLevel10 {
+                target_display_index: 1,
+                target_max_pq: 2,
+                target_min_pq: 3,
+                target_primary_index: 4,
+                ..Default::default()
+            };
+            assert_eq!(embedded_id(&rust), c_id_at(&c.target_display_primaries));
+            for (i, &v) in c_fields(&reference).iter().enumerate() {
+                rust_set_part(&mut rust.target_display_primaries.as_mut(), i, v);
+                *c_part_mut(&mut c.target_display_primaries, i) = v;
+                assert_eq!(
+                    rust_fields(rust.target_display_primaries.as_ref()),
+                    c_fields(&c.target_display_primaries),
+                    "{p:?} part {i}"
+                );
+                assert_eq!(
+                    embedded_id(&rust),
+                    c_id_at(&c.target_display_primaries),
+                    "{p:?} part {i}"
+                );
+            }
+            // C's own identification of the reference: the first table entry
+            // within tolerance, which for SMPTE 240M is SMPTE 170M's twin.
+            let id = c_id_at(&reference);
+            assert_eq!(embedded_id(&rust), id, "{p:?}");
+            // The neighbouring scalars are untouched by the field's handles.
+            assert_eq!(
+                (
+                    rust.target_display_index,
+                    rust.target_max_pq,
+                    rust.target_min_pq,
+                    rust.target_primary_index
+                ),
+                (1, 2, 3, 4)
+            );
+            // A whole-value swap through `set`, then C's own copy of the
+            // parent carries the same description.
+            rust.target_display_primaries
+                .as_mut()
+                .set(ColorPrimariesDescriptor::default());
+            c.target_display_primaries = ffi::AVColorPrimariesDesc::default();
+            assert_eq!(embedded_id(&rust), c_id_at(&c.target_display_primaries));
+            rust.target_display_primaries
+                .as_mut()
+                .set(ColorPrimariesDescriptor::from_raw(reference));
+            c.target_display_primaries = reference;
+            let copy = c;
+            assert_eq!(embedded_id(&rust), c_id_at(&copy.target_display_primaries));
+            assert_eq!(c_id_at(&copy.target_display_primaries), id, "{p:?}");
+        }
     }
 }
