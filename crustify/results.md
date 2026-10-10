@@ -34,8 +34,8 @@ Thin batches with `"objective": "review"`, LLM-as-a-Judge over each landed wave.
 - **`--max-loc`** — `500` (wave 0); unbounded from wave 1
 - **`--min-fields`** — `20`
 - **orchestrator parallelism** — `10` concurrent batch processes
-- **branch** — `crustify/reviews/20261005/libavutil/formats/wave-1`, tip `d19f33b673`
-- **agents** — `25` (one stopped by the provider), over `7` wave(s)
+- **branch** — `crustify/reviews/20261005/libavutil/formats/wave-2`, tip `4b75b3ceb8`
+- **agents** — `27` (one stopped by the provider), over `8` wave(s)
 
 `rv`-prefixed columns below carry the review pass; the unprefixed ones remain
 the campaign's.
@@ -195,7 +195,8 @@ Implementation `openrouter/anthropic/claude-opus-5.5` via `claude`; review
 |`1`|`0`| `1` | `2` |`+724/-1`| `26.72`% / `97.09`% | `0` | `0` | `$3.05` | `20m35s` | `$3.05` | `$1.52` |
 |`1`|`1`| `2` | `6` |`+1579/-1`| `27.44`% / `97.24`% | `0` | `+2` | `$7.73` | `28m13s` | `$3.87` | `$1.29` |
 |`1`|`2`| `1` | `7` |`+1533/-2`| `29.92`% / `97.69`% | `0` | `0` | `$9.07` | `48m40s` | `$9.07` | `$1.30` |
-| **Σ** |  | **`37`** | **`64`** | **`+18339/-28`** | **`29.92`% / `97.69`%** | **`+14`** | **`+12`** | **`$102.96`** | — | **`$2.78`** | **`$1.61`** |
+|`2`|`0`| `2` | `7` |`+2312/-2`| `33.33`% / `98.21`% | `0` | `+4` | `$12.48` | `42m35s` | `$6.24` | `$1.78` |
+| **Σ** |  | **`39`** | **`71`** | **`+20651/-30`** | **`33.33`% / `98.21`%** | **`+14`** | **`+16`** | **`$115.44`** | — | **`$2.96`** | **`$1.63`** |
 
 ### Batches — wrap: tests
 
@@ -225,7 +226,8 @@ Implementation `openrouter/anthropic/claude-opus-5.5` via `claude`; review
 |`1`|`0`|`+12` (`+0.00`/`+0.14` pp)|`+0` (`+0.00`/`-0.16` pp)|`+4` (`+0.20`/`-0.09` pp)|`+9` (`+0.00`/`+0.22` pp)|
 |`1`|`1`|`+24` (`+0.00`/`+0.48` pp)|`+0` (`+0.00`/`-0.44` pp)|`+7` (`+0.72`/`-0.15` pp)|`+23` (`+0.00`/`+0.62` pp)|
 |`1`|`2`|`+15` (`+0.00`/`+0.15` pp)|`+5` (`+0.01`/`+2.56` pp)|`+3` (`+0.45`/`-0.37` pp)|`+11` (`+0.00`/`+0.33` pp)|
-| **Σ** |  | **`+197` (`+0.08`/`-2.20` pp)** | **`+24` (`+1.11`/`+7.77` pp)** | **`+158` (`+9.79`/`-41.40` pp)** | **`+232` (`+5.85`/`-10.93` pp)** |
+|`2`|`0`|`+21` (`+2.18`/`+1.13` pp)|`+0` (`+0.00`/`-0.43` pp)|`+9` (`+0.84`/`-0.01` pp)|`+23` (`+2.24`/`+0.70` pp)|
+| **Σ** |  | **`+218` (`+2.26`/`-1.07` pp)** | **`+24` (`+1.11`/`+7.34` pp)** | **`+167` (`+10.63`/`-41.41` pp)** | **`+255` (`+8.09`/`-10.23` pp)** |
 
 ### Batches — port
 
@@ -264,7 +266,8 @@ Implementation `openrouter/anthropic/claude-opus-5.5` via `claude`; review
 |`1`|`0`| `3` |`+98/-0`| `20.40`% / `96.05`% | `0` | `0` | `+132/-8` | `$13.17` | `13m21s` | `$4.39` |
 |`0`|`0`| `12` |`+134/-0`| `26.52`% / `97.04`% | `0` | `0` | `+186/-0` | `$21.19` | `44m08s` | `$1.77` |
 |`1`|`0`| `4` |`+63/-13`| `32.36`% / `97.98`% | `0` | `0` | `+98/-37` | `$54.06` | `153m50s` | `$13.52` |
-| **Σ** |  | **`37`** | **`+1637/-39`** | **`32.36`% / `97.98`%** | **`0`** | **`0`** | **`+2234/-97`** | **`$165.57`** | — | **`$4.47`** |
+|`2`|`0`| `2` |`+772/-20`| `33.33`% / `98.14`% | `0` | `0` | `+1038/-21` | `$43.74` | `98m46s` | `$21.87` |
+| **Σ** |  | **`39`** | **`+2409/-59`** | **`33.33`% / `98.14`%** | **`0`** | **`0`** | **`+3272/-118`** | **`$209.31`** | — | **`$5.37`** |
 
 ### Batches — review: tests
 
@@ -285,7 +288,8 @@ Implementation `openrouter/anthropic/claude-opus-5.5` via `claude`; review
 |`1`|`0`|`+2` (`+0.00`/`+0.00` pp)|`+0` (`+0.00`/`+0.00` pp)|`+1` (`+0.00`/`+0.00` pp)|`+1` (`+0.00`/`+0.00` pp)|
 |`0`|`0`|`+0` (`+0.00`/`-0.27` pp)|`+0` (`+0.00`/`-0.03` pp)|`+3` (`+0.00`/`+0.08` pp)|`+4` (`+0.00`/`+0.04` pp)|
 |`1`|`0`|`+0` (`+0.00`/`-0.09` pp)|`+0` (`+0.00`/`-0.01` pp)|`+0` (`+0.00`/`-0.09` pp)|`+1` (`+0.00`/`+0.02` pp)|
-| **Σ** |  | **`+12` (`+0.00`/`-0.49` pp)** | **`+2` (`+0.00`/`-0.31` pp)** | **`+17` (`+0.04`/`-0.27` pp)** | **`+16` (`+0.00`/`+0.51` pp)** |
+|`2`|`0`|`+3` (`+0.00`/`-0.01` pp)|`+0` (`+0.00`/`-0.03` pp)|`+4` (`+0.00`/`-0.03` pp)|`+3` (`+0.01`/`-0.03` pp)|
+| **Σ** |  | **`+15` (`+0.00`/`-0.50` pp)** | **`+2` (`+0.00`/`-0.34` pp)** | **`+21` (`+0.04`/`-0.30` pp)** | **`+19` (`+0.01`/`+0.48` pp)** |
 
 ### Batches — review: PoC + reports
 
@@ -306,7 +310,8 @@ Implementation `openrouter/anthropic/claude-opus-5.5` via `claude`; review
 | `1` | `0` | `+0` | `+0` | `+0` | `+0` | `+0` | `+0` | `+0` | `+2` | `2` | `0` |
 | `0` | `0` | `+0` | `+0` | `+0` | `+0` | `+0` | `+0` | `+0` | `+1` | `1` | `0` |
 | `1` | `0` | `+0` | `+0` | `+0` | `+0` | `+0` | `+1` | `+0` | `+2` | `3` | `0` |
-| **Σ** |  | **`+2`** | **`+1`** | **`+0`** | **`+0`** | **`+0`** | **`+1`** | **`+0`** | **`+15`** | **`19`** | **`0`** |
+| `2` | `0` | `+0` | `+0` | `+0` | `+0` | `+0` | `+0` | `+0` | `+2` | `2` | `0` |
+| **Σ** |  | **`+2`** | **`+1`** | **`+0`** | **`+0`** | **`+0`** | **`+1`** | **`+0`** | **`+17`** | **`21`** | **`0`** |
 
 ## Symbols
 
@@ -328,7 +333,8 @@ Implementation `openrouter/anthropic/claude-opus-5.5` via `claude`; review
 |`1`|`3`| wrap | `25` | `1994` |`+1994/-25`| `29.46`% / `97.61`% | `+1` | `+2` | `$10.88` | `37m00s` | `$0.44` | `$0.005` |
 |`1`|`4`| wrap | `22` | `2770` |`+2770/-3`| `32.36`% / `97.98`% | `+1` | `+6` | `$20.24` | `65m20s` | `$0.92` | `$0.007` |
 |`1`|`5`| wrap | `9` | `1993` |`+1993/-11`| `28.16`% / `97.50`% | `0` | `+4` | `$9.38` | `33m44s` | `$1.04` | `$0.005` |
-| **Σ** |  |  | **`226`** | **`22318`** | **`+22318/-257`** | **`28.16`% / `97.50`%** | **`+13`** | **`+26`** | **`$206.52`** | — | **`$0.91`** | **`$0.009`** |
+|`2`|`1`| wrap | `13` | `2102` |`+2102/-21`| `32.48`% / `98.13`% | `0` | `0` | `$10.70` | `34m54s` | `$0.82` | `$0.005` |
+| **Σ** |  |  | **`239`** | **`24420`** | **`+24420/-278`** | **`32.48`% / `98.13`%** | **`+13`** | **`+26`** | **`$217.22`** | — | **`$0.91`** | **`$0.009`** |
 
 ### Batches: tests
 
@@ -348,7 +354,8 @@ Implementation `openrouter/anthropic/claude-opus-5.5` via `claude`; review
 |`1`|`3`|`+16` (`+3.89`/`+0.20` pp)|`+0` (`+0.00`/`-0.33` pp)|`+27` (`+3.14`/`+0.91` pp)|`+17` (`+1.78`/`+0.47` pp)|
 |`1`|`4`|`+11` (`+2.83`/`+1.24` pp)|`+4` (`+0.22`/`+0.03` pp)|`+15` (`+2.44`/`+1.95` pp)|`+22` (`+1.39`/`-5.10` pp)|
 |`1`|`5`|`+13` (`+0.91`/`+1.75` pp)|`+0` (`+0.00`/`-0.85` pp)|`+11` (`+0.86`/`+2.04` pp)|`+24` (`+0.79`/`+1.24` pp)|
-| **Σ** |  | **`+184` (`+22.12`/`+17.10` pp)** | **`+45` (`+2.57`/`+2.47` pp)** | **`+221` (`+19.05`/`+21.50` pp)** | **`+231` (`+13.13`/`-4.84` pp)** |
+|`2`|`1`|`+14` (`+0.68`/`+1.23` pp)|`+0` (`+0.00`/`-0.51` pp)|`+16` (`+0.12`/`+1.16` pp)|`+14` (`+0.06`/`-0.43` pp)|
+| **Σ** |  | **`+198` (`+22.80`/`+18.33` pp)** | **`+45` (`+2.57`/`+1.96` pp)** | **`+237` (`+19.17`/`+22.66` pp)** | **`+245` (`+13.19`/`-5.27` pp)** |
 
 ### Batches — review
 
@@ -365,7 +372,8 @@ Implementation `openrouter/anthropic/claude-opus-5.5` via `claude`; review
 |`2`|`0`| `12` |`+0/-0`| `20.57`% / `96.22`% | `0` | `0` | `+37/-6` | `$10.25` | `20m24s` | `$0.85` |
 |`0`|`1`| `11` |`+40/-0`| `26.52`% / `97.04`% | `0` | `0` | `+59/-0` | `$71.89` | `155m57s` | `$6.54` |
 |`1`|`1`| `56` |`+386/-23`| `32.36`% / `97.98`% | `0` | `0` | `+470/-28` | `$47.36` | `107m37s` | `$0.85` |
-| **Σ** |  | **`226`** | **`+975/-56`** | **`32.36`% / `97.98`%** | **`0`** | **`0`** | **`+1362/-121`** | **`$236.67`** | — | **`$1.05`** |
+|`2`|`1`| `13` |`+385/-0`| `33.33`% / `98.21`% | `0` | `0` | `+445/-3` | `$12.88` | `29m40s` | `$0.99` |
+| **Σ** |  | **`239`** | **`+1360/-56`** | **`33.33`% / `98.21`%** | **`0`** | **`0`** | **`+1807/-124`** | **`$249.55`** | — | **`$1.04`** |
 
 ### Batches — review: tests
 
@@ -382,7 +390,8 @@ Implementation `openrouter/anthropic/claude-opus-5.5` via `claude`; review
 |`2`|`0`|`+0` (`+0.00`/`+0.00` pp)|`+0` (`+0.00`/`+0.00` pp)|`+0` (`+0.00`/`+0.00` pp)|`+0` (`+0.00`/`+0.00` pp)|
 |`0`|`1`|`+0` (`+0.00`/`+0.00` pp)|`+0` (`+0.00`/`+0.00` pp)|`+0` (`+0.00`/`+0.00` pp)|`+0` (`+0.00`/`+0.00` pp)|
 |`1`|`1`|`+0` (`+0.00`/`+0.00` pp)|`+0` (`+0.00`/`-0.00` pp)|`+1` (`+0.00`/`+0.00` pp)|`+0` (`+0.00`/`+0.00` pp)|
-| **Σ** |  | **`+1` (`+0.00`/`+0.33` pp)** | **`+1` (`+0.00`/`-0.25` pp)** | **`+6` (`+0.12`/`+0.63` pp)** | **`+6` (`+0.20`/`+0.56` pp)** |
+|`2`|`1`|`+0` (`+0.00`/`-0.02` pp)|`+0` (`+0.00`/`+0.00` pp)|`+1` (`+0.00`/`+0.15` pp)|`+0` (`+0.00`/`+0.00` pp)|
+| **Σ** |  | **`+1` (`+0.00`/`+0.31` pp)** | **`+1` (`+0.00`/`-0.25` pp)** | **`+7` (`+0.12`/`+0.78` pp)** | **`+6` (`+0.20`/`+0.56` pp)** |
 
 ### Batches — review: PoC + reports
 
@@ -399,7 +408,8 @@ Implementation `openrouter/anthropic/claude-opus-5.5` via `claude`; review
 | `2` | `0` | — | `+0` | `+0` | `+0` | `+0` | `+0` | `+0` | `+2` | `2` | `0` |
 | `0` | `1` | — | `+0` | `+0` | `+0` | `+0` | `+0` | `+0` | `+1` | `1` | `0` |
 | `1` | `1` | — | `+0` | `+0` | `+0` | `+0` | `+0` | `+1` | `+1` | `2` | `0` |
-| **Σ** |  | — | **`+1`** | **`+1`** | **`+0`** | **`+2`** | **`+0`** | **`+4`** | **`+7`** | **`15`** | **`0`** |
+| `2` | `1` | — | `+0` | `+0` | `+0` | `+0` | `+0` | `+0` | `+1` | `1` | `0` |
+| **Σ** |  | — | **`+1`** | **`+1`** | **`+0`** | **`+2`** | **`+0`** | **`+4`** | **`+8`** | **`16`** | **`0`** |
 
 ## Safety audit
 
@@ -1234,3 +1244,65 @@ The reviewed tip `d19f33b673` passes `clippy --all-targets -D warnings` and the 
 `crustify/subcampaigns/20261005/libavutil/formats`. Wave wall time, from the first launch
 (07:10Z) to the reviewed gate (13:49Z), was 6h38m47s, including the 2 h gate timeout and its
 triage.
+
+### `libavutil/formats` wave 2
+
+Wave 2 has one type batch (`AVChannelLayout`, `AVPrimaryCoefficients`) and one batch of 13
+symbols. It is based on `5f6c71ab8b`, the reviewed wave-1 tip plus its records. Both landed by
+14:33Z, ending at `693ccef878`, and all 15 items carry their anchors there. Translation cost
+`$23.18` for 65.7M tokens and 1h17m of agent wall time.
+
+- `ChannelLayout` is owned by value as `ChannelLayoutVal`, released by
+  `av_channel_layout_uninit`. Its C initialisers are constructors (`custom`, `from_mask`,
+  `parse`, `default_for`), and deep copies go through `av_channel_layout_copy`. It is neither
+  `Copy` nor `Clone`, and its setters keep every layout in a state that C's readers and
+  `uninit` accept. `PrimaryCoefficients` is a value type shaped like `LumaCoefficients`.
+- The symbol batch wrapped the descriptor lookups (`'static` handles into C's table), the
+  image line readers and writers, the bit counters, `av_image_fill_max_pixsteps`,
+  `av_csp_luma_coeffs_from_avcsp`, and the channel name appenders on `BPrintMut`. The line
+  readers and writers recompute the exact bytes C touches and check them against the planes
+  before calling C.
+- Raw-pointer smells went from 54 to 58, all from the type batch; `unsafe fn` stayed at 25.
+
+The wave tip passes `clippy --all-targets -D warnings` and the plain, `asan-ubsan` and `tsan`
+suites, as well as `bsan` `ub_unsafe` (72). The `bsan` `lib` (1 of 539 failed), equivalence and
+`ub_safe` runs aborted on "access an allocation that has been freed" inside C's
+`av_channel_layout_from_string` (`channel_layout.c:342` and `:417`, the reads through glibc's
+`strtol`/`strtoull` end pointers). The failing unit test failed 3/3 when run alone, and a
+pure-C program built with the bsan toolchain reproduced the report. Both went to the review as
+`review-wave-2/bsan-gate.log`.
+
+### `libavutil/formats` review wave 2
+
+Two `openrouter/anthropic/claude-fable-5.1` reviewers: batch 0 took the 2 types and batch 1
+the 13 symbols. Together they cost `$56.63` for 68.9M tokens and 2h08m.
+
+- **Types reviewer** (1h38m46s, `$43.74`): landed `9d8e9a76da` (reports) and `4b75b3ceb8`
+  (fixes). `bsan-stale-stack-shadow-under-glibc-strtol-end-pointers`: the gate's aborts are a
+  sequence-dependent BSan artifact. The end pointers are uninitialised locals that
+  uninstrumented glibc writes, and their shadow keeps the freed `av_strdup` block that an
+  earlier call left in the same stack slot. Its `probe.c`, rerun by the orchestrator, aborts
+  on `"3c"` followed by `"ambisonic 1"` and passes on either alone. The fix skips the affected
+  parser inputs under `CRUSTIFY_FFMPEG_VARIANT=bsan` only, through a shared test helper.
+  `channel-layout-header-constants-unreachable`: the header's `AV_CH_*`, `AV_CH_LAYOUT_*` and
+  `AV_CHANNEL_LAYOUT_*` macros had no Rust spelling, since bindgen cannot evaluate them and
+  wavefront schedules no macro. The reviewer added `Channel::mask`, `channel_layout::masks`,
+  40 `ChannelLayout` constants and `ChannelLayout::native`, with table shims as the C
+  reference.
+- **Symbols reviewer** (29m40s, `$12.88`): landed `97b4d57382` (reports) and `f21afd7905`
+  (fixes). One `misc` report (two doc omissions in `PixelFormat::descriptor` and the line
+  readers), a randomized equivalence test of the line readers and writers against a
+  transliteration of C's loops, and a kept differential `probe/` (300k rounds plain and
+  300k under ASan/UBSan, no divergence). It found no defect.
+- Across `formats` waves 0–2 none of the three BSan gate failures was a wrapper or FFmpeg
+  defect: two were BSan false positives on glibc-written end pointers (`av_strtod`,
+  `av_channel_layout_from_string`) and one was BSan runaway on per-byte retags. Reviewers
+  that investigated them cost `$47`–`$72` each against `$10`–`$21` for the others.
+  On 2026-10-10 the user ruled that reviewers no longer run BSan suites, only a candidate
+  reproducer; only the orchestrator runs the workspace under BSan.
+
+The reviewed tip `4b75b3ceb8` passes `clippy --all-targets -D warnings` and the plain,
+`asan-ubsan`, `tsan` and `bsan` suites: under `bsan` 542 unit, 449 equivalence (21m36s), 453
+`ub_safe` (35m48s) and 72 `ub_unsafe` tests. It was promoted to
+`crustify/subcampaigns/20261005/libavutil/formats`. Wave wall time, from the first launch
+(13:50Z) to the reviewed gate (16:53Z), was 3h03m01s.

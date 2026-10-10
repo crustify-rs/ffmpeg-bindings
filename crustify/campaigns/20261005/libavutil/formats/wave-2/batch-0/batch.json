@@ -1,0 +1,28 @@
+{
+  "objective": "wrap",
+  "items": [
+    {
+      "name": "AVChannelLayout",
+      "defined_in": "libavutil/channel_layout.h",
+      "kind": "type",
+      "field_anchors": [
+        "opaque",
+        "nb_channels",
+        "order",
+        "u"
+      ],
+      "home": "crustify/rust/ffmpeg/libavutil/channel_layout.rs"
+    },
+    {
+      "name": "AVPrimaryCoefficients",
+      "defined_in": "libavutil/csp.h",
+      "kind": "type",
+      "field_anchors": [
+        "b",
+        "g",
+        "r"
+      ],
+      "home": "crustify/rust/ffmpeg/libavutil/csp.rs"
+    }
+  ]
+}
