@@ -1,0 +1,69 @@
+{
+  "method": {
+    "c": "CRUSTIFY_FFMPEG_VARIANT=coverage (gcc gcov build), GCOV_PREFIX=/tmp/fw1b1/cov/gcov, gcov 13 -b -c -f over imgutils.c, pixdesc.c, csp.c, samplefmt.c, channel_layout.c and pixelutils.c, driven by the workset-filtered lib, equiv, ub_safe and ub_unsafe tests (cargo test -p ffmpeg --lib --tests -- imgutils pixdesc csp pixelutils samplefmt channel_layout --skip compile_fail), on the tree before this review's edits",
+    "rust": "RUSTFLAGS=-C instrument-coverage, nightly llvm-profdata/llvm-cov report over the same four test binaries, the six home files, same tree",
+    "note": "one measurement, on the tree with the BSan thinning of the test sweeps (which applies under CRUSTIFY_FFMPEG_VARIANT=bsan only, so the coverage runs saw the full sweeps) but before the Image::alloc change (one write_bytes for a per-byte fill, the same lines) and before the random plane-layout probe was added to equiv/imgutils.rs; the probe exercises wrapper paths the sweeps already covered"
+  },
+  "c": {
+    "libavutil/imgutils.c": {
+      "av_image_alloc": { "lines": { "count": 32, "percent": 87.5 }, "untaken": [
+        "lines 252-253: av_image_fill_pointers failing after the block was allocated; its sizes were just validated by av_image_fill_plane_sizes, so it cannot fail there",
+        "lines 267-268: zeroing padding between plane 0 and the palette; pointers[1] - pointers[0] is exactly linesizes[0] * h, so the condition is never true in this version" ] },
+      "av_image_check_sar": { "lines": { "count": 9, "percent": 100.0 } },
+      "av_image_check_size2": { "lines": { "count": 13, "percent": 100.0 } },
+      "av_image_copy": { "lines": { "count": 8, "percent": 100.0 } },
+      "av_image_copy_uc_from": { "lines": { "count": 3, "percent": 100.0 } },
+      "image_copy": { "lines": { "count": 19, "percent": 89.47 }, "untaken": [
+        "lines 409-410: av_image_get_linesize failing inside the copy; the wrappers reject such widths (InvalidSize) before C runs" ] },
+      "image_copy_plane": { "lines": { "count": 8, "percent": 100.0 } },
+      "av_image_copy_to_buffer": { "lines": { "count": 22, "percent": 100.0 } },
+      "av_image_fill_arrays": { "lines": { "count": 9, "percent": 100.0 } },
+      "av_image_fill_pointers": { "lines": { "count": 16, "percent": 100.0 } },
+      "av_image_fill_plane_sizes": { "lines": { "count": 17, "percent": 100.0 } },
+      "av_image_fill_linesizes": { "lines": { "count": 11, "percent": 100.0 } },
+      "av_image_get_linesize / image_get_linesize / av_image_fill_max_pixsteps": { "lines": { "percent": 100.0 } },
+      "av_image_get_buffer_size": { "lines": { "count": 18, "percent": 100.0 } },
+      "av_image_fill_color": { "lines": { "count": 42, "percent": 97.62 }, "untaken": [
+        "line 623: a component deeper than 32 bits; no descriptor has one" ] },
+      "memset_bytes": { "lines": { "count": 16, "percent": 100.0 } },
+      "av_image_fill_black": { "lines": { "count": 35, "percent": 91.43 }, "untaken": [
+        "line 684: a component deeper than 32 bits; no descriptor has one",
+        "lines 707-708: the float chroma black (0.5); no float format has chroma components in this build (the float formats are gray, gray+alpha and RGB)" ] },
+      "avpriv_set_systematic_pal2": { "lines": { "count": 26, "percent": 19.23 }, "note": "reached from av_image_alloc only for PAL8, which hits its default arm (no systematic palette); the RGB8/BGR8/RGB4_BYTE/BGR4_BYTE/GRAY8 arms are for formats that no longer carry AV_PIX_FMT_FLAG_PAL" }
+    },
+    "libavutil/pixdesc.c": {
+      "av_get_pix_fmt_name / av_get_pix_fmt / get_pix_fmt_internal / av_get_pix_fmt_string / av_pix_fmt_count_planes / av_pix_fmt_get_chroma_sub_sample / av_pix_fmt_swap_endianness": { "lines": { "percent": 100.0 } },
+      "av_get_pix_fmt_loss / av_find_best_pix_fmt_of_2 / get_pix_fmt_score / av_get_padded_bits_per_pixel / av_get_bits_per_pixel": { "lines": { "percent": 100.0 } },
+      "get_pix_fmt_depth": { "lines": { "count": 10, "percent": 80.0 }, "untaken": [ "lines 3574-3575: a descriptor with no components that is not a hardware format; none exists (hardware formats return -1/-2 before this)" ] },
+      "get_color_type": { "lines": { "count": 9, "percent": 88.89 }, "untaken": [ "line 3563: FF_COLOR_NA for a component-less non-hardware descriptor; none exists" ] },
+      "av_color_range_name / av_color_primaries_name / av_color_transfer_name / av_color_space_name / av_chroma_location_name / av_alpha_mode_name": { "lines": { "percent": 100.0 } },
+      "av_chroma_location_enum_to_pos / av_chroma_location_pos_to_enum": { "lines": { "percent": 100.0 } },
+      "av_alpha_mode_from_name": { "lines": { "count": 5, "percent": 80.0 }, "untaken": [ "line 3935: `continue` on a NULL table entry; alpha_mode_names has no gap" ] }
+    },
+    "libavutil/csp.c": {
+      "av_csp_approximate_trc_gamma / av_csp_approximate_eotf_gamma / av_csp_trc_func_from_id / av_csp_trc_func_inv_from_id / av_csp_itu_eotf / av_csp_itu_eotf_inv": { "lines": { "percent": 100.0 } }
+    },
+    "libavutil/samplefmt.c": {
+      "av_get_sample_fmt_name / av_get_sample_fmt / av_get_alt_sample_fmt / av_get_packed_sample_fmt / av_get_planar_sample_fmt / av_get_sample_fmt_string / av_get_bytes_per_sample / av_sample_fmt_is_planar": { "lines": { "percent": 100.0 } },
+      "av_samples_get_buffer_size / av_samples_fill_arrays / av_samples_alloc_array_and_samples / av_samples_copy / av_samples_set_silence": { "lines": { "percent": 100.0 } },
+      "av_samples_alloc": { "lines": { "count": 12, "percent": 83.33 }, "untaken": [ "lines 198-199: av_samples_fill_arrays failing after av_samples_get_buffer_size accepted the same arguments; unreachable" ] }
+    },
+    "libavutil/channel_layout.c": {
+      "av_channel_name / av_channel_name_bprint / av_channel_description / av_channel_description_bprint / av_channel_from_string": { "lines": { "percent": 100.0 } }
+    },
+    "libavutil/pixelutils.c": {
+      "av_pixelutils_get_sad_fn": { "lines": { "count": 10, "percent": 100.0 } }
+    }
+  },
+  "rust": {
+    "ffmpeg/libavutil/channel_layout.rs": { "lines": { "count": 713, "covered": 713, "percent": 100.0 }, "functions": { "count": 120, "covered": 120, "percent": 100.0 }, "regions": { "count": 1118, "covered": 1118, "percent": 100.0 } },
+    "ffmpeg/libavutil/csp.rs": { "lines": { "count": 507, "covered": 507, "percent": 100.0 }, "functions": { "count": 98, "covered": 98, "percent": 100.0 }, "regions": { "count": 850, "covered": 850, "percent": 100.0 } },
+    "ffmpeg/libavutil/imgutils.rs": { "lines": { "count": 1391, "covered": 1385, "percent": 99.57 }, "functions": { "count": 136, "covered": 135, "percent": 99.26 }, "regions": { "count": 2013, "covered": 1990, "percent": 98.86 }, "uncovered": [
+      "Geometry::linesize_overflows, the `comp == 1 || comp == 2` arm (chroma shift of a bitstream plane's widest component): every bitstream format in the descriptor table has its widest component at index 0, so the arm is unreachable",
+      "copy_from_uncacheable, the `map_err` closure in the plane-by-plane fallback: copy_plane_from_uncacheable cannot fail there, since the fallback runs only after CopyPlan::origins and the range checks accepted every plane" ] },
+    "ffmpeg/libavutil/pixdesc.rs": { "lines": { "count": 917, "covered": 917, "percent": 100.0 }, "functions": { "count": 154, "covered": 154, "percent": 100.0 }, "regions": { "count": 1354, "covered": 1354, "percent": 100.0 } },
+    "ffmpeg/libavutil/pixelutils.rs": { "lines": { "count": 269, "covered": 269, "percent": 100.0 }, "functions": { "count": 37, "covered": 37, "percent": 100.0 }, "regions": { "count": 439, "covered": 438, "percent": 99.77 } },
+    "ffmpeg/libavutil/samplefmt.rs": { "lines": { "count": 945, "covered": 944, "percent": 99.89 }, "functions": { "count": 116, "covered": 116, "percent": 100.0 }, "regions": { "count": 1496, "covered": 1479, "percent": 98.86 }, "uncovered": [
+      "fill_arrays, `return Err(ret)` after av_samples_fill_arrays: unreachable, samples_buffer_size accepted the same arguments first" ] }
+  }
+}
