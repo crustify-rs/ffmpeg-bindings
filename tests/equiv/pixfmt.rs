@@ -1525,3 +1525,226 @@ mod color_primaries_and_range {
         assert_eq!(rust_as_c(&copy), c.values());
     }
 }
+
+/// [`ChromaLocation`] against the C enum, as C observes it: through
+/// `av_chroma_location_name` and `av_chroma_location_from_name`, and through
+/// C-allocated storage holding the values (formats wave 0, batch 1).
+mod chroma_location {
+    use core::ffi::{CStr, c_uint, c_void};
+    use core::mem::size_of;
+
+    use ffmpeg::libavutil::ffi;
+    use ffmpeg::libavutil::mem::{HeapVec, alloc_array_zeroed};
+    use ffmpeg::libavutil::pixfmt::ChromaLocation;
+
+    /// Every named constant beside its C enumerator and C name.
+    const NAMED: [(ChromaLocation, ffi::AVChromaLocation, &str); 7] = [
+        (
+            ChromaLocation::UNSPECIFIED,
+            ffi::AVChromaLocation::AVCHROMA_LOC_UNSPECIFIED,
+            "unspecified",
+        ),
+        (
+            ChromaLocation::LEFT,
+            ffi::AVChromaLocation::AVCHROMA_LOC_LEFT,
+            "left",
+        ),
+        (
+            ChromaLocation::CENTER,
+            ffi::AVChromaLocation::AVCHROMA_LOC_CENTER,
+            "center",
+        ),
+        (
+            ChromaLocation::TOPLEFT,
+            ffi::AVChromaLocation::AVCHROMA_LOC_TOPLEFT,
+            "topleft",
+        ),
+        (
+            ChromaLocation::TOP,
+            ffi::AVChromaLocation::AVCHROMA_LOC_TOP,
+            "top",
+        ),
+        (
+            ChromaLocation::BOTTOMLEFT,
+            ffi::AVChromaLocation::AVCHROMA_LOC_BOTTOMLEFT,
+            "bottomleft",
+        ),
+        (
+            ChromaLocation::BOTTOM,
+            ffi::AVChromaLocation::AVCHROMA_LOC_BOTTOM,
+            "bottom",
+        ),
+    ];
+
+    /// Values C may store though it names none of them, `AVCHROMA_LOC_NB`
+    /// included.
+    const UNNAMED: [c_uint; 6] = [7, 8, 1 << 16, 1 << 31, c_uint::MAX - 1, c_uint::MAX];
+
+    /// Every location the tests compare, named first.
+    fn values() -> Vec<ffi::AVChromaLocation> {
+        NAMED
+            .iter()
+            .map(|&(_, c, _)| c)
+            .chain(UNNAMED.map(ffi::AVChromaLocation))
+            .collect()
+    }
+
+    /// What C calls `loc`: `av_chroma_location_name`, NULL as `None`.
+    fn c_name(loc: ffi::AVChromaLocation) -> Option<&'static str> {
+        // SAFETY: `av_chroma_location_name` takes the enum by value and
+        // range-checks it.
+        let name = unsafe { ffi::av_chroma_location_name(loc) };
+        if name.is_null() {
+            return None;
+        }
+        // SAFETY: a non-NULL result is one of the static string literals in
+        // `pixdesc.c`.
+        Some(unsafe { CStr::from_ptr(name) }.to_str().unwrap())
+    }
+
+    /// The value C parses `name` as: `av_chroma_location_from_name`.
+    fn c_from_name(name: &str) -> i32 {
+        let name = std::ffi::CString::new(name).unwrap();
+        // SAFETY: `name` is NUL-terminated and outlives the call.
+        unsafe { ffi::av_chroma_location_from_name(name.as_ptr()) }
+    }
+
+    /// The name Rust gives `loc`: its `Debug` text when it is a constant.
+    fn rust_name(loc: ChromaLocation) -> Option<String> {
+        let s = format!("{loc:?}");
+        (!s.starts_with("ChromaLocation(")).then(|| s.to_ascii_lowercase())
+    }
+
+    #[test]
+    fn constants_are_the_c_enumerators() {
+        for (loc, c, name) in NAMED {
+            assert_eq!(loc.into_raw(), c);
+            assert_eq!(ChromaLocation::from_raw(c), loc);
+            assert_eq!(c_name(loc.into_raw()), Some(name));
+            assert_eq!(c_from_name(name), loc.into_raw().0 as i32);
+            assert_eq!(
+                ChromaLocation::from_raw(ffi::AVChromaLocation(c_from_name(name) as c_uint)),
+                loc
+            );
+        }
+        for raw in UNNAMED {
+            let loc = ChromaLocation::from_raw(ffi::AVChromaLocation(raw));
+            assert!(NAMED.iter().all(|&(n, _, _)| n != loc));
+            assert_eq!(c_name(loc.into_raw()), None, "raw {raw}");
+        }
+        assert_eq!(c_from_name("ChromaLocation(7)"), -(ffi::EINVAL as i32));
+        assert_eq!(c_from_name("UNSPECIFIED"), -(ffi::EINVAL as i32));
+    }
+
+    #[test]
+    fn debug_names_what_c_names() {
+        for c in values() {
+            assert_eq!(rust_name(c.into()).as_deref(), c_name(c), "{c:?}");
+        }
+    }
+
+    #[test]
+    fn default_is_c_zeroed_storage() {
+        const LEN: usize = 4;
+        let rust = alloc_array_zeroed::<ChromaLocation>(LEN).unwrap();
+        let c = CLocations::zeroed(LEN);
+        for i in 0..LEN {
+            assert_eq!(rust.as_slice()[i].into_raw(), c.get(i));
+            assert_eq!(rust.as_slice()[i], ChromaLocation::default());
+            assert_eq!(c_name(c.get(i)), Some("unspecified"));
+        }
+    }
+
+    /// A C block of `ffi::AVChromaLocation`, freed with `av_free` on drop.
+    struct CLocations(*mut ffi::AVChromaLocation, usize);
+
+    impl CLocations {
+        fn zeroed(len: usize) -> Self {
+            // SAFETY: `av_calloc` takes its sizes by value.
+            let ptr = unsafe { ffi::av_calloc(len, size_of::<ffi::AVChromaLocation>()) };
+            assert!(!ptr.is_null());
+            Self(ptr.cast(), len)
+        }
+
+        fn get(&self, i: usize) -> ffi::AVChromaLocation {
+            assert!(i < self.1);
+            // SAFETY: `i` is in bounds of the live, initialised block.
+            unsafe { self.0.add(i).read() }
+        }
+
+        fn set(&mut self, i: usize, v: ffi::AVChromaLocation) {
+            assert!(i < self.1);
+            // SAFETY: `i` is in bounds of the live block, which we own.
+            unsafe { self.0.add(i).write(v) }
+        }
+    }
+
+    impl Drop for CLocations {
+        fn drop(&mut self) {
+            // SAFETY: `self.0` is a live `av_calloc` block we own.
+            unsafe { ffi::av_free(self.0.cast::<c_void>()) }
+        }
+    }
+
+    /// The C values a Rust array holds, read back through its C-typed pointer.
+    fn rust_as_c(a: &HeapVec<ChromaLocation>) -> Vec<ffi::AVChromaLocation> {
+        let ptr = a.as_ptr().cast::<ffi::AVChromaLocation>();
+        (0..a.len())
+            // SAFETY: `ChromaLocation` is `#[repr(transparent)]` over
+            // `ffi::AVChromaLocation`, and `i` is in bounds of the live,
+            // initialised array `a` borrows.
+            .map(|i| unsafe { ptr.add(i).read() })
+            .collect()
+    }
+
+    #[test]
+    fn arrays_agree_with_c_blocks_after_every_step() {
+        let values = values();
+        let len = values.len();
+        let mut rust = alloc_array_zeroed::<ChromaLocation>(len).unwrap();
+        let mut c = CLocations::zeroed(len);
+        for (step, &v) in values.iter().enumerate() {
+            // Each step writes slot `step` and rotates an earlier one.
+            let back = (step * 5) % len;
+            let w = values[(step + 4) % len];
+            rust.as_mut_slice()[step] = ChromaLocation::from_raw(v);
+            rust.as_mut_slice()[back] = w.into();
+            c.set(step, v);
+            c.set(back, w);
+            for i in 0..len {
+                let ri = rust.as_slice()[i];
+                assert_eq!(ri.into_raw(), c.get(i), "step {step} slot {i}");
+                assert_eq!(rust_name(ri).as_deref(), c_name(c.get(i)));
+            }
+        }
+        // A clone is `av_memdup`'s copy of the same encodings.
+        let copy = rust.clone();
+        assert_eq!(
+            rust_as_c(&copy),
+            (0..len).map(|i| c.get(i)).collect::<Vec<_>>()
+        );
+    }
+
+    #[test]
+    fn values_c_writes_are_read_back_unchanged() {
+        let values = values();
+        let mut c = CLocations::zeroed(values.len());
+        for (i, &v) in values.iter().enumerate() {
+            c.set(i, v);
+        }
+        // The path a field accessor over a C array of `enum AVChromaLocation`
+        // takes: adopt the C block and read it as `ChromaLocation`s.
+        let (ptr, len) = (c.0, c.1);
+        core::mem::forget(c);
+        // SAFETY: `ptr` is a live `av_calloc` block of `len` initialised
+        // `ffi::AVChromaLocation`, whose ownership `forget` gave up;
+        // `ChromaLocation` is layout-compatible with it, and `av_free`
+        // releases it.
+        let adopted = unsafe { HeapVec::<ChromaLocation>::from_raw_parts(ptr.cast(), len) };
+        let adopted = adopted.unwrap();
+        for (i, &v) in values.iter().enumerate() {
+            assert_eq!(adopted.as_slice()[i], ChromaLocation::from_raw(v));
+            assert_eq!(rust_name(adopted.as_slice()[i]).as_deref(), c_name(v));
+        }
+    }
+}

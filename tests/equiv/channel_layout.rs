@@ -397,3 +397,314 @@ mod matrix_encoding {
         }
     }
 }
+
+/// [`ChannelOrder`] against the C enum, as C observes it: the order C's
+/// layout constructors write into `AVChannelLayout.order`, the orders
+/// `av_channel_layout_check` accepts, and C-allocated storage holding the
+/// values (formats wave 0, batch 1).
+mod channel_order {
+    use core::ffi::{CStr, c_int, c_uint, c_void};
+    use core::mem::{MaybeUninit, size_of};
+
+    use ffmpeg::libavutil::channel_layout::ChannelOrder;
+    use ffmpeg::libavutil::ffi;
+    use ffmpeg::libavutil::mem::{HeapVec, alloc_array_zeroed};
+
+    /// Every named constant beside its C enumerator.
+    const NAMED: [(ChannelOrder, ffi::AVChannelOrder); 4] = [
+        (
+            ChannelOrder::UNSPEC,
+            ffi::AVChannelOrder::AV_CHANNEL_ORDER_UNSPEC,
+        ),
+        (
+            ChannelOrder::NATIVE,
+            ffi::AVChannelOrder::AV_CHANNEL_ORDER_NATIVE,
+        ),
+        (
+            ChannelOrder::CUSTOM,
+            ffi::AVChannelOrder::AV_CHANNEL_ORDER_CUSTOM,
+        ),
+        (
+            ChannelOrder::AMBISONIC,
+            ffi::AVChannelOrder::AV_CHANNEL_ORDER_AMBISONIC,
+        ),
+    ];
+
+    /// Values C may store though it names none of them,
+    /// `FF_CHANNEL_ORDER_NB` included.
+    const UNNAMED: [c_uint; 6] = [4, 5, 1 << 16, 1 << 31, c_uint::MAX - 1, c_uint::MAX];
+
+    /// Every order the tests compare, named first.
+    fn values() -> Vec<ffi::AVChannelOrder> {
+        NAMED
+            .iter()
+            .map(|&(_, c)| c)
+            .chain(UNNAMED.map(ffi::AVChannelOrder))
+            .collect()
+    }
+
+    /// A C channel layout, uninitialised by `av_channel_layout_uninit` on drop.
+    struct CLayout(ffi::AVChannelLayout);
+
+    impl CLayout {
+        /// The zeroed layout, as `av_channel_layout_uninit` leaves one.
+        fn zeroed() -> Self {
+            // SAFETY: `AVChannelLayout` is plain C data (integers, a union of
+            // an integer and a pointer, and a pointer), for which all-zero is
+            // a valid value: the state `av_channel_layout_uninit` leaves.
+            Self(unsafe { MaybeUninit::zeroed().assume_init() })
+        }
+
+        /// The layout `av_channel_layout_from_string` parses from `s`.
+        fn from_string(s: &CStr) -> Self {
+            let mut l = Self::zeroed();
+            // SAFETY: `l.0` is a writable, zeroed layout; `s` is
+            // NUL-terminated.
+            let ret = unsafe { ffi::av_channel_layout_from_string(&raw mut l.0, s.as_ptr()) };
+            assert_eq!(ret, 0, "{s:?}");
+            l
+        }
+
+        /// The order C stored, as Rust reads it.
+        fn order(&self) -> ChannelOrder {
+            ChannelOrder::from_raw(self.0.order)
+        }
+
+        /// `av_channel_layout_check`.
+        fn check(&self) -> c_int {
+            // SAFETY: `self.0` is a live layout; for `CUSTOM` the tests leave
+            // the map either NULL or C-allocated with `nb_channels` entries.
+            unsafe { ffi::av_channel_layout_check(&raw const self.0) }
+        }
+
+        /// A layout of `nb_channels` channels and `mask`, ordered `order`.
+        fn with(order: ffi::AVChannelOrder, nb_channels: c_int, mask: u64) -> Self {
+            let mut l = Self::zeroed();
+            l.0.order = order;
+            l.0.nb_channels = nb_channels;
+            l.0.u.mask = mask;
+            l
+        }
+    }
+
+    impl Drop for CLayout {
+        fn drop(&mut self) {
+            // SAFETY: `self.0` is a live layout, and every `CUSTOM` one here
+            // holds a map C allocated (or NULL), which uninit frees.
+            unsafe { ffi::av_channel_layout_uninit(&raw mut self.0) }
+        }
+    }
+
+    /// `av_channel_layout_check` for a layout whose order is `order` and whose
+    /// mask or map is valid for that order, so only the order decides.
+    fn c_accepts(order: ffi::AVChannelOrder) -> bool {
+        let l = if order == ffi::AVChannelOrder::AV_CHANNEL_ORDER_CUSTOM {
+            let mut l = CLayout::zeroed();
+            // SAFETY: `l.0` is a writable, zeroed layout holding no map.
+            let ret = unsafe { ffi::av_channel_layout_custom_init(&raw mut l.0, 2) };
+            assert_eq!(ret, 0);
+            // Give every channel a known id: `AV_CHAN_NONE` is rejected.
+            for i in 0..2 {
+                // SAFETY: `custom_init` allocated a map of 2 entries.
+                unsafe { (*l.0.u.map.add(i)).id = ffi::AVChannel(i as c_int) };
+            }
+            l
+        } else if order == ffi::AVChannelOrder::AV_CHANNEL_ORDER_AMBISONIC {
+            CLayout::with(order, 4, 0)
+        } else {
+            CLayout::with(order, 2, 0b11)
+        };
+        l.check() != 0
+    }
+
+    #[test]
+    fn constants_are_the_c_enumerators() {
+        for (order, c) in NAMED {
+            assert_eq!(order.into_raw(), c);
+            assert_eq!(ChannelOrder::from_raw(c), order);
+            assert!(c_accepts(order.into_raw()), "{order:?}");
+        }
+        // Unnamed values fall to `av_channel_layout_check`'s default arm.
+        for raw in UNNAMED {
+            let order = ChannelOrder::from_raw(ffi::AVChannelOrder(raw));
+            assert!(NAMED.iter().all(|&(n, _)| n != order));
+            assert!(!c_accepts(order.into_raw()), "raw {raw}");
+            assert_eq!(format!("{order:?}"), format!("ChannelOrder({raw})"));
+        }
+    }
+
+    #[test]
+    fn debug_names_exactly_the_orders_c_accepts() {
+        for c in values() {
+            let order = ChannelOrder::from(c);
+            let named = !format!("{order:?}").starts_with("ChannelOrder(");
+            assert_eq!(named, c_accepts(c), "{c:?}");
+        }
+    }
+
+    #[test]
+    fn orders_c_constructors_write_read_as_the_constants() {
+        for (s, want) in [
+            (c"2C", ChannelOrder::UNSPEC),
+            (c"5 channels", ChannelOrder::UNSPEC),
+            (c"stereo", ChannelOrder::NATIVE),
+            (c"FL+FR+LFE", ChannelOrder::NATIVE),
+            (c"FR+FL", ChannelOrder::CUSTOM),
+            (c"FL@left+FR", ChannelOrder::CUSTOM),
+            (c"ambisonic 1", ChannelOrder::AMBISONIC),
+            (c"ambisonic 2+stereo", ChannelOrder::AMBISONIC),
+            (c"ambisonic 1+FR@x", ChannelOrder::CUSTOM),
+        ] {
+            let l = CLayout::from_string(s);
+            assert_eq!(l.order(), want, "{s:?}");
+            assert_eq!(l.order().into_raw(), l.0.order);
+            assert_eq!(l.check(), 1, "{s:?}");
+        }
+    }
+
+    #[test]
+    fn writes_through_each_side_agree_after_every_step() {
+        // One C layout and one Rust value, stepped together: C's constructors
+        // and `av_channel_layout_uninit` write the order, and Rust writes it
+        // back into the C struct through `into_raw`.
+        let mut c = CLayout::zeroed();
+        let mut rust = ChannelOrder::default();
+        assert_eq!(c.order(), rust);
+
+        // SAFETY: `c.0` is a writable layout holding no map.
+        let ret = unsafe { ffi::av_channel_layout_from_mask(&raw mut c.0, 0b111) };
+        assert_eq!(ret, 0);
+        rust = ChannelOrder::NATIVE;
+        assert_eq!(c.order(), rust);
+        assert_eq!(c.check(), 1);
+
+        // Rust rewrites the order of the C layout: the mask now marks the
+        // non-diegetic channels of a first-order ambisonic layout.
+        c.0.order = ChannelOrder::AMBISONIC.into();
+        c.0.nb_channels = 4 + 3;
+        rust = ChannelOrder::AMBISONIC;
+        assert_eq!(c.order(), rust);
+        assert_eq!(c.check(), 1);
+
+        // An unnamed order written from Rust is one C rejects.
+        let unnamed = ChannelOrder::from_raw(ffi::AVChannelOrder(1 << 20));
+        c.0.order = unnamed.into_raw();
+        assert_eq!(c.order(), unnamed);
+        assert_eq!(c.check(), 0);
+
+        // SAFETY: the order is not `CUSTOM`, so uninit only zeroes the struct.
+        unsafe { ffi::av_channel_layout_uninit(&raw mut c.0) };
+        rust = ChannelOrder::default();
+        assert_eq!(c.order(), rust);
+        assert_eq!(c.order(), ChannelOrder::UNSPEC);
+
+        // SAFETY: `c.0` is a writable, zeroed layout holding no map.
+        let ret = unsafe { ffi::av_channel_layout_custom_init(&raw mut c.0, 3) };
+        assert_eq!(ret, 0);
+        rust = ChannelOrder::CUSTOM;
+        assert_eq!(c.order(), rust);
+        // SAFETY: `custom_init` allocated the map, which uninit frees.
+        unsafe { ffi::av_channel_layout_uninit(&raw mut c.0) };
+        assert_eq!(c.order(), ChannelOrder::default());
+    }
+
+    /// A C block of `ffi::AVChannelOrder`, freed with `av_free` on drop.
+    struct COrders(*mut ffi::AVChannelOrder, usize);
+
+    impl COrders {
+        fn zeroed(len: usize) -> Self {
+            // SAFETY: `av_calloc` takes its sizes by value.
+            let ptr = unsafe { ffi::av_calloc(len, size_of::<ffi::AVChannelOrder>()) };
+            assert!(!ptr.is_null());
+            Self(ptr.cast(), len)
+        }
+
+        fn get(&self, i: usize) -> ffi::AVChannelOrder {
+            assert!(i < self.1);
+            // SAFETY: `i` is in bounds of the live, initialised block.
+            unsafe { self.0.add(i).read() }
+        }
+
+        fn set(&mut self, i: usize, v: ffi::AVChannelOrder) {
+            assert!(i < self.1);
+            // SAFETY: `i` is in bounds of the live block, which we own.
+            unsafe { self.0.add(i).write(v) }
+        }
+    }
+
+    impl Drop for COrders {
+        fn drop(&mut self) {
+            // SAFETY: `self.0` is a live `av_calloc` block we own.
+            unsafe { ffi::av_free(self.0.cast::<c_void>()) }
+        }
+    }
+
+    /// The C values a Rust array holds, read back through its C-typed pointer.
+    fn rust_as_c(a: &HeapVec<ChannelOrder>) -> Vec<ffi::AVChannelOrder> {
+        let ptr = a.as_ptr().cast::<ffi::AVChannelOrder>();
+        (0..a.len())
+            // SAFETY: `ChannelOrder` is `#[repr(transparent)]` over
+            // `ffi::AVChannelOrder`, and `i` is in bounds of the live,
+            // initialised array `a` borrows.
+            .map(|i| unsafe { ptr.add(i).read() })
+            .collect()
+    }
+
+    #[test]
+    fn arrays_agree_with_c_blocks_after_every_step() {
+        let values = values();
+        let len = values.len();
+        let mut rust = alloc_array_zeroed::<ChannelOrder>(len).unwrap();
+        let mut c = COrders::zeroed(len);
+        assert!(rust.as_slice().iter().all(|&o| o == ChannelOrder::UNSPEC));
+        for (step, &v) in values.iter().enumerate() {
+            // Each step writes slot `step` and rotates an earlier one.
+            let back = (step * 7) % len;
+            let w = values[(step + 3) % len];
+            rust.as_mut_slice()[step] = ChannelOrder::from_raw(v);
+            rust.as_mut_slice()[back] = w.into();
+            c.set(step, v);
+            c.set(back, w);
+            for i in 0..len {
+                assert_eq!(
+                    rust.as_slice()[i].into_raw(),
+                    c.get(i),
+                    "step {step} slot {i}"
+                );
+                assert_eq!(
+                    c_accepts(rust.as_slice()[i].into_raw()),
+                    c_accepts(c.get(i))
+                );
+            }
+        }
+        // A clone is `av_memdup`'s copy of the same encodings.
+        let copy = rust.clone();
+        assert_eq!(
+            rust_as_c(&copy),
+            (0..len).map(|i| c.get(i)).collect::<Vec<_>>()
+        );
+    }
+
+    #[test]
+    fn values_c_writes_are_read_back_unchanged() {
+        let values = values();
+        let mut c = COrders::zeroed(values.len());
+        for (i, &v) in values.iter().enumerate() {
+            c.set(i, v);
+        }
+        // The path a field accessor over a C array of `enum AVChannelOrder`
+        // takes: adopt the C block and read it as `ChannelOrder`s.
+        let (ptr, len) = (c.0, c.1);
+        core::mem::forget(c);
+        // SAFETY: `ptr` is a live `av_calloc` block of `len` initialised
+        // `ffi::AVChannelOrder`, whose ownership `forget` gave up;
+        // `ChannelOrder` is layout-compatible with it, and `av_free` releases
+        // it.
+        let adopted = unsafe { HeapVec::<ChannelOrder>::from_raw_parts(ptr.cast(), len) };
+        let adopted = adopted.unwrap();
+        for (i, &v) in values.iter().enumerate() {
+            assert_eq!(adopted.as_slice()[i], ChannelOrder::from_raw(v));
+            assert_eq!(c_accepts(adopted.as_slice()[i].into_raw()), c_accepts(v));
+        }
+    }
+}
