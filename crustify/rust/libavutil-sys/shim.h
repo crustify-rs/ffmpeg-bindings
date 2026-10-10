@@ -4,11 +4,16 @@
 
 #include <stdint.h>
 
+#include "libavutil/bprint.h"
 #include "libavutil/log.h"
 
 /* av_vlog with its va_list built from the trailing arguments: stable Rust
  * can call a C variadic function but cannot construct a va_list. */
 void crustify_av_vlog(void *avcl, int level, const char *fmt, ...);
+
+/* av_vbprintf with its va_list built from the trailing arguments, as for
+ * crustify_av_vlog. */
+void crustify_av_vbprintf(AVBPrint *buf, const char *fmt, ...);
 
 /* libavutil/intreadwrite.h's aligned accessors, which expand to member
  * accesses on a pointer cast to av_alias64: the C references for the

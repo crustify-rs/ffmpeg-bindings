@@ -21,9 +21,14 @@
 //!   owner borrows, which C never reallocates or frees, so it is never
 //!   finalized.
 //!
-//! Both hand out the same [`BPrintRef`] and [`BPrintMut`] handles.
+//! Both hand out the same [`BPrintRef`] and [`BPrintMut`] handles. The
+//! appenders are [`BPrintMut`]'s methods, and [`fmt::Write`] on it; they
+//! never fail, and [`BPrintRef::is_complete`] reports whether everything
+//! appended was stored.
+//!
+//! [`Tm`] is C's `struct tm`, which [`BPrintMut::append_strftime`] formats.
 
-use core::ffi::{CStr, c_char, c_uint};
+use core::ffi::{CStr, c_char, c_int, c_long, c_uint};
 use core::fmt;
 use core::marker::PhantomData;
 use core::mem::{align_of, offset_of, size_of};
@@ -31,6 +36,7 @@ use core::ptr::{self, NonNull, addr_of, addr_of_mut};
 
 use ffibox::{CBox, CCell, CDrop, CZeroable, define_ctype, impl_cdrop};
 
+use super::avstring::{EscapeFlags, EscapeMode, text_until_nul};
 use super::ffi;
 use super::mem::{Heap, HeapBox, HeapString, HeapVec, string_from_c_str};
 
@@ -360,7 +366,8 @@ define_ctype!(
     /// non-zero, its first `min(len, size - 1)` bytes written; and a string
     /// that is neither the structure's own storage nor an `av_realloc` block
     /// (a [`BPrintOnBuffer`]'s) has `size == size_max`, so C never grows it.
-    /// Nothing safe writes `str`, `size` or `size_max`.
+    /// Only C's appenders write `str` and `size`, moving a string the buffer
+    /// owns to a larger allocation; nothing writes `size_max`.
     BPrint,
     BPrintRef,
     BPrintMut,
@@ -750,6 +757,446 @@ impl BPrintMut<'_> {
     }
 }
 
+impl BPrintRef<'_> {
+    /// Wraps: av_bprint_is_complete
+    ///
+    /// Whether everything appended is stored: `false` once an append was
+    /// truncated, by the `size_max` limit or a failed allocation (and always
+    /// for a count-only buffer that was appended to). Compare
+    /// [`size`](Self::size) with [`size_max`](Self::size_max) to tell them
+    /// apart.
+    #[must_use]
+    pub fn is_complete(&self) -> bool {
+        // SAFETY: `av_bprint_is_complete` only reads `len` and `size` of the
+        // initialised buffer the shared handle addresses.
+        unsafe { ffi::av_bprint_is_complete(self.as_ptr()) != 0 }
+    }
+}
+
+/// The most `len` may reach: `av_bprint_grow` keeps it at `UINT_MAX - 5`,
+/// which [`BPrintMut::append_with`] respects too.
+const LEN_MAX: u32 = u32::MAX - 5;
+
+/// Re-terminates the buffer it borrows when dropped, at
+/// `min(len, size - 1)` as `BPrint`'s invariants place the NUL: the
+/// terminator [`BPrintMut::append_with`] restores, even when its closure
+/// panics.
+struct Terminate<'h, 'b>(&'h mut BPrintMut<'b>);
+
+impl Drop for Terminate<'_, '_> {
+    fn drop(&mut self) {
+        let (str, len, size) = self.0.as_ref().state();
+        if size > 0 {
+            // SAFETY: by `BPrint`'s invariants `str` is valid for `size`
+            // bytes of writes, reached through the exclusive handle the
+            // guard borrows; the NUL lands within them.
+            unsafe { str.add(len.min(size - 1) as usize).write(0) };
+        }
+    }
+}
+
+/// The appenders. Each stores what fits and counts the rest: an append that
+/// does not fit grows a string the buffer owns, up to `size_max`, and is
+/// truncated when it cannot, which [`BPrintRef::is_complete`] reports. They
+/// never fail otherwise and never grow a [`BPrintOnBuffer`]'s string.
+impl BPrintMut<'_> {
+    /// Wraps: av_bprint_append_data
+    ///
+    /// Appends `data`, NULs included. Data longer than `u32::MAX` bytes goes
+    /// in `u32::MAX`-byte pieces, as many calls; empty data changes nothing.
+    pub fn append_bytes(&mut self, data: &[u8]) {
+        let p = self.as_mut_ptr();
+        for piece in data.chunks(c_uint::MAX as usize) {
+            // SAFETY: `p` is the initialised buffer the exclusive handle
+            // addresses, which `av_bprint_append_data` appends to within its
+            // `size` (growing only a string it owns); `piece` is valid for
+            // reads of its length, which fits the `unsigned` size, and is
+            // not part of the buffer, which `&mut self` excludes.
+            unsafe { ffi::av_bprint_append_data(p, piece.as_ptr().cast(), piece.len() as c_uint) }
+        }
+    }
+
+    /// Wraps: av_bprint_chars
+    ///
+    /// Appends `n` copies of `byte`.
+    pub fn append_repeated(&mut self, byte: u8, n: u32) {
+        // SAFETY: the exclusive handle addresses an initialised buffer, which
+        // `av_bprint_chars` appends to within its `size`.
+        unsafe { ffi::av_bprint_chars(self.as_mut_ptr(), byte as c_char, n) }
+    }
+
+    /// Wraps: av_bprint_clear
+    ///
+    /// Empties the buffer, keeping its storage: [`len`](BPrintRef::len)
+    /// becomes 0, which also makes a truncated buffer complete again.
+    pub fn clear(&mut self) {
+        // SAFETY: the exclusive handle addresses an initialised buffer;
+        // `av_bprint_clear` writes `len` and, when it was non-zero, the
+        // string's first byte, which is in its storage (or, for a count-only
+        // buffer, in the structure's inline storage, where `str` points).
+        unsafe { ffi::av_bprint_clear(self.as_mut_ptr()) }
+    }
+
+    /// Wraps: av_bprint_escape
+    ///
+    /// Appends `src` escaped by `mode`, as
+    /// [`avstring::escape`](super::avstring::escape) returns it: `special`
+    /// lists characters backslash mode also escapes.
+    pub fn append_escaped(
+        &mut self,
+        src: &CStr,
+        special: Option<&CStr>,
+        mode: EscapeMode,
+        flags: EscapeFlags,
+    ) {
+        let special = special.map_or(ptr::null(), CStr::as_ptr);
+        // SAFETY: the exclusive handle addresses an initialised buffer, which
+        // C appends to with `av_bprint_chars` and `av_bprintf`; `src` is a
+        // NUL-terminated string and `special` NULL or one, which C only reads
+        // during the call and which `&mut self` keeps apart from the buffer;
+        // C accepts any mode and flags.
+        unsafe {
+            ffi::av_bprint_escape(
+                self.as_mut_ptr(),
+                src.as_ptr(),
+                special,
+                mode.into(),
+                flags.bits(),
+            )
+        }
+    }
+
+    /// Wraps: av_bprintf
+    ///
+    /// Appends the text `args` formats; build `args` with [`format_args!`].
+    /// Rust formats the text, since C's `printf` arguments have no safe Rust
+    /// form, and C appends it through a `"%s"` format, so it ends at its
+    /// first NUL. [`write!`] through [`fmt::Write`] keeps NULs instead.
+    ///
+    /// ```
+    /// use ffmpeg::libavutil::bprint::BPrint;
+    /// let mut buf = BPrint::new(0, BPrint::SIZE_UNLIMITED).unwrap();
+    /// buf.as_mut().append_fmt(format_args!("{}x{}", 1920, 1080));
+    /// assert_eq!(buf.as_ref().as_bytes(), b"1920x1080");
+    /// ```
+    pub fn append_fmt(&mut self, args: fmt::Arguments<'_>) {
+        let text = text_until_nul(args);
+        // SAFETY: the exclusive handle addresses an initialised buffer, which
+        // `av_bprintf` appends to within its `size`; `"%s"` consumes exactly
+        // the one argument passed, a live NUL-terminated string apart from
+        // the buffer.
+        unsafe { ffi::av_bprintf(self.as_mut_ptr(), c"%s".as_ptr(), text.as_ptr()) }
+    }
+
+    /// Wraps: av_vbprintf
+    ///
+    /// Appends the string `s`, up to its NUL, through `av_vbprintf` with a
+    /// `"%s"` format (its `va_list` built by the `crustify_av_vbprintf`
+    /// shim).
+    pub fn append_c_str(&mut self, s: &CStr) {
+        // SAFETY: the exclusive handle addresses an initialised buffer, which
+        // `av_vbprintf` appends to within its `size`; `"%s"` consumes exactly
+        // the one argument passed, a live NUL-terminated string apart from
+        // the buffer.
+        unsafe { ffi::crustify_av_vbprintf(self.as_mut_ptr(), c"%s".as_ptr(), s.as_ptr()) }
+    }
+
+    /// Wraps: av_bprint_strftime
+    ///
+    /// Appends `tm` formatted by C's `strftime` under `fmt`, in the current
+    /// `LC_TIME` locale (`%Z` and `%s` also read the time zone). An empty
+    /// format appends nothing. Fields outside their usual ranges format as
+    /// the C library chooses: the standard leaves those characters
+    /// unspecified.
+    ///
+    /// `strftime` cannot tell output that does not fit from empty output, so
+    /// C grows the string until it fits, and gives up on an empty expansion
+    /// once the room exceeds 256 times the format's length. When it cannot
+    /// grow, it formats into 1 KiB of its own and appends that, or else fills
+    /// the rest of the string with `"[truncated strftime output]"` and
+    /// `'!'`s and marks it truncated.
+    ///
+    /// ```
+    /// use ffmpeg::libavutil::bprint::{BPrint, Tm};
+    /// let mut tm = Tm::new();
+    /// let mut t = tm.as_mut();
+    /// t.set_year(2000 - 1900);
+    /// t.set_mon(11);
+    /// t.set_mday(20);
+    /// let mut buf = BPrint::new(0, BPrint::SIZE_UNLIMITED).unwrap();
+    /// buf.as_mut().append_strftime(c"%Y-%m-%d", tm.as_ref());
+    /// assert_eq!(buf.as_ref().as_bytes(), b"2000-12-20");
+    /// ```
+    pub fn append_strftime(&mut self, fmt: &CStr, tm: TmRef<'_>) {
+        // SAFETY: the exclusive handle addresses an initialised buffer, which
+        // `av_bprint_strftime` appends to within its `size`; `fmt` is a
+        // NUL-terminated string and `tm` a live `struct tm` whose `tm_zone`
+        // is NULL or a `'static` string (`Tm`'s invariant), which C and
+        // `strftime` only read during the call.
+        unsafe { ffi::av_bprint_strftime(self.as_mut_ptr(), fmt.as_ptr(), tm.as_ptr()) }
+    }
+
+    /// Wraps: av_bprint_get_buffer
+    ///
+    /// Appends what `f` writes straight into the string's storage. C first
+    /// makes room for `size` bytes past the stored text, growing a string the
+    /// buffer owns; `f` then gets the free storage, at most `size` bytes and
+    /// zeroed (the byte after it is kept for the terminator), and returns how
+    /// many leading bytes it wrote, which are appended. Returns that count.
+    ///
+    /// The storage is shorter than `size`, or empty, when the string cannot
+    /// grow enough (the `size_max` limit, a failed allocation, a
+    /// [`BPrintOnBuffer`]) or the buffer is already truncated; `f` still
+    /// runs. Unlike the other appenders, nothing beyond the storage `f` gets
+    /// is counted.
+    ///
+    /// The zeroing is the one effect C's own callers do not have: its bytes
+    /// past what `f` wrote stay zero, which a [`BPrintOnBuffer`]'s caller
+    /// buffer shows afterwards, past the string.
+    ///
+    /// # Panics
+    ///
+    /// When `f` returns more than the length of the storage it got; the
+    /// buffer is left as before the call.
+    ///
+    /// ```
+    /// use ffmpeg::libavutil::bprint::BPrint;
+    /// let mut buf = BPrint::new(0, BPrint::SIZE_UNLIMITED).unwrap();
+    /// let n = buf.as_mut().append_with(4, |spare| {
+    ///     spare[..3].copy_from_slice(b"abc");
+    ///     3
+    /// });
+    /// assert_eq!((n, buf.as_ref().as_bytes()), (3, &b"abc"[..]));
+    /// ```
+    pub fn append_with(&mut self, size: u32, f: impl FnOnce(&mut [u8]) -> usize) -> usize {
+        let mut mem = ptr::null_mut();
+        let mut room = 0;
+        // SAFETY: the exclusive handle addresses an initialised buffer, which
+        // C grows (only when it owns its string) to make room for `size`
+        // bytes; `mem` and `room` are writable out-slots, which C sets to
+        // `str + len` and the `size - len` bytes from there (NULL and 0 when
+        // the buffer is truncated or has no storage).
+        unsafe { ffi::av_bprint_get_buffer(self.as_mut_ptr(), size, &mut mem, &mut room) };
+        let len = self.as_ref().len();
+        // The last byte of the room stays for the NUL, and `len` stays within
+        // the cap `av_bprint_grow` keeps it under.
+        let max = room.saturating_sub(1).min(size).min(LEN_MAX.saturating_sub(len)) as usize;
+        let Some(spare) = NonNull::new(mem.cast::<u8>()).filter(|_| max > 0) else {
+            let written = f(&mut []);
+            assert!(written == 0, "append_with: {written} bytes written into no storage");
+            return 0;
+        };
+        let spare = spare.as_ptr();
+        // SAFETY: `spare` is `str + len`, followed by `room > max` writable
+        // bytes of the string's storage, which the exclusive handle borrows
+        // for the whole call; zeroing initialises the first `max`.
+        unsafe { spare.write_bytes(0, max) };
+        // `spare[0]` holds the NUL until `f` writes over it: the guard puts
+        // it back if `f` or the check below panics, and otherwise terminates
+        // the committed text.
+        let terminate = Terminate(self);
+        // SAFETY: the `max` bytes at `spare` are initialised and writable,
+        // within the string's storage and apart from the structure's fields
+        // (which precede the inline storage); nothing else reaches them while
+        // `f` holds the slice, which it cannot keep past the call.
+        let written = f(unsafe { core::slice::from_raw_parts_mut(spare, max) });
+        assert!(
+            written <= max,
+            "append_with: {written} bytes written into {max} bytes of storage"
+        );
+        // SAFETY: a write of a projected field through the exclusive handle's
+        // pointer; `len + written` is below `size` (`written <= max < room`),
+        // so the guard's NUL lands right after the text, and at most
+        // `LEN_MAX`.
+        unsafe { addr_of_mut!((*terminate.0.as_mut_ptr()).len).write(len + written as u32) };
+        drop(terminate);
+        written
+    }
+}
+
+/// Appends through [`BPrintMut::append_bytes`]: the text exactly, NULs
+/// included, unlike [`BPrintMut::append_fmt`]. Never fails: what does not fit
+/// is counted, as for every append.
+///
+/// ```
+/// use core::fmt::Write;
+/// use ffmpeg::libavutil::bprint::BPrint;
+/// let mut buf = BPrint::new(0, BPrint::SIZE_UNLIMITED).unwrap();
+/// write!(buf.as_mut(), "{}-{}", 1, '\0').unwrap();
+/// assert_eq!(buf.as_ref().as_bytes(), b"1-\0");
+/// ```
+impl fmt::Write for BPrintMut<'_> {
+    fn write_str(&mut self, s: &str) -> fmt::Result {
+        self.append_bytes(s.as_bytes());
+        Ok(())
+    }
+}
+
+define_ctype!(
+    /// Handwritten
+    ///
+    /// C's `struct tm`, a broken-down time, which
+    /// [`BPrintMut::append_strftime`] formats: libc's type, which no batch
+    /// wraps, mirrored here for its one consumer. A plain value Rust owns,
+    /// built by [`Tm::new`] (or `Default`, or `zeroed()`) and filled through
+    /// [`TmMut`]'s setters; its getters are on [`TmRef`].
+    ///
+    /// The fields are independent and unchecked, as in C: `strftime` reads
+    /// those its conversions name and formats out-of-range values as the C
+    /// library chooses. `tm_zone` is the one field with an invariant: NULL,
+    /// or a `'static` string.
+    #[derive(Clone, Copy)]
+    Tm,
+    TmRef,
+    TmMut,
+    ffi::tm
+);
+
+// SAFETY: all-zero is a NULL `tm_zone` and zero integers: every getter
+// accepts it (`zone` reads NULL as `None`), and so does `strftime`, which
+// substitutes a zone name for a NULL `tm_zone`; no teardown exists.
+unsafe impl CZeroable for Tm {}
+
+// SAFETY: the fields are integers and `tm_zone`, NULL or a `&'static CStr`
+// (`Sync`, never written); nothing is freed or tied to a thread, so a value,
+// or an exclusive handle to one, moves between threads as an
+// `([i32; 9], i64, Option<&'static CStr>)` does.
+unsafe impl Send for Tm {}
+// SAFETY: as for `Tm`: the handle is the only access to the value.
+unsafe impl Send for TmMut<'_> {}
+// SAFETY: nothing reachable through a shared handle writes: `TmRef` has
+// getters only, the struct has no interior mutability, and the zone string
+// is never written.
+unsafe impl Sync for Tm {}
+// SAFETY: as for `Sync for Tm`: copies of a shared handle only read.
+unsafe impl Send for TmRef<'_> {}
+// SAFETY: as above.
+unsafe impl Sync for TmRef<'_> {}
+// SAFETY: `&TmMut` reaches the value only through `as_ref`, a shared handle;
+// the setters need `&mut`.
+unsafe impl Sync for TmMut<'_> {}
+
+impl Tm {
+    /// A zeroed time, as `zeroed()` builds it: every integer 0 (day 0 of
+    /// January 1900, a Sunday, `tm_isdst` 0) and no zone name.
+    #[must_use]
+    pub fn new() -> Self {
+        Self::zeroed()
+    }
+}
+
+impl Default for Tm {
+    /// [`Tm::new`].
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
+impl fmt::Debug for Tm {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        self.as_ref().fmt(f)
+    }
+}
+
+impl fmt::Debug for TmRef<'_> {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.debug_struct("Tm")
+            .field("sec", &self.sec())
+            .field("min", &self.min())
+            .field("hour", &self.hour())
+            .field("mday", &self.mday())
+            .field("mon", &self.mon())
+            .field("year", &self.year())
+            .field("wday", &self.wday())
+            .field("yday", &self.yday())
+            .field("isdst", &self.isdst())
+            .field("gmtoff", &self.gmtoff())
+            .field("zone", &self.zone())
+            .finish()
+    }
+}
+
+/// A getter on [`TmRef`] and a setter on [`TmMut`] for each integer field of
+/// `struct tm`, read and written by value through the handle's pointer.
+macro_rules! tm_fields {
+    ($($(#[$doc:meta])* $field:ident: $ty:ty => $get:ident, $set:ident;)*) => {
+        impl TmRef<'_> {
+            $(
+                $(#[$doc])*
+                #[must_use]
+                pub fn $get(&self) -> $ty {
+                    // SAFETY: a read of an integer field projected through
+                    // the shared handle's pointer to a live, initialised
+                    // `struct tm`; every bit pattern is valid.
+                    unsafe { addr_of!((*self.as_ptr()).$field).read() }
+                }
+            )*
+        }
+
+        impl TmMut<'_> {
+            $(
+                $(#[$doc])*
+                pub fn $set(&mut self, value: $ty) {
+                    // SAFETY: a write of an integer field projected through
+                    // the exclusive handle's pointer to a live `struct tm`;
+                    // the old value owns nothing to leak.
+                    unsafe { addr_of_mut!((*self.as_mut_ptr()).$field).write(value) }
+                }
+            )*
+        }
+    };
+}
+
+tm_fields! {
+    /// `tm_sec`: seconds after the minute, usually 0-60.
+    tm_sec: c_int => sec, set_sec;
+    /// `tm_min`: minutes after the hour, usually 0-59.
+    tm_min: c_int => min, set_min;
+    /// `tm_hour`: hours since midnight, usually 0-23.
+    tm_hour: c_int => hour, set_hour;
+    /// `tm_mday`: day of the month, usually 1-31.
+    tm_mday: c_int => mday, set_mday;
+    /// `tm_mon`: months since January, usually 0-11.
+    tm_mon: c_int => mon, set_mon;
+    /// `tm_year`: years since 1900.
+    tm_year: c_int => year, set_year;
+    /// `tm_wday`: days since Sunday, usually 0-6.
+    tm_wday: c_int => wday, set_wday;
+    /// `tm_yday`: days since January 1st, usually 0-365.
+    tm_yday: c_int => yday, set_yday;
+    /// `tm_isdst`: positive when daylight saving time is in effect, 0 when
+    /// not, negative when unknown.
+    tm_isdst: c_int => isdst, set_isdst;
+    /// `tm_gmtoff`: seconds east of UTC, which `%z` formats.
+    tm_gmtoff: c_long => gmtoff, set_gmtoff;
+}
+
+impl<'a> TmRef<'a> {
+    /// `tm_zone`: the time zone's abbreviation, which `%Z` formats, or
+    /// `None` when NULL (`strftime` then names the local zone).
+    #[must_use]
+    pub fn zone(&self) -> Option<&'a CStr> {
+        // SAFETY: a read of the `tm_zone` field projected through the shared
+        // handle's pointer to a live, initialised `struct tm`.
+        let zone = unsafe { addr_of!((*self.as_ptr()).tm_zone).read() };
+        // SAFETY: every writer leaves `tm_zone` NULL (`zeroed`) or a
+        // `&'static CStr` (`set_zone`), NUL-terminated and never written.
+        NonNull::new(zone.cast_mut()).map(|p| unsafe { CStr::from_ptr(p.as_ptr()) })
+    }
+}
+
+impl TmMut<'_> {
+    /// `tm_zone`: points it at `zone`, or NULL for `None`. The value only
+    /// borrows the string.
+    pub fn set_zone(&mut self, zone: Option<&'static CStr>) {
+        let zone = zone.map_or(ptr::null(), CStr::as_ptr);
+        // SAFETY: a write of the `tm_zone` field projected through the
+        // exclusive handle's pointer to a live `struct tm`; the old value is
+        // a borrow, so nothing leaks, and the new one lives for the program.
+        unsafe { addr_of_mut!((*self.as_mut_ptr()).tm_zone).write(zone) }
+    }
+}
+
 #[cfg(test)]
 mod unit_tests {
     use super::*;
@@ -872,12 +1319,9 @@ mod unit_tests {
         assert_eq!(BPrint::SIZE_COUNT_ONLY, 0);
     }
 
-    /// Appends `n` copies of `c` through C.
+    /// Appends `n` copies of `c`.
     fn chars(buf: &mut BPrintMut<'_>, c: u8, n: u32) {
-        // SAFETY: `buf` is an initialised buffer, which `av_bprint_chars`
-        // appends to within its `size`, growing it only when it owns its
-        // string.
-        unsafe { ffi::av_bprint_chars(buf.as_mut_ptr(), c as c_char, n) }
+        buf.append_repeated(c, n);
     }
 
     /// Corrected behaviour: C finalizes a count-only buffer into an
@@ -955,5 +1399,181 @@ mod unit_tests {
         assert!(buf.as_ref().is_inline());
         buf.as_mut().truncate(2);
         assert_eq!(buf.as_ref().len(), 2);
+    }
+
+    /// The guard puts the NUL back at `min(len, size - 1)`, however its
+    /// owner leaves, and writes nothing into a count-only buffer.
+    #[test]
+    fn terminate_reterminates_the_buffer_on_drop() {
+        let mut out = [0xa5_u8; 4];
+        let mut buf = BPrint::for_buffer(&mut out).unwrap();
+        buf.as_mut().append_bytes(b"ab");
+        let mut m = buf.as_mut();
+        // SAFETY: byte 2 of the 4-byte caller buffer, written through the
+        // exclusive handle's string.
+        unsafe { m.as_ref().state().0.add(2).write(b'x' as c_char) };
+        drop(Terminate(&mut m));
+        assert_eq!(buf.as_ref().as_c_str(), c"ab");
+
+        let r = std::panic::catch_unwind(core::panic::AssertUnwindSafe(|| {
+            let mut m = buf.as_mut();
+            let _guard = Terminate(&mut m);
+            panic!("unwinding");
+        }));
+        assert!(r.is_err());
+        buf.as_mut().append_repeated(b'c', 9);
+        // SAFETY: as above, the last byte, where the NUL of a truncated
+        // buffer sits.
+        unsafe { buf.as_mut().as_ref().state().0.add(3).write(b'x' as c_char) };
+        drop(Terminate(&mut buf.as_mut()));
+        drop(buf);
+        assert_eq!(out, *b"abc\0");
+
+        let mut count = BPrint::new(0, BPrint::SIZE_COUNT_ONLY).unwrap();
+        count.as_mut().append_repeated(b'q', 3);
+        drop(Terminate(&mut count.as_mut()));
+        assert_eq!(count.as_ref().len(), 3);
+    }
+
+    /// A closure claiming more than it got panics before anything is
+    /// committed, and the terminator it wrote over comes back.
+    #[test]
+    fn append_with_rejects_an_overlong_count_and_restores_the_buffer() {
+        let mut buf = BPrint::new(0, BPrint::SIZE_UNLIMITED).unwrap();
+        buf.as_mut().append_bytes(b"ab");
+        let r = std::panic::catch_unwind(core::panic::AssertUnwindSafe(|| {
+            buf.as_mut().append_with(4, |spare| {
+                spare.fill(b'z');
+                spare.len() + 1
+            })
+        }));
+        assert!(r.is_err());
+        assert_eq!(buf.as_ref().len(), 2);
+        assert_eq!(buf.as_ref().as_c_str(), c"ab");
+        assert!(buf.as_ref().is_complete());
+        assert_eq!(BPrint::into_string(buf).unwrap().as_bytes(), b"ab");
+
+        // With no storage at all, any count but 0 panics as well.
+        let mut buf = BPrint::new(0, BPrint::SIZE_COUNT_ONLY).unwrap();
+        let r = std::panic::catch_unwind(core::panic::AssertUnwindSafe(|| {
+            buf.as_mut().append_with(4, |spare| spare.len() + 1)
+        }));
+        assert!(r.is_err());
+        assert_eq!(buf.as_ref().len(), 0);
+    }
+
+    /// A closure that panics after writing leaves the old text, terminated.
+    #[test]
+    fn append_with_restores_the_terminator_when_its_closure_panics() {
+        let mut out = [0xa5_u8; 8];
+        let mut buf = BPrint::for_buffer(&mut out).unwrap();
+        buf.as_mut().append_bytes(b"ok");
+        let r = std::panic::catch_unwind(core::panic::AssertUnwindSafe(|| {
+            buf.as_mut().append_with(8, |spare| {
+                spare.fill(b'!');
+                panic!("closure");
+            })
+        }));
+        assert!(r.is_err());
+        assert_eq!(buf.as_ref().as_c_str(), c"ok");
+        drop(buf);
+        // The storage after "ok" is re-terminated; the rest keeps what the
+        // closure wrote, and the last byte, never handed out, is untouched.
+        assert_eq!(out, *b"ok\0!!!!\xa5");
+    }
+
+    /// The storage is at most `size` bytes, zeroed, and stops short of the
+    /// last byte; the count written is what is committed.
+    #[test]
+    fn append_with_hands_out_zeroed_storage_short_of_the_last_byte() {
+        let mut out = [0xa5_u8; 8];
+        let mut buf = BPrint::for_buffer(&mut out).unwrap();
+        let mut seen = Vec::new();
+        let n = buf.as_mut().append_with(100, |spare| {
+            seen.extend_from_slice(spare);
+            spare[..2].copy_from_slice(b"hi");
+            2
+        });
+        assert_eq!((n, seen), (2, vec![0; 7]));
+        let n = buf.as_mut().append_with(3, |spare| {
+            assert_eq!(spare, [0; 3]);
+            0
+        });
+        assert_eq!(n, 0);
+        let n = buf.as_mut().append_with(0, |spare| spare.len());
+        assert_eq!(n, 0);
+        assert_eq!(buf.as_ref().as_bytes(), b"hi");
+        drop(buf);
+        // The first storage, 7 bytes, was zeroed; the last byte never.
+        assert_eq!(out, *b"hi\0\0\0\0\0\xa5");
+    }
+
+    #[test]
+    fn write_keeps_nuls_where_append_fmt_stops() {
+        use core::fmt::Write;
+        let mut buf = BPrint::new(0, BPrint::SIZE_UNLIMITED).unwrap();
+        let nul = '\0';
+        write!(buf.as_mut(), "a{nul}b").unwrap();
+        buf.as_mut().append_fmt(format_args!("c{}d", '\0'));
+        assert_eq!(buf.as_ref().as_bytes(), b"a\0bc");
+        assert_eq!(buf.as_ref().as_c_str(), c"a");
+    }
+
+    #[test]
+    fn tm_new_default_and_zeroed_are_empty() {
+        for t in [Tm::new(), Tm::default(), Tm::zeroed()] {
+            let r = t.as_ref();
+            let ints = [r.sec(), r.min(), r.hour(), r.mday(), r.mon()];
+            assert_eq!(ints, [0; 5]);
+            assert_eq!([r.year(), r.wday(), r.yday(), r.isdst()], [0; 4]);
+            assert_eq!((r.gmtoff(), r.zone()), (0, None));
+        }
+    }
+
+    #[test]
+    fn tm_setters_write_their_own_field_only() {
+        let mut t = Tm::new();
+        let mut m = t.as_mut();
+        m.set_sec(1);
+        m.set_min(2);
+        m.set_hour(3);
+        m.set_mday(4);
+        m.set_mon(5);
+        m.set_year(c_int::MIN);
+        m.set_wday(7);
+        m.set_yday(c_int::MAX);
+        m.set_isdst(-1);
+        m.set_gmtoff(c_long::MIN);
+        m.set_zone(Some(c"CET"));
+        let raw = t.0;
+        assert_eq!(
+            [raw.tm_sec, raw.tm_min, raw.tm_hour, raw.tm_mday, raw.tm_mon],
+            [1, 2, 3, 4, 5]
+        );
+        assert_eq!(
+            [raw.tm_year, raw.tm_wday, raw.tm_yday, raw.tm_isdst],
+            [c_int::MIN, 7, c_int::MAX, -1]
+        );
+        assert_eq!(raw.tm_gmtoff, c_long::MIN);
+        assert_eq!(raw.tm_zone, c"CET".as_ptr());
+        let r = t.as_ref();
+        assert_eq!((r.year(), r.yday(), r.gmtoff()), (c_int::MIN, c_int::MAX, c_long::MIN));
+        assert_eq!(r.zone(), Some(c"CET"));
+        t.as_mut().set_zone(None);
+        assert!(t.0.tm_zone.is_null());
+        assert_eq!(t.as_ref().zone(), None);
+    }
+
+    #[test]
+    fn tm_debug_lists_every_field() {
+        let mut t = Tm::new();
+        t.as_mut().set_year(100);
+        t.as_mut().set_zone(Some(c"UTC"));
+        assert_eq!(
+            format!("{t:?}"),
+            "Tm { sec: 0, min: 0, hour: 0, mday: 0, mon: 0, year: 100, wday: 0, yday: 0, \
+             isdst: 0, gmtoff: 0, zone: Some(\"UTC\") }"
+        );
+        assert_eq!(format!("{:?}", t.as_ref()), format!("{t:?}"));
     }
 }

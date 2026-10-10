@@ -1,0 +1,9 @@
+error[E0502]: cannot borrow `b` as mutable because it is also borrowed as immutable
+ --> tests/ub_safe/compile_fail/bprint_bytes_read_while_appending.rs
+  |
+  |     let s = b.as_ref().as_bytes();
+  |             - immutable borrow occurs here
+  |     b.as_mut().append_repeated(b'x', 5000);
+  |     ^^^^^^^^^^ mutable borrow occurs here
+  |     println!("{s:?}");
+  |                - immutable borrow later used here

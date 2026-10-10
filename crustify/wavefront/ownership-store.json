@@ -559,6 +559,145 @@
    "defined_in": "libavutil/mathematics.c"
   },
   {
+   "name": "av_bprint_append_data",
+   "defined_in": "libavutil/bprint.c",
+   "ptr_args": [
+    {
+     "name": "buf",
+     "ptr": {
+      "scalar": {
+       "by_val": true
+      },
+      "array": null,
+      "string": false,
+      "owned": false,
+      "borrowed": {
+       "lifetime": "arg:buf"
+      },
+      "nullable": false,
+      "mutable": true,
+      "note": "An initialised AVBPrint (av_bprint_init / av_bprint_init_for_buffer), borrowed mutably for the call only and not retained. When the text does not fit, av_bprint_alloc grows str only while size < size_max and the buffer is complete: an inline string is copied into a fresh av_realloc block the struct then owns, an owned block is av_realloc'd; a caller buffer (size == size_max) never grows. What does not fit is truncated, but len counts it (capped at UINT_MAX - 5); str stays NUL-terminated at min(len, size - 1). Appends min(size, room - 1) bytes of data with memcpy."
+     }
+    },
+    {
+     "name": "data",
+     "ptr": {
+      "scalar": null,
+      "array": {
+       "by_val": true
+      },
+      "string": false,
+      "owned": false,
+      "borrowed": {
+       "lifetime": "arg:data"
+      },
+      "nullable": false,
+      "mutable": false,
+      "note": "`size` bytes read with memcpy for the call only (binary, NULs included, not a string). Only min(size, room - 1) bytes are read, none when the buffer has no room; it must not alias the buffer's own storage, which av_realloc may move. The safe wrapper passes a Rust slice, split into UINT_MAX-byte pieces."
+     }
+    }
+   ]
+  },
+  {
+   "name": "av_bprint_chars",
+   "defined_in": "libavutil/bprint.c",
+   "ptr_args": [
+    {
+     "name": "buf",
+     "ptr": {
+      "scalar": {
+       "by_val": true
+      },
+      "array": null,
+      "string": false,
+      "owned": false,
+      "borrowed": {
+       "lifetime": "arg:buf"
+      },
+      "nullable": false,
+      "mutable": true,
+      "note": "An initialised AVBPrint (av_bprint_init / av_bprint_init_for_buffer), borrowed mutably for the call only and not retained. When the text does not fit, av_bprint_alloc grows str only while size < size_max and the buffer is complete: an inline string is copied into a fresh av_realloc block the struct then owns, an owned block is av_realloc'd; a caller buffer (size == size_max) never grows. What does not fit is truncated, but len counts it (capped at UINT_MAX - 5); str stays NUL-terminated at min(len, size - 1). memsets min(n, room - 1) copies of c."
+     }
+    }
+   ]
+  },
+  {
+   "name": "av_bprint_clear",
+   "defined_in": "libavutil/bprint.c",
+   "ptr_args": [
+    {
+     "name": "buf",
+     "ptr": {
+      "scalar": {
+       "by_val": true
+      },
+      "array": null,
+      "string": false,
+      "owned": false,
+      "borrowed": {
+       "lifetime": "arg:buf"
+      },
+      "nullable": false,
+      "mutable": true,
+      "note": "An initialised AVBPrint, borrowed mutably for the call: when len is non-zero, writes *str = 0 and len = 0 (storage, size and size_max kept; a truncated buffer becomes complete). *str is always writable: str is the inline storage for a count-only buffer (size 0), else size >= 1."
+     }
+    }
+   ]
+  },
+  {
+   "name": "av_bprint_escape",
+   "defined_in": "libavutil/bprint.c",
+   "ptr_args": [
+    {
+     "name": "dstbuf",
+     "ptr": {
+      "scalar": {
+       "by_val": true
+      },
+      "array": null,
+      "string": false,
+      "owned": false,
+      "borrowed": {
+       "lifetime": "arg:dstbuf"
+      },
+      "nullable": false,
+      "mutable": true,
+      "note": "An initialised AVBPrint (av_bprint_init / av_bprint_init_for_buffer), borrowed mutably for the call only and not retained. Appends the escaped text through av_bprint_chars / av_bprintf (see their growth and truncation)."
+     }
+    },
+    {
+     "name": "special_chars",
+     "ptr": {
+      "scalar": null,
+      "array": null,
+      "string": true,
+      "owned": false,
+      "borrowed": {
+       "lifetime": "arg:special_chars"
+      },
+      "nullable": true,
+      "mutable": false,
+      "note": "Extra characters backslash mode escapes, read with strchr for the call only; NULL means none (`special_chars &&`). Ignored by the quote and XML modes."
+     }
+    },
+    {
+     "name": "src",
+     "ptr": {
+      "scalar": null,
+      "array": null,
+      "string": true,
+      "owned": false,
+      "borrowed": {
+       "lifetime": "arg:src"
+      },
+      "nullable": false,
+      "mutable": false,
+      "note": "Text to escape, read up to its NUL for the call only. Must not be NULL, and must not point into dstbuf's storage (appends may realloc it)."
+     }
+    }
+   ]
+  },
+  {
    "name": "av_bprint_finalize",
    "defined_in": "libavutil/bprint.c",
    "lifetime": {
@@ -604,6 +743,68 @@
       "nullable": true,
       "mutable": true,
       "note": "Optional out slot for the string, an alloc-constructor output (av_free releases it): the shrunk av_realloc heap buffer (or the unshrunk one when that realloc fails), else av_memdup(buf->str, min(len + 1, size)) for an internal/user buffer, NULL with AVERROR(ENOMEM) when that copy fails. NULL slot discards the string. C DEFECT: for an AV_BPRINT_SIZE_COUNT_ONLY buffer (av_bprint_init(.., 0, AV_BPRINT_SIZE_COUNT_ONLY), or av_bprint_init_for_buffer with size 0) size is 0, so the result is av_memdup(str, 0) = a 1-byte av_malloc block that is never written: NOT NUL-terminated (ASan: heap-buffer-overflow in strlen). A wrapper must not adopt that result as an owned string (HeapString). The lifecycle role below is the AVBPrint teardown; the string output is recorded here because the schema carries one role per symbol."
+     }
+    }
+   ]
+  },
+  {
+   "name": "av_bprint_get_buffer",
+   "defined_in": "libavutil/bprint.c",
+   "ptr_args": [
+    {
+     "name": "actual_size",
+     "ptr": {
+      "scalar": {
+       "by_val": true
+      },
+      "array": null,
+      "string": false,
+      "owned": false,
+      "borrowed": {
+       "lifetime": "arg:actual_size"
+      },
+      "nullable": false,
+      "mutable": true,
+      "note": "Out slot, written unconditionally: the room size - min(len, size) after any growth, which may be smaller (limit, ENOMEM, truncated buffer) or larger than size; it includes the byte the NUL must keep. Must not be NULL."
+     }
+    },
+    {
+     "name": "buf",
+     "ptr": {
+      "scalar": {
+       "by_val": true
+      },
+      "array": null,
+      "string": false,
+      "owned": false,
+      "borrowed": {
+       "lifetime": "arg:buf"
+      },
+      "nullable": false,
+      "mutable": true,
+      "note": "An initialised AVBPrint, borrowed mutably: when size > room it calls av_bprint_alloc(buf, size) (same growth rules as the appenders, failure ignored); len is NOT changed: the caller commits what it wrote by raising len and re-terminating (pngdec.c: bp->len += n; bp->str[bp->len] = 0)."
+     }
+    },
+    {
+     "name": "mem",
+     "ptr": {
+      "scalar": {
+       "by_ref": {
+        "owned": false,
+        "borrowed": {
+         "lifetime": "arg:buf"
+        }
+       }
+      },
+      "array": null,
+      "string": false,
+      "owned": false,
+      "borrowed": {
+       "lifetime": "arg:mem"
+      },
+      "nullable": false,
+      "mutable": true,
+      "note": "Out slot, written unconditionally: str + len, a borrow into buf's string storage (inline storage, owned av_realloc block or caller buffer), valid for *actual_size bytes of writes until the next append, finalize or move of buf; NULL when the room is 0. Bytes past str[len] are uninitialised (av_realloc), str[len] holds the NUL. Must not be NULL."
      }
     }
    ]
@@ -687,6 +888,122 @@
       "nullable": true,
       "mutable": true,
       "note": "A caller byte buffer of `size` chars that the AVBPrint stores in str and writes for its whole life (never reallocated: size == size_max makes av_bprint_alloc fail with EIO); it must outlive the AVBPrint and must never reach av_bprint_finalize, which would av_realloc/av_free it since str != reserved_internal_buffer. Not dereferenced when size is 0, so NULL is accepted then."
+     }
+    }
+   ]
+  },
+  {
+   "name": "av_bprint_is_complete",
+   "defined_in": "libavutil/bprint.h",
+   "ptr_args": [
+    {
+     "name": "buf",
+     "ptr": {
+      "scalar": {
+       "by_val": true
+      },
+      "array": null,
+      "string": false,
+      "owned": false,
+      "borrowed": {
+       "lifetime": "arg:buf"
+      },
+      "nullable": false,
+      "mutable": false,
+      "note": "An initialised AVBPrint, read for the call only (len < size); static inline in bprint.h."
+     }
+    }
+   ]
+  },
+  {
+   "name": "av_bprint_strftime",
+   "defined_in": "libavutil/bprint.c",
+   "ptr_args": [
+    {
+     "name": "buf",
+     "ptr": {
+      "scalar": {
+       "by_val": true
+      },
+      "array": null,
+      "string": false,
+      "owned": false,
+      "borrowed": {
+       "lifetime": "arg:buf"
+      },
+      "nullable": false,
+      "mutable": true,
+      "note": "An initialised AVBPrint (av_bprint_init / av_bprint_init_for_buffer), borrowed mutably for the call only and not retained. When the text does not fit, av_bprint_alloc grows str only while size < size_max and the buffer is complete: an inline string is copied into a fresh av_realloc block the struct then owns, an owned block is av_realloc'd; a caller buffer (size == size_max) never grows. What does not fit is truncated, but len counts it (capped at UINT_MAX - 5); str stays NUL-terminated at min(len, size - 1). strftime writes straight into str + len with the room as its limit; a failed attempt (0) may leave unterminated bytes past len, which the retry or av_bprint_grow re-terminates. If growth fails it formats into a 1 KiB local buffer and av_bprintf's it (room < 1024), else fills the room with '!' and \"[truncated strftime output]\" and forces truncation. Empty fmt returns at once."
+     }
+    },
+    {
+     "name": "fmt",
+     "ptr": {
+      "scalar": null,
+      "array": null,
+      "string": true,
+      "owned": false,
+      "borrowed": {
+       "lifetime": "arg:fmt"
+      },
+      "nullable": false,
+      "mutable": false,
+      "note": "strftime format, read (strlen and strftime) for the call only. Must not be NULL."
+     }
+    },
+    {
+     "name": "tm",
+     "ptr": {
+      "scalar": {
+       "by_val": true
+      },
+      "array": null,
+      "string": false,
+      "owned": false,
+      "borrowed": {
+       "lifetime": "arg:tm"
+      },
+      "nullable": false,
+      "mutable": false,
+      "note": "libc struct tm, read by strftime for the call only; glibc also reads tm_zone (NULL accepted: the local zone name is used) for %Z. Out-of-range fields give unspecified characters (C11 7.27.3.5), not UB; glibc range-checks its name tables. Must not be NULL."
+     }
+    }
+   ]
+  },
+  {
+   "name": "av_bprintf",
+   "defined_in": "libavutil/bprint.c",
+   "ptr_args": [
+    {
+     "name": "buf",
+     "ptr": {
+      "scalar": {
+       "by_val": true
+      },
+      "array": null,
+      "string": false,
+      "owned": false,
+      "borrowed": {
+       "lifetime": "arg:buf"
+      },
+      "nullable": false,
+      "mutable": true,
+      "note": "An initialised AVBPrint (av_bprint_init / av_bprint_init_for_buffer), borrowed mutably for the call only and not retained. When the text does not fit, av_bprint_alloc grows str only while size < size_max and the buffer is complete: an inline string is copied into a fresh av_realloc block the struct then owns, an owned block is av_realloc'd; a caller buffer (size == size_max) never grows. What does not fit is truncated, but len counts it (capped at UINT_MAX - 5); str stays NUL-terminated at min(len, size - 1). Delegates to av_vbprintf: vsnprintf into str + len with the room; retries after growing when the text does not fit; a vsnprintf error or empty text appends nothing."
+     }
+    },
+    {
+     "name": "fmt",
+     "ptr": {
+      "scalar": null,
+      "array": null,
+      "string": true,
+      "owned": false,
+      "borrowed": {
+       "lifetime": "arg:fmt"
+      },
+      "nullable": false,
+      "mutable": false,
+      "note": "printf format, read for the call; the variadic arguments follow it. Must not be NULL. The safe wrapper formats in Rust and passes the text through \"%s\"."
      }
     }
    ]
@@ -4081,6 +4398,44 @@
       "nullable": false,
       "mutable": true,
       "note": "Out slot, written only once a sequence is well-formed and below 2^31 (also when the flag range checks then fail); untouched for an empty buffer, a malformed or overlong sequence. [Symbol: Returns 0 on success (and for an empty buffer, without consuming), AVERROR(EILSEQ) otherwise.]"
+     }
+    }
+   ]
+  },
+  {
+   "name": "av_vbprintf",
+   "defined_in": "libavutil/bprint.c",
+   "ptr_args": [
+    {
+     "name": "buf",
+     "ptr": {
+      "scalar": {
+       "by_val": true
+      },
+      "array": null,
+      "string": false,
+      "owned": false,
+      "borrowed": {
+       "lifetime": "arg:buf"
+      },
+      "nullable": false,
+      "mutable": true,
+      "note": "An initialised AVBPrint (av_bprint_init / av_bprint_init_for_buffer), borrowed mutably for the call only and not retained. When the text does not fit, av_bprint_alloc grows str only while size < size_max and the buffer is complete: an inline string is copied into a fresh av_realloc block the struct then owns, an owned block is av_realloc'd; a caller buffer (size == size_max) never grows. What does not fit is truncated, but len counts it (capped at UINT_MAX - 5); str stays NUL-terminated at min(len, size - 1). vsnprintf (with a va_copy per attempt) into str + len with the room; retries after growing when the text does not fit; a vsnprintf error or empty text appends nothing."
+     }
+    },
+    {
+     "name": "fmt",
+     "ptr": {
+      "scalar": null,
+      "array": null,
+      "string": true,
+      "owned": false,
+      "borrowed": {
+       "lifetime": "arg:fmt"
+      },
+      "nullable": false,
+      "mutable": false,
+      "note": "printf format, read by vsnprintf for the call; vl_arg supplies its arguments and is only va_copy'd, never consumed. Must not be NULL. The safe wrapper reaches it through the crustify_av_vbprintf shim with \"%s\" and a NUL-terminated string."
      }
     }
    ]

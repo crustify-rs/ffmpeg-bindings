@@ -402,3 +402,338 @@ mod owners {
         assert_eq!(out[0], 0);
     }
 }
+
+/// UB tests of the appenders, `av_bprint_is_complete` and [`Tm`] through the
+/// safe API: every appender on every owner shape, into growth, limits and
+/// truncation; counts at their cap; `strftime` over extreme fields and odd
+/// formats; storage handed out by `append_with`, written in full, refused
+/// and abandoned by a panic; and buffers, handles and times on other
+/// threads.
+///
+/// [`Tm`]: ffmpeg::libavutil::bprint::Tm
+mod appenders {
+    use core::ffi::{CStr, c_int, c_long};
+    use core::fmt::Write;
+    use std::panic::{AssertUnwindSafe, catch_unwind};
+    use std::thread;
+
+    use ffmpeg::libavutil::avstring::{EscapeFlags, EscapeMode};
+    use ffmpeg::libavutil::bprint::{BPrint, BPrintMut, BPrintRef, Tm};
+
+    /// `size_max` values at every boundary the appenders distinguish.
+    const SIZE_MAX: [u32; 8] = [
+        BPrint::SIZE_COUNT_ONLY,
+        BPrint::SIZE_AUTOMATIC,
+        2,
+        30,
+        BPrint::INLINE_CAPACITY,
+        BPrint::INLINE_CAPACITY + 1,
+        3000,
+        BPrint::SIZE_UNLIMITED,
+    ];
+
+    /// Caller buffer lengths: count only, room for the NUL alone, small, and
+    /// past the inline storage.
+    const LENS: [usize; 5] = [0, 1, 2, 30, 1100];
+
+    /// The relations every getter must keep, read in full.
+    fn check(r: BPrintRef<'_>) {
+        let (len, size) = (r.len(), r.size());
+        assert!(len <= u32::MAX - 5);
+        assert_eq!(r.is_complete(), len < size);
+        assert_eq!(r.as_bytes().len() as u32, len.min(size.saturating_sub(1)));
+        let c = r.as_c_str().to_bytes();
+        assert!(c.len() <= r.as_bytes().len());
+        assert_eq!(c, &r.as_bytes()[..c.len()]);
+        assert!(size <= r.size_max());
+        assert_eq!(r.is_empty(), len == 0);
+    }
+
+    /// A time with every field set, in a named zone.
+    fn some_time() -> Tm {
+        let mut tm = Tm::new();
+        let mut m = tm.as_mut();
+        m.set_year(124);
+        m.set_mon(1);
+        m.set_mday(29);
+        m.set_hour(23);
+        m.set_min(59);
+        m.set_sec(60);
+        m.set_wday(4);
+        m.set_yday(59);
+        m.set_isdst(1);
+        m.set_gmtoff(-12_600);
+        m.set_zone(Some(c"NDT"));
+        tm
+    }
+
+    /// Every appender once, several large enough to grow or truncate.
+    fn append_all(m: &mut BPrintMut<'_>, tm: &Tm) {
+        m.append_bytes(b"");
+        m.append_bytes(b"bin\0ary\xff");
+        m.append_repeated(b'r', 0);
+        m.append_repeated(b'r', 700);
+        m.append_escaped(c" e'sc\\ape: ", Some(c":"), EscapeMode::Backslash, EscapeFlags::empty());
+        m.append_escaped(c"<x a='1'/>", None, EscapeMode::Xml, EscapeFlags::XML_SINGLE_QUOTES);
+        m.append_escaped(c"'q'", None, EscapeMode::Quote, EscapeFlags::STRICT);
+        m.append_escaped(c"", Some(c""), EscapeMode::Auto, EscapeFlags::from_bits_retain(-1));
+        m.append_fmt(format_args!("{}|{:>8}|{:e}", u64::MAX, "pad", f64::MIN));
+        m.append_fmt(format_args!(""));
+        m.append_c_str(c"c string");
+        m.append_c_str(c"");
+        m.append_strftime(c"%c %Z %z %j %G-W%V", tm.as_ref());
+        m.append_strftime(c"", tm.as_ref());
+        let n = m.append_with(400, |spare| {
+            spare.fill(b'w');
+            spare.len()
+        });
+        assert!(n <= 400);
+        let nul = '\0';
+        write!(m, "{nul}written {n}").unwrap();
+        m.append_repeated(b'R', 2500);
+    }
+
+    #[test]
+    fn every_appender_on_every_shape_keeps_the_invariants() {
+        let tm = some_time();
+        for size_max in SIZE_MAX {
+            let mut buf = BPrint::new(0, size_max).unwrap();
+            for _ in 0..2 {
+                append_all(&mut buf.as_mut(), &tm);
+                check(buf.as_ref());
+                buf.as_mut().truncate(5);
+                check(buf.as_ref());
+                append_all(&mut buf.as_mut(), &tm);
+                check(buf.as_ref());
+                buf.as_mut().clear();
+                check(buf.as_ref());
+            }
+            append_all(&mut buf.as_mut(), &tm);
+            let bytes = buf.as_ref().as_bytes().to_vec();
+            if size_max % 2 == 0 {
+                assert_eq!(BPrint::into_bytes(buf).unwrap().as_slice(), bytes);
+            } else {
+                let s = BPrint::into_string(buf).unwrap();
+                assert!(bytes.starts_with(s.as_bytes()));
+            }
+        }
+        for len in LENS {
+            let mut out = vec![0x5a_u8; len];
+            let mut buf = BPrint::for_buffer(&mut out).unwrap();
+            for _ in 0..2 {
+                append_all(&mut buf.as_mut(), &tm);
+                check(buf.as_ref());
+                assert_eq!(buf.as_ref().size() as usize, len);
+                buf.as_mut().clear();
+                check(buf.as_ref());
+            }
+            append_all(&mut buf.as_mut(), &tm);
+            let stored = buf.as_ref().as_bytes().to_vec();
+            drop(buf);
+            // What was stored stays in the caller buffer, terminated.
+            if len > 0 {
+                assert_eq!(out[..stored.len()], stored[..]);
+                assert_eq!(out[stored.len()], 0);
+            }
+        }
+    }
+
+    /// `len` stops at `u32::MAX - 5` however much is counted, where C's
+    /// unsigned arithmetic would otherwise wrap; nothing is stored or
+    /// allocated for it.
+    #[test]
+    fn counts_stop_at_their_cap() {
+        let mut storage = [0_u8; 4];
+        let mut on = BPrint::for_buffer(&mut storage).unwrap();
+        let mut count = BPrint::new(0, BPrint::SIZE_COUNT_ONLY).unwrap();
+        let mut auto = BPrint::new(0, BPrint::SIZE_AUTOMATIC).unwrap();
+        for mut m in [on.as_mut(), count.as_mut(), auto.as_mut()] {
+            for _ in 0..3 {
+                m.append_repeated(b'n', u32::MAX);
+                assert_eq!(m.as_ref().len(), u32::MAX - 5);
+                check(m.as_ref());
+            }
+            m.append_fmt(format_args!("more"));
+            m.append_bytes(b"more");
+            m.append_c_str(c"more");
+            m.append_strftime(c"%Y", Tm::new().as_ref());
+            m.append_escaped(c"more", None, EscapeMode::Quote, EscapeFlags::empty());
+            assert_eq!(m.append_with(u32::MAX, |spare| spare.len()), 0);
+            assert_eq!(m.as_ref().len(), u32::MAX - 5);
+            check(m.as_ref());
+            m.truncate(u32::MAX - 6);
+            check(m.as_ref());
+            m.clear();
+            check(m.as_ref());
+        }
+        drop(on);
+        // Filled to the brim, then emptied by `clear`'s NUL.
+        assert_eq!(storage, *b"\0nn\0");
+    }
+
+    /// `strftime` reads only what its conversions name; out-of-range fields
+    /// and odd formats (lone `%`, modifiers, unknown conversions) give
+    /// unspecified characters, never out-of-bounds access.
+    #[test]
+    fn strftime_over_extreme_fields_and_odd_formats() {
+        const INTS: [c_int; 7] = [c_int::MIN, -1_000_000, -1, 0, 12, 400, c_int::MAX];
+        const OFFSETS: [c_long; 4] = [c_long::MIN, -1, 0, c_long::MAX];
+        const FORMATS: [&CStr; 6] = [
+            c"%a%A%b%B%c%C%d%D%e%F%g%G%h%H%I%j%k%l%m%M%n%p%P%r%R%s%S%t%T%u%U%V%w%W%x%X%y%Y%z%Z%+%%",
+            c"%Ec%EC%Ex%EX%Ey%EY%Od%Oe%OH%OI%Om%OM%OS%Ou%OU%OV%Ow%OW%Oy",
+            c"%_10Y%-d%0e%^a%#b%10000c",
+            c"%",
+            c"%E%O%q%",
+            c"%Z%Z%Z%Z%Z%Z%Z%Z%Z%Z%Z%Z%Z%Z%Z%Z",
+        ];
+        let mut buf = BPrint::new(0, BPrint::SIZE_AUTOMATIC).unwrap();
+        for field in 0..9 {
+            for v in INTS {
+                let mut tm = some_time();
+                let mut m = tm.as_mut();
+                match field {
+                    0 => m.set_sec(v),
+                    1 => m.set_min(v),
+                    2 => m.set_hour(v),
+                    3 => m.set_mday(v),
+                    4 => m.set_mon(v),
+                    5 => m.set_year(v),
+                    6 => m.set_wday(v),
+                    7 => m.set_yday(v),
+                    _ => m.set_isdst(v),
+                }
+                for (i, zone) in [None, Some(c""), Some(c"Z")].into_iter().enumerate() {
+                    tm.as_mut().set_zone(zone);
+                    tm.as_mut().set_gmtoff(OFFSETS[(field + i) % OFFSETS.len()]);
+                    for fmt in FORMATS {
+                        buf.as_mut().append_strftime(fmt, tm.as_ref());
+                        check(buf.as_ref());
+                        buf.as_mut().clear();
+                    }
+                }
+            }
+        }
+        // An unlimited buffer grows for wide output, a limited one falls
+        // back or truncates.
+        for size_max in [BPrint::SIZE_UNLIMITED, 30, 1500] {
+            let mut buf = BPrint::new(0, size_max).unwrap();
+            buf.as_mut().append_strftime(c"%3000c", some_time().as_ref());
+            check(buf.as_ref());
+            buf.as_mut().append_strftime(c"%c", some_time().as_ref());
+            check(buf.as_ref());
+        }
+    }
+
+    /// Storage handed out is the room short of the NUL's byte: written in
+    /// full each time it fills the buffer to its last byte, also inside the
+    /// structure; a closure may write nothing, refuse with a panic, or panic
+    /// itself, and the buffer stays readable.
+    #[test]
+    fn storage_handed_out_is_written_in_full_or_abandoned() {
+        let mut auto = BPrint::new(0, BPrint::SIZE_AUTOMATIC).unwrap();
+        let mut limited = BPrint::new(0, 2500).unwrap();
+        let mut out = [0_u8; 64];
+        let mut on = BPrint::for_buffer(&mut out).unwrap();
+        for mut m in [auto.as_mut(), limited.as_mut(), on.as_mut()] {
+            let size_max = m.as_ref().size_max();
+            while m.as_ref().is_complete() {
+                let before = m.as_ref().len();
+                let n = m.append_with(700, |spare| {
+                    assert!(spare.iter().all(|&b| b == 0));
+                    spare.fill(b'#');
+                    spare.len()
+                });
+                check(m.as_ref());
+                if n == 0 {
+                    break;
+                }
+                assert_eq!(m.as_ref().len() as usize, before as usize + n);
+            }
+            // Full to the last byte: nothing more is handed out.
+            assert_eq!(m.as_ref().len(), size_max - 1);
+            assert_eq!(m.append_with(1, |spare| spare.len()), 0);
+            m.append_repeated(b'!', 1);
+            assert!(!m.as_ref().is_complete());
+            assert_eq!(m.append_with(1, |spare| spare.len()), 0);
+
+            m.truncate(3);
+            assert_eq!(m.append_with(4, |_| 0), 0);
+            let refused = catch_unwind(AssertUnwindSafe(|| m.append_with(4, |s| s.len() + 1)));
+            assert!(refused.is_err());
+            let panicked = catch_unwind(AssertUnwindSafe(|| {
+                m.append_with(4, |s| {
+                    s.fill(b'?');
+                    panic!("abandoned")
+                })
+            }));
+            assert!(panicked.is_err());
+            assert_eq!(m.as_ref().as_c_str(), c"###");
+            check(m.as_ref());
+            // A reborrow appends through the same buffer.
+            m.as_mut().append_with(2, |s| {
+                s.copy_from_slice(b"ok");
+                2
+            });
+            assert_eq!(m.as_ref().as_bytes(), b"###ok");
+        }
+        drop(on);
+        assert_eq!(&out[..6], b"###ok\0");
+    }
+
+    /// Owners append on the threads they move to, exclusive handles on
+    /// scoped threads, and times are formatted from many threads at once.
+    #[test]
+    fn appenders_run_on_other_threads() {
+        let tm = some_time();
+        let joins: Vec<_> = SIZE_MAX
+            .iter()
+            .map(|&size_max| {
+                let mut buf = BPrint::new(0, size_max).unwrap();
+                thread::spawn(move || {
+                    append_all(&mut buf.as_mut(), &some_time());
+                    check(buf.as_ref());
+                    buf
+                })
+            })
+            .collect();
+        let mut boxes: Vec<_> = joins.into_iter().map(|j| j.join().unwrap()).collect();
+        thread::scope(|s| {
+            for b in &mut boxes {
+                let mut m = b.as_mut();
+                let tm = &tm;
+                s.spawn(move || {
+                    m.clear();
+                    for _ in 0..20 {
+                        m.append_strftime(c"%F %T %Z ", tm.as_ref());
+                    }
+                    check(m.as_ref());
+                });
+            }
+        });
+        thread::scope(|s| {
+            for b in &boxes {
+                let r = b.as_ref();
+                let t = tm.as_ref();
+                s.spawn(move || {
+                    check(r);
+                    assert_eq!(t.zone(), Some(c"NDT"));
+                });
+            }
+        });
+        let copies: Vec<Tm> = (0..4).map(|_| tm).collect();
+        let joins: Vec<_> = copies
+            .into_iter()
+            .map(|mut t| {
+                thread::spawn(move || {
+                    t.as_mut().set_zone(Some(c"UTC"));
+                    let mut buf = BPrint::new(0, BPrint::SIZE_UNLIMITED).unwrap();
+                    buf.as_mut().append_strftime(c"%Z", t.as_ref());
+                    buf.as_ref().as_bytes().to_vec()
+                })
+            })
+            .collect();
+        for j in joins {
+            assert_eq!(j.join().unwrap(), b"UTC");
+        }
+    }
+}

@@ -61,6 +61,17 @@ var AV_BPRINT_SIZE_COUNT_ONLY
 # The AVERROR(ENOMEM) av_bprint_finalize fails with.
 var ENOMEM
 
+# libavutil/bprint.h: the appenders and the completeness test (core wave 2;
+# av_bprint_is_complete is static inline, compiled by bindgen's
+# wrap_static_fns). av_vbprintf is reached through the crustify_av_vbprintf
+# shim; av_bprint_strftime brings in libc's `struct tm`.
+function av_bprintf
+function av_vbprintf
+function av_bprint_escape
+function av_bprint_get_buffer
+function av_bprint_is_complete
+function av_bprint_strftime
+
 # libavutil/opt.h, iamf.h: the C reader of AVClass.child_class_iterate and
 # public classes with option tables and child classes, which the AVClass
 # getters are compared against (core wave 1, AVClass).

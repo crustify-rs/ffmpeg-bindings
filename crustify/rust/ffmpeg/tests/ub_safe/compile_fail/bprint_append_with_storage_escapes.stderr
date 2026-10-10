@@ -1,0 +1,9 @@
+error[E0521]: borrowed data escapes outside of closure
+ --> tests/ub_safe/compile_fail/bprint_append_with_storage_escapes.rs
+  |
+  |     let mut kept: &mut [u8] = &mut [];
+  |         -------- `kept` declared here, outside of the closure body
+  |     b.as_mut().append_with(4, |spare| {
+  |                                ----- `spare` is a reference that is only valid in the closure body
+  |         kept = spare;
+  |         ^^^^^^^^^^^^ `spare` escapes the closure body here
