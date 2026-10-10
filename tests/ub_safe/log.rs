@@ -151,6 +151,9 @@ impl Callback for FormatAll {
 
 #[test]
 fn records_format_into_exact_size_buffers() {
+    if !isolated("log::records_format_into_exact_size_buffers") {
+        return;
+    }
     let _s = LogState::lock();
     let mut msgs: Vec<CString> = [0, 1, 2, 3, 7, 8, 15, 16, 31, 63, 64, 65, 79]
         .map(|n| CString::new(vec![b'm'; n]).unwrap())
@@ -248,6 +251,9 @@ impl Callback for Other {
 
 #[test]
 fn callbacks_reenter_logging_and_swap_themselves() {
+    if !isolated("log::callbacks_reenter_logging_and_swap_themselves") {
+        return;
+    }
     let _s = LogState::lock();
     let before = (
         REENTERED.load(Ordering::Relaxed),
@@ -287,6 +293,9 @@ impl Callback for CountB {
 
 #[test]
 fn logging_races_with_callback_level_and_flag_changes() {
+    if !isolated("log::logging_races_with_callback_level_and_flag_changes") {
+        return;
+    }
     let _s = LogState::lock();
     log::set_callback::<CountA>();
     let stop = Arc::new(AtomicBool::new(false));
@@ -347,6 +356,28 @@ fn log_once_takes_either_starting_state() {
 
 /// Set in the child process an isolated test re-runs itself in.
 const ISOLATED: &str = "CRUSTIFY_UB_ISOLATED";
+
+/// Runs the test `name` alone in a child process, so that no other test
+/// logs through the callback it installs; true in that child.
+///
+/// A callback is process-wide: other tests' messages go through it too,
+/// which is sound (they are counted or dropped) but makes BSan report a
+/// false use-after-free in `av_strtod` on a `cpu::parse_caps` thread
+/// logging through it concurrently (the pointer libc's `strtod` hands back
+/// carries stale provenance while the byte it reads is inside a live
+/// block; formats wave-0 review, batch 1).
+fn isolated(name: &str) -> bool {
+    if std::env::var_os(ISOLATED).is_some() {
+        return true;
+    }
+    let status = std::process::Command::new(std::env::current_exe().unwrap())
+        .args(["--exact", name, "--test-threads=1"])
+        .env(ISOLATED, "1")
+        .status()
+        .unwrap();
+    assert!(status.success(), "isolated run failed: {status}");
+    false
+}
 
 /// Forwards every record to the default callback.
 struct Forward;
@@ -628,6 +659,9 @@ mod class {
     /// `cpuflags`, and logs an unknown token in that class's context.
     #[test]
     fn the_cpuflags_class_reaches_a_callback() {
+        if !super::isolated("log::class::the_cpuflags_class_reaches_a_callback") {
+            return;
+        }
         let _s = LogState::lock();
         SEEN.with(|s| *s.borrow_mut() = Some(Vec::new()));
         log::set_callback::<Grab>();

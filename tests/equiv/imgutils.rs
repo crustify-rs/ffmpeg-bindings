@@ -303,8 +303,33 @@ struct Ctx {
     class: *const ffi::AVClass,
 }
 
+/// Runs the test `name` alone in a child process, so that no other test
+/// logs through the callback it installs; true in that child.
+///
+/// The process-wide callback is sound for other threads' messages (they are
+/// dropped), but BSan reports a false use-after-free in `av_strtod` on a
+/// `cpu::parse_caps` thread logging through it concurrently: the pointer
+/// libc's `strtod` hands back carries stale provenance, while the byte it
+/// reads is inside a live block (formats wave-0 review, batch 1).
+fn isolated(name: &str) -> bool {
+    const KEY: &str = "CRUSTIFY_EQUIV_IMGUTILS_ISOLATED";
+    if std::env::var_os(KEY).is_some() {
+        return true;
+    }
+    let status = std::process::Command::new(std::env::current_exe().unwrap())
+        .args(["--exact", name, "--test-threads=1"])
+        .env(KEY, "1")
+        .status()
+        .unwrap();
+    assert!(status.success(), "isolated run failed: {status}");
+    false
+}
+
 #[test]
 fn check_size_logs_as_c() {
+    if !isolated("imgutils::check_size_logs_as_c") {
+        return;
+    }
     let _state = LogState::lock();
     let class = ffi::AVClass {
         class_name: c"equiv-imgutils-parent".as_ptr(),
