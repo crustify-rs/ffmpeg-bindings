@@ -1,0 +1,9 @@
+error[E0502]: cannot borrow `layout` as mutable because it is also borrowed as immutable
+ --> tests/ub_safe/compile_fail/channel_layout_retype_while_details_shared.rs
+  |
+  |     let details = layout.as_ref().details();
+  |                   ------ immutable borrow occurs here
+  |     let _ = layout.as_mut().retype(ChannelOrder::NATIVE);
+  |             ^^^^^^^^^^^^^^^ mutable borrow occurs here
+  |     if let LayoutDetails::Custom(map) = details {
+  |                                         ------- immutable borrow later used here

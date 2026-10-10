@@ -1251,4 +1251,307 @@ mod layout {
         assert_eq!(walk(custom.as_ref()), 0);
         assert_eq!(walk(ChannelLayout::native(0).as_ref()), 0);
     }
+
+    /// `ChannelLayoutMut::retype` and its siblings, `ChannelLayoutRef::subset`
+    /// and `standard_layouts` (formats wave-3 batch 2).
+    mod order_changes {
+        use ffmpeg::libavutil::channel_layout::{Conversion, masks, standard_layouts};
+
+        use super::*;
+
+        /// Every order C knows, and some it does not.
+        fn orders() -> impl Iterator<Item = ChannelOrder> {
+            [0, 1, 2, 3, 4, 7, u32::MAX]
+                .into_iter()
+                .map(|o| ChannelOrder::from_raw(ffi::AVChannelOrder(o)))
+        }
+
+        /// A map of exactly `ids.len()` unnamed channels.
+        fn ids_map(ids: &[i32]) -> HeapVec<ChannelCustom> {
+            let mut map = alloc_cell_array_zeroed::<ChannelCustom>(ids.len()).unwrap();
+            for (mut m, &id) in map.as_handles_mut().iter_mut().zip(ids) {
+                m.set_id(Channel::from_raw(ffi::AVChannel(id)));
+            }
+            map
+        }
+
+        /// A map whose last element's name fills its field with no NUL.
+        fn unterminated_map(ids: &[i32]) -> HeapVec<ChannelCustom> {
+            let mut map = ids_map(ids);
+            let last = ids.len() - 1;
+            let raw = ffi::AVChannelCustom {
+                id: ffi::AVChannel(ids[last]),
+                name: [b'x' as core::ffi::c_char; 16],
+                opaque: dangling(8),
+            };
+            map.as_handles_mut()
+                .get_mut(last)
+                .unwrap()
+                .set(ChannelCustom::from_raw(raw));
+            map
+        }
+
+        /// Starting layouts of every order, map shape and size the safe
+        /// API builds, the extreme counts included.
+        fn starts() -> Vec<ChannelLayoutVal> {
+            let mut out: Vec<ChannelLayoutVal> = allowed(&DESCRIPTIONS)
+                .filter_map(|s| ChannelLayout::parse(s).ok())
+                .collect();
+            // BSan pays per element read, and every start is walked after
+            // each of its 21 conversions: the largest maps stay out there.
+            let sizes: &[usize] = if under_bsan() {
+                &[1, 2, 64]
+            } else {
+                &[1, 2, 63, 64, 300]
+            };
+            for &n in sizes {
+                out.push(ChannelLayout::from_custom_map(map(n)).unwrap());
+                out.push(ChannelLayout::custom(n as i32).unwrap());
+            }
+            for ids in [
+                &[0, 1, 3][..],
+                &[0x400, 0x401, 0x402, 0x403, 2, 62],
+                &[0x400, 0x401],
+                &[0x300, 0x300],
+                &[-1, 0],
+                &[i32::MIN, i32::MAX],
+                &[0x7ff, 0x400],
+            ] {
+                out.push(ChannelLayout::from_custom_map(ids_map(ids)).unwrap());
+                out.push(ChannelLayout::from_custom_map(unterminated_map(ids)).unwrap());
+            }
+            for n in [i32::MIN, -1, 0, 1, 64, i32::MAX] {
+                out.push(ChannelLayout::unspecified(n));
+            }
+            for mask in [0, 1, masks::L22POINT2, 1 << 63, u64::MAX] {
+                out.push(ChannelLayout::native(mask).into());
+            }
+            for (order, extra) in [(0, 0), (1, 0x3), (3, u64::MAX), (46339, 0), (46339, 1)] {
+                let mut l = ChannelLayout::unspecified(0);
+                l.as_mut().set_ambisonic(order, extra).unwrap();
+                out.push(l);
+            }
+            for l in &mut out {
+                l.as_mut().set_opaque(dangling(0x30));
+            }
+            out
+        }
+
+        /// Order, count and user pointer, which every refused conversion
+        /// leaves as they were.
+        fn summary(l: &ChannelLayoutVal) -> (ChannelOrder, i32, usize) {
+            let r = l.as_ref();
+            (r.order(), r.channel_count(), r.opaque() as usize)
+        }
+
+        #[test]
+        fn every_conversion_frees_and_allocates_maps_once() {
+            let mut converted = 0;
+            for start in starts() {
+                for order in orders() {
+                    for variant in 0..3 {
+                        let mut l = start.as_ref().try_clone().unwrap();
+                        let before = summary(&l);
+                        let res = match variant {
+                            0 => l.as_mut().retype(order).map(|c| c == Conversion::Lossy),
+                            1 => l.as_mut().retype_lossless(order).map(|()| false),
+                            _ => l.as_mut().canonicalize().map(|()| false),
+                        };
+                        let after = summary(&l);
+                        match res {
+                            Ok(_) => {
+                                converted += 1;
+                                assert_eq!(after.1, before.1);
+                                if variant != 2 {
+                                    assert_eq!(after.0, order);
+                                }
+                            }
+                            Err(e) => {
+                                assert!(e < 0);
+                                assert_eq!(after, before);
+                            }
+                        }
+                        assert_eq!(after.2, 0x30);
+                        walk(l.as_ref());
+                        for mask in [0, u64::MAX, 0x3, 1 << 63] {
+                            assert_eq!(l.as_ref().subset(mask) & !mask, 0);
+                        }
+                    }
+                }
+                // The source is untouched by its copies' conversions.
+                walk(start.as_ref());
+            }
+            assert!(converted > 100, "{converted}");
+        }
+
+        #[test]
+        fn conversions_interleave_with_every_setter() {
+            let mut x = 0x2545_f491_4f6c_dd1du64;
+            let mut next = move || {
+                x ^= x << 13;
+                x ^= x >> 7;
+                x ^= x << 17;
+                x
+            };
+            let orders: Vec<_> = orders().collect();
+            for _ in 0..30 {
+                let mut l = ChannelLayout::unspecified(2);
+                let mut other = ChannelLayout::custom(3).unwrap();
+                for _ in 0..60 {
+                    let r = next();
+                    let mut order = orders[(r >> 4) as usize % orders.len()];
+                    // `step` leaves counts up to `i32::MAX`: a custom map of
+                    // up to `av_max_alloc` bytes (89M channels) would be
+                    // allocated and walked, so large layouts convert only
+                    // to orders holding no map. Counts past that limit
+                    // still reach C's ENOMEM path.
+                    let count = l.as_ref().channel_count();
+                    if order == ChannelOrder::CUSTOM && (1024..=i32::MAX / 24).contains(&count) {
+                        order = ChannelOrder::UNSPEC;
+                    }
+                    match r % 4 {
+                        0 => drop(l.as_mut().retype(order)),
+                        1 => drop(l.as_mut().retype_lossless(order)),
+                        2 => drop(l.as_mut().canonicalize()),
+                        _ => step(&mut l, &mut other, next()),
+                    }
+                    walk(l.as_ref());
+                    walk(other.as_ref());
+                    let _ = l.as_ref().subset(next());
+                }
+            }
+        }
+
+        /// A name with no NUL is only tested for emptiness by the
+        /// conversion and never read by the subset query.
+        #[test]
+        fn unterminated_names_are_read_within_the_field() {
+            for ids in [&[0, 1][..], &[0x400, 0x401, 0x402, 0x403, 5]] {
+                let mut l = ChannelLayout::from_custom_map(unterminated_map(ids)).unwrap();
+                assert_eq!(
+                    l.as_ref().subset(u64::MAX),
+                    ids.iter().filter(|&&i| i < 64).fold(0, |m, &i| m | 1 << i)
+                );
+                assert_eq!(l.as_mut().retype_lossless(ChannelOrder::NATIVE), Err(-38));
+                assert_eq!(l.as_mut().canonicalize(), Ok(()));
+                assert_eq!(l.as_ref().order(), ChannelOrder::CUSTOM);
+                assert_eq!(
+                    l.as_mut().retype(ChannelOrder::UNSPEC),
+                    Ok(Conversion::Lossy)
+                );
+                assert_eq!(walk(l.as_ref()), 0);
+            }
+        }
+
+        #[test]
+        fn subset_reads_every_map_size_in_bounds() {
+            for n in [1, 2, 63, 64, 65, 300] {
+                let l = ChannelLayout::from_custom_map(map(n)).unwrap();
+                // `map` designates ids 0..n, of which 0..63 are native.
+                let want = if n >= 64 { u64::MAX } else { (1u64 << n) - 1 };
+                assert_eq!(l.as_ref().subset(u64::MAX), want, "{n}");
+                assert_eq!(l.as_ref().subset(1 << 63), want & 1 << 63, "{n}");
+            }
+            for s in allowed(&DESCRIPTIONS) {
+                if let Ok(l) = ChannelLayout::parse(s) {
+                    for mask in [0, 1, 0x3, masks::L5POINT1, 1 << 63, u64::MAX] {
+                        assert_eq!(l.as_ref().subset(mask) & !mask, 0, "{s:?}");
+                    }
+                }
+            }
+        }
+
+        #[test]
+        fn standard_layouts_outlive_their_iterator_and_copies() {
+            // The handles are the table's, not the iterator's, which the
+            // walk consumes.
+            let kept: Vec<ChannelLayoutRef<'static>> = {
+                let mut it = standard_layouts();
+                let first = it.next().unwrap();
+                core::iter::once(first).chain(it).collect()
+            };
+            assert_eq!(kept.len(), 40);
+            let mut owners = vec![];
+            for l in &kept {
+                walk(*l);
+                let mut owned = l.try_clone().unwrap();
+                owned.as_mut().set_opaque(dangling(0x10));
+                assert_eq!(
+                    owned.as_mut().retype(ChannelOrder::CUSTOM),
+                    Ok(Conversion::Lossless)
+                );
+                owners.push(owned);
+            }
+            drop(owners);
+            // The table is untouched by whatever its copies did.
+            for l in standard_layouts() {
+                assert!(l.opaque().is_null());
+                assert_eq!(walk(l), 0);
+            }
+            let mut done = standard_layouts();
+            done.by_ref().for_each(drop);
+            for _ in 0..3 {
+                assert!(done.next().is_none());
+            }
+        }
+
+        #[test]
+        fn standard_layouts_are_walked_and_shared_across_threads() {
+            let kept: Vec<_> = standard_layouts().collect();
+            thread::scope(|s| {
+                for t in 0..4 {
+                    let kept = &kept;
+                    s.spawn(move || {
+                        for _ in 0..20 {
+                            let walked: Vec<_> = standard_layouts().collect();
+                            assert_eq!(walked.len(), kept.len());
+                            for (a, b) in walked.iter().zip(kept) {
+                                assert_eq!(a.channel_count(), b.channel_count());
+                                assert_eq!(a.subset(u64::MAX), b.subset(u64::MAX));
+                            }
+                            let mut l = kept[t * 9].try_clone().unwrap();
+                            l.as_mut().retype(ChannelOrder::CUSTOM).unwrap();
+                            l.as_mut().canonicalize().unwrap();
+                            walk(l.as_ref());
+                        }
+                    });
+                }
+            });
+            let it = standard_layouts();
+            let n = thread::spawn(move || it.count()).join().unwrap();
+            assert_eq!(n, 40);
+        }
+
+        #[test]
+        fn owners_convert_on_other_threads() {
+            let mut layouts = starts();
+            thread::scope(|s| {
+                for (i, l) in layouts.iter_mut().enumerate() {
+                    let mut m = l.as_mut();
+                    s.spawn(move || {
+                        let order = [ChannelOrder::CUSTOM, ChannelOrder::UNSPEC][i % 2];
+                        let _ = m.retype(order);
+                        let _ = m.canonicalize();
+                        let _ = m.as_ref().subset(u64::MAX);
+                    });
+                }
+            });
+            for l in &layouts {
+                walk(l.as_ref());
+            }
+            // Shared handles query one layout concurrently.
+            let l = ChannelLayout::parse(c"FL@a+FR+LFE+USR40").unwrap();
+            let r = l.as_ref();
+            thread::scope(|s| {
+                for _ in 0..4 {
+                    s.spawn(move || {
+                        for _ in 0..100 {
+                            assert_eq!(r.subset(u64::MAX), 0b1011 | 1 << 40);
+                        }
+                    });
+                }
+            });
+            thread::spawn(move || drop(layouts)).join().unwrap();
+        }
+    }
 }

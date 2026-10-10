@@ -492,3 +492,8 @@ function av_write_image_line
 function av_image_fill_max_pixsteps
 function av_channel_name_bprint
 function av_channel_description_bprint
+
+# libavutil/channel_layout.h: the standard layout iterator and the channel
+# subset query (formats wave-3 batch 2).
+function av_channel_layout_standard
+function av_channel_layout_subset

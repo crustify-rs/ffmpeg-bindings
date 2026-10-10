@@ -2269,4 +2269,347 @@ mod layout {
             }
         }
     }
+
+    /// `ChannelLayoutMut::retype` and its siblings, `ChannelLayoutRef::subset`
+    /// and `standard_layouts` against `av_channel_layout_retype`,
+    /// `av_channel_layout_subset` and `av_channel_layout_standard` (formats
+    /// wave-3 batch 2).
+    mod order_changes {
+        use ffmpeg::libavutil::channel_layout::{Conversion, masks, standard_layouts};
+
+        use super::*;
+
+        const LOSSLESS: c_int = ffi::AV_CHANNEL_LAYOUT_RETYPE_FLAG_LOSSLESS as c_int;
+        const CANONICAL: c_int = ffi::AV_CHANNEL_LAYOUT_RETYPE_FLAG_CANONICAL as c_int;
+
+        /// The orders C knows, and one it does not.
+        const ORDERS: [c_uint; 5] = [0, 1, 2, 3, 7];
+
+        /// Masks to intersect with: none, all, single high and low bits, a
+        /// standard layout, and bits around the native/user boundary.
+        const MASKS: [u64; 9] = [
+            0,
+            u64::MAX,
+            0x3,
+            masks::L5POINT1,
+            1 << 62,
+            1 << 63,
+            0x8000_0000_0000_0001,
+            0x0000_0100_0000_0108,
+            0xdead_beef_0bad_f00d,
+        ];
+
+        const UNNAMED_NATIVE: &[(c_int, &CStr)] = &[(0, c""), (1, c""), (3, c""), (62, c"")];
+        const UNNAMED_DESCENDING: &[(c_int, &CStr)] = &[(1, c""), (0, c"")];
+        const REPEATED: &[(c_int, &CStr)] = &[(2, c""), (2, c"")];
+        const UNKNOWN: &[(c_int, &CStr)] = &[(0x300, c""), (0x300, c""), (0x300, c"")];
+        const UNKNOWN_NAMED: &[(c_int, &CStr)] = &[(0x300, c""), (0x300, c"x")];
+        const UNUSED: &[(c_int, &CStr)] = &[(0x200, c"")];
+        const USER: &[(c_int, &CStr)] = &[(63, c""), (40, c"")];
+        const AMBI_FIRST: &[(c_int, &CStr)] = &[
+            (0x400, c""),
+            (0x401, c""),
+            (0x402, c""),
+            (0x403, c""),
+            (0, c""),
+            (1, c""),
+        ];
+        const AMBI_NAMED: &[(c_int, &CStr)] =
+            &[(0x400, c"w"), (0x401, c""), (0x402, c""), (0x403, c"")];
+        const AMBI_ZERO_ONLY: &[(c_int, &CStr)] = &[(0x400, c"")];
+        const AMBI_INCOMPLETE: &[(c_int, &CStr)] = &[(0x400, c""), (0x401, c"")];
+        const AMBI_SWAPPED: &[(c_int, &CStr)] =
+            &[(0x401, c""), (0x400, c""), (0x402, c""), (0x403, c"")];
+        const AMBI_AFTER_NATIVE: &[(c_int, &CStr)] = &[(0, c""), (0x400, c"")];
+        const AMBI_EXTRA_DESCENDING: &[(c_int, &CStr)] = &[(0x400, c""), (3, c""), (1, c"")];
+        const AMBI_EXTRA_USER: &[(c_int, &CStr)] = &[(0x400, c""), (63, c"")];
+        const WITH_NONE: &[(c_int, &CStr)] = &[(0, c""), (-1, c"")];
+
+        /// Setter sequences building each starting layout on both twins.
+        fn starts() -> Vec<Vec<Op>> {
+            use Op::*;
+            let maps = [
+                MAP_A,
+                MAP_B,
+                MAP_C,
+                UNNAMED_NATIVE,
+                UNNAMED_DESCENDING,
+                REPEATED,
+                UNKNOWN,
+                UNKNOWN_NAMED,
+                UNUSED,
+                USER,
+                AMBI_FIRST,
+                AMBI_NAMED,
+                AMBI_ZERO_ONLY,
+                AMBI_INCOMPLETE,
+                AMBI_SWAPPED,
+                AMBI_AFTER_NATIVE,
+                AMBI_EXTRA_DESCENDING,
+                AMBI_EXTRA_USER,
+                WITH_NONE,
+            ];
+            let mut starts: Vec<Vec<Op>> = vec![
+                vec![],
+                vec![Unspecified(3)],
+                vec![Unspecified(-2)],
+                vec![Native(0x3)],
+                vec![Native(masks::L22POINT2)],
+                vec![Native(u64::MAX)],
+                vec![Ambisonic(0, 0)],
+                vec![Ambisonic(1, 0)],
+                vec![Ambisonic(2, 0x3)],
+                vec![Ambisonic(0, 1 << 63)],
+                vec![Parse(c"FL@x+FR@y")],
+                vec![Parse(c"5.1(side)")],
+                vec![CustomMap(MAP_A), TakeCustomMap],
+            ];
+            starts.extend(maps.into_iter().map(|m| vec![CustomMap(m)]));
+            // The user pointer rides along every conversion.
+            for s in &mut starts {
+                s.push(Opaque(0x50));
+            }
+            starts
+        }
+
+        /// Twins built by `ops`.
+        fn twins(ops: &[Op]) -> (ChannelLayoutVal, CLayout) {
+            let (r_other, c_other) = (ChannelLayout::unspecified(0), CLayout::zeroed());
+            let mut r = ChannelLayout::unspecified(0);
+            let mut c = CLayout::zeroed();
+            for &op in ops {
+                assert_eq!(
+                    rust_apply(&mut r, &r_other, op),
+                    c_apply(&mut c, &c_other, op),
+                    "{op:?}"
+                );
+            }
+            assert_twins(&r, &c, &format!("{ops:?}"));
+            (r, c)
+        }
+
+        fn c_retype(c: &mut CLayout, order: c_uint, flags: c_int) -> c_int {
+            // SAFETY: a valid layout C may convert in place.
+            unsafe { ffi::av_channel_layout_retype(&mut c.0, ffi::AVChannelOrder(order), flags) }
+        }
+
+        /// The safe call standing for `flags`, its result as C reports it.
+        fn rust_retype(r: &mut ChannelLayoutVal, order: c_uint, flags: c_int) -> c_int {
+            let order = ChannelOrder::from_raw(ffi::AVChannelOrder(order));
+            let done = |res: Result<(), c_int>| res.map_or_else(|e| e, |()| 0);
+            if flags & CANONICAL != 0 {
+                done(r.as_mut().canonicalize())
+            } else if flags & LOSSLESS != 0 {
+                done(r.as_mut().retype_lossless(order))
+            } else {
+                match r.as_mut().retype(order) {
+                    Ok(Conversion::Lossless) => 0,
+                    Ok(Conversion::Lossy) => 1,
+                    Err(e) => e,
+                }
+            }
+        }
+
+        fn assert_subsets(r: &ChannelLayoutVal, c: &CLayout, step: &str) {
+            for mask in MASKS {
+                // SAFETY: a valid layout C only reads.
+                let want = unsafe { ffi::av_channel_layout_subset(&c.0, mask) };
+                assert_eq!(r.as_ref().subset(mask), want, "{step}: {mask:#x}");
+            }
+        }
+
+        #[test]
+        fn retype_matches_c_for_every_start_order_and_flag() {
+            let mut outcomes = [0usize; 4];
+            for ops in starts() {
+                for order in ORDERS {
+                    for flags in [0, LOSSLESS, CANONICAL, LOSSLESS | CANONICAL] {
+                        let step = format!("{ops:?} -> {order} flags {flags}");
+                        let (mut r, mut c) = twins(&ops);
+                        let want = c_retype(&mut c, order, flags);
+                        assert_eq!(rust_retype(&mut r, order, flags), want, "{step}");
+                        assert_twins(&r, &c, &step);
+                        assert_subsets(&r, &c, &step);
+                        outcomes[match want {
+                            0 => 0,
+                            1 => 1,
+                            -38 => 2,
+                            _ => 3,
+                        }] += 1;
+                    }
+                }
+            }
+            // Lossless, lossy, ENOSYS and EINVAL outcomes are all reached.
+            assert!(outcomes.iter().all(|&n| n > 0), "{outcomes:?}");
+        }
+
+        #[test]
+        fn retype_sequences_match_c_after_every_step() {
+            use Op::*;
+            /// One step: a conversion (order, flags) or a setter.
+            #[derive(Clone, Copy, Debug)]
+            enum Step {
+                Retype(c_uint, c_int),
+                Set(Op),
+            }
+            use Step::*;
+            let steps = [
+                Set(Native(masks::L5POINT1)),
+                Set(Opaque(0x60)),
+                Retype(2, 0),
+                Set(Edit(1, 0x300, c"")),
+                Retype(1, 0),
+                Retype(0, CANONICAL),
+                Set(Edit(1, 1, c"")),
+                Retype(1, LOSSLESS),
+                Retype(1, CANONICAL),
+                Retype(3, 0),
+                Retype(2, 0),
+                Set(Edit(0, 0, c"named")),
+                Retype(1, LOSSLESS),
+                Retype(0, CANONICAL),
+                Retype(1, 0),
+                Retype(0, LOSSLESS),
+                Retype(0, 0),
+                Retype(2, 0),
+                Retype(0, CANONICAL),
+                Retype(3, LOSSLESS),
+                Set(CustomMap(AMBI_FIRST)),
+                Retype(3, LOSSLESS),
+                Retype(1, 0),
+                Retype(2, LOSSLESS),
+                Set(Edit(2, 0x402, c"y")),
+                Retype(0, CANONICAL),
+                Retype(3, 0),
+                Retype(7, 0),
+                Retype(2, CANONICAL),
+                Set(Clear),
+                Retype(2, 0),
+                Set(Unspecified(2)),
+                Retype(2, 0),
+                Retype(0, CANONICAL),
+                Retype(1, 0),
+            ];
+            let (r_other, c_other) = (ChannelLayout::unspecified(0), CLayout::zeroed());
+            let mut r = ChannelLayout::unspecified(0);
+            let mut c = CLayout::zeroed();
+            for (n, s) in steps.into_iter().enumerate() {
+                let step = format!("step {n} {s:?}");
+                match s {
+                    Retype(order, flags) => {
+                        let want = c_retype(&mut c, order, flags);
+                        assert_eq!(rust_retype(&mut r, order, flags), want, "{step}");
+                    }
+                    Set(op) => assert_eq!(
+                        rust_apply(&mut r, &r_other, op),
+                        c_apply(&mut c, &c_other, op),
+                        "{step}"
+                    ),
+                }
+                assert_twins(&r, &c, &step);
+                assert_subsets(&r, &c, &step);
+            }
+        }
+
+        #[test]
+        fn subset_matches_c_on_every_start_and_standard_layout() {
+            for ops in starts() {
+                let (r, c) = twins(&ops);
+                assert_subsets(&r, &c, &format!("{ops:?}"));
+            }
+            for (name, layout) in STANDARD_LAYOUTS {
+                let r = ChannelLayoutVal::from(layout);
+                let mut c = CLayout::zeroed();
+                // SAFETY: both are valid, distinct layouts.
+                let ret = unsafe { ffi::av_channel_layout_copy(&mut c.0, rust_ptr(&r)) };
+                assert_eq!(ret, 0);
+                assert_subsets(&r, &c, name);
+            }
+            // Every single-bit mask against a map holding each native id once.
+            const ALL_NATIVE: [(c_int, &CStr); 63] = {
+                let mut all = [(0, c""); 63];
+                let mut i = 0;
+                while i < 63 {
+                    all[i].0 = i as c_int;
+                    i += 1;
+                }
+                all
+            };
+            let (r, c) = twins(&[Op::CustomMap(&ALL_NATIVE), Op::Edit(5, 0x300, c"")]);
+            for bit in 0..64 {
+                // SAFETY: a valid layout C only reads.
+                let want = unsafe { ffi::av_channel_layout_subset(&c.0, 1 << bit) };
+                assert_eq!(r.as_ref().subset(1 << bit), want, "bit {bit}");
+            }
+        }
+
+        /// C's own walk of its table, from a NULL state until it returns NULL.
+        fn c_standard() -> Vec<*const ffi::AVChannelLayout> {
+            let mut state: *mut c_void = ptr::null_mut();
+            let mut out = vec![];
+            loop {
+                // SAFETY: `state` is a writable slot C started from NULL.
+                let l = unsafe { ffi::av_channel_layout_standard(&mut state) };
+                if l.is_null() {
+                    break;
+                }
+                out.push(l);
+            }
+            // Past the end C keeps returning NULL and leaves the state.
+            let end = state;
+            for _ in 0..3 {
+                // SAFETY: as above.
+                assert!(unsafe { ffi::av_channel_layout_standard(&mut state) }.is_null());
+                assert_eq!(state, end);
+            }
+            out
+        }
+
+        #[test]
+        fn standard_layouts_are_cs_table_in_order() {
+            let c = c_standard();
+            let mut it = standard_layouts();
+            let rust: Vec<_> = it.by_ref().collect();
+            assert_eq!(rust.len(), c.len());
+            assert_eq!(rust.len(), 40);
+            for _ in 0..3 {
+                assert!(it.next().is_none());
+            }
+            for (i, (&r, &p)) in rust.iter().zip(&c).enumerate() {
+                assert_eq!(rust_fields(r), c_fields(p), "entry {i}");
+                // A deep copy reads to C as the entry it was copied from.
+                let owned = r.try_clone().unwrap();
+                assert_eq!(observe(rust_ptr(&owned)), observe(p), "entry {i}");
+                // SAFETY: two valid layouts C only reads.
+                let cmp = unsafe { ffi::av_channel_layout_compare(rust_ptr(&owned), p) };
+                assert_eq!(cmp, 0);
+            }
+            // Each entry is the native layout one of the header's
+            // `AV_CHANNEL_LAYOUT_*` initialisers builds.
+            for r in &rust {
+                let LayoutDetails::Native(mask) = r.details() else {
+                    panic!("{r:?}")
+                };
+                assert!(STANDARD_LAYOUTS.iter().any(|(_, l)| {
+                    matches!(l.as_ref().details(), LayoutDetails::Native(m) if m == mask)
+                }));
+            }
+        }
+
+        #[test]
+        fn standard_layouts_resume_where_cs_state_would() {
+            // A walk interrupted after `k` entries and resumed from a copy
+            // matches C resumed from the state it left after `k` calls.
+            let c = c_standard();
+            for k in [0, 1, 17, 39, 40] {
+                let mut it = standard_layouts();
+                for _ in 0..k {
+                    it.next();
+                }
+                let resumed: Vec<_> = it.map(rust_fields).collect();
+                let want: Vec<_> = c[k..].iter().map(|&p| c_fields(p)).collect();
+                assert_eq!(resumed, want, "after {k}");
+            }
+        }
+    }
 }

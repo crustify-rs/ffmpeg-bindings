@@ -13,13 +13,16 @@
 //! Rust filled ([`ChannelLayout::from_custom_map`]), and deep-copied by
 //! `av_channel_layout_copy` ([`ChannelLayoutRef::try_clone`],
 //! [`ChannelLayoutMut::copy_from`]). [`LayoutDetails`] reads the order and
-//! the union it selects as one tagged value. The header's standard layouts
-//! are [`ChannelLayout`]'s constants (`AV_CHANNEL_LAYOUT_*`) over the
-//! [`masks`] (`AV_CH_LAYOUT_*`) of channel bits ([`Channel::mask`],
-//! `AV_CH_*`).
+//! the union it selects as one tagged value, and
+//! [`ChannelLayoutMut::retype`] changes the order in place. The header's
+//! standard layouts are [`ChannelLayout`]'s constants
+//! (`AV_CHANNEL_LAYOUT_*`) over the [`masks`] (`AV_CH_LAYOUT_*`) of channel
+//! bits ([`Channel::mask`], `AV_CH_*`); [`standard_layouts`] walks the ones
+//! C knows by name.
 
 use core::ffi::{CStr, c_char, c_int, c_uint, c_void};
 use core::hash::{Hash, Hasher};
+use core::iter::FusedIterator;
 use core::ptr::{self, NonNull, addr_of, addr_of_mut};
 use core::{cmp, fmt};
 use std::ffi::CString;
@@ -2020,6 +2023,228 @@ impl<'a> ChannelLayoutMut<'a> {
     }
 }
 
+/// `AV_CHANNEL_LAYOUT_RETYPE_FLAG_LOSSLESS`: refuse a lossy retype.
+const RETYPE_LOSSLESS: c_int = ffi::AV_CHANNEL_LAYOUT_RETYPE_FLAG_LOSSLESS as c_int;
+/// `AV_CHANNEL_LAYOUT_RETYPE_FLAG_CANONICAL`: retype to the simplest order
+/// that keeps every designation and name, ignoring the order asked for.
+const RETYPE_CANONICAL: c_int = ffi::AV_CHANNEL_LAYOUT_RETYPE_FLAG_CANONICAL as c_int;
+
+/// Whether [`ChannelLayoutMut::retype`] kept every channel designation and
+/// name.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+pub enum Conversion {
+    /// Nothing was lost, or the layout already had the order asked for.
+    Lossless,
+    /// The new order cannot hold the channel names, or the designations, of
+    /// the old one, which were dropped.
+    Lossy,
+}
+
+impl ChannelLayoutRef<'_> {
+    /// Wraps: av_channel_layout_subset
+    ///
+    /// The channels of `mask` (bit `n` the [`Channel`] of id `n`, as in
+    /// [`masks`]) that the layout holds, wherever it holds them: `mask`
+    /// intersected with a native or ambisonic layout's mask, the bits of the
+    /// ids a custom map designates among its channels, and none for an
+    /// unspecified layout or an order C does not know.
+    ///
+    /// ```
+    /// use ffmpeg::libavutil::channel_layout::{Channel, ChannelLayout, masks};
+    /// let l = ChannelLayout::parse(c"LFE@sub+FL+USR40").unwrap();
+    /// let front_right = Channel::FRONT_RIGHT.mask().unwrap();
+    /// assert_eq!(l.as_ref().subset(masks::L2POINT1), masks::L2POINT1 ^ front_right);
+    /// assert_eq!(ChannelLayout::STEREO.as_ref().subset(u64::MAX), masks::STEREO);
+    /// ```
+    #[must_use]
+    pub fn subset(&self, mask: u64) -> u64 {
+        // C walks a custom map with no NULL check; a custom layout C left
+        // without one (after its own failed copy, which no safe path keeps)
+        // holds no channel.
+        if self.map_parts().is_some_and(|(map, _)| map.is_null()) {
+            return 0;
+        }
+        // SAFETY: the shared handle covers a live layout that nothing writes
+        // while it lives, and C only reads it: the mask of a native or
+        // ambisonic layout, or, in custom order, the ids of the `nb_channels`
+        // initialised elements of its non-NULL map (checked above), which
+        // `av_channel_layout_index_from_channel` compares.
+        unsafe { ffi::av_channel_layout_subset(self.as_ptr(), mask) }
+    }
+}
+
+impl ChannelLayoutMut<'_> {
+    /// `av_channel_layout_retype` of this layout to `order` under `flags`:
+    /// C's non-negative result, or its `AVERROR`.
+    fn retype_with(&mut self, order: ChannelOrder, flags: c_int) -> Result<c_int, i32> {
+        // C refuses what `av_channel_layout_check` rejects (a NULL custom
+        // map included) before reading anything else, and leaves the layout
+        // as it was on every failure. Success keeps the user pointer and
+        // either frees a custom map through `av_channel_layout_uninit`,
+        // leaving none, or replaces the layout by a custom one owning a fresh
+        // `av_calloc` map of `nb_channels >= 1` elements, which that frees.
+        let layout = self.as_mut_ptr();
+        // SAFETY: the exclusive handle covers a live layout in a state C's
+        // readers accept, as every safe path leaves one; past the check C
+        // reads at most the ids and first name bytes of the map's
+        // `nb_channels` elements, and it leaves a layout owning its map, if
+        // any, as described above.
+        let ret = unsafe { ffi::av_channel_layout_retype(layout, order.into_raw(), flags) };
+        if ret < 0 { Err(ret) } else { Ok(ret) }
+    }
+
+    /// Wraps: av_channel_layout_retype
+    ///
+    /// Changes the layout's order to `order`, keeping its channel count and
+    /// user pointer, and reports whether channel names or designations were
+    /// lost on the way. C converts
+    ///
+    /// - any layout to [custom](ChannelOrder::CUSTOM) order, losslessly;
+    /// - any layout to [unspecified](ChannelOrder::UNSPEC) order, lossily
+    ///   unless it is a custom map of unnamed [`Channel::UNKNOWN`]s;
+    /// - a custom layout to [native](ChannelOrder::NATIVE) order when its
+    ///   map lists distinct native channels (ids below 63) in increasing
+    ///   order, lossily when they are named;
+    /// - a custom layout to [ambisonic](ChannelOrder::AMBISONIC) order when
+    ///   its map starts with every component of some ambisonic order, in
+    ///   ACN order, followed by native channels as above, lossily when they
+    ///   are named.
+    ///
+    /// ```
+    /// use ffmpeg::libavutil::channel_layout::{ChannelLayout, ChannelOrder, Conversion};
+    /// let mut l = ChannelLayout::parse(c"FL@left+FR").unwrap();
+    /// assert_eq!(l.as_ref().order(), ChannelOrder::CUSTOM);
+    /// assert_eq!(l.as_mut().retype(ChannelOrder::NATIVE), Ok(Conversion::Lossy));
+    /// assert_eq!(l.as_mut().retype(ChannelOrder::CUSTOM), Ok(Conversion::Lossless));
+    /// assert_eq!(l.as_mut().retype(ChannelOrder::UNSPEC), Ok(Conversion::Lossy));
+    /// assert_eq!(l.as_ref().channel_count(), 2);
+    /// ```
+    ///
+    /// # Errors
+    ///
+    /// Leaving the layout as it was: `AVERROR(ENOSYS)` for a conversion C
+    /// does not make (native to ambisonic, a custom map native order cannot
+    /// list, ...), `AVERROR(EINVAL)` for a layout C deems invalid (no
+    /// channels, a native count other than its mask's, a map holding
+    /// [`Channel::NONE`], ...) or an `order` C does not know, and
+    /// `AVERROR(ENOMEM)` when a custom map cannot be allocated.
+    pub fn retype(&mut self, order: ChannelOrder) -> Result<Conversion, i32> {
+        let lossy = self.retype_with(order, 0)?;
+        Ok(if lossy > 0 {
+            Conversion::Lossy
+        } else {
+            Conversion::Lossless
+        })
+    }
+
+    /// Wraps: av_channel_layout_retype
+    ///
+    /// Changes the layout's order to `order` as [`retype`](Self::retype)
+    /// does, but only if every channel designation and name survives.
+    ///
+    /// ```
+    /// use ffmpeg::libavutil::channel_layout::{ChannelLayout, ChannelOrder};
+    /// let mut l = ChannelLayout::parse(c"FL@left+FR").unwrap();
+    /// assert_eq!(l.as_mut().retype_lossless(ChannelOrder::NATIVE), Err(-38)); // ENOSYS
+    /// assert_eq!(l.as_ref().order(), ChannelOrder::CUSTOM);
+    /// ```
+    ///
+    /// # Errors
+    ///
+    /// As [`retype`](Self::retype)'s, and `AVERROR(ENOSYS)` for a lossy
+    /// conversion, each leaving the layout as it was.
+    pub fn retype_lossless(&mut self, order: ChannelOrder) -> Result<(), i32> {
+        // A lossy conversion is refused, so C succeeds with 0 only.
+        self.retype_with(order, RETYPE_LOSSLESS).map(drop)
+    }
+
+    /// Wraps: av_channel_layout_retype
+    ///
+    /// Changes the layout to the simplest order that keeps every channel
+    /// designation and name: a custom map of unnamed channels becomes
+    /// unspecified when every one is [`Channel::UNKNOWN`], native when
+    /// native order can list it, else ambisonic when ambisonic order can,
+    /// and stays custom otherwise; a layout in any other order is left as it
+    /// is.
+    ///
+    /// ```
+    /// use ffmpeg::libavutil::channel_layout::{ChannelLayout, ChannelOrder, masks};
+    /// let mut l = ChannelLayout::from_mask(masks::L5POINT1).unwrap();
+    /// l.as_mut().retype(ChannelOrder::CUSTOM).unwrap();
+    /// l.as_mut().canonicalize().unwrap();
+    /// assert_eq!(l.as_ref().order(), ChannelOrder::NATIVE);
+    /// ```
+    ///
+    /// # Errors
+    ///
+    /// `AVERROR(EINVAL)`, leaving the layout as it was, for a layout C
+    /// deems invalid, as for [`retype`](Self::retype).
+    pub fn canonicalize(&mut self) -> Result<(), i32> {
+        // C picks an order it converts to losslessly, so it succeeds with 0
+        // only; the order passed is ignored.
+        self.retype_with(ChannelOrder::UNSPEC, RETYPE_CANONICAL)
+            .map(drop)
+    }
+}
+
+/// Wraps: av_channel_layout_standard
+///
+/// Every standard layout in C's table, in the table's order: the native
+/// layouts [`ChannelLayout::parse`] knows by name, from `mono` and `stereo`
+/// to `22.2`, each borrowed for the whole program.
+///
+/// ```
+/// use ffmpeg::libavutil::channel_layout::{ChannelLayout, LayoutDetails, masks, standard_layouts};
+/// let first = standard_layouts().next().unwrap();
+/// assert!(matches!(first.details(), LayoutDetails::Native(masks::MONO)));
+/// assert!(standard_layouts().any(|l| l.channel_count() == 24));
+/// let owned = standard_layouts().last().unwrap().try_clone().unwrap();
+/// assert_eq!(owned.as_ref().subset(u64::MAX), masks::L22POINT2);
+/// ```
+///
+/// The entries are C's shared, read-only table: only a copy converts.
+///
+/// ```compile_fail,E0599
+/// use ffmpeg::libavutil::channel_layout::{ChannelOrder, standard_layouts};
+/// let mut stereo = standard_layouts().nth(1).unwrap();
+/// let _ = stereo.retype(ChannelOrder::CUSTOM);
+/// ```
+#[must_use]
+pub fn standard_layouts() -> StandardLayouts {
+    StandardLayouts { next: 0 }
+}
+
+/// The iterator over C's standard channel layouts that [`standard_layouts`]
+/// returns.
+#[derive(Clone, Copy, Debug)]
+pub struct StandardLayouts {
+    /// C's iteration state: the index of the next table entry, which C keeps
+    /// in a `void *` without ever dereferencing it.
+    next: usize,
+}
+
+impl Iterator for StandardLayouts {
+    type Item = ChannelLayoutRef<'static>;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        let mut state = ptr::without_provenance_mut::<c_void>(self.next);
+        // SAFETY: `state` is a live, writable slot holding an index, which C
+        // reads back as an integer and replaces by the next one while its
+        // table has entries left, never dereferencing it.
+        let layout = unsafe { ffi::av_channel_layout_standard(&mut state) };
+        self.next = state.addr();
+        // SAFETY: C returns NULL past its table's end, or the address of an
+        // entry of its `static const` table, which lives unwritten for the
+        // whole program; every entry is a native layout holding no map, so a
+        // shared `'static` handle only reads it.
+        unsafe { ChannelLayoutRef::from_ptr(layout.cast_mut()) }
+    }
+}
+
+// Past the table's end C leaves the index unchanged, so every later call
+// returns NULL again.
+impl FusedIterator for StandardLayouts {}
+
 #[cfg(test)]
 mod unit_tests {
     use core::ffi::{c_int, c_uint};
@@ -3199,5 +3424,62 @@ mod unit_tests {
         assert_eq!(layout_raw(ChannelLayout::STEREO.as_ref()), (1, 2, 0x3, 0));
         let copy = ChannelLayout::L7POINT1.as_ref().try_clone().unwrap();
         assert_eq!(layout_raw(copy.as_ref()), (1, 8, masks::L7POINT1, 0));
+    }
+
+    #[test]
+    fn retype_flags_are_the_header_values() {
+        assert_eq!((RETYPE_LOSSLESS, RETYPE_CANONICAL), (1 << 0, 1 << 1));
+        assert_eq!(format!("{:?}", Conversion::Lossy), "Lossy");
+        assert_ne!(Conversion::Lossy, Conversion::Lossless);
+    }
+
+    /// A custom layout C left without a map (after its own failed copy): the
+    /// subset query answers before C walks the NULL map, and C's retype
+    /// refuses it untouched.
+    #[test]
+    fn subset_and_retype_refuse_a_mapless_custom_layout() {
+        let raw = ffi::AVChannelLayout {
+            order: ChannelOrder::CUSTOM.into_raw(),
+            nb_channels: 3,
+            u: ffi::AVChannelLayout__bindgen_ty_1 {
+                map: ptr::null_mut(),
+            },
+            opaque: cookie(40),
+        };
+        let mut l = ChannelLayoutVal::new(ChannelLayout::from_parts(raw));
+        assert_eq!(l.as_ref().subset(u64::MAX), 0);
+        assert_eq!(l.as_ref().subset(0), 0);
+        for order in [
+            ChannelOrder::UNSPEC,
+            ChannelOrder::NATIVE,
+            ChannelOrder::CUSTOM,
+            ChannelOrder::AMBISONIC,
+        ] {
+            assert_eq!(l.as_mut().retype(order), Err(EINVAL), "{order:?}");
+            assert_eq!(l.as_mut().retype_lossless(order), Err(EINVAL), "{order:?}");
+        }
+        assert_eq!(l.as_mut().canonicalize(), Err(EINVAL));
+        assert_eq!(layout_raw(l.as_ref()), (2, 3, 0, 40));
+        // `av_channel_layout_uninit` frees the NULL map as a no-op on drop.
+    }
+
+    #[test]
+    fn standard_layouts_iterator_is_fused_and_copies_resume_independently() {
+        let mut it = standard_layouts();
+        assert_eq!(format!("{it:?}"), "StandardLayouts { next: 0 }");
+        let first: Vec<_> = it.by_ref().take(3).map(|l| layout_raw(l)).collect();
+        assert_eq!(first[0], (1, 1, masks::MONO, 0));
+        assert_eq!(first[1], (1, 2, masks::STEREO, 0));
+        let copy = it;
+        let rest: Vec<_> = it.map(layout_raw).collect();
+        assert_eq!(copy.map(layout_raw).collect::<Vec<_>>(), rest);
+        assert_eq!(first.len() + rest.len(), 40);
+        assert_eq!(*rest.last().unwrap(), (1, 24, masks::L22POINT2, 0));
+        // C leaves its index at the end, so the walk stays finished.
+        let mut done = standard_layouts();
+        done.by_ref().for_each(drop);
+        assert!(done.next().is_none());
+        assert!(done.next().is_none());
+        assert_eq!(format!("{done:?}"), "StandardLayouts { next: 40 }");
     }
 }
