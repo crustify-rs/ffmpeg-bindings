@@ -354,3 +354,10 @@ function av_color_range_name
 function av_color_range_from_name
 function av_frame_alloc
 function av_frame_free
+
+# Formats wave 0, batch 4: C readers of AVComponentDescriptor (and the
+# descriptor table holding them), the equivalence reference for pixdesc.rs's
+# ComponentDescriptor.
+function av_pix_fmt_desc_next
+function av_get_padded_bits_per_pixel
+function av_read_image_line2

@@ -110,3 +110,72 @@ fn channel_arrays_cross_and_are_shared_between_threads() {
     .unwrap();
     assert_eq!(back.iter().rev().copied().collect::<Vec<_>>(), values);
 }
+
+/// `MatrixEncoding`: every named and unnamed value through each conversion,
+/// `av_malloc`-family arrays of it, and moving it across threads.
+mod matrix_encoding {
+    use std::thread;
+
+    use ffmpeg::libavutil::channel_layout::MatrixEncoding;
+    use ffmpeg::libavutil::ffi;
+    use ffmpeg::libavutil::mem::{alloc_array_from_fn, alloc_array_zeroed};
+
+    /// Raw values at every edge: each named one, the `NB` sentinel, and the
+    /// `unsigned int` limits a C `int` field's negative values map onto.
+    fn raws() -> impl Iterator<Item = u32> {
+        (0..=8).chain([i32::MAX as u32, i32::MIN as u32, u32::MAX - 1, u32::MAX])
+    }
+
+    #[test]
+    fn every_raw_value_converts_indexes_and_formats() {
+        for raw in raws() {
+            let e = MatrixEncoding::from_raw(ffi::AVMatrixEncoding(raw));
+            assert_eq!(e.into_raw().0, raw);
+            let back: ffi::AVMatrixEncoding = e.into();
+            assert_eq!(MatrixEncoding::from(back), e);
+            match e.index() {
+                Some(i) => assert!(i < MatrixEncoding::COUNT && i as u32 == raw),
+                None => assert!(raw as usize >= MatrixEncoding::COUNT),
+            }
+            assert!(!format!("{e:?}").is_empty());
+        }
+    }
+
+    #[test]
+    fn heap_arrays_read_any_stored_value() {
+        let named = alloc_array_from_fn(MatrixEncoding::COUNT, |i| {
+            MatrixEncoding::from_raw(ffi::AVMatrixEncoding(i as u32))
+        })
+        .unwrap();
+        let idx: Vec<Option<usize>> = named.as_slice().iter().map(|e| e.index()).collect();
+        assert_eq!(
+            idx,
+            (0..MatrixEncoding::COUNT).map(Some).collect::<Vec<_>>()
+        );
+        let mut zeroed = alloc_array_zeroed::<MatrixEncoding>(3).unwrap();
+        assert!(zeroed.as_slice().iter().all(|&e| e == MatrixEncoding::NONE));
+        zeroed.as_mut_slice()[2] = MatrixEncoding::from_raw(ffi::AVMatrixEncoding(u32::MAX));
+        let copy = zeroed.clone();
+        drop(zeroed);
+        assert_eq!(copy.as_slice()[2].index(), None);
+    }
+
+    #[test]
+    fn values_cross_threads() {
+        let all: Vec<MatrixEncoding> = raws()
+            .map(|r| MatrixEncoding::from_raw(ffi::AVMatrixEncoding(r)))
+            .collect();
+        let shared = &all;
+        thread::scope(|s| {
+            for _ in 0..4 {
+                s.spawn(move || {
+                    for e in shared {
+                        let _ = (e.index(), format!("{e:?}"));
+                    }
+                });
+            }
+        });
+        let e = thread::spawn(|| MatrixEncoding::DPLIIZ).join().unwrap();
+        assert_eq!(e, MatrixEncoding::DPLIIZ);
+    }
+}

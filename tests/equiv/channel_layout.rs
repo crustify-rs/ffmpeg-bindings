@@ -326,3 +326,74 @@ fn channel_values_c_writes_are_read_back_unchanged() {
         assert_eq!(c_name(adopted.as_slice()[i].into_raw()), c_name(v));
     }
 }
+
+/// [`MatrixEncoding`] against C's `AVMatrixEncoding`, as libswresample's
+/// `matrix_encoding` option publishes it: its default, its range, and the
+/// value behind each named constant.
+///
+/// [`MatrixEncoding`]: ffmpeg::libavutil::channel_layout::MatrixEncoding
+mod matrix_encoding {
+    use core::ffi::{CStr, c_int, c_void};
+
+    use ffmpeg::libavutil::channel_layout::MatrixEncoding;
+    use ffmpeg::libavutil::ffi;
+    use ffmpeg::libswresample::ffi as swr;
+
+    /// C's option `name` (in `unit` for a named constant) on
+    /// libswresample's class, as `(default, min, max)`.
+    fn swr_option(name: &CStr, unit: Option<&CStr>) -> (i64, f64, f64) {
+        // SAFETY: `swr_get_class` takes nothing and returns C's static class.
+        let mut class = unsafe { swr::swr_get_class() };
+        let fake_obj = (&raw mut class).cast::<c_void>();
+        let unit = unit.map_or(core::ptr::null(), CStr::as_ptr);
+        // SAFETY: with `AV_OPT_SEARCH_FAKE_OBJ`, `av_opt_find` takes a
+        // pointer to a `const AVClass *` as the object, which `fake_obj` is
+        // for the whole call; `name` and `unit` are NUL-terminated or NULL.
+        let opt = unsafe {
+            ffi::av_opt_find(
+                fake_obj,
+                name.as_ptr(),
+                unit,
+                0,
+                ffi::AV_OPT_SEARCH_FAKE_OBJ as c_int,
+            )
+        };
+        assert!(!opt.is_null(), "{name:?} not found");
+        // SAFETY: `opt` points into libswresample's static option table;
+        // both the option and its named constants are integer-valued, so
+        // `default_val.i64` is the active union member.
+        unsafe { ((*opt).default_val.i64_, (*opt).min, (*opt).max) }
+    }
+
+    #[test]
+    fn option_default_and_range_span_the_named_values() {
+        let (default, min, max) = swr_option(c"matrix_encoding", None);
+        let default = MatrixEncoding::from_raw(ffi::AVMatrixEncoding(default as u32));
+        assert_eq!(default, MatrixEncoding::NONE);
+        assert_eq!(default.index(), Some(0));
+        assert_eq!((min, max), (0.0, (MatrixEncoding::COUNT - 1) as f64));
+        for v in min as u32..=max as u32 {
+            let e = MatrixEncoding::from_raw(ffi::AVMatrixEncoding(v));
+            assert_eq!(e.index(), Some(v as usize));
+            assert!(!format!("{e:?}").starts_with("MatrixEncoding("), "{v}");
+        }
+        let past = MatrixEncoding::from_raw(ffi::AVMatrixEncoding(max as u32 + 1));
+        assert_eq!(past.index(), None);
+    }
+
+    #[test]
+    fn named_constants_match_c_s_values_and_names() {
+        let named = [
+            (c"none", MatrixEncoding::NONE),
+            (c"dolby", MatrixEncoding::DOLBY),
+            (c"dplii", MatrixEncoding::DPLII),
+        ];
+        for (name, rust) in named {
+            let (value, _, _) = swr_option(name, Some(c"matrix_encoding"));
+            let c = MatrixEncoding::from_raw(ffi::AVMatrixEncoding(value as u32));
+            assert_eq!(c, rust, "{name:?}");
+            assert_eq!(i64::from(rust.into_raw().0), value);
+            assert_eq!(format!("{c:?}"), name.to_str().unwrap().to_uppercase());
+        }
+    }
+}

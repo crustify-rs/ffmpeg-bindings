@@ -1,0 +1,10 @@
+error[E0382]: borrow of moved value: `a`
+ --> tests/ub_safe/compile_fail/pixdesc_component_descriptor_exclusive_handle_is_not_copy.rs
+  |
+  |     let mut a = d.as_mut();
+  |         ----- move occurs because `a` has type `ComponentDescriptorMut<'_>`, which does not implement the `Copy` trait
+  |     let mut b = a;
+  |                 - value moved here
+  |     b.set_plane(1);
+  |     a.set_plane(2);
+  |     ^ value borrowed here after move

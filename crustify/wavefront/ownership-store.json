@@ -196,9 +196,47 @@
    "fields": []
   },
   {
+   "name": "AVComponentDescriptor",
+   "defined_in": "libavutil/pixdesc.h",
+   "_comment_agent": "Plain by-value struct of five ints (plane, step, offset, shift, depth); no pointer fields, no heap lifecycle. C never allocates, frees, clones or constructs one on its own: it lives embedded by value as AVPixFmtDescriptor.comp[4] in the static const av_pix_fmt_descriptors table (reached through av_pix_fmt_desc_get / av_pix_fmt_desc_next as a const pointer) and is copied by value by its readers (av_read_image_line2 copies desc->comp[c]; av_get_padded_bits_per_pixel, av_pix_fmt_count_planes, av_get_bits_per_pixel, imgutils, swscale and filters read the fields). Unused components (c >= nb_components) and hwaccel formats are all-zero, and av_read_image_line2 returns early on depth 0, so all-zero is a valid value. Values are not range-checked: C's own table stores offset = -1 for the big-endian 16-bit packed RGB formats (RGB565BE/RGB555BE/RGB444BE and BGR twins), plane is 0..3, step up to 32, shift up to 7, depth up to 32. Wrapped as the ffibox layout type ComponentDescriptor (CZeroable, Copy, Send + Sync as plain data) with ComponentDescriptorRef getters and ComponentDescriptorMut setters for all five fields.",
+   "fields": [
+    {
+     "name": "depth",
+     "refcount": false,
+     "locked_by": null
+    },
+    {
+     "name": "offset",
+     "refcount": false,
+     "locked_by": null
+    },
+    {
+     "name": "plane",
+     "refcount": false,
+     "locked_by": null
+    },
+    {
+     "name": "shift",
+     "refcount": false,
+     "locked_by": null
+    },
+    {
+     "name": "step",
+     "refcount": false,
+     "locked_by": null
+    }
+   ]
+  },
+  {
    "name": "AVEscapeMode",
    "defined_in": "libavutil/avstring.h",
    "_comment_agent": "Plain C enum, no fields, no lifecycle. Values flow Rust->C only: a by-value `mode` argument of av_escape (avstring.c:323) and av_bprint_escape (bprint.c:264); no struct field, return or out-parameter stores it, so C never hands one back. bprint.c:268-313 maps AUTO to BACKSLASH and treats any unknown value as BACKSLASH. Rust representation: closed Rust enum EscapeMode {Auto, Backslash, Quote, Xml} with an infallible conversion into ffi::AVEscapeMode; out-of-range modes are not representable (they only alias BACKSLASH).",
+   "fields": []
+  },
+  {
+   "name": "AVMatrixEncoding",
+   "defined_in": "libavutil/channel_layout.h",
+   "_comment_agent": "Plain C enum (NONE=0, DOLBY, DPLII, DPLIIX, DPLIIZ, DOLBYEX, DOLBYHEADPHONE=6, NB=7 count sentinel), no fields, no lifecycle. Stored as a raw int: the payload of AV_FRAME_DATA_MATRIXENCODING frame side data (decoders write the enum into the side-data bytes), SwrContext's AV_OPT_TYPE_INT option matrix_encoding (range NONE..NB-1, named consts none/dolby/dplii), and taken by value by swr_build_matrix2. Readers of side data and option memory may see any int, so the Rust representation is a #[repr(transparent)] newtype MatrixEncoding over ffi::AVMatrixEncoding with associated constants, infallible raw conversions both ways, index() into 0..COUNT, and CPlainElem (every c_int bit pattern valid).",
    "fields": []
   },
   {
