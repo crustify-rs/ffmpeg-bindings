@@ -373,3 +373,24 @@ function av_channel_layout_from_string
 function av_channel_layout_uninit
 function av_chroma_location_name
 function av_chroma_location_from_name
+
+# libavutil/pixdesc.h: the color property name lookups (formats wave 0,
+# batch 7).
+function av_chroma_location_from_name
+function av_color_primaries_from_name
+function av_color_range_from_name
+function av_color_space_from_name
+function av_color_transfer_from_name
+# libavutil/imgutils.h: size checks and plane copies (formats wave 0,
+# batch 7).
+function av_image_check_size
+function av_image_copy_plane
+function av_image_copy_plane_uc_from
+# libavutil/csp.h, libavutil/pixelutils.h: the C producers of the
+# av_csp_trc_function, av_csp_eotf_function and av_pixelutils_sad_fn
+# pointers that the formats wave-0 batch-7 callback handles call in tests.
+function av_csp_trc_func_from_id
+function av_csp_trc_func_inv_from_id
+function av_csp_itu_eotf
+function av_csp_itu_eotf_inv
+function av_pixelutils_get_sad_fn

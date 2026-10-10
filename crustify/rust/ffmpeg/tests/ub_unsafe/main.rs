@@ -3,5 +3,6 @@
 mod bprint;
 mod cpu;
 mod file;
+mod imgutils;
 mod log;
 mod opt;

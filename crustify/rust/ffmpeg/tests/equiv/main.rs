@@ -9,6 +9,7 @@ mod common;
 mod cpu;
 mod error;
 mod file;
+mod imgutils;
 mod intfloat;
 mod intreadwrite;
 mod log;

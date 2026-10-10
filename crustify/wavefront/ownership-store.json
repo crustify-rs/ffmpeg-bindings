@@ -1153,6 +1153,27 @@
    "defined_in": "libavutil/common.h"
   },
   {
+   "name": "av_chroma_location_from_name",
+   "defined_in": "libavutil/pixdesc.c",
+   "ptr_args": [
+    {
+     "name": "name",
+     "ptr": {
+      "scalar": null,
+      "array": null,
+      "string": true,
+      "owned": false,
+      "borrowed": {
+       "lifetime": "arg:name"
+      },
+      "nullable": false,
+      "mutable": false,
+      "note": "av_chroma_location_from_name reads `name` with strcmp against its static name tables during the call only and keeps no pointer; strcmp dereferences it unconditionally, so NULL is UB (non-nullable). Returns an int enum value or AVERROR(EINVAL); no pointer return."
+     }
+    }
+   ]
+  },
+  {
    "name": "av_clip64_c",
    "defined_in": "libavutil/common.h"
   },
@@ -1201,6 +1222,90 @@
    "defined_in": "libavutil/rational.h"
   },
   {
+   "name": "av_color_primaries_from_name",
+   "defined_in": "libavutil/pixdesc.c",
+   "ptr_args": [
+    {
+     "name": "name",
+     "ptr": {
+      "scalar": null,
+      "array": null,
+      "string": true,
+      "owned": false,
+      "borrowed": {
+       "lifetime": "arg:name"
+      },
+      "nullable": false,
+      "mutable": false,
+      "note": "av_color_primaries_from_name reads `name` with strcmp against its static name tables during the call only and keeps no pointer; strcmp dereferences it unconditionally, so NULL is UB (non-nullable). Returns an int enum value or AVERROR(EINVAL); no pointer return."
+     }
+    }
+   ]
+  },
+  {
+   "name": "av_color_range_from_name",
+   "defined_in": "libavutil/pixdesc.c",
+   "ptr_args": [
+    {
+     "name": "name",
+     "ptr": {
+      "scalar": null,
+      "array": null,
+      "string": true,
+      "owned": false,
+      "borrowed": {
+       "lifetime": "arg:name"
+      },
+      "nullable": false,
+      "mutable": false,
+      "note": "av_color_range_from_name reads `name` with strcmp against its static name tables during the call only and keeps no pointer; strcmp dereferences it unconditionally, so NULL is UB (non-nullable). Returns an int enum value or AVERROR(EINVAL); no pointer return."
+     }
+    }
+   ]
+  },
+  {
+   "name": "av_color_space_from_name",
+   "defined_in": "libavutil/pixdesc.c",
+   "ptr_args": [
+    {
+     "name": "name",
+     "ptr": {
+      "scalar": null,
+      "array": null,
+      "string": true,
+      "owned": false,
+      "borrowed": {
+       "lifetime": "arg:name"
+      },
+      "nullable": false,
+      "mutable": false,
+      "note": "av_color_space_from_name reads `name` with strcmp against its static name tables during the call only and keeps no pointer; strcmp dereferences it unconditionally, so NULL is UB (non-nullable). Returns an int enum value or AVERROR(EINVAL); no pointer return."
+     }
+    }
+   ]
+  },
+  {
+   "name": "av_color_transfer_from_name",
+   "defined_in": "libavutil/pixdesc.c",
+   "ptr_args": [
+    {
+     "name": "name",
+     "ptr": {
+      "scalar": null,
+      "array": null,
+      "string": true,
+      "owned": false,
+      "borrowed": {
+       "lifetime": "arg:name"
+      },
+      "nullable": false,
+      "mutable": false,
+      "note": "av_color_transfer_from_name reads `name` with strcmp against its static name tables during the call only and keeps no pointer; strcmp dereferences it unconditionally, so NULL is UB (non-nullable). Returns an int enum value or AVERROR(EINVAL); no pointer return."
+     }
+    }
+   ]
+  },
+  {
    "name": "av_compare_mod",
    "defined_in": "libavutil/mathematics.c"
   },
@@ -1219,6 +1324,33 @@
   {
    "name": "av_cpu_max_align",
    "defined_in": "libavutil/cpu.c"
+  },
+  {
+   "name": "av_csp_eotf_function",
+   "defined_in": null,
+   "ptr_args": [
+    {
+     "name": "arg2",
+     "ptr": {
+      "scalar": null,
+      "array": {
+       "by_val": true
+      },
+      "string": false,
+      "owned": false,
+      "borrowed": {
+       "lifetime": "arg:arg2"
+      },
+      "nullable": false,
+      "mutable": true,
+      "note": "`double c[3]`: every eotf/eotf_inv in csp.c reads and overwrites exactly c[0..3] in place during the call (generate_slice in libswscale passes a 3-element local); not retained, never NULL."
+     }
+    }
+   ]
+  },
+  {
+   "name": "av_csp_trc_function",
+   "defined_in": null
   },
   {
    "name": "av_d2q",
@@ -2151,6 +2283,109 @@
   {
    "name": "av_gettime_relative_is_monotonic",
    "defined_in": "libavutil/time.c"
+  },
+  {
+   "name": "av_image_check_size",
+   "defined_in": "libavutil/imgutils.c",
+   "ptr_args": [
+    {
+     "name": "log_ctx",
+     "ptr": {
+      "scalar": {
+       "by_val": true
+      },
+      "array": null,
+      "string": false,
+      "owned": false,
+      "borrowed": {
+       "lifetime": "arg:log_ctx"
+      },
+      "nullable": true,
+      "mutable": false,
+      "note": "log_ctx: stored in a stack ImgUtils as the parent log context (imgutils_class.parent_log_context_offset) and only read by av_log on the error path during the call; NULL means no parent. Must point to a struct whose first member is a const AVClass * (type-erased). Not written, not retained."
+     }
+    }
+   ]
+  },
+  {
+   "name": "av_image_copy_plane",
+   "defined_in": "libavutil/imgutils.c",
+   "ptr_args": [
+    {
+     "name": "dst",
+     "ptr": {
+      "scalar": null,
+      "array": {
+       "by_val": true
+      },
+      "string": false,
+      "owned": false,
+      "borrowed": {
+       "lifetime": "arg:dst"
+      },
+      "nullable": true,
+      "mutable": true,
+      "note": "dst: plane of `height` rows `dst_linesize` apart (negative = bottom-up), each written for `bytewidth` bytes with memcpy; NULL (with src) makes the call a no-op. Not retained. image_copy_plane av_assert0s |linesize| >= bytewidth (abort); a negative bytewidth with height > 0 is a huge memcpy."
+     }
+    },
+    {
+     "name": "src",
+     "ptr": {
+      "scalar": null,
+      "array": {
+       "by_val": true
+      },
+      "string": false,
+      "owned": false,
+      "borrowed": {
+       "lifetime": "arg:src"
+      },
+      "nullable": true,
+      "mutable": false,
+      "note": "src: plane of `height` rows `src_linesize` apart, `bytewidth` bytes read per row; must not overlap dst rows (memcpy). NULL makes the call a no-op. image_copy_plane av_assert0s |linesize| >= bytewidth (abort); a negative bytewidth with height > 0 is a huge memcpy."
+     }
+    }
+   ]
+  },
+  {
+   "name": "av_image_copy_plane_uc_from",
+   "defined_in": "libavutil/imgutils.c",
+   "ptr_args": [
+    {
+     "name": "dst",
+     "ptr": {
+      "scalar": null,
+      "array": {
+       "by_val": true
+      },
+      "string": false,
+      "owned": false,
+      "borrowed": {
+       "lifetime": "arg:dst"
+      },
+      "nullable": true,
+      "mutable": true,
+      "note": "dst: plane of `height` rows `dst_linesize` apart (negative = bottom-up), each written for `bytewidth` bytes with memcpy; NULL (with src) makes the call a no-op. Not retained. x86 SSE4 path (taken when FFALIGN(bytewidth,64) <= both linesizes) copies FFALIGN(bytewidth,64) bytes per row with movntdqa/mova, so both pointers and linesizes must be 16-byte aligned and the last row must hold the aligned width; it loops on `dec height; jnz`, so height <= 0 or bytewidth == 0 runs away (no NULL check either)."
+     }
+    },
+    {
+     "name": "src",
+     "ptr": {
+      "scalar": null,
+      "array": {
+       "by_val": true
+      },
+      "string": false,
+      "owned": false,
+      "borrowed": {
+       "lifetime": "arg:src"
+      },
+      "nullable": true,
+      "mutable": false,
+      "note": "src: plane of `height` rows `src_linesize` apart, `bytewidth` bytes read per row; must not overlap dst rows (memcpy). NULL makes the call a no-op. x86 SSE4 path (taken when FFALIGN(bytewidth,64) <= both linesizes) copies FFALIGN(bytewidth,64) bytes per row with movntdqa/mova, so both pointers and linesizes must be 16-byte aligned and the last row must hold the aligned width; it loops on `dec height; jnz`, so height <= 0 or bytewidth == 0 runs away (no NULL check either)."
+     }
+    }
+   ]
   },
   {
    "name": "av_int2double",
@@ -3225,6 +3460,46 @@
       "nullable": false,
       "mutable": false,
       "note": "Flags string, read for the call only, split at '+'/'-' into <=255-byte tokens, each a const name or an av_expr expression. Must not be NULL."
+     }
+    }
+   ]
+  },
+  {
+   "name": "av_pixelutils_sad_fn",
+   "defined_in": null,
+   "ptr_args": [
+    {
+     "name": "arg0",
+     "ptr": {
+      "scalar": null,
+      "array": {
+       "by_val": true
+      },
+      "string": false,
+      "owned": false,
+      "borrowed": {
+       "lifetime": "arg:arg0"
+      },
+      "nullable": false,
+      "mutable": false,
+      "note": "src1: a 2-D block of (1<<bits)x(1<<bits) bytes read row by row, rows `stride1` apart (stride may be negative or smaller than the width); read only during the call. SIMD variants (x86 sad_a_/sad_u_) require src1 aligned to the block size when the getter was asked for aligned >= 1 (mova faults otherwise)."
+     }
+    },
+    {
+     "name": "arg2",
+     "ptr": {
+      "scalar": null,
+      "array": {
+       "by_val": true
+      },
+      "string": false,
+      "owned": false,
+      "borrowed": {
+       "lifetime": "arg:arg2"
+      },
+      "nullable": false,
+      "mutable": false,
+      "note": "src2: same block shape as src1 with rows `stride2` apart; aligned to the block size required only for aligned == 2 (x86 sad_a_). Read only during the call."
      }
     }
    ]
