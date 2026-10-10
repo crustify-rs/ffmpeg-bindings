@@ -402,6 +402,53 @@ mod images {
         -2..NB
     }
 
+    /// Whether the tests run under BorrowSanitizer, whose cost per retag and
+    /// per allocation makes every-format sweeps at real sizes run for
+    /// hours: the image sweeps below then keep a few formats of each layout
+    /// class and fewer sizes.
+    fn under_bsan() -> bool {
+        std::env::var("CRUSTIFY_FFMPEG_VARIANT").as_deref() == Ok("bsan")
+    }
+
+    /// One format of each layout class the image routines distinguish, for
+    /// the sweeps under BSan: packed and planar YUV, subsampled chroma in
+    /// both directions, semi-planar, RGB in both byte orders, a palette, a
+    /// bitstream, float, 16-bit and alpha planes, Bayer, XYZ and a hardware
+    /// format.
+    const BSAN_FORMATS: [ffi::AVPixelFormat; 18] = [
+        ffi::AVPixelFormat::AV_PIX_FMT_YUV420P,
+        ffi::AVPixelFormat::AV_PIX_FMT_YUYV422,
+        ffi::AVPixelFormat::AV_PIX_FMT_RGB24,
+        ffi::AVPixelFormat::AV_PIX_FMT_YUV410P,
+        ffi::AVPixelFormat::AV_PIX_FMT_GRAY8,
+        ffi::AVPixelFormat::AV_PIX_FMT_MONOWHITE,
+        ffi::AVPixelFormat::AV_PIX_FMT_PAL8,
+        ffi::AVPixelFormat::AV_PIX_FMT_UYVY422,
+        ffi::AVPixelFormat::AV_PIX_FMT_NV12,
+        ffi::AVPixelFormat::AV_PIX_FMT_RGB48BE,
+        ffi::AVPixelFormat::AV_PIX_FMT_YUVA444P16LE,
+        ffi::AVPixelFormat::AV_PIX_FMT_GBRAPF32LE,
+        ffi::AVPixelFormat::AV_PIX_FMT_BAYER_RGGB16BE,
+        ffi::AVPixelFormat::AV_PIX_FMT_XYZ12LE,
+        ffi::AVPixelFormat::AV_PIX_FMT_P010LE,
+        ffi::AVPixelFormat::AV_PIX_FMT_VUYA,
+        ffi::AVPixelFormat::AV_PIX_FMT_GBRP,
+        ffi::AVPixelFormat::AV_PIX_FMT_VAAPI,
+    ];
+
+    /// The formats a sweep runs over: all of them, or [`BSAN_FORMATS`] and
+    /// the out-of-range values under BSan.
+    fn sweep_formats() -> Vec<c_int> {
+        if under_bsan() {
+            [-2, -1, NB]
+                .into_iter()
+                .chain(BSAN_FORMATS.map(|f| f.0))
+                .collect()
+        } else {
+            formats().collect()
+        }
+    }
+
     fn result(ret: c_int) -> Result<c_int, i32> {
         if ret < 0 { Err(ret) } else { Ok(ret) }
     }
@@ -873,28 +920,46 @@ mod images {
         }
     }
 
-    /// Fills both images' planes with the same noise.
+    /// Fills both images' planes with the same noise, each plane in one
+    /// slice write (a write per byte is a retag per byte under BSan).
     fn noise(c: &mut CImage, rust: &mut Image, seed: u32) {
         let mut x = seed | 1;
         let planes = rust.planes_mut();
         for i in 0..4 {
-            for (cb, rb) in c.plane_mut(i).iter_mut().zip(planes.data[i].iter_mut()) {
-                x ^= x << 13;
-                x ^= x >> 17;
-                x ^= x << 5;
-                (*cb, *rb) = (x as u8, x as u8);
-            }
+            let bytes: Vec<u8> = (0..planes.data[i].len())
+                .map(|_| {
+                    x ^= x << 13;
+                    x ^= x >> 17;
+                    x ^= x << 5;
+                    x as u8
+                })
+                .collect();
+            planes.data[i].copy_from_slice(&bytes);
+            c.plane_mut(i).copy_from_slice(&bytes);
         }
     }
 
     #[test]
     fn allocations_match_c() {
-        for raw in formats() {
-            for (w, h) in SIZES
-                .into_iter()
-                .chain([(0, 1), (1, -1), (1 << 16, 1 << 16)])
-            {
-                for align in [1usize, 2, 4, 16, 64] {
+        let (sizes, aligns): (&[(c_int, c_int)], &[usize]) = if under_bsan() {
+            (&[(7, 5), (64, 3), (0, 1), (1 << 16, 1 << 16)], &[1, 64])
+        } else {
+            (
+                &[
+                    (1, 1),
+                    (7, 5),
+                    (33, 17),
+                    (64, 3),
+                    (0, 1),
+                    (1, -1),
+                    (1 << 16, 1 << 16),
+                ],
+                &[1, 2, 4, 16, 64],
+            )
+        };
+        for raw in sweep_formats() {
+            for &(w, h) in sizes {
+                for &align in aligns {
                     let what = format!("{raw} {w}x{h} {align}");
                     let c = CImage::alloc(raw, w, h, align);
                     let rust = Image::alloc(w, h, format(raw), align);
@@ -1092,8 +1157,16 @@ mod images {
 
     #[test]
     fn copies_and_fills_match_c_for_every_format() {
-        for raw in 0..NB {
-            for (i, (w, h)) in SIZES.into_iter().enumerate() {
+        let sizes: &[(c_int, c_int)] = if under_bsan() {
+            &[(7, 5), (33, 17)]
+        } else {
+            &SIZES
+        };
+        for raw in sweep_formats()
+            .into_iter()
+            .filter(|&raw| (0..NB).contains(&raw))
+        {
+            for (i, &(w, h)) in sizes.iter().enumerate() {
                 for align in [1usize, 64] {
                     copy_and_fill_sequence(raw, w, h, align, (raw as u32) << 8 | i as u32);
                 }
@@ -1152,5 +1225,330 @@ mod images {
         };
         copy(&mut planes, src.planes(), format(raw), w, h).unwrap();
         assert_eq!(rust_dst, c_dst);
+    }
+
+    /// A caller-laid-out image for the random probe: every plane in its own
+    /// exactly sized heap buffer, rows a random padding apart, top-down or
+    /// bottom-up per plane. Row 0 of plane `i` is at `origin[i]`.
+    struct Laid {
+        bufs: [Vec<u8>; 4],
+        linesizes: [isize; 4],
+        origin: [usize; 4],
+    }
+
+    impl Laid {
+        /// The layout C's own routines give `raw` at `w x h`: `linesize`
+        /// for the row widths, and the chroma shift for the rows.
+        fn new(raw: c_int, w: c_int, h: c_int, x: &mut u32, seed: u8) -> Self {
+            let fmt = format(raw);
+            let (_, v) = fmt.chroma_subsampling().unwrap();
+            let planes = fmt.plane_count().unwrap();
+            let mut linesizes = [0isize; 4];
+            let mut origin = [0usize; 4];
+            let bufs = core::array::from_fn(|i| {
+                if i == 1 && fmt == PixelFormat::PAL8 {
+                    return (0..1024u32).map(|j| (j as u8) ^ seed).collect();
+                }
+                let width = linesize(fmt, w, i).unwrap() as usize;
+                if i >= planes || width == 0 {
+                    return Vec::new();
+                }
+                let rows = if i == 1 || i == 2 {
+                    (h as usize).div_ceil(1 << v)
+                } else {
+                    h as usize
+                };
+                let pad = (xorshift(x) % 9) as usize;
+                let ls = (width + pad) as isize;
+                let bottom_up = xorshift(x) % 2 == 1;
+                linesizes[i] = if bottom_up { -ls } else { ls };
+                let len = (rows - 1) * ls as usize + width;
+                origin[i] = if bottom_up {
+                    (rows - 1) * ls as usize
+                } else {
+                    0
+                };
+                (0..len)
+                    .map(|j| (j as u8).wrapping_mul(29).wrapping_add(seed))
+                    .collect()
+            });
+            Self {
+                bufs,
+                linesizes,
+                origin,
+            }
+        }
+
+        fn planes(&self) -> Planes<'_> {
+            Planes {
+                data: self.bufs.each_ref().map(|b| &b[..]),
+                linesizes: self.linesizes,
+            }
+        }
+
+        fn planes_mut(&mut self) -> PlanesMut<'_> {
+            PlanesMut {
+                data: self.bufs.each_mut().map(|b| &mut b[..]),
+                linesizes: self.linesizes,
+            }
+        }
+
+        /// Where each plane's slice starts for an operation on the top `ch`
+        /// rows of an image of `fmt`, as a caller passes them: a bottom-up
+        /// plane's row 0 is the last row of its slice, so the slice starts
+        /// at the last of the `ch` rows C reaches from the same row-0
+        /// pointer.
+        fn top_rows_start(&self, fmt: PixelFormat, ch: c_int) -> [usize; 4] {
+            let (_, v) = fmt.chroma_subsampling().unwrap();
+            core::array::from_fn(|i| {
+                if self.linesizes[i] >= 0 || self.bufs[i].is_empty() {
+                    return 0;
+                }
+                let rows = if i == 1 || i == 2 {
+                    (ch as usize).div_ceil(1 << v)
+                } else {
+                    ch as usize
+                };
+                self.origin[i] - rows.saturating_sub(1) * self.linesizes[i].unsigned_abs()
+            })
+        }
+
+        /// The planes for an operation on the top `ch` rows, for reading.
+        fn top_rows(&self, fmt: PixelFormat, ch: c_int) -> Planes<'_> {
+            let start = self.top_rows_start(fmt, ch);
+            Planes {
+                data: core::array::from_fn(|i| &self.bufs[i][start[i]..]),
+                linesizes: self.linesizes,
+            }
+        }
+
+        /// The planes for an operation on the top `ch` rows, for writing.
+        fn top_rows_mut(&mut self, fmt: PixelFormat, ch: c_int) -> PlanesMut<'_> {
+            let start = self.top_rows_start(fmt, ch);
+            let mut i = 0;
+            let data = self.bufs.each_mut().map(|b| {
+                i += 1;
+                &mut b[start[i - 1]..]
+            });
+            PlanesMut {
+                data,
+                linesizes: self.linesizes,
+            }
+        }
+
+        /// C's row-0 pointers (NULL for an empty plane) and linesizes.
+        fn c_ptrs(&mut self) -> ([*mut u8; 4], [c_int; 4], [isize; 4]) {
+            let origin = self.origin;
+            let mut ptrs = [ptr::null_mut(); 4];
+            for (i, b) in self.bufs.iter_mut().enumerate() {
+                if !b.is_empty() {
+                    // SAFETY: `origin[i]` is inside the plane's buffer.
+                    ptrs[i] = unsafe { b.as_mut_ptr().add(origin[i]) };
+                }
+            }
+            (ptrs, self.linesizes.map(|l| l as c_int), self.linesizes)
+        }
+    }
+
+    fn xorshift(x: &mut u32) -> u32 {
+        *x ^= *x << 13;
+        *x ^= *x >> 17;
+        *x ^= *x << 5;
+        *x
+    }
+
+    /// Copies, fills and packings between caller-laid-out planes of random
+    /// padding and orientation, on a C and a Rust copy of the same layout,
+    /// compared byte for byte after every step: the layouts
+    /// `av_image_alloc` never produces, where the row-0 origins, the
+    /// per-plane extents and the rejection of rows C would assert on are
+    /// the wrappers' own arithmetic.
+    #[test]
+    fn random_plane_layouts_match_c() {
+        let formats = [
+            PixelFormat::YUV420P,
+            PixelFormat::YUV410P,
+            PixelFormat::NV12,
+            PixelFormat::YUYV422,
+            PixelFormat::RGB24,
+            PixelFormat::PAL8,
+            PixelFormat::MONOWHITE,
+            PixelFormat::YUVA444P16LE,
+            PixelFormat::GBRAPF32LE,
+            PixelFormat::P010LE,
+            PixelFormat::BAYER_RGGB16BE,
+            PixelFormat::GRAY8,
+        ];
+        let under_bsan = under_bsan();
+        let mut x = 0x9e37_79b9u32;
+        for (k, fmt) in formats.iter().enumerate() {
+            let raw = fmt.into_raw().0;
+            for round in 0..if under_bsan { 3 } else { 24 } {
+                let w = 1 + (xorshift(&mut x) % 37) as c_int;
+                let h = 1 + (xorshift(&mut x) % 23) as c_int;
+                let what = format!("{fmt:?} {w}x{h} round {round}");
+                let seed = (k * 31 + round) as u8;
+                let mut lx = x;
+                let mut c_src = Laid::new(raw, w, h, &mut lx, seed);
+                let src = Laid::new(raw, w, h, &mut x, seed);
+                let mut lx = x;
+                let mut c_dst = Laid::new(raw, w, h, &mut lx, seed ^ 0x55);
+                let mut dst = Laid::new(raw, w, h, &mut x, seed ^ 0x55);
+                assert_eq!(src.bufs, c_src.bufs);
+                assert_eq!(dst.linesizes, c_dst.linesizes);
+
+                // Whole, partial and degenerate copies.
+                for (cw, ch) in [(w, h), (w / 2, h / 2), (w, 0), (0, h), (w, 1)] {
+                    let (dp, dl, _) = c_dst.c_ptrs();
+                    let (sp, sl, _) = c_src.c_ptrs();
+                    // SAFETY: both images hold a `w x h` image of this
+                    // format at these origins and linesizes.
+                    unsafe {
+                        ffi::av_image_copy(
+                            dp.as_ptr(),
+                            dl.as_ptr(),
+                            sp.as_ptr().cast(),
+                            sl.as_ptr(),
+                            ffi::AVPixelFormat(raw),
+                            cw,
+                            ch,
+                        )
+                    };
+                    copy(
+                        &mut dst.top_rows_mut(*fmt, ch),
+                        src.top_rows(*fmt, ch),
+                        *fmt,
+                        cw,
+                        ch,
+                    )
+                    .unwrap_or_else(|e| panic!("{what} copy {cw}x{ch}: {e}"));
+                    assert_eq!(dst.bufs, c_dst.bufs, "{what} copy {cw}x{ch}");
+                }
+                // The uncacheable copy on the same layouts: C's SSE4 path
+                // is taken only where both linesizes cover the padded row.
+                let (dp, _, dl) = c_dst.c_ptrs();
+                let (sp, _, sl) = c_src.c_ptrs();
+                let sound = (0..4).all(|i| {
+                    let ls = [dl[i], sl[i]];
+                    let width = linesize(*fmt, w, i).unwrap() as usize;
+                    ls.iter()
+                        .all(|&l| l < 0 || (l as usize) < width.next_multiple_of(64))
+                });
+                if sound {
+                    // SAFETY: as above; no linesize covers the 64-byte
+                    // padded row, so C copies plainly, row by row.
+                    unsafe {
+                        ffi::av_image_copy_uc_from(
+                            dp.as_ptr(),
+                            dl.as_ptr(),
+                            sp.as_ptr().cast(),
+                            sl.as_ptr(),
+                            ffi::AVPixelFormat(raw),
+                            w,
+                            h,
+                        )
+                    };
+                    copy_from_uncacheable(&mut dst.planes_mut(), src.planes(), *fmt, w, h)
+                        .unwrap_or_else(|e| panic!("{what} uc: {e}"));
+                    assert_eq!(dst.bufs, c_dst.bufs, "{what} uc");
+                }
+
+                // Fills of the destination, color then black.
+                let color: [u32; 4] = core::array::from_fn(|_| xorshift(&mut x));
+                for (fw, fh) in [(w, h), (w / 3, h / 2)] {
+                    let (dp, _, dl) = c_dst.c_ptrs();
+                    // SAFETY: the destination holds a `w x h` image.
+                    let c = unsafe {
+                        ffi::av_image_fill_color(
+                            dp.as_ptr(),
+                            dl.as_ptr(),
+                            ffi::AVPixelFormat(raw),
+                            color.as_ptr(),
+                            fw,
+                            fh,
+                            0,
+                        )
+                    };
+                    let r = fill_color(&mut dst.top_rows_mut(*fmt, fh), *fmt, color, fw, fh);
+                    assert_eq!(r, result(c).map(drop), "{what} fill {fw}x{fh}");
+                    assert_eq!(dst.bufs, c_dst.bufs, "{what} fill {fw}x{fh}");
+                }
+                let (dp, _, dl) = c_dst.c_ptrs();
+                // SAFETY: as above.
+                let c = unsafe {
+                    ffi::av_image_fill_black(
+                        dp.as_ptr(),
+                        dl.as_ptr(),
+                        ffi::AVPixelFormat(raw),
+                        ColorRange::MPEG.into_raw(),
+                        w,
+                        h,
+                    )
+                };
+                let r = fill_black(&mut dst.planes_mut(), *fmt, ColorRange::MPEG, w, h);
+                assert_eq!(r, result(c).map(drop), "{what} black");
+                assert_eq!(dst.bufs, c_dst.bufs, "{what} black");
+
+                // Packing the source into a buffer at a random alignment.
+                let align = 1usize << (xorshift(&mut x) % 7);
+                let size = buffer_size(*fmt, w, h, align).unwrap();
+                let (mut c_out, mut out) = (vec![0x3cu8; size + 2], vec![0x3cu8; size + 2]);
+                let (sp, sl, _) = c_src.c_ptrs();
+                // SAFETY: `c_out` holds `size + 2` bytes, which C checks the
+                // image's size against; the source holds the image.
+                let c = unsafe {
+                    ffi::av_image_copy_to_buffer(
+                        c_out.as_mut_ptr(),
+                        (size + 2) as c_int,
+                        sp.as_ptr().cast(),
+                        sl.as_ptr(),
+                        ffi::AVPixelFormat(raw),
+                        w,
+                        h,
+                        align as c_int,
+                    )
+                };
+                let r = copy_to_buffer(&mut out, src.planes(), *fmt, w, h, align);
+                assert_eq!(r, result(c).map(|n| n as usize), "{what} pack {align}");
+                assert_eq!(out, c_out, "{what} pack {align}");
+
+                // The packed buffer read back as planes, and copied back
+                // out into the (now filled) destination.
+                let planes = fill_arrays(&out, *fmt, w, h, align).unwrap();
+                let (dp, dl, _) = c_dst.c_ptrs();
+                let mut cp = [ptr::null_mut::<u8>(); 4];
+                let mut cl = [0 as c_int; 4];
+                // SAFETY: `c_out` holds the packed image C laid out.
+                unsafe {
+                    ffi::av_image_fill_arrays(
+                        cp.as_mut_ptr(),
+                        cl.as_mut_ptr(),
+                        c_out.as_ptr(),
+                        ffi::AVPixelFormat(raw),
+                        w,
+                        h,
+                        align as c_int,
+                    )
+                };
+                assert_eq!(planes.linesizes.map(|l| l as c_int), cl, "{what} unpack");
+                // SAFETY: as above, from the packed planes.
+                unsafe {
+                    ffi::av_image_copy(
+                        dp.as_ptr(),
+                        dl.as_ptr(),
+                        cp.as_ptr().cast(),
+                        cl.as_ptr(),
+                        ffi::AVPixelFormat(raw),
+                        w,
+                        h,
+                    )
+                };
+                copy(&mut dst.planes_mut(), planes, *fmt, w, h)
+                    .unwrap_or_else(|e| panic!("{what} unpack copy: {e}"));
+                assert_eq!(dst.bufs, c_dst.bufs, "{what} unpack copy");
+                drop(dst);
+                drop(src);
+            }
+        }
     }
 }

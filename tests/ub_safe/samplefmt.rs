@@ -182,7 +182,9 @@ mod buffers {
             v.copy_within(0, usize::MAX, 2),
             Err(SamplesError::OutOfRange)
         );
-        let silent = v.as_ref().planes().all(|p| p.iter().all(|&b| b == p[0]));
+        // Compared as whole slices: a reference per byte is a retag per
+        // byte under BSan.
+        let silent = v.as_ref().planes().all(|p| p == &vec![p[0]; p.len()][..]);
         assert!(silent);
     }
 
@@ -297,13 +299,20 @@ mod buffers {
 
     #[test]
     fn many_planar_channels_spill_the_plane_pointers() {
-        // More planes than the inline pointer array holds, and a C pointer
-        // array of 4096 entries.
-        let mut b = SampleBufferWithPointers::new(4096, 3, SampleFormat::S16P, 0).unwrap();
+        // More planes than the inline pointer array holds (8), and a C
+        // pointer array of 4096 entries; a few dozen under BSan, where the
+        // thousands of per-plane slices over one block make each retag
+        // cost the block's whole history (>15 min and 50 GB at 4096).
+        let channels = if std::env::var("CRUSTIFY_FFMPEG_VARIANT").as_deref() == Ok("bsan") {
+            24
+        } else {
+            4096
+        };
+        let mut b = SampleBufferWithPointers::new(channels, 3, SampleFormat::S16P, 0).unwrap();
         exercise(b.as_mut());
-        let mut c = SampleBuffer::new(4096, 3, SampleFormat::S16P, 0).unwrap();
+        let mut c = SampleBuffer::new(channels, 3, SampleFormat::S16P, 0).unwrap();
         assert_eq!(c.as_mut().copy_from(b.as_ref(), 0, 0, 3), Ok(()));
-        assert_eq!(c.as_ref().planes().len(), 4096);
+        assert_eq!(c.as_ref().planes().len(), channels);
     }
 
     #[test]

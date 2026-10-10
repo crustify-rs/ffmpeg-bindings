@@ -1026,11 +1026,13 @@ impl Image {
         // `len` bytes that the caller owns and releases with `av_free`, the
         // `Heap` policy; every byte is a valid `MaybeUninit<u8>`.
         let buf = unsafe { HeapVec::<MaybeUninit<u8>>::from_raw_parts(pointers[0].cast(), len) };
-        let mut buf = buf.ok_or(AVERROR_ENOMEM)?;
+        let buf = buf.ok_or(AVERROR_ENOMEM)?;
         // C wrote nothing into the block: it has no systematic palette for
-        // the one palettized format, and no padding before it.
-        buf.as_mut_slice().fill(MaybeUninit::new(0));
-        // SAFETY: the fill initialised every byte.
+        // the one palettized format, and no padding before it. One write
+        // for the whole block, not a `fill` of a `&mut` per byte.
+        // SAFETY: `buf` owns the `len` bytes at its pointer, all writable.
+        unsafe { ptr::write_bytes(buf.as_ptr(), 0, len) };
+        // SAFETY: the write initialised every byte.
         let buf = unsafe { buf.assume_init() };
         let planes = plane_ranges(pointers[0].addr(), pointers.map(<*mut u8>::addr), size);
         Ok(Self {
