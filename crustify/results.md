@@ -34,8 +34,8 @@ Thin batches with `"objective": "review"`, LLM-as-a-Judge over each landed wave.
 - **`--max-loc`** — `500` (wave 0); unbounded from wave 1
 - **`--min-fields`** — `20`
 - **orchestrator parallelism** — `10` concurrent batch processes
-- **branch** — `crustify/reviews/20261005/libavutil/formats/wave-2`, tip `4b75b3ceb8`
-- **agents** — `27` (one stopped by the provider), over `8` wave(s)
+- **branch** — `crustify/reviews/20261005/libavutil/formats/wave-3`, tip `ffb42cd0b6`
+- **agents** — `29` (one stopped by the provider), over `9` wave(s)
 
 `rv`-prefixed columns below carry the review pass; the unprefixed ones remain
 the campaign's.
@@ -196,7 +196,8 @@ Implementation `openrouter/anthropic/claude-opus-5.5` via `claude`; review
 |`1`|`1`| `2` | `6` |`+1579/-1`| `27.44`% / `97.24`% | `0` | `+2` | `$7.73` | `28m13s` | `$3.87` | `$1.29` |
 |`1`|`2`| `1` | `7` |`+1533/-2`| `29.92`% / `97.69`% | `0` | `0` | `$9.07` | `48m40s` | `$9.07` | `$1.30` |
 |`2`|`0`| `2` | `7` |`+2312/-2`| `33.33`% / `98.21`% | `0` | `+4` | `$12.48` | `42m35s` | `$6.24` | `$1.78` |
-| **Σ** |  | **`39`** | **`71`** | **`+20651/-30`** | **`33.33`% / `98.21`%** | **`+14`** | **`+16`** | **`$115.44`** | — | **`$2.96`** | **`$1.63`** |
+|`3`|`0`| `1` | `2` |`+839/-0`| `33.33`% / `98.16`% | `0` | `0` | `$3.16` | `25m09s` | `$3.16` | `$1.58` |
+| **Σ** |  | **`40`** | **`73`** | **`+21490/-30`** | **`33.33`% / `98.16`%** | **`+14`** | **`+16`** | **`$118.60`** | — | **`$2.97`** | **`$1.62`** |
 
 ### Batches — wrap: tests
 
@@ -227,7 +228,8 @@ Implementation `openrouter/anthropic/claude-opus-5.5` via `claude`; review
 |`1`|`1`|`+24` (`+0.00`/`+0.48` pp)|`+0` (`+0.00`/`-0.44` pp)|`+7` (`+0.72`/`-0.15` pp)|`+23` (`+0.00`/`+0.62` pp)|
 |`1`|`2`|`+15` (`+0.00`/`+0.15` pp)|`+5` (`+0.01`/`+2.56` pp)|`+3` (`+0.45`/`-0.37` pp)|`+11` (`+0.00`/`+0.33` pp)|
 |`2`|`0`|`+21` (`+2.18`/`+1.13` pp)|`+0` (`+0.00`/`-0.43` pp)|`+9` (`+0.84`/`-0.01` pp)|`+23` (`+2.24`/`+0.70` pp)|
-| **Σ** |  | **`+218` (`+2.26`/`-1.07` pp)** | **`+24` (`+1.11`/`+7.34` pp)** | **`+167` (`+10.63`/`-41.41` pp)** | **`+255` (`+8.09`/`-10.23` pp)** |
+|`3`|`0`|`+11` (`+0.00`/`+0.09` pp)|`+0` (`+0.00`/`-0.09` pp)|`+4` (`+0.00`/`-0.06` pp)|`+9` (`+0.00`/`+0.15` pp)|
+| **Σ** |  | **`+229` (`+2.26`/`-0.98` pp)** | **`+24` (`+1.11`/`+7.25` pp)** | **`+171` (`+10.63`/`-41.47` pp)** | **`+264` (`+8.09`/`-10.08` pp)** |
 
 ### Batches — port
 
@@ -267,7 +269,8 @@ Implementation `openrouter/anthropic/claude-opus-5.5` via `claude`; review
 |`0`|`0`| `12` |`+134/-0`| `26.52`% / `97.04`% | `0` | `0` | `+186/-0` | `$21.19` | `44m08s` | `$1.77` |
 |`1`|`0`| `4` |`+63/-13`| `32.36`% / `97.98`% | `0` | `0` | `+98/-37` | `$54.06` | `153m50s` | `$13.52` |
 |`2`|`0`| `2` |`+772/-20`| `33.33`% / `98.14`% | `0` | `0` | `+1038/-21` | `$43.74` | `98m46s` | `$21.87` |
-| **Σ** |  | **`39`** | **`+2409/-59`** | **`33.33`% / `98.14`%** | **`0`** | **`0`** | **`+3272/-118`** | **`$209.31`** | — | **`$5.37`** |
+|`3`|`0`| `1` |`+76/-1`| `33.58`% / `98.21`% | `0` | `0` | `+93/-1` | `$36.04` | `135m32s` | `$36.04` |
+| **Σ** |  | **`40`** | **`+2485/-60`** | **`33.58`% / `98.21`%** | **`0`** | **`0`** | **`+3365/-119`** | **`$245.35`** | — | **`$6.13`** |
 
 ### Batches — review: tests
 
@@ -289,7 +292,8 @@ Implementation `openrouter/anthropic/claude-opus-5.5` via `claude`; review
 |`0`|`0`|`+0` (`+0.00`/`-0.27` pp)|`+0` (`+0.00`/`-0.03` pp)|`+3` (`+0.00`/`+0.08` pp)|`+4` (`+0.00`/`+0.04` pp)|
 |`1`|`0`|`+0` (`+0.00`/`-0.09` pp)|`+0` (`+0.00`/`-0.01` pp)|`+0` (`+0.00`/`-0.09` pp)|`+1` (`+0.00`/`+0.02` pp)|
 |`2`|`0`|`+3` (`+0.00`/`-0.01` pp)|`+0` (`+0.00`/`-0.03` pp)|`+4` (`+0.00`/`-0.03` pp)|`+3` (`+0.01`/`-0.03` pp)|
-| **Σ** |  | **`+15` (`+0.00`/`-0.50` pp)** | **`+2` (`+0.00`/`-0.34` pp)** | **`+21` (`+0.04`/`-0.30` pp)** | **`+19` (`+0.01`/`+0.48` pp)** |
+|`3`|`0`|`+0` (`+0.00`/`+0.00` pp)|`+0` (`+0.00`/`+0.00` pp)|`+1` (`+0.00`/`+0.00` pp)|`+0` (`+0.00`/`+0.00` pp)|
+| **Σ** |  | **`+15` (`+0.00`/`-0.50` pp)** | **`+2` (`+0.00`/`-0.34` pp)** | **`+22` (`+0.04`/`-0.30` pp)** | **`+19` (`+0.01`/`+0.48` pp)** |
 
 ### Batches — review: PoC + reports
 
@@ -311,6 +315,7 @@ Implementation `openrouter/anthropic/claude-opus-5.5` via `claude`; review
 | `0` | `0` | `+0` | `+0` | `+0` | `+0` | `+0` | `+0` | `+0` | `+1` | `1` | `0` |
 | `1` | `0` | `+0` | `+0` | `+0` | `+0` | `+0` | `+1` | `+0` | `+2` | `3` | `0` |
 | `2` | `0` | `+0` | `+0` | `+0` | `+0` | `+0` | `+0` | `+0` | `+2` | `2` | `0` |
+| `3` | `0` | `+0` | `+0` | `+0` | `+0` | `+0` | `+0` | `+0` | `+0` | `0` | `0` |
 | **Σ** |  | **`+2`** | **`+1`** | **`+0`** | **`+0`** | **`+0`** | **`+1`** | **`+0`** | **`+17`** | **`21`** | **`0`** |
 
 ## Symbols
@@ -334,7 +339,9 @@ Implementation `openrouter/anthropic/claude-opus-5.5` via `claude`; review
 |`1`|`4`| wrap | `22` | `2770` |`+2770/-3`| `32.36`% / `97.98`% | `+1` | `+6` | `$20.24` | `65m20s` | `$0.92` | `$0.007` |
 |`1`|`5`| wrap | `9` | `1993` |`+1993/-11`| `28.16`% / `97.50`% | `0` | `+4` | `$9.38` | `33m44s` | `$1.04` | `$0.005` |
 |`2`|`1`| wrap | `13` | `2102` |`+2102/-21`| `32.48`% / `98.13`% | `0` | `0` | `$10.70` | `34m54s` | `$0.82` | `$0.005` |
-| **Σ** |  |  | **`239`** | **`24420`** | **`+24420/-278`** | **`32.48`% / `98.13`%** | **`+13`** | **`+26`** | **`$217.22`** | — | **`$0.91`** | **`$0.009`** |
+|`3`|`1`| wrap | `14` | `802` |`+802/-5`| `33.58`% / `98.20`% | `0` | `0` | `$8.96` | `29m47s` | `$0.64` | `$0.011` |
+|`3`|`2`| wrap | `4` | `678` |`+678/-0`| `33.58`% / `98.17`% | `0` | `0` | `$6.61` | `29m44s` | `$1.65` | `$0.010` |
+| **Σ** |  |  | **`257`** | **`25900`** | **`+25900/-283`** | **`33.58`% / `98.17`%** | **`+13`** | **`+26`** | **`$232.79`** | — | **`$0.91`** | **`$0.009`** |
 
 ### Batches: tests
 
@@ -355,7 +362,9 @@ Implementation `openrouter/anthropic/claude-opus-5.5` via `claude`; review
 |`1`|`4`|`+11` (`+2.83`/`+1.24` pp)|`+4` (`+0.22`/`+0.03` pp)|`+15` (`+2.44`/`+1.95` pp)|`+22` (`+1.39`/`-5.10` pp)|
 |`1`|`5`|`+13` (`+0.91`/`+1.75` pp)|`+0` (`+0.00`/`-0.85` pp)|`+11` (`+0.86`/`+2.04` pp)|`+24` (`+0.79`/`+1.24` pp)|
 |`2`|`1`|`+14` (`+0.68`/`+1.23` pp)|`+0` (`+0.00`/`-0.51` pp)|`+16` (`+0.12`/`+1.16` pp)|`+14` (`+0.06`/`-0.43` pp)|
-| **Σ** |  | **`+198` (`+22.80`/`+18.33` pp)** | **`+45` (`+2.57`/`+1.96` pp)** | **`+237` (`+19.17`/`+22.66` pp)** | **`+245` (`+13.19`/`-5.27` pp)** |
+|`3`|`1`|`+5` (`+0.92`/`+0.22` pp)|`+0` (`+0.00`/`-0.15` pp)|`+4` (`+0.00`/`+0.21` pp)|`+4` (`+0.70`/`+0.14` pp)|
+|`3`|`2`|`+7` (`+0.44`/`+0.07` pp)|`+0` (`+0.00`/`-0.05` pp)|`+5` (`+0.25`/`+0.08` pp)|`+3` (`+0.06`/`-0.00` pp)|
+| **Σ** |  | **`+210` (`+24.16`/`+18.62` pp)** | **`+45` (`+2.57`/`+1.76` pp)** | **`+246` (`+19.42`/`+22.95` pp)** | **`+252` (`+13.95`/`-5.13` pp)** |
 
 ### Batches — review
 
@@ -373,7 +382,8 @@ Implementation `openrouter/anthropic/claude-opus-5.5` via `claude`; review
 |`0`|`1`| `11` |`+40/-0`| `26.52`% / `97.04`% | `0` | `0` | `+59/-0` | `$71.89` | `155m57s` | `$6.54` |
 |`1`|`1`| `56` |`+386/-23`| `32.36`% / `97.98`% | `0` | `0` | `+470/-28` | `$47.36` | `107m37s` | `$0.85` |
 |`2`|`1`| `13` |`+385/-0`| `33.33`% / `98.21`% | `0` | `0` | `+445/-3` | `$12.88` | `29m40s` | `$0.99` |
-| **Σ** |  | **`239`** | **`+1360/-56`** | **`33.33`% / `98.21`%** | **`0`** | **`0`** | **`+1807/-124`** | **`$249.55`** | — | **`$1.04`** |
+|`3`|`1`| `18` |`+296/-3`| `33.58`% / `98.21`% | `0` | `0` | `+369/-6` | `$37.27` | `92m19s` | `$2.07` |
+| **Σ** |  | **`257`** | **`+1656/-59`** | **`33.58`% / `98.21`%** | **`0`** | **`0`** | **`+2176/-130`** | **`$286.82`** | — | **`$1.12`** |
 
 ### Batches — review: tests
 
@@ -391,7 +401,8 @@ Implementation `openrouter/anthropic/claude-opus-5.5` via `claude`; review
 |`0`|`1`|`+0` (`+0.00`/`+0.00` pp)|`+0` (`+0.00`/`+0.00` pp)|`+0` (`+0.00`/`+0.00` pp)|`+0` (`+0.00`/`+0.00` pp)|
 |`1`|`1`|`+0` (`+0.00`/`+0.00` pp)|`+0` (`+0.00`/`-0.00` pp)|`+1` (`+0.00`/`+0.00` pp)|`+0` (`+0.00`/`+0.00` pp)|
 |`2`|`1`|`+0` (`+0.00`/`-0.02` pp)|`+0` (`+0.00`/`+0.00` pp)|`+1` (`+0.00`/`+0.15` pp)|`+0` (`+0.00`/`+0.00` pp)|
-| **Σ** |  | **`+1` (`+0.00`/`+0.31` pp)** | **`+1` (`+0.00`/`-0.25` pp)** | **`+7` (`+0.12`/`+0.78` pp)** | **`+6` (`+0.20`/`+0.56` pp)** |
+|`3`|`1`|`+1` (`+0.00`/`+0.14` pp)|`+0` (`+0.00`/`-0.07` pp)|`+0` (`+0.00`/`+0.06` pp)|`+5` (`+0.31`/`+0.12` pp)|
+| **Σ** |  | **`+2` (`+0.00`/`+0.45` pp)** | **`+1` (`+0.00`/`-0.32` pp)** | **`+7` (`+0.12`/`+0.84` pp)** | **`+11` (`+0.51`/`+0.68` pp)** |
 
 ### Batches — review: PoC + reports
 
@@ -409,7 +420,8 @@ Implementation `openrouter/anthropic/claude-opus-5.5` via `claude`; review
 | `0` | `1` | — | `+0` | `+0` | `+0` | `+0` | `+0` | `+0` | `+1` | `1` | `0` |
 | `1` | `1` | — | `+0` | `+0` | `+0` | `+0` | `+0` | `+1` | `+1` | `2` | `0` |
 | `2` | `1` | — | `+0` | `+0` | `+0` | `+0` | `+0` | `+0` | `+1` | `1` | `0` |
-| **Σ** |  | — | **`+1`** | **`+1`** | **`+0`** | **`+2`** | **`+0`** | **`+4`** | **`+8`** | **`16`** | **`0`** |
+| `3` | `1` | — | `+0` | `+1` | `+0` | `+0` | `+0` | `+0` | `+1` | `2` | `0` |
+| **Σ** |  | — | **`+1`** | **`+2`** | **`+0`** | **`+2`** | **`+0`** | **`+4`** | **`+9`** | **`18`** | **`0`** |
 
 ## Safety audit
 
@@ -1306,3 +1318,54 @@ The reviewed tip `4b75b3ceb8` passes `clippy --all-targets -D warnings` and the 
 `ub_safe` (35m48s) and 72 `ub_unsafe` tests. It was promoted to
 `crustify/subcampaigns/20261005/libavutil/formats`. Wave wall time, from the first launch
 (13:50Z) to the reviewed gate (16:53Z), was 3h03m01s.
+
+### `libavutil/formats` wave 3
+
+Wave 3 has one type batch (`AVColorPrimariesDesc`) and two symbol batches (14 and 4
+`av_channel_layout_*` symbols). It is based on `eba75d9a40`, the reviewed wave-2 tip plus its
+records. It launched at 16:54Z on 2026-10-10. Batches 0 and 2 landed (`355935c6a3`,
+`0e2797fe0a`) before the user stopped the wave. Batch 1 was killed mid-rebase, and its
+unlanded commit, worktree, branch and artifact dir were purged. That attempt's cost is not
+recorded: it was killed before the harness wrote its usage file. At the user's request batch 1
+was re-run from the wave tip and landed `0cc48b6804` at 18:13Z. All 19 items carry their
+anchors there. The recorded translation cost is `$18.74` for 52.4M tokens and 1h24m of agent
+wall time; batch 1's row is the re-run.
+
+- `ColorPrimariesDescriptor` is a value type over `AVColorPrimariesDesc`, with `CieXy` handles
+  for the white point and primaries. The symbol batches wrapped the remaining channel-layout
+  readers, compare, describe, initialisers, retype, subset and the standard-layout iterator.
+- Neither smell moved (25 `unsafe fn`, 58 raw pointers).
+
+From this wave the orchestrator no longer gates waves. At the user's direction the gate moved
+to the reviewers (`orchestrator.md` and `translator.md`, uncommitted in crustify): each
+reviewer ran the workspace BSan gate on the wave tip and on its landed tree, with only true
+positives pursued. Later the same day the user narrowed this to the sub-campaign's last
+review wave; other waves run BSan only on individual reproducers.
+
+### `libavutil/formats` review wave 3
+
+Two `openrouter/anthropic/claude-fable-5.1` reviewers: batch 0 took the type and batch 1 the
+18 symbols. Together they cost `$73.31` for 48.5M tokens and 3h47m. Neither went into a BSan
+investigation: 24 and 21 BSan-related commands, against 46–92 for the investigating reviewers
+of waves 0–2.
+
+- **Symbols reviewer** (1h32m19s, `$37.27`): landed `82befe187c` (reports and reproducer) and
+  `261a549a64` (fixes). `ub_safe/parse-ambisonic-int-max-order-overflow` is the first real
+  defect in `formats`. `ChannelLayout::parse("ambisonic 2147483647")` reaches the `order + 1`
+  signed `int` overflow in C's `av_channel_layout_from_string` (`channel_layout.c:341`, then
+  `:346`), after which C accepts a layout of no channels. Rerun by the orchestrator, the
+  reproducer exits 1 on `0cc48b6804` with UBSan's `signed integer overflow: 2147483647 + 1`
+  and 0 on `261a549a64`, so it is accepted. The fix refuses that order before C, mirroring
+  glibc's `strtol` and C's walk of the `+` chain, and returns `EINVAL` as C does for the next
+  order down. A `ub_safe` regression covers it. Also one `misc` doc fix
+  (`index_by_name`/`channel_by_name`) and one `wavefront` correction recording the hazard.
+- **Types reviewer** (2h15m32s, `$36.04`): landed `4be070ab92` (review record) and
+  `ffb42cd0b6` (an equivalence test of a descriptor embedded in a C-layout parent). It found
+  no defect. Most of its wall time went to its two workspace BSan gates, waited on 18 times,
+  which is what moved the gate to sub-campaign end.
+
+The reviewers' BSan gates on the wave tip and on their landed trees passed, as recorded in
+their READMEs; the orchestrator ran none. The reviewed tip `ffb42cd0b6` was promoted to
+`crustify/subcampaigns/20261005/libavutil/formats`. Wave wall time, from the first launch
+(16:54Z) to the last review landing (20:29Z), was 3h34m, including the stop and the batch-1
+re-run.
