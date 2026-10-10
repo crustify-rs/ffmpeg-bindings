@@ -1,0 +1,27 @@
+{
+  "method": {
+    "c": "CRUSTIFY_FFMPEG_VARIANT=coverage (gcc gcov build), GCOV_PREFIX=/tmp/rw2b0/gcov, gcov 13 -b -c -f over bprint.c, driven by the bprint-filtered lib, equiv, ub_safe and ub_unsafe tests (cargo test -p ffmpeg --lib --tests bprint -- --skip compile_fail)",
+    "rust": "RUSTFLAGS=-C instrument-coverage, nightly llvm-profdata/llvm-cov report over the same test binaries, ffmpeg/libavutil/bprint.rs",
+    "note": "one measurement: the review changed documentation only, so the before and after trees execute the same code"
+  },
+  "c": {
+    "libavutil/bprint.c": {
+      "lines": { "count": 182, "percent": 100.0 },
+      "branches_executed": { "count": 135, "percent": 100.0 },
+      "branches_taken": { "count": 135, "percent": 96.3 },
+      "calls": { "count": 25, "percent": 100.0 },
+      "untaken": [
+        "av_bprint_strftime line 189: `room <= INT_MAX / 2 ? room * 2 : INT_MAX`, the INT_MAX arm, needs a buffer whose room exceeds 1 GiB (unreachable under the default av_max_alloc for grown strings; a 1 GiB caller buffer is out of the suites' budget)",
+        "lines 208, 209, 210, 215: gcov's abnormal (unwind) edges of the memset, memcpy and av_bprint_grow calls, never taken in C"
+      ]
+    },
+    "libavutil/bprint.h": "av_bprint_is_complete is static inline, compiled into the -sys shim by bindgen's wrap_static_fns, outside the gcov build; every suite calls it through BPrintRef::is_complete"
+  },
+  "rust": {
+    "ffmpeg/libavutil/bprint.rs": {
+      "lines": { "count": 814, "covered": 814, "percent": 100.0 },
+      "functions": { "count": 89, "covered": 89, "percent": 100.0 },
+      "regions": { "count": 557, "covered": 557, "percent": 100.0 }
+    }
+  }
+}
