@@ -1,0 +1,9 @@
+error[E0499]: cannot borrow `m` as mutable more than once at a time
+ --> tests/ub_safe/compile_fail/csp_cie_xy_two_coordinate_muts_at_once.rs
+  |
+  |     let mut x = m.x_mut();
+  |                 - first mutable borrow occurs here
+  |     let mut y = m.y_mut();
+  |                 ^ second mutable borrow occurs here
+  |     x.set_num(1);
+  |     - first borrow later used here

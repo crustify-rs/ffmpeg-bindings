@@ -1,0 +1,17 @@
+error[E0599]: no method named `set_x` found for struct `CieXyRef<'a>` in the current scope
+ --> tests/ub_safe/compile_fail/csp_cie_xy_shared_handle_has_no_setter.rs
+  |
+  |     v.as_ref().set_x(Rational::new(1, 2));
+  |                ^^^^^ method not found in `CieXyRef<'_>`
+
+error[E0599]: no method named `set_num` found for struct `RationalRef<'a>` in the current scope
+ --> tests/ub_safe/compile_fail/csp_cie_xy_shared_handle_has_no_setter.rs
+  |
+  |     v.as_ref().x().set_num(3);
+  |                    ^^^^^^^ method not found in `RationalRef<'_>`
+
+error[E0599]: no method named `x_mut` found for struct `CieXyRef<'a>` in the current scope
+ --> tests/ub_safe/compile_fail/csp_cie_xy_shared_handle_has_no_setter.rs
+  |
+  |     let _ = v.as_ref().x_mut();
+  |                        ^^^^^ method not found in `CieXyRef<'_>`

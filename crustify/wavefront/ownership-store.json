@@ -30,6 +30,23 @@
    ]
   },
   {
+   "name": "AVCIExy",
+   "defined_in": "libavutil/csp.h",
+   "_comment_agent": "Plain by-value pair of AVRational (x, y): the CIE 1931 chromaticity coordinates; no pointer fields, no heap lifecycle. Also spelled AVWhitepointCoefficients (typedef). C never allocates, frees, clones or constructs one on its own: it lives embedded by value as AVPrimaryCoefficients.r/g/b and AVColorPrimariesDesc.wp, in csp.c's static const color_primaries table (handed out as a const pointer by av_csp_primaries_desc_from_id, read field by field by av_csp_primaries_id_from_desc), and is passed and copied by value by its other readers and writers (swscale csputils cie_X/cie_Z/test_point_line, ff_cie_xy_equal; dovi_rpudec get_cie_xy returns one by value; fflcms2 XYZ_xy writes through an out pointer; pngdec/pngenc, vf_colorspace, colorspace.c read the fields). No coordinate is range-checked: C's table holds fractions such as 3127/10000, unspecified primaries are all-zero (0/0 coordinates, skipped by av_csp_primaries_id_from_desc on r.x.num == 0), and decoders store whatever the bitstream carries, so all-zero is a valid value. Wrapped as the ffibox layout type CieXy (CZeroable, Copy, Send + Sync as plain data) with CieXyRef x/y getters returning RationalRef handles over the projected places, and CieXyMut x_mut/y_mut handles plus set_x/set_y/set.",
+   "fields": [
+    {
+     "name": "x",
+     "refcount": false,
+     "locked_by": null
+    },
+    {
+     "name": "y",
+     "refcount": false,
+     "locked_by": null
+    }
+   ]
+  },
+  {
    "name": "AVChannel",
    "defined_in": "libavutil/channel_layout.h",
    "_comment_agent": "C enum (c_int under bindgen, AV_CHAN_NONE = -1), no fields, no lifecycle. Open value set: AVChannelCustom.id is a public field; av_channel_from_string returns any non-negative strtol result for 'USR<n>' and AMBISONIC_BASE + n for 'AMBI<n>' (n in 0..=1023); av_channel_name/description name every int (AMBI%d, NONE, UNK, UNSD, USR%d). Ambisonic ACN index = id - AV_CHAN_AMBISONIC_BASE over AMBISONIC_BASE..=AMBISONIC_END. Native-order mask bit is 1ULL << id for id < 64. Wrapped as a transparent newtype accepting every bit pattern.",

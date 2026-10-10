@@ -1,0 +1,9 @@
+error[E0502]: cannot borrow `v` as mutable because it is also borrowed as immutable
+ --> tests/ub_safe/compile_fail/csp_cie_xy_set_while_coordinate_shared.rs
+  |
+  |     let x = v.as_ref().x();
+  |             - immutable borrow occurs here
+  |     v.as_mut().set_x(Rational::new(1, 2));
+  |     ^^^^^^^^^^ mutable borrow occurs here
+  |     println!("{}", x.num());
+  |                    - immutable borrow later used here
