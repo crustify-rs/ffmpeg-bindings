@@ -790,13 +790,11 @@ impl<'a> PixelFormatDescriptorMut<'a> {
     /// for writing in place through their handles.
     #[must_use]
     pub fn components_mut(&mut self) -> CSliceMut<'_, ComponentDescriptor> {
-        // SAFETY: `comp` projected through the exclusive handle's pointer to
-        // a live descriptor is four contiguous, initialised
-        // `AVComponentDescriptor`s, which `ComponentDescriptor` is
-        // `#[repr(transparent)]` over; the projection of a non-null handle
-        // pointer is non-null; the run is bound by `&mut self`, so this
-        // handle, the only access to the descriptor, is frozen while it
-        // lives.
+        // SAFETY: `comp` projected through the exclusive handle's pointer to a live
+        // descriptor is four contiguous, initialised `AVComponentDescriptor`s, which
+        // `ComponentDescriptor` is `#[repr(transparent)]` over; the projection of a
+        // non-null handle pointer is non-null; the run is bound by `&mut self`, so this
+        // handle, the only access to the descriptor, is frozen while it lives.
         unsafe {
             let p = addr_of_mut!((*self.as_mut_ptr()).comp).cast::<ComponentDescriptor>();
             CSliceMut::from_raw_parts(NonNull::new_unchecked(p), 4)
@@ -1942,9 +1940,18 @@ mod unit_tests {
     #[test]
     fn pixel_format_descriptor_raw_round_trip_keeps_every_field() {
         let d = yuv420p_like();
+        // The pointers the setters stored, not another instance of the
+        // literals: two occurrences of one literal need not share an
+        // address.
+        let (name, alias) = (d.as_ref().name().unwrap(), d.as_ref().alias().unwrap());
         let back = d.into_raw();
-        assert_eq!(back.name, c"yuv420p".as_ptr());
-        assert_eq!(back.alias, c"i420,yv12x".as_ptr());
+        assert_eq!(back.name, name.as_ptr());
+        assert_eq!(back.alias, alias.as_ptr());
+        // SAFETY: `back`'s strings are the literals `yuv420p_like` set.
+        let back_name = unsafe { CStr::from_ptr(back.name) };
+        // SAFETY: as above.
+        let back_alias = unsafe { CStr::from_ptr(back.alias) };
+        assert_eq!((back_name, back_alias), (c"yuv420p", c"i420,yv12x"));
         assert_eq!(
             (
                 back.nb_components,
@@ -2027,7 +2034,10 @@ mod unit_tests {
         assert_eq!(copy, yuv420p_like());
         assert_eq!(d.as_ref().log2_chroma_h(), 0);
         // The copy shares the source's strings.
-        assert_eq!(copy.as_ref().name().unwrap().as_ptr(), c"yuv420p".as_ptr());
+        assert_eq!(
+            copy.as_ref().name().unwrap().as_ptr(),
+            d.as_ref().name().unwrap().as_ptr()
+        );
         d.as_mut().set(PixelFormatDescriptor::new());
         assert_eq!(d, PixelFormatDescriptor::new());
         d.as_mut().set(copy);

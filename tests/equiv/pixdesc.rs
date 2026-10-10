@@ -80,15 +80,12 @@ mod component_descriptor {
         let mut data: [*const u8; 4] = core::array::from_fn(|i| img[i].as_ptr());
         let linesize = [LINESIZE as c_int; 4];
         let mut dst = [0u32; W];
-        // SAFETY: `desc` is a live descriptor whose components are each
-        // either C's own table entry for its format, addressing planes 0..4
-        // with C's offsets, steps and depths, or all-zero, whose `depth` of 0
-        // makes C return before reading; every plane holds
-        // `ROWS` rows of `LINESIZE` bytes, enough for `W` pixels of row 1 at
-        // the table's widest step and offset. `dst` holds `W` 4-byte
-        // elements and `read_pal_component` is 0, so `data[1]` is never
-        // indexed as a palette. `av_get_padded_bits_per_pixel` reads
-        // `desc`'s first `nb_components` components, whose planes are 0..4.
+        // SAFETY: `desc` is a live descriptor whose components are each either C's own
+        // table entry for its format, addressing planes 0..4 with C's offsets, steps and
+        // depths, or all-zero, whose `depth` of 0 makes C return before reading; every
+        // plane holds `ROWS` rows of `LINESIZE` bytes, enough for `W` pixels of row 1 at
+        // the table's widest step and offset; `dst` holds `W` 4-byte elements; a palette
+        // is never indexed (`read_pal_component` 0); the bit count reads planes 0..4.
         unsafe {
             ffi::av_read_image_line2(
                 dst.as_mut_ptr().cast::<c_void>(),
@@ -1137,6 +1134,8 @@ mod pixel_format_descriptor {
     /// Rows per plane; C works on row 1, so a negative offset stays in
     /// bounds.
     const ROWS: usize = 3;
+    /// A plane C wrote nothing into.
+    const ZERO_PLANE: [u8; LINESIZE * ROWS] = [0; LINESIZE * ROWS];
 
     /// C's table entry for `fmt`, and a Rust value adopted from a copy of it.
     ///
@@ -1169,17 +1168,30 @@ mod pixel_format_descriptor {
     /// Four planes of pseudo-random bytes, so a component read from the
     /// wrong plane, offset, step, shift or depth reads different values.
     fn image() -> [Vec<u8>; 4] {
-        let mut x = 0x9e37_79b9_u32;
-        core::array::from_fn(|_| {
-            (0..LINESIZE * ROWS)
-                .map(|_| {
+        /// The planes' bytes, one xorshift stream, computed at compile
+        /// time, so an image is four block copies: under BSan every
+        /// element a slice iterator yields is a retag whose cost grows with
+        /// the allocation's history, and a byte-by-byte fill of one image
+        /// took almost a second (the tally below compares whole planes for
+        /// the same reason).
+        const PLANES: [[u8; LINESIZE * ROWS]; 4] = {
+            let mut planes = [[0u8; LINESIZE * ROWS]; 4];
+            let mut x = 0x9e37_79b9_u32;
+            let mut p = 0;
+            while p < planes.len() {
+                let mut i = 0;
+                while i < LINESIZE * ROWS {
                     x ^= x << 13;
                     x ^= x >> 17;
                     x ^= x << 5;
-                    x as u8
-                })
-                .collect()
-        })
+                    planes[p][i] = x as u8;
+                    i += 1;
+                }
+                p += 1;
+            }
+            planes
+        };
+        PLANES.map(|plane| plane.to_vec())
     }
 
     /// What C's readers of a whole descriptor observe of `desc`.
@@ -1203,14 +1215,12 @@ mod pixel_format_descriptor {
         let reads = core::array::from_fn(|c| {
             let mut data: [*const u8; 4] = core::array::from_fn(|i| img[i].as_ptr());
             let mut dst = [0u32; W];
-            // SAFETY: component `c` of `desc` is C's own table entry,
-            // addressing planes 0..4 with C's offsets, steps and depths, or
-            // has `depth == 0` (it is written depth last), on which C returns
-            // before reading; every plane holds `ROWS` rows of `LINESIZE`
-            // bytes, enough for `W` pixels of row 1 at the table's widest
-            // step and offset. `dst` holds `W` 4-byte elements and
-            // `read_pal_component` is 0, so `data[1]` is never indexed as a
-            // palette.
+            // SAFETY: component `c` of `desc` is C's own table entry, addressing planes
+            // 0..4 with C's offsets, steps and depths, or has `depth == 0` (it is written
+            // depth last), on which C returns before reading; every plane holds `ROWS`
+            // rows of `LINESIZE` bytes, enough for `W` pixels of row 1 at the table's
+            // widest step and offset. `dst` holds `W` 4-byte elements and
+            // `read_pal_component` is 0, so `data[1]` is never indexed as a palette.
             unsafe {
                 ffi::av_read_image_line2(
                     dst.as_mut_ptr().cast::<c_void>(),
@@ -1517,7 +1527,7 @@ mod pixel_format_descriptor {
             };
             rebuilt += 1;
             read += usize::from(observed.reads.iter().any(|r| *r != [0; W]));
-            written += usize::from(observed.writes.iter().flatten().flatten().any(|&b| b != 0));
+            written += usize::from(observed.writes.iter().flatten().any(|p| p[..] != ZERO_PLANE[..]));
         }
         // Not vacuous: C reads and writes pixels for every format with
         // components in memory.

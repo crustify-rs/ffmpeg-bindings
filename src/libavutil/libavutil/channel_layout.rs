@@ -5,6 +5,7 @@
 //! caller buffer, which [`Channel::write_name`] exposes as is.
 
 use core::ffi::{CStr, c_char, c_int, c_uint, c_void};
+use core::hash::{Hash, Hasher};
 use core::ptr::{self, addr_of, addr_of_mut};
 use core::{cmp, fmt};
 use std::ffi::CString;
@@ -633,6 +634,17 @@ impl PartialEq for ChannelCustom {
 }
 
 impl Eq for ChannelCustom {}
+
+/// Over the fields [`PartialEq`] compares: the id, the name up to its NUL,
+/// and the user pointer's address.
+impl Hash for ChannelCustom {
+    fn hash<H: Hasher>(&self, state: &mut H) {
+        let r = self.as_ref();
+        r.id().hash(state);
+        r.name().hash(state);
+        r.opaque().hash(state);
+    }
+}
 
 impl fmt::Debug for ChannelCustom {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
@@ -1514,6 +1526,32 @@ mod unit_tests {
     }
 
     #[test]
+    fn channel_custom_hashes_as_it_compares() {
+        use std::collections::HashSet;
+        use std::hash::{BuildHasher, RandomState};
+
+        let hasher = RandomState::new();
+        let hash = |ch: ChannelCustom| hasher.hash_one(ch);
+        let a = ChannelCustom::from_raw(channel_custom_raw(3, b"lfe", 0, 0x10));
+        // Equal values hash alike, whatever the bytes after the name's NUL.
+        let twin = ChannelCustom::from_raw(channel_custom_raw(3, b"lfe", 0x44, 0x10));
+        assert_eq!(hash(a), hash(twin));
+        let unequal = [
+            ChannelCustom::from_raw(channel_custom_raw(4, b"lfe", 0, 0x10)),
+            ChannelCustom::from_raw(channel_custom_raw(3, b"lf", 0, 0x10)),
+            ChannelCustom::from_raw(channel_custom_raw(3, b"lfe", 0, 0x11)),
+            ChannelCustom::default(),
+            ChannelCustom::zeroed(),
+        ];
+        let mut set: HashSet<ChannelCustom> = unequal.into_iter().collect();
+        assert_eq!(set.len(), unequal.len());
+        assert!(set.insert(a));
+        assert!(!set.insert(twin));
+        assert!(set.contains(&ChannelCustom::new(Channel::UNKNOWN)));
+        assert_eq!(set.len(), unequal.len() + 1);
+    }
+
+    #[test]
     fn channel_custom_get_and_set_copy_whole_values() {
         let src = ChannelCustom::from_raw(channel_custom_raw(9, b"side", 0x22, 0x99));
         let mut dst = ChannelCustom::zeroed();
@@ -1564,7 +1602,10 @@ mod unit_tests {
 
     #[test]
     fn channel_custom_is_a_plain_shareable_value() {
-        fn assert_traits<T: Copy + Send + Sync + Eq + core::fmt::Debug + Default + 'static>() {}
+        fn assert_traits<
+            T: Copy + Send + Sync + Eq + core::hash::Hash + core::fmt::Debug + Default + 'static,
+        >() {
+        }
         fn assert_handles<T: Send + Sync>() {}
         assert_traits::<ChannelCustom>();
         assert_traits::<ChannelName>();
