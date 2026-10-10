@@ -1,0 +1,6 @@
+seed 0:   left: 0xc67f9a  right: 0xc6f295   left: 0xc67f9a  right: 0xc6f295 test result: FAILED. 0 passed; 2 failed; 0 ignored; 0 measured; 500 filtered out; finished in 0.35s 
+seed 1:   left: 0xc68987  right: 0xc6fbe6   left: 0xc68987  right: 0xc6fbe6 test result: FAILED. 0 passed; 2 failed; 0 ignored; 0 measured; 500 filtered out; finished in 0.44s 
+seed 2:   left: 0xc6807a  right: 0xc6f2ad   left: 0xc6807a  right: 0xc6f2ad test result: FAILED. 0 passed; 2 failed; 0 ignored; 0 measured; 500 filtered out; finished in 0.41s 
+seed 3:   left: 0xc69450  right: 0xc7063e   left: 0xc69450  right: 0xc7063e test result: FAILED. 0 passed; 2 failed; 0 ignored; 0 measured; 500 filtered out; finished in 0.46s 
+seed 4:   left: 0xc68e90  right: 0xc70132   left: 0xc68e90  right: 0xc70132 test result: FAILED. 0 passed; 2 failed; 0 ignored; 0 measured; 500 filtered out; finished in 0.38s 
+seed 5:   left: 0xc6803a  right: 0xc6f26f   left: 0xc6803a  right: 0xc6f26f test result: FAILED. 0 passed; 2 failed; 0 ignored; 0 measured; 500 filtered out; finished in 0.36s 
