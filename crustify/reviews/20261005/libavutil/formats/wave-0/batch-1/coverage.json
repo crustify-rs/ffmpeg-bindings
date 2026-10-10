@@ -1,0 +1,48 @@
+{
+  "method": {
+    "c": "CRUSTIFY_FFMPEG_VARIANT=coverage (gcc gcov build), GCOV_PREFIX=/tmp/fw0b1/cov/gcov, gcov 13 -b -c -f over imgutils.c, pixdesc.c, csp.c, pixelutils.c and x86/imgutils_init.c, driven by the workset-filtered lib, equiv, ub_safe and ub_unsafe tests (cargo test -p ffmpeg --lib --tests -- imgutils pixdesc csp pixelutils --skip compile_fail)",
+    "rust": "RUSTFLAGS=-C instrument-coverage, nightly llvm-profdata/llvm-cov report over the same test binaries, the four home files",
+    "note": "one measurement: the review changed a test's process layout only (equiv/imgutils.rs runs check_size_logs_as_c in a child), so the before and after trees execute the same wrapper code"
+  },
+  "c": {
+    "libavutil/imgutils.c": {
+      "av_image_check_size": { "lines": { "count": 2, "percent": 100.0 } },
+      "av_image_check_size2": {
+        "lines": { "count": 13, "percent": 76.92 },
+        "untaken": [
+          "lines 307-311: the max_pixels branch; av_image_check_size passes INT64_MAX, so it is unreachable through the wrapped symbol"
+        ]
+      },
+      "av_image_copy_plane": { "lines": { "count": 3, "percent": 100.0 } },
+      "av_image_copy_plane_uc_from": { "lines": { "count": 6, "percent": 100.0 } },
+      "image_copy_plane": {
+        "lines": { "count": 8, "percent": 100.0 },
+        "untaken": [
+          "line 348-349: the NULL dst/src no-op; the wrappers pass slice pointers and return before C for empty planes",
+          "lines 350-351: the av_assert0 abort arms; the wrappers reject a row wider than a linesize with PlaneCopyError::RowTooWide before C runs"
+        ]
+      },
+      "x86/imgutils_init.c ff_image_copy_plane_uc_from_x86": { "lines": { "count": 7, "percent": 100.0 }, "note": "both the SSE4 arm and the ENOSYS arm; the plain path on a CPU without SSE4.1 runs in the isolated unit test under av_force_cpu_flags(0)" }
+    },
+    "libavutil/pixdesc.c": {
+      "av_color_range_from_name": { "lines": { "count": 4, "percent": 100.0 } },
+      "av_color_primaries_from_name": { "lines": { "count": 9, "percent": 100.0 } },
+      "av_color_transfer_from_name": { "lines": { "count": 9, "percent": 88.89 }, "untaken": ["line 3843: `continue` on a NULL table entry; color_transfer_names has no gap"] },
+      "av_color_space_from_name": { "lines": { "count": 6, "percent": 83.33 }, "untaken": ["line 3872: `continue` on a NULL table entry; color_space_names has no gap"] },
+      "av_chroma_location_from_name": { "lines": { "count": 6, "percent": 83.33 }, "untaken": ["line 3893: `continue` on a NULL table entry; chroma_location_names has no gap"] }
+    },
+    "libavutil/csp.c": {
+      "trc_* / oetf_* / eotf_* (45 functions with executable lines)": { "lines": { "percent": 100.0 }, "note": "every function av_csp_trc_func_from_id, av_csp_trc_func_inv_from_id, av_csp_itu_eotf and av_csp_itu_eotf_inv hand out, called through TrcFunction::call / EotfFunction::call on 12 inputs x 5 displays; trc_gamma22/28 and their inverses are macro one-liners gcov attributes no executable line to" }
+    },
+    "libavutil/pixelutils.c": {
+      "av_pixelutils_get_sad_fn": { "lines": { "count": 10, "percent": 100.0 } },
+      "block_sad_{2,4,8,16,32}x*_c and sad_wxh": { "lines": { "percent": 100.0 }, "note": "the C functions and the SSE2 ones run in the isolated unit test under forced CPU flags; the AVX2 32x32 and SSE2 16x16/32x32 a/u variants under detection" }
+    }
+  },
+  "rust": {
+    "ffmpeg/libavutil/csp.rs": { "lines": { "count": 90, "covered": 90, "percent": 100.0 }, "functions": { "count": 14, "covered": 14, "percent": 100.0 }, "regions": { "count": 108, "covered": 108, "percent": 100.0 } },
+    "ffmpeg/libavutil/imgutils.rs": { "lines": { "count": 367, "covered": 367, "percent": 100.0 }, "functions": { "count": 31, "covered": 31, "percent": 100.0 }, "regions": { "count": 669, "covered": 669, "percent": 100.0 } },
+    "ffmpeg/libavutil/pixdesc.rs": { "lines": { "count": 205, "covered": 205, "percent": 100.0 }, "functions": { "count": 44, "covered": 44, "percent": 100.0 }, "regions": { "count": 300, "covered": 300, "percent": 100.0 } },
+    "ffmpeg/libavutil/pixelutils.rs": { "lines": { "count": 242, "covered": 242, "percent": 100.0 }, "functions": { "count": 32, "covered": 32, "percent": 100.0 }, "regions": { "count": 386, "covered": 386, "percent": 100.0 } }
+  }
+}
