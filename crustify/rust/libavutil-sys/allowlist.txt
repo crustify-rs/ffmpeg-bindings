@@ -322,3 +322,11 @@ function av_get_sample_fmt_name
 function av_get_sample_fmt
 function av_get_bytes_per_sample
 function av_sample_fmt_is_planar
+
+# libavutil/pixdesc.h: the C consumers of `AVColorSpace` and
+# `AVColorTransferCharacteristic` (formats wave 0, batch 3), which observe
+# their encodings in equivalence tests.
+function av_color_space_name
+function av_color_space_from_name
+function av_color_transfer_name
+function av_color_transfer_from_name
