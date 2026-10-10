@@ -11,18 +11,24 @@
 //!
 //! The color property lookups by name (`av_color_range_from_name` and its
 //! siblings) are associated functions of the [`pixfmt`](super::pixfmt)
-//! types they produce, such as [`ColorRange::from_name`].
+//! types they produce, such as [`ColorRange::from_name`], and so are their
+//! inverses (`av_color_range_name` and its siblings), such as
+//! [`ColorRange::name`]: C returns its names from static tables, so they are
+//! `&'static CStr`s that the lookups take back. The pixel format name lookups
+//! and conversion loss queries are methods of [`PixelFormat`], reporting a
+//! [`Loss`].
 
-use core::ffi::{CStr, c_int, c_uint};
+use core::ffi::{CStr, c_char, c_int, c_uint};
 use core::fmt;
 use core::hash::{Hash, Hasher};
-use core::ptr::{addr_of, addr_of_mut};
+use core::ops::{BitAnd, BitOr, BitOrAssign};
+use core::ptr::{self, addr_of, addr_of_mut};
 
 use ffibox::{CZeroable, define_ctype};
 
 use super::ffi;
 use super::pixfmt::{
-    ChromaLocation, ColorPrimaries, ColorRange, ColorSpace, ColorTransfer, PixelFormat,
+    AlphaMode, ChromaLocation, ColorPrimaries, ColorRange, ColorSpace, ColorTransfer, PixelFormat,
 };
 
 define_ctype!(
@@ -388,6 +394,416 @@ impl PixelFormat {
     }
 }
 
+/// The string a `*_name` getter returned, or `None` for its NULL.
+///
+/// # Safety
+///
+/// `name` is NULL or the address of a NUL-terminated string that stays
+/// allocated and unwritten for the rest of the process, as C's static name
+/// tables are.
+unsafe fn static_name(name: *const c_char) -> Option<&'static CStr> {
+    // SAFETY: the caller guarantees a non-NULL `name` is a NUL-terminated
+    // string that is never freed or written, so the `'static` borrow cannot
+    // dangle or observe a change.
+    (!name.is_null()).then(|| unsafe { CStr::from_ptr(name) })
+}
+
+impl ColorRange {
+    /// Wraps: av_color_range_name
+    ///
+    /// The name C gives this range, `unknown`, `tv` or `pc`, which
+    /// [`from_name`](Self::from_name) maps back; `None` for any value C does
+    /// not name.
+    ///
+    /// ```
+    /// use ffmpeg::libavutil::pixfmt::ColorRange;
+    /// assert_eq!(ColorRange::JPEG.name(), Some(c"pc"));
+    /// assert_eq!(ColorRange::from_name(c"tv"), Some(ColorRange::MPEG));
+    /// ```
+    #[must_use]
+    pub fn name(self) -> Option<&'static CStr> {
+        // SAFETY: `av_color_range_name` takes the enum by value, accepts any
+        // value, and returns NULL or a string literal from its static table.
+        unsafe { static_name(ffi::av_color_range_name(self.into_raw())) }
+    }
+}
+
+impl ColorPrimaries {
+    /// Wraps: av_color_primaries_name
+    ///
+    /// The name C gives these primaries, such as `bt709` or `vgamut`; `None`
+    /// for the values C leaves unnamed (13 to 21, and any other it does not
+    /// know). [`RESERVED0`](Self::RESERVED0) and [`RESERVED`](Self::RESERVED)
+    /// are both `reserved`, which [`from_name`](Self::from_name) maps back to
+    /// the first.
+    #[must_use]
+    pub fn name(self) -> Option<&'static CStr> {
+        // SAFETY: as in `ColorRange::name`.
+        unsafe { static_name(ffi::av_color_primaries_name(self.into_raw())) }
+    }
+}
+
+impl ColorTransfer {
+    /// Wraps: av_color_transfer_name
+    ///
+    /// The name C gives this transfer characteristic, such as `bt709`,
+    /// `smpte2084` or `vlog`; `None` for any value C does not name.
+    /// [`RESERVED0`](Self::RESERVED0) and [`RESERVED`](Self::RESERVED) are
+    /// both `reserved`, which [`from_name`](Self::from_name) maps back to the
+    /// first.
+    #[must_use]
+    pub fn name(self) -> Option<&'static CStr> {
+        // SAFETY: as in `ColorRange::name`.
+        unsafe { static_name(ffi::av_color_transfer_name(self.into_raw())) }
+    }
+}
+
+impl ColorSpace {
+    /// Wraps: av_color_space_name
+    ///
+    /// The name C gives this color space, such as `gbr` or `bt709`; `None`
+    /// for any value C does not name.
+    #[must_use]
+    pub fn name(self) -> Option<&'static CStr> {
+        // SAFETY: as in `ColorRange::name`.
+        unsafe { static_name(ffi::av_color_space_name(self.into_raw())) }
+    }
+}
+
+impl ChromaLocation {
+    /// Wraps: av_chroma_location_name
+    ///
+    /// The name C gives this chroma location, such as `unspecified`, `left`
+    /// or `topleft`; `None` for any value C does not name.
+    #[must_use]
+    pub fn name(self) -> Option<&'static CStr> {
+        // SAFETY: as in `ColorRange::name`.
+        unsafe { static_name(ffi::av_chroma_location_name(self.into_raw())) }
+    }
+
+    /// Wraps: av_chroma_location_enum_to_pos
+    ///
+    /// Where this location puts the first chroma sample, as the `(x, y)`
+    /// position swscale takes: luma sample `(0, 0)` is the origin and luma
+    /// sample `(1, 1)` is `(256, 256)`, so each coordinate is 0, 128 or 256.
+    /// `None` for [`UNSPECIFIED`](Self::UNSPECIFIED) and any value C does not
+    /// name.
+    ///
+    /// ```
+    /// use ffmpeg::libavutil::pixfmt::ChromaLocation;
+    /// assert_eq!(ChromaLocation::LEFT.position(), Some((0, 128)));
+    /// assert_eq!(ChromaLocation::from_position(0, 128), Some(ChromaLocation::LEFT));
+    /// assert_eq!(ChromaLocation::UNSPECIFIED.position(), None);
+    /// ```
+    #[must_use]
+    pub fn position(self) -> Option<(i32, i32)> {
+        let (mut x, mut y) = (0, 0);
+        // SAFETY: `x` and `y` are live, writable `int`s, which C writes only
+        // when it returns 0 and does not keep.
+        let ret = unsafe { ffi::av_chroma_location_enum_to_pos(&mut x, &mut y, self.into_raw()) };
+        (ret == 0).then_some((x, y))
+    }
+
+    /// Wraps: av_chroma_location_pos_to_enum
+    ///
+    /// The location whose [`position`](Self::position) is `(x, y)`, or
+    /// `None` when no location puts the first chroma sample there, which C
+    /// reports as [`UNSPECIFIED`](Self::UNSPECIFIED).
+    #[must_use]
+    pub fn from_position(x: i32, y: i32) -> Option<Self> {
+        // SAFETY: `av_chroma_location_pos_to_enum` takes two integers by
+        // value and touches no caller memory.
+        let raw = unsafe { ffi::av_chroma_location_pos_to_enum(x, y) };
+        Some(Self::from_raw(raw)).filter(|&loc| loc != Self::UNSPECIFIED)
+    }
+}
+
+impl AlphaMode {
+    /// Wraps: av_alpha_mode_name
+    ///
+    /// The name C gives this alpha mode, `unspecified`, `premultiplied` or
+    /// `straight`; `None` for any value C does not name.
+    #[must_use]
+    pub fn name(self) -> Option<&'static CStr> {
+        // SAFETY: as in `ColorRange::name`.
+        unsafe { static_name(ffi::av_alpha_mode_name(self.into_raw())) }
+    }
+
+    /// Wraps: av_alpha_mode_from_name
+    ///
+    /// The alpha mode `name` names: `unspecified`, `premultiplied` or
+    /// `straight`; `None` for any other name. Names are matched exactly,
+    /// case included.
+    pub fn from_name(name: &CStr) -> Option<Self> {
+        // SAFETY: as in `ColorRange::from_name`.
+        let ret = unsafe { ffi::av_alpha_mode_from_name(name.as_ptr()) };
+        // C returns its `AVERROR(EINVAL)` through the unsigned enum: read
+        // the bits back as the `int` they were.
+        found(ret.0 as c_int).map(|raw| Self::from_raw(ffi::AVAlphaMode(raw)))
+    }
+}
+
+/// The kinds of information a pixel format conversion loses (`FF_LOSS_*`),
+/// as [`PixelFormat::conversion_loss`] reports them and
+/// [`PixelFormat::best_of_two_with_loss`] takes the ones to ignore.
+///
+/// C keeps them in an `int`, so any bit pattern is a valid value and the set
+/// operations carry unnamed bits along.
+#[repr(transparent)]
+#[derive(Clone, Copy, Default, PartialEq, Eq, Hash)]
+pub struct Loss(c_int);
+
+impl Loss {
+    /// Loss of chroma resolution: the destination subsamples more.
+    pub const RESOLUTION: Self = Self(ffi::FF_LOSS_RESOLUTION as c_int);
+    /// Loss of bits per component.
+    pub const DEPTH: Self = Self(ffi::FF_LOSS_DEPTH as c_int);
+    /// A conversion between color spaces (RGB, YUV, gray, ...).
+    pub const COLORSPACE: Self = Self(ffi::FF_LOSS_COLORSPACE as c_int);
+    /// Loss of the alpha channel.
+    pub const ALPHA: Self = Self(ffi::FF_LOSS_ALPHA as c_int);
+    /// Quantization to a palette.
+    pub const COLORQUANT: Self = Self(ffi::FF_LOSS_COLORQUANT as c_int);
+    /// Loss of chroma altogether, such as RGB to gray.
+    pub const CHROMA: Self = Self(ffi::FF_LOSS_CHROMA as c_int);
+    /// Chroma resolution the destination has to spare: it subsamples less.
+    pub const EXCESS_RESOLUTION: Self = Self(ffi::FF_LOSS_EXCESS_RESOLUTION as c_int);
+    /// Bits per component the destination has to spare.
+    pub const EXCESS_DEPTH: Self = Self(ffi::FF_LOSS_EXCESS_DEPTH as c_int);
+
+    /// Every named kind with its constant's name, in bit order.
+    const KNOWN: [(Self, &'static str); 8] = [
+        (Self::RESOLUTION, "RESOLUTION"),
+        (Self::DEPTH, "DEPTH"),
+        (Self::COLORSPACE, "COLORSPACE"),
+        (Self::ALPHA, "ALPHA"),
+        (Self::COLORQUANT, "COLORQUANT"),
+        (Self::CHROMA, "CHROMA"),
+        (Self::EXCESS_RESOLUTION, "EXCESS_RESOLUTION"),
+        (Self::EXCESS_DEPTH, "EXCESS_DEPTH"),
+    ];
+
+    /// The set with no kind: a lossless conversion.
+    #[inline]
+    pub const fn empty() -> Self {
+        Self(0)
+    }
+
+    /// The set with exactly `bits`, named or not.
+    #[inline]
+    pub const fn from_bits_retain(bits: c_int) -> Self {
+        Self(bits)
+    }
+
+    /// The set's raw bits, as C stores them.
+    #[inline]
+    pub const fn bits(self) -> c_int {
+        self.0
+    }
+
+    /// Whether no bit is set.
+    #[inline]
+    pub const fn is_empty(self) -> bool {
+        self.0 == 0
+    }
+
+    /// Whether every bit of `other` is set in `self`.
+    #[inline]
+    pub const fn contains(self, other: Self) -> bool {
+        self.0 & other.0 == other.0
+    }
+}
+
+impl fmt::Debug for Loss {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.write_str("Loss(")?;
+        let mut rest = self.0;
+        let mut first = true;
+        for &(kind, name) in &Self::KNOWN {
+            if self.contains(kind) {
+                if !first {
+                    f.write_str(" | ")?;
+                }
+                f.write_str(name)?;
+                rest &= !kind.0;
+                first = false;
+            }
+        }
+        if rest != 0 || first {
+            if !first {
+                f.write_str(" | ")?;
+            }
+            write!(f, "{rest:#x}")?;
+        }
+        f.write_str(")")
+    }
+}
+
+impl BitOr for Loss {
+    type Output = Self;
+
+    #[inline]
+    fn bitor(self, rhs: Self) -> Self {
+        Self(self.0 | rhs.0)
+    }
+}
+
+impl BitOrAssign for Loss {
+    #[inline]
+    fn bitor_assign(&mut self, rhs: Self) {
+        self.0 |= rhs.0;
+    }
+}
+
+impl BitAnd for Loss {
+    type Output = Self;
+
+    #[inline]
+    fn bitand(self, rhs: Self) -> Self {
+        Self(self.0 & rhs.0)
+    }
+}
+
+/// What `av_get_pix_fmt_loss` returned: the loss set, or its negative
+/// error code.
+fn loss_or_error(ret: c_int) -> Result<Loss, i32> {
+    if ret < 0 { Err(ret) } else { Ok(Loss(ret)) }
+}
+
+impl PixelFormat {
+    /// Wraps: av_get_pix_fmt_name
+    ///
+    /// The short name C gives this pixel format, such as `yuv420p` or
+    /// `rgb48le`, which [`from_name`](Self::from_name) maps back; `None` for
+    /// [`NONE`](Self::NONE) and any value C does not know.
+    ///
+    /// ```
+    /// use ffmpeg::libavutil::pixfmt::PixelFormat;
+    /// assert_eq!(PixelFormat::YUV420P.name(), Some(c"yuv420p"));
+    /// assert_eq!(PixelFormat::NONE.name(), None);
+    /// ```
+    #[must_use]
+    pub fn name(self) -> Option<&'static CStr> {
+        // SAFETY: `av_get_pix_fmt_name` takes the enum by value, accepts any
+        // value, and returns NULL or the `name` of a descriptor in C's static
+        // table, a string literal.
+        unsafe { static_name(ffi::av_get_pix_fmt_name(self.into_raw())) }
+    }
+
+    /// Wraps: av_get_pix_fmt
+    ///
+    /// The pixel format `name` names: a descriptor's name or one of its
+    /// aliases, `rgb32` and `bgr32` for the native-endian packed 32-bit RGB
+    /// formats, or, failing those, `name` with the target's endianness
+    /// suffix (`gray16` is [`GRAY16LE`](Self::GRAY16LE) on a little-endian
+    /// target). `None` for any other name; names are matched exactly, case
+    /// included.
+    ///
+    /// ```
+    /// use ffmpeg::libavutil::pixfmt::PixelFormat;
+    /// assert_eq!(PixelFormat::from_name(c"yuv420p"), Some(PixelFormat::YUV420P));
+    /// assert_eq!(PixelFormat::from_name(c"gray16"), Some(PixelFormat::GRAY16));
+    /// assert_eq!(PixelFormat::from_name(c"no such format"), None);
+    /// ```
+    pub fn from_name(name: &CStr) -> Option<Self> {
+        // SAFETY: `name` is a live NUL-terminated string, which C only
+        // compares, and copies into a bounded local with `snprintf`, during
+        // the call.
+        let raw = unsafe { ffi::av_get_pix_fmt(name.as_ptr()) };
+        Some(Self::from_raw(raw)).filter(|&f| f != Self::NONE)
+    }
+
+    /// Wraps: av_get_pix_fmt_loss
+    ///
+    /// The kinds of information converting from this pixel format to `dst`
+    /// loses; with `has_alpha` false, losing the alpha channel does not
+    /// count. A conversion to the same format loses nothing.
+    ///
+    /// # Errors
+    ///
+    /// C's negative code when no loss can be computed: `-1` for the same
+    /// hardware format on both sides, `-2` for a hardware format on either
+    /// side otherwise, `-3` for a format with no components, `-4` for a
+    /// value C does not know.
+    ///
+    /// ```
+    /// use ffmpeg::libavutil::pixdesc::Loss;
+    /// use ffmpeg::libavutil::pixfmt::PixelFormat;
+    /// let loss = PixelFormat::RGB24.conversion_loss(PixelFormat::GRAY8, false).unwrap();
+    /// assert!(loss.contains(Loss::CHROMA | Loss::COLORSPACE));
+    /// assert_eq!(PixelFormat::NONE.conversion_loss(PixelFormat::GRAY8, false), Err(-4));
+    /// ```
+    pub fn conversion_loss(self, dst: PixelFormat, has_alpha: bool) -> Result<Loss, i32> {
+        // SAFETY: `av_get_pix_fmt_loss` takes three integers by value,
+        // looks each format up with a bounds check, and touches no caller
+        // memory.
+        let ret = unsafe {
+            ffi::av_get_pix_fmt_loss(dst.into_raw(), self.into_raw(), c_int::from(has_alpha))
+        };
+        loss_or_error(ret)
+    }
+
+    /// Wraps: av_find_best_pix_fmt_of_2
+    ///
+    /// Which of `dst1` and `dst2` this pixel format converts to with the
+    /// least loss, counting the loss of alpha only when `has_alpha` is set.
+    /// Ties go to the format with fewer bits per pixel, then to the one with
+    /// fewer components, then to `dst1`. A candidate C does not know loses
+    /// to the other without scoring; when `dst1` is unknown, `dst2` is the
+    /// answer even if it is unknown too.
+    ///
+    /// ```
+    /// use ffmpeg::libavutil::pixfmt::PixelFormat;
+    /// let best = PixelFormat::RGBA.best_of_two(PixelFormat::RGB24, PixelFormat::BGRA, true);
+    /// assert_eq!(best, PixelFormat::BGRA);
+    /// ```
+    #[must_use]
+    pub fn best_of_two(self, dst1: PixelFormat, dst2: PixelFormat, has_alpha: bool) -> PixelFormat {
+        // SAFETY: `av_find_best_pix_fmt_of_2` takes the formats and flag by
+        // value and skips the loss word when its pointer is NULL.
+        let raw = unsafe {
+            ffi::av_find_best_pix_fmt_of_2(
+                dst1.into_raw(),
+                dst2.into_raw(),
+                self.into_raw(),
+                c_int::from(has_alpha),
+                ptr::null_mut(),
+            )
+        };
+        Self::from_raw(raw)
+    }
+
+    /// Wraps: av_find_best_pix_fmt_of_2
+    ///
+    /// As [`best_of_two`](Self::best_of_two), scoring only the kinds of loss
+    /// not in `ignore`, and returning the chosen format with the loss of
+    /// converting to it, as [`conversion_loss`](Self::conversion_loss)
+    /// reports it: every kind counts there, alpha only with `has_alpha`.
+    /// `ignore` plays no part when either candidate is unknown.
+    pub fn best_of_two_with_loss(
+        self,
+        dst1: PixelFormat,
+        dst2: PixelFormat,
+        has_alpha: bool,
+        ignore: Loss,
+    ) -> (PixelFormat, Result<Loss, i32>) {
+        let mut loss = ignore.bits();
+        // SAFETY: the formats and flag are passed by value; `loss` is a
+        // live, writable `int` that C reads and overwrites during the call
+        // and does not keep.
+        let raw = unsafe {
+            ffi::av_find_best_pix_fmt_of_2(
+                dst1.into_raw(),
+                dst2.into_raw(),
+                self.into_raw(),
+                c_int::from(has_alpha),
+                &mut loss,
+            )
+        };
+        (Self::from_raw(raw), loss_or_error(loss))
+    }
+}
+
 #[cfg(test)]
 mod unit_tests {
     use std::collections::hash_map::DefaultHasher;
@@ -534,5 +950,191 @@ mod unit_tests {
             let f = PixelFormat::from_raw(ffi::AVPixelFormat(raw));
             assert_eq!(f.swap_endianness(), None, "{raw}");
         }
+    }
+
+    #[test]
+    fn static_name_reads_null_as_none() {
+        // SAFETY: NULL, and a string literal, which lives for the process.
+        unsafe {
+            assert_eq!(static_name(ptr::null()), None);
+            assert_eq!(static_name(c"tv".as_ptr()), Some(c"tv"));
+        }
+    }
+
+    #[test]
+    fn property_names_come_from_c_tables() {
+        assert_eq!(ColorRange::MPEG.name(), Some(c"tv"));
+        assert_eq!(ColorPrimaries::RESERVED.name(), Some(c"reserved"));
+        assert_eq!(ColorPrimaries::V_GAMUT.name(), Some(c"vgamut"));
+        assert_eq!(ColorTransfer::V_LOG.name(), Some(c"vlog"));
+        assert_eq!(ColorSpace::RGB.name(), Some(c"gbr"));
+        assert_eq!(ChromaLocation::TOPLEFT.name(), Some(c"topleft"));
+        assert_eq!(AlphaMode::STRAIGHT.name(), Some(c"straight"));
+        assert_eq!(PixelFormat::RGB48LE.name(), Some(c"rgb48le"));
+        assert_eq!(
+            ColorPrimaries::from_raw(ffi::AVColorPrimaries(13)).name(),
+            None
+        );
+        assert_eq!(
+            ColorRange::from_raw(ffi::AVColorRange(u32::MAX)).name(),
+            None
+        );
+        assert_eq!(
+            PixelFormat::from_raw(ffi::AVPixelFormat(i32::MIN)).name(),
+            None
+        );
+    }
+
+    #[test]
+    fn lookups_read_cs_sentinels_as_not_found() {
+        assert_eq!(
+            AlphaMode::from_name(c"premultiplied"),
+            Some(AlphaMode::PREMULTIPLIED)
+        );
+        assert_eq!(
+            AlphaMode::from_name(c"unspecified"),
+            Some(AlphaMode::UNSPECIFIED)
+        );
+        assert_eq!(AlphaMode::from_name(c"Straight"), None);
+        assert_eq!(
+            PixelFormat::from_name(c"rgb48le"),
+            Some(PixelFormat::RGB48LE)
+        );
+        assert_eq!(PixelFormat::from_name(c"none"), None);
+        assert_eq!(PixelFormat::from_name(c""), None);
+        assert_eq!(
+            ChromaLocation::from_position(128, 128),
+            Some(ChromaLocation::CENTER)
+        );
+        // C's "not found" is `UNSPECIFIED`, which no position maps to.
+        assert_eq!(ChromaLocation::from_position(0, 64), None);
+        assert_eq!(ChromaLocation::UNSPECIFIED.position(), None);
+        assert_eq!(ChromaLocation::BOTTOM.position(), Some((128, 256)));
+    }
+
+    #[test]
+    fn loss_reads_cs_errors_and_sets() {
+        assert_eq!(loss_or_error(0), Ok(Loss::empty()));
+        assert_eq!(loss_or_error(0x24), Ok(Loss::COLORSPACE | Loss::CHROMA));
+        for e in [-1, -2, -3, -4, i32::MIN] {
+            assert_eq!(loss_or_error(e), Err(e));
+        }
+    }
+
+    #[test]
+    fn loss_set_operations_carry_every_bit() {
+        let all = Loss::KNOWN
+            .iter()
+            .fold(Loss::empty(), |acc, &(k, _)| acc | k);
+        assert_eq!(all.bits(), 0xff);
+        assert!(Loss::empty().is_empty() && Loss::default().is_empty());
+        assert!(all.contains(Loss::ALPHA | Loss::DEPTH));
+        assert!(!Loss::ALPHA.contains(Loss::ALPHA | Loss::DEPTH));
+        assert!(all.contains(Loss::empty()));
+        let mut l = Loss::RESOLUTION;
+        l |= Loss::from_bits_retain(0x100);
+        assert_eq!(l.bits(), 0x101);
+        assert_eq!((l & Loss::RESOLUTION), Loss::RESOLUTION);
+        assert_eq!(Loss::from_bits_retain(-1).bits(), -1);
+    }
+
+    #[test]
+    fn loss_debug_names_the_kinds() {
+        assert_eq!(format!("{:?}", Loss::empty()), "Loss(0x0)");
+        assert_eq!(format!("{:?}", Loss::ALPHA), "Loss(ALPHA)");
+        assert_eq!(
+            format!("{:?}", Loss::RESOLUTION | Loss::EXCESS_DEPTH),
+            "Loss(RESOLUTION | EXCESS_DEPTH)"
+        );
+        assert_eq!(
+            format!("{:?}", Loss::CHROMA | Loss::from_bits_retain(0x300)),
+            "Loss(CHROMA | 0x300)"
+        );
+        assert_eq!(
+            format!("{:?}", Loss::from_bits_retain(0x400)),
+            "Loss(0x400)"
+        );
+    }
+
+    #[test]
+    fn conversion_loss_and_choices() {
+        assert_eq!(
+            PixelFormat::YUV420P.conversion_loss(PixelFormat::YUV420P, true),
+            Ok(Loss::empty())
+        );
+        let loss = PixelFormat::RGBA
+            .conversion_loss(PixelFormat::RGB24, true)
+            .unwrap();
+        assert!(loss.contains(Loss::ALPHA));
+        let loss = PixelFormat::RGBA
+            .conversion_loss(PixelFormat::RGB24, false)
+            .unwrap();
+        assert!(!loss.contains(Loss::ALPHA));
+        assert_eq!(
+            PixelFormat::NONE.conversion_loss(PixelFormat::RGB24, true),
+            Err(-4)
+        );
+        assert_eq!(
+            PixelFormat::VAAPI.conversion_loss(PixelFormat::VAAPI, true),
+            Err(-1)
+        );
+        assert_eq!(
+            PixelFormat::VAAPI.conversion_loss(PixelFormat::RGB24, true),
+            Err(-2)
+        );
+
+        let src = PixelFormat::RGBA;
+        assert_eq!(
+            src.best_of_two(PixelFormat::RGB24, PixelFormat::BGRA, true),
+            PixelFormat::BGRA
+        );
+        assert_eq!(
+            src.best_of_two(PixelFormat::NONE, PixelFormat::GRAY8, true),
+            PixelFormat::GRAY8
+        );
+        assert_eq!(
+            src.best_of_two(PixelFormat::GRAY8, PixelFormat::NONE, true),
+            PixelFormat::GRAY8
+        );
+        // An unknown `dst1` hands back `dst2`, known or not.
+        assert_eq!(
+            src.best_of_two(PixelFormat::NONE, PixelFormat::NONE, true),
+            PixelFormat::NONE
+        );
+        assert_eq!(
+            src.best_of_two_with_loss(PixelFormat::NONE, PixelFormat::NONE, true, Loss::empty()),
+            (PixelFormat::NONE, Err(-4))
+        );
+        let (best, loss) =
+            src.best_of_two_with_loss(PixelFormat::RGB24, PixelFormat::BGRA, true, Loss::empty());
+        assert_eq!((best, loss), (PixelFormat::BGRA, Ok(Loss::empty())));
+        // Ignoring the alpha loss leaves RGB24's fewer bits per pixel to win.
+        let (best, loss) =
+            src.best_of_two_with_loss(PixelFormat::RGB24, PixelFormat::BGRA, true, Loss::ALPHA);
+        assert_eq!(best, PixelFormat::RGB24);
+        assert!(loss.unwrap().contains(Loss::ALPHA));
+    }
+
+    #[test]
+    fn loss_debug_passes_writer_errors_on() {
+        /// A writer that fails once `room` bytes are written.
+        struct Short {
+            room: usize,
+        }
+        impl fmt::Write for Short {
+            fn write_str(&mut self, s: &str) -> fmt::Result {
+                self.room = self.room.checked_sub(s.len()).ok_or(fmt::Error)?;
+                Ok(())
+            }
+        }
+        let loss = Loss::RESOLUTION | Loss::ALPHA | Loss::from_bits_retain(0x100);
+        let whole = format!("{loss:?}").len();
+        for room in 0..whole {
+            assert!(
+                fmt::write(&mut Short { room }, format_args!("{loss:?}")).is_err(),
+                "{room}"
+            );
+        }
+        assert!(fmt::write(&mut Short { room: whole }, format_args!("{loss:?}")).is_ok());
     }
 }

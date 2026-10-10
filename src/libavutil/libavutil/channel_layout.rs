@@ -1,8 +1,13 @@
 //! Safe wrappers over `libavutil/channel_layout.h`.
+//!
+//! [`Channel::name`] and [`Channel::from_name`] convert a channel to and from
+//! the abbreviation C writes in channel layout strings; C writes names into a
+//! caller buffer, which [`Channel::write_name`] exposes as is.
 
-use core::ffi::{CStr, c_char, c_void};
-use core::ptr::{addr_of, addr_of_mut};
+use core::ffi::{CStr, c_char, c_int, c_uint, c_void};
+use core::ptr::{self, addr_of, addr_of_mut};
 use core::{cmp, fmt};
+use std::ffi::CString;
 
 use ffibox::{CPlainElem, CZeroable, define_ctype};
 
@@ -171,7 +176,7 @@ impl Channel {
 
     /// The name of the constant this value equals, if any, the Ambisonic
     /// bounds aside.
-    const fn name(self) -> Option<&'static str> {
+    const fn constant_name(self) -> Option<&'static str> {
         Some(match self {
             Self::NONE => "NONE",
             Self::FRONT_LEFT => "FRONT_LEFT",
@@ -228,7 +233,7 @@ impl Default for Channel {
 /// `AMBISONIC(<acn>)`, and every other value `Channel(<id>)`.
 impl fmt::Debug for Channel {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        if let Some(name) = self.name() {
+        if let Some(name) = self.constant_name() {
             f.write_str(name)
         } else if let Some(acn) = self.ambisonic_index() {
             f.debug_tuple("AMBISONIC").field(&acn).finish()
@@ -875,6 +880,134 @@ impl fmt::Display for NameTooLong {
 
 impl core::error::Error for NameTooLong {}
 
+/// The size to pass C for a buffer of `len` bytes: `len` capped at
+/// `u32::MAX`, since C narrows the size to an `unsigned` (a length of 2^32
+/// would read as count-only and leave the buffer unterminated).
+fn c_buffer_size(len: usize) -> usize {
+    len.min(c_uint::MAX as usize)
+}
+
+/// The C buffer for a `&mut [u8]` the channel name writers fill: NULL with
+/// size 0 for an empty slice, whose pointer is dangling, and otherwise its
+/// pointer with its [capped](c_buffer_size) length.
+fn name_buffer(buf: &mut [u8]) -> (*mut c_char, usize) {
+    if buf.is_empty() {
+        (ptr::null_mut(), 0)
+    } else {
+        (buf.as_mut_ptr().cast(), c_buffer_size(buf.len()))
+    }
+}
+
+/// A C channel name writer: `av_channel_name` or `av_channel_description`.
+type NameWriter = unsafe extern "C" fn(*mut c_char, usize, ffi::AVChannel) -> c_int;
+
+impl Channel {
+    /// Calls `write` on `buf` as [`write_name`](Self::write_name) describes.
+    fn write_with(self, write: NameWriter, buf: &mut [u8]) -> Result<usize, i32> {
+        let (ptr, size) = name_buffer(buf);
+        // SAFETY: `ptr` is NULL with size 0, which C takes as a count-only
+        // request and never dereferences, or valid for `size` bytes of
+        // writes, which bounds every byte C writes; C keeps no pointer to it.
+        let ret = unsafe { write(ptr, size, self.into_raw()) };
+        usize::try_from(ret).map_err(|_| ret)
+    }
+
+    /// The whole string `write` produces, measured first.
+    fn to_c_string(self, write: NameWriter) -> CString {
+        // C fails only for a string of `INT_MAX` bytes or more; no channel's
+        // name or description comes near.
+        let need = self
+            .write_with(write, &mut [])
+            .expect("channel names are short");
+        let mut buf = vec![0; need];
+        self.write_with(write, &mut buf)
+            .expect("channel names are short");
+        CStr::from_bytes_until_nul(&buf)
+            .expect("C NUL-terminates a non-empty buffer")
+            .to_owned()
+    }
+
+    /// Wraps: av_channel_name
+    ///
+    /// Writes this channel's abbreviated name, as [`name`](Self::name)
+    /// returns it, into `buf`, truncated to fit with its NUL, and returns the
+    /// size a buffer needs to hold it whole, NUL included: the name was
+    /// truncated when that exceeds `buf.len()`. An empty `buf` only measures
+    /// the name. 16 bytes hold every name.
+    ///
+    /// # Errors
+    ///
+    /// C's negative `AVERROR` for a name of `INT_MAX` bytes or more, which no
+    /// channel has.
+    pub fn write_name(self, buf: &mut [u8]) -> Result<usize, i32> {
+        self.write_with(ffi::av_channel_name, buf)
+    }
+
+    /// Wraps: av_channel_name
+    ///
+    /// This channel's abbreviated name, which [`from_name`](Self::from_name)
+    /// maps back: `FL`, `LFE` and the like for the named channels, `AMBI<n>`
+    /// for Ambisonic component `n`, `NONE`, `UNK` and `UNSD` for
+    /// [`NONE`](Self::NONE), [`UNKNOWN`](Self::UNKNOWN) and
+    /// [`UNUSED`](Self::UNUSED), and `USR<id>` for every other value.
+    ///
+    /// ```
+    /// use ffmpeg::libavutil::channel_layout::Channel;
+    /// assert_eq!(Channel::FRONT_LEFT.name().as_c_str(), c"FL");
+    /// assert_eq!(Channel::ambisonic(3).unwrap().name().as_c_str(), c"AMBI3");
+    /// ```
+    #[must_use]
+    pub fn name(self) -> CString {
+        self.to_c_string(ffi::av_channel_name)
+    }
+
+    /// Wraps: av_channel_description
+    ///
+    /// Writes this channel's description, as
+    /// [`description`](Self::description) returns it, into `buf`, as
+    /// [`write_name`](Self::write_name) writes the name. 24 bytes hold every
+    /// description.
+    ///
+    /// # Errors
+    ///
+    /// As for [`write_name`](Self::write_name).
+    pub fn write_description(self, buf: &mut [u8]) -> Result<usize, i32> {
+        self.write_with(ffi::av_channel_description, buf)
+    }
+
+    /// Wraps: av_channel_description
+    ///
+    /// A human-readable description of this channel: `front left` and the
+    /// like for the named channels, `ambisonic ACN <n>` for Ambisonic
+    /// component `n`, `none`, `unknown` and `unused` for
+    /// [`NONE`](Self::NONE), [`UNKNOWN`](Self::UNKNOWN) and
+    /// [`UNUSED`](Self::UNUSED), and `user <id>` for every other value.
+    #[must_use]
+    pub fn description(self) -> CString {
+        self.to_c_string(ffi::av_channel_description)
+    }
+
+    /// Wraps: av_channel_from_string
+    ///
+    /// The channel `name` names, the inverse of [`name`](Self::name): an
+    /// abbreviation such as `FL`, `UNK` or `UNSD`, `AMBI<n>` for Ambisonic
+    /// component `n` (0 to 1023), or `USR<id>` for a non-negative `id`, both
+    /// numbers read as C's `strtol` reads them (decimal, `0x` hex or `0`
+    /// octal). `None` for any other name, which C reports as
+    /// [`NONE`](Self::NONE), the one channel no name yields.
+    ///
+    /// C's parsing is lenient, and this follows it: text after an `AMBI`
+    /// number is ignored, and `AMBI` with no number is component 0; `USR`
+    /// with no number is channel 0; and a number beyond `i32` is truncated
+    /// to an `int` before it is checked.
+    pub fn from_name(name: &CStr) -> Option<Self> {
+        // SAFETY: `name` is a live NUL-terminated string, which C only reads
+        // during the call.
+        let raw = unsafe { ffi::av_channel_from_string(name.as_ptr()) };
+        Some(Self::from_raw(raw)).filter(|&ch| ch != Self::NONE)
+    }
+}
+
 #[cfg(test)]
 mod unit_tests {
     use core::ffi::{c_int, c_uint};
@@ -1437,5 +1570,87 @@ mod unit_tests {
         assert_traits::<ChannelName>();
         assert_handles::<ChannelCustomRef<'static>>();
         assert_handles::<ChannelCustomMut<'static>>();
+    }
+
+    #[test]
+    fn buffer_size_is_capped_at_cs_unsigned() {
+        assert_eq!(c_buffer_size(0), 0);
+        assert_eq!(c_buffer_size(16), 16);
+        assert_eq!(c_buffer_size(c_uint::MAX as usize), c_uint::MAX as usize);
+        assert_eq!(
+            c_buffer_size(c_uint::MAX as usize + 1),
+            c_uint::MAX as usize
+        );
+        assert_eq!(c_buffer_size(usize::MAX), c_uint::MAX as usize);
+    }
+
+    #[test]
+    fn buffer_passes_null_for_empty_and_the_slice_otherwise() {
+        let (p, n) = name_buffer(&mut []);
+        assert!(p.is_null() && n == 0);
+        let mut b = [0u8; 3];
+        let base = b.as_mut_ptr();
+        let (p, n) = name_buffer(&mut b);
+        assert_eq!((p.cast::<u8>(), n), (base, 3));
+    }
+
+    #[test]
+    fn channel_names_and_descriptions_cover_each_id_class() {
+        let cases = [
+            (Channel::FRONT_LEFT, c"FL", c"front left"),
+            (Channel::BINAURAL_RIGHT, c"BIR", c"binaural right"),
+            (Channel::ambisonic(0).unwrap(), c"AMBI0", c"ambisonic ACN 0"),
+            (
+                Channel::ambisonic(1023).unwrap(),
+                c"AMBI1023",
+                c"ambisonic ACN 1023",
+            ),
+            (Channel::NONE, c"NONE", c"none"),
+            (Channel::UNKNOWN, c"UNK", c"unknown"),
+            (Channel::UNUSED, c"UNSD", c"unused"),
+            (
+                Channel::from_raw(ffi::AVChannel(500)),
+                c"USR500",
+                c"user 500",
+            ),
+            (
+                Channel::from_raw(ffi::AVChannel(i32::MIN)),
+                c"USR-2147483648",
+                c"user -2147483648",
+            ),
+        ];
+        for (ch, name, desc) in cases {
+            assert_eq!(ch.name().as_c_str(), name, "{ch:?}");
+            assert_eq!(ch.description().as_c_str(), desc, "{ch:?}");
+        }
+    }
+
+    #[test]
+    fn write_name_truncates_and_reports_the_whole_size() {
+        let ch = Channel::LOW_FREQUENCY_2;
+        let mut buf = [0xAAu8; 8];
+        assert_eq!(ch.write_name(&mut buf), Ok(5));
+        assert_eq!(&buf[..6], b"LFE2\0\xAA");
+        let mut small = [0xAAu8; 3];
+        assert_eq!(ch.write_name(&mut small), Ok(5));
+        assert_eq!(&small, b"LF\0");
+        assert_eq!(ch.write_name(&mut []), Ok(5));
+        let mut one = [0xAAu8; 1];
+        assert_eq!(ch.write_description(&mut one), Ok(16));
+        assert_eq!(one, [0]);
+    }
+
+    #[test]
+    fn from_name_reads_cs_none_as_not_found() {
+        assert_eq!(Channel::from_name(c"FC"), Some(Channel::FRONT_CENTER));
+        assert_eq!(Channel::from_name(c"AMBI2"), Channel::ambisonic(2));
+        assert_eq!(
+            Channel::from_name(c"USR7"),
+            Some(Channel::from_raw(ffi::AVChannel(7)))
+        );
+        assert_eq!(Channel::from_name(c"UNSD"), Some(Channel::UNUSED));
+        for name in [c"", c"NONE", c"fc", c"AMBI1024", c"USR-1", c"USR7x"] {
+            assert_eq!(Channel::from_name(name), None, "{name:?}");
+        }
     }
 }

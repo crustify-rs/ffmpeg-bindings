@@ -2,7 +2,10 @@
 //!
 //! [`TrcFunction`] and [`EotfFunction`] call the transfer functions C hands
 //! out for a transfer characteristic (`av_csp_trc_function`,
-//! `av_csp_eotf_function`).
+//! `av_csp_eotf_function`), which the [`ColorTransfer`] getters
+//! [`trc_function`](ColorTransfer::trc_function),
+//! [`eotf`](ColorTransfer::eotf) and their inverses return, beside its
+//! approximate gammas.
 //!
 //! [`CieXy`] is `AVCIExy` (also spelled `AVWhitepointCoefficients`,
 //! [`WhitepointCoefficients`] here): a CIE 1931 chromaticity, two
@@ -24,6 +27,7 @@ use core::ptr::{addr_of, addr_of_mut};
 use ffibox::{CZeroable, define_ctype};
 
 use super::ffi;
+use super::pixfmt::ColorTransfer;
 use super::rational::{Rational, RationalMut, RationalRef};
 
 /// Wraps: av_csp_trc_function
@@ -531,6 +535,93 @@ impl LumaCoefficientsMut<'_> {
     }
 }
 
+/// A gamma C reports, or `None` for its 0.0, which no characteristic has.
+fn gamma(g: f64) -> Option<f64> {
+    (g != 0.0).then_some(g)
+}
+
+impl ColorTransfer {
+    /// Wraps: av_csp_approximate_trc_gamma
+    ///
+    /// The exponent of the pure power function that approximates this
+    /// characteristic's OETF, after Apple's TN2257: 2.2 for sRGB (not
+    /// 0.45455), 1.961 for BT.709. `None` for a characteristic C cannot
+    /// reasonably match, such as the logarithmic and HDR ones.
+    #[must_use]
+    pub fn approximate_trc_gamma(self) -> Option<f64> {
+        // SAFETY: `av_csp_approximate_trc_gamma` takes the enum by value and
+        // reads its static table only for an index inside it.
+        gamma(unsafe { ffi::av_csp_approximate_trc_gamma(self.into_raw()) })
+    }
+
+    /// Wraps: av_csp_approximate_eotf_gamma
+    ///
+    /// The exponent `gamma` of the pure power EOTF approximating this
+    /// characteristic, `EOTF(v) = (Lw - Lb) * v^gamma + Lb`: 2.2 for BT.709
+    /// and sRGB. `None` for a characteristic C cannot reasonably match.
+    #[must_use]
+    pub fn approximate_eotf_gamma(self) -> Option<f64> {
+        // SAFETY: as in `approximate_trc_gamma`.
+        gamma(unsafe { ffi::av_csp_approximate_eotf_gamma(self.into_raw()) })
+    }
+
+    /// Wraps: av_csp_trc_func_from_id
+    ///
+    /// The function applying this characteristic to linear light: its OETF,
+    /// or its inverse EOTF for SMPTE ST 2084 (PQ). `None` for the
+    /// unspecified and reserved values and any C does not know.
+    ///
+    /// ```
+    /// use ffmpeg::libavutil::pixfmt::ColorTransfer;
+    /// let oetf = ColorTransfer::LINEAR.trc_function().unwrap();
+    /// assert_eq!(oetf.call(0.25), 0.25);
+    /// assert!(ColorTransfer::UNSPECIFIED.trc_function().is_none());
+    /// ```
+    #[must_use]
+    pub fn trc_function(self) -> Option<TrcFunction> {
+        // SAFETY: `av_csp_trc_func_from_id` takes the enum by value and
+        // returns NULL or one of `csp.c`'s transfer functions, the only
+        // functions a `TrcFunction` may hold.
+        unsafe { ffi::av_csp_trc_func_from_id(self.into_raw()) }.map(TrcFunction)
+    }
+
+    /// Wraps: av_csp_trc_func_inv_from_id
+    ///
+    /// The mathematical inverse of [`trc_function`](Self::trc_function),
+    /// mapping gamma-encoded light back to linear; `None` exactly where that
+    /// is.
+    #[must_use]
+    pub fn inverse_trc_function(self) -> Option<TrcFunction> {
+        // SAFETY: as in `trc_function`, for the inverse table.
+        unsafe { ffi::av_csp_trc_func_inv_from_id(self.into_raw()) }.map(TrcFunction)
+    }
+
+    /// Wraps: av_csp_itu_eotf
+    ///
+    /// The ITU EOTF of this characteristic, mapping a signal level in
+    /// `[0, 1]` to display luminance in nits, per RGB channel (CIE XYZ for
+    /// SMPTE ST 428). `None` where no EOTF is defined: the unspecified and
+    /// reserved values, the logarithmic encodings, the extended range
+    /// ([`V_LOG`](Self::V_LOG)) and any value C does not know.
+    #[must_use]
+    pub fn eotf(self) -> Option<EotfFunction> {
+        // SAFETY: `av_csp_itu_eotf` takes the enum by value and returns NULL
+        // or one of `csp.c`'s EOTFs, the only functions an `EotfFunction`
+        // may hold.
+        unsafe { ffi::av_csp_itu_eotf(self.into_raw()) }.map(EotfFunction)
+    }
+
+    /// Wraps: av_csp_itu_eotf_inv
+    ///
+    /// The mathematical inverse of [`eotf`](Self::eotf), mapping display
+    /// luminance back to a signal level; `None` exactly where that is.
+    #[must_use]
+    pub fn inverse_eotf(self) -> Option<EotfFunction> {
+        // SAFETY: as in `eotf`, for the inverse table.
+        unsafe { ffi::av_csp_itu_eotf_inv(self.into_raw()) }.map(EotfFunction)
+    }
+}
+
 #[cfg(test)]
 mod unit_tests {
     use super::*;
@@ -956,5 +1047,58 @@ mod unit_tests {
         assert_traits::<LumaCoefficients>();
         assert_handles::<LumaCoefficientsRef<'static>>();
         assert_handles::<LumaCoefficientsMut<'static>>();
+    }
+
+    #[test]
+    fn gamma_reads_zero_as_none() {
+        assert_eq!(gamma(0.0), None);
+        assert_eq!(gamma(-0.0), None);
+        assert_eq!(gamma(2.2), Some(2.2));
+        assert!(gamma(f64::NAN).unwrap().is_nan());
+    }
+
+    #[test]
+    fn getters_hand_out_cs_functions() {
+        let addr = |f: Option<unsafe extern "C" fn(f64) -> f64>| f.map(|f| f as usize);
+        let eaddr = |f: Option<unsafe extern "C" fn(f64, f64, *mut f64)>| f.map(|f| f as usize);
+        for trc in transfers() {
+            let t = ColorTransfer::from_raw(trc);
+            // SAFETY: the getters take any value and return NULL or a
+            // `csp.c` function.
+            let c = unsafe {
+                (
+                    ffi::av_csp_trc_func_from_id(trc),
+                    ffi::av_csp_trc_func_inv_from_id(trc),
+                    ffi::av_csp_itu_eotf(trc),
+                    ffi::av_csp_itu_eotf_inv(trc),
+                )
+            };
+            assert_eq!(t.trc_function().map(|f| f.0 as usize), addr(c.0));
+            assert_eq!(t.inverse_trc_function().map(|f| f.0 as usize), addr(c.1));
+            assert_eq!(t.eotf().map(|f| f.0 as usize), eaddr(c.2));
+            assert_eq!(t.inverse_eotf().map(|f| f.0 as usize), eaddr(c.3));
+        }
+    }
+
+    #[test]
+    fn approximate_gammas_follow_cs_tables() {
+        assert_eq!(ColorTransfer::BT709.approximate_trc_gamma(), Some(1.961));
+        assert_eq!(ColorTransfer::BT709.approximate_eotf_gamma(), Some(2.2));
+        assert_eq!(
+            ColorTransfer::IEC61966_2_1.approximate_trc_gamma(),
+            Some(2.2)
+        );
+        assert_eq!(ColorTransfer::V_LOG.approximate_eotf_gamma(), Some(2.2));
+        assert_eq!(ColorTransfer::SMPTE2084.approximate_trc_gamma(), None);
+        assert_eq!(ColorTransfer::UNSPECIFIED.approximate_eotf_gamma(), None);
+        let huge = ColorTransfer::from_raw(ffi::AVColorTransferCharacteristic(u32::MAX));
+        assert_eq!(
+            (huge.approximate_trc_gamma(), huge.approximate_eotf_gamma()),
+            (None, None)
+        );
+        assert!(huge.trc_function().is_none() && huge.eotf().is_none());
+        assert!(ColorTransfer::V_LOG.trc_function().is_some());
+        assert!(ColorTransfer::V_LOG.eotf().is_none());
+        assert!(ColorTransfer::LOG.eotf().is_none() && ColorTransfer::LOG.trc_function().is_some());
     }
 }

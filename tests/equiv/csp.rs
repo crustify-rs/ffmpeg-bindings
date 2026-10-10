@@ -423,3 +423,182 @@ mod luma_coefficients {
         }
     }
 }
+
+/// The `ColorTransfer` getters against `av_csp_approximate_trc_gamma`,
+/// `av_csp_approximate_eotf_gamma`, `av_csp_trc_func_from_id`,
+/// `av_csp_trc_func_inv_from_id`, `av_csp_itu_eotf` and
+/// `av_csp_itu_eotf_inv`: for every transfer value past both ranges and the
+/// `unsigned` extremes, the gammas bit for bit, and every handle against the
+/// function C returns, called on the same inputs in sequence.
+mod color_transfer {
+    use ffmpeg::libavutil::ffi;
+    use ffmpeg::libavutil::pixfmt::ColorTransfer;
+
+    type Trc = unsafe extern "C" fn(f64) -> f64;
+    type Eotf = unsafe extern "C" fn(f64, f64, *mut f64);
+
+    fn raws() -> impl Iterator<Item = u32> {
+        (0..300).chain([
+            511,
+            512,
+            1 << 16,
+            i32::MAX as u32,
+            1 << 31,
+            u32::MAX - 1,
+            u32::MAX,
+        ])
+    }
+
+    fn c(raw: u32) -> ffi::AVColorTransferCharacteristic {
+        ffi::AVColorTransferCharacteristic(raw)
+    }
+
+    fn t(raw: u32) -> ColorTransfer {
+        ColorTransfer::from_raw(c(raw))
+    }
+
+    const INPUTS: [f64; 10] = [
+        0.0,
+        -0.0,
+        1.0,
+        0.5,
+        0.018,
+        -0.25,
+        1.5,
+        1e300,
+        f64::NEG_INFINITY,
+        f64::NAN,
+    ];
+
+    /// C's gamma result as the Rust one reports it.
+    fn gamma(g: f64) -> Option<u64> {
+        (g != 0.0).then_some(g.to_bits())
+    }
+
+    #[test]
+    fn gammas_match_c_for_every_value() {
+        let (mut trc, mut eotf) = (0, 0);
+        for raw in raws() {
+            // SAFETY: the gamma getters take the enum by value and read
+            // their tables only for an index inside them.
+            let (ct, ce) = unsafe {
+                (
+                    ffi::av_csp_approximate_trc_gamma(c(raw)),
+                    ffi::av_csp_approximate_eotf_gamma(c(raw)),
+                )
+            };
+            assert_eq!(
+                t(raw).approximate_trc_gamma().map(f64::to_bits),
+                gamma(ct),
+                "{raw}"
+            );
+            assert_eq!(
+                t(raw).approximate_eotf_gamma().map(f64::to_bits),
+                gamma(ce),
+                "{raw}"
+            );
+            trc += usize::from(ct != 0.0);
+            eotf += usize::from(ce != 0.0);
+        }
+        // 11 plain characteristics and V-Log.
+        assert_eq!((trc, eotf), (12, 12));
+    }
+
+    #[test]
+    fn trc_handles_match_c_for_every_value() {
+        let mut found = [0; 2];
+        for raw in raws() {
+            // SAFETY: the getters take the enum by value and return NULL or
+            // a `csp.c` transfer function.
+            let cs: [Option<Trc>; 2] = unsafe {
+                [
+                    ffi::av_csp_trc_func_from_id(c(raw)),
+                    ffi::av_csp_trc_func_inv_from_id(c(raw)),
+                ]
+            };
+            let rs = [t(raw).trc_function(), t(raw).inverse_trc_function()];
+            for (i, (r, cf)) in rs.into_iter().zip(cs).enumerate() {
+                assert_eq!(r.is_some(), cf.is_some(), "{raw} #{i}");
+                let (Some(r), Some(cf)) = (r, cf) else {
+                    continue;
+                };
+                found[i] += 1;
+                for x in INPUTS {
+                    // SAFETY: a `csp.c` transfer function takes any `f64`.
+                    let expect = unsafe { cf(x) };
+                    assert_eq!(r.call(x).to_bits(), expect.to_bits(), "{raw} #{i} at {x}");
+                }
+            }
+        }
+        // 16 plain characteristics and V-Log, each with an inverse.
+        assert_eq!(found, [17, 17]);
+    }
+
+    #[test]
+    fn eotf_handles_match_c_for_every_value() {
+        let mut found = [0; 2];
+        for raw in raws() {
+            // SAFETY: the getters take the enum by value and return NULL or
+            // a `csp.c` EOTF.
+            let cs: [Option<Eotf>; 2] = unsafe {
+                [
+                    ffi::av_csp_itu_eotf(c(raw)),
+                    ffi::av_csp_itu_eotf_inv(c(raw)),
+                ]
+            };
+            let rs = [t(raw).eotf(), t(raw).inverse_eotf()];
+            for (i, (r, cf)) in rs.into_iter().zip(cs).enumerate() {
+                assert_eq!(r.is_some(), cf.is_some(), "{raw} #{i}");
+                let (Some(r), Some(cf)) = (r, cf) else {
+                    continue;
+                };
+                found[i] += 1;
+                // Each step feeds both sides' outputs back as inputs.
+                let mut rust = [0.25, 0.5, 0.75];
+                let mut cv = rust;
+                for (k, (lw, lb)) in [(1000.0, 0.005), (100.0, 0.0), (48.0, 0.02), (0.0, 0.0)]
+                    .into_iter()
+                    .cycle()
+                    .take(8)
+                    .enumerate()
+                {
+                    r.call(lw, lb, &mut rust);
+                    // SAFETY: a `csp.c` EOTF reads and writes `cv[0..3]`.
+                    unsafe { cf(lw, lb, cv.as_mut_ptr()) };
+                    assert_eq!(
+                        rust.map(f64::to_bits),
+                        cv.map(f64::to_bits),
+                        "{raw} #{i} step {k}"
+                    );
+                }
+            }
+        }
+        // 14 plain characteristics, no logarithmic or extended one.
+        assert_eq!(found, [14, 14]);
+    }
+
+    #[test]
+    fn forward_and_inverse_compose_as_in_c() {
+        for raw in raws() {
+            let (Some(f), Some(g)) = (t(raw).trc_function(), t(raw).inverse_trc_function()) else {
+                continue;
+            };
+            // SAFETY: as above.
+            let (cf, cg) = unsafe {
+                (
+                    ffi::av_csp_trc_func_from_id(c(raw)).unwrap(),
+                    ffi::av_csp_trc_func_inv_from_id(c(raw)).unwrap(),
+                )
+            };
+            for x in INPUTS {
+                // SAFETY: `csp.c` transfer functions take any `f64`.
+                let expect = unsafe { cg(cf(x)) };
+                assert_eq!(
+                    g.call(f.call(x)).to_bits(),
+                    expect.to_bits(),
+                    "{raw} at {x}"
+                );
+            }
+        }
+    }
+}

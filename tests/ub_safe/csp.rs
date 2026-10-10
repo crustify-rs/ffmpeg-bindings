@@ -497,3 +497,118 @@ mod luma_coefficients {
         assert_eq!(read, FIELDS[..4]);
     }
 }
+
+/// The `ColorTransfer` getters on every value, the `unsigned` extremes
+/// included, and the handles they return called on every input class, from
+/// other threads, and after the getters ran again: the EOTFs on exactly
+/// sized heap arrays, so a write past the three channels is an ASan report.
+mod color_transfer {
+    use std::thread;
+
+    use ffmpeg::libavutil::csp::{EotfFunction, TrcFunction};
+    use ffmpeg::libavutil::ffi;
+    use ffmpeg::libavutil::pixfmt::ColorTransfer;
+
+    fn transfers() -> Vec<ColorTransfer> {
+        (0..300)
+            .chain([
+                511,
+                512,
+                1 << 16,
+                i32::MAX as u32,
+                1 << 31,
+                u32::MAX - 1,
+                u32::MAX,
+            ])
+            .map(|r| ColorTransfer::from_raw(ffi::AVColorTransferCharacteristic(r)))
+            .collect()
+    }
+
+    const INPUTS: [f64; 9] = [
+        0.0,
+        -0.0,
+        1.0,
+        0.5,
+        -1.0,
+        2.0,
+        1e308,
+        f64::INFINITY,
+        f64::NAN,
+    ];
+
+    fn handles() -> (Vec<TrcFunction>, Vec<EotfFunction>) {
+        let mut trc = Vec::new();
+        let mut eotf = Vec::new();
+        for t in transfers() {
+            trc.extend(t.trc_function());
+            trc.extend(t.inverse_trc_function());
+            eotf.extend(t.eotf());
+            eotf.extend(t.inverse_eotf());
+        }
+        (trc, eotf)
+    }
+
+    #[test]
+    fn getters_accept_every_value() {
+        for t in transfers() {
+            for g in [t.approximate_trc_gamma(), t.approximate_eotf_gamma()]
+                .into_iter()
+                .flatten()
+            {
+                assert!(g > 0.0 && g.is_finite());
+            }
+        }
+        let (trc, eotf) = handles();
+        assert_eq!((trc.len(), eotf.len()), (34, 28));
+    }
+
+    #[test]
+    fn handles_run_on_every_input_in_bounds() {
+        let (trc, eotf) = handles();
+        for f in &trc {
+            for x in INPUTS {
+                let _ = f.call(x);
+            }
+        }
+        for f in &eotf {
+            for (lw, lb) in [
+                (1000.0, 0.005),
+                (0.0, 0.0),
+                (-1.0, f64::NAN),
+                (f64::MAX, f64::MIN),
+            ] {
+                for x in INPUTS {
+                    let mut c = Box::new([x, -x, x * 0.5]);
+                    f.call(lw, lb, &mut c);
+                }
+            }
+        }
+    }
+
+    #[test]
+    fn handles_outlive_the_getters_and_cross_threads() {
+        let (trc, eotf) = handles();
+        let expect: Vec<u64> = trc.iter().map(|f| f.call(0.5).to_bits()).collect();
+        // The getters run again, elsewhere, while the handles are held.
+        thread::scope(|s| {
+            for t in 0..8 {
+                let (trc, eotf, expect) = (&trc, &eotf, &expect);
+                s.spawn(move || {
+                    let _ = handles();
+                    for (f, e) in trc.iter().zip(expect).skip(t) {
+                        assert_eq!(f.call(0.5).to_bits(), *e);
+                    }
+                    for f in eotf.iter().skip(t) {
+                        let mut c = [0.25, 0.5, 0.75];
+                        f.call(100.0, 0.1, &mut c);
+                    }
+                });
+            }
+        });
+        let moved =
+            thread::spawn(move || trc.into_iter().filter(|f| !f.call(1.0).is_nan()).count())
+                .join()
+                .unwrap();
+        assert_eq!(moved, 34);
+    }
+}

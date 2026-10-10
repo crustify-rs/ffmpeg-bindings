@@ -566,6 +566,45 @@
    "defined_in": "libavutil/mathematics.c"
   },
   {
+   "name": "av_alpha_mode_from_name",
+   "defined_in": "libavutil/pixdesc.c",
+   "ptr_args": [
+    {
+     "name": "name",
+     "ptr": {
+      "scalar": null,
+      "array": null,
+      "string": true,
+      "owned": false,
+      "borrowed": {
+       "lifetime": "arg:name"
+      },
+      "nullable": false,
+      "mutable": false,
+      "note": "av_alpha_mode_from_name reads `name` with strcmp against the static alpha_mode_names table during the call only and keeps no pointer; strcmp dereferences it unconditionally, so NULL is UB (non-nullable). Wrapped as `&CStr`."
+     }
+    }
+   ]
+  },
+  {
+   "name": "av_alpha_mode_name",
+   "defined_in": "libavutil/pixdesc.c",
+   "ptr_ret": {
+    "ptr": {
+     "scalar": null,
+     "array": null,
+     "string": true,
+     "owned": false,
+     "borrowed": {
+      "lifetime": "static"
+     },
+     "nullable": true,
+     "mutable": false,
+     "note": "av_alpha_mode_name returns NULL for a value outside its table (or a NULL table slot), else the address of a string literal from the static `alpha_mode_names` table: NUL-terminated ASCII, immutable, never freed, valid for the process lifetime. Wrapped as an `Option<&'static CStr>` getter on the enum newtype."
+    }
+   }
+  },
+  {
    "name": "av_append_path_component",
    "defined_in": "libavutil/avstring.c",
    "lifetime": {
@@ -1202,6 +1241,113 @@
    "defined_in": "libavutil/common.h"
   },
   {
+   "name": "av_channel_description",
+   "defined_in": "libavutil/channel_layout.c",
+   "ptr_args": [
+    {
+     "name": "buf",
+     "ptr": {
+      "scalar": null,
+      "array": {
+       "by_val": true
+      },
+      "string": true,
+      "owned": false,
+      "borrowed": {
+       "lifetime": "arg:buf"
+      },
+      "nullable": true,
+      "mutable": true,
+      "note": "Caller output buffer of buf_size bytes: av_bprint_init_for_buffer writes a NUL at buf[0] and av_bprintf writes the channel description (front left, ambisonic ACN <n>, user <n>, none, unknown, unused) truncated to fit with its NUL. NULL is allowed only with buf_size 0 (count-only: nothing written, the needed size returned); NULL with a nonzero size returns AVERROR(EINVAL). buf_size is narrowed to `unsigned` by av_bprint_init_for_buffer, so a size >= 2^32 is truncated (2^32 itself becomes count-only). Not retained. Wrapped as `&mut [u8]` (empty slice -> NULL, 0; length clamped to u32::MAX) and as an owned CString builder measuring first."
+     }
+    }
+   ]
+  },
+  {
+   "name": "av_channel_from_string",
+   "defined_in": "libavutil/channel_layout.c",
+   "ptr_args": [
+    {
+     "name": "str",
+     "ptr": {
+      "scalar": null,
+      "array": null,
+      "string": true,
+      "owned": false,
+      "borrowed": {
+       "lifetime": "arg:str"
+      },
+      "nullable": false,
+      "mutable": false,
+      "note": "av_channel_from_string reads `str` during the call only (strncmp/strcmp against the static channel_names table, strtol for AMBI<n>/USR<n>; strtol's endptr is a local cursor into it); keeps no pointer. Dereferenced unconditionally, so NULL is UB (non-nullable). Wrapped as `&CStr`."
+     }
+    }
+   ]
+  },
+  {
+   "name": "av_channel_name",
+   "defined_in": "libavutil/channel_layout.c",
+   "ptr_args": [
+    {
+     "name": "buf",
+     "ptr": {
+      "scalar": null,
+      "array": {
+       "by_val": true
+      },
+      "string": true,
+      "owned": false,
+      "borrowed": {
+       "lifetime": "arg:buf"
+      },
+      "nullable": true,
+      "mutable": true,
+      "note": "Caller output buffer of buf_size bytes: av_bprint_init_for_buffer writes a NUL at buf[0] and av_bprintf writes the abbreviated channel name (FL, AMBI<n>, USR<n>, NONE, UNK, UNSD) truncated to fit with its NUL. NULL is allowed only with buf_size 0 (count-only: nothing written, the needed size returned); NULL with a nonzero size returns AVERROR(EINVAL). buf_size is narrowed to `unsigned` by av_bprint_init_for_buffer, so a size >= 2^32 is truncated (2^32 itself becomes count-only). Not retained. Wrapped as `&mut [u8]` (empty slice -> NULL, 0; length clamped to u32::MAX) and as an owned CString builder measuring first."
+     }
+    }
+   ]
+  },
+  {
+   "name": "av_chroma_location_enum_to_pos",
+   "defined_in": "libavutil/pixdesc.c",
+   "ptr_args": [
+    {
+     "name": "xpos",
+     "ptr": {
+      "scalar": {
+       "by_val": true
+      },
+      "array": null,
+      "string": false,
+      "owned": false,
+      "borrowed": {
+       "lifetime": "arg:xpos"
+      },
+      "nullable": false,
+      "mutable": true,
+      "note": "Out-parameter `xpos`: written (one int, 0/128/256) only on success, i.e. for AVCHROMA_LOC_LEFT..BOTTOM; left untouched when AVERROR(EINVAL) is returned. Dereferenced unconditionally on success, so NULL is UB. Not retained. The safe wrapper owns both as locals and returns Option<(i32, i32)>."
+     }
+    },
+    {
+     "name": "ypos",
+     "ptr": {
+      "scalar": {
+       "by_val": true
+      },
+      "array": null,
+      "string": false,
+      "owned": false,
+      "borrowed": {
+       "lifetime": "arg:ypos"
+      },
+      "nullable": false,
+      "mutable": true,
+      "note": "Out-parameter `ypos`: written (one int, 0/128/256) only on success, i.e. for AVCHROMA_LOC_LEFT..BOTTOM; left untouched when AVERROR(EINVAL) is returned. Dereferenced unconditionally on success, so NULL is UB. Not retained. The safe wrapper owns both as locals and returns Option<(i32, i32)>."
+     }
+    }
+   ]
+  },
+  {
    "name": "av_chroma_location_from_name",
    "defined_in": "libavutil/pixdesc.c",
    "ptr_args": [
@@ -1221,6 +1367,28 @@
      }
     }
    ]
+  },
+  {
+   "name": "av_chroma_location_name",
+   "defined_in": "libavutil/pixdesc.c",
+   "ptr_ret": {
+    "ptr": {
+     "scalar": null,
+     "array": null,
+     "string": true,
+     "owned": false,
+     "borrowed": {
+      "lifetime": "static"
+     },
+     "nullable": true,
+     "mutable": false,
+     "note": "av_chroma_location_name returns NULL for a value outside its table (or a NULL table slot), else the address of a string literal from the static `chroma_location_names` table: NUL-terminated ASCII, immutable, never freed, valid for the process lifetime. Wrapped as an `Option<&'static CStr>` getter on the enum newtype."
+    }
+   }
+  },
+  {
+   "name": "av_chroma_location_pos_to_enum",
+   "defined_in": "libavutil/pixdesc.c"
   },
   {
    "name": "av_clip64_c",
@@ -1292,6 +1460,24 @@
    ]
   },
   {
+   "name": "av_color_primaries_name",
+   "defined_in": "libavutil/pixdesc.c",
+   "ptr_ret": {
+    "ptr": {
+     "scalar": null,
+     "array": null,
+     "string": true,
+     "owned": false,
+     "borrowed": {
+      "lifetime": "static"
+     },
+     "nullable": true,
+     "mutable": false,
+     "note": "av_color_primaries_name returns NULL for a value outside its table (or a NULL table slot: primaries 13..21 and the extended range past V_GAMUT), else the address of a string literal from the static `color_primaries_names / color_primaries_names_ext` table: NUL-terminated ASCII, immutable, never freed, valid for the process lifetime. Wrapped as an `Option<&'static CStr>` getter on the enum newtype."
+    }
+   }
+  },
+  {
    "name": "av_color_range_from_name",
    "defined_in": "libavutil/pixdesc.c",
    "ptr_args": [
@@ -1311,6 +1497,24 @@
      }
     }
    ]
+  },
+  {
+   "name": "av_color_range_name",
+   "defined_in": "libavutil/pixdesc.c",
+   "ptr_ret": {
+    "ptr": {
+     "scalar": null,
+     "array": null,
+     "string": true,
+     "owned": false,
+     "borrowed": {
+      "lifetime": "static"
+     },
+     "nullable": true,
+     "mutable": false,
+     "note": "av_color_range_name returns NULL for a value outside its table (or a NULL table slot), else the address of a string literal from the static `color_range_names` table: NUL-terminated ASCII, immutable, never freed, valid for the process lifetime. Wrapped as an `Option<&'static CStr>` getter on the enum newtype."
+    }
+   }
   },
   {
    "name": "av_color_space_from_name",
@@ -1334,6 +1538,24 @@
    ]
   },
   {
+   "name": "av_color_space_name",
+   "defined_in": "libavutil/pixdesc.c",
+   "ptr_ret": {
+    "ptr": {
+     "scalar": null,
+     "array": null,
+     "string": true,
+     "owned": false,
+     "borrowed": {
+      "lifetime": "static"
+     },
+     "nullable": true,
+     "mutable": false,
+     "note": "av_color_space_name returns NULL for a value outside its table (or a NULL table slot), else the address of a string literal from the static `color_space_names` table: NUL-terminated ASCII, immutable, never freed, valid for the process lifetime. Wrapped as an `Option<&'static CStr>` getter on the enum newtype."
+    }
+   }
+  },
+  {
    "name": "av_color_transfer_from_name",
    "defined_in": "libavutil/pixdesc.c",
    "ptr_args": [
@@ -1355,6 +1577,24 @@
    ]
   },
   {
+   "name": "av_color_transfer_name",
+   "defined_in": "libavutil/pixdesc.c",
+   "ptr_ret": {
+    "ptr": {
+     "scalar": null,
+     "array": null,
+     "string": true,
+     "owned": false,
+     "borrowed": {
+      "lifetime": "static"
+     },
+     "nullable": true,
+     "mutable": false,
+     "note": "av_color_transfer_name returns NULL for a value outside its table (or a NULL table slot), else the address of a string literal from the static `color_transfer_names / color_transfer_names_ext` table: NUL-terminated ASCII, immutable, never freed, valid for the process lifetime. Wrapped as an `Option<&'static CStr>` getter on the enum newtype."
+    }
+   }
+  },
+  {
    "name": "av_compare_mod",
    "defined_in": "libavutil/mathematics.c"
   },
@@ -1373,6 +1613,14 @@
   {
    "name": "av_cpu_max_align",
    "defined_in": "libavutil/cpu.c"
+  },
+  {
+   "name": "av_csp_approximate_eotf_gamma",
+   "defined_in": "libavutil/csp.c"
+  },
+  {
+   "name": "av_csp_approximate_trc_gamma",
+   "defined_in": "libavutil/csp.c"
   },
   {
    "name": "av_csp_eotf_function",
@@ -1396,6 +1644,86 @@
      }
     }
    ]
+  },
+  {
+   "name": "av_csp_itu_eotf",
+   "defined_in": "libavutil/csp.c",
+   "ptr_ret": {
+    "ptr": {
+     "scalar": {
+      "by_val": true
+     },
+     "array": null,
+     "string": false,
+     "owned": false,
+     "borrowed": {
+      "lifetime": "static"
+     },
+     "nullable": true,
+     "mutable": false,
+     "note": "av_csp_itu_eotf returns NULL for a transfer outside its table or with no eotf (NULL slot), else one of csp.c's static functions from `eotf_funcs (no extended range)`: code with static lifetime, stateless and reentrant, never freed. Wrapped as Option<EotfFunction>, the formats wave-0 callable handle."
+    }
+   }
+  },
+  {
+   "name": "av_csp_itu_eotf_inv",
+   "defined_in": "libavutil/csp.c",
+   "ptr_ret": {
+    "ptr": {
+     "scalar": {
+      "by_val": true
+     },
+     "array": null,
+     "string": false,
+     "owned": false,
+     "borrowed": {
+      "lifetime": "static"
+     },
+     "nullable": true,
+     "mutable": false,
+     "note": "av_csp_itu_eotf_inv returns NULL for a transfer outside its table or with no inverse eotf (NULL slot), else one of csp.c's static functions from `eotf_inv_funcs (no extended range)`: code with static lifetime, stateless and reentrant, never freed. Wrapped as Option<EotfFunction>, the formats wave-0 callable handle."
+    }
+   }
+  },
+  {
+   "name": "av_csp_trc_func_from_id",
+   "defined_in": "libavutil/csp.c",
+   "ptr_ret": {
+    "ptr": {
+     "scalar": {
+      "by_val": true
+     },
+     "array": null,
+     "string": false,
+     "owned": false,
+     "borrowed": {
+      "lifetime": "static"
+     },
+     "nullable": true,
+     "mutable": false,
+     "note": "av_csp_trc_func_from_id returns NULL for a transfer outside its table or with no trc function (NULL slot), else one of csp.c's static functions from `trc_funcs / trc_funcs_ext`: code with static lifetime, stateless and reentrant, never freed. Wrapped as Option<TrcFunction>, the formats wave-0 callable handle."
+    }
+   }
+  },
+  {
+   "name": "av_csp_trc_func_inv_from_id",
+   "defined_in": "libavutil/csp.c",
+   "ptr_ret": {
+    "ptr": {
+     "scalar": {
+      "by_val": true
+     },
+     "array": null,
+     "string": false,
+     "owned": false,
+     "borrowed": {
+      "lifetime": "static"
+     },
+     "nullable": true,
+     "mutable": false,
+     "note": "av_csp_trc_func_inv_from_id returns NULL for a transfer outside its table or with no inverse trc function (NULL slot), else one of csp.c's static functions from `trc_inv_funcs / trc_inv_funcs_ext`: code with static lifetime, stateless and reentrant, never freed. Wrapped as Option<TrcFunction>, the formats wave-0 callable handle."
+    }
+   }
   },
   {
    "name": "av_csp_trc_function",
@@ -2082,6 +2410,29 @@
    ]
   },
   {
+   "name": "av_find_best_pix_fmt_of_2",
+   "defined_in": "libavutil/pixdesc.c",
+   "ptr_args": [
+    {
+     "name": "loss_ptr",
+     "ptr": {
+      "scalar": {
+       "by_val": true
+      },
+      "array": null,
+      "string": false,
+      "owned": false,
+      "borrowed": {
+       "lifetime": "arg:loss_ptr"
+      },
+      "nullable": true,
+      "mutable": true,
+      "note": "Optional in/out loss word. In: when both candidates have descriptors, `~*loss_ptr` is the mask of FF_LOSS_* kinds scored (bits set are ignored). Out: overwritten with av_get_pix_fmt_loss(chosen, src, has_alpha), which may be a negative error code (-1..-4) rather than a loss set. NULL: score every kind and report nothing. Not retained. Wrapped as two safe variants: one passing NULL, one taking the ignore set by value and returning the chosen format with its loss."
+     }
+    }
+   ]
+  },
+  {
    "name": "av_find_nearest_q_idx",
    "defined_in": "libavutil/rational.c",
    "ptr_args": [
@@ -2223,6 +2574,14 @@
    "defined_in": "libavutil/rational.c"
   },
   {
+   "name": "av_get_alt_sample_fmt",
+   "defined_in": "libavutil/samplefmt.c"
+  },
+  {
+   "name": "av_get_bytes_per_sample",
+   "defined_in": "libavutil/samplefmt.c"
+  },
+  {
    "name": "av_get_cpu_flags",
    "defined_in": "libavutil/cpu.c"
   },
@@ -2245,8 +2604,55 @@
    }
   },
   {
+   "name": "av_get_packed_sample_fmt",
+   "defined_in": "libavutil/samplefmt.c"
+  },
+  {
    "name": "av_get_picture_type_char",
    "defined_in": "libavutil/utils.c"
+  },
+  {
+   "name": "av_get_pix_fmt",
+   "defined_in": "libavutil/pixdesc.c",
+   "ptr_args": [
+    {
+     "name": "name",
+     "ptr": {
+      "scalar": null,
+      "array": null,
+      "string": true,
+      "owned": false,
+      "borrowed": {
+       "lifetime": "arg:name"
+      },
+      "nullable": false,
+      "mutable": false,
+      "note": "av_get_pix_fmt reads `name` with strcmp/av_match_name against the descriptor names and aliases, and copies it into a bounded 32-byte local with snprintf for the native-endian retry, during the call only and keeps no pointer; strcmp dereferences it unconditionally, so NULL is UB (non-nullable). Wrapped as `&CStr`."
+     }
+    }
+   ]
+  },
+  {
+   "name": "av_get_pix_fmt_loss",
+   "defined_in": "libavutil/pixdesc.c"
+  },
+  {
+   "name": "av_get_pix_fmt_name",
+   "defined_in": "libavutil/pixdesc.c",
+   "ptr_ret": {
+    "ptr": {
+     "scalar": null,
+     "array": null,
+     "string": true,
+     "owned": false,
+     "borrowed": {
+      "lifetime": "static"
+     },
+     "nullable": true,
+     "mutable": false,
+     "note": "av_get_pix_fmt_name returns NULL for a value outside its table (or a NULL table slot), else the address of a string literal from the static `av_pix_fmt_descriptors[].name` table: NUL-terminated ASCII, immutable, never freed, valid for the process lifetime. Wrapped as an `Option<&'static CStr>` getter on the enum newtype."
+    }
+   }
   },
   {
    "name": "av_get_random_seed",

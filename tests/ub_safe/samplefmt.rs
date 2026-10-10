@@ -392,3 +392,57 @@ mod buffers {
         }
     }
 }
+
+/// `SampleFormat::alt`, `packed` and `bytes_per_sample` on every value, the
+/// `int` extremes included, and on several threads at once.
+mod sample_format_forms {
+    use std::thread;
+
+    use ffmpeg::libavutil::ffi;
+    use ffmpeg::libavutil::samplefmt::SampleFormat;
+
+    fn values() -> Vec<SampleFormat> {
+        (-3..16)
+            .chain([i32::MIN, i32::MIN + 1, i32::MAX])
+            .map(|r| SampleFormat::from_raw(ffi::AVSampleFormat(r)))
+            .collect()
+    }
+
+    #[test]
+    fn every_value_is_accepted() {
+        for f in values() {
+            for planar in [false, true] {
+                if let Some(g) = f.alt(planar) {
+                    assert!(g.index().is_some());
+                    assert_eq!(g.bytes_per_sample(), f.bytes_per_sample());
+                }
+            }
+            if let Some(p) = f.packed() {
+                assert_eq!(p.packed(), Some(p));
+            }
+            assert!([0, 1, 2, 4, 8].contains(&f.bytes_per_sample()));
+        }
+    }
+
+    #[test]
+    fn calls_run_on_many_threads() {
+        let all = values();
+        let expect: Vec<_> = all
+            .iter()
+            .map(|f| (f.alt(true), f.alt(false), f.packed(), f.bytes_per_sample()))
+            .collect();
+        thread::scope(|s| {
+            for t in 0..8 {
+                let (all, expect) = (&all, &expect);
+                s.spawn(move || {
+                    for (f, e) in all.iter().zip(expect).cycle().skip(t).take(100) {
+                        assert_eq!(
+                            &(f.alt(true), f.alt(false), f.packed(), f.bytes_per_sample()),
+                            e
+                        );
+                    }
+                });
+            }
+        });
+    }
+}

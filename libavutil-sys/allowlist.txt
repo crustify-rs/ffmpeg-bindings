@@ -420,3 +420,17 @@ function av_samples_alloc_array_and_samples
 function av_samples_copy
 function av_samples_set_silence
 function av_pix_fmt_swap_endianness
+
+# libavutil/pixdesc.h, csp.h, samplefmt.h: the formats wave-1 batch-3 symbols
+# not bound by an earlier batch, and the FF_LOSS_* flags av_get_pix_fmt_loss
+# and av_find_best_pix_fmt_of_2 report.
+function av_chroma_location_enum_to_pos
+function av_chroma_location_pos_to_enum
+function av_csp_approximate_trc_gamma
+function av_csp_approximate_eotf_gamma
+function av_find_best_pix_fmt_of_2
+function av_get_pix_fmt
+function av_get_pix_fmt_loss
+function av_get_alt_sample_fmt
+function av_get_packed_sample_fmt
+var FF_LOSS_.*
