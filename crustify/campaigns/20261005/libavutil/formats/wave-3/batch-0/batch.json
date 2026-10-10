@@ -1,0 +1,15 @@
+{
+  "objective": "wrap",
+  "items": [
+    {
+      "name": "AVColorPrimariesDesc",
+      "defined_in": "libavutil/csp.h",
+      "kind": "type",
+      "field_anchors": [
+        "prim",
+        "wp"
+      ],
+      "home": "crustify/rust/ffmpeg/libavutil/csp.rs"
+    }
+  ]
+}
