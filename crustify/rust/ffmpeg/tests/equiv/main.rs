@@ -16,5 +16,6 @@ mod mem;
 mod opt;
 mod random_seed;
 mod rational;
+mod samplefmt;
 mod time;
 mod timestamp;

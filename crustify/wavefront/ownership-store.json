@@ -310,6 +310,12 @@
    "fields": []
   },
   {
+   "name": "AVSampleFormat",
+   "defined_in": "libavutil/samplefmt.h",
+   "_comment_agent": "C enum (int-backed, AV_SAMPLE_FMT_NONE = -1 .. AV_SAMPLE_FMT_NB = 12): no fields, no pointers, no lifecycle. Stored by value in public fields users write directly (AVCodecContext.sample_fmt / request_sample_fmt, AVFrame.format as int, AVOption AV_OPT_TYPE_SAMPLE_FMT targets) and in AV_SAMPLE_FMT_NONE-terminated arrays (AVCodec.sample_fmts), so any int is an observable value; libavutil/samplefmt.c and swresample bound-check with `< 0 || >= AV_SAMPLE_FMT_NB` before table lookups. Wrapped as an open #[repr(transparent)] newtype (SampleFormat) accepting every int; plain element (CPlainElem) for av_malloc arrays.",
+   "fields": []
+  },
+  {
    "name": "av_alias16",
    "defined_in": "libavutil/intreadwrite.h",
    "_comment_agent": "A union (the composer reports kind=struct for the anonymous typedef'd union) declared __attribute__((may_alias)) for type punning in the AV_RN/AV_WN/AV_COPY/AV_SWAP/AV_ZERO macros. Fields u16 and u8[2] are plain scalars that both cover all 2 bytes, so every bit pattern is valid for every field and reading any field of an initialised object is defined. No pointer fields, no allocation, no teardown, no clone routine: C only ever casts existing storage to av_alias16* (opaque_in footprint) or holds it by value. Lifecycle: none; a by-value, trivially copyable value type, all-zero valid.",
