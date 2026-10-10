@@ -1,0 +1,11 @@
+error[E0597]: `d` does not live long enough
+ --> tests/ub_safe/compile_fail/pixdesc_pixel_format_descriptor_ref_outlives_value.rs
+  |
+  |     let r = {
+  |         - borrow later stored here
+  |         let d = PixelFormatDescriptor::new();
+  |             - binding `d` declared here
+  |         d.as_ref()
+  |         ^ borrowed value does not live long enough
+  |     };
+  |     - `d` dropped here while still borrowed

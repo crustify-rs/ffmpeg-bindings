@@ -434,3 +434,13 @@ function av_get_pix_fmt_loss
 function av_get_alt_sample_fmt
 function av_get_packed_sample_fmt
 var FF_LOSS_.*
+
+# libavutil/pixdesc.h: the AV_PIX_FMT_FLAG_* bits behind `PixelFormatFlags`,
+# and the C producers and readers of whole AVPixFmtDescriptors, the
+# equivalence reference for pixdesc.rs's `PixelFormatDescriptor` (formats
+# wave 1, batch 2).
+var AV_PIX_FMT_FLAG_.*
+function av_pix_fmt_desc_get
+function av_pix_fmt_desc_get_id
+function av_get_bits_per_pixel
+function av_write_image_line2

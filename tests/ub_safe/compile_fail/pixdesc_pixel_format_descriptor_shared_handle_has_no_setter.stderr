@@ -1,0 +1,11 @@
+error[E0599]: no method named `set_component_count` found for struct `PixelFormatDescriptorRef<'a>` in the current scope
+ --> tests/ub_safe/compile_fail/pixdesc_pixel_format_descriptor_shared_handle_has_no_setter.rs
+  |
+  |     d.as_ref().set_component_count(3);
+  |                ^^^^^^^^^^^^^^^^^^^
+  |
+help: there is a method `component_count` with a similar name, but with different arguments
+ --> libavutil/pixdesc.rs
+  |
+  |     pub fn component_count(&self) -> u8 {
+  |     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^

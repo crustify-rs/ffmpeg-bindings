@@ -1,0 +1,9 @@
+error[E0499]: cannot borrow `m` as mutable more than once at a time
+ --> tests/ub_safe/compile_fail/pixdesc_pixel_format_descriptor_components_mut_twice.rs
+  |
+  |     let mut a = m.components_mut();
+  |                 - first mutable borrow occurs here
+  |     let mut b = m.components_mut();
+  |                 ^ second mutable borrow occurs here
+  |     a.get_mut(0).unwrap().set_depth(8);
+  |     - first borrow later used here

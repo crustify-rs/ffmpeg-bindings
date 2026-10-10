@@ -1,0 +1,9 @@
+error[E0502]: cannot borrow `d` as immutable because it is also borrowed as mutable
+ --> tests/ub_safe/compile_fail/pixdesc_pixel_format_descriptor_into_components_mut_keeps_value_borrowed.rs
+  |
+  |     let mut run = d.as_mut().into_components_mut();
+  |                   - mutable borrow occurs here
+  |     println!("{}", d.as_ref().component_count());
+  |                    ^ immutable borrow occurs here
+  |     run.get_mut(0).unwrap().set_depth(8);
+  |     --- mutable borrow later used here

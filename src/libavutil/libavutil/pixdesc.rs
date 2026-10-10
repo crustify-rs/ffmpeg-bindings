@@ -9,6 +9,13 @@
 //! field of a wrapped C struct is reached as a [`ComponentDescriptorRef`] or
 //! [`ComponentDescriptorMut`] over the projected place.
 //!
+//! [`PixelFormatDescriptor`] is `AVPixFmtDescriptor`: how a pixel format
+//! lays out its pixels, with four [`ComponentDescriptor`]s embedded by value
+//! and its [`PixelFormatFlags`]. C keeps its descriptors in one static,
+//! never-written table, so a descriptor has no owner either: a Rust-held one
+//! is a value, and its `name` and `alias` strings are borrowed for the whole
+//! program.
+//!
 //! The color property lookups by name (`av_color_range_from_name` and its
 //! siblings) are associated functions of the [`pixfmt`](super::pixfmt)
 //! types they produce, such as [`ColorRange::from_name`], and so are their
@@ -22,9 +29,9 @@ use core::ffi::{CStr, c_char, c_int, c_uint};
 use core::fmt;
 use core::hash::{Hash, Hasher};
 use core::ops::{BitAnd, BitOr, BitOrAssign};
-use core::ptr::{self, addr_of, addr_of_mut};
+use core::ptr::{self, NonNull, addr_of, addr_of_mut};
 
-use ffibox::{CZeroable, define_ctype};
+use ffibox::{CSlice, CSliceMut, CZeroable, define_ctype};
 
 use super::ffi;
 use super::pixfmt::{
@@ -300,6 +307,537 @@ impl ComponentDescriptorMut<'_> {
         // SAFETY: a write of the whole `AVComponentDescriptor` through the
         // exclusive handle's pointer to a live one; the old value owns
         // nothing to leak.
+        unsafe { self.as_mut_ptr().write(d.into_raw()) }
+    }
+}
+
+/// The set of `AV_PIX_FMT_FLAG_*` bits a [`PixelFormatDescriptor`] carries:
+/// how the format stores its values (big-endian, palettized, bit-packed,
+/// planar, floating-point) and what they are (RGB, XYZ, Bayer, alpha, a
+/// hardware surface).
+///
+/// C keeps them in a `uint64_t`, so any bit pattern is a valid value and the
+/// set operations carry unnamed bits along.
+#[repr(transparent)]
+#[derive(Clone, Copy, Default, PartialEq, Eq, Hash)]
+pub struct PixelFormatFlags(u64);
+
+impl PixelFormatFlags {
+    /// Multi-byte values are big-endian.
+    pub const BIG_ENDIAN: Self = Self(ffi::AV_PIX_FMT_FLAG_BE as u64);
+    /// Plane 1 holds a palette, and plane 0 holds indexes into it.
+    pub const PALETTE: Self = Self(ffi::AV_PIX_FMT_FLAG_PAL as u64);
+    /// A component's values are bit-wise packed end to end.
+    pub const BITSTREAM: Self = Self(ffi::AV_PIX_FMT_FLAG_BITSTREAM as u64);
+    /// A hardware-accelerated format, whose planes are not in memory.
+    pub const HWACCEL: Self = Self(ffi::AV_PIX_FMT_FLAG_HWACCEL as u64);
+    /// At least one component is not in plane 0.
+    pub const PLANAR: Self = Self(ffi::AV_PIX_FMT_FLAG_PLANAR as u64);
+    /// RGB-like data, rather than YUV or grayscale.
+    pub const RGB: Self = Self(ffi::AV_PIX_FMT_FLAG_RGB as u64);
+    /// The format has a straight (not premultiplied) alpha channel in some
+    /// form, palettized formats included.
+    pub const ALPHA: Self = Self(ffi::AV_PIX_FMT_FLAG_ALPHA as u64);
+    /// The values follow a Bayer pattern.
+    pub const BAYER: Self = Self(ffi::AV_PIX_FMT_FLAG_BAYER as u64);
+    /// IEEE-754 floating-point values, whose precision follows the pixel
+    /// size.
+    pub const FLOAT: Self = Self(ffi::AV_PIX_FMT_FLAG_FLOAT as u64);
+    /// XYZ-like data, rather than YUV, RGB or grayscale.
+    pub const XYZ: Self = Self(ffi::AV_PIX_FMT_FLAG_XYZ as u64);
+
+    /// Every named flag with its constant's name, in bit order.
+    const KNOWN: [(Self, &'static str); 10] = [
+        (Self::BIG_ENDIAN, "BIG_ENDIAN"),
+        (Self::PALETTE, "PALETTE"),
+        (Self::BITSTREAM, "BITSTREAM"),
+        (Self::HWACCEL, "HWACCEL"),
+        (Self::PLANAR, "PLANAR"),
+        (Self::RGB, "RGB"),
+        (Self::ALPHA, "ALPHA"),
+        (Self::BAYER, "BAYER"),
+        (Self::FLOAT, "FLOAT"),
+        (Self::XYZ, "XYZ"),
+    ];
+
+    /// The set with no flag.
+    #[inline]
+    pub const fn empty() -> Self {
+        Self(0)
+    }
+
+    /// The set with exactly `bits`, named or not.
+    #[inline]
+    pub const fn from_bits_retain(bits: u64) -> Self {
+        Self(bits)
+    }
+
+    /// The set's raw bits, as C stores them.
+    #[inline]
+    pub const fn bits(self) -> u64 {
+        self.0
+    }
+
+    /// Whether no bit is set.
+    #[inline]
+    pub const fn is_empty(self) -> bool {
+        self.0 == 0
+    }
+
+    /// Whether every bit of `other` is set in `self`.
+    #[inline]
+    pub const fn contains(self, other: Self) -> bool {
+        self.0 & other.0 == other.0
+    }
+}
+
+impl fmt::Debug for PixelFormatFlags {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.write_str("PixelFormatFlags(")?;
+        let mut rest = self.0;
+        let mut first = true;
+        for &(flag, name) in &Self::KNOWN {
+            if self.contains(flag) {
+                if !first {
+                    f.write_str(" | ")?;
+                }
+                f.write_str(name)?;
+                rest &= !flag.0;
+                first = false;
+            }
+        }
+        if rest != 0 || first {
+            if !first {
+                f.write_str(" | ")?;
+            }
+            write!(f, "{rest:#x}")?;
+        }
+        f.write_str(")")
+    }
+}
+
+impl BitOr for PixelFormatFlags {
+    type Output = Self;
+
+    #[inline]
+    fn bitor(self, rhs: Self) -> Self {
+        Self(self.0 | rhs.0)
+    }
+}
+
+impl BitOrAssign for PixelFormatFlags {
+    #[inline]
+    fn bitor_assign(&mut self, rhs: Self) {
+        self.0 |= rhs.0;
+    }
+}
+
+impl BitAnd for PixelFormatFlags {
+    type Output = Self;
+
+    #[inline]
+    fn bitand(self, rhs: Self) -> Self {
+        Self(self.0 & rhs.0)
+    }
+}
+
+define_ctype!(
+    /// Wraps: AVPixFmtDescriptor
+    ///
+    /// How a pixel format stores its pixels in up to four planes: its name
+    /// and aliases, its component count and layouts, its chroma subsampling
+    /// and its [`PixelFormatFlags`]. Its getters are on
+    /// [`PixelFormatDescriptorRef`] (`as_ref()`), its setters on
+    /// [`PixelFormatDescriptorMut`] (`as_mut()`).
+    ///
+    /// C's descriptors live in libavutil's static, never-written table; no C
+    /// routine allocates, frees or copies one, so a Rust-held descriptor is a
+    /// value with no owner, and copying one shares its strings.
+    ///
+    /// Its `name` and `alias` strings are borrowed for the whole program:
+    /// each is NULL or a NUL-terminated string that is never freed or
+    /// written, as C's table holds string literals, the setters take only
+    /// `&'static CStr`, and [`from_raw`](Self::from_raw) requires it. That
+    /// is what lets a getter hand them out as `&'static CStr`, which outlive
+    /// the descriptor and can be set into another one.
+    ///
+    /// No other field is range-checked, by C or here. C's readers of a whole
+    /// descriptor (`av_get_bits_per_pixel`, `av_read_image_line2` and their
+    /// siblings) index its components by the component count and each
+    /// component's plane, and shift by the chroma shifts and depths, so a
+    /// wrapper passing a Rust-built descriptor to them checks those first.
+    #[derive(Clone, Copy)]
+    PixelFormatDescriptor,
+    PixelFormatDescriptorRef,
+    PixelFormatDescriptorMut,
+    ffi::AVPixFmtDescriptor
+);
+
+// SAFETY: all-zero is a descriptor C itself stores for every pixel format
+// its table leaves out: NULL `name` and `alias`, which the getters read as
+// `None` and `av_pix_fmt_desc_next` skips; no component, flag or chroma
+// shift. Every accessor takes it, and the type has no teardown to reject it.
+unsafe impl CZeroable for PixelFormatDescriptor {}
+
+// SAFETY: a descriptor is integers, four `AVComponentDescriptor` values and
+// two pointers to strings that, by the type's invariant, live for the whole
+// program and are never written; nothing in it is tied to the thread that
+// wrote it, so a value, or an exclusive handle to one, moves between threads
+// as a `(u64, &'static CStr)` does.
+unsafe impl Send for PixelFormatDescriptor {}
+// SAFETY: as for `PixelFormatDescriptor`: the handle is the only access to
+// the descriptor's fields, and the strings it reaches are never written.
+unsafe impl Send for PixelFormatDescriptorMut<'_> {}
+
+// SAFETY: nothing reachable through a shared handle writes:
+// `PixelFormatDescriptorRef` has getters only, the struct has no interior
+// mutability, and the strings are never written by anyone, so concurrent
+// shared access reads unchanging bytes, as through a `&(u64, &'static CStr)`.
+unsafe impl Sync for PixelFormatDescriptor {}
+// SAFETY: as for `Sync for PixelFormatDescriptor`: copies of a shared handle
+// only read.
+unsafe impl Send for PixelFormatDescriptorRef<'_> {}
+// SAFETY: as above.
+unsafe impl Sync for PixelFormatDescriptorRef<'_> {}
+// SAFETY: `&PixelFormatDescriptorMut` reaches the fields only through
+// `as_ref`, a shared handle; the setters need `&mut`.
+unsafe impl Sync for PixelFormatDescriptorMut<'_> {}
+
+impl PixelFormatDescriptor {
+    /// The all-zero descriptor: no name, alias, component, flag or chroma
+    /// subsampling, as C's table stores for a format it leaves out.
+    #[inline]
+    #[must_use]
+    pub fn new() -> Self {
+        Self::zeroed()
+    }
+
+    /// The descriptor C encodes as `raw`.
+    ///
+    /// # Safety
+    ///
+    /// `raw.name` and `raw.alias` must each be NULL or point to a
+    /// NUL-terminated string that is never freed or written for the rest of
+    /// the program, such as a string literal or a field of a descriptor in
+    /// C's own table.
+    #[inline]
+    #[must_use]
+    pub const unsafe fn from_raw(raw: ffi::AVPixFmtDescriptor) -> Self {
+        Self(raw, core::marker::PhantomData)
+    }
+
+    /// The C encoding of this descriptor, for storing it in a C struct by
+    /// value or passing it to a C reader.
+    #[inline]
+    #[must_use]
+    pub const fn into_raw(self) -> ffi::AVPixFmtDescriptor {
+        self.0
+    }
+}
+
+impl Default for PixelFormatDescriptor {
+    #[inline]
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
+impl From<PixelFormatDescriptor> for ffi::AVPixFmtDescriptor {
+    #[inline]
+    fn from(d: PixelFormatDescriptor) -> Self {
+        d.into_raw()
+    }
+}
+
+/// Field by field: two descriptors are equal when their names and aliases
+/// hold the same bytes (or are both absent) and every other field is equal.
+impl PartialEq for PixelFormatDescriptor {
+    fn eq(&self, other: &Self) -> bool {
+        self.as_ref().fields() == other.as_ref().fields()
+    }
+}
+
+impl Eq for PixelFormatDescriptor {}
+
+impl Hash for PixelFormatDescriptor {
+    fn hash<H: Hasher>(&self, state: &mut H) {
+        self.as_ref().fields().hash(state);
+    }
+}
+
+impl fmt::Debug for PixelFormatDescriptor {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        self.as_ref().fmt(f)
+    }
+}
+
+impl fmt::Debug for PixelFormatDescriptorRef<'_> {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.debug_struct("PixelFormatDescriptor")
+            .field("name", &self.name())
+            .field("component_count", &self.component_count())
+            .field("log2_chroma_w", &self.log2_chroma_w())
+            .field("log2_chroma_h", &self.log2_chroma_h())
+            .field("flags", &self.flags())
+            .field("components", &self.fields().5)
+            .field("alias", &self.alias())
+            .finish()
+    }
+}
+
+/// The fields of a [`PixelFormatDescriptor`] in declaration order, strings
+/// by content, for comparison and hashing.
+type DescriptorFields = (
+    Option<&'static CStr>,
+    u8,
+    u8,
+    u8,
+    u64,
+    [ComponentDescriptor; 4],
+    Option<&'static CStr>,
+);
+
+impl<'a> PixelFormatDescriptorRef<'a> {
+    /// Field: AVPixFmtDescriptor.name
+    ///
+    /// The format's name, such as `yuv420p`; `None` for a descriptor without
+    /// one, such as the all-zero descriptor C stores for a format its table
+    /// leaves out.
+    #[must_use]
+    pub fn name(&self) -> Option<&'static CStr> {
+        // SAFETY: a read of the `name` pointer projected through the shared
+        // handle's pointer to a live, initialised `AVPixFmtDescriptor`.
+        let p = unsafe { addr_of!((*self.as_ptr()).name).read() };
+        // SAFETY: by the type's invariant, a non-null `name` addresses a
+        // NUL-terminated string that is never freed or written for the rest
+        // of the program.
+        (!p.is_null()).then(|| unsafe { CStr::from_ptr(p) })
+    }
+
+    /// Field: AVPixFmtDescriptor.nb_components
+    ///
+    /// The number of components each pixel has, 1 to 4 in C's table (0 for
+    /// a format it leaves out); the first ones of
+    /// [`components`](Self::components) describe them.
+    #[must_use]
+    pub fn component_count(&self) -> u8 {
+        // SAFETY: a read of the `nb_components` field projected through the
+        // shared handle's pointer to a live, initialised
+        // `AVPixFmtDescriptor`; every bit pattern is a valid `uint8_t`.
+        unsafe { addr_of!((*self.as_ptr()).nb_components).read() }
+    }
+
+    /// Field: AVPixFmtDescriptor.log2_chroma_w
+    ///
+    /// How far to shift the luma width right, rounding up, to get the chroma
+    /// width: 1 for `yuv420p`.
+    #[must_use]
+    pub fn log2_chroma_w(&self) -> u8 {
+        // SAFETY: a read of the `log2_chroma_w` field projected through the
+        // shared handle's pointer to a live, initialised
+        // `AVPixFmtDescriptor`; every bit pattern is a valid `uint8_t`.
+        unsafe { addr_of!((*self.as_ptr()).log2_chroma_w).read() }
+    }
+
+    /// Field: AVPixFmtDescriptor.log2_chroma_h
+    ///
+    /// How far to shift the luma height right, rounding up, to get the
+    /// chroma height: 1 for `yuv420p`.
+    #[must_use]
+    pub fn log2_chroma_h(&self) -> u8 {
+        // SAFETY: a read of the `log2_chroma_h` field projected through the
+        // shared handle's pointer to a live, initialised
+        // `AVPixFmtDescriptor`; every bit pattern is a valid `uint8_t`.
+        unsafe { addr_of!((*self.as_ptr()).log2_chroma_h).read() }
+    }
+
+    /// Field: AVPixFmtDescriptor.flags
+    ///
+    /// The format's [`PixelFormatFlags`], unnamed bits included.
+    #[must_use]
+    pub fn flags(&self) -> PixelFormatFlags {
+        // SAFETY: a read of the `flags` field projected through the shared
+        // handle's pointer to a live, initialised `AVPixFmtDescriptor`;
+        // every bit pattern is a valid `uint64_t`.
+        PixelFormatFlags(unsafe { addr_of!((*self.as_ptr()).flags).read() })
+    }
+
+    /// Field: AVPixFmtDescriptor.comp
+    ///
+    /// The layouts of the four component slots, borrowed from the
+    /// descriptor: luma (or red), then chroma (or green and blue), with
+    /// alpha always last; slots past the component count are all-zero in
+    /// C's table.
+    #[must_use]
+    pub fn components(&self) -> CSlice<'a, ComponentDescriptor> {
+        // SAFETY: `comp` projected through the shared handle's pointer to a
+        // live descriptor is four contiguous, initialised
+        // `AVComponentDescriptor`s, which `ComponentDescriptor` is
+        // `#[repr(transparent)]` over, living as long as the descriptor does,
+        // i.e. for `'a`; the projection of a non-null handle pointer is
+        // non-null, and a shared run only reads through it.
+        unsafe {
+            let p = addr_of!((*self.as_ptr()).comp).cast::<ComponentDescriptor>();
+            CSlice::from_raw_parts(NonNull::new_unchecked(p.cast_mut()), 4)
+        }
+    }
+
+    /// Field: AVPixFmtDescriptor.alias
+    ///
+    /// The format's alternative names, comma-separated, such as `gray8,y8`
+    /// for `gray`; `None` for most formats.
+    #[must_use]
+    pub fn alias(&self) -> Option<&'static CStr> {
+        // SAFETY: a read of the `alias` pointer projected through the shared
+        // handle's pointer to a live, initialised `AVPixFmtDescriptor`.
+        let p = unsafe { addr_of!((*self.as_ptr()).alias).read() };
+        // SAFETY: by the type's invariant, a non-null `alias` addresses a
+        // NUL-terminated string that is never freed or written for the rest
+        // of the program.
+        (!p.is_null()).then(|| unsafe { CStr::from_ptr(p) })
+    }
+
+    /// The fields in declaration order, for comparison, hashing and
+    /// formatting.
+    fn fields(&self) -> DescriptorFields {
+        // SAFETY: a read of the `comp` array projected through the shared
+        // handle's pointer to a live, initialised `AVPixFmtDescriptor`; it is
+        // twenty `int`s, so the copy is a complete, independent value.
+        let comp = unsafe { addr_of!((*self.as_ptr()).comp).read() };
+        (
+            self.name(),
+            self.component_count(),
+            self.log2_chroma_w(),
+            self.log2_chroma_h(),
+            self.flags().bits(),
+            comp.map(ComponentDescriptor::from_raw),
+            self.alias(),
+        )
+    }
+
+    /// A copy of the whole descriptor, independent of the place it was read
+    /// from; its strings are shared, as they live for the whole program.
+    #[must_use]
+    pub fn get(&self) -> PixelFormatDescriptor {
+        // SAFETY: a read of the whole live, initialised `AVPixFmtDescriptor`
+        // through the shared handle's pointer; it is plain data, and its two
+        // string pointers keep the type's invariant in the copy, since the
+        // strings live, unwritten, for the whole program.
+        PixelFormatDescriptor(unsafe { self.as_ptr().read() }, core::marker::PhantomData)
+    }
+}
+
+impl<'a> PixelFormatDescriptorMut<'a> {
+    /// Field: AVPixFmtDescriptor.name
+    ///
+    /// Sets the format's name, or clears it with `None`, leaving the other
+    /// fields as they are. The string is borrowed for the whole program, as
+    /// C's own names are.
+    pub fn set_name(&mut self, name: Option<&'static CStr>) {
+        let p = name.map_or(ptr::null(), CStr::as_ptr);
+        // SAFETY: a write of the `name` pointer projected through the
+        // exclusive handle's pointer to a live `AVPixFmtDescriptor`; `p` is
+        // NULL or a `'static` string, never written, which keeps the type's
+        // invariant, and the old value is borrowed, so nothing leaks.
+        unsafe { addr_of_mut!((*self.as_mut_ptr()).name).write(p) }
+    }
+
+    /// Field: AVPixFmtDescriptor.nb_components
+    ///
+    /// Sets the number of components each pixel has, leaving the other
+    /// fields as they are. Any value is stored; C's table only holds 0 to 4.
+    pub fn set_component_count(&mut self, count: u8) {
+        // SAFETY: a write of the `nb_components` field projected through the
+        // exclusive handle's pointer to a live `AVPixFmtDescriptor`; the old
+        // value owns nothing to leak.
+        unsafe { addr_of_mut!((*self.as_mut_ptr()).nb_components).write(count) }
+    }
+
+    /// Field: AVPixFmtDescriptor.log2_chroma_w
+    ///
+    /// Sets the chroma width shift, leaving the other fields as they are.
+    pub fn set_log2_chroma_w(&mut self, shift: u8) {
+        // SAFETY: a write of the `log2_chroma_w` field projected through the
+        // exclusive handle's pointer to a live `AVPixFmtDescriptor`; the old
+        // value owns nothing to leak.
+        unsafe { addr_of_mut!((*self.as_mut_ptr()).log2_chroma_w).write(shift) }
+    }
+
+    /// Field: AVPixFmtDescriptor.log2_chroma_h
+    ///
+    /// Sets the chroma height shift, leaving the other fields as they are.
+    pub fn set_log2_chroma_h(&mut self, shift: u8) {
+        // SAFETY: a write of the `log2_chroma_h` field projected through the
+        // exclusive handle's pointer to a live `AVPixFmtDescriptor`; the old
+        // value owns nothing to leak.
+        unsafe { addr_of_mut!((*self.as_mut_ptr()).log2_chroma_h).write(shift) }
+    }
+
+    /// Field: AVPixFmtDescriptor.flags
+    ///
+    /// Sets the format's flags, unnamed bits included, leaving the other
+    /// fields as they are.
+    pub fn set_flags(&mut self, flags: PixelFormatFlags) {
+        // SAFETY: a write of the `flags` field projected through the
+        // exclusive handle's pointer to a live `AVPixFmtDescriptor`; the old
+        // value owns nothing to leak.
+        unsafe { addr_of_mut!((*self.as_mut_ptr()).flags).write(flags.0) }
+    }
+
+    /// Field: AVPixFmtDescriptor.comp
+    ///
+    /// The four component slots, exclusively borrowed from the descriptor
+    /// for writing in place through their handles.
+    #[must_use]
+    pub fn components_mut(&mut self) -> CSliceMut<'_, ComponentDescriptor> {
+        // SAFETY: `comp` projected through the exclusive handle's pointer to
+        // a live descriptor is four contiguous, initialised
+        // `AVComponentDescriptor`s, which `ComponentDescriptor` is
+        // `#[repr(transparent)]` over; the projection of a non-null handle
+        // pointer is non-null; the run is bound by `&mut self`, so this
+        // handle, the only access to the descriptor, is frozen while it
+        // lives.
+        unsafe {
+            let p = addr_of_mut!((*self.as_mut_ptr()).comp).cast::<ComponentDescriptor>();
+            CSliceMut::from_raw_parts(NonNull::new_unchecked(p), 4)
+        }
+    }
+
+    /// Field: AVPixFmtDescriptor.comp
+    ///
+    /// The four component slots, exclusively borrowed for the handle's whole
+    /// lifetime, giving the handle up: the by-value counterpart of
+    /// [`components_mut`](Self::components_mut), for a run that outlives a
+    /// temporary handle (`d.as_mut().into_components_mut()`).
+    #[must_use]
+    pub fn into_components_mut(mut self) -> CSliceMut<'a, ComponentDescriptor> {
+        // SAFETY: as in `components_mut`; the handle is consumed, so the run
+        // is the only access left to the descriptor for `'a`.
+        unsafe {
+            let p = addr_of_mut!((*self.as_mut_ptr()).comp).cast::<ComponentDescriptor>();
+            CSliceMut::from_raw_parts(NonNull::new_unchecked(p), 4)
+        }
+    }
+
+    /// Field: AVPixFmtDescriptor.alias
+    ///
+    /// Sets the format's comma-separated alternative names, or clears them
+    /// with `None`, leaving the other fields as they are. The string is
+    /// borrowed for the whole program, as C's own aliases are.
+    pub fn set_alias(&mut self, alias: Option<&'static CStr>) {
+        let p = alias.map_or(ptr::null(), CStr::as_ptr);
+        // SAFETY: a write of the `alias` pointer projected through the
+        // exclusive handle's pointer to a live `AVPixFmtDescriptor`; `p` is
+        // NULL or a `'static` string, never written, which keeps the type's
+        // invariant, and the old value is borrowed, so nothing leaks.
+        unsafe { addr_of_mut!((*self.as_mut_ptr()).alias).write(p) }
+    }
+
+    /// Overwrites every field with `d`'s.
+    pub fn set(&mut self, d: PixelFormatDescriptor) {
+        // SAFETY: a write of the whole `AVPixFmtDescriptor` through the
+        // exclusive handle's pointer to a live one; `d` keeps the type's
+        // invariant, and the old value borrows its strings, so nothing leaks.
         unsafe { self.as_mut_ptr().write(d.into_raw()) }
     }
 }
@@ -1136,5 +1674,300 @@ mod unit_tests {
             );
         }
         assert!(fmt::write(&mut Short { room: whole }, format_args!("{loss:?}")).is_ok());
+    }
+
+    /// A descriptor with every field set to a distinct value, built without
+    /// a C call.
+    fn yuv420p_like() -> PixelFormatDescriptor {
+        let mut d = PixelFormatDescriptor::new();
+        let mut m = d.as_mut();
+        m.set_name(Some(c"yuv420p"));
+        m.set_component_count(3);
+        m.set_log2_chroma_w(1);
+        m.set_log2_chroma_h(2);
+        m.set_flags(PixelFormatFlags::PLANAR);
+        {
+            let mut comps = m.components_mut();
+            for i in 0..3 {
+                comps
+                    .get_mut(i)
+                    .unwrap()
+                    .set(ComponentDescriptor::from_raw(raw(i as i32, 1, 0, 0, 8)));
+            }
+        }
+        m.set_alias(Some(c"i420,yv12x"));
+        d
+    }
+
+    fn pf_hash_of(d: &PixelFormatDescriptor) -> u64 {
+        let mut h = DefaultHasher::new();
+        d.hash(&mut h);
+        h.finish()
+    }
+
+    #[test]
+    fn pixel_format_flags_name_c_s_bits() {
+        let named = [
+            (PixelFormatFlags::BIG_ENDIAN, 1 << 0),
+            (PixelFormatFlags::PALETTE, 1 << 1),
+            (PixelFormatFlags::BITSTREAM, 1 << 2),
+            (PixelFormatFlags::HWACCEL, 1 << 3),
+            (PixelFormatFlags::PLANAR, 1 << 4),
+            (PixelFormatFlags::RGB, 1 << 5),
+            (PixelFormatFlags::ALPHA, 1 << 7),
+            (PixelFormatFlags::BAYER, 1 << 8),
+            (PixelFormatFlags::FLOAT, 1 << 9),
+            (PixelFormatFlags::XYZ, 1 << 10),
+        ];
+        for (flag, bits) in named {
+            assert_eq!(flag.bits(), bits);
+            assert_eq!(PixelFormatFlags::from_bits_retain(bits), flag);
+        }
+        assert_eq!(
+            PixelFormatFlags::KNOWN.map(|(f, _)| f),
+            named.map(|(f, _)| f)
+        );
+    }
+
+    #[test]
+    fn pixel_format_flags_set_operations_keep_unnamed_bits() {
+        let empty = PixelFormatFlags::empty();
+        assert!(empty.is_empty());
+        assert_eq!(PixelFormatFlags::default(), empty);
+        let mut f = PixelFormatFlags::RGB | PixelFormatFlags::ALPHA;
+        assert!(f.contains(PixelFormatFlags::RGB));
+        assert!(f.contains(PixelFormatFlags::RGB | PixelFormatFlags::ALPHA));
+        assert!(!f.contains(PixelFormatFlags::PLANAR));
+        assert!(f.contains(empty));
+        f |= PixelFormatFlags::from_bits_retain(1 << 6 | 1 << 63);
+        assert_eq!(f.bits(), 1 << 5 | 1 << 7 | 1 << 6 | 1 << 63);
+        assert_eq!(
+            (f & PixelFormatFlags::from_bits_retain(1 << 63 | 1 << 5)).bits(),
+            1 << 63 | 1 << 5
+        );
+        assert!(!f.is_empty());
+    }
+
+    #[test]
+    fn pixel_format_flags_debug_names_known_bits_and_shows_the_rest() {
+        assert_eq!(
+            format!("{:?}", PixelFormatFlags::empty()),
+            "PixelFormatFlags(0x0)"
+        );
+        assert_eq!(
+            format!("{:?}", PixelFormatFlags::BIG_ENDIAN | PixelFormatFlags::XYZ),
+            "PixelFormatFlags(BIG_ENDIAN | XYZ)"
+        );
+        assert_eq!(
+            format!(
+                "{:?}",
+                PixelFormatFlags::PALETTE | PixelFormatFlags::from_bits_retain(1 << 6)
+            ),
+            "PixelFormatFlags(PALETTE | 0x40)"
+        );
+        assert_eq!(
+            format!("{:?}", PixelFormatFlags::from_bits_retain(1 << 40)),
+            "PixelFormatFlags(0x10000000000)"
+        );
+    }
+
+    #[test]
+    fn pixel_format_flags_debug_passes_on_writer_errors() {
+        use core::fmt::Write;
+
+        /// A writer that fails once `budget` bytes are spent.
+        struct Budget(usize);
+        impl Write for Budget {
+            fn write_str(&mut self, s: &str) -> fmt::Result {
+                self.0 = self.0.checked_sub(s.len()).ok_or(fmt::Error)?;
+                Ok(())
+            }
+        }
+
+        let mixed = PixelFormatFlags::RGB
+            | PixelFormatFlags::ALPHA
+            | PixelFormatFlags::from_bits_retain(1 << 6);
+        for f in [mixed, PixelFormatFlags::empty()] {
+            let full = format!("{f:?}").len();
+            for budget in 0..full {
+                assert!(write!(Budget(budget), "{f:?}").is_err(), "{f:?} {budget}");
+            }
+            assert!(write!(Budget(full), "{f:?}").is_ok());
+        }
+    }
+
+    #[test]
+    fn pixel_format_descriptor_new_and_default_are_all_zero() {
+        let d = PixelFormatDescriptor::new();
+        let r = d.as_ref();
+        assert_eq!(r.name(), None);
+        assert_eq!(r.alias(), None);
+        assert_eq!(
+            (r.component_count(), r.log2_chroma_w(), r.log2_chroma_h()),
+            (0, 0, 0)
+        );
+        assert!(r.flags().is_empty());
+        assert_eq!(r.components().len(), 4);
+        assert!(
+            r.components()
+                .iter()
+                .all(|c| c.get() == ComponentDescriptor::new())
+        );
+        assert_eq!(PixelFormatDescriptor::default(), d);
+        let back: ffi::AVPixFmtDescriptor = d.into();
+        assert!(back.name.is_null() && back.alias.is_null());
+        assert_eq!((back.nb_components, back.flags), (0, 0));
+    }
+
+    #[test]
+    fn pixel_format_descriptor_setters_write_one_field_each() {
+        let mut d = yuv420p_like();
+        let r = d.as_ref();
+        assert_eq!(r.name(), Some(c"yuv420p"));
+        assert_eq!(r.alias(), Some(c"i420,yv12x"));
+        assert_eq!(
+            (r.component_count(), r.log2_chroma_w(), r.log2_chroma_h()),
+            (3, 1, 2)
+        );
+        assert_eq!(r.flags(), PixelFormatFlags::PLANAR);
+        let planes: Vec<i32> = r.components().iter().map(|c| c.plane()).collect();
+        assert_eq!(planes, [0, 1, 2, 0]);
+        assert_eq!(r.components().get(3).unwrap().depth(), 0);
+        assert!(r.components().get(4).is_none());
+
+        let mut m = d.as_mut();
+        m.set_name(None);
+        assert_eq!(m.as_ref().name(), None);
+        assert_eq!(m.as_ref().alias(), Some(c"i420,yv12x"));
+        m.set_alias(None);
+        m.set_component_count(u8::MAX);
+        m.set_log2_chroma_w(u8::MAX);
+        m.set_log2_chroma_h(0);
+        m.set_flags(PixelFormatFlags::from_bits_retain(u64::MAX));
+        m.components_mut().get_mut(3).unwrap().set_depth(-1);
+        let r = m.as_ref();
+        assert_eq!(r.alias(), None);
+        assert_eq!(
+            (r.component_count(), r.log2_chroma_w(), r.log2_chroma_h()),
+            (u8::MAX, u8::MAX, 0)
+        );
+        assert_eq!(r.flags().bits(), u64::MAX);
+        assert_eq!(r.components().get(3).unwrap().depth(), -1);
+        assert_eq!(r.components().get(0).unwrap().depth(), 8);
+        assert!(m.components_mut().get_mut(4).is_none());
+    }
+
+    #[test]
+    fn pixel_format_descriptor_raw_round_trip_keeps_every_field() {
+        let d = yuv420p_like();
+        let back = d.into_raw();
+        assert_eq!(back.name, c"yuv420p".as_ptr());
+        assert_eq!(back.alias, c"i420,yv12x".as_ptr());
+        assert_eq!(
+            (
+                back.nb_components,
+                back.log2_chroma_w,
+                back.log2_chroma_h,
+                back.flags
+            ),
+            (3, 1, 2, 1 << 4)
+        );
+        assert_eq!(back.comp[2].plane, 2);
+        // SAFETY: `back`'s strings are the literals `yuv420p_like` set.
+        let again = unsafe { PixelFormatDescriptor::from_raw(back) };
+        assert_eq!(again, d);
+        assert_eq!(again.as_ref().name().map(CStr::as_ptr), Some(back.name));
+    }
+
+    #[test]
+    fn pixel_format_descriptor_equality_and_hash_are_field_wise_by_content() {
+        let a = yuv420p_like();
+        let b = yuv420p_like();
+        assert_eq!(a, b);
+        assert_eq!(pf_hash_of(&a), pf_hash_of(&b));
+
+        // Same bytes at another address compare equal.
+        static OTHER: [u8; 8] = *b"yuv420p\0";
+        let other = CStr::from_bytes_with_nul(&OTHER).unwrap();
+        let mut c = a;
+        c.as_mut().set_name(Some(other));
+        assert_ne!(a.as_ref().name().unwrap().as_ptr(), other.as_ptr());
+        assert_eq!(a, c);
+        assert_eq!(pf_hash_of(&a), pf_hash_of(&c));
+
+        let changes: [fn(&mut PixelFormatDescriptorMut<'_>); 8] = [
+            |m| m.set_name(Some(c"yuv420P")),
+            |m| m.set_name(None),
+            |m| m.set_component_count(4),
+            |m| m.set_log2_chroma_w(0),
+            |m| m.set_log2_chroma_h(1),
+            |m| m.set_flags(PixelFormatFlags::PLANAR | PixelFormatFlags::BIG_ENDIAN),
+            |m| m.components_mut().get_mut(3).unwrap().set_shift(1),
+            |m| m.set_alias(None),
+        ];
+        for (i, change) in changes.into_iter().enumerate() {
+            let mut d = a;
+            change(&mut d.as_mut());
+            assert_ne!(a, d, "change {i}");
+        }
+    }
+
+    #[test]
+    fn pixel_format_descriptor_debug_names_every_field() {
+        let mut d = PixelFormatDescriptor::new();
+        d.as_mut().set_name(Some(c"gray"));
+        d.as_mut().set_component_count(1);
+        d.as_mut()
+            .components_mut()
+            .get_mut(0)
+            .unwrap()
+            .set(ComponentDescriptor::from_raw(raw(0, 1, 0, 0, 8)));
+        d.as_mut().set_alias(Some(c"gray8,y8"));
+        let zero = "ComponentDescriptor { plane: 0, step: 0, offset: 0, shift: 0, depth: 0 }";
+        let s = format!("{d:?}");
+        assert_eq!(
+            s,
+            format!(
+                "PixelFormatDescriptor {{ name: Some(\"gray\"), component_count: 1, \
+                 log2_chroma_w: 0, log2_chroma_h: 0, flags: PixelFormatFlags(0x0), \
+                 components: [ComponentDescriptor {{ plane: 0, step: 1, offset: 0, \
+                 shift: 0, depth: 8 }}, {zero}, {zero}, {zero}], alias: Some(\"gray8,y8\") }}"
+            )
+        );
+        assert_eq!(format!("{:?}", d.as_ref()), s);
+    }
+
+    #[test]
+    fn pixel_format_descriptor_get_and_set_copy_whole_values() {
+        let mut d = yuv420p_like();
+        let copy = d.as_ref().get();
+        d.as_mut().set_log2_chroma_h(0);
+        assert_eq!(copy, yuv420p_like());
+        assert_eq!(d.as_ref().log2_chroma_h(), 0);
+        // The copy shares the source's strings.
+        assert_eq!(copy.as_ref().name().unwrap().as_ptr(), c"yuv420p".as_ptr());
+        d.as_mut().set(PixelFormatDescriptor::new());
+        assert_eq!(d, PixelFormatDescriptor::new());
+        d.as_mut().set(copy);
+        assert_eq!(d, copy);
+    }
+
+    #[test]
+    fn pixel_format_descriptor_component_runs_cover_the_embedded_array() {
+        let mut d = yuv420p_like();
+        let base = d.as_ref().as_ptr() as usize;
+        let first = d.as_ref().components().as_ptr() as usize;
+        assert_eq!(
+            first - base,
+            core::mem::offset_of!(ffi::AVPixFmtDescriptor, comp)
+        );
+        {
+            let mut comps = d.as_mut().into_components_mut();
+            let (mut lo, mut hi) = comps.split_at_mut(2).unwrap();
+            lo.get_mut(1).unwrap().set_offset(-1);
+            hi.get_mut(1).unwrap().set_offset(7);
+        }
+        let offsets: Vec<i32> = d.as_ref().components().iter().map(|c| c.offset()).collect();
+        assert_eq!(offsets, [0, -1, 0, 7]);
     }
 }

@@ -1105,3 +1105,494 @@ mod pixel_format_loss {
         }
     }
 }
+
+/// [`PixelFormatDescriptor`] against C's `AVPixFmtDescriptor`: the safe
+/// getters against what C stores and reports for every entry of its table
+/// (the empty entries included), and descriptors rebuilt through the safe
+/// setters, one field at a time, in a local, an `av_malloc`-owned box and an
+/// `av_malloc`-owned array, against a C-side copy assigned field by field in
+/// the same order, as C's readers of a whole descriptor
+/// (`av_get_bits_per_pixel`, `av_get_padded_bits_per_pixel`,
+/// `av_read_image_line2`, `av_write_image_line2`) observe both after every
+/// step.
+///
+/// [`PixelFormatDescriptor`]: ffmpeg::libavutil::pixdesc::PixelFormatDescriptor
+mod pixel_format_descriptor {
+    use core::ffi::{CStr, c_int, c_void};
+
+    use ffmpeg::libavutil::ffi;
+    use ffmpeg::libavutil::mem::{HeapBox, alloc_cell_array_zeroed};
+    use ffmpeg::libavutil::pixdesc::{
+        ComponentDescriptor, PixelFormatDescriptor, PixelFormatDescriptorMut,
+        PixelFormatDescriptorRef, PixelFormatFlags,
+    };
+
+    /// The number of entries in C's table.
+    const NB: c_int = ffi::AVPixelFormat::AV_PIX_FMT_NB.0;
+    /// Values read or written per line.
+    const W: usize = 8;
+    /// Bytes per image row: 8 pixels of the table's widest step plus its
+    /// largest offset.
+    const LINESIZE: usize = 512;
+    /// Rows per plane; C works on row 1, so a negative offset stays in
+    /// bounds.
+    const ROWS: usize = 3;
+
+    /// C's table entry for `fmt`, and a Rust value adopted from a copy of it.
+    ///
+    /// The one unsafe fixture for this type: no safe constructor reaches C's
+    /// table until `av_pix_fmt_desc_get` is wrapped.
+    fn c_entry(fmt: c_int) -> (*const ffi::AVPixFmtDescriptor, PixelFormatDescriptor) {
+        // SAFETY: `av_pix_fmt_desc_get` takes any value and returns NULL or
+        // a pointer into C's static table.
+        let p = unsafe { ffi::av_pix_fmt_desc_get(ffi::AVPixelFormat(fmt)) };
+        assert!(!p.is_null(), "{fmt}");
+        // SAFETY: `p` points to a live descriptor in C's static,
+        // never-written table, whose `name` and `alias` are NULL or string
+        // literals, as `from_raw` requires.
+        (p, unsafe { PixelFormatDescriptor::from_raw(p.read()) })
+    }
+
+    /// The name C reports for `fmt`, as a pointer.
+    fn c_name(fmt: c_int) -> *const core::ffi::c_char {
+        // SAFETY: `av_get_pix_fmt_name` takes any value and returns NULL or
+        // a static string.
+        unsafe { ffi::av_get_pix_fmt_name(ffi::AVPixelFormat(fmt)) }
+    }
+
+    /// The format C finds for `name`.
+    fn c_lookup(name: &CStr) -> c_int {
+        // SAFETY: `name` is a live NUL-terminated string, only read.
+        unsafe { ffi::av_get_pix_fmt(name.as_ptr()) }.0
+    }
+
+    /// Four planes of pseudo-random bytes, so a component read from the
+    /// wrong plane, offset, step, shift or depth reads different values.
+    fn image() -> [Vec<u8>; 4] {
+        let mut x = 0x9e37_79b9_u32;
+        core::array::from_fn(|_| {
+            (0..LINESIZE * ROWS)
+                .map(|_| {
+                    x ^= x << 13;
+                    x ^= x >> 17;
+                    x ^= x << 5;
+                    x as u8
+                })
+                .collect()
+        })
+    }
+
+    /// What C's readers of a whole descriptor observe of `desc`.
+    #[derive(Debug, PartialEq)]
+    struct Observed {
+        bits_per_pixel: c_int,
+        padded_bits_per_pixel: c_int,
+        /// The `W` values `av_read_image_line2` reads from row 1 of the
+        /// image, per component slot.
+        reads: [[u32; W]; 4],
+        /// Four zeroed planes after `av_write_image_line2` wrote `W` values
+        /// to row 1, per component slot.
+        writes: [[Vec<u8>; 4]; 4],
+    }
+
+    /// What C observes of `desc`, a descriptor whose components are each
+    /// all-zero, partly written in plane-step-offset-shift-depth order, or
+    /// C's table entry for some format.
+    fn c_observes(desc: &ffi::AVPixFmtDescriptor, img: &[Vec<u8>; 4]) -> Observed {
+        let linesize = [LINESIZE as c_int; 4];
+        let reads = core::array::from_fn(|c| {
+            let mut data: [*const u8; 4] = core::array::from_fn(|i| img[i].as_ptr());
+            let mut dst = [0u32; W];
+            // SAFETY: component `c` of `desc` is C's own table entry,
+            // addressing planes 0..4 with C's offsets, steps and depths, or
+            // has `depth == 0` (it is written depth last), on which C returns
+            // before reading; every plane holds `ROWS` rows of `LINESIZE`
+            // bytes, enough for `W` pixels of row 1 at the table's widest
+            // step and offset. `dst` holds `W` 4-byte elements and
+            // `read_pal_component` is 0, so `data[1]` is never indexed as a
+            // palette.
+            unsafe {
+                ffi::av_read_image_line2(
+                    dst.as_mut_ptr().cast::<c_void>(),
+                    data.as_mut_ptr(),
+                    linesize.as_ptr(),
+                    desc,
+                    0,
+                    1,
+                    c as c_int,
+                    W as c_int,
+                    0,
+                    4,
+                );
+            }
+            dst
+        });
+        let writes = core::array::from_fn(|c| {
+            let mut planes: [Vec<u8>; 4] = core::array::from_fn(|_| vec![0; LINESIZE * ROWS]);
+            let mut data: [*mut u8; 4] = core::array::from_fn(|i| planes[i].as_mut_ptr());
+            let depth = desc.comp[c].depth;
+            let mask = if depth >= 32 {
+                u32::MAX
+            } else {
+                (1u32 << depth.max(0)) - 1
+            };
+            let src: [u32; W] = core::array::from_fn(|i| (0x5a5a_5a5a_u32 >> i) & mask);
+            // SAFETY: as for the reads; every value fits the component's
+            // depth, so C's shifts stay within `int` and `unsigned`.
+            unsafe {
+                ffi::av_write_image_line2(
+                    src.as_ptr().cast::<c_void>(),
+                    data.as_mut_ptr(),
+                    linesize.as_ptr(),
+                    desc,
+                    0,
+                    1,
+                    c as c_int,
+                    W as c_int,
+                    4,
+                );
+            }
+            planes
+        });
+        // SAFETY: `desc`'s first `nb_components` components are its table
+        // entry's, or all-zero, so their planes index `steps[4]` in bounds,
+        // and its chroma shifts and depths are the table's, which C's shifts
+        // accept.
+        let (bits_per_pixel, padded_bits_per_pixel) = unsafe {
+            (
+                ffi::av_get_bits_per_pixel(desc),
+                ffi::av_get_padded_bits_per_pixel(desc),
+            )
+        };
+        Observed {
+            bits_per_pixel,
+            padded_bits_per_pixel,
+            reads,
+            writes,
+        }
+    }
+
+    fn c_fields(d: &ffi::AVComponentDescriptor) -> [i32; 5] {
+        [d.plane, d.step, d.offset, d.shift, d.depth]
+    }
+
+    fn rust_fields(d: ComponentDescriptor) -> [i32; 5] {
+        let r = d.as_ref();
+        [r.plane(), r.step(), r.offset(), r.shift(), r.depth()]
+    }
+
+    /// Asserts every getter of `d` reads what `raw` stores.
+    fn assert_reads(d: PixelFormatDescriptorRef<'_>, raw: &ffi::AVPixFmtDescriptor, what: &str) {
+        let ptr_of = |s: Option<&CStr>| s.map_or(core::ptr::null(), CStr::as_ptr);
+        assert_eq!(ptr_of(d.name()), raw.name, "{what}: name");
+        assert_eq!(ptr_of(d.alias()), raw.alias, "{what}: alias");
+        assert_eq!(d.component_count(), raw.nb_components, "{what}");
+        assert_eq!(d.log2_chroma_w(), raw.log2_chroma_w, "{what}");
+        assert_eq!(d.log2_chroma_h(), raw.log2_chroma_h, "{what}");
+        assert_eq!(d.flags().bits(), raw.flags, "{what}");
+        let comps: Vec<[i32; 5]> = d
+            .components()
+            .iter()
+            .map(|c| rust_fields(c.get()))
+            .collect();
+        let c_comps: Vec<[i32; 5]> = raw.comp.iter().map(c_fields).collect();
+        assert_eq!(comps, c_comps, "{what}");
+    }
+
+    #[test]
+    fn getters_read_what_c_stores_and_reports_for_every_entry() {
+        let mut empty = 0;
+        let mut aliases = 0;
+        for fmt in 0..NB {
+            let (p, d) = c_entry(fmt);
+            // SAFETY: `p` points to a live descriptor in C's static table.
+            let raw = unsafe { p.read() };
+            assert_reads(d.as_ref(), &raw, &format!("format {fmt}"));
+            assert_eq!(
+                d.as_ref().name().map_or(core::ptr::null(), CStr::as_ptr),
+                c_name(fmt)
+            );
+            let Some(name) = d.as_ref().name() else {
+                // An entry C's table leaves out is all-zero.
+                assert_eq!(d, PixelFormatDescriptor::new(), "format {fmt}");
+                empty += 1;
+                continue;
+            };
+            // C resolves the name, and every alias, to this entry.
+            assert_eq!(c_lookup(name), fmt, "{name:?}");
+            if let Some(alias) = d.as_ref().alias() {
+                for token in alias.to_bytes().split(|&b| b == b',') {
+                    let token = std::ffi::CString::new(token).unwrap();
+                    assert_eq!(c_lookup(&token), fmt, "{name:?} alias {token:?}");
+                    aliases += 1;
+                }
+            }
+            // C's readers see the same descriptor through a Rust copy.
+            let img = image();
+            assert_eq!(
+                c_observes(&d.as_ref().get().into_raw(), &img),
+                c_observes(&raw, &img),
+                "{name:?}"
+            );
+        }
+        // C's iteration skips exactly the empty entries.
+        let mut iterated = 0;
+        let mut q = core::ptr::null();
+        loop {
+            // SAFETY: `q` is NULL or the previous descriptor
+            // `av_pix_fmt_desc_next` returned.
+            q = unsafe { ffi::av_pix_fmt_desc_next(q) };
+            if q.is_null() {
+                break;
+            }
+            iterated += 1;
+        }
+        assert_eq!(iterated + empty, NB);
+        assert!(aliases > 0);
+    }
+
+    /// The C side of a rebuild step: a field assignment from C's entry.
+    type CAssign = Box<dyn Fn(&mut ffi::AVPixFmtDescriptor, &ffi::AVPixFmtDescriptor)>;
+    /// The Rust side of a rebuild step: a setter call from C's entry.
+    type RustSet = Box<dyn Fn(&mut PixelFormatDescriptorMut<'_>, PixelFormatDescriptorRef<'_>)>;
+
+    /// One step of a field-by-field rebuild: a label, the C-side assignment
+    /// and the Rust-side setter call, both copying from C's entry.
+    struct Step {
+        what: String,
+        c: CAssign,
+        rust: RustSet,
+    }
+
+    /// The steps that rebuild a descriptor from all-zero, in the order that
+    /// keeps every intermediate state readable by C: strings, flags and
+    /// chroma shifts, then each component field by field with its depth
+    /// last, then the component count.
+    fn steps() -> Vec<Step> {
+        fn step(
+            what: impl Into<String>,
+            c: impl Fn(&mut ffi::AVPixFmtDescriptor, &ffi::AVPixFmtDescriptor) + 'static,
+            rust: impl Fn(&mut PixelFormatDescriptorMut<'_>, PixelFormatDescriptorRef<'_>) + 'static,
+        ) -> Step {
+            Step {
+                what: what.into(),
+                c: Box::new(c),
+                rust: Box::new(rust),
+            }
+        }
+        let mut steps = vec![
+            step("name", |c, e| c.name = e.name, |m, e| m.set_name(e.name())),
+            step(
+                "alias",
+                |c, e| c.alias = e.alias,
+                |m, e| m.set_alias(e.alias()),
+            ),
+            step(
+                "flags",
+                |c, e| c.flags = e.flags,
+                |m, e| m.set_flags(e.flags()),
+            ),
+            step(
+                "log2_chroma_w",
+                |c, e| c.log2_chroma_w = e.log2_chroma_w,
+                |m, e| m.set_log2_chroma_w(e.log2_chroma_w()),
+            ),
+            step(
+                "log2_chroma_h",
+                |c, e| c.log2_chroma_h = e.log2_chroma_h,
+                |m, e| m.set_log2_chroma_h(e.log2_chroma_h()),
+            ),
+        ];
+        for i in 0..4 {
+            let src = move |e: PixelFormatDescriptorRef<'_>| e.components().get(i).unwrap().get();
+            steps.extend([
+                step(
+                    format!("comp[{i}].plane"),
+                    move |c, e| c.comp[i].plane = e.comp[i].plane,
+                    move |m, e| {
+                        m.components_mut()
+                            .get_mut(i)
+                            .unwrap()
+                            .set_plane(src(e).as_ref().plane())
+                    },
+                ),
+                step(
+                    format!("comp[{i}].step"),
+                    move |c, e| c.comp[i].step = e.comp[i].step,
+                    move |m, e| {
+                        m.components_mut()
+                            .get_mut(i)
+                            .unwrap()
+                            .set_step(src(e).as_ref().step())
+                    },
+                ),
+                step(
+                    format!("comp[{i}].offset"),
+                    move |c, e| c.comp[i].offset = e.comp[i].offset,
+                    move |m, e| {
+                        m.components_mut()
+                            .get_mut(i)
+                            .unwrap()
+                            .set_offset(src(e).as_ref().offset())
+                    },
+                ),
+                step(
+                    format!("comp[{i}].shift"),
+                    move |c, e| c.comp[i].shift = e.comp[i].shift,
+                    move |m, e| {
+                        m.components_mut()
+                            .get_mut(i)
+                            .unwrap()
+                            .set_shift(src(e).as_ref().shift())
+                    },
+                ),
+                step(
+                    format!("comp[{i}].depth"),
+                    move |c, e| c.comp[i].depth = e.comp[i].depth,
+                    move |m, e| {
+                        m.components_mut()
+                            .get_mut(i)
+                            .unwrap()
+                            .set_depth(src(e).as_ref().depth())
+                    },
+                ),
+            ]);
+        }
+        steps.push(step(
+            "nb_components",
+            |c, e| c.nb_components = e.nb_components,
+            |m, e| m.set_component_count(e.component_count()),
+        ));
+        steps
+    }
+
+    /// Rebuilds C's entry for `fmt` through `rust`, a handle to all-zero
+    /// storage, comparing what C observes of it and of a C-side copy after
+    /// every step, and of it and C's entry at the end, which it returns.
+    fn rebuild(fmt: c_int, mut rust: PixelFormatDescriptorMut<'_>, img: &[Vec<u8>; 4]) -> Observed {
+        let (p, entry) = c_entry(fmt);
+        // SAFETY: `p` points to a live descriptor in C's static table.
+        let raw = unsafe { p.read() };
+        let mut c_side = ffi::AVPixFmtDescriptor::default();
+        assert_eq!(
+            c_observes(&rust.as_ref().get().into_raw(), img),
+            c_observes(&c_side, img),
+            "format {fmt} before any step"
+        );
+        for s in steps() {
+            (s.c)(&mut c_side, &raw);
+            (s.rust)(&mut rust, entry.as_ref());
+            let what = format!("format {fmt} after {}", s.what);
+            assert_reads(rust.as_ref(), &c_side, &what);
+            assert_eq!(
+                c_observes(&rust.as_ref().get().into_raw(), img),
+                c_observes(&c_side, img),
+                "{what}"
+            );
+        }
+        // Rebuilt in full: equal to C's entry, and C's readers see the
+        // entry itself the same way.
+        assert_eq!(rust.as_ref().get(), entry, "format {fmt}");
+        let observed = c_observes(&rust.as_ref().get().into_raw(), img);
+        // SAFETY: `p` points to a live descriptor in C's static table.
+        assert_eq!(observed, c_observes(unsafe { &*p }, img), "format {fmt}");
+        observed
+    }
+
+    #[test]
+    fn descriptors_rebuilt_through_setters_read_like_c_s_table() {
+        let img = image();
+        let (mut rebuilt, mut read, mut written) = (0, 0, 0);
+        for fmt in 0..NB {
+            if c_name(fmt).is_null() {
+                continue;
+            }
+            // Alternate the storage: a local value and an `av_malloc` box.
+            let observed = if fmt % 2 == 0 {
+                let mut d = PixelFormatDescriptor::new();
+                rebuild(fmt, d.as_mut(), &img)
+            } else {
+                let mut b = HeapBox::<PixelFormatDescriptor>::new_zeroed().unwrap();
+                rebuild(fmt, b.as_mut(), &img)
+            };
+            rebuilt += 1;
+            read += usize::from(observed.reads.iter().any(|r| *r != [0; W]));
+            written += usize::from(observed.writes.iter().flatten().flatten().any(|&b| b != 0));
+        }
+        // Not vacuous: C reads and writes pixels for every format with
+        // components in memory.
+        assert!(rebuilt > 200, "{rebuilt}");
+        assert!(read > 180 && written > 180, "{read} {written} of {rebuilt}");
+    }
+
+    #[test]
+    fn a_heap_array_of_descriptors_set_whole_reads_like_c_s_table() {
+        let img = image();
+        let named: Vec<c_int> = (0..NB).filter(|&f| !c_name(f).is_null()).collect();
+        let mut arr = alloc_cell_array_zeroed::<PixelFormatDescriptor>(named.len()).unwrap();
+        // First pass: every element set whole from C's entry.
+        {
+            let mut handles = arr.as_handles_mut();
+            for (i, &fmt) in named.iter().enumerate() {
+                handles.get_mut(i).unwrap().set(c_entry(fmt).1);
+            }
+        }
+        for (h, &fmt) in arr.as_handles().iter().zip(&named) {
+            let (p, entry) = c_entry(fmt);
+            assert_eq!(h.get(), entry);
+            // SAFETY: `p` points to a live descriptor in C's static table.
+            let c_side = unsafe { &*p };
+            assert_eq!(
+                c_observes(&h.get().into_raw(), &img),
+                c_observes(c_side, &img),
+                "format {fmt}"
+            );
+        }
+        // Second pass: give each element its neighbour's strings and chroma
+        // shifts and toggle its byte order, the C side doing the same to
+        // plain copies, and compare after the change. These are the fields
+        // C's readers accept from any table format: the shifts are at most
+        // 2, and byte order only picks which byte of a pixel they read, while
+        // another format's bitstream flag would give C negative shifts.
+        let len = named.len();
+        let mut c_copies: Vec<ffi::AVPixFmtDescriptor> =
+            named.iter().map(|&f| c_entry(f).1.into_raw()).collect();
+        {
+            let mut handles = arr.as_handles_mut();
+            for i in 0..len {
+                let next = c_entry(named[(i + 1) % len]).1;
+                let next = next.as_ref();
+                let mut m = handles.get_mut(i).unwrap();
+                let flags = m.as_ref().flags();
+                let toggled = if flags.contains(PixelFormatFlags::BIG_ENDIAN) {
+                    PixelFormatFlags::from_bits_retain(
+                        flags.bits() & !PixelFormatFlags::BIG_ENDIAN.bits(),
+                    )
+                } else {
+                    flags | PixelFormatFlags::BIG_ENDIAN
+                };
+                m.set_name(next.name());
+                m.set_alias(next.alias());
+                m.set_log2_chroma_w(next.log2_chroma_w());
+                m.set_log2_chroma_h(next.log2_chroma_h());
+                m.set_flags(toggled);
+                let c = &mut c_copies[i];
+                let n = next.get().into_raw();
+                c.name = n.name;
+                c.alias = n.alias;
+                c.log2_chroma_w = n.log2_chroma_w;
+                c.log2_chroma_h = n.log2_chroma_h;
+                c.flags ^= ffi::AV_PIX_FMT_FLAG_BE as u64;
+                assert!(n.log2_chroma_w <= 2 && n.log2_chroma_h <= 2);
+            }
+        }
+        for (i, h) in arr.as_handles().iter().enumerate() {
+            assert_reads(h, &c_copies[i], &format!("element {i}"));
+            assert_eq!(
+                c_observes(&h.get().into_raw(), &img),
+                c_observes(&c_copies[i], &img),
+                "element {i}"
+            );
+        }
+    }
+}

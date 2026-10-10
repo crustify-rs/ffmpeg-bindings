@@ -1,0 +1,9 @@
+error[E0502]: cannot borrow `m` as mutable because it is also borrowed as immutable
+ --> tests/ub_safe/compile_fail/pixdesc_pixel_format_descriptor_components_mut_while_shared.rs
+  |
+  |     let run = m.as_ref().components();
+  |               - immutable borrow occurs here
+  |     m.components_mut().get_mut(0).unwrap().set_depth(8);
+  |     ^^^^^^^^^^^^^^^^^^ mutable borrow occurs here
+  |     println!("{}", run.get(0).unwrap().depth());
+  |                    --- immutable borrow later used here
