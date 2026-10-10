@@ -1437,8 +1437,8 @@ impl PixelFormat {
     ///
     /// This pixel format's descriptor in C's table, borrowed for the whole
     /// program: the table is static and never written. `None` for
-    /// [`NONE`](Self::NONE) and every value past the last format these
-    /// bindings know (`AV_PIX_FMT_NB`).
+    /// [`NONE`](Self::NONE) and every other negative value, and for every
+    /// value from the last format these bindings know (`AV_PIX_FMT_NB`) on.
     ///
     /// A value inside that range always has an entry, but one C's table
     /// leaves out is all-zero: it has no [`name`](PixelFormatDescriptorRef::name)
@@ -2038,6 +2038,12 @@ fn read_line_with(
 /// one. A component with a depth of 0 (absent) reads nothing and leaves
 /// `dst` as it is, as does an empty `dst`.
 ///
+/// For a [bitstream](PixelFormatFlags::BITSTREAM) format whose component
+/// step exceeds 8 bits ([`XV30BE`](PixelFormat::XV30BE) and
+/// [`V30XBE`](PixelFormat::V30XBE)), C takes every component of a pixel
+/// from one big-endian 32-bit word per pixel and ignores `x`: the line
+/// starts at the row's first word.
+///
 /// # Errors
 ///
 /// Without touching `dst`: [`ImageLineError::Component`] for a component
@@ -2179,7 +2185,8 @@ fn write_line_with(
 ///
 /// Writes the values of `src` to component `component` (0 to 3) of the
 /// pixels from `x` on of row `y` of an image in `planes`, laid out as
-/// `desc` describes and as [`read_image_line`] reads them.
+/// `desc` describes and as [`read_image_line`] reads them (including the
+/// 32-bit-word bitstream formats, for which C ignores `x`).
 ///
 /// C ORs each value, shifted into place, into the bytes already there, as
 /// it expects a zeroed image: the bits of earlier values stay set, and

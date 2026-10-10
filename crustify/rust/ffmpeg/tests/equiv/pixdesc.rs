@@ -2190,3 +2190,438 @@ mod image_lines {
         }
     }
 }
+
+/// The line wrappers' verdicts against an independent model of C: a literal
+/// transliteration of `av_read_image_line2`'s and `av_write_image_line2`'s
+/// loops, every `int` operation checked for the cases C leaves undefined and
+/// every pointer offset tracked in `i64`, decides for a random descriptor,
+/// planes and line whether C's accesses are defined and inside the planes.
+/// The wrappers must accept exactly those lines (refusing one C would read
+/// in bounds is an equivalence defect; accepting one it would not is UB),
+/// and accepted lines run on exactly sized heap planes, where a byte C
+/// touches past either end is a sanitizer report.
+mod random_lines {
+    use ffmpeg::libavutil::ffi;
+    use ffmpeg::libavutil::imgutils::{Planes, PlanesMut};
+    use ffmpeg::libavutil::pixdesc::{
+        ComponentDescriptor, ImageLineError, PixelFormatDescriptor, PixelFormatDescriptorRef,
+        PixelFormatFlags, read_image_line, read_image_line_u16, write_image_line,
+        write_image_line_u16,
+    };
+    use ffmpeg::libavutil::pixfmt::PixelFormat;
+
+    struct Rng(u64);
+
+    impl Rng {
+        fn next(&mut self) -> u64 {
+            let mut x = self.0;
+            x ^= x << 13;
+            x ^= x >> 7;
+            x ^= x << 17;
+            self.0 = x;
+            x
+        }
+
+        fn below(&mut self, n: u64) -> u64 {
+            self.next() % n
+        }
+
+        fn pick<T: Copy>(&mut self, xs: &[T]) -> T {
+            xs[self.below(xs.len() as u64) as usize]
+        }
+
+        fn chance(&mut self, one_in: u64) -> bool {
+            self.below(one_in) == 0
+        }
+    }
+
+    /// The bytes C touches, as offsets from the row-0 pointer of one plane,
+    /// and the bytes of plane 1 from its row 0 that palette lookups need
+    /// (the largest index plus one, or a negative index).
+    #[derive(Debug, Clone, Copy, PartialEq)]
+    struct Footprint {
+        plane: usize,
+        lo: i64,
+        hi: i64,
+        palette: Option<i64>,
+    }
+
+    #[derive(Debug, Clone, Copy, PartialEq)]
+    enum Model {
+        /// C returns before touching the image.
+        Nothing,
+        /// C's arithmetic is undefined, or it indexes `data[4]` out of range.
+        Undefined(&'static str),
+        Touches(Footprint),
+    }
+
+    const BE: u32 = ffi::AV_PIX_FMT_FLAG_BE;
+    const BITSTREAM: u32 = ffi::AV_PIX_FMT_FLAG_BITSTREAM;
+
+    /// `av_read_image_line2` (or `av_write_image_line2` with `write`) on a
+    /// descriptor whose slot `c` is `comp`, over an image of 0xFF bytes, so
+    /// every value read, and so every palette index, is its largest.
+    fn model(
+        comp: [i32; 5],
+        flags: u32,
+        (x, y, c, w): (i32, i32, i32, i32),
+        linesizes: [isize; 4],
+        write: bool,
+        palette: bool,
+    ) -> Model {
+        let [plane, step, offset, shift, depth] = comp;
+        let palette = palette && !write;
+        if w <= 0 {
+            // The wrappers return before C runs.
+            return Model::Nothing;
+        }
+        // The reader's `unsigned mask = (1ULL << depth) - 1`, before anything.
+        let mut mask: u32 = 0;
+        if !write {
+            if !(0..64).contains(&depth) {
+                return Model::Undefined("1ULL << depth");
+            }
+            mask = ((1u64 << depth) - 1) as u32;
+        }
+        if depth == 0 {
+            return Model::Nothing;
+        }
+        let Some(p) = usize::try_from(plane).ok().filter(|&p| p < 4) else {
+            return Model::Undefined("data[plane]");
+        };
+        let Ok(linesize) = i32::try_from(linesizes[p]) else {
+            return Model::Undefined("linesize beyond int");
+        };
+        let Some(row) = y.checked_mul(linesize) else {
+            return Model::Undefined("y * linesize");
+        };
+        let row = i64::from(row);
+        let (mut lo, mut hi) = (i64::MAX, i64::MIN);
+        let mut touch = |at: i64, n: i64| {
+            lo = lo.min(at);
+            hi = hi.max(at + n);
+        };
+        let mut need: Option<i64> = None;
+        // `data[1][4 * val + c]`, with `val` an `int` (converted from the
+        // unsigned value) or an `unsigned` (wrapping), as each reader has it.
+        let mut look_up = |val: u32, int_arithmetic: bool| -> Result<(), &'static str> {
+            let index: i64 = if int_arithmetic {
+                let v = val as i32;
+                let four = v.checked_mul(4).ok_or("4 * val")?;
+                i64::from(four.checked_add(c).ok_or("4 * val + c")?)
+            } else {
+                i64::from(4u32.wrapping_mul(val).wrapping_add(c as u32))
+            };
+            need = Some(if index < 0 {
+                index
+            } else {
+                need.map_or(index + 1, |n| n.max(index + 1))
+            });
+            Ok(())
+        };
+        if flags & BITSTREAM != 0 {
+            if step > 8 {
+                if write {
+                    // `((1ULL << depth) - 1) << offset`, then `val << offset`
+                    // on an `unsigned`.
+                    if !(0..64).contains(&depth) {
+                        return Model::Undefined("1ULL << depth (writer)");
+                    }
+                    if !(0..32).contains(&offset) {
+                        return Model::Undefined("<< offset");
+                    }
+                } else if !(0..32).contains(&offset) {
+                    // `val >> comp.offset` on an `int`.
+                    return Model::Undefined("val >> offset");
+                }
+                for i in 0..i64::from(w) {
+                    touch(row + 4 * i, 4);
+                    // `int val = AV_RB32(p)` is -1, which `>> offset` keeps.
+                    if palette && let Err(e) = look_up(mask, true) {
+                        return Model::Undefined(e);
+                    }
+                }
+            } else {
+                let Some(skip) = step.checked_mul(x).and_then(|s| s.checked_add(offset)) else {
+                    return Model::Undefined("skip");
+                };
+                let mut at = row + i64::from(skip >> 3);
+                let Some(mut sh) = 8i32.checked_sub(depth).and_then(|s| s.checked_sub(skip & 7))
+                else {
+                    return Model::Undefined("8 - depth - (skip & 7)");
+                };
+                for _ in 0..w {
+                    // `*p >> shift` on the promoted byte, or `val << shift`.
+                    if !(0..32).contains(&sh) {
+                        return Model::Undefined("shift by a byte");
+                    }
+                    touch(at, 1);
+                    if palette && let Err(e) = look_up((255u32 >> sh) & mask, true) {
+                        return Model::Undefined(e);
+                    }
+                    let Some(next) = sh.checked_sub(step) else {
+                        return Model::Undefined("shift -= step");
+                    };
+                    sh = next;
+                    at -= i64::from(sh >> 3);
+                    sh &= 7;
+                }
+            }
+        } else {
+            let Some(xs) = x.checked_mul(step) else {
+                return Model::Undefined("x * step");
+            };
+            let at = row + i64::from(xs) + i64::from(offset);
+            let Some(width) = shift.checked_add(depth) else {
+                return Model::Undefined("shift + depth");
+            };
+            let (size, at) = if width <= 8 {
+                (1i64, at + i64::from(flags & BE != 0))
+            } else if width <= 16 {
+                (2, at)
+            } else {
+                (4, at)
+            };
+            // `(val >> shift) & mask` or `s << shift`, on an `unsigned`.
+            if !(0..32).contains(&shift) {
+                return Model::Undefined("shift");
+            }
+            for i in 0..i64::from(w) {
+                touch(at + i * i64::from(step), size);
+                if palette {
+                    let largest = (((1u64 << (8 * size)) - 1) as u32) >> shift;
+                    if let Err(e) = look_up(largest & mask, false) {
+                        return Model::Undefined(e);
+                    }
+                }
+            }
+        }
+        Model::Touches(Footprint {
+            plane: p,
+            lo,
+            hi,
+            palette: need,
+        })
+    }
+
+    /// The wrappers' row-0 convention: the slice's start, or the last whole
+    /// row of a bottom-up plane.
+    fn row0(len: usize, linesize: isize) -> usize {
+        if linesize >= 0 || len == 0 {
+            return 0;
+        }
+        let l = linesize.unsigned_abs();
+        (len - 1) / l * l
+    }
+
+    /// Whether C's accesses lie inside the planes.
+    fn fits(f: &Footprint, lens: [usize; 4], linesizes: [isize; 4]) -> bool {
+        let at = row0(lens[f.plane], linesizes[f.plane]) as i64;
+        if at + f.lo < 0 || at + f.hi > lens[f.plane] as i64 {
+            return false;
+        }
+        match f.palette {
+            None => true,
+            Some(need) if need < 0 => false,
+            Some(need) => lens[1] as i64 - row0(lens[1], linesizes[1]) as i64 >= need,
+        }
+    }
+
+    fn built(comp: [i32; 5], slot: usize, flags: PixelFormatFlags) -> PixelFormatDescriptor {
+        let mut d = PixelFormatDescriptor::new();
+        let mut m = d.as_mut();
+        m.set_component_count(4);
+        m.set_flags(flags);
+        let [plane, step, offset, shift, depth] = comp;
+        m.components_mut()
+            .get_mut(slot)
+            .unwrap()
+            .set(ComponentDescriptor::from_raw(ffi::AVComponentDescriptor {
+                plane,
+                step,
+                offset,
+                shift,
+                depth,
+            }));
+        d
+    }
+
+    const INTS: [i32; 24] = [
+        i32::MIN,
+        i32::MIN + 1,
+        -(1 << 30),
+        -(1 << 28),
+        -300,
+        -40,
+        -9,
+        -8,
+        -7,
+        -3,
+        -2,
+        -1,
+        0,
+        1,
+        2,
+        3,
+        4,
+        7,
+        8,
+        9,
+        16,
+        31,
+        32,
+        33,
+    ];
+    const BIG: [i32; 6] = [1 << 20, 1 << 27, (1 << 28) - 1, 1 << 28, 1 << 30, i32::MAX];
+
+    fn small_or_edge(rng: &mut Rng) -> i32 {
+        match rng.below(10) {
+            0 => rng.pick(&INTS),
+            1 => rng.pick(&BIG),
+            _ => rng.below(80) as i32 - 40,
+        }
+    }
+
+    #[test]
+    fn lines_are_accepted_exactly_where_c_is_defined_and_in_bounds() {
+        let bsan = std::env::var("CRUSTIFY_FFMPEG_VARIANT").as_deref() == Ok("bsan");
+        let rounds = if bsan { 500 } else { 40_000 };
+        let mut rng = Rng(0x9e37_79b9_7f4a_7c15);
+        let table: Vec<PixelFormatDescriptorRef<'static>> = (0..ffi::AVPixelFormat::AV_PIX_FMT_NB.0)
+            .filter_map(|raw| PixelFormat::from_raw(ffi::AVPixelFormat(raw)).descriptor())
+            .filter(|d| d.name().is_some())
+            .collect();
+        let (mut accepted, mut refused) = (0, 0);
+        for round in 0..rounds {
+            // C's table, or one Rust-built component at the edges of C's
+            // arithmetic.
+            let c = rng.below(4) as usize;
+            let own;
+            let (desc, flags): (PixelFormatDescriptorRef<'_>, u32) = if rng.chance(3) {
+                let d = rng.pick(&table);
+                (d, d.flags().bits() as u32)
+            } else {
+                let plane = match rng.below(8) {
+                    0 => rng.pick(&[-1, 4, 5, i32::MIN, i32::MAX]),
+                    _ => rng.below(4) as i32,
+                };
+                let step = match rng.below(4) {
+                    0 => rng.pick(&INTS),
+                    1 => rng.pick(&BIG),
+                    _ => rng.below(40) as i32 - 6,
+                };
+                let offset = small_or_edge(&mut rng);
+                let shift = match rng.below(3) {
+                    0 => small_or_edge(&mut rng),
+                    _ => rng.below(34) as i32 - 1,
+                };
+                let depth = match rng.below(3) {
+                    0 => rng.pick(&[-1, 0, 1, 31, 32, 33, 63, 64, 65, i32::MIN, i32::MAX]),
+                    _ => rng.below(34) as i32 - 1,
+                };
+                let mut fl = PixelFormatFlags::empty();
+                if rng.chance(2) {
+                    fl |= PixelFormatFlags::BITSTREAM;
+                }
+                if rng.chance(2) {
+                    fl |= PixelFormatFlags::BIG_ENDIAN;
+                }
+                if rng.chance(4) {
+                    fl |= PixelFormatFlags::PALETTE;
+                }
+                own = built([plane, step, offset, shift, depth], c, fl);
+                (own.as_ref(), fl.bits() as u32)
+            };
+            let comp = {
+                let k = desc.components().get(c).unwrap();
+                [k.plane(), k.step(), k.offset(), k.shift(), k.depth()]
+            };
+            let lens: [usize; 4] = core::array::from_fn(|_| match rng.below(6) {
+                0 => 0,
+                1 => rng.below(8) as usize,
+                2 => 1024 + rng.below(64) as usize,
+                _ => rng.below(700) as usize,
+            });
+            let linesizes: [isize; 4] = core::array::from_fn(|_| match rng.below(12) {
+                0 => rng.pick(&[
+                    isize::MIN,
+                    isize::MAX,
+                    i32::MIN as isize,
+                    i32::MAX as isize,
+                    i32::MAX as isize + 1,
+                    i32::MIN as isize - 1,
+                ]),
+                1 => 0,
+                2 => rng.below(80) as isize - 80,
+                _ => rng.below(160) as isize - 80,
+            });
+            let position = |rng: &mut Rng| -> usize {
+                match rng.below(16) {
+                    0 => rng.pick(&[1usize << 20, 1 << 30, i32::MAX as usize, usize::MAX]),
+                    _ => rng.below(14) as usize,
+                }
+            };
+            let (x, y) = (position(&mut rng), position(&mut rng));
+            let w = match rng.below(16) {
+                0 => rng.pick(&[0usize, 1 << 12]),
+                _ => rng.below(12) as usize,
+            };
+            let write = rng.chance(2);
+            let palette = !write && rng.chance(2);
+            let what = format!(
+                "round {round}: comp {comp:?} flags {flags:#x} c {c} lens {lens:?} linesizes \
+                 {linesizes:?} (x {x}, y {y}, w {w}) write {write} palette {palette}"
+            );
+            let modelled = match (i32::try_from(x), i32::try_from(y), i32::try_from(w)) {
+                (Ok(x), Ok(y), Ok(w)) => {
+                    model(comp, flags, (x, y, c as i32, w), linesizes, write, palette)
+                }
+                _ => Model::Undefined("position beyond int"),
+            };
+            let expected = match modelled {
+                Model::Nothing => true,
+                Model::Undefined(_) => false,
+                Model::Touches(f) => fits(&f, lens, linesizes),
+            };
+            // The wrappers, on exactly sized planes of 0xFF bytes; every
+            // entry point agrees with the others.
+            let mut img: [Vec<u8>; 4] = lens.map(|n| vec![0xFF; n]);
+            let verdict: Result<(), ImageLineError> = if write {
+                let src16 = vec![u16::MAX; w];
+                let src32 = vec![u32::MAX; w];
+                let mut planes = PlanesMut {
+                    data: img.each_mut().map(|p| &mut p[..]),
+                    linesizes,
+                };
+                let a = write_image_line(&src32, &mut planes, desc, x, y, c);
+                assert_eq!(a, write_image_line(&src16, &mut planes, desc, x, y, c), "{what}");
+                assert_eq!(a, write_image_line_u16(&src16, &mut planes, desc, x, y, c), "{what}");
+                a
+            } else {
+                let planes = Planes {
+                    data: img.each_ref().map(|p| &p[..]),
+                    linesizes,
+                };
+                let mut wide = vec![0u32; w];
+                let mut narrow = vec![0u16; w];
+                let mut original = vec![0u16; w];
+                let a = read_image_line(&mut wide, planes, desc, x, y, c, palette);
+                assert_eq!(a, read_image_line(&mut narrow, planes, desc, x, y, c, palette), "{what}");
+                assert_eq!(a, read_image_line_u16(&mut original, planes, desc, x, y, c, palette), "{what}");
+                if a.is_ok() {
+                    assert_eq!(narrow, original, "{what}");
+                    let truncated: Vec<u16> = wide.iter().map(|&v| v as u16).collect();
+                    assert_eq!(truncated, narrow, "{what}");
+                }
+                a
+            };
+            assert_eq!(verdict.is_ok(), expected, "{what}\n  wrapper: {verdict:?}\n  model: {modelled:?}");
+            if verdict.is_ok() && modelled != Model::Nothing {
+                accepted += 1;
+            } else if verdict.is_err() {
+                refused += 1;
+            }
+        }
+        assert!(accepted > rounds / 20 && refused > rounds / 4, "{accepted} {refused}");
+    }
+}
