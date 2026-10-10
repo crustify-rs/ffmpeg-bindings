@@ -1,0 +1,13 @@
+{
+  "method": {
+    "rust": "RUSTFLAGS=-C instrument-coverage, nightly llvm-profdata merge + llvm-cov report over the lib, equiv, ub_safe and ub_unsafe test binaries (cargo +nightly test -p ffmpeg --lib --tests -- --skip compile_fail), reported for the three home files",
+    "c": "not measured: the four items are by-value C structs with no C routine of their own (no allocator, releaser, cloner or disposer exists for AVCIExy, AVChannelCustom, AVLumaCoefficients or AVPixFmtDescriptor), so there is no C path belonging to this worklist to gcov; the C readers the equivalence tests observe through (av_csp_primaries_id_from_desc, av_channel_layout_describe and siblings, av_csp_luma_coeffs_from_avcsp, av_read_image_line2, av_write_image_line2, av_get_bits_per_pixel, av_get_padded_bits_per_pixel) belong to the symbol route of this or later waves",
+    "note": "one measurement, at the reviewed tree before the fixes; the fixes add one Hash impl and one unit test (which executes it) and change no other executable code"
+  },
+  "rust": {
+    "libavutil/csp.rs": { "lines": { "count": 507, "percent": 100.0 }, "regions": { "count": 850, "percent": 100.0 }, "functions": { "count": 98, "percent": 100.0 } },
+    "libavutil/channel_layout.rs": { "lines": { "count": 713, "percent": 100.0 }, "regions": { "count": 1118, "percent": 100.0 }, "functions": { "count": 120, "percent": 100.0 } },
+    "libavutil/pixdesc.rs": { "lines": { "count": 917, "percent": 100.0 }, "regions": { "count": 1354, "percent": 100.0 }, "functions": { "count": 154, "percent": 100.0 } },
+    "uncovered": []
+  }
+}
