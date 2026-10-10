@@ -1,0 +1,89 @@
+{
+  "objective": "wrap",
+  "items": [
+    {
+      "name": "av_bprint_append_data",
+      "defined_in": "libavutil/bprint.c",
+      "kind": "symbol",
+      "field_anchors": [],
+      "home": "crustify/rust/ffmpeg/libavutil/bprint.rs"
+    },
+    {
+      "name": "av_bprint_chars",
+      "defined_in": "libavutil/bprint.c",
+      "kind": "symbol",
+      "field_anchors": [],
+      "home": "crustify/rust/ffmpeg/libavutil/bprint.rs"
+    },
+    {
+      "name": "av_bprint_clear",
+      "defined_in": "libavutil/bprint.c",
+      "kind": "symbol",
+      "field_anchors": [],
+      "home": "crustify/rust/ffmpeg/libavutil/bprint.rs"
+    },
+    {
+      "name": "av_bprint_escape",
+      "defined_in": "libavutil/bprint.c",
+      "kind": "symbol",
+      "field_anchors": [],
+      "home": "crustify/rust/ffmpeg/libavutil/bprint.rs"
+    },
+    {
+      "name": "av_bprint_finalize",
+      "defined_in": "libavutil/bprint.c",
+      "kind": "symbol",
+      "field_anchors": [],
+      "home": "crustify/rust/ffmpeg/libavutil/bprint.rs"
+    },
+    {
+      "name": "av_bprint_get_buffer",
+      "defined_in": "libavutil/bprint.c",
+      "kind": "symbol",
+      "field_anchors": [],
+      "home": "crustify/rust/ffmpeg/libavutil/bprint.rs"
+    },
+    {
+      "name": "av_bprint_init",
+      "defined_in": "libavutil/bprint.c",
+      "kind": "symbol",
+      "field_anchors": [],
+      "home": "crustify/rust/ffmpeg/libavutil/bprint.rs"
+    },
+    {
+      "name": "av_bprint_init_for_buffer",
+      "defined_in": "libavutil/bprint.c",
+      "kind": "symbol",
+      "field_anchors": [],
+      "home": "crustify/rust/ffmpeg/libavutil/bprint.rs"
+    },
+    {
+      "name": "av_bprint_is_complete",
+      "defined_in": "libavutil/bprint.h",
+      "kind": "symbol",
+      "field_anchors": [],
+      "home": "crustify/rust/ffmpeg/libavutil/bprint.rs"
+    },
+    {
+      "name": "av_bprint_strftime",
+      "defined_in": "libavutil/bprint.c",
+      "kind": "symbol",
+      "field_anchors": [],
+      "home": "crustify/rust/ffmpeg/libavutil/bprint.rs"
+    },
+    {
+      "name": "av_bprintf",
+      "defined_in": "libavutil/bprint.c",
+      "kind": "symbol",
+      "field_anchors": [],
+      "home": "crustify/rust/ffmpeg/libavutil/bprint.rs"
+    },
+    {
+      "name": "av_vbprintf",
+      "defined_in": "libavutil/bprint.c",
+      "kind": "symbol",
+      "field_anchors": [],
+      "home": "crustify/rust/ffmpeg/libavutil/bprint.rs"
+    }
+  ]
+}
