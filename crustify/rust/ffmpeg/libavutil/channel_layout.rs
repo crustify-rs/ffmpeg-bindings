@@ -1349,6 +1349,87 @@ impl_cdispose!(
 /// layout into storage whose owner disposes it.
 pub type ChannelLayoutVal = CVal<ChannelLayout, ChannelLayoutUninit>;
 
+/// C's `strtol(s, &end, 0)` over the bytes of a C string, as glibc reads
+/// it: after any leading white space and sign, a `0x` prefix selects base
+/// 16 (only when a hex digit follows), a leading `0` base 8, and anything
+/// else base 10; the value saturates at `long`'s bounds. Returns the value
+/// and the index `end` is left at: 0, the string's start, when no digit was
+/// read (a sign or prefix alone counts for nothing).
+fn c_strtol(s: &[u8]) -> (i64, usize) {
+    let mut i = 0;
+    while s
+        .get(i)
+        .is_some_and(|b| matches!(b, b' ' | b'\t' | b'\n' | 0x0b | 0x0c | b'\r'))
+    {
+        i += 1;
+    }
+    let negative = s.get(i) == Some(&b'-');
+    if negative || s.get(i) == Some(&b'+') {
+        i += 1;
+    }
+    let mut base = 10;
+    if s.get(i) == Some(&b'0') {
+        if matches!(s.get(i + 1), Some(b'x' | b'X'))
+            && s.get(i + 2).is_some_and(u8::is_ascii_hexdigit)
+        {
+            base = 16;
+            i += 2;
+        } else {
+            base = 8;
+        }
+    }
+    let start = i;
+    let limit = if negative { i64::MIN } else { i64::MAX };
+    let mut value: i64 = 0;
+    while let Some(digit) = s.get(i).and_then(|&b| char::from(b).to_digit(base)) {
+        i += 1;
+        if value == limit {
+            continue;
+        }
+        let digit = i64::from(digit);
+        let next = value.checked_mul(i64::from(base)).and_then(|v| {
+            if negative {
+                v.checked_sub(digit)
+            } else {
+                v.checked_add(digit)
+            }
+        });
+        value = next.unwrap_or(limit);
+    }
+    if i == start { (0, 0) } else { (value, i) }
+}
+
+/// Whether `av_channel_layout_from_string(description)` reaches an
+/// `ambisonic <order>` whose order, read by `strtol` and narrowed to an
+/// `int`, is exactly `INT_MAX`: C's range check then computes `order + 1`,
+/// a signed overflow (`channel_layout.c:341`), and goes on to square the
+/// wrapped sum, after which it accepts a layout of no channels. C reads the
+/// order of each `ambisonic ` segment of the `+`-chain in turn, as long as
+/// the one before is in range and ends at a `+`; a segment of any other form
+/// (a standard name, a channel list, a mask, a count) ends the chain without
+/// reading another order.
+fn ambisonic_order_overflows(description: &[u8]) -> bool {
+    let mut segment = description;
+    loop {
+        let Some(text) = segment.strip_prefix(b"ambisonic ") else {
+            return false;
+        };
+        let (value, end) = c_strtol(text);
+        // C narrows the `long` to an `int` modulo 2^32, as `as` does.
+        let order = value as c_int;
+        if order == c_int::MAX {
+            return true;
+        }
+        if order < 0 || order + 1 > c_int::MAX / (order + 1) {
+            return false;
+        }
+        match text.get(end) {
+            Some(b'+') => segment = &text[end + 1..],
+            _ => return false,
+        }
+    }
+}
+
 impl ChannelLayout {
     /// A layout of `raw`'s fields, whatever they are; the caller sees to it
     /// that any map in it is one the layout may own.
@@ -1447,7 +1528,18 @@ impl ChannelLayout {
     ///
     /// `AVERROR(EINVAL)` for a description C cannot parse,
     /// `AVERROR(ENOMEM)` when memory runs out.
+    ///
+    /// Also `AVERROR(EINVAL)`, before C is called, for an `ambisonic
+    /// <order>` whose order reads as exactly `INT_MAX` (`2147483647`,
+    /// `0x7fffffff`, `-2147483649` or any other spelling `strtol` narrows
+    /// to it), in this segment or in one a `+` chains after a valid order:
+    /// C's range check adds one to it, a signed overflow, and then accepts
+    /// an ambisonic layout of no channels; the next order down,
+    /// `2147483646`, is C's own `AVERROR(EINVAL)`.
     pub fn parse(description: &CStr) -> Result<ChannelLayoutVal, i32> {
+        if ambisonic_order_overflows(description.to_bytes()) {
+            return Err(EINVAL);
+        }
         // SAFETY: `l` addresses the fresh zeroed layout `init_with` owns,
         // which C overwrites without uninit, leaking nothing; `description`
         // is a live C string C only reads during the call. On success any
@@ -2471,9 +2563,11 @@ impl<'a> ChannelLayoutRef<'a> {
     ///
     /// `None` where C reports `AVERROR(EINVAL)`: when nothing matches, for a
     /// `<abbr>` before the `@` that names no channel, in unspecified order or
-    /// an order C does not know. Also `None`, before C is called, when the
-    /// search by name would meet a map name with no NUL, which C would read
-    /// past.
+    /// an order C does not know. Also `None`, before C is called, when
+    /// `name` asks for a search by name (an `@` with text after it) and any
+    /// name in the map has no NUL, which C's `strcmp` could read past: the
+    /// whole map is refused, whether or not the search would reach that
+    /// element.
     #[must_use]
     pub fn index_by_name(&self, name: &CStr) -> Option<usize> {
         if !self.searchable_for(name) {
@@ -2652,7 +2746,7 @@ impl PartialEq for ChannelLayout {
 
 #[cfg(test)]
 mod unit_tests {
-    use core::ffi::{c_int, c_uint};
+    use core::ffi::{c_int, c_long, c_uint};
     use core::mem::{align_of, size_of};
     use std::ffi::CString;
 
@@ -3974,6 +4068,35 @@ mod unit_tests {
         assert_eq!(l.as_ref().channel(0), Some(Channel::FRONT_LEFT));
     }
 
+    /// A native count above its mask's bits, and an ambisonic count below
+    /// them: states no safe path leaves, which C's readers answer without
+    /// reading out of bounds (the index walk runs off the mask's 64 bits to
+    /// `AV_CHAN_NONE`; a negative component count lets every index through).
+    #[test]
+    fn inconsistent_native_and_ambisonic_counts_read_as_c_reads_them() {
+        let user50 = Channel::from_raw(ffi::AVChannel(50));
+        let wide = raw_layout(ChannelOrder::NATIVE, 3, 1 | 1 << 50);
+        let r = wide.as_ref();
+        assert_eq!(r.channel(1), Some(user50));
+        assert_eq!(r.channel(2), None);
+        // C counts the surplus as leading ambisonic components, so the
+        // index is no longer the inverse of `channel`.
+        assert_eq!(r.index_of(user50), Some(2));
+        assert!(!r.is_valid());
+        assert_eq!(
+            r.description().unwrap().as_bytes(),
+            b"3 channels (FL+USR50+NONE)"
+        );
+        let narrow = raw_layout(ChannelOrder::AMBISONIC, 1, 0x3);
+        let r = narrow.as_ref();
+        assert_eq!(r.channel(0), Some(Channel::ambisonic(0).unwrap()));
+        assert_eq!(r.index_of(Channel::ambisonic(0).unwrap()), None);
+        assert_eq!(r.index_of(Channel::FRONT_LEFT), None);
+        assert_eq!(r.ambisonic_order(), None);
+        assert!(!r.is_valid());
+        assert_eq!(r.description(), Err(EINVAL));
+    }
+
     #[test]
     fn map_names_are_compared_only_after_an_at_with_text() {
         for (name, compares) in [
@@ -4033,5 +4156,185 @@ mod unit_tests {
             Some(Channel::LOW_FREQUENCY)
         );
         assert!(named.as_ref() == r);
+    }
+
+    /// The `strtol` mirror reads what glibc reads: white space, a sign, the
+    /// base prefixes, saturation, and where it leaves the end pointer.
+    #[test]
+    fn c_strtol_reads_as_glibc_does() {
+        for (s, want) in [
+            (&b""[..], (0, 0)),
+            (b"+", (0, 0)),
+            (b"-", (0, 0)),
+            (b"x7", (0, 0)),
+            (b"  42x", (42, 4)),
+            (b"\t\n\x0b\x0c\r+7", (7, 7)),
+            (b"-0x1F", (-31, 5)),
+            (b"0x", (0, 1)),
+            (b"0xg", (0, 1)),
+            (b"0X1g", (1, 3)),
+            (b"017", (15, 3)),
+            (b"018", (1, 2)),
+            (b"0", (0, 1)),
+            (b"2147483647+stereo", (2_147_483_647, 10)),
+            (b"-2147483649", (-2_147_483_649, 11)),
+            (b"9223372036854775807", (i64::MAX, 19)),
+            (b"9223372036854775808", (i64::MAX, 19)),
+            (b"99999999999999999999999", (i64::MAX, 23)),
+            (b"-9223372036854775808", (i64::MIN, 20)),
+            (b"-99999999999999999999999", (i64::MIN, 24)),
+            (b"0xffffffffffffffffff", (i64::MAX, 20)),
+        ] {
+            assert_eq!(c_strtol(s), want, "{:?}", String::from_utf8_lossy(s));
+        }
+    }
+
+    /// The mirror agrees with glibc's `strtol(s, &end, 0)`, which C calls,
+    /// on fixed spellings and on random strings over the characters it
+    /// reads.
+    #[test]
+    fn c_strtol_matches_libc_strtol() {
+        unsafe extern "C" {
+            fn strtol(s: *const c_char, end: *mut *mut c_char, base: c_int) -> c_long;
+        }
+        let libc = |s: &CStr| -> (c_long, usize) {
+            let mut end = ptr::null_mut();
+            // SAFETY: `s` is a live C string glibc only reads during the
+            // call, and `end` a writable slot it stores a pointer into `s`
+            // in.
+            let value = unsafe { strtol(s.as_ptr(), &mut end, 0) };
+            (value, end.addr() - s.as_ptr().addr())
+        };
+        let mut inputs: Vec<Vec<u8>> = [
+            &b""[..],
+            b"2147483647",
+            b"-2147483649",
+            b"0x7fffffff",
+            b"0X7FFFFFFF",
+            b"017777777777",
+            b" \t\n\x0b\x0c\r+42x",
+            b"0x",
+            b"0xg",
+            b"08",
+            b"-0",
+            b"+-1",
+            b"9223372036854775808",
+            b"-9223372036854775809",
+            b"0xffffffffffffffffff",
+            b"0b101",
+        ]
+        .into_iter()
+        .map(<[u8]>::to_vec)
+        .collect();
+        const ALPHABET: &[u8] = b" \t+-0xX0123456789abcdefgABF";
+        let mut x = 0x9e37_79b9_7f4a_7c15u64;
+        let mut next = move || {
+            x ^= x << 13;
+            x ^= x >> 7;
+            x ^= x << 17;
+            x
+        };
+        for _ in 0..20_000 {
+            let len = (next() % 24) as usize;
+            inputs.push(
+                (0..len)
+                    .map(|_| ALPHABET[next() as usize % ALPHABET.len()])
+                    .collect(),
+            );
+        }
+        for bytes in inputs {
+            let s = CString::new(bytes.clone()).unwrap();
+            assert_eq!(
+                c_strtol(&bytes),
+                libc(&s),
+                "{:?}",
+                String::from_utf8_lossy(&bytes)
+            );
+        }
+    }
+
+    /// Exactly the descriptions whose `ambisonic` order C adds one to at
+    /// `INT_MAX`, wherever in the `+`-chain C reads it.
+    #[test]
+    fn ambisonic_order_overflow_is_found_where_c_reads_the_order() {
+        for s in [
+            &b"ambisonic 2147483647"[..],
+            b"ambisonic 0x7fffffff",
+            b"ambisonic 017777777777",
+            b"ambisonic  +2147483647",
+            b"ambisonic -2147483649",
+            b"ambisonic 6442450943",
+            b"ambisonic 0x17fffffff",
+            b"ambisonic 2147483647+stereo",
+            b"ambisonic 2147483647x",
+            b"ambisonic 1+ambisonic 2147483647",
+            b"ambisonic 0+ambisonic 1+ambisonic 2147483647",
+            b"ambisonic 46339+ambisonic 2147483647",
+        ] {
+            assert!(
+                ambisonic_order_overflows(s),
+                "{:?}",
+                String::from_utf8_lossy(s)
+            );
+        }
+        for s in [
+            &b""[..],
+            b"stereo",
+            b"ambisonic",
+            b"ambisonic ",
+            b"ambisonic 2147483646",
+            b"ambisonic 46339",
+            b"ambisonic 46340",
+            b"ambisonic 4294967295",
+            b"ambisonic 9223372036854775807",
+            b"ambisonic 1+stereo",
+            b"ambisonic 1+FL@x+ambisonic 2147483647",
+            b"ambisonic -1+ambisonic 2147483647",
+            b"ambisonic 46340+ambisonic 2147483647",
+            b"ambisonic 1 +ambisonic 2147483647",
+            b"ambisonic 1x+ambisonic 2147483647",
+            b" ambisonic 2147483647",
+            b"Ambisonic 2147483647",
+            b"FL+ambisonic 2147483647",
+            b"2 channels (ambisonic 2147483647)",
+        ] {
+            assert!(
+                !ambisonic_order_overflows(s),
+                "{:?}",
+                String::from_utf8_lossy(s)
+            );
+        }
+    }
+
+    /// `parse` refuses the orders C would overflow on and passes their
+    /// neighbours to C, which answers for them as the mirror predicts.
+    #[test]
+    fn parse_refuses_the_ambisonic_order_c_adds_one_to_at_int_max() {
+        for s in [
+            c"ambisonic 2147483647",
+            c"ambisonic 0x7fffffff",
+            c"ambisonic -2147483649",
+            c"ambisonic 2147483647+stereo",
+            c"ambisonic 1+ambisonic 2147483647",
+        ] {
+            assert_eq!(ChannelLayout::parse(s).map(drop), Err(EINVAL), "{s:?}");
+        }
+        if !c_parser_takes_numbers() {
+            return;
+        }
+        assert_eq!(
+            ChannelLayout::parse(c"ambisonic 2147483646").map(drop),
+            Err(EINVAL)
+        );
+        assert_eq!(
+            ChannelLayout::parse(c"ambisonic 46340").map(drop),
+            Err(EINVAL)
+        );
+        // Narrowed modulo 2^32 by C, as the mirror narrows them.
+        let wrapped = ChannelLayout::parse(c"ambisonic 4294967297").unwrap();
+        assert_eq!(wrapped.as_ref().ambisonic_order(), Some(1));
+        let wrapped = ChannelLayout::parse(c"ambisonic 0x100000002+FL").unwrap();
+        assert_eq!(wrapped.as_ref().ambisonic_order(), Some(2));
+        assert_eq!(wrapped.as_ref().channel_count(), 10);
     }
 }

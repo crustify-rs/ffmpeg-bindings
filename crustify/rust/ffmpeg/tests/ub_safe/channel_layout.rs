@@ -784,7 +784,7 @@ mod layout {
     /// Descriptions C parses, fails to parse, or stops short in: standard
     /// names, channel lists with and without names, masks, counts,
     /// ambisonic orders at the `int` bound, and malformed spellings.
-    const DESCRIPTIONS: [&core::ffi::CStr; 37] = [
+    const DESCRIPTIONS: [&core::ffi::CStr; 42] = [
         c"mono",
         c"stereo",
         c"5.1(side)",
@@ -824,6 +824,14 @@ mod layout {
         c"0c",
         c"2147483648C",
         c"FL+NOPE",
+        // Orders C narrows from `long` to `int` modulo 2^32: 1 and 2.
+        c"ambisonic 4294967297",
+        c"ambisonic 0x100000002+FL",
+        // A byte other than `+` after the order, a mask `strtoull` cannot
+        // hold, and a channel list missing its closing parenthesis.
+        c"ambisonic 1x",
+        c"18446744073709551616",
+        c"2 channels (FL+FR",
     ];
 
     /// A dangling user pointer nothing may follow.
@@ -915,6 +923,46 @@ mod layout {
         }
         assert!(ChannelLayout::from_custom_map(HeapVec::empty()).is_err());
         drop(ChannelLayout::unspecified(i32::MIN));
+    }
+
+    /// An `ambisonic` order of exactly `INT_MAX`, in any spelling `strtol`
+    /// narrows to it and anywhere in the `+`-chain C reads orders, is
+    /// refused before C adds one to it (a signed overflow UBSan reports at
+    /// `channel_layout.c:341`, after which C accepts a layout of no
+    /// channels; wave-3 batch-1 review, `ub_safe/parse-ambisonic-int-max-
+    /// order-overflow`). Its neighbours still go to C.
+    #[test]
+    fn parse_refuses_the_ambisonic_order_c_cannot_add_one_to() {
+        for s in [
+            c"ambisonic 2147483647",
+            c"ambisonic 0x7fffffff",
+            c"ambisonic 017777777777",
+            c"ambisonic  +2147483647",
+            c"ambisonic -2147483649",
+            c"ambisonic 6442450943",
+            c"ambisonic 2147483647+stereo",
+            c"ambisonic 2147483647x",
+            c"ambisonic 1+ambisonic 2147483647",
+            c"ambisonic 0+ambisonic 1+ambisonic 2147483647",
+        ] {
+            assert_eq!(ChannelLayout::parse(s).map(drop), Err(-22), "{s:?}");
+        }
+        if under_bsan() {
+            return;
+        }
+        // C's own refusals: the next order down, and `ambisonic` spellings
+        // inside a channel list, which are read as channel names.
+        for s in [
+            c"ambisonic 2147483646",
+            c"ambisonic 1+ambisonic 2147483646",
+            c"FL+ambisonic 2147483647",
+            c"ambisonic 1+FL+ambisonic 2147483647",
+        ] {
+            assert_eq!(ChannelLayout::parse(s).map(drop), Err(-22), "{s:?}");
+        }
+        let l = ChannelLayout::parse(c"ambisonic 4294967297").unwrap();
+        let r = l.as_ref();
+        assert_eq!((r.ambisonic_order(), r.channel_count()), (Some(1), 4));
     }
 
     #[test]
