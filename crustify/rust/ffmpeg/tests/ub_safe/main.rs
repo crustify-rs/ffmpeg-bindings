@@ -15,6 +15,7 @@ mod intreadwrite;
 mod log;
 mod mathematics;
 mod mem;
+mod pixdesc;
 mod pixfmt;
 mod random_seed;
 mod rational;

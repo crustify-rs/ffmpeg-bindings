@@ -259,6 +259,128 @@ impl From<Channel> for ffi::AVChannel {
 // memory is the whole of it.
 unsafe impl CPlainElem for Channel {}
 
+/// Wraps: AVMatrixEncoding
+/// Handwritten
+///
+/// The matrixed-stereo encoding of a downmix: none, or one of the Dolby
+/// surround variants that fold extra channels into a stereo pair.
+///
+/// A newtype over the C enum rather than a Rust `enum`: C stores the value as
+/// a raw `int` (the payload of `AV_FRAME_DATA_MATRIXENCODING` frame side
+/// data, libswresample's `matrix_encoding` option), so a Rust view of that
+/// memory may meet any `int` and must accept every one. Match on the
+/// associated constants, with a `_` arm for the values C does not name:
+///
+/// ```
+/// use ffmpeg::libavutil::channel_layout::MatrixEncoding;
+/// fn is_dolby(e: MatrixEncoding) -> bool {
+///     match e {
+///         MatrixEncoding::NONE => false,
+///         MatrixEncoding::DOLBY
+///         | MatrixEncoding::DOLBY_EX
+///         | MatrixEncoding::DOLBY_HEADPHONE
+///         | MatrixEncoding::DPLII
+///         | MatrixEncoding::DPLIIX
+///         | MatrixEncoding::DPLIIZ => true,
+///         _ => false,
+///     }
+/// }
+/// assert!(is_dolby(MatrixEncoding::DPLII));
+/// assert!(!is_dolby(MatrixEncoding::NONE));
+/// ```
+///
+/// No ffibox primitive covers a C enum: it owns nothing, has no handles, and
+/// is `Send + Sync` as the integer it is.
+#[repr(transparent)]
+#[derive(Clone, Copy, PartialEq, Eq, Hash)]
+pub struct MatrixEncoding(ffi::AVMatrixEncoding);
+
+impl MatrixEncoding {
+    /// No matrixed encoding.
+    pub const NONE: Self = Self(ffi::AVMatrixEncoding::AV_MATRIX_ENCODING_NONE);
+    /// Dolby Surround.
+    pub const DOLBY: Self = Self(ffi::AVMatrixEncoding::AV_MATRIX_ENCODING_DOLBY);
+    /// Dolby Pro Logic II.
+    pub const DPLII: Self = Self(ffi::AVMatrixEncoding::AV_MATRIX_ENCODING_DPLII);
+    /// Dolby Pro Logic IIx.
+    pub const DPLIIX: Self = Self(ffi::AVMatrixEncoding::AV_MATRIX_ENCODING_DPLIIX);
+    /// Dolby Pro Logic IIz.
+    pub const DPLIIZ: Self = Self(ffi::AVMatrixEncoding::AV_MATRIX_ENCODING_DPLIIZ);
+    /// Dolby Digital EX.
+    pub const DOLBY_EX: Self = Self(ffi::AVMatrixEncoding::AV_MATRIX_ENCODING_DOLBYEX);
+    /// Dolby Headphone.
+    pub const DOLBY_HEADPHONE: Self =
+        Self(ffi::AVMatrixEncoding::AV_MATRIX_ENCODING_DOLBYHEADPHONE);
+
+    /// The number of encodings from [`NONE`](Self::NONE) to
+    /// [`DOLBY_HEADPHONE`](Self::DOLBY_HEADPHONE) (`AV_MATRIX_ENCODING_NB`):
+    /// the length of an array indexed by [`index`](Self::index).
+    pub const COUNT: usize = ffi::AVMatrixEncoding::AV_MATRIX_ENCODING_NB.0 as usize;
+
+    /// The encoding C encodes as `raw`, whatever its value.
+    #[inline]
+    pub const fn from_raw(raw: ffi::AVMatrixEncoding) -> Self {
+        Self(raw)
+    }
+
+    /// The C encoding of this value.
+    #[inline]
+    pub const fn into_raw(self) -> ffi::AVMatrixEncoding {
+        self.0
+    }
+
+    /// This encoding's position in `0..COUNT`, or `None` for any value C
+    /// does not name.
+    #[inline]
+    pub const fn index(self) -> Option<usize> {
+        let raw = self.0.0 as usize;
+        if raw < Self::COUNT { Some(raw) } else { None }
+    }
+
+    /// The name of the constant this value equals, if any.
+    const fn name(self) -> Option<&'static str> {
+        Some(match self {
+            Self::NONE => "NONE",
+            Self::DOLBY => "DOLBY",
+            Self::DPLII => "DPLII",
+            Self::DPLIIX => "DPLIIX",
+            Self::DPLIIZ => "DPLIIZ",
+            Self::DOLBY_EX => "DOLBY_EX",
+            Self::DOLBY_HEADPHONE => "DOLBY_HEADPHONE",
+            _ => return None,
+        })
+    }
+}
+
+impl fmt::Debug for MatrixEncoding {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self.name() {
+            Some(name) => f.write_str(name),
+            None => f.debug_tuple("MatrixEncoding").field(&self.0.0).finish(),
+        }
+    }
+}
+
+impl From<ffi::AVMatrixEncoding> for MatrixEncoding {
+    #[inline]
+    fn from(raw: ffi::AVMatrixEncoding) -> Self {
+        Self::from_raw(raw)
+    }
+}
+
+impl From<MatrixEncoding> for ffi::AVMatrixEncoding {
+    #[inline]
+    fn from(e: MatrixEncoding) -> Self {
+        e.into_raw()
+    }
+}
+
+// SAFETY: `MatrixEncoding` is `#[repr(transparent)]` over
+// `ffi::AVMatrixEncoding`, itself `#[repr(transparent)]` over a `c_uint`, so
+// every bit pattern is a valid value, and it is a value with no C-side
+// identity: a copy read out of C memory is the whole of it.
+unsafe impl CPlainElem for MatrixEncoding {}
+
 #[cfg(test)]
 mod unit_tests {
     use core::ffi::c_int;
@@ -431,6 +553,55 @@ mod unit_tests {
             let c = ffi::AVChannel(raw);
             assert_eq!(Channel::from(c).into_raw(), c);
             assert_eq!(ffi::AVChannel::from(Channel::from_raw(c)), c);
+        }
+    }
+
+    const MATRIX_ENCODING_NAMED: [MatrixEncoding; 7] = [
+        MatrixEncoding::NONE,
+        MatrixEncoding::DOLBY,
+        MatrixEncoding::DPLII,
+        MatrixEncoding::DPLIIX,
+        MatrixEncoding::DPLIIZ,
+        MatrixEncoding::DOLBY_EX,
+        MatrixEncoding::DOLBY_HEADPHONE,
+    ];
+
+    #[test]
+    fn matrix_encoding_named_values_index_in_declaration_order() {
+        assert_eq!(MatrixEncoding::COUNT, MATRIX_ENCODING_NAMED.len());
+        for (i, e) in MATRIX_ENCODING_NAMED.into_iter().enumerate() {
+            assert_eq!(e.index(), Some(i));
+            assert!(e.name().is_some());
+        }
+    }
+
+    #[test]
+    fn matrix_encoding_unnamed_values_have_no_index_and_debug_as_raw() {
+        let nb = MatrixEncoding::from_raw(ffi::AVMatrixEncoding::AV_MATRIX_ENCODING_NB);
+        let huge = MatrixEncoding::from_raw(ffi::AVMatrixEncoding(u32::MAX));
+        for e in [nb, huge] {
+            assert_eq!(e.index(), None);
+            assert_eq!(e.name(), None);
+            assert!(format!("{e:?}").starts_with("MatrixEncoding("));
+        }
+        assert_eq!(format!("{nb:?}"), "MatrixEncoding(7)");
+    }
+
+    #[test]
+    fn matrix_encoding_debug_prints_constant_names() {
+        assert_eq!(format!("{:?}", MatrixEncoding::DPLII), "DPLII");
+        assert_eq!(
+            format!("{:?}", MatrixEncoding::DOLBY_HEADPHONE),
+            "DOLBY_HEADPHONE"
+        );
+    }
+
+    #[test]
+    fn matrix_encoding_raw_conversions_round_trip() {
+        for e in MATRIX_ENCODING_NAMED {
+            let raw: ffi::AVMatrixEncoding = e.into();
+            assert_eq!(MatrixEncoding::from(raw), e);
+            assert_eq!(e.into_raw(), raw);
         }
     }
 }

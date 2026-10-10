@@ -1,0 +1,11 @@
+error[E0599]: no method named `set_step` found for struct `ComponentDescriptorRef<'a>` in the current scope
+ --> tests/ub_safe/compile_fail/pixdesc_component_descriptor_shared_handle_has_no_setter.rs
+  |
+  |     d.as_ref().set_step(1);
+  |                ^^^^^^^^
+  |
+help: there is a method `step` with a similar name, but with different arguments
+ --> libavutil/pixdesc.rs
+  |
+  |     pub fn step(&self) -> i32 {
+  |     ^^^^^^^^^^^^^^^^^^^^^^^^^

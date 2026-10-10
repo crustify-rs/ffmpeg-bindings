@@ -15,6 +15,7 @@ mod log;
 mod mathematics;
 mod mem;
 mod opt;
+mod pixdesc;
 mod pixfmt;
 mod random_seed;
 mod rational;

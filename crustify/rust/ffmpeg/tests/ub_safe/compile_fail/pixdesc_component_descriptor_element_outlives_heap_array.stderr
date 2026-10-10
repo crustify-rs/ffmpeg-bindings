@@ -1,0 +1,16 @@
+error[E0505]: cannot move out of `comps` because it is borrowed
+ --> tests/ub_safe/compile_fail/pixdesc_component_descriptor_element_outlives_heap_array.rs
+  |
+  |     let comps = alloc_cell_array_zeroed::<ComponentDescriptor>(4).unwrap();
+  |         ----- binding `comps` declared here
+  |     let first = comps.as_handles().get(0).unwrap();
+  |                 ----- borrow of `comps` occurs here
+  |     drop(comps);
+  |          ^^^^^ move out of `comps` occurs here
+  |     println!("{}", first.plane());
+  |                    ----- borrow later used here
+  |
+help: consider cloning the value if the performance cost is acceptable
+  |
+7 |     let first = comps.clone().as_handles().get(0).unwrap();
+  |                      ++++++++
