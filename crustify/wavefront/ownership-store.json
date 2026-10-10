@@ -79,6 +79,49 @@
    ]
   },
   {
+   "name": "AVChannelLayout",
+   "defined_in": "libavutil/channel_layout.h",
+   "_comment_agent": "formats wave-2 batch-0 (wrap): by-value struct whose sizeof is public ABI, embedded in AVFrame, AVCodecContext, AVCodecParameters etc. and allocated on the stack by C users; not address-sensitive (C copies it by assignment, e.g. `*channel_layout = channel_layout_map[i].layout`). It owns resources only in CUSTOM order (u.map). Lifecycle: disposer av_channel_layout_uninit (frees a CUSTOM map, zeroes all fields, opaque included); deep cloner av_channel_layout_copy (uninits dst first; on ENOMEM leaves dst CUSTOM with a NULL map, an invalid state); constructors/initialisers av_channel_layout_custom_init, av_channel_layout_from_mask, av_channel_layout_from_string and av_channel_layout_default (from_mask and default overwrite fields without uninit and leak a prior CUSTOM map, so the wrapper only runs them on a fresh zeroed value). All-zero is valid (UNSPEC, 0 channels, documented `{0}` init) and accepted by uninit. Assigning one layout to another duplicates map ownership (forbidden by the header), so the Rust layout type is neither Copy nor Clone and has no safe from_raw. C readers assume CUSTOM => map holds nb_channels elements with NUL-terminated names (strcmp, %s), and compute nb_channels - popcount(mask) for AMBISONIC (signed overflow for nb_channels near INT_MIN). Wrapped as ChannelLayout (layout) + ChannelLayoutVal = CVal<ChannelLayout, ChannelLayoutUninit>, with a tagged enum over order/u.",
+   "fields": [
+    {
+     "name": "opaque",
+     "ptr": {
+      "scalar": {
+       "by_val": true
+      },
+      "array": null,
+      "string": false,
+      "owned": false,
+      "borrowed": {
+       "lifetime": "other"
+      },
+      "nullable": true,
+      "mutable": null,
+      "note": "User cookie. No FFmpeg code dereferences or frees it: av_channel_layout_retype (its only toucher tree-wide) saves and restores it across the uninit it performs, av_channel_layout_copy shallow-copies the address with `*dst = *src`, and av_channel_layout_uninit zeroes it with the rest of the struct. Its pointee type, cardinality and lifetime are the user's alone (recorded as scalar/other for want of a 'never dereferenced' vocabulary). Wrapped, as AVChannelCustom.opaque is, as a raw *mut c_void getter and setter that are safe: storing or reading the address dereferences nothing."
+     },
+     "refcount": false,
+     "locked_by": null
+    },
+    {
+     "name": "u.map",
+     "ptr": {
+      "scalar": null,
+      "array": {
+       "by_val": true
+      },
+      "string": false,
+      "owned": true,
+      "borrowed": null,
+      "nullable": true,
+      "mutable": true,
+      "note": "Union member, valid only when order == AV_CHANNEL_ORDER_CUSTOM (u.mask otherwise). An av_malloc-family block of at least nb_channels initialised AVChannelCustom the layout owns: allocated by av_channel_layout_custom_init (av_calloc, exactly nb_channels), av_channel_layout_from_string (av_dynarray2_add, capacity may exceed nb_channels; av_calloc in the ambisonic path), av_channel_layout_copy (av_malloc_array + memcpy, deep copy) and av_channel_layout_retype (custom_init), and by user code (libavfilter/af_channelsplit.c av_mallocz); freed only by av_channel_layout_uninit (av_freep, CUSTOM order only). Elements are written in place by C (ids, av_strlcpy names). The one borrowed use is try_describe_ambisonic's local `extra` (map + offset), which never escapes and is never uninitialised. NULL arises only from a failed av_channel_layout_copy (CUSTOM order, nb_channels > 0, map NULL), which C readers would dereference; the wrapper resets the layout on that failure and guards copies of such a source."
+     },
+     "refcount": false,
+     "locked_by": null
+    }
+   ]
+  },
+  {
    "name": "AVChannelOrder",
    "defined_in": "libavutil/channel_layout.h",
    "_comment_agent": "C enum (unsigned underlying type, values 0..=3 named; FF_CHANNEL_ORDER_NB is not part of ABI/API). No pointers, no lifecycle: a plain value. Stored in the public field AVChannelLayout.order, which users write directly (and C compound-literal macros AV_CHANNEL_LAYOUT_* initialise), and passed by value to av_channel_layout_retype; av_channel_layout_check/compare/describe switch on it with a default arm, so any value can reach C storage. The Rust wrapper must therefore be an open, layout-compatible newtype accepting every value, plain-data (CPlainElem), Send+Sync as an integer.",
@@ -462,6 +505,12 @@
    "name": "AVPixelFormat",
    "defined_in": "libavutil/pixfmt.h",
    "_comment_agent": "C enum (int-based: AV_PIX_FMT_NONE = -1 .. AV_PIX_FMT_NB), no fields or pointers, no lifecycle: a plain value. Public C structs store it in fields users write directly (AVCodecContext.pix_fmt/sw_pix_fmt, AVHWFramesContext.format/sw_format, AVCodecParserContext.format as int, AVFrame.format as int) and in AV_PIX_FMT_NONE-terminated arrays (AVCodec.pix_fmts, AVHWFramesConstraints.valid_hw_formats/valid_sw_formats, av_hwframe_transfer_get_formats out-array freed with av_free); a newer libavutil may return values beyond this header's enumerators. C readers bounds-check before indexing (av_pix_fmt_desc_get: 0 <= fmt < AV_PIX_FMT_NB), so every int is a valid stored value. Wrapped as a repr(transparent) newtype accepting every value, with associated constants for the enumerators, the three in-enum aliases and the 104 native-endian AV_PIX_FMT_NE macro aliases; CPlainElem for C-allocated arrays.",
+   "fields": []
+  },
+  {
+   "name": "AVPrimaryCoefficients",
+   "defined_in": "libavutil/csp.h",
+   "_comment_agent": "formats wave-2 batch-0 (wrap): three AVCIExy chromaticities by value (r, g, b), i.e. six AVRationals, no pointer fields, no allocator, disposer or cloner. Embedded by value as AVColorPrimariesDesc.prim; C's only producer is av_csp_primaries_desc_from_id, a const pointer into the static const color_primaries table (a 'static shared borrow, never written), and its only libavutil reader is av_csp_primaries_id_from_desc (sums the absolute av_sub_q deltas of every coordinate against each table entry). Consumers (libswscale, libavfilter colorspace/tonemap/vf_iccgen, libavcodec fflcms2) read fields or copy the struct by value. All-zero is valid (the table's unspecified entries, skipped on prim.r.x.num == 0). Wrapped as a value type with CieXyRef/CieXyMut handles over the projected fields.",
    "fields": []
   },
   {
@@ -1340,6 +1389,235 @@
       "nullable": false,
       "mutable": false,
       "note": "av_channel_from_string reads `str` during the call only (strncmp/strcmp against the static channel_names table, strtol for AMBI<n>/USR<n>; strtol's endptr is a local cursor into it); keeps no pointer. Dereferenced unconditionally, so NULL is UB (non-nullable). Wrapped as `&CStr`."
+     }
+    }
+   ]
+  },
+  {
+   "name": "av_channel_layout_copy",
+   "defined_in": "libavutil/channel_layout.c",
+   "lifetime": {
+    "for": "src",
+    "is_dropper": false,
+    "is_disposer": false,
+    "is_cloner": {
+     "deep": true,
+     "upref": false
+    },
+    "is_constructor": null
+   },
+   "ptr_args": [
+    {
+     "name": "dst",
+     "ptr": {
+      "scalar": {
+       "by_val": true
+      },
+      "array": null,
+      "string": false,
+      "owned": false,
+      "borrowed": {
+       "lifetime": "arg:dst"
+      },
+      "nullable": false,
+      "mutable": true,
+      "note": "Destination, borrowed exclusively for the call: uninitialised first (its old map freed), then overwritten with *src, and given a fresh av_malloc_array copy of src's map in CUSTOM order. On ENOMEM it is left CUSTOM with nb_channels set and a NULL map, which C readers would dereference: the wrapper resets it with av_channel_layout_uninit."
+     }
+    },
+    {
+     "name": "src",
+     "ptr": {
+      "scalar": {
+       "by_val": true
+      },
+      "array": null,
+      "string": false,
+      "owned": false,
+      "borrowed": {
+       "lifetime": "arg:src"
+      },
+      "nullable": false,
+      "mutable": false,
+      "note": "Source, borrowed read-only for the call; its map (CUSTOM order) is memcpy'd, nb_channels elements, and must be non-NULL when nb_channels > 0 (the wrapper refuses a NULL-map source before calling C). The opaque cookie is shallow-copied."
+     }
+    }
+   ]
+  },
+  {
+   "name": "av_channel_layout_custom_init",
+   "defined_in": "libavutil/channel_layout.c",
+   "lifetime": {
+    "for": "channel_layout",
+    "is_dropper": false,
+    "is_disposer": false,
+    "is_cloner": null,
+    "is_constructor": {
+     "alloc": false,
+     "init": true
+    }
+   },
+   "ptr_args": [
+    {
+     "name": "channel_layout",
+     "ptr": {
+      "scalar": {
+       "by_val": true
+      },
+      "array": null,
+      "string": false,
+      "owned": false,
+      "borrowed": {
+       "lifetime": "arg:channel_layout"
+      },
+      "nullable": false,
+      "mutable": true,
+      "note": "The layout to initialise, borrowed for the call; overwritten without uninit (order, nb_channels, u.map; opaque untouched), so a prior CUSTOM map leaks: the wrapper only passes a fresh zeroed value. Gains an av_calloc'd map of nb_channels AV_CHAN_UNKNOWN elements the layout owns; untouched on EINVAL/ENOMEM."
+     }
+    }
+   ]
+  },
+  {
+   "name": "av_channel_layout_default",
+   "defined_in": "libavutil/channel_layout.c",
+   "lifetime": {
+    "for": "ch_layout",
+    "is_dropper": false,
+    "is_disposer": false,
+    "is_cloner": null,
+    "is_constructor": {
+     "alloc": false,
+     "init": true
+    }
+   },
+   "ptr_args": [
+    {
+     "name": "ch_layout",
+     "ptr": {
+      "scalar": {
+       "by_val": true
+      },
+      "array": null,
+      "string": false,
+      "owned": false,
+      "borrowed": {
+       "lifetime": "arg:ch_layout"
+      },
+      "nullable": false,
+      "mutable": true,
+      "note": "The layout to initialise, borrowed for the call; a copy of the first standard layout with nb_channels channels (all NATIVE, no map), or order UNSPEC with nb_channels set (u and opaque then untouched); never uninit first, so the wrapper only passes a fresh zeroed value."
+     }
+    }
+   ]
+  },
+  {
+   "name": "av_channel_layout_from_mask",
+   "defined_in": "libavutil/channel_layout.c",
+   "lifetime": {
+    "for": "channel_layout",
+    "is_dropper": false,
+    "is_disposer": false,
+    "is_cloner": null,
+    "is_constructor": {
+     "alloc": false,
+     "init": true
+    }
+   },
+   "ptr_args": [
+    {
+     "name": "channel_layout",
+     "ptr": {
+      "scalar": {
+       "by_val": true
+      },
+      "array": null,
+      "string": false,
+      "owned": false,
+      "borrowed": {
+       "lifetime": "arg:channel_layout"
+      },
+      "nullable": false,
+      "mutable": true,
+      "note": "The layout to initialise, borrowed for the call; order, nb_channels and u.mask overwritten without uninit (opaque untouched), so a prior CUSTOM map leaks: the wrapper only passes a fresh zeroed value. Untouched on EINVAL (mask 0). Allocates nothing."
+     }
+    }
+   ]
+  },
+  {
+   "name": "av_channel_layout_from_string",
+   "defined_in": "libavutil/channel_layout.c",
+   "lifetime": {
+    "for": "channel_layout",
+    "is_dropper": false,
+    "is_disposer": false,
+    "is_cloner": null,
+    "is_constructor": {
+     "alloc": false,
+     "init": true
+    }
+   },
+   "ptr_args": [
+    {
+     "name": "channel_layout",
+     "ptr": {
+      "scalar": {
+       "by_val": true
+      },
+      "array": null,
+      "string": false,
+      "owned": false,
+      "borrowed": {
+       "lifetime": "arg:channel_layout"
+      },
+      "nullable": false,
+      "mutable": true,
+      "note": "The layout to initialise, borrowed for the call; overwritten without uninit (memset or a table copy), so a prior CUSTOM map leaks: the wrapper only passes a fresh zeroed value. May gain an owned map (parse_channel_list's av_dynarray2_add block, or av_calloc in the ambisonic path). On failure it is left in a state av_channel_layout_uninit accepts (no live map)."
+     }
+    },
+    {
+     "name": "str",
+     "ptr": {
+      "scalar": null,
+      "array": {
+       "by_val": true
+      },
+      "string": true,
+      "owned": false,
+      "borrowed": {
+       "lifetime": "arg:str"
+      },
+      "nullable": false,
+      "mutable": false,
+      "note": "The layout description, a NUL-terminated string read during the call only (strcmp, av_strdup'd copy for parsing, strtol/strtoull)."
+     }
+    }
+   ]
+  },
+  {
+   "name": "av_channel_layout_uninit",
+   "defined_in": "libavutil/channel_layout.c",
+   "lifetime": {
+    "for": "channel_layout",
+    "is_dropper": false,
+    "is_disposer": true,
+    "is_cloner": null,
+    "is_constructor": null
+   },
+   "ptr_args": [
+    {
+     "name": "channel_layout",
+     "ptr": {
+      "scalar": {
+       "by_val": true
+      },
+      "array": null,
+      "string": false,
+      "owned": false,
+      "borrowed": {
+       "lifetime": "arg:channel_layout"
+      },
+      "nullable": false,
+      "mutable": true,
+      "note": "The layout to dispose, borrowed for the call: frees u.map (av_freep) when order is CUSTOM and zeroes every field, opaque included. Accepts any layout C or the wrapper leaves (a zeroed one, a failed copy's NULL map). The storage itself is the caller's (stack, embedded field, Rust CVal)."
      }
     }
    ]

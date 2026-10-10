@@ -1,0 +1,9 @@
+error[E0499]: cannot borrow `handle` as mutable more than once at a time
+ --> tests/ub_safe/compile_fail/channel_layout_map_view_survives_clear.rs
+  |
+  |     let mut map = handle.custom_map_mut().unwrap();
+  |                   ------ first mutable borrow occurs here
+  |     handle.clear();
+  |     ^^^^^^ second mutable borrow occurs here
+  |     map.get_mut(0).unwrap().set_name(c"x").unwrap();
+  |     --- first borrow later used here

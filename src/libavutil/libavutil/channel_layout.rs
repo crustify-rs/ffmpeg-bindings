@@ -4,17 +4,28 @@
 //! the abbreviation C writes in channel layout strings; C writes names into a
 //! caller buffer, which [`Channel::write_name`] exposes as is, or appends
 //! them to a print buffer ([`Channel::append_name`]).
+//!
+//! [`ChannelLayout`] is `AVChannelLayout`, a by-value structure that owns its
+//! channel map in custom order. Rust holds one as a [`ChannelLayoutVal`],
+//! which `av_channel_layout_uninit` disposes on drop, built by the C
+//! initialisers ([`ChannelLayout::from_mask`], [`ChannelLayout::parse`],
+//! [`ChannelLayout::custom`], [`ChannelLayout::default_for`]) or from a map
+//! Rust filled ([`ChannelLayout::from_custom_map`]), and deep-copied by
+//! `av_channel_layout_copy` ([`ChannelLayoutRef::try_clone`],
+//! [`ChannelLayoutMut::copy_from`]). [`LayoutDetails`] reads the order and
+//! the union it selects as one tagged value.
 
 use core::ffi::{CStr, c_char, c_int, c_uint, c_void};
 use core::hash::{Hash, Hasher};
-use core::ptr::{self, addr_of, addr_of_mut};
+use core::ptr::{self, NonNull, addr_of, addr_of_mut};
 use core::{cmp, fmt};
 use std::ffi::CString;
 
-use ffibox::{CPlainElem, CZeroable, define_ctype};
+use ffibox::{CPlainElem, CSlice, CSliceMut, CVal, CZeroable, define_ctype, impl_cdispose};
 
 use super::bprint::BPrintMut;
 use super::ffi;
+use super::mem::HeapVec;
 
 /// Wraps: AVChannel
 /// Handwritten
@@ -1055,6 +1066,661 @@ impl Channel {
     }
 }
 
+/// `AVERROR(EINVAL)`: C's code for an argument it refuses.
+const EINVAL: i32 = -22;
+
+define_ctype!(
+    /// Wraps: AVChannelLayout
+    ///
+    /// The channel layout of audio data: how many channels there are and,
+    /// by its [order](ChannelOrder), which ones in what order. Its getters
+    /// are on [`ChannelLayoutRef`] (`as_ref()`), its setters on
+    /// [`ChannelLayoutMut`] (`as_mut()`).
+    ///
+    /// `sizeof(AVChannelLayout)` is public ABI: C users keep one on the
+    /// stack or embed it by value (`AVFrame.ch_layout`,
+    /// `AVCodecContext.ch_layout`), and C copies it by assignment, so it is
+    /// not address-sensitive. It owns a resource in custom order only: the
+    /// `u.map` array of [`ChannelCustom`]s, an `av_malloc`-family block that
+    /// `av_channel_layout_uninit` frees. So a Rust-held layout is a
+    /// [`ChannelLayoutVal`], which disposes it on drop, and a layout embedded
+    /// in a C struct is reached as a [`ChannelLayoutRef`] or
+    /// [`ChannelLayoutMut`] over the projected field, disposed by its
+    /// parent's teardown.
+    ///
+    /// Copying the bytes of a custom layout would make two owners of one map
+    /// (C forbids assigning one layout to another), so a `ChannelLayout` is
+    /// neither `Copy` nor `Clone`, and no safe function adopts a raw
+    /// `AVChannelLayout`: copies go through `av_channel_layout_copy`
+    /// ([`ChannelLayoutRef::try_clone`]), and only a map Rust owns
+    /// ([`HeapVec`]) enters a layout.
+    ///
+    /// Every safe path keeps a layout in a state C's readers and
+    /// `av_channel_layout_uninit` accept: in custom order, `u.map` is a
+    /// block the layout owns holding `nb_channels >= 1` elements; in the
+    /// other orders it holds no map, and an ambisonic layout's count is
+    /// never negative. C's readers also take each map element's name for a C
+    /// string; [`ChannelCustomMut`]'s setters always terminate it, while
+    /// [`ChannelCustom::from_raw`] can carry 16 non-NUL bytes into a map,
+    /// which wrappers of those readers must refuse.
+    ChannelLayout,
+    ChannelLayoutRef,
+    ChannelLayoutMut,
+    ffi::AVChannelLayout
+);
+
+// SAFETY: all-zero is unspecified order, no channels, a zero mask and a NULL
+// `opaque`: the `{0}` initialisation the header documents, and what
+// `av_channel_layout_uninit` leaves. Every accessor reads it as such,
+// `av_channel_layout_uninit` frees nothing for it (it frees only in custom
+// order), and every C routine the safe wrappers pass it to takes it.
+unsafe impl CZeroable for ChannelLayout {}
+
+// SAFETY: a layout is an order, a count, a mask or the pointer to a map it
+// owns, and a user pointer. The map is an `av_malloc`-family block, which
+// `av_free` releases on any thread, of `ChannelCustom`s, which are `Send`;
+// the user pointer is a cookie neither FFmpeg nor this crate dereferences
+// (see `ChannelCustom`'s `Send`). So a value, or an exclusive handle to one,
+// moves between threads with everything it owns.
+unsafe impl Send for ChannelLayout {}
+// SAFETY: as for `ChannelLayout`: the handle is the only access to the
+// layout and its map.
+unsafe impl Send for ChannelLayoutMut<'_> {}
+
+// SAFETY: nothing reachable through a shared handle writes:
+// `ChannelLayoutRef`'s getters copy fields out or lend a `CSlice` of
+// getter-only `ChannelCustomRef`s (`ChannelCustom` is `Sync`), `try_clone`
+// only reads its source, and the struct has no interior mutability, so
+// concurrent shared access reads unchanging bytes.
+unsafe impl Sync for ChannelLayout {}
+// SAFETY: as for `Sync for ChannelLayout`: copies of a shared handle only
+// read.
+unsafe impl Send for ChannelLayoutRef<'_> {}
+// SAFETY: as above.
+unsafe impl Sync for ChannelLayoutRef<'_> {}
+// SAFETY: `&ChannelLayoutMut` reaches the layout only through `as_ref`, a
+// shared handle; the setters need `&mut`.
+unsafe impl Sync for ChannelLayoutMut<'_> {}
+
+/// Wraps: av_channel_layout_uninit
+///
+/// The disposal policy of a [`ChannelLayoutVal`]: `av_channel_layout_uninit`
+/// frees a custom layout's map and zeroes every field, leaving the storage,
+/// Rust's own, in place.
+///
+/// Thread-agnostic: the map is released with `av_free`, which any thread may
+/// call.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash)]
+pub struct ChannelLayoutUninit;
+
+impl_cdispose!(
+    ChannelLayoutUninit,
+    ChannelLayout,
+    ffi::av_channel_layout_uninit
+);
+
+/// An [`AVChannelLayout`](ChannelLayout) Rust holds by value, disposed by
+/// `av_channel_layout_uninit` on drop.
+///
+/// `as_ref()` and `as_mut()` hand out its [`ChannelLayoutRef`] and
+/// [`ChannelLayoutMut`]; `into_inner()` gives up disposal, for moving the
+/// layout into storage whose owner disposes it.
+pub type ChannelLayoutVal = CVal<ChannelLayout, ChannelLayoutUninit>;
+
+impl ChannelLayout {
+    /// A layout of `raw`'s fields, whatever they are; the caller sees to it
+    /// that any map in it is one the layout may own.
+    const fn from_parts(raw: ffi::AVChannelLayout) -> Self {
+        Self(raw, core::marker::PhantomData)
+    }
+
+    /// The raw layout of `order`, `nb_channels` and `mask` with no map, and
+    /// the user pointer `opaque`.
+    fn masked(
+        order: ChannelOrder,
+        nb_channels: c_int,
+        mask: u64,
+        opaque: *mut c_void,
+    ) -> ffi::AVChannelLayout {
+        ffi::AVChannelLayout {
+            order: order.into_raw(),
+            nb_channels,
+            u: ffi::AVChannelLayout__bindgen_ty_1 { mask },
+            opaque,
+        }
+    }
+
+    /// A fresh zeroed layout initialised in place by `init`, a C initialiser
+    /// returning a negative `AVERROR` on failure.
+    fn init_with(
+        init: impl FnOnce(*mut ffi::AVChannelLayout) -> c_int,
+    ) -> Result<ChannelLayoutVal, i32> {
+        let mut layout = ChannelLayoutVal::new(Self::zeroed());
+        let ret = init(layout.as_mut().as_mut_ptr());
+        // On failure C leaves no map the layout owns, or (out of memory in
+        // `av_channel_layout_from_string`'s ambisonic path) a custom order
+        // with a NULL map: `av_channel_layout_uninit` takes either when
+        // `layout` drops.
+        if ret < 0 { Err(ret) } else { Ok(layout) }
+    }
+
+    /// A layout of `nb_channels` channels in unspecified order, with no user
+    /// pointer, as C users build one from `{0}`: only the count is known.
+    /// `unspecified(0)` is the zeroed layout.
+    pub fn unspecified(nb_channels: i32) -> ChannelLayoutVal {
+        let raw = Self::masked(ChannelOrder::UNSPEC, nb_channels, 0, ptr::null_mut());
+        ChannelLayoutVal::new(Self::from_parts(raw))
+    }
+
+    /// Wraps: av_channel_layout_custom_init
+    ///
+    /// A custom-order layout of `nb_channels` channels, each
+    /// [`Channel::UNKNOWN`] and unnamed, to be designated through
+    /// [`ChannelLayoutMut::custom_map_mut`].
+    ///
+    /// # Errors
+    ///
+    /// `AVERROR(EINVAL)` when `nb_channels` is not positive,
+    /// `AVERROR(ENOMEM)` when the map cannot be allocated.
+    pub fn custom(nb_channels: i32) -> Result<ChannelLayoutVal, i32> {
+        // SAFETY: `l` addresses the fresh zeroed layout `init_with` owns, so
+        // C's overwrite without uninit leaks nothing; on success it holds the
+        // `av_calloc` map C stored, which the layout owns.
+        Self::init_with(|l| unsafe { ffi::av_channel_layout_custom_init(l, nb_channels) })
+    }
+
+    /// Wraps: av_channel_layout_from_mask
+    ///
+    /// The native-order layout of the channels set in `mask`: bit `n` is
+    /// the [`Channel`] of id `n`.
+    ///
+    /// # Errors
+    ///
+    /// `AVERROR(EINVAL)` for an empty mask.
+    pub fn from_mask(mask: u64) -> Result<ChannelLayoutVal, i32> {
+        // SAFETY: `l` addresses the fresh zeroed layout `init_with` owns; C
+        // writes the order, count and mask, allocating nothing.
+        Self::init_with(|l| unsafe { ffi::av_channel_layout_from_mask(l, mask) })
+    }
+
+    /// Wraps: av_channel_layout_from_string
+    ///
+    /// The layout `description` describes, in any of the forms C accepts: a
+    /// standard layout name (`stereo`, `5.1(side)`), channel names joined by
+    /// `+`, each optionally named after an `@` (`FL@left+FR@right+LFE`), a
+    /// native mask in decimal or hex (`0x3`), a count with the default
+    /// layout (`4c`), a count of unordered channels (`4C`, `4 channels`), or
+    /// an ambisonic order with optional extra channels
+    /// (`ambisonic 2+stereo`).
+    ///
+    /// ```
+    /// use ffmpeg::libavutil::channel_layout::{ChannelLayout, ChannelOrder, LayoutDetails};
+    /// let stereo = ChannelLayout::parse(c"stereo").unwrap();
+    /// assert_eq!(stereo.as_ref().order(), ChannelOrder::NATIVE);
+    /// assert_eq!(stereo.as_ref().channel_count(), 2);
+    /// assert!(matches!(stereo.as_ref().details(), LayoutDetails::Native(0x3)));
+    /// ```
+    ///
+    /// # Errors
+    ///
+    /// `AVERROR(EINVAL)` for a description C cannot parse,
+    /// `AVERROR(ENOMEM)` when memory runs out.
+    pub fn parse(description: &CStr) -> Result<ChannelLayoutVal, i32> {
+        // SAFETY: `l` addresses the fresh zeroed layout `init_with` owns,
+        // which C overwrites without uninit, leaking nothing; `description`
+        // is a live C string C only reads during the call. On success any
+        // map C stored is an `av_malloc`-family block the layout owns.
+        Self::init_with(|l| unsafe { ffi::av_channel_layout_from_string(l, description.as_ptr()) })
+    }
+
+    /// Wraps: av_channel_layout_default
+    ///
+    /// The default layout of `nb_channels` channels: the first standard
+    /// native layout with that many (`mono`, `stereo`, `2.1`, ...), or, for a
+    /// count none has, the count in unspecified order.
+    pub fn default_for(nb_channels: i32) -> ChannelLayoutVal {
+        let mut layout = ChannelLayoutVal::new(Self::zeroed());
+        // SAFETY: the pointer addresses the fresh zeroed layout `layout`
+        // owns; C overwrites it with a copy of a static native layout, or
+        // sets its order and count, storing no map either way.
+        unsafe { ffi::av_channel_layout_default(layout.as_mut().as_mut_ptr(), nb_channels) };
+        layout
+    }
+
+    /// A custom-order layout of the channels in `map`, which it takes over,
+    /// with no user pointer; `map` comes back as the error when it is empty
+    /// or longer than `i32::MAX`, which a layout cannot count.
+    ///
+    /// ```
+    /// use ffmpeg::libavutil::channel_layout::{Channel, ChannelCustom, ChannelLayout};
+    /// use ffmpeg::libavutil::mem::alloc_cell_array_zeroed;
+    /// let mut map = alloc_cell_array_zeroed::<ChannelCustom>(2).unwrap();
+    /// for (i, id) in [Channel::FRONT_LEFT, Channel::LOW_FREQUENCY].into_iter().enumerate() {
+    ///     map.as_handles_mut().get_mut(i).unwrap().set_id(id);
+    /// }
+    /// let layout = ChannelLayout::from_custom_map(map).unwrap();
+    /// assert_eq!(layout.as_ref().channel_count(), 2);
+    /// ```
+    pub fn from_custom_map(
+        map: HeapVec<ChannelCustom>,
+    ) -> Result<ChannelLayoutVal, HeapVec<ChannelCustom>> {
+        let mut layout = Self::unspecified(0);
+        layout.as_mut().set_custom_map(map)?;
+        Ok(layout)
+    }
+}
+
+/// A layout's [order](ChannelOrder) and the `u` member it selects, as
+/// [`ChannelLayoutRef::details`] reads them.
+#[derive(Clone, Copy)]
+pub enum LayoutDetails<'a> {
+    /// [`ChannelOrder::UNSPEC`]: only the count is known; C leaves `u`
+    /// undefined.
+    Unspecified,
+    /// [`ChannelOrder::NATIVE`]: `u.mask`, whose bit `n` marks the channel
+    /// of id `n`, present in id order.
+    Native(u64),
+    /// [`ChannelOrder::CUSTOM`]: `u.map`, the channels one by one, as many
+    /// as the layout counts. Empty for a map C left NULL (after a failed
+    /// `av_channel_layout_copy`) or a negative count, which no safe path
+    /// writes.
+    Custom(CSlice<'a, ChannelCustom>),
+    /// [`ChannelOrder::AMBISONIC`]: `u.mask`, the non-diegetic channels
+    /// that follow the ambisonic components, as in native order.
+    Ambisonic(u64),
+    /// An order C does not know; its readers do not read `u`.
+    Unknown(ChannelOrder),
+}
+
+impl fmt::Debug for LayoutDetails<'_> {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            Self::Unspecified => f.write_str("Unspecified"),
+            Self::Native(mask) => f
+                .debug_tuple("Native")
+                .field(&format_args!("{mask:#x}"))
+                .finish(),
+            Self::Custom(map) => f
+                .debug_tuple("Custom")
+                .field(&format_args!("{:?}", DebugMap(*map)))
+                .finish(),
+            Self::Ambisonic(mask) => f
+                .debug_tuple("Ambisonic")
+                .field(&format_args!("{mask:#x}"))
+                .finish(),
+            Self::Unknown(order) => f.debug_tuple("Unknown").field(order).finish(),
+        }
+    }
+}
+
+/// A custom map's elements, listed for [`LayoutDetails`]'s `Debug`.
+struct DebugMap<'a>(CSlice<'a, ChannelCustom>);
+
+impl fmt::Debug for DebugMap<'_> {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.debug_list().entries(self.0.iter()).finish()
+    }
+}
+
+impl fmt::Debug for ChannelLayout {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        self.as_ref().fmt(f)
+    }
+}
+
+impl fmt::Debug for ChannelLayoutRef<'_> {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.debug_struct("ChannelLayout")
+            .field("order", &self.order())
+            .field("nb_channels", &self.channel_count())
+            .field("details", &self.details())
+            .field("opaque", &self.opaque())
+            .finish()
+    }
+}
+
+impl<'a> ChannelLayoutRef<'a> {
+    /// Field: AVChannelLayout.order
+    ///
+    /// How the layout describes its channels, any value C stored included.
+    #[must_use]
+    pub fn order(&self) -> ChannelOrder {
+        // SAFETY: a read of the `order` field projected through the shared
+        // handle's pointer to a live, initialised `AVChannelLayout`;
+        // `ChannelOrder` accepts every `unsigned`.
+        ChannelOrder::from_raw(unsafe { addr_of!((*self.as_ptr()).order).read() })
+    }
+
+    /// Field: AVChannelLayout.nb_channels
+    ///
+    /// The number of channels, as C stores it: never negative on a layout
+    /// a safe path built, except one built [unspecified](ChannelLayout::unspecified)
+    /// or by [`default_for`](ChannelLayout::default_for) from a negative
+    /// count.
+    #[must_use]
+    pub fn channel_count(&self) -> i32 {
+        // SAFETY: a read of the `nb_channels` field projected through the
+        // shared handle's pointer to a live, initialised `AVChannelLayout`.
+        unsafe { addr_of!((*self.as_ptr()).nb_channels).read() }
+    }
+
+    /// The map pointer and the count of a custom-order layout.
+    fn map_parts(&self) -> Option<(*mut ffi::AVChannelCustom, c_int)> {
+        if self.order() != ChannelOrder::CUSTOM {
+            return None;
+        }
+        // SAFETY: a read of the `u.map` union member projected through the
+        // shared handle's pointer; a custom-order layout stores `map` there,
+        // and the pointer is copied, not dereferenced.
+        let map = unsafe { addr_of!((*self.as_ptr()).u.map).read() };
+        Some((map, self.channel_count()))
+    }
+
+    /// Field: AVChannelLayout.u
+    /// Field: AVChannelLayout.u.mask
+    /// Field: AVChannelLayout.u.map
+    ///
+    /// The `u` member the order selects: the mask of a native or ambisonic
+    /// layout, or the map of a custom one, borrowed as long as this handle's
+    /// layout.
+    ///
+    /// ```
+    /// use ffmpeg::libavutil::channel_layout::{Channel, ChannelLayout, LayoutDetails};
+    /// let layout = ChannelLayout::parse(c"FL@left+LFE").unwrap();
+    /// let LayoutDetails::Custom(map) = layout.as_ref().details() else { panic!() };
+    /// assert_eq!(map.get(0).unwrap().name().as_c_str(), c"left");
+    /// assert_eq!(map.get(1).unwrap().id(), Channel::LOW_FREQUENCY);
+    /// ```
+    #[must_use]
+    pub fn details(&self) -> LayoutDetails<'a> {
+        let order = self.order();
+        let mask = || {
+            // SAFETY: a read of the `u.mask` union member projected through
+            // the shared handle's pointer; a native or ambisonic layout
+            // stores the mask there, and every bit pattern is a `u64`.
+            unsafe { addr_of!((*self.as_ptr()).u.mask).read() }
+        };
+        match order {
+            ChannelOrder::UNSPEC => LayoutDetails::Unspecified,
+            ChannelOrder::NATIVE => LayoutDetails::Native(mask()),
+            ChannelOrder::AMBISONIC => LayoutDetails::Ambisonic(mask()),
+            ChannelOrder::CUSTOM => {
+                let (map, count) = self.map_parts().expect("the order is custom");
+                let run = match (NonNull::new(map), usize::try_from(count)) {
+                    (Some(map), Ok(len)) => {
+                        // SAFETY: a custom layout's non-NULL map holds at
+                        // least `nb_channels` initialised elements, owned by
+                        // the layout and freed only by its uninit, which
+                        // needs exclusive access, so they outlive `'a`;
+                        // `ChannelCustom` is transparent over
+                        // `AVChannelCustom`.
+                        unsafe { CSlice::from_raw_parts(map.cast(), len) }
+                    }
+                    // SAFETY: an empty run reads no element; a dangling,
+                    // aligned pointer is a valid base for it.
+                    _ => unsafe { CSlice::from_raw_parts(NonNull::dangling(), 0) },
+                };
+                LayoutDetails::Custom(run)
+            }
+            _ => LayoutDetails::Unknown(order),
+        }
+    }
+
+    /// Field: AVChannelLayout.opaque
+    ///
+    /// The user pointer, NULL unless a user stored one. FFmpeg never reads
+    /// what it points at or frees it: `av_channel_layout_copy` copies the
+    /// address, `av_channel_layout_retype` keeps it and
+    /// `av_channel_layout_uninit` forgets it. So it is handed back as the raw
+    /// cookie it is, and dereferencing it is the caller's `unsafe` business.
+    #[must_use]
+    pub fn opaque(&self) -> *mut c_void {
+        // SAFETY: a read of the `opaque` field projected through the shared
+        // handle's pointer to a live, initialised `AVChannelLayout`; the
+        // pointer is copied, not dereferenced.
+        unsafe { addr_of!((*self.as_ptr()).opaque).read() }
+    }
+
+    /// Wraps: av_channel_layout_copy
+    ///
+    /// A deep copy of this layout: a custom map is duplicated, the user
+    /// pointer copied by address.
+    ///
+    /// # Errors
+    ///
+    /// `AVERROR(ENOMEM)` when the map cannot be allocated, and, as
+    /// [`ChannelLayoutMut::copy_from`] describes, `AVERROR(EINVAL)` for a
+    /// custom layout C left without a map.
+    pub fn try_clone(&self) -> Result<ChannelLayoutVal, i32> {
+        let mut copy = ChannelLayout::unspecified(0);
+        copy.as_mut().copy_from(*self)?;
+        Ok(copy)
+    }
+}
+
+impl<'a> ChannelLayoutMut<'a> {
+    /// Field: AVChannelLayout.opaque
+    ///
+    /// Stores the user pointer `opaque`, NULL included. Nothing in FFmpeg or
+    /// this crate dereferences or frees it, so any address is safe to store:
+    /// keeping what it points at alive for as long as the caller means to
+    /// read it back is the caller's concern.
+    // The lint reads the write of `opaque` as a dereference of it: the
+    // pointer is the value stored, through the handle's own pointer.
+    #[allow(clippy::not_unsafe_ptr_arg_deref)]
+    pub fn set_opaque(&mut self, opaque: *mut c_void) {
+        // SAFETY: a write of the `opaque` field projected through the
+        // exclusive handle's pointer to a live `AVChannelLayout`; the old
+        // pointer is a cookie nothing frees.
+        unsafe { addr_of_mut!((*self.as_mut_ptr()).opaque).write(opaque) }
+    }
+
+    /// Field: AVChannelLayout.u.map
+    ///
+    /// The channels of a custom-order layout, for designating and naming
+    /// them in place; `None` in any other order. The count, and so the map's
+    /// length, stays as it is.
+    #[must_use]
+    pub fn custom_map_mut(&mut self) -> Option<CSliceMut<'_, ChannelCustom>> {
+        self.as_mut().into_custom_map_mut()
+    }
+
+    /// Field: AVChannelLayout.u.map
+    ///
+    /// The channels of a custom-order layout, exclusively borrowed for the
+    /// handle's whole lifetime, giving the handle up: the by-value
+    /// counterpart of [`custom_map_mut`](Self::custom_map_mut), for a run
+    /// that outlives a temporary handle (`l.as_mut().into_custom_map_mut()`).
+    #[must_use]
+    pub fn into_custom_map_mut(self) -> Option<CSliceMut<'a, ChannelCustom>> {
+        let (map, count) = self.as_ref().map_parts()?;
+        Some(match (NonNull::new(map), usize::try_from(count)) {
+            (Some(map), Ok(len)) => {
+                // SAFETY: as in `ChannelLayoutRef::details`; the handle is
+                // consumed, so the run is the only access left to the
+                // elements for `'a`, and nothing frees the map meanwhile.
+                unsafe { CSliceMut::from_raw_parts(map.cast(), len) }
+            }
+            // SAFETY: an empty run reaches no element.
+            _ => unsafe { CSliceMut::from_raw_parts(NonNull::dangling(), 0) },
+        })
+    }
+
+    /// Overwrites the layout with `layout` and hands the previous one back,
+    /// which then owns the previous map, if any.
+    pub fn replace(&mut self, layout: ChannelLayoutVal) -> ChannelLayoutVal {
+        let new = layout.into_inner().0;
+        // SAFETY: the exclusive handle covers a live, initialised
+        // `AVChannelLayout`, read out and overwritten in one step; ownership
+        // of the old map moves to the returned owner, that of the new one
+        // into the layout, so neither is freed or leaked twice.
+        let old = unsafe { ptr::replace(self.as_mut_ptr(), new) };
+        ChannelLayoutVal::new(ChannelLayout::from_parts(old))
+    }
+
+    /// Overwrites the layout with `layout`, disposing of the previous one.
+    pub fn set(&mut self, layout: ChannelLayoutVal) {
+        drop(self.replace(layout));
+    }
+
+    /// Hands the layout over, leaving the zeroed one in its place: the
+    /// owning counterpart of `as_ref`, as `mem::take`.
+    pub fn take(&mut self) -> ChannelLayoutVal {
+        self.replace(ChannelLayout::unspecified(0))
+    }
+
+    /// Replaces the layout with the raw `order`, count and mask, keeping
+    /// the user pointer, and disposes of the previous one, as
+    /// `av_channel_layout_retype` does when it leaves custom order.
+    fn reset_to(&mut self, order: ChannelOrder, nb_channels: c_int, mask: u64) {
+        let opaque = self.as_ref().opaque();
+        let raw = ChannelLayout::masked(order, nb_channels, mask, opaque);
+        self.set(ChannelLayoutVal::new(ChannelLayout::from_parts(raw)));
+    }
+
+    /// Field: AVChannelLayout.order
+    /// Field: AVChannelLayout.nb_channels
+    ///
+    /// Makes this a layout of `nb_channels` channels in unspecified order,
+    /// freeing a custom map and keeping the user pointer.
+    pub fn set_unspecified(&mut self, nb_channels: i32) {
+        self.reset_to(ChannelOrder::UNSPEC, nb_channels, 0);
+    }
+
+    /// Field: AVChannelLayout.order
+    /// Field: AVChannelLayout.nb_channels
+    /// Field: AVChannelLayout.u.mask
+    ///
+    /// Makes this the native-order layout of the channels set in `mask`,
+    /// counting them, as `av_channel_layout_from_mask` does; frees a custom
+    /// map and keeps the user pointer. An empty mask, which
+    /// [`ChannelLayout::from_mask`] refuses, leaves no channels.
+    pub fn set_native(&mut self, mask: u64) {
+        self.reset_to(ChannelOrder::NATIVE, mask.count_ones() as c_int, mask);
+    }
+
+    /// Field: AVChannelLayout.order
+    /// Field: AVChannelLayout.nb_channels
+    /// Field: AVChannelLayout.u.mask
+    ///
+    /// Makes this the layout of the `(order + 1)^2` ambisonic components of
+    /// `order`, followed by the non-diegetic channels set in `non_diegetic`,
+    /// as [`ChannelLayout::parse`] builds `ambisonic <order>+<mask>`; frees a
+    /// custom map and keeps the user pointer.
+    ///
+    /// # Errors
+    ///
+    /// `AVERROR(EINVAL)`, leaving the layout as it was, when the count
+    /// overflows the bounds C's parser sets: `(order + 1)^2` at most
+    /// `i32::MAX`, and the total below it.
+    pub fn set_ambisonic(&mut self, order: u32, non_diegetic: u64) -> Result<(), i32> {
+        let n = i64::from(order) + 1;
+        let extra = i64::from(non_diegetic.count_ones());
+        let max = i64::from(c_int::MAX);
+        if n > max / n || extra >= max - n * n {
+            return Err(EINVAL);
+        }
+        let count = c_int::try_from(n * n + extra).map_err(|_| EINVAL)?;
+        self.reset_to(ChannelOrder::AMBISONIC, count, non_diegetic);
+        Ok(())
+    }
+
+    /// Field: AVChannelLayout.u.map
+    ///
+    /// Makes this the custom-order layout of the channels in `map`, which it
+    /// takes over, freeing the previous map and keeping the user pointer.
+    /// `map` comes back as the error, the layout left as it was, when it is
+    /// empty (C's `av_channel_layout_custom_init` refuses no channels too)
+    /// or longer than `i32::MAX`.
+    pub fn set_custom_map(
+        &mut self,
+        map: HeapVec<ChannelCustom>,
+    ) -> Result<(), HeapVec<ChannelCustom>> {
+        let Some(count) = c_int::try_from(map.len()).ok().filter(|&n| n > 0) else {
+            return Err(map);
+        };
+        let opaque = self.as_ref().opaque();
+        let (map, _) = map.into_raw_parts();
+        let raw = ffi::AVChannelLayout {
+            order: ChannelOrder::CUSTOM.into_raw(),
+            nb_channels: count,
+            u: ffi::AVChannelLayout__bindgen_ty_1 { map: map.cast() },
+            opaque,
+        };
+        // The layout now owns the `av_malloc`-family block of `count`
+        // initialised elements, which `av_channel_layout_uninit` frees.
+        self.set(ChannelLayoutVal::new(ChannelLayout::from_parts(raw)));
+        Ok(())
+    }
+
+    /// Field: AVChannelLayout.u.map
+    ///
+    /// Takes a custom layout's map over, leaving the count in unspecified
+    /// order and the user pointer, as `av_channel_layout_retype` leaves a
+    /// custom layout it makes unspecified; `None`, the layout untouched, in
+    /// any other order. The map is empty for a negative count, and `None`
+    /// is also returned, the layout still made unspecified, for a map C left
+    /// NULL.
+    pub fn take_custom_map(&mut self) -> Option<HeapVec<ChannelCustom>> {
+        let (map, count) = self.as_ref().map_parts()?;
+        let opaque = self.as_ref().opaque();
+        let raw = ChannelLayout::masked(ChannelOrder::UNSPEC, count, 0, opaque);
+        // SAFETY: the exclusive handle covers a live `AVChannelLayout`; the
+        // write replaces the map pointer, whose ownership moves to the
+        // vector built below, by a layout that owns nothing.
+        unsafe { self.as_mut_ptr().write(raw) };
+        // SAFETY: a custom layout's non-NULL map is an `av_malloc`-family
+        // block it owned (and owns no more), holding at least `nb_channels`
+        // initialised elements; `Heap` frees it with `av_free` whatever its
+        // capacity, and `ChannelCustom` is transparent over
+        // `AVChannelCustom`.
+        unsafe { HeapVec::from_raw_parts(map.cast(), usize::try_from(count).unwrap_or(0)) }
+    }
+
+    /// Wraps: av_channel_layout_uninit
+    ///
+    /// Frees a custom layout's map and zeroes every field, the user pointer
+    /// included, leaving the empty unspecified layout.
+    pub fn clear(&mut self) {
+        // SAFETY: the exclusive handle covers a live layout in a state
+        // `av_channel_layout_uninit` accepts, as every safe path leaves one;
+        // it frees a custom map the layout owns and zeroes the fields.
+        unsafe { ffi::av_channel_layout_uninit(self.as_mut_ptr()) }
+    }
+
+    /// Wraps: av_channel_layout_copy
+    ///
+    /// Overwrites this layout with a deep copy of `src`, disposing of the
+    /// previous one first: a custom map is duplicated, the user pointer
+    /// copied by address.
+    ///
+    /// # Errors
+    ///
+    /// `AVERROR(ENOMEM)` when the map cannot be allocated, which leaves this
+    /// layout cleared (as [`clear`](Self::clear) does) rather than in the
+    /// mapless custom state C leaves. `AVERROR(EINVAL)`, before C is called
+    /// and with this layout untouched, for a custom `src` whose map C left
+    /// NULL (after its own failed copy), which C would read through.
+    pub fn copy_from(&mut self, src: ChannelLayoutRef<'_>) -> Result<(), i32> {
+        if src.map_parts().is_some_and(|(map, _)| map.is_null()) {
+            return Err(EINVAL);
+        }
+        // SAFETY: `self` and `src` cover live layouts that cannot be the same
+        // (one borrow is exclusive), each in a state C accepts; C uninits
+        // `self`, freeing its map, copies `src`'s fields and, for a custom
+        // `src`, its non-NULL map of `nb_channels` elements into a fresh
+        // `av_malloc_array` block `self` then owns.
+        let ret = unsafe { ffi::av_channel_layout_copy(self.as_mut_ptr(), src.as_ptr()) };
+        if ret < 0 {
+            // C leaves a custom order with a NULL map behind, which its
+            // readers would dereference.
+            self.clear();
+            return Err(ret);
+        }
+        Ok(())
+    }
+}
+
 #[cfg(test)]
 mod unit_tests {
     use core::ffi::{c_int, c_uint};
@@ -1728,5 +2394,370 @@ mod unit_tests {
         for name in [c"", c"NONE", c"fc", c"AMBI1024", c"USR-1", c"USR7x"] {
             assert_eq!(Channel::from_name(name), None, "{name:?}");
         }
+    }
+
+    /// The raw fields of `l`, the union read as the mask.
+    fn layout_raw(l: ChannelLayoutRef<'_>) -> (c_uint, c_int, u64, usize) {
+        // SAFETY: a whole-struct read through the shared handle's pointer to
+        // a live layout; reading the union as a `u64` copies its bits.
+        let raw = unsafe { l.as_ptr().read() };
+        // SAFETY: every bit pattern of the union's 8 bytes is a `u64`.
+        let mask = unsafe { raw.u.mask };
+        (raw.order.0, raw.nb_channels, mask, raw.opaque as usize)
+    }
+
+    /// A custom map of `ids`, each named `n<i>`.
+    fn named_map(ids: &[Channel]) -> HeapVec<ChannelCustom> {
+        let mut map =
+            super::super::mem::alloc_cell_array_zeroed::<ChannelCustom>(ids.len()).unwrap();
+        let mut handles = map.as_handles_mut();
+        for (i, &id) in ids.iter().enumerate() {
+            let mut m = handles.get_mut(i).unwrap();
+            m.set_id(id);
+            let name = CString::new(format!("n{i}")).unwrap();
+            assert_eq!(m.set_name(&name), Ok(()));
+        }
+        map
+    }
+
+    fn cookie(addr: usize) -> *mut c_void {
+        ptr::without_provenance_mut(addr)
+    }
+
+    #[test]
+    fn channel_layout_layout_is_the_c_struct() {
+        use core::mem::offset_of;
+        assert_eq!(
+            size_of::<ChannelLayout>(),
+            size_of::<ffi::AVChannelLayout>()
+        );
+        assert_eq!(size_of::<ChannelLayout>(), 24);
+        assert_eq!(
+            align_of::<ChannelLayout>(),
+            align_of::<ffi::AVChannelLayout>()
+        );
+        assert_eq!(offset_of!(ffi::AVChannelLayout, u), 8);
+        assert_eq!(offset_of!(ffi::AVChannelLayout, opaque), 16);
+        // The owner holds the value inline, with a zero-sized policy.
+        assert_eq!(
+            size_of::<ChannelLayoutVal>(),
+            size_of::<ffi::AVChannelLayout>()
+        );
+    }
+
+    #[test]
+    fn channel_layout_unspecified_and_zeroed_hold_only_a_count() {
+        assert_eq!(layout_raw(ChannelLayout::zeroed().as_ref()), (0, 0, 0, 0));
+        for n in [0, 1, 7, -1, i32::MIN, i32::MAX] {
+            let l = ChannelLayout::unspecified(n);
+            assert_eq!(layout_raw(l.as_ref()), (0, n, 0, 0), "{n}");
+            assert_eq!(l.as_ref().order(), ChannelOrder::UNSPEC);
+            assert_eq!(l.as_ref().channel_count(), n);
+            assert!(matches!(l.as_ref().details(), LayoutDetails::Unspecified));
+            assert!(l.as_ref().opaque().is_null());
+        }
+    }
+
+    #[test]
+    fn channel_layout_debug_names_every_field_and_variant() {
+        let mut l = ChannelLayout::unspecified(2);
+        assert_eq!(
+            format!("{:?}", l.as_ref()),
+            "ChannelLayout { order: UNSPEC, nb_channels: 2, details: Unspecified, opaque: 0x0 }"
+        );
+        l.as_mut().set_native(0x3);
+        assert_eq!(format!("{:?}", l.as_ref().details()), "Native(0x3)");
+        assert!(l.as_mut().set_ambisonic(1, 0x4).is_ok());
+        assert_eq!(format!("{:?}", l.as_ref().details()), "Ambisonic(0x4)");
+        l.as_mut()
+            .set_custom_map(named_map(&[Channel::FRONT_LEFT]))
+            .unwrap();
+        assert_eq!(
+            format!("{:?}", l.as_ref().details()),
+            "Custom([ChannelCustom { id: FRONT_LEFT, name: \"n0\", opaque: 0x0 }])"
+        );
+        let value = l.into_inner();
+        assert!(
+            format!("{value:?}").starts_with("ChannelLayout { order: CUSTOM, nb_channels: 1, ")
+        );
+        // `into_inner` gave up disposal: hand the map back to an owner.
+        drop(ChannelLayoutVal::new(value));
+        let unknown = ChannelLayout::masked(
+            ChannelOrder::from_raw(ffi::AVChannelOrder(9)),
+            0,
+            0,
+            ptr::null_mut(),
+        );
+        let unknown = ChannelLayout::from_parts(unknown);
+        assert_eq!(
+            format!("{:?}", unknown.as_ref().details()),
+            "Unknown(ChannelOrder(9))"
+        );
+    }
+
+    #[test]
+    fn channel_layout_custom_map_setter_refuses_an_empty_map_untouched() {
+        let mut l = ChannelLayout::unspecified(3);
+        l.as_mut().set_opaque(cookie(8));
+        let back = l.as_mut().set_custom_map(HeapVec::empty()).unwrap_err();
+        assert!(back.is_empty());
+        assert_eq!(layout_raw(l.as_ref()), (0, 3, 0, 8));
+        assert!(ChannelLayout::from_custom_map(HeapVec::empty()).is_err());
+    }
+
+    #[test]
+    fn channel_layout_custom_map_moves_in_and_out_keeping_the_user_pointer() {
+        let ids = [
+            Channel::FRONT_LEFT,
+            Channel::from_raw(ffi::AVChannel(70)),
+            Channel::UNKNOWN,
+        ];
+        let mut l = ChannelLayout::from_custom_map(named_map(&ids)).unwrap();
+        l.as_mut().set_opaque(cookie(16));
+        assert_eq!(l.as_ref().order(), ChannelOrder::CUSTOM);
+        assert_eq!(l.as_ref().channel_count(), 3);
+        let LayoutDetails::Custom(map) = l.as_ref().details() else {
+            panic!()
+        };
+        let got: Vec<_> = map.iter().map(|c| (c.id(), c.name())).collect();
+        assert_eq!(got.len(), 3);
+        assert_eq!((got[1].0, got[1].1.as_c_str()), (ids[1], c"n1"));
+        // A replacing map frees the old one; the user pointer stays.
+        l.as_mut().set_custom_map(named_map(&ids[..1])).unwrap();
+        assert_eq!(layout_raw(l.as_ref()).1, 1);
+        let map = l.as_mut().take_custom_map().unwrap();
+        assert_eq!(map.len(), 1);
+        assert_eq!(map.as_handles().get(0).unwrap().name(), c"n0");
+        assert_eq!(layout_raw(l.as_ref()), (0, 1, 0, 16));
+        // Only a custom layout has a map to take.
+        assert!(l.as_mut().take_custom_map().is_none());
+        assert_eq!(layout_raw(l.as_ref()), (0, 1, 0, 16));
+        assert!(l.as_mut().custom_map_mut().is_none());
+    }
+
+    #[test]
+    fn channel_layout_order_setters_keep_the_user_pointer_and_free_the_map() {
+        let mut l = ChannelLayout::from_custom_map(named_map(&[Channel::BACK_LEFT; 4])).unwrap();
+        l.as_mut().set_opaque(cookie(24));
+        l.as_mut().set_native(0b1011);
+        assert_eq!(layout_raw(l.as_ref()), (1, 3, 0b1011, 24));
+        l.as_mut().set_native(0);
+        assert_eq!(layout_raw(l.as_ref()), (1, 0, 0, 24));
+        l.as_mut().set_native(u64::MAX);
+        assert_eq!(layout_raw(l.as_ref()), (1, 64, u64::MAX, 24));
+        l.as_mut()
+            .set_custom_map(named_map(&[Channel::BACK_LEFT; 2]))
+            .unwrap();
+        l.as_mut().set_unspecified(-5);
+        assert_eq!(layout_raw(l.as_ref()), (0, -5, 0, 24));
+        l.as_mut()
+            .set_custom_map(named_map(&[Channel::BACK_LEFT; 2]))
+            .unwrap();
+        assert_eq!(l.as_mut().set_ambisonic(2, 0b11), Ok(()));
+        assert_eq!(layout_raw(l.as_ref()), (3, 11, 0b11, 24));
+        l.as_mut().clear();
+        assert_eq!(layout_raw(l.as_ref()), (0, 0, 0, 0));
+    }
+
+    #[test]
+    fn channel_layout_ambisonic_setter_bounds_the_count_as_cs_parser() {
+        let mut l = ChannelLayout::unspecified(1);
+        assert_eq!(l.as_mut().set_ambisonic(0, 0), Ok(()));
+        assert_eq!(layout_raw(l.as_ref()), (3, 1, 0, 0));
+        // 46340^2 fits an `int`; 46341^2 does not.
+        assert_eq!(l.as_mut().set_ambisonic(46339, u64::MAX), Ok(()));
+        assert_eq!(layout_raw(l.as_ref()), (3, 46340 * 46340 + 64, u64::MAX, 0));
+        for order in [46340, 46341, u32::MAX / 2, u32::MAX] {
+            l.as_mut().set_unspecified(9);
+            assert_eq!(l.as_mut().set_ambisonic(order, 1), Err(EINVAL), "{order}");
+            assert_eq!(layout_raw(l.as_ref()), (0, 9, 0, 0));
+        }
+    }
+
+    #[test]
+    fn channel_layout_replace_take_and_set_move_whole_layouts() {
+        let mut a = ChannelLayout::from_custom_map(named_map(&[Channel::FRONT_CENTER])).unwrap();
+        a.as_mut().set_opaque(cookie(32));
+        let old = a.as_mut().replace(ChannelLayout::unspecified(6));
+        assert_eq!(layout_raw(a.as_ref()), (0, 6, 0, 0));
+        assert_eq!(old.as_ref().order(), ChannelOrder::CUSTOM);
+        assert_eq!(old.as_ref().opaque(), cookie(32));
+        a.as_mut().set(old);
+        assert_eq!(a.as_ref().channel_count(), 1);
+        let taken = a.as_mut().take();
+        assert_eq!(layout_raw(a.as_ref()), (0, 0, 0, 0));
+        let LayoutDetails::Custom(map) = taken.as_ref().details() else {
+            panic!()
+        };
+        assert_eq!(map.get(0).unwrap().id(), Channel::FRONT_CENTER);
+    }
+
+    #[test]
+    fn channel_layout_copies_are_deep_and_independent() {
+        let mut src =
+            ChannelLayout::from_custom_map(named_map(&[Channel::SIDE_LEFT, Channel::SIDE_RIGHT]))
+                .unwrap();
+        src.as_mut().set_opaque(cookie(40));
+        let copy = src.as_ref().try_clone().unwrap();
+        let (LayoutDetails::Custom(a), LayoutDetails::Custom(b)) =
+            (src.as_ref().details(), copy.as_ref().details())
+        else {
+            panic!()
+        };
+        assert_ne!(a.as_ptr(), b.as_ptr());
+        assert_eq!(a.get(1).unwrap().get(), b.get(1).unwrap().get());
+        assert_eq!(copy.as_ref().opaque(), cookie(40));
+        // Writing the source leaves the copy alone.
+        src.as_mut()
+            .custom_map_mut()
+            .unwrap()
+            .get_mut(1)
+            .unwrap()
+            .set_id(Channel::BACK_CENTER);
+        drop(src);
+        let LayoutDetails::Custom(b) = copy.as_ref().details() else {
+            panic!()
+        };
+        assert_eq!(b.get(1).unwrap().id(), Channel::SIDE_RIGHT);
+        // Copying over a custom layout frees its map first.
+        let mut dst = ChannelLayout::from_custom_map(named_map(&[Channel::TOP_CENTER; 5])).unwrap();
+        let native = ChannelLayout::from_mask(0x7).unwrap();
+        assert_eq!(dst.as_mut().copy_from(native.as_ref()), Ok(()));
+        assert_eq!(layout_raw(dst.as_ref()), (1, 3, 0x7, 0));
+        assert_eq!(dst.as_mut().copy_from(copy.as_ref()), Ok(()));
+        assert_eq!(dst.as_ref().channel_count(), 2);
+    }
+
+    /// A custom layout C left without its map, as `av_channel_layout_copy`
+    /// does when the allocation fails: the readers must not follow it.
+    #[test]
+    fn channel_layout_mapless_custom_state_is_read_as_empty_and_not_copied() {
+        let mut raw = ffi::AVChannelLayout {
+            order: ffi::AVChannelOrder::AV_CHANNEL_ORDER_CUSTOM,
+            nb_channels: 2,
+            u: ffi::AVChannelLayout__bindgen_ty_1 {
+                map: ptr::null_mut(),
+            },
+            opaque: cookie(48),
+        };
+        {
+            // SAFETY: `raw` is a live, initialised layout on this frame,
+            // outliving the handle, and nothing else touches it meanwhile; it
+            // owns no map, so nothing below frees one.
+            let mut m = unsafe { ChannelLayoutMut::from_ptr(&raw mut raw) }.unwrap();
+            let LayoutDetails::Custom(map) = m.as_ref().details() else {
+                panic!()
+            };
+            assert!(map.is_empty());
+            assert!(m.custom_map_mut().unwrap().is_empty());
+            assert_eq!(m.as_ref().try_clone().unwrap_err(), EINVAL);
+            let mut dst = ChannelLayout::from_mask(0x3).unwrap();
+            assert_eq!(dst.as_mut().copy_from(m.as_ref()), Err(EINVAL));
+            assert_eq!(layout_raw(dst.as_ref()), (1, 2, 0x3, 0));
+            assert!(m.take_custom_map().is_none());
+        }
+        assert_eq!(raw.order, ffi::AVChannelOrder::AV_CHANNEL_ORDER_UNSPEC);
+        assert_eq!((raw.nb_channels, raw.opaque), (2, cookie(48)));
+    }
+
+    /// A custom count C stored negative reads as an empty map.
+    #[test]
+    fn channel_layout_negative_custom_count_reads_as_empty() {
+        let mut map = named_map(&[Channel::FRONT_LEFT]);
+        let mut raw = ffi::AVChannelLayout {
+            order: ffi::AVChannelOrder::AV_CHANNEL_ORDER_CUSTOM,
+            nb_channels: -1,
+            u: ffi::AVChannelLayout__bindgen_ty_1 {
+                map: map.as_handles_mut().as_mut_ptr(),
+            },
+            opaque: ptr::null_mut(),
+        };
+        // SAFETY: `raw` is live on this frame and borrows `map`'s block, which
+        // outlives the handle; nothing frees through it.
+        let m = unsafe { ChannelLayoutRef::from_ptr(&raw mut raw) }.unwrap();
+        let LayoutDetails::Custom(run) = m.details() else {
+            panic!()
+        };
+        assert!(run.is_empty());
+    }
+
+    #[test]
+    fn channel_layout_c_initialisers_fill_a_fresh_layout() {
+        let l = ChannelLayout::from_mask(0x60f).unwrap();
+        assert_eq!(layout_raw(l.as_ref()), (1, 6, 0x60f, 0));
+        assert_eq!(ChannelLayout::from_mask(0).unwrap_err(), EINVAL);
+        let l = ChannelLayout::custom(3).unwrap();
+        let LayoutDetails::Custom(map) = l.as_ref().details() else {
+            panic!()
+        };
+        assert!(
+            map.iter()
+                .all(|c| c.id() == Channel::UNKNOWN && c.name().is_empty())
+        );
+        for n in [0, -1, i32::MIN] {
+            assert_eq!(ChannelLayout::custom(n).unwrap_err(), EINVAL, "{n}");
+        }
+        let l = ChannelLayout::default_for(2);
+        assert_eq!(layout_raw(l.as_ref()), (1, 2, 0x3, 0));
+        let l = ChannelLayout::default_for(-4);
+        assert_eq!(layout_raw(l.as_ref()), (0, -4, 0, 0));
+        let l = ChannelLayout::parse(c"ambisonic 1+FL@x").unwrap();
+        assert_eq!(l.as_ref().order(), ChannelOrder::CUSTOM);
+        assert_eq!(l.as_ref().channel_count(), 5);
+        assert!(ChannelLayout::parse(c"no such layout").is_err());
+    }
+
+    /// Allocation failures, under a process-wide `av_max_alloc` limit, so in
+    /// an isolated child.
+    #[test]
+    fn channel_layout_allocation_failures_leave_valid_layouts() {
+        const CHILD: &str = "CRUSTIFY_CHANNEL_LAYOUT_ALLOCATION_FAILURE_CHILD";
+        if std::env::var_os(CHILD).is_none() {
+            let status = std::process::Command::new(std::env::current_exe().unwrap())
+                .args([
+                    "--exact",
+                    "libavutil::channel_layout::unit_tests::channel_layout_allocation_failures_leave_valid_layouts",
+                    "--test-threads=1",
+                ])
+                .env(CHILD, "1")
+                .status()
+                .unwrap();
+            assert!(status.success());
+            return;
+        }
+        const ENOMEM: i32 = -12;
+        let src = ChannelLayout::from_custom_map(named_map(&[Channel::FRONT_LEFT; 3])).unwrap();
+        let mut dst = ChannelLayout::from_custom_map(named_map(&[Channel::BACK_LEFT; 2])).unwrap();
+        dst.as_mut().set_opaque(cookie(56));
+        super::super::mem::set_max_alloc(0);
+        assert_eq!(src.as_ref().try_clone().unwrap_err(), ENOMEM);
+        // C uninits `dst` and leaves it mapless; the wrapper clears it.
+        assert_eq!(dst.as_mut().copy_from(src.as_ref()), Err(ENOMEM));
+        assert_eq!(layout_raw(dst.as_ref()), (0, 0, 0, 0));
+        assert_eq!(ChannelLayout::custom(2).unwrap_err(), ENOMEM);
+        assert_eq!(ChannelLayout::parse(c"FL+FR").unwrap_err(), ENOMEM);
+        assert_eq!(
+            ChannelLayout::parse(c"ambisonic 1+FL@x").unwrap_err(),
+            ENOMEM
+        );
+        // Native copies allocate nothing.
+        let native = ChannelLayout::from_mask(0x3).unwrap();
+        assert_eq!(
+            layout_raw(native.as_ref().try_clone().unwrap().as_ref()),
+            (1, 2, 0x3, 0)
+        );
+        super::super::mem::set_max_alloc(i32::MAX as usize);
+        assert!(src.as_ref().try_clone().is_ok());
+    }
+
+    #[test]
+    fn channel_layout_values_owners_and_handles_cross_threads() {
+        fn assert_send_sync<T: Send + Sync>() {}
+        assert_send_sync::<ChannelLayout>();
+        assert_send_sync::<ChannelLayoutVal>();
+        assert_send_sync::<ChannelLayoutRef<'static>>();
+        assert_send_sync::<ChannelLayoutMut<'static>>();
+        assert_send_sync::<LayoutDetails<'static>>();
+        assert_send_sync::<ChannelLayoutUninit>();
     }
 }

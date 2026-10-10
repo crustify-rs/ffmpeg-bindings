@@ -1,0 +1,11 @@
+error[E0597]: `p` does not live long enough
+ --> tests/ub_safe/compile_fail/csp_primary_coefficients_primary_handle_outlives_value.rs
+  |
+  |     let r = {
+  |         - borrow later stored here
+  |         let p = PrimaryCoefficients::default();
+  |             - binding `p` declared here
+  |         p.as_ref().r()
+  |         ^ borrowed value does not live long enough
+  |     };
+  |     - `p` dropped here while still borrowed

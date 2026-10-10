@@ -1,0 +1,11 @@
+error[E0597]: `layout` does not live long enough
+ --> tests/ub_safe/compile_fail/channel_layout_details_outlive_layout.rs
+  |
+  |     let details = {
+  |         ------- borrow later stored here
+  |         let layout = ChannelLayout::parse(c"FL@a+FR@b").unwrap();
+  |             ------ binding `layout` declared here
+  |         layout.as_ref().details()
+  |         ^^^^^^ borrowed value does not live long enough
+  |     };
+  |     - `layout` dropped here while still borrowed

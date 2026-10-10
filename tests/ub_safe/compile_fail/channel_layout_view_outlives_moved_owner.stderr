@@ -1,0 +1,13 @@
+error[E0505]: cannot move out of `layout` because it is borrowed
+ --> tests/ub_safe/compile_fail/channel_layout_view_outlives_moved_owner.rs
+  |
+  |     let layout = ChannelLayout::custom(2).unwrap();
+  |         ------ binding `layout` declared here
+  |     let view = layout.as_ref();
+  |                ------ borrow of `layout` occurs here
+  |     std::thread::spawn(move || drop(layout));
+  |                        ^^^^^^^      ------ move occurs due to use in closure
+  |                        |
+  |                        move out of `layout` occurs here
+  |     println!("{}", view.channel_count());
+  |                    ---- borrow later used here

@@ -710,3 +710,406 @@ mod name_appenders {
         });
     }
 }
+
+/// `ChannelLayout` through its owner and handles: every C initialiser on
+/// edge inputs, the tagged union read in every order, the custom map's
+/// element handles at its bounds, random sequences of every setter (each map
+/// freed exactly once, none leaked), C-left states reached only through the
+/// safe API, and owners, views and handles across threads.
+mod layout {
+    use core::ffi::c_void;
+    use std::ffi::CString;
+    use std::thread;
+
+    use ffmpeg::libavutil::channel_layout::{
+        Channel, ChannelCustom, ChannelLayout, ChannelLayoutRef, ChannelLayoutVal, ChannelOrder,
+        LayoutDetails,
+    };
+    use ffmpeg::libavutil::ffi;
+    use ffmpeg::libavutil::mem::{HeapVec, alloc_cell_array_zeroed};
+
+    /// Descriptions C parses, fails to parse, or stops short in: standard
+    /// names, channel lists with and without names, masks, counts,
+    /// ambisonic orders at the `int` bound, and malformed spellings.
+    const DESCRIPTIONS: [&core::ffi::CStr; 37] = [
+        c"mono",
+        c"stereo",
+        c"5.1(side)",
+        c"22.2",
+        c"FL+FR+LFE",
+        c"FL@front+FR@0123456789abcdefghij+USR63@x+AMBI4@amb",
+        c"FL@a+FL@a+FL@b",
+        c"USR0@\xc3\xa9+BL",
+        c"0x3",
+        c"0xffffffffffffffff",
+        c"-1",
+        c"4c",
+        c"9c",
+        c"4C",
+        c"4 channels",
+        c"2 channels (FL+FR)",
+        c"2 channels (FL+FR)x",
+        c"3 channels (FL+FR)",
+        c"ambisonic 0",
+        c"ambisonic 2+stereo",
+        c"ambisonic 1+FL@x+FR",
+        c"ambisonic 1+AMBI0",
+        c"ambisonic 46339",
+        c"ambisonic 46340",
+        // The extras at and one below the `int` bound: C refuses the first,
+        // and runs out of memory mapping the second.
+        c"ambisonic 46339+88047C",
+        c"ambisonic 46339+88046C",
+        c"ambisonic 1+3C",
+        c"ambisonic -1",
+        c"ambisonic ",
+        c"FL@",
+        c"@x",
+        c"+",
+        c"",
+        c"0",
+        c"0c",
+        c"2147483648C",
+        c"FL+NOPE",
+    ];
+
+    /// A dangling user pointer nothing may follow.
+    fn dangling(addr: usize) -> *mut c_void {
+        std::ptr::without_provenance_mut(addr)
+    }
+
+    /// Reads everything the getters reach, every map element included, and
+    /// checks the invariant the safe paths keep.
+    fn walk(l: ChannelLayoutRef<'_>) -> usize {
+        let count = l.channel_count();
+        assert!(!format!("{l:?}").is_empty());
+        let _ = l.opaque();
+        match l.details() {
+            LayoutDetails::Custom(map) => {
+                assert_eq!(l.order(), ChannelOrder::CUSTOM);
+                assert_eq!(map.len(), usize::try_from(count).unwrap());
+                assert!(count > 0);
+                let mut seen = 0;
+                for c in map.iter() {
+                    let _ = (c.id(), c.name(), c.opaque(), c.get());
+                    seen += 1;
+                }
+                assert!(map.get(map.len()).is_none());
+                seen
+            }
+            LayoutDetails::Native(mask) => {
+                assert_eq!(mask.count_ones() as i32, count);
+                0
+            }
+            LayoutDetails::Ambisonic(mask) => {
+                assert!(count > mask.count_ones() as i32);
+                0
+            }
+            LayoutDetails::Unspecified => 0,
+            LayoutDetails::Unknown(order) => panic!("no safe path stores {order:?}"),
+        }
+    }
+
+    /// A map of `n` channels, each named after its index.
+    fn map(n: usize) -> HeapVec<ChannelCustom> {
+        let mut map = alloc_cell_array_zeroed::<ChannelCustom>(n).unwrap();
+        for (i, mut m) in map.as_handles_mut().iter_mut().enumerate() {
+            m.set_id(Channel::from_raw(ffi::AVChannel(i as i32)));
+            let _ = m.set_name_truncated(&CString::new(format!("{i:015}")).unwrap());
+        }
+        map
+    }
+
+    #[test]
+    fn every_initialiser_accepts_edge_inputs() {
+        for mask in [0, 1, 0x3, 1 << 63, u64::MAX, 0x8000_0000_0000_0001] {
+            match ChannelLayout::from_mask(mask) {
+                Ok(l) => {
+                    walk(l.as_ref());
+                    drop(l.as_ref().try_clone().unwrap());
+                }
+                Err(e) => assert!(e < 0 && mask == 0),
+            }
+        }
+        // `i32::MAX` channels exceed `av_max_alloc`: C reports ENOMEM.
+        for n in [i32::MIN, -1, 0, 1, 2, 64, 1000, i32::MAX] {
+            match ChannelLayout::custom(n) {
+                Ok(l) => assert_eq!(walk(l.as_ref()), n as usize),
+                Err(e) => assert!(e < 0 && (n <= 0 || n == i32::MAX), "{n}"),
+            }
+        }
+        for n in (-3..=70).chain([i32::MIN, i32::MAX]) {
+            let l = ChannelLayout::default_for(n);
+            assert_eq!(l.as_ref().channel_count(), n);
+            if n >= 0 {
+                walk(l.as_ref());
+            }
+        }
+        let mut parsed = 0;
+        for s in DESCRIPTIONS {
+            if let Ok(l) = ChannelLayout::parse(s) {
+                walk(l.as_ref());
+                let copy = l.as_ref().try_clone().unwrap();
+                drop(l);
+                walk(copy.as_ref());
+                parsed += 1;
+            }
+        }
+        assert!(parsed > 15, "{parsed}");
+        for n in [1, 2, 63, 64, 65, 300] {
+            let l = ChannelLayout::from_custom_map(map(n)).unwrap();
+            assert_eq!(walk(l.as_ref()), n);
+        }
+        assert!(ChannelLayout::from_custom_map(HeapVec::empty()).is_err());
+        drop(ChannelLayout::unspecified(i32::MIN));
+    }
+
+    #[test]
+    fn custom_map_handles_stay_in_bounds() {
+        let mut l = ChannelLayout::parse(c"FL@0123456789abcde+FR+LFE@lfe").unwrap();
+        {
+            let mut map = l.as_mut().into_custom_map_mut().unwrap();
+            assert_eq!(map.len(), 3);
+            assert!(map.get_mut(3).is_none());
+            for (i, mut m) in map.iter_mut().enumerate() {
+                m.set_id(Channel::from_raw(ffi::AVChannel(i32::MAX - i as i32)));
+                assert!(!m.set_name_truncated(c"0123456789abcdefghijklmnop"));
+                m.set_opaque(dangling(i + 1));
+            }
+            // The last element's last field ends the C block.
+            let last = map.get(2).unwrap();
+            assert_eq!(last.opaque(), dangling(3));
+        }
+        assert_eq!(walk(l.as_ref()), 3);
+        let LayoutDetails::Custom(map) = l.as_ref().details() else {
+            panic!()
+        };
+        assert_eq!(map.get(0).unwrap().name().as_bytes(), b"0123456789abcde");
+        assert!(
+            map.slice(1..)
+                .unwrap()
+                .iter()
+                .all(|c| c.id().into_raw().0 < i32::MAX)
+        );
+        assert!(map.slice(..4).is_none());
+    }
+
+    /// An `av_dynarray2_add` map may hold spare capacity past the count;
+    /// taking it over and freeing it frees the whole block.
+    #[test]
+    fn parsed_maps_with_spare_capacity_move_out_and_free() {
+        let mut l = ChannelLayout::parse(c"FL@a+FR@b+FC@c").unwrap();
+        let taken = l.as_mut().take_custom_map().unwrap();
+        assert_eq!(taken.len(), 3);
+        assert_eq!(l.as_ref().order(), ChannelOrder::UNSPEC);
+        assert_eq!(l.as_ref().channel_count(), 3);
+        // The taken map goes back in, under a new layout, and is freed there.
+        let back = ChannelLayout::from_custom_map(taken).unwrap();
+        assert_eq!(walk(back.as_ref()), 3);
+    }
+
+    /// One state change of a random sequence.
+    fn step(l: &mut ChannelLayoutVal, other: &mut ChannelLayoutVal, r: u64) {
+        let arg = r >> 8;
+        match r % 13 {
+            0 => l.as_mut().set_unspecified(arg as i32),
+            1 => l.as_mut().set_native(arg),
+            2 => {
+                let ok = l
+                    .as_mut()
+                    .set_ambisonic((arg % 50_000) as u32, arg.rotate_left(7));
+                assert_eq!(ok.is_ok(), arg % 50_000 < 46_340);
+            }
+            3 => {
+                let n = 1 + (arg % 9) as usize;
+                l.as_mut().set_custom_map(map(n)).unwrap();
+            }
+            4 => {
+                // An odd `arg` drops the taken map.
+                if let Some(m) = l.as_mut().take_custom_map()
+                    && arg.is_multiple_of(2)
+                {
+                    other.as_mut().set_custom_map(m).unwrap();
+                }
+            }
+            5 => {
+                if let Ok(parsed) =
+                    ChannelLayout::parse(DESCRIPTIONS[arg as usize % DESCRIPTIONS.len()])
+                {
+                    drop(l.as_mut().replace(parsed));
+                }
+            }
+            6 => *other = l.as_mut().take(),
+            7 => l.as_mut().clear(),
+            8 => l.as_mut().copy_from(other.as_ref()).unwrap(),
+            9 => *other = l.as_ref().try_clone().unwrap(),
+            10 => l.as_mut().set_opaque(dangling(arg as usize | 1)),
+            11 => core::mem::swap(l, other),
+            _ => {
+                if let Some(mut map) = l.as_mut().custom_map_mut() {
+                    let i = (arg as usize) % map.len();
+                    map.get_mut(i)
+                        .unwrap()
+                        .set_id(Channel::from_raw(ffi::AVChannel(arg as i32)));
+                }
+            }
+        }
+    }
+
+    #[test]
+    fn setter_sequences_free_every_map_once() {
+        let mut x = 0x9e37_79b9_7f4a_7c15u64;
+        let mut next = move || {
+            x ^= x << 13;
+            x ^= x >> 7;
+            x ^= x << 17;
+            x
+        };
+        for _ in 0..40 {
+            let mut l = ChannelLayout::unspecified(0);
+            let mut other = ChannelLayout::custom(2).unwrap();
+            for _ in 0..60 {
+                step(&mut l, &mut other, next());
+                walk(l.as_ref());
+                walk(other.as_ref());
+            }
+        }
+    }
+
+    /// `ChannelCustom::from_raw` can carry a name with no NUL into a map;
+    /// the getters read it within its field, and copies copy it as is.
+    #[test]
+    fn unterminated_names_in_a_map_are_read_within_the_field() {
+        let raw = ffi::AVChannelCustom {
+            id: ffi::AVChannel(3),
+            name: [b'x' as core::ffi::c_char; 16],
+            opaque: dangling(8),
+        };
+        let mut m = alloc_cell_array_zeroed::<ChannelCustom>(2).unwrap();
+        m.as_handles_mut()
+            .get_mut(1)
+            .unwrap()
+            .set(ChannelCustom::from_raw(raw));
+        let l = ChannelLayout::from_custom_map(m).unwrap();
+        let copy = l.as_ref().try_clone().unwrap();
+        drop(l);
+        let LayoutDetails::Custom(map) = copy.as_ref().details() else {
+            panic!()
+        };
+        assert_eq!(map.get(1).unwrap().name().as_bytes(), [b'x'; 16]);
+    }
+
+    #[test]
+    fn user_pointers_are_stored_never_followed() {
+        let mut l = ChannelLayout::parse(c"FL@a+FR").unwrap();
+        for addr in [1, 0x1000, usize::MAX] {
+            l.as_mut().set_opaque(dangling(addr));
+            let copy = l.as_ref().try_clone().unwrap();
+            assert_eq!(copy.as_ref().opaque(), dangling(addr));
+            l.as_mut().set_native(0x7);
+            assert_eq!(l.as_ref().opaque(), dangling(addr));
+            l.as_mut().set_custom_map(map(2)).unwrap();
+            drop(l.as_mut().take_custom_map());
+            assert_eq!(l.as_ref().opaque(), dangling(addr));
+            l.as_mut().copy_from(copy.as_ref()).unwrap();
+        }
+        l.as_mut().clear();
+        assert!(l.as_ref().opaque().is_null());
+    }
+
+    #[test]
+    fn bare_values_rewrap_and_handles_reborrow() {
+        let l = ChannelLayout::parse(c"FL@a+FR@b").unwrap();
+        // Given up for disposal, the value is a plain layout held inline.
+        let mut bare = l.into_inner();
+        {
+            let mut m = bare.as_mut();
+            let mut again = m.as_mut();
+            again
+                .custom_map_mut()
+                .unwrap()
+                .get_mut(0)
+                .unwrap()
+                .set_id(Channel::BACK_LEFT);
+            assert_eq!(walk(m.as_ref()), 2);
+        }
+        let owned = ChannelLayoutVal::new(bare);
+        let (a, b) = (owned.as_ref(), owned.as_ref());
+        assert_eq!(a.channel_count(), b.channel_count());
+        drop(owned);
+    }
+
+    #[test]
+    fn owners_move_and_drop_across_threads() {
+        let layouts: Vec<ChannelLayoutVal> = DESCRIPTIONS
+            .iter()
+            .filter_map(|s| ChannelLayout::parse(s).ok())
+            .collect();
+        let back = thread::spawn(move || {
+            layouts
+                .iter()
+                .map(|l| l.as_ref().try_clone().unwrap())
+                .collect::<Vec<_>>()
+        })
+        .join()
+        .unwrap();
+        for l in &back {
+            walk(l.as_ref());
+        }
+        thread::spawn(move || drop(back)).join().unwrap();
+    }
+
+    #[test]
+    fn shared_views_read_and_copy_concurrently() {
+        let l = ChannelLayout::parse(c"FL@front+FR@right+LFE+USR40@u").unwrap();
+        let r = l.as_ref();
+        let LayoutDetails::Custom(map) = r.details() else {
+            panic!()
+        };
+        thread::scope(|s| {
+            for _ in 0..4 {
+                s.spawn(move || {
+                    for _ in 0..200 {
+                        assert_eq!(walk(r), 4);
+                        assert_eq!(map.get(3).unwrap().name(), c"u");
+                        drop(r.try_clone().unwrap());
+                    }
+                });
+            }
+        });
+    }
+
+    #[test]
+    fn exclusive_handles_and_map_views_write_on_other_threads() {
+        let mut layouts: Vec<ChannelLayoutVal> =
+            (1..=4).map(|n| ChannelLayout::custom(n).unwrap()).collect();
+        thread::scope(|s| {
+            for (i, l) in layouts.iter_mut().enumerate() {
+                let mut m = l.as_mut();
+                s.spawn(move || {
+                    let mut map = m.custom_map_mut().unwrap();
+                    for mut c in map.iter_mut() {
+                        c.set_id(Channel::from_raw(ffi::AVChannel(i as i32)));
+                    }
+                    m.set_opaque(dangling(i + 1));
+                    if i % 2 == 0 {
+                        m.set_native(0x3);
+                    }
+                });
+            }
+        });
+        for (i, l) in layouts.iter().enumerate() {
+            walk(l.as_ref());
+            assert_eq!(l.as_ref().opaque(), dangling(i + 1));
+        }
+        // A shared exclusive handle only reads.
+        let mut l = ChannelLayout::parse(c"FL@a+FR").unwrap();
+        let m = l.as_mut();
+        let m = &m;
+        thread::scope(|s| {
+            for _ in 0..4 {
+                s.spawn(move || assert_eq!(walk(m.as_ref()), 2));
+            }
+        });
+    }
+}

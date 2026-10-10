@@ -1,0 +1,5 @@
+error[E0599]: no method named `x_mut` found for struct `CieXyRef<'a>` in the current scope
+ --> tests/ub_safe/compile_fail/csp_primary_coefficients_shared_primary_handle_has_no_setter.rs
+  |
+  |     r.x_mut().set_num(1);
+  |       ^^^^^ method not found in `CieXyRef<'_>`
