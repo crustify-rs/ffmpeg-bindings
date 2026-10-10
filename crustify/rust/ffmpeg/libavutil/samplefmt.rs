@@ -32,6 +32,10 @@ use super::ffi;
 /// assert!(!is_float(SampleFormat::NONE));
 /// ```
 ///
+/// The default is [`NONE`](Self::NONE), the value C gives an unset format:
+/// `av_frame_alloc` writes it (as `-1`) into `AVFrame.format`, and it is the
+/// default of `AVCodecContext.sample_fmt`.
+///
 /// No ffibox primitive covers a C enum: it owns nothing, has no handles, and
 /// is `Send + Sync` as the integer it is.
 #[repr(transparent)]
@@ -118,6 +122,13 @@ impl SampleFormat {
             Self::S64P => "S64P",
             _ => return None,
         })
+    }
+}
+
+impl Default for SampleFormat {
+    #[inline]
+    fn default() -> Self {
+        Self::NONE
     }
 }
 
@@ -231,6 +242,14 @@ mod unit_tests {
                 assert_ne!(a, b);
             }
         }
+    }
+
+    #[test]
+    fn default_is_none() {
+        assert_eq!(SampleFormat::default(), SampleFormat::NONE);
+        assert_eq!(SampleFormat::default().into_raw().0, -1);
+        assert_eq!(SampleFormat::default().index(), None);
+        assert_eq!(format!("{:?}", SampleFormat::default()), "NONE");
     }
 
     #[test]

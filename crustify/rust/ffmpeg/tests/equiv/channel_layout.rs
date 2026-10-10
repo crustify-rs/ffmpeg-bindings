@@ -178,6 +178,21 @@ fn channel_constants_are_the_c_enumerators() {
 }
 
 #[test]
+fn channel_default_is_what_c_returns_for_an_unknown_channel() {
+    // `av_channel_from_string` answers a name it cannot parse, a negative
+    // user id, or an out-of-range Ambisonic index with `AV_CHAN_NONE`.
+    for name in ["", "no-such", "USR-1", "USRx", "AMBI1024", "AMBI-1", "fl"] {
+        assert_eq!(
+            Channel::from_raw(c_from_string(name)),
+            Channel::default(),
+            "{name}"
+        );
+    }
+    assert_eq!(Channel::default().into_raw(), ffi::AVChannel::AV_CHAN_NONE);
+    assert_eq!(c_name(Channel::default().into_raw()), "NONE");
+}
+
+#[test]
 fn channel_unnamed_values_are_held_unchanged() {
     for raw in CHANNEL_UNNAMED {
         let ch = Channel::from_raw(ffi::AVChannel(raw));
@@ -370,6 +385,7 @@ mod matrix_encoding {
         let (default, min, max) = swr_option(c"matrix_encoding", None);
         let default = MatrixEncoding::from_raw(ffi::AVMatrixEncoding(default as u32));
         assert_eq!(default, MatrixEncoding::NONE);
+        assert_eq!(default, MatrixEncoding::default());
         assert_eq!(default.index(), Some(0));
         assert_eq!((min, max), (0.0, (MatrixEncoding::COUNT - 1) as f64));
         for v in min as u32..=max as u32 {
