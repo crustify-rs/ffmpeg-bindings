@@ -824,6 +824,14 @@ function ^av_buffer_is_writable$
 function ^av_buffer_allocz$
 var ^AV_BUFFER_FLAG_READONLY$
 
+# Buffer-frame wave 2, batch 1: the rest of buffer.h's AVBufferRef routines
+# (the opaque getter, and the writability, resize and replacement routines
+# that act on a reference slot).
+function ^av_buffer_get_opaque$
+function ^av_buffer_make_writable$
+function ^av_buffer_realloc$
+function ^av_buffer_replace$
+
 # Buffer-frame wave 0, batch 5: the rest of the RefStruct reference lifecycle
 # (av_refstruct_allocz is static inline, compiled by bindgen's
 # wrap_static_fns; av_refstruct_ref, _unref and _exclusive are above). Batch

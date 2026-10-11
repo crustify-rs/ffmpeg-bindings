@@ -3,9 +3,10 @@
 //! holds at least the pool's size from its start, and neither it nor those
 //! buffers' releases call into its own pool.
 //!
-//! Buffers are requested through C's `av_buffer_pool_get` on the owner's raw
-//! seam until the pool's `get` has a safe wrapper.
+//! Buffers are requested through the pool's safe `get` and
+//! `get_with_opaque` (buffer-frame wave 2), then held as raw references.
 
+use core::ffi::c_void;
 use core::ptr;
 use core::sync::atomic::{AtomicUsize, Ordering};
 use std::sync::{Arc, Barrier, Mutex};
@@ -32,9 +33,14 @@ unsafe impl Send for Owned {}
 
 impl Owned {
     fn get(pool: &BufferPoolBox) -> Option<Self> {
-        // SAFETY: the box keeps the pool alive; av_buffer_pool_get locks it.
-        let buf = unsafe { ffi::av_buffer_pool_get(pool.as_c_ptr()) };
-        (!buf.is_null()).then_some(Self(buf))
+        Self::get_with_opaque(pool).map(|(buf, _)| buf)
+    }
+
+    /// A buffer and its allocator's opaque; the bytes are written whole
+    /// before anything reads them.
+    fn get_with_opaque(pool: &BufferPoolBox) -> Option<(Self, *mut c_void)> {
+        let (buf, opaque) = pool.as_ref().get_with_opaque()?;
+        Some((Self(buf.fill(0).into_c()), opaque))
     }
 
     /// Writes and reads back every byte the reference describes, with whole
@@ -294,22 +300,15 @@ fn custom_buffers_keep_their_opaque_and_release() {
         })
     }
     .unwrap();
-    let (a, b) = (Owned::get(&pool).unwrap(), Owned::get(&pool).unwrap());
-    // SAFETY: live references from this pool.
-    let opaques = unsafe {
-        [
-            ffi::av_buffer_pool_buffer_get_opaque(a.0),
-            ffi::av_buffer_pool_buffer_get_opaque(b.0),
-        ]
-    };
+    let (a, first) = Owned::get_with_opaque(&pool).unwrap();
+    let (b, second) = Owned::get_with_opaque(&pool).unwrap();
+    let opaques = [first, second];
     assert!(!opaques[0].is_null() && opaques[0] != opaques[1]);
     a.fill(5);
     b.fill(5);
     drop(a);
     assert_eq!(FREES.load(Ordering::SeqCst), 0);
-    let recycled = Owned::get(&pool).unwrap();
-    // SAFETY: as above.
-    let original = unsafe { ffi::av_buffer_pool_buffer_get_opaque(recycled.0) };
+    let (recycled, original) = Owned::get_with_opaque(&pool).unwrap();
     assert_eq!(original, opaques[0]);
     drop(pool);
     drop(recycled);
