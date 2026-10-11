@@ -1,0 +1,16 @@
+error[E0505]: cannot move out of `d` because it is borrowed
+ --> tests/ub_safe/compile_fail/dict_ref_outlives_dict.rs
+  |
+  |     let d = Dict::from_entries([(c"k", c"v")]).unwrap();
+  |         - binding `d` declared here
+  |     let r = d.as_ref();
+  |             - borrow of `d` occurs here
+  |     drop(d);
+  |          ^ move out of `d` occurs here
+  |     let _ = r;
+  |             - borrow later used here
+  |
+help: consider cloning the value if the performance cost is acceptable
+  |
+7 |     let r = d.clone().as_ref();
+  |              ++++++++

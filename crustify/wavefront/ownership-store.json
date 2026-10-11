@@ -332,6 +332,61 @@
    ]
   },
   {
+   "name": "AVDictionary",
+   "defined_in": "libavutil/dict.c",
+   "_comment_agent": "Opaque outside dict.c: public code holds AVDictionary only as a pointer, NULL meaning the empty dictionary everywhere (av_dict_count/get/iterate/copy/get_string accept NULL). No constructor or init routine: a dictionary comes into being when av_dict_set (also av_dict_parse_string and av_dict_copy, through it) inserts into a NULL *pm, and av_dict_set frees it and NULLs *pm when its last entry goes, so mutation needs the AVDictionary ** slot. Releaser: av_dict_free(&p) (NULL-safe, NULLs the slot). Deep copy: av_dict_copy(&dst = NULL, src, AV_DICT_MULTIKEY) appends every entry in order, duplicates included (flags 0 would collapse case-insensitive duplicate keys); on failure dst holds a partial copy the caller frees. No refcount, lock or thread affinity: storage is av_malloc'd and the const-taking readers never write. Rust (options wave 0): define_ctype!(Dictionary) opaque, DictionaryFree = av_dict_free + av_dict_copy(MULTIKEY), DictionaryBox = CBox<Dictionary, DictionaryFree> for a non-empty dictionary, and Dict = Option<DictionaryBox> for C's nullable slot.",
+   "fields": [
+    {
+     "name": "elems",
+     "ptr": {
+      "scalar": null,
+      "array": {
+       "by_val": true
+      },
+      "string": false,
+      "owned": true,
+      "borrowed": null,
+      "nullable": true,
+      "mutable": true,
+      "note": "The dictionary's `count` inline AVDictionaryEntry values, grown one slot at a time by av_realloc_array in av_dict_set and freed (with every entry's key and value) by av_dict_free, or by av_dict_set when the last entry is deleted, via av_freep. NULL only inside av_dict_set for a fresh av_mallocz'd struct before its first entry lands: every dictionary C hands out has count >= 1 and a non-NULL elems, because av_dict_set frees the struct and NULLs *pm whenever count drops to 0. Entries are written by av_dict_set only (append, swap-with-last on replace/delete, APPEND realloc of a value); av_dict_iterate/av_dict_get hand out pointers into the array, which any av_dict_set invalidates. The struct body is private to dict.c, so no public consumer reaches this field; the Rust wrapper keeps AVDictionary opaque."
+     }
+    }
+   ]
+  },
+  {
+   "name": "AVDictionaryEntry",
+   "defined_in": "libavutil/dict.h",
+   "_comment_agent": "A plain {key, value} pair of owned strings that lives only inside an AVDictionary's elems array. It has no lifecycle routine of its own: entries are created, replaced and freed by av_dict_set and av_dict_free on the containing dictionary, and handed out (const or not) by av_dict_iterate/av_dict_get as pointers into the array that the next av_dict_set invalidates. Rust (options wave 0): define_ctype!(DictionaryEntry), borrowed only, key()/value() -> &'a CStr on DictionaryEntryRef; DictionaryEntryMut gets no setters because C forbids writing entries.",
+   "fields": [
+    {
+     "name": "key",
+     "ptr": {
+      "scalar": null,
+      "array": null,
+      "string": true,
+      "owned": true,
+      "borrowed": null,
+      "nullable": false,
+      "mutable": false,
+      "note": "NUL-terminated key, an av_strdup copy (or the caller's av_malloc'd string under AV_DICT_DONT_STRDUP_KEY), owned by the dictionary that holds the entry and freed by av_dict_free (av_freep) or av_dict_set on replace/delete (av_free). av_dict_set stores an entry only when copy_key is non-NULL, so it is never NULL in a dictionary. Nothing writes through it after insertion; dict.h forbids callers to change it. An entry exists only inside a dictionary's elems array (no public routine allocates, embeds or takes one by value), so the Rust getter borrows it for the handle's lifetime, which is tied to a shared borrow of the dictionary: any av_dict_set invalidates entry pointers and needs the exclusive slot."
+     }
+    },
+    {
+     "name": "value",
+     "ptr": {
+      "scalar": null,
+      "array": null,
+      "string": true,
+      "owned": true,
+      "borrowed": null,
+      "nullable": false,
+      "mutable": true,
+      "note": "NUL-terminated value, an av_strdup copy (or the caller's av_malloc'd string under AV_DICT_DONT_STRDUP_VAL), owned by the dictionary and freed with the entry as for key. Never NULL in a dictionary: a NULL value passed to av_dict_set deletes instead of inserting. C writes through it only inside av_dict_set under AV_DICT_APPEND (av_realloc the old value, memcpy the new part after it), so it is mutable from dict.c; dict.h forbids callers to change it, and the Rust handles expose it read-only with the lifetime of a shared borrow of the dictionary."
+     }
+    }
+   ]
+  },
+  {
    "name": "AVEscapeMode",
    "defined_in": "libavutil/avstring.h",
    "_comment_agent": "Plain C enum, no fields, no lifecycle. Values flow Rust->C only: a by-value `mode` argument of av_escape (avstring.c:323) and av_bprint_escape (bprint.c:264); no struct field, return or out-parameter stores it, so C never hands one back. bprint.c:268-313 maps AUTO to BACKSLASH and treats any unknown value as BACKSLASH. Rust representation: closed Rust enum EscapeMode {Auto, Backslash, Quote, Xml} with an infallible conversion into ffi::AVEscapeMode; out-of-range modes are not representable (they only alias BACKSLASH).",
@@ -2637,6 +2692,90 @@
    }
   },
   {
+   "name": "av_dict_copy",
+   "defined_in": "libavutil/dict.c",
+   "lifetime": {
+    "for": "src",
+    "is_dropper": false,
+    "is_disposer": false,
+    "is_cloner": {
+     "deep": true,
+     "upref": false
+    },
+    "is_constructor": null
+   },
+   "ptr_args": [
+    {
+     "name": "dst",
+     "ptr": {
+      "scalar": {
+       "by_ref": {
+        "owned": true,
+        "borrowed": null
+       }
+      },
+      "array": null,
+      "string": false,
+      "owned": false,
+      "borrowed": {
+       "lifetime": "arg:dst"
+      },
+      "nullable": false,
+      "mutable": true,
+      "note": "The caller's destination slot (must not be NULL), and the dictionary it owns, NULL for the empty one: av_dict_copy inserts a fresh av_strdup of every source entry through av_dict_set with the caller's flags, which allocates the dictionary when *dst is NULL. On failure *dst keeps the entries copied so far (possibly a freshly allocated partial copy) for the caller to free. With flags 0, a source key equal (case-insensitively) to an earlier one overwrites it; AV_DICT_MULTIKEY keeps every entry in order, which Rust's DictionaryFree CDupClone uses into a NULL slot."
+     }
+    },
+    {
+     "name": "src",
+     "ptr": {
+      "scalar": {
+       "by_val": true
+      },
+      "array": null,
+      "string": false,
+      "owned": false,
+      "borrowed": {
+       "lifetime": "arg:src"
+      },
+      "nullable": true,
+      "mutable": false,
+      "note": "The source dictionary, iterated read-only (av_dict_iterate) for the call; NULL copies nothing. Must not be *dst: av_dict_set would move or free the entry being iterated."
+     }
+    }
+   ]
+  },
+  {
+   "name": "av_dict_free",
+   "defined_in": "libavutil/dict.c",
+   "lifetime": {
+    "for": "pm",
+    "is_dropper": true,
+    "is_disposer": false,
+    "is_cloner": null,
+    "is_constructor": null
+   },
+   "ptr_args": [
+    {
+     "name": "pm",
+     "ptr": {
+      "scalar": {
+       "by_ref": {
+        "owned": true,
+        "borrowed": null
+       }
+      },
+      "array": null,
+      "string": false,
+      "owned": true,
+      "borrowed": null,
+      "nullable": false,
+      "mutable": true,
+      "note": "The caller's AVDictionary * slot (dereferenced unconditionally, must not be NULL) and the dictionary it holds, NULL for the empty one: av_dict_free releases every entry's key and value (av_freep each), the entry array, then the struct, and writes NULL back (av_freep); NULL is a no-op. Rust: DictionaryFree's CDrop for CBox<Dictionary> passes a local slot holding the box's pointer."
+     }
+    }
+   ]
+  },
+  {
    "name": "av_dict_get_string",
    "defined_in": "libavutil/dict.c",
    "lifetime": {
@@ -2685,6 +2824,72 @@
       "nullable": true,
       "mutable": false,
       "note": "Dictionary iterated read-only for the call (av_dict_count, av_dict_iterate); NULL counts as empty and yields \"\"."
+     }
+    }
+   ]
+  },
+  {
+   "name": "av_dict_set",
+   "defined_in": "libavutil/dict.c",
+   "lifetime": {
+    "for": "pm",
+    "is_dropper": false,
+    "is_disposer": false,
+    "is_cloner": null,
+    "is_constructor": {
+     "alloc": true,
+     "init": false
+    }
+   },
+   "ptr_args": [
+    {
+     "name": "key",
+     "ptr": {
+      "scalar": null,
+      "array": null,
+      "string": true,
+      "owned": true,
+      "borrowed": {
+       "lifetime": "arg:key"
+      },
+      "nullable": true,
+      "mutable": false,
+      "note": "The key. Borrowed for the call and av_strdup'd by default; under AV_DICT_DONT_STRDUP_KEY ownership of an av_malloc'd key passes to the dictionary (stored, or av_free'd on every failure and no-op path). NULL fails with EINVAL (freeing a transferred value). Matched case-insensitively unless AV_DICT_MATCH_CASE; not looked up at all under AV_DICT_MULTIKEY without AV_DICT_DEDUP."
+     }
+    },
+    {
+     "name": "pm",
+     "ptr": {
+      "scalar": {
+       "by_ref": {
+        "owned": true,
+        "borrowed": null
+       }
+      },
+      "array": null,
+      "string": false,
+      "owned": false,
+      "borrowed": {
+       "lifetime": "arg:pm"
+      },
+      "nullable": false,
+      "mutable": true,
+      "note": "The caller's AVDictionary * slot (dereferenced unconditionally, must not be NULL) and the dictionary it owns, NULL for the empty one. av_dict_set av_mallocz's the dictionary when *pm is NULL, appends/replaces/deletes one entry, and av_freep's it (NULLing *pm) whenever its count drops to 0, so a non-NULL dictionary always holds >= 1 entry; a failed call leaves a pre-existing dictionary's entries intact. Any call invalidates entry pointers from av_dict_get/av_dict_iterate. Rust: Dict::with_slot hands it the slot (Dict::from_entries inserts with AV_DICT_MULTIKEY)."
+     }
+    },
+    {
+     "name": "value",
+     "ptr": {
+      "scalar": null,
+      "array": null,
+      "string": true,
+      "owned": true,
+      "borrowed": {
+       "lifetime": "arg:value"
+      },
+      "nullable": true,
+      "mutable": false,
+      "note": "The value. Borrowed for the call and av_strdup'd by default; under AV_DICT_DONT_STRDUP_VAL ownership of an av_malloc'd value passes to the dictionary (stored or av_free'd). NULL deletes the matching entry instead of inserting."
      }
     }
    ]

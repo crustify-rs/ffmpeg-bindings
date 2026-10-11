@@ -9,6 +9,7 @@ mod channel_layout;
 mod common;
 mod cpu;
 mod csp;
+mod dict;
 mod error;
 mod file;
 mod imgutils;

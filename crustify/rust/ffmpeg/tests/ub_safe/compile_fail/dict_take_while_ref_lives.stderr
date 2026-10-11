@@ -1,0 +1,9 @@
+error[E0502]: cannot borrow `d` as mutable because it is also borrowed as immutable
+ --> tests/ub_safe/compile_fail/dict_take_while_ref_lives.rs
+  |
+  |     let r = d.as_ref();
+  |             - immutable borrow occurs here
+  |     drop(d.take());
+  |          ^^^^^^^^ mutable borrow occurs here
+  |     let _ = r;
+  |             - immutable borrow later used here

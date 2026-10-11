@@ -506,3 +506,17 @@ function av_channel_layout_subset
 # libavutil/channel_layout.h: the layout description appender that formats
 # wave-3 batch 1 wraps (its other C readers are listed above).
 function av_channel_layout_describe_bprint
+
+# libavutil/dict.h: AVDictionary's lifecycle (options wave 0, AVDictionary):
+# the release and the deep copy, and AV_DICT_MULTIKEY, under which the copy
+# keeps duplicate keys. av_dict_set builds the safe constructor's entries;
+# av_dict_iterate, av_dict_count and av_dict_get_string are the C readers
+# equivalence tests observe dictionaries with, and the other flags select the
+# C reference copies they compare against.
+function av_dict_free
+function av_dict_copy
+function av_dict_set
+function av_dict_iterate
+function av_dict_count
+function av_dict_get_string
+var AV_DICT_.*
