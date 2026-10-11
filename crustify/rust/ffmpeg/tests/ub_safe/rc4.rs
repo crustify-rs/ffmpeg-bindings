@@ -134,3 +134,44 @@ fn independent_thread_local_contexts_do_not_share_state() {
         thread.join().unwrap();
     }
 }
+
+#[test]
+pub(super) fn batch2_foreign_writes_across_reborrows() {
+    let mut inline = Rc4::from_key(b"key").unwrap();
+    let mut heap = Rc4::new(b"key").unwrap();
+    for mut parent in [inline.as_mut(), heap.as_mut()] {
+        for len in [0, 1, 255, 256, 513] {
+            let mut data = vec![0x6a; len + 1];
+            let input = data.clone();
+            parent.as_mut().init(b"key").unwrap();
+            parent.as_mut().crypt_in_place(&mut data[1..]).unwrap();
+            parent.as_mut().init(b"key").unwrap();
+            parent.as_mut().crypt_in_place(&mut data[1..]).unwrap();
+            assert_eq!(data, input);
+            parent.as_mut().keystream(&mut data[1..]).unwrap();
+            let mut output = vec![0; len + 1];
+            parent.as_mut().crypt(&mut output[1..], &data[1..]).unwrap();
+            data.fill(0);
+            parent.as_mut().crypt_in_place(&mut output[1..]).unwrap();
+        }
+    }
+}
+
+#[test]
+fn batch2_independent_thread_local_crypto_operations() {
+    let threads: Vec<_> = (0..4)
+        .map(|_| {
+            std::thread::spawn(|| {
+                batch2_foreign_writes_across_reborrows();
+                super::ripemd::batch2_foreign_writes_across_reborrows();
+                super::sha::batch2_foreign_writes_across_reborrows();
+                super::sha512::batch2_foreign_writes_across_reborrows();
+                super::tea::batch2_foreign_writes_across_reborrows();
+                super::twofish::batch2_foreign_writes_across_reborrows();
+            })
+        })
+        .collect();
+    for thread in threads {
+        thread.join().unwrap();
+    }
+}

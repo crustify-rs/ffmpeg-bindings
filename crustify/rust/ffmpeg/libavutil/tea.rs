@@ -100,9 +100,120 @@ pub fn context_size() -> &'static i32 {
     unsafe { &ffi::av_tea_size }
 }
 
+fn crypt_count(input_len: usize, output_len: usize) -> Result<i32, i32> {
+    if !input_len.is_multiple_of(8) || output_len < input_len {
+        return Err(-22);
+    }
+    i32::try_from(input_len / 8).map_err(|_| -22)
+}
+
+impl TeaRef<'_> {
+    /// Wraps: av_tea_crypt
+    ///
+    /// Encrypt (`decrypt = false`) or decrypt whole 8-byte blocks. A mutable
+    /// IV selects CBC and is updated after each block; `None` selects ECB.
+    /// Output bytes beyond `src.len()` remain untouched. Partial blocks, short
+    /// outputs and block counts above C INT_MAX return EINVAL before any mutation.
+    pub fn crypt(
+        &self,
+        dst: &mut [u8],
+        src: &[u8],
+        iv: Option<&mut [u8; 8]>,
+        decrypt: bool,
+    ) -> Result<(), i32> {
+        let count = crypt_count(src.len(), dst.len())?;
+        // SAFETY: the shared initialized schedule is read-only throughout C.
+        // Validation covers count blocks in disjoint input/output slices. The optional IV is one exclusive
+        // block and cannot alias either slice. C retains no pointers.
+        unsafe {
+            ffi::av_tea_crypt(
+                self.as_ptr().cast_mut(),
+                dst.as_mut_ptr(),
+                src.as_ptr(),
+                count,
+                iv.map_or(core::ptr::null_mut(), |iv| iv.as_mut_ptr()),
+                i32::from(decrypt),
+            )
+        };
+        Ok(())
+    }
+
+    /// The in-place form of `crypt`, with the same validation and IV semantics.
+    ///
+    /// The IV cannot overlap the data:
+    /// ```compile_fail,E0499
+    /// use ffmpeg::libavutil::tea::Tea;
+    /// let mut cipher = Tea::new(&[0; 16], 64).unwrap();
+    /// let mut bytes = [0; 8];
+    /// cipher.as_ref().crypt_in_place(&mut bytes, Some(&mut bytes), false).unwrap();
+    /// ```
+    pub fn crypt_in_place(
+        &self,
+        data: &mut [u8],
+        iv: Option<&mut [u8; 8]>,
+        decrypt: bool,
+    ) -> Result<(), i32> {
+        let count = crypt_count(data.len(), data.len())?;
+        // SAFETY: the shared schedule is read-only in C; data holds full writable
+        // blocks. C supports exact overlap, saving ciphertext before overwriting in
+        // CBC decryption. IV is a disjoint exclusive block; no pointer is retained.
+        unsafe {
+            ffi::av_tea_crypt(
+                self.as_ptr().cast_mut(),
+                data.as_mut_ptr(),
+                data.as_ptr(),
+                count,
+                iv.map_or(core::ptr::null_mut(), |iv| iv.as_mut_ptr()),
+                i32::from(decrypt),
+            )
+        };
+        Ok(())
+    }
+}
+
 #[cfg(test)]
 mod unit_tests {
     use super::*;
+
+    #[test]
+    fn crypt_length_boundaries() {
+        assert_eq!(crypt_count(0, 0), Ok(0));
+        assert_eq!(crypt_count(8 - 1, 8), Err(-22));
+        assert_eq!(crypt_count(8, 8 - 1), Err(-22));
+        let max = i32::MAX as usize * 8;
+        assert_eq!(crypt_count(max, usize::MAX), Ok(i32::MAX));
+        assert_eq!(crypt_count(max + 8, usize::MAX), Err(-22));
+    }
+
+    #[test]
+    fn rejected_buffers_are_unchanged() {
+        let mut owner = Tea::new(&[0; 16], 64).unwrap();
+        let mut output = [0x7b; 8];
+        let mut iv = [0x8c; 8];
+        assert_eq!(
+            owner
+                .as_mut()
+                .as_ref()
+                .crypt(&mut output, &[0; 8 - 1], Some(&mut iv), false),
+            Err(-22)
+        );
+        assert_eq!(
+            owner
+                .as_mut()
+                .as_ref()
+                .crypt(&mut output[..1], &[0; 8], Some(&mut iv), true),
+            Err(-22)
+        );
+        assert_eq!(
+            owner
+                .as_mut()
+                .as_ref()
+                .crypt_in_place(&mut output[..1], Some(&mut iv), true),
+            Err(-22)
+        );
+        assert_eq!(output, [0x7b; 8]);
+        assert_eq!(iv, [0x8c; 8]);
+    }
 
     #[test]
     fn layout_matches_ffi() {

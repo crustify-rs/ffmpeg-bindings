@@ -45,15 +45,8 @@ fn init_fields_reset_and_stream_checkpoints_match_c() {
                         core::ptr::null_mut(),
                         0,
                     );
-                    ffi::av_rc4_crypt(
-                        wrapped.as_c_ptr(),
-                        actual.as_mut_ptr(),
-                        core::ptr::null(),
-                        count as i32,
-                        core::ptr::null_mut(),
-                        0,
-                    );
                 }
+                wrapped.as_mut().keystream(&mut actual).unwrap();
                 assert_eq!(actual, expected);
                 check(&raw, wrapped.as_ref());
             }
@@ -71,4 +64,65 @@ fn inline_and_c_allocated_construction_have_identical_fields() {
         inline.as_ref().state().elems().collect::<Vec<_>>(),
         boxed.as_ref().state().elems().collect::<Vec<_>>()
     );
+}
+
+#[test]
+fn batch2_all_stream_contracts_match_c_after_each_call() {
+    let mut owner = Rc4::new(b"stream").unwrap();
+    let mut raw = ffi::AVRC4::default();
+    // SAFETY: writable complete storage, and a six-byte key copied during init.
+    assert_eq!(
+        // SAFETY: writable complete storage and a six-byte key copied by C.
+        unsafe { ffi::av_rc4_init(&raw mut raw, b"stream".as_ptr(), 48, 0) },
+        0
+    );
+    for count in [0, 1, 2, 255, 256, 513] {
+        let input: Vec<_> = (0..count).map(|i| (i * 19) as u8).collect();
+        let mut output = vec![0xa5; count + 1];
+        let mut expected = output.clone();
+        owner.as_mut().crypt(&mut output, &input).unwrap();
+        // SAFETY: independent initialized context and disjoint count-byte
+        // input/output; unused IV is null and decrypt is ignored by C.
+        unsafe {
+            ffi::av_rc4_crypt(
+                &raw mut raw,
+                expected.as_mut_ptr(),
+                input.as_ptr(),
+                count as i32,
+                core::ptr::null_mut(),
+                1,
+            )
+        };
+        assert_eq!(output, expected);
+        check(&raw, owner.as_ref());
+        owner.as_mut().crypt_in_place(&mut output[..count]).unwrap();
+        // SAFETY: C supports identical input/output; buffers cover count bytes.
+        unsafe {
+            ffi::av_rc4_crypt(
+                &raw mut raw,
+                expected.as_mut_ptr(),
+                expected.as_ptr(),
+                count as i32,
+                core::ptr::null_mut(),
+                0,
+            )
+        };
+        assert_eq!(output, expected);
+        check(&raw, owner.as_ref());
+        owner.as_mut().keystream(&mut output[..count]).unwrap();
+        // SAFETY: null input selects keystream, and output covers count bytes.
+        unsafe {
+            ffi::av_rc4_crypt(
+                &raw mut raw,
+                expected.as_mut_ptr(),
+                core::ptr::null(),
+                count as i32,
+                core::ptr::null_mut(),
+                0,
+            )
+        };
+        assert_eq!(output, expected);
+        check(&raw, owner.as_ref());
+        assert_eq!(output[count], 0xa5);
+    }
 }

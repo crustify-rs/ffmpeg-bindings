@@ -22,13 +22,12 @@ fn lifecycle_and_rekey_match_c() {
     assert!(!reference.is_null());
     for rounds in [-1, 0, 1, 2, 16, 63, 64, 65] {
         let key = [rounds as u8; 16];
-        let constructed = Tea::new(&key, rounds).unwrap();
+        let mut constructed = Tea::new(&key, rounds).unwrap();
         owner.as_mut().init(&key, rounds);
         // SAFETY: reference is live exclusive C storage; key has 16 bytes and
         // is copied during the call, never retained.
         unsafe { ffi::av_tea_init(reference, key.as_ptr(), rounds) };
-        // Observe both schedules with C: cipher wrapping is a later symbol
-        // batch. Buffers/IVs are independent, and compared after each call.
+        // Observe the Rust schedule through the safe cipher wrapper. Buffers/IVs are independent, and compared after each call.
         let input = [0x5a; 24];
         let mut output = [0; 24];
         let mut expected = [0; 24];
@@ -41,19 +40,19 @@ fn lifecycle_and_rekey_match_c() {
                 // SAFETY: both contexts are live and initialized, with no live
                 // borrowed handles; all arrays cover three blocks and IVs one.
                 // C retains no pointer, and input and output do not overlap.
+                owner
+                    .as_mut()
+                    .as_ref()
+                    .crypt(
+                        &mut output,
+                        &input,
+                        if cbc { Some(&mut iv) } else { None },
+                        decrypt != 0,
+                    )
+                    .unwrap();
+                // SAFETY: reference uniquely owns a live initialized context; buffers
+                // cover three blocks and IV one block, with no overlap/retention.
                 unsafe {
-                    ffi::av_tea_crypt(
-                        owner.as_c_ptr(),
-                        output.as_mut_ptr(),
-                        input.as_ptr(),
-                        3,
-                        if cbc {
-                            iv.as_mut_ptr()
-                        } else {
-                            core::ptr::null_mut()
-                        },
-                        decrypt,
-                    );
                     ffi::av_tea_crypt(
                         reference,
                         expected.as_mut_ptr(),
@@ -70,20 +69,16 @@ fn lifecycle_and_rekey_match_c() {
                 // SAFETY: constructed owns a separate initialized C allocation
                 // built with the same key/rounds; arrays cover three blocks and
                 // its independent IV covers one. C retains no pointers.
-                unsafe {
-                    ffi::av_tea_crypt(
-                        constructed.as_c_ptr(),
-                        constructed_output.as_mut_ptr(),
-                        input.as_ptr(),
-                        3,
-                        if cbc {
-                            constructed_iv.as_mut_ptr()
-                        } else {
-                            core::ptr::null_mut()
-                        },
-                        decrypt,
-                    );
-                }
+                constructed
+                    .as_mut()
+                    .as_ref()
+                    .crypt(
+                        &mut constructed_output,
+                        &input,
+                        if cbc { Some(&mut constructed_iv) } else { None },
+                        decrypt != 0,
+                    )
+                    .unwrap();
                 assert_eq!(constructed_output, expected);
                 assert_eq!(constructed_iv, expected_iv);
                 assert_eq!(output, expected);
@@ -94,4 +89,79 @@ fn lifecycle_and_rekey_match_c() {
     // SAFETY: reference is the sole live allocation returned by av_tea_alloc,
     // retains no nested resources and has no remaining borrowed handles.
     unsafe { ffi::av_free(reference.cast()) };
+}
+
+#[test]
+fn batch2_in_place_multi_call_buffers_and_iv_match_c() {
+    let mut owner = Tea::new(&[0x5b; 16], 64).unwrap();
+    let reference = Tea::new(&[0x5b; 16], 64).unwrap();
+    for cbc in [false, true] {
+        let mut iv = [0x38; 8];
+        let mut expected_iv = iv;
+        for decrypt in [false, true, true, false] {
+            for count in [0usize, 1, 2, 17] {
+                let mut data: Vec<_> = (0..count * 8 + 1).map(|i| (i * 37) as u8).collect();
+                let mut expected = data.clone();
+                owner
+                    .as_mut()
+                    .as_ref()
+                    .crypt_in_place(
+                        &mut data[1..],
+                        if cbc { Some(&mut iv) } else { None },
+                        decrypt,
+                    )
+                    .unwrap();
+                // SAFETY: reference uniquely owns an initialized independent C
+                // context with no handles. Buffer covers count blocks and the
+                // separate IV covers one; C explicitly permits exact overlap.
+                unsafe {
+                    ffi::av_tea_crypt(
+                        reference.as_c_ptr(),
+                        expected[1..].as_mut_ptr(),
+                        expected[1..].as_ptr(),
+                        count as i32,
+                        if cbc {
+                            expected_iv.as_mut_ptr()
+                        } else {
+                            core::ptr::null_mut()
+                        },
+                        i32::from(decrypt),
+                    )
+                };
+                assert_eq!(data, expected);
+                assert_eq!(iv, expected_iv);
+                let mut output = vec![0xa5; data.len() + 8];
+                let mut expected_output = output.clone();
+                owner
+                    .as_mut()
+                    .as_ref()
+                    .crypt(
+                        &mut output[1..],
+                        &data[1..],
+                        if cbc { Some(&mut iv) } else { None },
+                        decrypt,
+                    )
+                    .unwrap();
+                // SAFETY: independent initialized context and disjoint input,
+                // output, IV; only count full blocks are read/written.
+                unsafe {
+                    ffi::av_tea_crypt(
+                        reference.as_c_ptr(),
+                        expected_output[1..].as_mut_ptr(),
+                        expected[1..].as_ptr(),
+                        count as i32,
+                        if cbc {
+                            expected_iv.as_mut_ptr()
+                        } else {
+                            core::ptr::null_mut()
+                        },
+                        i32::from(decrypt),
+                    )
+                };
+                assert_eq!(output, expected_output);
+                assert_eq!(iv, expected_iv);
+                assert!(output[data.len()..].iter().all(|&b| b == 0xa5));
+            }
+        }
+    }
 }

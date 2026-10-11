@@ -1,6 +1,5 @@
 //! C observation probes compare independently owned contexts after construction
-//! and each safe reinitialization. Hash update/final are not wrapped by this
-//! type batch; they are used here only to observe the lifecycle's C state.
+//! and each safe reinitialization, update sequence and finalization.
 use ffmpeg::libavutil::{
     ffi,
     sha::{Algorithm, Sha, ShaBox},
@@ -33,10 +32,10 @@ impl Drop for Reference {
     }
 }
 
-// This probe mutates through the owner's raw FFI seam only while it is
-// exclusively borrowed and has no outstanding shared or exclusive handles.
+// Exercise the public Rust API and the independently owned raw C reference.
 fn probe(owner: &mut ShaBox, reference: &mut Reference, chunks: &[&[u8]]) -> [u8; 32] {
     for chunk in chunks {
+        owner.as_mut().update(chunk);
         // A real byte address is used for C memcpy even for an empty update.
         let data = if chunk.is_empty() {
             c"".as_ptr().cast()
@@ -46,17 +45,15 @@ fn probe(owner: &mut ShaBox, reference: &mut Reference, chunks: &[&[u8]]) -> [u8
         // SAFETY: both allocations are independently initialized and uniquely
         // borrowed. C only reads chunk.len() bytes and retains no input pointer.
         unsafe {
-            ffi::av_sha_update(owner.as_c_ptr(), data, chunk.len());
             ffi::av_sha_update(reference.0, data, chunk.len());
         }
     }
-    let mut rust = [0xa5; 32];
-    let mut c = [0xa5; 32];
+    let rust = owner.as_mut().finalize();
+    let mut c = [0; 32];
     // SAFETY: both contexts are initialized and exclusively borrowed; each
     // separate output has the largest supported digest size, and is retained
-    // by neither C context. Sentinel suffixes compare output cardinality too.
+    // by neither C context. Zero suffixes compare output cardinality too.
     unsafe {
-        ffi::av_sha_final(owner.as_c_ptr(), rust.as_mut_ptr());
         ffi::av_sha_final(reference.0, c.as_mut_ptr());
     }
     assert_eq!(rust, c);
@@ -78,7 +75,7 @@ fn initialized_and_reinitialized_state_matches_c() {
                 assert_eq!(reference.init(algorithm), 0);
                 let (first, rest) = data[..len].split_at(len.min(7));
                 let result = probe(&mut owner, &mut reference, &[b"", first, rest, b""]);
-                assert!(result[algorithm.digest_len()..].iter().all(|&b| b == 0xa5));
+                assert!(result[algorithm.digest_len()..].iter().all(|&b| b == 0));
             }
         }
     }

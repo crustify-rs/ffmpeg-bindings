@@ -4,8 +4,8 @@
 //! C-allocated pointers, never as inline storage. There are no public fields,
 //! sub-allocations, retained input pointers, reference counts, or C clone routines.
 //! Owners release their single allocation through [`ShaFree`]. No `Send` or `Sync`
-//! implementation is asserted. Hash update/final operations are left to the
-//! symbol route; initialization is bound here to the object's lifecycle.
+//! implementation is asserted. Initialization, updates and finalization require
+//! exclusive handles; output arrays cover every supported digest variant.
 
 use core::fmt;
 use core::ptr::NonNull;
@@ -169,6 +169,42 @@ pub fn context_size() -> &'static i32 {
     // SAFETY: C defines this global as `const int = sizeof(context)`; it has
     // static lifetime and no writer anywhere in the library.
     unsafe { &ffi::av_sha_size }
+}
+
+impl ShaMut<'_> {
+    /// Wraps: av_sha_update
+    ///
+    /// Append input bytes. C copies them and retains no input pointer.
+    pub fn update(&mut self, data: &[u8]) {
+        // SAFETY: the handle exclusively borrows an initialized full C context;
+        // nonempty data provides len readable bytes; empty input uses a real static
+        // byte for C's zero-length memcpy. C retains no pointer.
+        unsafe {
+            ffi::av_sha_update(
+                self.as_mut_ptr(),
+                if data.is_empty() {
+                    c"".as_ptr().cast()
+                } else {
+                    data.as_ptr()
+                },
+                data.len(),
+            )
+        }
+    }
+
+    /// Wraps: av_sha_final
+    ///
+    /// Finish the current message. The digest occupies the prefix of the returned
+    /// array; bytes beyond the selected algorithm's digest length are zero.
+    /// The maximum-size output remains safe even after changing the algorithm.
+    /// Reinitialize the context before starting another message.
+    pub fn finalize(&mut self) -> [u8; 32] {
+        let mut digest = [0; 32];
+        // SAFETY: exclusive initialized context; the output covers the largest
+        // supported digest. C writes only the active digest and retains no pointer.
+        unsafe { ffi::av_sha_final(self.as_mut_ptr(), digest.as_mut_ptr()) };
+        digest
+    }
 }
 
 #[cfg(test)]

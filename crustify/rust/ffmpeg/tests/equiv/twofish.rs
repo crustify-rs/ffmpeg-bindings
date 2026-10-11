@@ -36,7 +36,7 @@ fn lifecycle_status_and_rekey_match_c() {
     ] {
         let length = (bits.min(256) / 8) as usize;
         let key = vec![bits as u8; length];
-        let (constructed, constructed_status) = Twofish::new(&key, bits).unwrap();
+        let (mut constructed, constructed_status) = Twofish::new(&key, bits).unwrap();
         let status = owner.as_mut().init(&key, bits).unwrap();
         assert_eq!(constructed_status, status);
         // SAFETY: reference is live exclusive C storage and key has exactly
@@ -62,19 +62,19 @@ fn lifecycle_status_and_rekey_match_c() {
                 // SAFETY: initialized contexts with no live borrowed handles;
                 // independent arrays cover three blocks, and IVs one block.
                 // C reads/writes only these arrays and retains no pointers.
+                owner
+                    .as_mut()
+                    .as_ref()
+                    .crypt(
+                        &mut output,
+                        &input,
+                        if cbc { Some(&mut iv) } else { None },
+                        decrypt != 0,
+                    )
+                    .unwrap();
+                // SAFETY: reference uniquely owns a live initialized context; buffers
+                // cover three blocks and IV one block, with no overlap/retention.
                 unsafe {
-                    ffi::av_twofish_crypt(
-                        owner.as_c_ptr(),
-                        output.as_mut_ptr(),
-                        input.as_ptr(),
-                        3,
-                        if cbc {
-                            iv.as_mut_ptr()
-                        } else {
-                            core::ptr::null_mut()
-                        },
-                        decrypt,
-                    );
                     ffi::av_twofish_crypt(
                         reference,
                         expected.as_mut_ptr(),
@@ -91,20 +91,16 @@ fn lifecycle_status_and_rekey_match_c() {
                 // SAFETY: constructed owns a separate initialized C allocation
                 // built with the same key/bits; arrays cover three blocks and
                 // its independent IV covers one. C retains no pointers.
-                unsafe {
-                    ffi::av_twofish_crypt(
-                        constructed.as_c_ptr(),
-                        constructed_output.as_mut_ptr(),
-                        input.as_ptr(),
-                        3,
-                        if cbc {
-                            constructed_iv.as_mut_ptr()
-                        } else {
-                            core::ptr::null_mut()
-                        },
-                        decrypt,
-                    );
-                }
+                constructed
+                    .as_mut()
+                    .as_ref()
+                    .crypt(
+                        &mut constructed_output,
+                        &input,
+                        if cbc { Some(&mut constructed_iv) } else { None },
+                        decrypt != 0,
+                    )
+                    .unwrap();
                 assert_eq!(constructed_output, expected);
                 assert_eq!(constructed_iv, expected_iv);
                 assert_eq!(output, expected);
@@ -126,15 +122,14 @@ fn lifecycle_status_and_rekey_match_c() {
         assert_eq!(rejected, -(ffi::EINVAL as i32));
         // SAFETY: both unchanged contexts remain initialized, and buffers cover
         // three blocks. C retains no pointers.
+        owner
+            .as_mut()
+            .as_ref()
+            .crypt(&mut output, &input, None, false)
+            .unwrap();
+        // SAFETY: reference uniquely owns a live initialized context; buffers
+        // cover three blocks and IV one block, with no overlap/retention.
         unsafe {
-            ffi::av_twofish_crypt(
-                owner.as_c_ptr(),
-                output.as_mut_ptr(),
-                input.as_ptr(),
-                3,
-                core::ptr::null_mut(),
-                0,
-            );
             ffi::av_twofish_crypt(
                 reference,
                 expected.as_mut_ptr(),
@@ -149,4 +144,79 @@ fn lifecycle_status_and_rekey_match_c() {
     // SAFETY: sole live allocation from av_twofish_alloc, no suballocations or
     // remaining borrowed handles; av_free is its paired release primitive.
     unsafe { ffi::av_free(reference.cast()) };
+}
+
+#[test]
+fn batch2_in_place_multi_call_buffers_and_iv_match_c() {
+    let mut owner = Twofish::new(&[0x5b; 16], 128).unwrap().0;
+    let reference = Twofish::new(&[0x5b; 16], 128).unwrap().0;
+    for cbc in [false, true] {
+        let mut iv = [0x38; 16];
+        let mut expected_iv = iv;
+        for decrypt in [false, true, true, false] {
+            for count in [0usize, 1, 2, 17] {
+                let mut data: Vec<_> = (0..count * 16 + 1).map(|i| (i * 37) as u8).collect();
+                let mut expected = data.clone();
+                owner
+                    .as_mut()
+                    .as_ref()
+                    .crypt_in_place(
+                        &mut data[1..],
+                        if cbc { Some(&mut iv) } else { None },
+                        decrypt,
+                    )
+                    .unwrap();
+                // SAFETY: reference uniquely owns an initialized independent C
+                // context with no handles. Buffer covers count blocks and the
+                // separate IV covers one; C explicitly permits exact overlap.
+                unsafe {
+                    ffi::av_twofish_crypt(
+                        reference.as_c_ptr(),
+                        expected[1..].as_mut_ptr(),
+                        expected[1..].as_ptr(),
+                        count as i32,
+                        if cbc {
+                            expected_iv.as_mut_ptr()
+                        } else {
+                            core::ptr::null_mut()
+                        },
+                        i32::from(decrypt),
+                    )
+                };
+                assert_eq!(data, expected);
+                assert_eq!(iv, expected_iv);
+                let mut output = vec![0xa5; data.len() + 16];
+                let mut expected_output = output.clone();
+                owner
+                    .as_mut()
+                    .as_ref()
+                    .crypt(
+                        &mut output[1..],
+                        &data[1..],
+                        if cbc { Some(&mut iv) } else { None },
+                        decrypt,
+                    )
+                    .unwrap();
+                // SAFETY: independent initialized context and disjoint input,
+                // output, IV; only count full blocks are read/written.
+                unsafe {
+                    ffi::av_twofish_crypt(
+                        reference.as_c_ptr(),
+                        expected_output[1..].as_mut_ptr(),
+                        expected[1..].as_ptr(),
+                        count as i32,
+                        if cbc {
+                            expected_iv.as_mut_ptr()
+                        } else {
+                            core::ptr::null_mut()
+                        },
+                        i32::from(decrypt),
+                    )
+                };
+                assert_eq!(output, expected_output);
+                assert_eq!(iv, expected_iv);
+                assert!(output[data.len()..].iter().all(|&b| b == 0xa5));
+            }
+        }
+    }
 }
