@@ -1,0 +1,9 @@
+error[E0502]: cannot borrow `d` as mutable because it is also borrowed as immutable
+ --> tests/ub_safe/compile_fail/frame_side_data_descriptor_set_while_shared.rs
+  |
+  |     let r = d.as_ref();
+  |             - immutable borrow occurs here
+  |     d.as_mut().set_props(SideDataProps::MULTI);
+  |     ^^^^^^^^^^ mutable borrow occurs here
+  |     println!("{:?}", r.props());
+  |                      - immutable borrow later used here

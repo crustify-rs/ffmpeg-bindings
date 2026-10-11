@@ -1,0 +1,13 @@
+error[E0597]: `name` does not live long enough
+ --> tests/ub_safe/compile_fail/frame_side_data_descriptor_named_needs_static_string.rs
+  |
+  |     let name = CString::new("short-lived").unwrap();
+  |         ---- binding `name` declared here
+  |     let d = SideDataDescriptor::named(&name, SideDataProps::GLOBAL);
+  |             --------------------------^^^^^------------------------
+  |             |                         |
+  |             |                         borrowed value does not live long enough
+  |             argument requires that `name` is borrowed for `'static`
+  |     println!("{d:?}");
+  | }
+  | - `name` dropped here while still borrowed

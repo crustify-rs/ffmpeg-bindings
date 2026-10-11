@@ -787,3 +787,13 @@ function ^av_refstruct_alloc_ext_c$
 function ^av_refstruct_alloc_ext$
 function ^av_refstruct_pool_alloc_ext_c$
 function ^av_refstruct_pool_alloc_ext$
+
+# Buffer-frame wave 0, batch 4: C readers of AVSideDataDescriptor and of
+# AVSideDataProps bits (the static descriptor table and the side data array
+# routines that filter by props; `av_frame_side_data_name` is in batch 2's
+# block), the equivalence reference for frame.rs's SideDataDescriptor and
+# SideDataProps.
+function ^av_frame_side_data_desc$
+function ^av_frame_side_data_new$
+function ^av_frame_side_data_free$
+function ^av_frame_side_data_remove_by_props$

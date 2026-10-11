@@ -1143,6 +1143,41 @@
    "fields": []
   },
   {
+   "name": "AVSideDataDescriptor",
+   "defined_in": "libavutil/frame.h",
+   "_comment_agent": "No lifecycle routine: descriptors live only in side_data.c's static const sd_props[] table, indexed by AVFrameSideDataType; av_frame_side_data_desc returns a const pointer into it (NULL for out-of-range types and for gaps whose name is NULL), and av_frame_side_data_name reads desc->name. Nothing allocates, frees, clones or writes one; callers can also build one by value. props is an unsigned set of AVSideDataProps bits read by av_frame_side_data_new/add/clone (MULTI), av_frame_side_data_remove_by_props (any bit) and fftools ifilter_parameters_from_frame (GLOBAL); no bit is range-checked. Wrapped (buffer-frame wave 0 batch 4) as a value type SideDataDescriptor (CZeroable, Copy, Send + Sync as plain data with 'static strings) with SideDataDescriptorRef getters and SideDataDescriptorMut setters; props as SideDataProps, a Copy newtype over the raw enum.",
+   "fields": [
+    {
+     "name": "name",
+     "ptr": {
+      "scalar": null,
+      "array": null,
+      "string": true,
+      "owned": false,
+      "borrowed": {
+       "lifetime": "static"
+      },
+      "nullable": true,
+      "mutable": false,
+      "note": "Human-readable description as a string literal in the static sd_props table (e.g. \"Stereo 3D\"). Every entry av_frame_side_data_desc returns has a non-NULL name (it returns NULL for table gaps instead); an all-zero or caller-built descriptor may hold NULL. Never allocated, freed or written. Rust: Option<&'static CStr>, set only from a &'static CStr."
+     },
+     "refcount": false,
+     "locked_by": null
+    },
+    {
+     "name": "props",
+     "refcount": false,
+     "locked_by": null
+    }
+   ]
+  },
+  {
+   "name": "AVSideDataProps",
+   "defined_in": "libavutil/frame.h",
+   "_comment_agent": "Flag enum (bits 0..4: GLOBAL, MULTI, SIZE_DEPENDENT, COLOR_DEPENDENT, CHANNEL_DEPENDENT); never stored as the enum type: C keeps combinations in AVSideDataDescriptor.props (unsigned) and passes them as int to av_frame_side_data_remove_by_props, filters OR them into an int. Any bit pattern is a valid value. No lifecycle. Wrapped (buffer-frame wave 0 batch 4) as SideDataProps, a Copy bitflags-style newtype over the raw ffi::AVSideDataProps (c_uint) keeping unnamed bits.",
+   "fields": []
+  },
+  {
    "name": "AVTEA",
    "defined_in": "libavutil/tea.c",
    "_comment_agent": "AVTEA is opaque in its public header; all fields are inline integers/arrays, no pointer fields, resources, clone routine, retain or transfer. av_tea_alloc uses av_mallocz, the caller owns it and av_free/av_freep releases it. Init copies key bytes and retains no argument pointer. Crypt reads the initialized schedule only. C remains layout/storage owner; no public fields and no field accessors.",

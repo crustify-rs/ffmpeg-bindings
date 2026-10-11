@@ -1,0 +1,11 @@
+error[E0599]: no method named `set_props` found for struct `SideDataDescriptorRef<'a>` in the current scope
+ --> tests/ub_safe/compile_fail/frame_side_data_descriptor_shared_handle_has_no_setter.rs
+  |
+  |     r.set_props(SideDataProps::GLOBAL);
+  |       ^^^^^^^^^
+  |
+help: there is a method `props` with a similar name, but with different arguments
+ --> libavutil/frame.rs
+  |
+  |     pub fn props(&self) -> SideDataProps {
+  |     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
