@@ -755,3 +755,66 @@ mod side_data_descriptor {
         assert_eq!(multi, 1);
     }
 }
+
+/// `SideDataType::descriptor` and `SideDataType::name` against
+/// `av_frame_side_data_desc` and `av_frame_side_data_name` over every value
+/// up to past the table's end and at the edges of `unsigned`: the same
+/// entries, the same name pointers, the same properties (buffer-frame wave 1,
+/// batch 1).
+mod side_data_lookups {
+    use core::ffi::CStr;
+
+    use ffmpeg::libavutil::ffi;
+    use ffmpeg::libavutil::frame::SideDataType;
+
+    /// Every value through one past the largest named type, plus the edges.
+    fn values() -> impl Iterator<Item = u32> {
+        (0..=64).chain([
+            1000,
+            i32::MAX as u32,
+            i32::MAX as u32 + 1,
+            u32::MAX - 1,
+            u32::MAX,
+        ])
+    }
+
+    #[test]
+    fn descriptors_are_cs_table_entries() {
+        let mut named = 0;
+        for raw in values() {
+            let t = ffi::AVFrameSideDataType(raw);
+            // SAFETY: C takes any value and returns NULL or an entry of its
+            // static table.
+            let c = unsafe { ffi::av_frame_side_data_desc(t) };
+            let rust = SideDataType::from_raw(t).descriptor();
+            assert_eq!(rust.is_some(), !c.is_null(), "{raw}");
+            let Some(d) = rust else { continue };
+            named += 1;
+            // SAFETY: a non-NULL entry of the static table, whose name is a
+            // non-NULL string literal for every entry C returns.
+            let (c_name, c_props) = unsafe { ((*c).name, (*c).props) };
+            let name = d.name().expect("every returned entry is named");
+            assert_eq!(name.as_ptr(), c_name, "{raw}: the same literal");
+            assert_eq!(d.props().bits(), c_props, "{raw}");
+            let copy = d.get();
+            assert_eq!(copy.as_ref().name(), Some(name));
+            assert_eq!(copy.into_raw().props, c_props);
+        }
+        assert!(named >= 38, "{named} named entries");
+    }
+
+    #[test]
+    fn names_are_cs_strings() {
+        for raw in values() {
+            let t = ffi::AVFrameSideDataType(raw);
+            // SAFETY: C takes any value and returns NULL or a literal.
+            let c = unsafe { ffi::av_frame_side_data_name(t) };
+            let rust = SideDataType::from_raw(t).name();
+            assert_eq!(rust.map_or(core::ptr::null(), CStr::as_ptr), c, "{raw}");
+            let desc_name = SideDataType::from_raw(t)
+                .descriptor()
+                .and_then(|d| d.name());
+            assert_eq!(rust, desc_name, "{raw}");
+        }
+    }
+}

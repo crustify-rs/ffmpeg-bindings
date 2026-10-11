@@ -1,0 +1,13 @@
+error[E0521]: borrowed data escapes outside of closure
+ --> tests/ub_safe/compile_fail/refstruct_release_keeps_payload.rs
+  |
+  |     let slot = Arc::clone(&kept);
+  |         ---- `slot` declared here, outside of the closure body
+  |     let _ = refstruct::alloc_with_release::<IntFloat64, _>(move |last| {
+  |                                                                  ---- `last` is a reference that is only valid in the closure body
+  |         *slot.lock().unwrap() = Some(last);
+  |          ^^^^^^^^^^^ `last` escapes the closure body here
+  |
+  = note: requirement occurs because of the type `std::sync::Mutex<Option<IntFloat64Mut<'_>>>`, which makes the generic argument `Option<IntFloat64Mut<'_>>` invariant
+  = note: the struct `std::sync::Mutex<T>` is invariant over the parameter `T`
+  = help: see <https://doc.rust-lang.org/nomicon/subtyping.html> for more information about variance

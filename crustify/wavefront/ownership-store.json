@@ -6807,6 +6807,46 @@
    }
   },
   {
+   "name": "av_frame_side_data_desc",
+   "defined_in": "libavutil/side_data.c",
+   "ptr_ret": {
+    "ptr": {
+     "scalar": {
+      "by_val": true
+     },
+     "array": null,
+     "string": false,
+     "owned": false,
+     "borrowed": {
+      "lifetime": "static"
+     },
+     "nullable": true,
+     "mutable": false,
+     "note": "NULL for a type outside sd_props or without a name; otherwise &sd_props[type], an entry of libavutil's static const descriptor table, never written or freed, whose name is a string literal. Rust: SideDataType::descriptor -> Option<SideDataDescriptorRef<'static>>."
+    }
+   }
+  },
+  {
+   "name": "av_frame_side_data_name",
+   "defined_in": "libavutil/side_data.c",
+   "ptr_ret": {
+    "ptr": {
+     "scalar": {
+      "by_val": true
+     },
+     "array": null,
+     "string": true,
+     "owned": false,
+     "borrowed": {
+      "lifetime": "static"
+     },
+     "nullable": true,
+     "mutable": false,
+     "note": "NULL when av_frame_side_data_desc finds no named entry; otherwise the entry's name, a NUL-terminated string literal of the static table. Rust: SideDataType::name -> Option<&'static CStr>."
+    }
+   }
+  },
+  {
    "name": "av_free",
    "defined_in": "libavutil/mem.c",
    "lifetime": {
@@ -13095,6 +13135,117 @@
    ]
   },
   {
+   "name": "av_refstruct_alloc_ext",
+   "defined_in": "libavutil/refstruct.h",
+   "lifetime": {
+    "for": "return",
+    "is_dropper": false,
+    "is_disposer": false,
+    "is_cloner": null,
+    "is_constructor": {
+     "alloc": true,
+     "init": false
+    }
+   },
+   "ptr_args": [
+    {
+     "name": "free_cb",
+     "ptr": {
+      "scalar": {
+       "by_val": true
+      },
+      "array": null,
+      "string": false,
+      "owned": false,
+      "borrowed": {
+       "lifetime": "other"
+      },
+      "nullable": true,
+      "mutable": false,
+      "note": "Forwarded unchanged to av_refstruct_alloc_ext_c. free_cb(opaque, obj) is stored in the object's RefCount header and called once, by whichever thread's av_refstruct_unref drops the last reference, with the payload obj (exclusively reached, fully initialised by then) just before the block is av_free'd; it must dispose of what obj owns but not free obj. NULL: no callback. Never called if the allocation fails. Rust: release_with::<T, F> trampoline running a boxed FnOnce(T::Mut) + Send + 'static (alloc_with_release)."
+     }
+    },
+    {
+     "name": "opaque",
+     "ptr": {
+      "scalar": {
+       "by_val": true
+      },
+      "array": null,
+      "string": false,
+      "owned": true,
+      "borrowed": {
+       "lifetime": "other"
+      },
+      "nullable": true,
+      "mutable": null,
+      "note": "User opaque, wrapped as (AVRefStructOpaque){.nc = opaque} and stored in the object header; never dereferenced by C, only passed back to free_cb once. Ownership of what it points to moves to the object's release when free_cb consumes it (Rust: the leaked Box<F> of alloc_with_release, dropped by release_with); on a NULL return the caller keeps it."
+     }
+    }
+   ],
+   "ptr_ret": {
+    "ptr": {
+     "scalar": {
+      "by_val": true
+     },
+     "array": null,
+     "string": false,
+     "owned": true,
+     "borrowed": null,
+     "nullable": true,
+     "mutable": true,
+     "note": "As av_refstruct_alloc_ext_c, which this static inline forwards to. NULL when size + REFCOUNT_OFFSET overflows or av_malloc fails; otherwise the payload of a fresh RefStruct object (header refcount 1, payload aligned to >= 16) the caller owns, released by av_refstruct_unref and shared by av_refstruct_ref/_c. Zeroed unless flags has AV_REFSTRUCT_FLAG_NO_ZEROING (then uninitialised). Rust: RefStructBox<T> from alloc_with_release (zeroed, with release) or the CAlloc impl of RefStructUnref (NO_ZEROING, no callback, new_uninit/assume_init)."
+    }
+   }
+  },
+  {
+   "name": "av_refstruct_alloc_ext_c",
+   "defined_in": "libavutil/refstruct.c",
+   "lifetime": {
+    "for": "return",
+    "is_dropper": false,
+    "is_disposer": false,
+    "is_cloner": null,
+    "is_constructor": {
+     "alloc": true,
+     "init": false
+    }
+   },
+   "ptr_args": [
+    {
+     "name": "free_cb",
+     "ptr": {
+      "scalar": {
+       "by_val": true
+      },
+      "array": null,
+      "string": false,
+      "owned": false,
+      "borrowed": {
+       "lifetime": "other"
+      },
+      "nullable": true,
+      "mutable": false,
+      "note": "free_cb(opaque, obj) is stored in the object's RefCount header and called once, by whichever thread's av_refstruct_unref drops the last reference, with the payload obj (exclusively reached, fully initialised by then) just before the block is av_free'd; it must dispose of what obj owns but not free obj. NULL: no callback. Never called if the allocation fails. Rust: release_with::<T, F> trampoline running a boxed FnOnce(T::Mut) + Send + 'static (alloc_with_release)."
+     }
+    }
+   ],
+   "ptr_ret": {
+    "ptr": {
+     "scalar": {
+      "by_val": true
+     },
+     "array": null,
+     "string": false,
+     "owned": true,
+     "borrowed": null,
+     "nullable": true,
+     "mutable": true,
+     "note": "NULL when size + REFCOUNT_OFFSET overflows or av_malloc fails; otherwise the payload of a fresh RefStruct object (header refcount 1, payload aligned to >= 16) the caller owns, released by av_refstruct_unref and shared by av_refstruct_ref/_c. Zeroed unless flags has AV_REFSTRUCT_FLAG_NO_ZEROING (then uninitialised). Rust: RefStructBox<T> from alloc_with_release (zeroed, with release) or the CAlloc impl of RefStructUnref (NO_ZEROING, no callback, new_uninit/assume_init)."
+    }
+   }
+  },
+  {
    "name": "av_refstruct_allocz",
    "defined_in": "libavutil/refstruct.h",
    "lifetime": {
@@ -13170,6 +13321,266 @@
      "nullable": true,
      "mutable": true,
      "note": "A new pool holding one RefStruct reference (header refcount 1), released by av_refstruct_pool_uninit (av_refstruct_unref) and shareable with av_refstruct_ref. NULL on allocation or mutex-init failure. No callbacks: equivalent to av_refstruct_pool_alloc_ext(size, flags, NULL, NULL, NULL, NULL, NULL), so RESET/FREE_ON_INIT_ERROR are filtered out and only NO_ZEROING / ZERO_EVERY_TIME take effect."
+    }
+   }
+  },
+  {
+   "name": "av_refstruct_pool_alloc_ext",
+   "defined_in": "libavutil/refstruct.h",
+   "lifetime": {
+    "for": "return",
+    "is_dropper": false,
+    "is_disposer": false,
+    "is_cloner": null,
+    "is_constructor": {
+     "alloc": true,
+     "init": false
+    }
+   },
+   "ptr_args": [
+    {
+     "name": "free_cb",
+     "ptr": {
+      "scalar": {
+       "by_val": true
+      },
+      "array": null,
+      "string": false,
+      "owned": false,
+      "borrowed": {
+       "lifetime": "other"
+      },
+      "nullable": true,
+      "mutable": false,
+      "note": "free_cb(opaque): called once by pool_free, after the mutex is destroyed, when the last pool reference and the last outstanding entry are gone; not called when alloc fails (mutex-init failure av_frees the pool directly). Rust: free_with trampoline dropping the boxed PoolState."
+     }
+    },
+    {
+     "name": "free_entry_cb",
+     "ptr": {
+      "scalar": {
+       "by_val": true
+      },
+      "array": null,
+      "string": false,
+      "owned": false,
+      "borrowed": {
+       "lifetime": "other"
+      },
+      "nullable": true,
+      "mutable": false,
+      "note": "free_entry_cb(opaque, obj): called on each entry freed after the pool is uninited (refstruct_pool_uninit's flush, or pool_return_entry after uninit), outside the mutex; also on init failure with FREE_ON_INIT_ERROR. Rust: free_entry_with trampoline."
+     }
+    },
+    {
+     "name": "init_cb",
+     "ptr": {
+      "scalar": {
+       "by_val": true
+      },
+      "array": null,
+      "string": false,
+      "owned": false,
+      "borrowed": {
+       "lifetime": "other"
+      },
+      "nullable": true,
+      "mutable": false,
+      "note": "init_cb(opaque, obj) -> int: stored in the pool; called by av_refstruct_pool_get (outside the pool mutex, on the getting thread) on each newly allocated entry, zeroed unless NO_ZEROING/ZERO_EVERY_TIME; <0 fails the get (entry av_free'd after the optional reset/free_entry callbacks). Rust: init_with trampoline (zeroes the entry first under ZERO_EVERY_TIME)."
+     }
+    },
+    {
+     "name": "opaque",
+     "ptr": {
+      "scalar": {
+       "by_val": true
+      },
+      "array": null,
+      "string": false,
+      "owned": true,
+      "borrowed": {
+       "lifetime": "other"
+      },
+      "nullable": true,
+      "mutable": null,
+      "note": "User opaque, wrapped as {.nc = opaque} and stored in pool->opaque; passed to every callback and to free_cb once when the pool is freed; never dereferenced by C. Rust: the leaked Box<PoolState<T,S>> dropped by free_with; kept by the caller on a NULL return."
+     }
+    },
+    {
+     "name": "reset_cb",
+     "ptr": {
+      "scalar": {
+       "by_val": true
+      },
+      "array": null,
+      "string": false,
+      "owned": false,
+      "borrowed": {
+       "lifetime": "other"
+      },
+      "nullable": true,
+      "mutable": false,
+      "note": "reset_cb(opaque, obj): installed as each entry's RefStruct free_cb (pool_reset_entry), so it runs on whichever thread drops an entry's last reference, before the entry is relinked or freed; also on init failure with RESET_ON_INIT_ERROR. Rust: reset_with trampoline."
+     }
+    }
+   ],
+   "ptr_ret": {
+    "ptr": {
+     "scalar": {
+      "by_val": true
+     },
+     "array": null,
+     "string": false,
+     "owned": true,
+     "borrowed": null,
+     "nullable": true,
+     "mutable": true,
+     "note": "As av_refstruct_pool_alloc_ext_c, which this static inline forwards to. NULL on allocation or mutex-init failure; otherwise a new pool (itself a RefStruct object, refcount 1) the caller owns, released by av_refstruct_pool_uninit and shared with av_refstruct_ref. Callbacks run on any thread, concurrently. NO_ZEROING is copied to entry_flags, RESET/FREE_ON_INIT_ERROR are filtered without their callbacks, ZERO_EVERY_TIME forces entry NO_ZEROING. Rust: TypedRefStructPool<T>::with_callbacks (RefStructPoolArc inside; NO_ZEROING stripped so entries are valid T)."
+    }
+   }
+  },
+  {
+   "name": "av_refstruct_pool_alloc_ext_c",
+   "defined_in": "libavutil/refstruct.c",
+   "lifetime": {
+    "for": "return",
+    "is_dropper": false,
+    "is_disposer": false,
+    "is_cloner": null,
+    "is_constructor": {
+     "alloc": true,
+     "init": false
+    }
+   },
+   "ptr_args": [
+    {
+     "name": "free_cb",
+     "ptr": {
+      "scalar": {
+       "by_val": true
+      },
+      "array": null,
+      "string": false,
+      "owned": false,
+      "borrowed": {
+       "lifetime": "other"
+      },
+      "nullable": true,
+      "mutable": false,
+      "note": "free_cb(opaque): called once by pool_free, after the mutex is destroyed, when the last pool reference and the last outstanding entry are gone; not called when alloc fails (mutex-init failure av_frees the pool directly). Rust: free_with trampoline dropping the boxed PoolState."
+     }
+    },
+    {
+     "name": "free_entry_cb",
+     "ptr": {
+      "scalar": {
+       "by_val": true
+      },
+      "array": null,
+      "string": false,
+      "owned": false,
+      "borrowed": {
+       "lifetime": "other"
+      },
+      "nullable": true,
+      "mutable": false,
+      "note": "free_entry_cb(opaque, obj): called on each entry freed after the pool is uninited (refstruct_pool_uninit's flush, or pool_return_entry after uninit), outside the mutex; also on init failure with FREE_ON_INIT_ERROR. Rust: free_entry_with trampoline."
+     }
+    },
+    {
+     "name": "init_cb",
+     "ptr": {
+      "scalar": {
+       "by_val": true
+      },
+      "array": null,
+      "string": false,
+      "owned": false,
+      "borrowed": {
+       "lifetime": "other"
+      },
+      "nullable": true,
+      "mutable": false,
+      "note": "init_cb(opaque, obj) -> int: stored in the pool; called by av_refstruct_pool_get (outside the pool mutex, on the getting thread) on each newly allocated entry, zeroed unless NO_ZEROING/ZERO_EVERY_TIME; <0 fails the get (entry av_free'd after the optional reset/free_entry callbacks). Rust: init_with trampoline (zeroes the entry first under ZERO_EVERY_TIME)."
+     }
+    },
+    {
+     "name": "reset_cb",
+     "ptr": {
+      "scalar": {
+       "by_val": true
+      },
+      "array": null,
+      "string": false,
+      "owned": false,
+      "borrowed": {
+       "lifetime": "other"
+      },
+      "nullable": true,
+      "mutable": false,
+      "note": "reset_cb(opaque, obj): installed as each entry's RefStruct free_cb (pool_reset_entry), so it runs on whichever thread drops an entry's last reference, before the entry is relinked or freed; also on init failure with RESET_ON_INIT_ERROR. Rust: reset_with trampoline."
+     }
+    }
+   ],
+   "ptr_ret": {
+    "ptr": {
+     "scalar": {
+      "by_val": true
+     },
+     "array": null,
+     "string": false,
+     "owned": true,
+     "borrowed": null,
+     "nullable": true,
+     "mutable": true,
+     "note": "NULL on allocation or mutex-init failure; otherwise a new pool (itself a RefStruct object, refcount 1) the caller owns, released by av_refstruct_pool_uninit and shared with av_refstruct_ref. Callbacks run on any thread, concurrently. NO_ZEROING is copied to entry_flags, RESET/FREE_ON_INIT_ERROR are filtered without their callbacks, ZERO_EVERY_TIME forces entry NO_ZEROING. Rust: TypedRefStructPool<T>::with_callbacks (RefStructPoolArc inside; NO_ZEROING stripped so entries are valid T)."
+    }
+   }
+  },
+  {
+   "name": "av_refstruct_pool_get",
+   "defined_in": "libavutil/refstruct.c",
+   "lifetime": {
+    "for": "return",
+    "is_dropper": false,
+    "is_disposer": false,
+    "is_cloner": null,
+    "is_constructor": {
+     "alloc": true,
+     "init": false
+    }
+   },
+   "ptr_args": [
+    {
+     "name": "pool",
+     "ptr": {
+      "scalar": {
+       "by_val": true
+      },
+      "array": null,
+      "string": false,
+      "owned": false,
+      "borrowed": {
+       "lifetime": "arg:pool"
+      },
+      "nullable": false,
+      "mutable": true,
+      "note": "A live pool the caller holds a reference to (UB after av_refstruct_pool_uninit drops the last one); C locks pool->mutex around the free list, bumps pool->refcount atomically and may call init_cb. Not retained by the caller's pointer: the returned entry keeps its own pointer to the pool (ref->opaque) and a count in pool->refcount, so the entry outlives the caller's reference."
+     }
+    }
+   ],
+   "ptr_ret": {
+    "ptr": {
+     "scalar": {
+      "by_val": true
+     },
+     "array": null,
+     "string": false,
+     "owned": true,
+     "borrowed": null,
+     "nullable": true,
+     "mutable": true,
+     "note": "NULL on ENOMEM or init_cb failure; otherwise an entry (a RefStruct object of pool->size bytes with refcount 1) the caller owns, released by av_refstruct_unref, which runs reset_cb and returns it to the pool (or frees it after uninit). Reused entries hold what the last user/reset left; fresh ones zeroed unless NO_ZEROING. Rust: TypedRefStructPool<T>::get -> Option<RefStructBox<T>>."
     }
    }
   },

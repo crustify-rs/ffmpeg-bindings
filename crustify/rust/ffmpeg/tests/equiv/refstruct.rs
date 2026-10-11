@@ -811,3 +811,495 @@ mod counted_references {
         assert!(is_exclusive(&x));
     }
 }
+
+/// Buffer-frame wave 1, symbol batch 1: objects with a release closure
+/// against `av_refstruct_alloc_ext` with a C callback, and typed pools against
+/// C pools of the same size, flags and callbacks, step by step. Both sides
+/// log every callback with the payload it saw; after each step the logs, the
+/// gets' outcomes and every held payload must agree.
+///
+/// Where C leaves a new entry's bytes unspecified (`NO_ZEROING`, and
+/// `ZERO_EVERY_TIME` before `init`), the typed pool zeroes them: the init
+/// callback's view of a new entry is masked there, and so is a new entry C
+/// hands out unzeroed, which is told apart from a reused one by the free list
+/// the sequence tracks.
+mod releases_and_typed_pools {
+    use core::ffi::c_void;
+    use core::ptr;
+    use std::cell::{Cell, RefCell};
+    use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
+    use std::sync::{Arc, Mutex};
+
+    use ffmpeg::libavutil::ffi;
+    use ffmpeg::libavutil::intfloat::{IntFloat64, IntFloat64Mut};
+    use ffmpeg::libavutil::refstruct::{
+        PoolCallbacks, PoolFlags, RefStructArc, RefStructBox, TypedRefStructPool,
+        alloc_with_release, is_exclusive,
+    };
+
+    type Log = Vec<(&'static str, u64)>;
+
+    struct XorShift(u64);
+
+    impl XorShift {
+        fn next(&mut self) -> u64 {
+            self.0 ^= self.0 << 13;
+            self.0 ^= self.0 >> 7;
+            self.0 ^= self.0 << 17;
+            self.0
+        }
+
+        fn below(&mut self, n: usize) -> usize {
+            (self.next() % n as u64) as usize
+        }
+    }
+
+    thread_local! {
+        /// What the C callbacks saw, on the thread running the sequence.
+        static C_LOG: RefCell<Log> = const { RefCell::new(Vec::new()) };
+        /// Whether the C init callback fails.
+        static C_FAIL: Cell<bool> = const { Cell::new(false) };
+        /// The id the C init callback writes next.
+        static C_NEXT: Cell<u64> = const { Cell::new(1) };
+        /// What the sequences exercised: callbacks by tag, failed and
+        /// successful gets.
+        static SEEN: RefCell<std::collections::BTreeMap<&'static str, usize>> =
+            const { RefCell::new(std::collections::BTreeMap::new()) };
+    }
+
+    fn count(what: &'static str) {
+        SEEN.with(|s| *s.borrow_mut().entry(what).or_default() += 1);
+    }
+
+    fn c_log(tag: &'static str, value: u64) {
+        C_LOG.with(|l| l.borrow_mut().push((tag, value)));
+    }
+
+    fn read(obj: *mut c_void) -> u64 {
+        // SAFETY: every object here is an 8-byte payload the caller holds,
+        // initialised before it is read (unzeroed ones are only read by the
+        // init callbacks, whose value is masked, as bytes).
+        unsafe { obj.cast::<u64>().read() }
+    }
+
+    fn write(obj: *mut c_void, value: u64) {
+        // SAFETY: an 8-byte payload the caller holds.
+        unsafe { obj.cast::<u64>().write(value) };
+    }
+
+    fn unref(obj: *mut c_void) {
+        let mut slot = obj;
+        // SAFETY: one counted reference the caller holds.
+        unsafe { ffi::av_refstruct_unref((&raw mut slot).cast()) };
+    }
+
+    unsafe extern "C" fn c_release(_: ffi::AVRefStructOpaque, obj: *mut c_void) {
+        c_log("release", read(obj));
+    }
+
+    #[test]
+    fn release_runs_where_cs_free_callback_runs() {
+        let mut rng = XorShift(0x9e37_79b9_7f4a_7c15);
+        for _ in 0..300 {
+            let refs = 1 + rng.below(5);
+            let value = rng.next();
+
+            // SAFETY: an 8-byte zeroed object whose callback only logs.
+            let c = unsafe { ffi::av_refstruct_alloc_ext(8, 0, ptr::null_mut(), Some(c_release)) };
+            assert!(!c.is_null());
+            let rust_log = Arc::new(Mutex::new(Log::new()));
+            let log = Arc::clone(&rust_log);
+            let mut b = alloc_with_release::<IntFloat64, _>(move |last| {
+                log.lock().unwrap().push(("release", last.as_ref().bits()));
+            })
+            .unwrap();
+            assert_eq!((read(c), b.as_ref().bits()), (0, 0));
+            write(c, value);
+            b.as_mut().set_bits(value);
+
+            let mut c_refs = vec![c];
+            let mut r_refs = vec![RefStructArc::from(b)];
+            for _ in 1..refs {
+                // SAFETY: `c` is live while `c_refs` holds a reference.
+                c_refs.push(unsafe { ffi::av_refstruct_ref(c) });
+                r_refs.push(r_refs[0].clone());
+            }
+            while !c_refs.is_empty() {
+                let i = rng.below(c_refs.len());
+                if rng.below(2) == 0 {
+                    // A write through a sole reference before releasing it.
+                    let v = rng.next();
+                    if let Some(mut m) = r_refs[i].get_mut() {
+                        m.set_bits(v);
+                        write(c_refs[i], v);
+                    }
+                }
+                unref(c_refs.swap_remove(i));
+                drop(r_refs.swap_remove(i));
+                let theirs = C_LOG.with(|l| std::mem::take(&mut *l.borrow_mut()));
+                let ours = std::mem::take(&mut *rust_log.lock().unwrap());
+                assert_eq!(ours, theirs);
+                if let Some(r) = r_refs.first() {
+                    // SAFETY: `c` is live while `c_refs` holds a reference.
+                    let c_sole = unsafe { ffi::av_refstruct_exclusive(c_refs[0]) } == 1;
+                    assert_eq!(is_exclusive(r), c_sole);
+                    assert_eq!(r.as_ref().bits(), read(c_refs[0]));
+                }
+            }
+            assert_eq!(Arc::strong_count(&rust_log), 1, "the release was dropped");
+        }
+    }
+
+    /// The Rust callbacks' shared state; dropping it is the pool's `free_cb`.
+    struct Shared {
+        log: Mutex<Log>,
+        fail: AtomicBool,
+        next: AtomicU64,
+    }
+
+    struct State(Arc<Shared>);
+
+    impl Drop for State {
+        fn drop(&mut self) {
+            self.0.log.lock().unwrap().push(("pool_free", 0));
+        }
+    }
+
+    unsafe extern "C" fn c_init(_: ffi::AVRefStructOpaque, obj: *mut c_void) -> i32 {
+        c_log("init", read(obj));
+        write(obj, C_NEXT.with(|n| n.replace(n.get() + 1)));
+        if C_FAIL.with(Cell::get) { -22 } else { 0 }
+    }
+
+    unsafe extern "C" fn c_reset(_: ffi::AVRefStructOpaque, obj: *mut c_void) {
+        let v = read(obj);
+        c_log("reset", v);
+        write(obj, v ^ 0xffff_0000);
+    }
+
+    unsafe extern "C" fn c_free_entry(_: ffi::AVRefStructOpaque, obj: *mut c_void) {
+        c_log("free_entry", read(obj));
+    }
+
+    unsafe extern "C" fn c_pool_free(_: ffi::AVRefStructOpaque) {
+        c_log("pool_free", 0);
+    }
+
+    fn r_init(s: &State, mut e: IntFloat64Mut<'_>) -> bool {
+        s.0.log.lock().unwrap().push(("init", e.as_ref().bits()));
+        e.set_bits(s.0.next.fetch_add(1, Ordering::Relaxed));
+        !s.0.fail.load(Ordering::Relaxed)
+    }
+
+    fn r_reset(s: &State, mut e: IntFloat64Mut<'_>) {
+        let v = e.as_ref().bits();
+        s.0.log.lock().unwrap().push(("reset", v));
+        e.set_bits(v ^ 0xffff_0000);
+    }
+
+    fn r_free_entry(s: &State, e: IntFloat64Mut<'_>) {
+        s.0.log
+            .lock()
+            .unwrap()
+            .push(("free_entry", e.as_ref().bits()));
+    }
+
+    const SLOTS: usize = 4;
+
+    /// The pool constructors compared: `Plain` is `TypedRefStructPool::new`
+    /// against `av_refstruct_pool_alloc`; `Callbacks(mask)` is
+    /// `with_callbacks` with the init (1), reset (2) and entry-freeing (4)
+    /// callbacks of `mask` against `av_refstruct_pool_alloc_ext` with the
+    /// same C callbacks and a pool-freeing one.
+    #[derive(Clone, Copy, Debug)]
+    enum Kind {
+        Plain,
+        Callbacks(u8),
+    }
+
+    struct Run {
+        flags: PoolFlags,
+        kind: Kind,
+        c_pool: *mut ffi::AVRefStructPool,
+        c_slots: [*mut c_void; SLOTS],
+        /// The C entries returned to the pool while it is alive, in order.
+        c_free: Vec<*mut c_void>,
+        r_pool: Option<TypedRefStructPool<IntFloat64>>,
+        r_slots: [Option<RefStructBox<IntFloat64>>; SLOTS],
+        shared: Arc<Shared>,
+    }
+
+    impl Run {
+        fn new(flags: PoolFlags, kind: Kind) -> Self {
+            C_NEXT.with(|n| n.set(1));
+            C_FAIL.with(|f| f.set(false));
+            let shared = Arc::new(Shared {
+                log: Mutex::new(Vec::new()),
+                fail: AtomicBool::new(false),
+                next: AtomicU64::new(1),
+            });
+            let (c_pool, r_pool) = match kind {
+                Kind::Plain => (
+                    // SAFETY: no callbacks; any size and flags.
+                    unsafe { ffi::av_refstruct_pool_alloc(8, flags.bits()) },
+                    TypedRefStructPool::<IntFloat64>::new(flags),
+                ),
+                Kind::Callbacks(mask) => {
+                    let has = |bit: u8| mask & bit != 0;
+                    let mut cbs = PoolCallbacks::new(State(Arc::clone(&shared)));
+                    if has(1) {
+                        cbs = cbs.init(r_init);
+                    }
+                    if has(2) {
+                        cbs = cbs.reset(r_reset);
+                    }
+                    if has(4) {
+                        cbs = cbs.free_entry(r_free_entry);
+                    }
+                    // SAFETY: callbacks that only touch this thread's
+                    // thread-locals and the 8-byte entries they are given;
+                    // every call happens on this thread.
+                    let c = unsafe {
+                        ffi::av_refstruct_pool_alloc_ext(
+                            8,
+                            flags.bits(),
+                            ptr::null_mut(),
+                            if has(1) { Some(c_init) } else { None },
+                            if has(2) { Some(c_reset) } else { None },
+                            if has(4) { Some(c_free_entry) } else { None },
+                            Some(c_pool_free),
+                        )
+                    };
+                    (c, TypedRefStructPool::with_callbacks(flags, cbs))
+                }
+            };
+            assert!(!c_pool.is_null() && r_pool.is_some());
+            Self {
+                flags,
+                kind,
+                c_pool,
+                c_slots: [ptr::null_mut(); SLOTS],
+                c_free: Vec::new(),
+                r_pool,
+                r_slots: Default::default(),
+                shared,
+            }
+        }
+
+        fn has_init(&self) -> bool {
+            matches!(self.kind, Kind::Callbacks(m) if m & 1 != 0)
+        }
+
+        /// Whether C may hand `init` an entry it has not zeroed.
+        fn init_sees_garbage(&self) -> bool {
+            self.flags.contains(PoolFlags::NO_ZEROING)
+                || self.flags.contains(PoolFlags::ZERO_EVERY_TIME)
+        }
+
+        fn get(&mut self, i: usize) {
+            // SAFETY: the C pool is live: the run releases it only after
+            // its last get.
+            let c = unsafe { ffi::av_refstruct_pool_get(self.c_pool) }.cast::<c_void>();
+            let r = self.r_pool.as_ref().unwrap().get();
+            assert_eq!(
+                r.is_some(),
+                !c.is_null(),
+                "{:?} {:?}",
+                self.flags,
+                self.kind
+            );
+            if c.is_null() {
+                count("failed get");
+                return;
+            }
+            count("get");
+            let reused = match self.c_free.iter().rposition(|&e| e == c) {
+                Some(at) => {
+                    self.c_free.remove(at);
+                    true
+                }
+                None => false,
+            };
+            let c_unzeroed = self.flags.contains(PoolFlags::NO_ZEROING)
+                && !self.flags.contains(PoolFlags::ZERO_EVERY_TIME)
+                && !self.has_init();
+            if !reused && c_unzeroed {
+                // Unspecified in C; the typed pool hands out zeroes.
+                write(c, 0);
+            }
+            self.c_slots[i] = c;
+            self.r_slots[i] = r;
+        }
+
+        fn write(&mut self, i: usize, v: u64) {
+            write(self.c_slots[i], v);
+            self.r_slots[i].as_mut().unwrap().as_mut().set_bits(v);
+        }
+
+        fn put(&mut self, i: usize) {
+            let c = std::mem::replace(&mut self.c_slots[i], ptr::null_mut());
+            if !self.c_pool.is_null() {
+                self.c_free.push(c);
+            }
+            unref(c);
+            self.r_slots[i] = None;
+        }
+
+        fn release_pool(&mut self) {
+            let mut slot = std::mem::replace(&mut self.c_pool, ptr::null_mut());
+            // SAFETY: the run's one reference to the live C pool.
+            unsafe { ffi::av_refstruct_pool_uninit(&mut slot) };
+            self.c_free.clear();
+            self.r_pool = None;
+        }
+
+        fn set_fail(&mut self, fail: bool) {
+            C_FAIL.with(|f| f.set(fail));
+            self.shared.fail.store(fail, Ordering::Relaxed);
+        }
+
+        fn check(&self, step: usize) {
+            let mask = |log: Log| -> Log {
+                log.into_iter()
+                    .map(|(t, v)| {
+                        (
+                            t,
+                            if t == "init" && self.init_sees_garbage() {
+                                0
+                            } else {
+                                v
+                            },
+                        )
+                    })
+                    .collect()
+            };
+            let theirs = mask(C_LOG.with(|l| std::mem::take(&mut *l.borrow_mut())));
+            let ours = mask(std::mem::take(&mut *self.shared.log.lock().unwrap()));
+            theirs.iter().for_each(|&(t, _)| count(t));
+            let at = (step, self.flags, self.kind);
+            assert_eq!(ours, theirs, "{at:?}");
+            for (c, r) in self.c_slots.iter().zip(&self.r_slots) {
+                assert_eq!(
+                    r.as_ref().map(|r| r.as_ref().bits()),
+                    (!c.is_null()).then(|| read(*c)),
+                    "{at:?}"
+                );
+            }
+        }
+    }
+
+    impl Drop for Run {
+        fn drop(&mut self) {
+            for i in 0..SLOTS {
+                if !self.c_slots[i].is_null() {
+                    self.put(i);
+                }
+            }
+            if !self.c_pool.is_null() {
+                self.release_pool();
+            }
+        }
+    }
+
+    fn flag_sets() -> impl Iterator<Item = PoolFlags> {
+        let all = [
+            PoolFlags::NO_ZEROING,
+            PoolFlags::RESET_ON_INIT_ERROR,
+            PoolFlags::FREE_ON_INIT_ERROR,
+            PoolFlags::ZERO_EVERY_TIME,
+        ];
+        (0..16u32).map(move |m| {
+            all.iter()
+                .enumerate()
+                .filter(|(i, _)| m & (1 << i) != 0)
+                .fold(PoolFlags::NONE, |f, (_, &x)| f | x)
+        })
+    }
+
+    fn kinds() -> impl Iterator<Item = Kind> {
+        core::iter::once(Kind::Plain).chain((0..8).map(Kind::Callbacks))
+    }
+
+    /// Random get / write / return / fail-toggle sequences, then the pool's
+    /// release with entries out, then their return, for every flag set and
+    /// every callback subset.
+    #[test]
+    fn typed_pools_follow_c_pools_step_by_step() {
+        let mut rng = XorShift(0x2545_f491_4f6c_dd1d);
+        for flags in flag_sets() {
+            for kind in kinds() {
+                for _ in 0..4 {
+                    let mut run = Run::new(flags, kind);
+                    let steps = 20 + rng.below(40);
+                    for step in 0..steps {
+                        let i = rng.below(SLOTS);
+                        let live = !run.c_pool.is_null();
+                        match rng.below(10) {
+                            0..=3 if live && run.c_slots[i].is_null() => run.get(i),
+                            4..=5 if !run.c_slots[i].is_null() => run.write(i, rng.next()),
+                            6..=7 if !run.c_slots[i].is_null() => run.put(i),
+                            8 => run.set_fail(rng.below(3) == 0),
+                            9 if live && step > steps / 2 => run.release_pool(),
+                            _ => {}
+                        }
+                        run.check(step);
+                    }
+                    for i in 0..SLOTS {
+                        if !run.c_slots[i].is_null() {
+                            run.put(i);
+                            run.check(steps + i);
+                        }
+                    }
+                    if !run.c_pool.is_null() {
+                        run.release_pool();
+                    }
+                    run.check(steps + SLOTS);
+                    drop(run);
+                }
+            }
+        }
+        let seen = SEEN.with(|s| s.take());
+        for what in [
+            "get",
+            "failed get",
+            "init",
+            "reset",
+            "free_entry",
+            "pool_free",
+        ] {
+            assert!(
+                seen.get(what).copied().unwrap_or(0) >= 50,
+                "{what}: {seen:?}"
+            );
+        }
+    }
+
+    /// A typed pool's reuse order and payloads through a fixed sequence,
+    /// spelled out: the most recently returned entry comes back first, as
+    /// it was left, or zeroed under `ZERO_EVERY_TIME`.
+    #[test]
+    fn reuse_order_and_contents_match_c() {
+        for flags in [PoolFlags::NONE, PoolFlags::ZERO_EVERY_TIME] {
+            let mut run = Run::new(flags, Kind::Plain);
+            for i in 0..3 {
+                run.get(i);
+                run.write(i, 10 + i as u64);
+            }
+            run.check(0);
+            run.put(0);
+            run.put(2);
+            run.get(3);
+            run.get(0);
+            run.check(1);
+            let expected = if flags.contains(PoolFlags::ZERO_EVERY_TIME) {
+                [0, 0]
+            } else {
+                [12, 10]
+            };
+            assert_eq!(
+                [3, 0].map(|i| run.r_slots[i].as_ref().unwrap().as_ref().bits()),
+                expected
+            );
+        }
+    }
+}

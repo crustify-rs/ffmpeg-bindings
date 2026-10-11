@@ -1,0 +1,14 @@
+use std::sync::{Arc, Mutex};
+
+use ffmpeg::libavutil::intfloat::{IntFloat64, IntFloat64Mut};
+use ffmpeg::libavutil::refstruct;
+
+fn main() {
+    // The payload handle kept past the release would reach the block after
+    // C frees it.
+    let kept: Arc<Mutex<Option<IntFloat64Mut<'static>>>> = Arc::new(Mutex::new(None));
+    let slot = Arc::clone(&kept);
+    let _ = refstruct::alloc_with_release::<IntFloat64, _>(move |last| {
+        *slot.lock().unwrap() = Some(last);
+    });
+}
