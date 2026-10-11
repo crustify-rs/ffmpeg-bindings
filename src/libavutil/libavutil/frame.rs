@@ -1,8 +1,20 @@
 //! Safe wrappers over `libavutil/frame.h`.
+//!
+//! [`SideDataDescriptor`] is `AVSideDataDescriptor`: a side data type's
+//! human-readable name and its [`SideDataProps`]. C keeps its descriptors in
+//! one static, never-written table indexed by side data type, so a
+//! descriptor has no owner: a Rust-held one is a value, and its `name` is
+//! borrowed for the whole program. [`SideDataProps`] is `AVSideDataProps`, the
+//! set of property bits C stores in a descriptor's `props` and filters side
+//! data arrays by; it is a plain `Copy` value.
 
+use core::ffi::{CStr, c_uint};
 use core::fmt;
+use core::hash::{Hash, Hasher};
+use core::ops::{BitAnd, BitAndAssign, BitOr, BitOrAssign, Sub, SubAssign};
+use core::ptr::{self, addr_of, addr_of_mut};
 
-use ffibox::CPlainElem;
+use ffibox::{CPlainElem, CZeroable, define_ctype};
 
 use super::ffi;
 
@@ -381,11 +393,467 @@ impl From<u8> for ActiveFormatDescription {
 // C-side identity: a copy read out of C memory is the whole of it.
 unsafe impl CPlainElem for ActiveFormatDescription {}
 
+/// Wraps: AVSideDataProps
+/// Handwritten
+///
+/// A set of `AVSideDataProps` bits: what a side data type's payload depends
+/// on (the video dimensions, its color encoding, the channel layout), whether
+/// it may also live in stream-global structures, and whether several entries
+/// of the type may share one side data array.
+///
+/// C keeps the set in an `unsigned` (a descriptor's `props`) or an `int` (the
+/// filter argument of `av_frame_side_data_remove_by_props`) and combines the
+/// flags with bitwise operators, so any bit pattern is a valid value:
+/// [`from_bits_retain`] keeps bits without a constant, and the set operations
+/// carry them along.
+///
+/// [`from_bits_retain`]: SideDataProps::from_bits_retain
+#[repr(transparent)]
+#[derive(Clone, Copy, PartialEq, Eq, Hash)]
+pub struct SideDataProps(ffi::AVSideDataProps);
+
+impl SideDataProps {
+    /// The side data type can be used in stream-global structures; types
+    /// without it are only meaningful per frame.
+    pub const GLOBAL: Self = Self(ffi::AVSideDataProps::AV_SIDE_DATA_PROP_GLOBAL);
+    /// Several entries of the side data type can meaningfully be present in
+    /// one side data array.
+    pub const MULTI: Self = Self(ffi::AVSideDataProps::AV_SIDE_DATA_PROP_MULTI);
+    /// The side data depends on the video dimensions, and loses its meaning
+    /// when the image is rescaled or cropped unless recomputed or adjusted.
+    pub const SIZE_DEPENDENT: Self = Self(ffi::AVSideDataProps::AV_SIDE_DATA_PROP_SIZE_DEPENDENT);
+    /// The side data depends on the video color space, and loses its meaning
+    /// when the color encoding changes (other primaries or transfer
+    /// characteristics).
+    pub const COLOR_DEPENDENT: Self = Self(ffi::AVSideDataProps::AV_SIDE_DATA_PROP_COLOR_DEPENDENT);
+    /// The side data depends on the channel layout, and loses its meaning
+    /// when the audio is downmixed or upmixed unless recomputed or adjusted.
+    pub const CHANNEL_DEPENDENT: Self =
+        Self(ffi::AVSideDataProps::AV_SIDE_DATA_PROP_CHANNEL_DEPENDENT);
+
+    /// Every named flag with its constant's name, in declaration order.
+    const KNOWN: [(Self, &'static str); 5] = [
+        (Self::GLOBAL, "GLOBAL"),
+        (Self::MULTI, "MULTI"),
+        (Self::SIZE_DEPENDENT, "SIZE_DEPENDENT"),
+        (Self::COLOR_DEPENDENT, "COLOR_DEPENDENT"),
+        (Self::CHANNEL_DEPENDENT, "CHANNEL_DEPENDENT"),
+    ];
+
+    /// The set with no flag.
+    #[inline]
+    pub const fn empty() -> Self {
+        Self::from_bits_retain(0)
+    }
+
+    /// The set of every named flag.
+    pub const fn all() -> Self {
+        let mut bits = 0;
+        let mut i = 0;
+        while i < Self::KNOWN.len() {
+            bits |= Self::KNOWN[i].0.bits();
+            i += 1;
+        }
+        Self::from_bits_retain(bits)
+    }
+
+    /// The set's raw bits, as C stores them.
+    #[inline]
+    pub const fn bits(self) -> c_uint {
+        self.0.0
+    }
+
+    /// The set with exactly `bits`, named or not.
+    #[inline]
+    pub const fn from_bits_retain(bits: c_uint) -> Self {
+        Self(ffi::AVSideDataProps(bits))
+    }
+
+    /// The set with `bits`, or `None` when a bit has no constant.
+    #[inline]
+    pub const fn from_bits(bits: c_uint) -> Option<Self> {
+        if bits & !Self::all().bits() == 0 {
+            Some(Self::from_bits_retain(bits))
+        } else {
+            None
+        }
+    }
+
+    /// The named flags among `bits`, the others dropped.
+    #[inline]
+    pub const fn from_bits_truncate(bits: c_uint) -> Self {
+        Self::from_bits_retain(bits & Self::all().bits())
+    }
+
+    /// Whether no bit is set.
+    #[inline]
+    pub const fn is_empty(self) -> bool {
+        self.bits() == 0
+    }
+
+    /// Whether every bit of `other` is set in `self`.
+    #[inline]
+    pub const fn contains(self, other: Self) -> bool {
+        self.bits() & other.bits() == other.bits()
+    }
+
+    /// Whether `self` and `other` share a bit, the test C applies when it
+    /// filters side data by properties.
+    #[inline]
+    pub const fn intersects(self, other: Self) -> bool {
+        self.bits() & other.bits() != 0
+    }
+
+    /// Sets every bit of `other`.
+    #[inline]
+    pub fn insert(&mut self, other: Self) {
+        *self |= other;
+    }
+
+    /// Clears every bit of `other`.
+    #[inline]
+    pub fn remove(&mut self, other: Self) {
+        *self -= other;
+    }
+
+    /// Sets every bit of `other` when `value`, and clears them otherwise.
+    #[inline]
+    pub fn set(&mut self, other: Self, value: bool) {
+        if value {
+            self.insert(other)
+        } else {
+            self.remove(other)
+        }
+    }
+}
+
+impl Default for SideDataProps {
+    #[inline]
+    fn default() -> Self {
+        Self::empty()
+    }
+}
+
+impl fmt::Debug for SideDataProps {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.write_str("SideDataProps(")?;
+        let mut rest = self.bits();
+        let mut first = true;
+        for &(flag, name) in &Self::KNOWN {
+            if self.contains(flag) {
+                if !first {
+                    f.write_str(" | ")?;
+                }
+                f.write_str(name)?;
+                rest &= !flag.bits();
+                first = false;
+            }
+        }
+        if rest != 0 || first {
+            if !first {
+                f.write_str(" | ")?;
+            }
+            write!(f, "{rest:#x}")?;
+        }
+        f.write_str(")")
+    }
+}
+
+impl BitOr for SideDataProps {
+    type Output = Self;
+
+    #[inline]
+    fn bitor(self, rhs: Self) -> Self {
+        Self::from_bits_retain(self.bits() | rhs.bits())
+    }
+}
+
+impl BitOrAssign for SideDataProps {
+    #[inline]
+    fn bitor_assign(&mut self, rhs: Self) {
+        *self = *self | rhs;
+    }
+}
+
+impl BitAnd for SideDataProps {
+    type Output = Self;
+
+    #[inline]
+    fn bitand(self, rhs: Self) -> Self {
+        Self::from_bits_retain(self.bits() & rhs.bits())
+    }
+}
+
+impl BitAndAssign for SideDataProps {
+    #[inline]
+    fn bitand_assign(&mut self, rhs: Self) {
+        *self = *self & rhs;
+    }
+}
+
+/// The bits of `self` not in `rhs`.
+impl Sub for SideDataProps {
+    type Output = Self;
+
+    #[inline]
+    fn sub(self, rhs: Self) -> Self {
+        Self::from_bits_retain(self.bits() & !rhs.bits())
+    }
+}
+
+impl SubAssign for SideDataProps {
+    #[inline]
+    fn sub_assign(&mut self, rhs: Self) {
+        *self = *self - rhs;
+    }
+}
+
+impl From<ffi::AVSideDataProps> for SideDataProps {
+    #[inline]
+    fn from(raw: ffi::AVSideDataProps) -> Self {
+        Self(raw)
+    }
+}
+
+impl From<SideDataProps> for ffi::AVSideDataProps {
+    #[inline]
+    fn from(props: SideDataProps) -> Self {
+        props.0
+    }
+}
+
+define_ctype!(
+    /// Wraps: AVSideDataDescriptor
+    ///
+    /// What a side data type is: its human-readable name and its
+    /// [`SideDataProps`]. Its getters are on [`SideDataDescriptorRef`]
+    /// (`as_ref()`), its setters on [`SideDataDescriptorMut`] (`as_mut()`).
+    ///
+    /// C's descriptors live in libavutil's static, never-written table, one
+    /// per side data type; no C routine allocates, frees or copies one, so a
+    /// Rust-held descriptor is a value with no owner, and copying one shares
+    /// its name.
+    ///
+    /// Its `name` is borrowed for the whole program: it is NULL or a
+    /// NUL-terminated string that is never freed or written, as C's table
+    /// holds string literals, the setter takes only `&'static CStr`, and
+    /// [`from_raw`](Self::from_raw) requires it. That is what lets the getter
+    /// hand it out as a `&'static CStr`, which outlives the descriptor and can
+    /// be set into another one. The `props` bits are not range-checked, by C
+    /// or here.
+    #[derive(Clone, Copy)]
+    SideDataDescriptor,
+    SideDataDescriptorRef,
+    SideDataDescriptorMut,
+    ffi::AVSideDataDescriptor
+);
+
+// SAFETY: all-zero is a NULL `name`, which the getter reads as `None`, and no
+// property bit; every accessor takes it, and the type has no teardown to
+// reject it.
+unsafe impl CZeroable for SideDataDescriptor {}
+
+// SAFETY: a descriptor is an `unsigned` and a pointer to a string that, by
+// the type's invariant, lives for the whole program and is never written;
+// nothing in it is tied to the thread that wrote it, so a value, or an
+// exclusive handle to one, moves between threads as a `(u32, &'static CStr)`
+// does.
+unsafe impl Send for SideDataDescriptor {}
+// SAFETY: as for `SideDataDescriptor`: the handle is the only access to the
+// descriptor's fields, and the string it reaches is never written.
+unsafe impl Send for SideDataDescriptorMut<'_> {}
+
+// SAFETY: nothing reachable through a shared handle writes:
+// `SideDataDescriptorRef` has getters only, the struct has no interior
+// mutability, and the string is never written by anyone, so concurrent shared
+// access reads unchanging bytes, as through a `&(u32, &'static CStr)`.
+unsafe impl Sync for SideDataDescriptor {}
+// SAFETY: as for `Sync for SideDataDescriptor`: copies of a shared handle only
+// read.
+unsafe impl Send for SideDataDescriptorRef<'_> {}
+// SAFETY: as above.
+unsafe impl Sync for SideDataDescriptorRef<'_> {}
+// SAFETY: `&SideDataDescriptorMut` reaches the fields only through `as_ref`,
+// a shared handle; the setters need `&mut`.
+unsafe impl Sync for SideDataDescriptorMut<'_> {}
+
+impl SideDataDescriptor {
+    /// The all-zero descriptor: no name and no property.
+    #[inline]
+    #[must_use]
+    pub fn new() -> Self {
+        Self::zeroed()
+    }
+
+    /// The descriptor named `name` with the properties `props`.
+    #[inline]
+    #[must_use]
+    pub const fn named(name: &'static CStr, props: SideDataProps) -> Self {
+        Self(
+            ffi::AVSideDataDescriptor {
+                name: name.as_ptr(),
+                props: props.bits(),
+            },
+            core::marker::PhantomData,
+        )
+    }
+
+    /// The descriptor C encodes as `raw`.
+    ///
+    /// # Safety
+    ///
+    /// `raw.name` must be NULL or point to a NUL-terminated string that is
+    /// never freed or written for the rest of the program, such as a string
+    /// literal or the name of a descriptor in C's own table.
+    #[inline]
+    #[must_use]
+    pub const unsafe fn from_raw(raw: ffi::AVSideDataDescriptor) -> Self {
+        Self(raw, core::marker::PhantomData)
+    }
+
+    /// The C encoding of this descriptor, for storing it in a C struct by
+    /// value.
+    #[inline]
+    #[must_use]
+    pub const fn into_raw(self) -> ffi::AVSideDataDescriptor {
+        self.0
+    }
+}
+
+impl Default for SideDataDescriptor {
+    #[inline]
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
+impl From<SideDataDescriptor> for ffi::AVSideDataDescriptor {
+    #[inline]
+    fn from(d: SideDataDescriptor) -> Self {
+        d.into_raw()
+    }
+}
+
+/// Field by field: two descriptors are equal when their names hold the same
+/// bytes (or are both absent) and their properties are equal.
+impl PartialEq for SideDataDescriptor {
+    fn eq(&self, other: &Self) -> bool {
+        self.as_ref().fields() == other.as_ref().fields()
+    }
+}
+
+impl Eq for SideDataDescriptor {}
+
+impl Hash for SideDataDescriptor {
+    fn hash<H: Hasher>(&self, state: &mut H) {
+        self.as_ref().fields().hash(state);
+    }
+}
+
+impl fmt::Debug for SideDataDescriptor {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        self.as_ref().fmt(f)
+    }
+}
+
+impl fmt::Debug for SideDataDescriptorRef<'_> {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.debug_struct("SideDataDescriptor")
+            .field("name", &self.name())
+            .field("props", &self.props())
+            .finish()
+    }
+}
+
+impl SideDataDescriptorRef<'_> {
+    /// Field: AVSideDataDescriptor.name
+    ///
+    /// The side data type's human-readable description, such as
+    /// `Stereo 3D`; `None` for a descriptor without one, such as the
+    /// all-zero descriptor. Every descriptor in C's table has one.
+    #[must_use]
+    pub fn name(&self) -> Option<&'static CStr> {
+        // SAFETY: a read of the `name` pointer projected through the shared
+        // handle's pointer to a live, initialised `AVSideDataDescriptor`.
+        let p = unsafe { addr_of!((*self.as_ptr()).name).read() };
+        // SAFETY: by the type's invariant, a non-null `name` addresses a
+        // NUL-terminated string that is never freed or written for the rest
+        // of the program.
+        (!p.is_null()).then(|| unsafe { CStr::from_ptr(p) })
+    }
+
+    /// Field: AVSideDataDescriptor.props
+    ///
+    /// The side data type's [`SideDataProps`], unnamed bits included.
+    #[must_use]
+    pub fn props(&self) -> SideDataProps {
+        // SAFETY: a read of the `props` field projected through the shared
+        // handle's pointer to a live, initialised `AVSideDataDescriptor`;
+        // every bit pattern is a valid `unsigned`.
+        SideDataProps::from_bits_retain(unsafe { addr_of!((*self.as_ptr()).props).read() })
+    }
+
+    /// The fields in declaration order, the name by content, for comparison
+    /// and hashing.
+    fn fields(&self) -> (Option<&'static CStr>, c_uint) {
+        (self.name(), self.props().bits())
+    }
+
+    /// A copy of the whole descriptor, independent of the place it was read
+    /// from; its name is shared, as it lives for the whole program.
+    #[must_use]
+    pub fn get(&self) -> SideDataDescriptor {
+        // SAFETY: a read of the whole live, initialised
+        // `AVSideDataDescriptor` through the shared handle's pointer; it is
+        // plain data, and its name pointer keeps the type's invariant in the
+        // copy, since the string lives, unwritten, for the whole program.
+        SideDataDescriptor(unsafe { self.as_ptr().read() }, core::marker::PhantomData)
+    }
+}
+
+impl SideDataDescriptorMut<'_> {
+    /// Field: AVSideDataDescriptor.name
+    ///
+    /// Sets the side data type's description, or clears it with `None`,
+    /// leaving the properties as they are. The string is borrowed for the
+    /// whole program, as C's own names are.
+    pub fn set_name(&mut self, name: Option<&'static CStr>) {
+        let p = name.map_or(ptr::null(), CStr::as_ptr);
+        // SAFETY: a write of the `name` pointer projected through the
+        // exclusive handle's pointer to a live `AVSideDataDescriptor`; `p` is
+        // NULL or a `'static` string, never written, which keeps the type's
+        // invariant, and the old value is borrowed, so nothing leaks.
+        unsafe { addr_of_mut!((*self.as_mut_ptr()).name).write(p) }
+    }
+
+    /// Field: AVSideDataDescriptor.props
+    ///
+    /// Sets the side data type's properties, unnamed bits included, leaving
+    /// the name as it is.
+    pub fn set_props(&mut self, props: SideDataProps) {
+        // SAFETY: a write of the `props` field projected through the
+        // exclusive handle's pointer to a live `AVSideDataDescriptor`; the
+        // old value owns nothing to leak.
+        unsafe { addr_of_mut!((*self.as_mut_ptr()).props).write(props.bits()) }
+    }
+
+    /// Overwrites both fields with `d`'s.
+    pub fn set(&mut self, d: SideDataDescriptor) {
+        // SAFETY: a write of the whole `AVSideDataDescriptor` through the
+        // exclusive handle's pointer to a live one; `d` keeps the type's
+        // invariant, and the old value owns nothing to leak.
+        unsafe { self.as_mut_ptr().write(d.into_raw()) }
+    }
+}
+
 #[cfg(test)]
 mod unit_tests {
     use super::*;
-    use core::ffi::c_uint;
-    use core::mem::{align_of, size_of};
+    use core::ffi::{CStr, c_uint};
+    use core::hash::BuildHasher;
+    use core::mem::{align_of, offset_of, size_of};
+    use core::ptr;
+    use std::collections::hash_map::RandomState;
 
     const NAMED: [(SideDataType, &str); 38] = [
         (SideDataType::PAN_SCAN, "PAN_SCAN"),
@@ -605,5 +1073,226 @@ mod unit_tests {
             size_of::<ffi::AVActiveFormatDescription>(),
             size_of::<c_uint>()
         );
+    }
+
+    #[test]
+    fn layouts_match_the_c_types() {
+        assert_eq!(
+            size_of::<SideDataProps>(),
+            size_of::<ffi::AVSideDataProps>()
+        );
+        assert_eq!(
+            align_of::<SideDataProps>(),
+            align_of::<ffi::AVSideDataProps>()
+        );
+        assert_eq!(size_of::<SideDataProps>(), size_of::<c_uint>());
+        assert_eq!(
+            size_of::<SideDataDescriptor>(),
+            size_of::<ffi::AVSideDataDescriptor>()
+        );
+        assert_eq!(
+            align_of::<SideDataDescriptor>(),
+            align_of::<ffi::AVSideDataDescriptor>()
+        );
+        assert_eq!(offset_of!(ffi::AVSideDataDescriptor, name), 0);
+        // Handles are one pointer wide, as `define_ctype!` promises.
+        assert_eq!(size_of::<SideDataDescriptorRef<'_>>(), size_of::<usize>());
+        assert_eq!(size_of::<SideDataDescriptorMut<'_>>(), size_of::<usize>());
+    }
+
+    #[test]
+    fn props_constants_carry_the_c_values() {
+        let bits: Vec<c_uint> = SideDataProps::KNOWN.iter().map(|(p, _)| p.bits()).collect();
+        assert_eq!(bits, [1, 2, 4, 8, 16]);
+        assert_eq!(SideDataProps::all().bits(), 0x1f);
+        assert_eq!(
+            SideDataProps::GLOBAL.bits(),
+            ffi::AVSideDataProps::AV_SIDE_DATA_PROP_GLOBAL.0
+        );
+        assert_eq!(
+            SideDataProps::CHANNEL_DEPENDENT.bits(),
+            ffi::AVSideDataProps::AV_SIDE_DATA_PROP_CHANNEL_DEPENDENT.0
+        );
+    }
+
+    #[test]
+    fn props_bits_and_constructors() {
+        assert_eq!(SideDataProps::default(), SideDataProps::empty());
+        assert!(SideDataProps::empty().is_empty());
+        assert!(!SideDataProps::MULTI.is_empty());
+        assert_eq!(SideDataProps::from_bits(0x1f), Some(SideDataProps::all()));
+        assert_eq!(SideDataProps::from_bits(0), Some(SideDataProps::empty()));
+        assert_eq!(SideDataProps::from_bits(0x20), None);
+        assert_eq!(SideDataProps::from_bits(c_uint::MAX), None);
+        assert_eq!(
+            SideDataProps::from_bits_truncate(c_uint::MAX),
+            SideDataProps::all()
+        );
+        assert_eq!(
+            SideDataProps::from_bits_retain(c_uint::MAX).bits(),
+            c_uint::MAX
+        );
+        let raw: ffi::AVSideDataProps = SideDataProps::from_bits_retain(0x8000_0005).into();
+        assert_eq!(raw.0, 0x8000_0005);
+        assert_eq!(SideDataProps::from(raw).bits(), 0x8000_0005);
+    }
+
+    #[test]
+    fn props_set_operations_keep_unnamed_bits() {
+        let size = SideDataProps::SIZE_DEPENDENT;
+        let other = SideDataProps::from_bits_retain(0x100);
+
+        let both = size | other;
+        assert_eq!(both.bits(), 0x104);
+        assert!(both.contains(size) && both.contains(other));
+        assert!(both.intersects(size));
+        assert!(!size.intersects(other));
+        assert!(!size.intersects(SideDataProps::empty()));
+        assert!(!size.contains(both));
+        assert!(size.contains(SideDataProps::empty()));
+        assert_eq!(both & size, size);
+        assert_eq!(both - size, other);
+
+        let mut f = SideDataProps::empty();
+        f.insert(size);
+        assert_eq!(f, size);
+        f |= other;
+        assert_eq!(f, both);
+        f.remove(size);
+        assert_eq!(f, other);
+        f.set(size, true);
+        assert_eq!(f, both);
+        f.set(size, false);
+        assert_eq!(f, other);
+        f -= other;
+        assert!(f.is_empty());
+        f = both;
+        f &= size;
+        assert_eq!(f, size);
+    }
+
+    #[test]
+    fn props_debug() {
+        assert_eq!(
+            format!("{:?}", SideDataProps::empty()),
+            "SideDataProps(0x0)"
+        );
+        assert_eq!(
+            format!("{:?}", SideDataProps::GLOBAL),
+            "SideDataProps(GLOBAL)"
+        );
+        assert_eq!(
+            format!("{:?}", SideDataProps::all()),
+            "SideDataProps(GLOBAL | MULTI | SIZE_DEPENDENT | COLOR_DEPENDENT | CHANNEL_DEPENDENT)"
+        );
+        assert_eq!(
+            format!("{:?}", SideDataProps::from_bits_retain(0x40)),
+            "SideDataProps(0x40)"
+        );
+        assert_eq!(
+            format!(
+                "{:?}",
+                SideDataProps::COLOR_DEPENDENT | SideDataProps::from_bits_retain(0x8000_0000)
+            ),
+            "SideDataProps(COLOR_DEPENDENT | 0x80000000)"
+        );
+    }
+
+    #[test]
+    fn descriptor_zeroed_named_and_default() {
+        let d = SideDataDescriptor::new();
+        assert_eq!(d.as_ref().name(), None);
+        assert!(d.as_ref().props().is_empty());
+        assert_eq!(d, SideDataDescriptor::default());
+        let raw = d.into_raw();
+        assert!(raw.name.is_null());
+        assert_eq!(raw.props, 0);
+
+        const STEREO: SideDataDescriptor =
+            SideDataDescriptor::named(c"Stereo 3D", SideDataProps::GLOBAL);
+        assert_eq!(STEREO.as_ref().name(), Some(c"Stereo 3D"));
+        assert_eq!(STEREO.as_ref().props(), SideDataProps::GLOBAL);
+        let raw: ffi::AVSideDataDescriptor = STEREO.into();
+        assert_eq!(raw.name, c"Stereo 3D".as_ptr());
+        assert_eq!(raw.props, 1);
+    }
+
+    #[test]
+    fn descriptor_from_raw_adopts_and_round_trips() {
+        let names: [*const core::ffi::c_char; 3] =
+            [ptr::null(), c"".as_ptr(), c"ICC profile".as_ptr()];
+        for (k, &name) in names.iter().enumerate() {
+            let raw = ffi::AVSideDataDescriptor {
+                name,
+                props: c_uint::MAX >> k,
+            };
+            // SAFETY: `name` is NULL or a literal, never freed or written.
+            let d = unsafe { SideDataDescriptor::from_raw(raw) };
+            let back = d.into_raw();
+            assert_eq!((back.name, back.props), (raw.name, raw.props));
+            assert_eq!(d.as_ref().name().map_or(ptr::null(), CStr::as_ptr), name);
+            assert_eq!(d.as_ref().props().bits(), c_uint::MAX >> k);
+        }
+    }
+
+    #[test]
+    fn descriptor_setters_and_whole_sets() {
+        let mut d = SideDataDescriptor::new();
+        let mut m = d.as_mut();
+        m.set_name(Some(c"Downmix Matrix"));
+        m.set_props(SideDataProps::CHANNEL_DEPENDENT | SideDataProps::from_bits_retain(0x40));
+        assert_eq!(m.as_ref().name(), Some(c"Downmix Matrix"));
+        assert_eq!(m.as_ref().props().bits(), 0x50);
+        m.set_name(None);
+        assert_eq!(m.as_ref().props().bits(), 0x50);
+        assert_eq!(d.as_ref().name(), None);
+
+        let copy = SideDataDescriptor::named(c"AVPanScan", SideDataProps::SIZE_DEPENDENT);
+        d.as_mut().set(copy);
+        assert_eq!(d, copy);
+        assert_eq!(d.as_ref().get(), copy);
+    }
+
+    #[test]
+    fn descriptor_equality_and_hash_compare_names_by_content() {
+        // Two distinct statics with the same bytes.
+        static A: [u8; 8] = *b"View ID\0";
+        static B: [u8; 8] = *b"View ID\0";
+        let a_name = CStr::from_bytes_with_nul(&A).unwrap();
+        let b_name = CStr::from_bytes_with_nul(&B).unwrap();
+        assert_ne!(a_name.as_ptr(), b_name.as_ptr());
+        let a = SideDataDescriptor::named(a_name, SideDataProps::empty());
+        let b = SideDataDescriptor::named(b_name, SideDataProps::empty());
+        assert_eq!(a, b);
+        let s = RandomState::new();
+        assert_eq!(s.hash_one(a), s.hash_one(b));
+        assert_ne!(a, SideDataDescriptor::named(a_name, SideDataProps::MULTI));
+        assert_ne!(
+            a,
+            SideDataDescriptor::named(c"View", SideDataProps::empty())
+        );
+        assert_ne!(a, SideDataDescriptor::new());
+        assert_eq!(SideDataDescriptor::new(), SideDataDescriptor::new());
+        assert_eq!(
+            s.hash_one(SideDataDescriptor::new()),
+            s.hash_one(SideDataDescriptor::default())
+        );
+    }
+
+    #[test]
+    fn descriptor_debug() {
+        assert_eq!(
+            format!("{:?}", SideDataDescriptor::new()),
+            "SideDataDescriptor { name: None, props: SideDataProps(0x0) }"
+        );
+        let d = SideDataDescriptor::named(
+            c"ICC profile",
+            SideDataProps::GLOBAL | SideDataProps::COLOR_DEPENDENT,
+        );
+        assert_eq!(
+            format!("{d:?}"),
+            "SideDataDescriptor { name: Some(\"ICC profile\"), props: SideDataProps(GLOBAL | COLOR_DEPENDENT) }"
+        );
+        assert_eq!(format!("{:?}", d.as_ref()), format!("{d:?}"));
     }
 }

@@ -174,3 +174,300 @@ mod active_format_description {
         assert_eq!(afd, Afd::ASPECT_16_9_SP_14_9);
     }
 }
+
+/// `SideDataDescriptor` and `SideDataProps`: inline values, `av_malloc`-family
+/// owners and arrays of descriptors, every handle form, names from literals
+/// and from exactly sized heap allocations (so a read past the NUL is an
+/// ASan report), names that outlive the descriptor they were read from,
+/// copies outliving their source, and the asserted `Send` / `Sync`. Tests
+/// without `heap` in their name make no C call and also run under Miri
+/// (buffer-frame wave 0, batch 4).
+mod side_data_descriptor {
+    use core::ffi::{CStr, c_uint};
+    use std::ffi::CString;
+    use std::sync::Mutex;
+    use std::thread;
+
+    use ffmpeg::libavutil::frame::{
+        SideDataDescriptor, SideDataDescriptorMut, SideDataDescriptorRef, SideDataProps,
+    };
+    use ffmpeg::libavutil::mem::{HeapBox, alloc_cell_array_zeroed};
+
+    /// `bytes` as an exactly sized heap C string that lives for the rest of
+    /// the program, kept reachable from a static so that neither
+    /// LeakSanitizer nor Miri reports it.
+    fn leaked(bytes: &[u8]) -> &'static CStr {
+        static KEEP: Mutex<Vec<&'static CStr>> = Mutex::new(Vec::new());
+        let s: &'static CStr = Box::leak(CString::new(bytes).unwrap().into_boxed_c_str());
+        KEEP.lock().unwrap().push(s);
+        s
+    }
+
+    /// Property bits at every edge: none, named, unnamed, the sign bit, all.
+    const PROPS: [c_uint; 5] = [0, 0x1f, 0x20, 0x8000_0000, c_uint::MAX];
+
+    /// Everything the getters read, the name by content.
+    fn snapshot(d: SideDataDescriptorRef<'_>) -> (Option<Vec<u8>>, c_uint) {
+        (d.name().map(|s| s.to_bytes().to_vec()), d.props().bits())
+    }
+
+    fn fill(m: &mut SideDataDescriptorMut<'_>, name: Option<&'static CStr>, k: usize) {
+        m.set_name(name);
+        m.set_props(SideDataProps::from_bits_retain(PROPS[k % PROPS.len()]));
+    }
+
+    #[test]
+    fn every_field_edge_builds_and_reads_back() {
+        let names = [
+            None,
+            Some(c""),
+            Some(c"Stereo 3D"),
+            Some(leaked(b"")),
+            Some(leaked(b"\xff\xfe")),
+            Some(leaked(&vec![b'n'; 4096])),
+        ];
+        for (k, name) in names.into_iter().enumerate() {
+            let mut d = SideDataDescriptor::new();
+            fill(&mut d.as_mut(), name, k);
+            let s = snapshot(d.as_ref());
+            assert_eq!(s.0.as_deref(), name.map(CStr::to_bytes));
+            assert_eq!(s.1, PROPS[k % PROPS.len()]);
+            assert!(!format!("{d:?}").is_empty());
+            let raw = d.into_raw();
+            assert_eq!(raw.name, name.map_or(core::ptr::null(), CStr::as_ptr));
+            if let Some(name) = name {
+                let n = SideDataDescriptor::named(name, d.as_ref().props());
+                assert_eq!(n, d);
+            }
+        }
+        assert_eq!(
+            snapshot(SideDataDescriptor::default().as_ref()),
+            snapshot(SideDataDescriptor::new().as_ref())
+        );
+    }
+
+    #[test]
+    fn names_outlive_the_descriptor_they_were_read_from() {
+        let name = leaked(b"Mastering display metadata");
+        let n = {
+            let d = SideDataDescriptor::named(name, SideDataProps::GLOBAL);
+            d.as_ref().name()
+            // `d` goes out of scope; the string is the program's.
+        };
+        assert_eq!(n.unwrap().to_bytes(), b"Mastering display metadata");
+        // And moves into another descriptor.
+        let mut e = SideDataDescriptor::new();
+        e.as_mut().set_name(n);
+        assert_eq!(e.as_ref().name().unwrap().as_ptr(), name.as_ptr());
+    }
+
+    #[test]
+    fn shared_handles_copy_and_coexist() {
+        let d = SideDataDescriptor::named(c"AFD", SideDataProps::MULTI);
+        let a = d.as_ref();
+        let b = a;
+        assert_eq!(snapshot(a), snapshot(b));
+        assert_eq!(a.get(), b.get());
+        assert_eq!(format!("{a:?}"), format!("{b:?}"));
+    }
+
+    #[test]
+    fn exclusive_handle_reborrows_without_aliasing() {
+        let mut v = SideDataDescriptor::new();
+        let mut m = v.as_mut();
+        fill(&mut m.as_mut(), Some(c"Skip samples"), 1);
+        {
+            let mut inner = m.as_mut();
+            inner.set_props(SideDataProps::SIZE_DEPENDENT);
+            let shared = inner.as_ref();
+            assert_eq!(shared.name(), Some(c"Skip samples"));
+        }
+        let shared = m.as_ref();
+        assert_eq!(shared.props(), SideDataProps::SIZE_DEPENDENT);
+        m.set_name(None);
+        m.set(SideDataDescriptor::named(
+            c"GOP timecode",
+            SideDataProps::empty(),
+        ));
+        assert_eq!(v.as_ref().name(), Some(c"GOP timecode"));
+        assert!(v.as_ref().props().is_empty());
+    }
+
+    #[test]
+    fn copies_and_whole_sets_are_independent_of_their_source() {
+        let mut a = SideDataDescriptor::new();
+        fill(&mut a.as_mut(), Some(leaked(b"Film grain parameters")), 4);
+        let copy = a.as_ref().get();
+        a.as_mut().set_props(SideDataProps::empty());
+        a.as_mut().set_name(None);
+        assert_eq!(copy.as_ref().props().bits(), c_uint::MAX);
+        assert_eq!(
+            copy.as_ref().name().unwrap().to_bytes(),
+            b"Film grain parameters"
+        );
+        let mut b = SideDataDescriptor::new();
+        b.as_mut().set(copy);
+        assert_eq!(b, copy);
+        #[allow(clippy::clone_on_copy)] // exercises the explicit `Clone` impl
+        let c = Clone::clone(&b);
+        assert_eq!(snapshot(c.as_ref()), snapshot(copy.as_ref()));
+        assert_ne!(a, copy);
+    }
+
+    #[test]
+    fn props_sets_compose_on_many_threads() {
+        let all = SideDataProps::all();
+        thread::scope(|s| {
+            for bit in 0..8 {
+                s.spawn(move || {
+                    let p = SideDataProps::from_bits_retain(1 << bit);
+                    let mut q = p;
+                    q |= SideDataProps::GLOBAL;
+                    q -= SideDataProps::GLOBAL;
+                    assert_eq!(q.bits(), (1 << bit) & !SideDataProps::GLOBAL.bits());
+                    assert_eq!(SideDataProps::from_bits(p.bits()).is_some(), bit < 5);
+                    assert_eq!(all.intersects(p), bit < 5);
+                });
+            }
+        });
+    }
+
+    #[test]
+    fn heap_box_owner_lives_reads_writes_clones_and_frees() {
+        let mut a = HeapBox::<SideDataDescriptor>::new_zeroed().unwrap();
+        assert_eq!(
+            snapshot(a.as_ref()),
+            snapshot(SideDataDescriptor::new().as_ref())
+        );
+        for k in 0..PROPS.len() {
+            fill(
+                &mut a.as_mut(),
+                Some(leaked(format!("type{k}").as_bytes())),
+                k,
+            );
+        }
+        let b = a.clone();
+        let c = b.try_clone().unwrap();
+        let name = a.as_ref().name();
+        let copy = a.as_ref().get();
+        // The source may go first: the copies own their own blocks, and the
+        // strings are the program's.
+        drop(a);
+        assert_eq!(name.unwrap().to_bytes(), b"type4");
+        assert_eq!(snapshot(b.as_ref()), snapshot(copy.as_ref()));
+        drop(b);
+        assert_eq!(snapshot(c.as_ref()), snapshot(copy.as_ref()));
+        assert_eq!(copy.as_ref().name(), name);
+        drop(HeapBox::<SideDataDescriptor>::new_uninit().unwrap());
+    }
+
+    #[test]
+    fn heap_array_handles_stay_in_bounds() {
+        let n = 5;
+        let mut arr = alloc_cell_array_zeroed::<SideDataDescriptor>(n).unwrap();
+        {
+            let mut handles = arr.as_handles_mut();
+            for k in 0..n {
+                fill(
+                    &mut handles.get_mut(k).unwrap(),
+                    Some(leaked(&vec![b'a' + k as u8; k])),
+                    k,
+                );
+            }
+            assert!(handles.get_mut(n).is_none());
+        }
+        for (k, h) in arr.as_handles().iter().enumerate() {
+            assert_eq!(h.name().unwrap().to_bytes(), vec![b'a' + k as u8; k]);
+            assert_eq!(h.props().bits(), PROPS[k]);
+        }
+        assert!(arr.as_handles().get(n).is_none());
+        let copy = arr.clone();
+        drop(arr);
+        assert_eq!(
+            copy.as_handles().get(4).unwrap().props().bits(),
+            c_uint::MAX
+        );
+        drop(alloc_cell_array_zeroed::<SideDataDescriptor>(0).unwrap());
+    }
+
+    #[test]
+    fn heap_values_and_owners_move_across_threads() {
+        let v = SideDataDescriptor::named(leaked(b"View ID"), SideDataProps::MULTI);
+        let b = HeapBox::<SideDataDescriptor>::new_zeroed().unwrap();
+        let (v, b) = thread::spawn(move || {
+            let mut b = b;
+            b.as_mut().set(v);
+            (v, b)
+        })
+        .join()
+        .unwrap();
+        assert_eq!(b.as_ref().get(), v);
+        // Freed on another thread than the one that allocated it.
+        thread::spawn(move || drop(b)).join().unwrap();
+    }
+
+    #[test]
+    fn shared_handles_read_concurrently() {
+        let v = SideDataDescriptor::named(leaked(b"LCEVC NAL data"), SideDataProps::SIZE_DEPENDENT);
+        let expect = snapshot(v.as_ref());
+        let r = v.as_ref();
+        thread::scope(|s| {
+            for _ in 0..4 {
+                let expect = &expect;
+                s.spawn(move || {
+                    for _ in 0..200 {
+                        assert_eq!(&snapshot(r), expect);
+                    }
+                });
+            }
+        });
+    }
+
+    #[test]
+    fn heap_shared_handles_read_concurrently() {
+        let mut b = HeapBox::<SideDataDescriptor>::new_zeroed().unwrap();
+        fill(&mut b.as_mut(), Some(c"ICC profile"), 1);
+        let r = b.as_ref();
+        thread::scope(|s| {
+            for _ in 0..4 {
+                s.spawn(move || {
+                    for _ in 0..200 {
+                        assert_eq!(r.name(), Some(c"ICC profile"));
+                        assert_eq!(r.get().as_ref().props(), SideDataProps::all());
+                    }
+                });
+            }
+        });
+    }
+
+    #[test]
+    fn exclusive_handles_write_on_other_threads() {
+        let mut values = [SideDataDescriptor::new(); 4];
+        thread::scope(|s| {
+            for (i, v) in values.iter_mut().enumerate() {
+                let mut m = v.as_mut();
+                s.spawn(move || {
+                    m.set_props(SideDataProps::from_bits_retain(1 << i));
+                    m.set_name(Some(c"x"));
+                });
+            }
+        });
+        let bits: Vec<c_uint> = values.iter().map(|v| v.as_ref().props().bits()).collect();
+        assert_eq!(bits, [1, 2, 4, 8]);
+        assert!(values.iter().all(|v| v.as_ref().name() == Some(c"x")));
+    }
+
+    #[test]
+    fn a_shared_exclusive_handle_only_reads() {
+        let mut v = SideDataDescriptor::named(c"AVReplayGain", SideDataProps::GLOBAL);
+        let m = v.as_mut();
+        let shared_m = &m;
+        thread::scope(|s| {
+            for _ in 0..2 {
+                s.spawn(move || {
+                    assert_eq!(shared_m.as_ref().props(), SideDataProps::GLOBAL);
+                });
+            }
+        });
+    }
+}

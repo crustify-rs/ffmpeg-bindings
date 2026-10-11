@@ -1,0 +1,7 @@
+error[E0133]: call to unsafe function `SideDataDescriptor::from_raw` is unsafe and requires unsafe block
+ --> tests/ub_safe/compile_fail/frame_side_data_descriptor_from_raw_needs_unsafe.rs
+  |
+  |     let d = SideDataDescriptor::from_raw(raw);
+  |             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ call to unsafe function
+  |
+  = note: consult the function's documentation for information on how to avoid undefined behavior

@@ -484,3 +484,271 @@ mod active_format_description {
         }
     }
 }
+
+/// `SideDataDescriptor` and `SideDataProps` against C's descriptor table and
+/// the C routines that read a descriptor's `props`: the getters read what C's
+/// table stores and what `av_frame_side_data_name` returns, descriptors
+/// rebuilt through the setters encode as C's entries, and the property sets
+/// decide what `av_frame_side_data_remove_by_props` removes and whether
+/// `av_frame_side_data_new` appends a second entry of a type, step by step
+/// (buffer-frame wave 0, batch 4).
+mod side_data_descriptor {
+    use core::ffi::{CStr, c_int, c_uint};
+    use core::ptr;
+
+    use ffmpeg::libavutil::ffi;
+    use ffmpeg::libavutil::frame::{SideDataDescriptor, SideDataProps};
+
+    /// Side data type values to look up: every enumerator, the first values
+    /// past them, and values that only fit as `unsigned`.
+    fn types() -> impl Iterator<Item = c_uint> {
+        (0..64).chain([
+            c_int::MAX as c_uint - 1,
+            c_int::MAX as c_uint,
+            c_int::MAX as c_uint + 1,
+            c_uint::MAX,
+        ])
+    }
+
+    /// C's table entry for `t`, read by value.
+    fn c_entry(t: c_uint) -> Option<ffi::AVSideDataDescriptor> {
+        // SAFETY: `av_frame_side_data_desc` takes any value and returns NULL
+        // or a pointer into C's static, never-written table.
+        let p = unsafe { ffi::av_frame_side_data_desc(ffi::AVFrameSideDataType(t)) };
+        // SAFETY: a non-null `p` points to a live entry of that table.
+        (!p.is_null()).then(|| unsafe { p.read() })
+    }
+
+    /// C's table entry for `t` as the Rust value.
+    fn rust_entry(t: c_uint) -> Option<SideDataDescriptor> {
+        // SAFETY: C's table entries' names are string literals.
+        c_entry(t).map(|r| unsafe { SideDataDescriptor::from_raw(r) })
+    }
+
+    /// C's name for `t`, through the routine that reads it from the table.
+    fn c_name(t: c_uint) -> Option<&'static CStr> {
+        // SAFETY: takes any value; returns NULL or a table string literal.
+        let p = unsafe { ffi::av_frame_side_data_name(ffi::AVFrameSideDataType(t)) };
+        // SAFETY: a non-null `p` is a literal in C's static table.
+        (!p.is_null()).then(|| unsafe { CStr::from_ptr(p) })
+    }
+
+    /// The highest described type plus one: C's table has no gap below it.
+    fn described() -> c_uint {
+        types().take_while(|&t| c_entry(t).is_some()).count() as c_uint
+    }
+
+    #[test]
+    fn getters_read_what_c_stores_for_every_type() {
+        let n = described();
+        assert_eq!(
+            n,
+            ffi::AVFrameSideDataType::AV_FRAME_DATA_DOWNMIX_MATRIX.0 + 1
+        );
+        for t in types() {
+            let (c, r) = (c_entry(t), rust_entry(t));
+            assert_eq!(c.is_some(), t < n, "type {t}");
+            let (Some(c), Some(r)) = (c, r) else {
+                assert_eq!(c_name(t), None);
+                continue;
+            };
+            let h = r.as_ref();
+            assert_eq!(
+                h.name().map_or(ptr::null(), CStr::as_ptr),
+                c.name,
+                "type {t}"
+            );
+            assert_eq!(h.name(), c_name(t), "type {t}");
+            assert!(!h.name().unwrap().is_empty());
+            assert_eq!(h.props().bits(), c.props, "type {t}");
+            // Only named bits in C's table.
+            assert_eq!(SideDataProps::from_bits(c.props), Some(h.props()));
+        }
+    }
+
+    #[test]
+    fn descriptors_rebuilt_through_setters_encode_as_c_s_entries() {
+        for t in 0..described() {
+            let c = c_entry(t).unwrap();
+            let adopted = rust_entry(t).unwrap();
+            // The properties as a union of named constants.
+            let mut props = SideDataProps::empty();
+            for flag in [
+                SideDataProps::GLOBAL,
+                SideDataProps::MULTI,
+                SideDataProps::SIZE_DEPENDENT,
+                SideDataProps::COLOR_DEPENDENT,
+                SideDataProps::CHANNEL_DEPENDENT,
+            ] {
+                props.set(flag, adopted.as_ref().props().contains(flag));
+            }
+            let mut built = SideDataDescriptor::new();
+            built.as_mut().set_name(adopted.as_ref().name());
+            built.as_mut().set_props(props);
+            let raw = built.into_raw();
+            assert_eq!((raw.name, raw.props), (c.name, c.props), "type {t}");
+            assert_eq!(built, adopted);
+            let named = SideDataDescriptor::named(adopted.as_ref().name().unwrap(), props);
+            assert_eq!(named, adopted);
+            assert_eq!(adopted.as_ref().get().into_raw().name, c.name);
+        }
+    }
+
+    /// An `AVFrameSideData *` array C grows and shrinks, freed on drop.
+    struct Array {
+        sd: *mut *mut ffi::AVFrameSideData,
+        nb: c_int,
+    }
+
+    impl Array {
+        fn new() -> Self {
+            Self {
+                sd: ptr::null_mut(),
+                nb: 0,
+            }
+        }
+
+        /// `av_frame_side_data_new` with no flag; whether C returned an entry.
+        fn add(&mut self, t: c_uint) -> bool {
+            // SAFETY: `sd` and `nb` are an array C built (or NULL and 0).
+            let e = unsafe {
+                ffi::av_frame_side_data_new(
+                    &raw mut self.sd,
+                    &raw mut self.nb,
+                    ffi::AVFrameSideDataType(t),
+                    4,
+                    0,
+                )
+            };
+            !e.is_null()
+        }
+
+        fn remove_by_props(&mut self, props: SideDataProps) {
+            // SAFETY: as above; C reinterprets the bits as `int`, as its
+            // callers' `int` masks are.
+            unsafe {
+                ffi::av_frame_side_data_remove_by_props(
+                    &raw mut self.sd,
+                    &raw mut self.nb,
+                    props.bits() as c_int,
+                )
+            }
+        }
+
+        /// The entries' types, sorted.
+        fn types(&self) -> Vec<c_uint> {
+            let mut v: Vec<c_uint> = (0..self.nb as usize)
+                .map(|i| {
+                    // SAFETY: `i < nb`, so `sd[i]` is a live entry C owns.
+                    unsafe { (*self.sd.add(i)).read().type_.0 }
+                })
+                .collect();
+            v.sort_unstable();
+            v
+        }
+    }
+
+    impl Drop for Array {
+        fn drop(&mut self) {
+            // SAFETY: frees the array and every entry, as C built them.
+            unsafe { ffi::av_frame_side_data_free(&raw mut self.sd, &raw mut self.nb) }
+        }
+    }
+
+    /// Whether Rust's reading of `t`'s descriptor keeps it under `mask`, as
+    /// `av_frame_side_data_remove_by_props` decides: no descriptor, or no
+    /// shared bit.
+    fn kept(t: c_uint, mask: SideDataProps) -> bool {
+        rust_entry(t).is_none_or(|d| !d.as_ref().props().intersects(mask))
+    }
+
+    /// One entry of every described type and three undescribed ones.
+    fn full() -> (Array, Vec<c_uint>) {
+        let mut a = Array::new();
+        let mut model: Vec<c_uint> = (0..described()).chain([38, 1000, c_uint::MAX]).collect();
+        for &t in &model {
+            assert!(a.add(t), "type {t}");
+        }
+        model.sort_unstable();
+        assert_eq!(a.types(), model);
+        (a, model)
+    }
+
+    #[test]
+    fn every_mask_removes_what_the_rust_props_intersect() {
+        let masks = (0..=SideDataProps::all().bits())
+            .map(SideDataProps::from_bits_retain)
+            .chain([
+                SideDataProps::from_bits_retain(0x20),
+                SideDataProps::from_bits_retain(0x8000_0000),
+                SideDataProps::from_bits_retain(c_uint::MAX),
+                SideDataProps::MULTI | SideDataProps::from_bits_retain(0x4000),
+            ]);
+        for mask in masks {
+            let (mut a, mut model) = full();
+            a.remove_by_props(mask);
+            model.retain(|&t| kept(t, mask));
+            assert_eq!(a.types(), model, "{mask:?}");
+        }
+    }
+
+    #[test]
+    fn removal_sequences_match_after_each_step() {
+        let steps = [
+            SideDataProps::empty(),
+            SideDataProps::from_bits_retain(0x40),
+            SideDataProps::MULTI,
+            SideDataProps::SIZE_DEPENDENT | SideDataProps::CHANNEL_DEPENDENT,
+            SideDataProps::COLOR_DEPENDENT - SideDataProps::COLOR_DEPENDENT,
+            SideDataProps::COLOR_DEPENDENT,
+            SideDataProps::all() - SideDataProps::GLOBAL,
+            SideDataProps::GLOBAL,
+            SideDataProps::all(),
+        ];
+        let (mut a, mut model) = full();
+        for mask in steps {
+            a.remove_by_props(mask);
+            model.retain(|&t| kept(t, mask));
+            assert_eq!(a.types(), model, "{mask:?}");
+            // Re-adding a removed described type and removing it again.
+            if let Some(t) = (0..described()).find(|&t| !kept(t, mask)) {
+                assert!(a.add(t));
+                model.push(t);
+                model.sort_unstable();
+                assert_eq!(a.types(), model);
+                a.remove_by_props(mask);
+                model.retain(|&u| kept(u, mask));
+                assert_eq!(a.types(), model, "{mask:?} again");
+            }
+        }
+        // The full mask leaves only undescribed types and those without a
+        // property, such as `AV_FRAME_DATA_A53_CC`.
+        let bare: Vec<c_uint> = (0..described())
+            .filter(|&t| rust_entry(t).unwrap().as_ref().props().is_empty())
+            .chain([38, 1000, c_uint::MAX])
+            .collect();
+        assert!(bare.contains(&ffi::AVFrameSideDataType::AV_FRAME_DATA_A53_CC.0));
+        assert_eq!(model, bare);
+    }
+
+    #[test]
+    fn multi_decides_whether_c_appends_a_second_entry() {
+        let mut multi = 0;
+        for t in types() {
+            let rust_multi =
+                rust_entry(t).is_some_and(|d| d.as_ref().props().contains(SideDataProps::MULTI));
+            multi += usize::from(rust_multi);
+            let mut a = Array::new();
+            assert!(a.add(t));
+            assert_eq!(a.types(), [t]);
+            // Without `AV_FRAME_SIDE_DATA_FLAG_REPLACE`, C refuses a second
+            // entry of a single-instance type and keeps the first.
+            assert_eq!(a.add(t), rust_multi, "type {t}");
+            let expect = if rust_multi { vec![t, t] } else { vec![t] };
+            assert_eq!(a.types(), expect, "type {t}");
+            assert_eq!(a.add(t), rust_multi, "type {t}");
+            assert_eq!(a.types().len(), if rust_multi { 3 } else { 1 });
+        }
+        assert_eq!(multi, 1);
+    }
+}
