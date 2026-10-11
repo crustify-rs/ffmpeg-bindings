@@ -1186,8 +1186,18 @@ impl ColorPrimariesDescriptorRef<'_> {
     ///
     /// The primaries C describes within 1/1000 of this gamut: the first entry
     /// of C's table, in [`ColorPrimaries`] order, for which the sum of the
-    /// absolute differences of all eight coordinates, computed exactly as
-    /// rationals, is below 1/1000. `None` when no entry is that close.
+    /// absolute differences of all eight coordinates is below 1/1000. `None`
+    /// when no entry is that close.
+    ///
+    /// The sum is C's, in `int` rationals: each difference and each partial
+    /// sum is reduced to the closest rational whose parts fit an `int`
+    /// (`av_sub_q`, `av_add_q`), which is exact while the denominators stay
+    /// small (the tables use 100000 and 3) and approximate, to about
+    /// `2e-13`, once a coordinate's denominator makes the exact one exceed
+    /// `i32::MAX`. A description that close to the tolerance is judged as C
+    /// judges it, not as exact arithmetic would: `311418082/999095547` as
+    /// BT.709's white point `x` lies `1e-13` inside 1/1000 of it, yet
+    /// reduces to exactly 1/1000 and identifies as nothing.
     ///
     /// SMPTE 240M's description identifies as
     /// [`SMPTE170M`](ColorPrimaries::SMPTE170M), whose entry is identical
@@ -1195,12 +1205,13 @@ impl ColorPrimariesDescriptorRef<'_> {
     /// extensions: [`V_GAMUT`](ColorPrimaries::V_GAMUT)'s own description
     /// identifies as nothing.
     ///
-    /// Diverges from C for a description with a zero denominator, which is
-    /// no chromaticity and matches nothing here. C sums a `0/0` coordinate,
-    /// or two infinite ones, into a `0/0` difference that it compares
-    /// unordered with the tolerance yet reads as within it, and reports
+    /// A description with a zero denominator is no chromaticity and matches
+    /// nothing here. C agrees for a single infinite coordinate, whose
+    /// difference stays infinite, but sums a `0/0` coordinate, or two
+    /// infinite ones, into a `0/0` difference that it compares unordered
+    /// with the tolerance yet reads as within it, and reports
     /// [`BT709`](ColorPrimaries::BT709) for such a description, the
-    /// all-zero, unspecified one included.
+    /// all-zero, unspecified one included; this diverges from C there.
     ///
     /// ```
     /// use ffmpeg::libavutil::csp::ColorPrimariesDescriptor;

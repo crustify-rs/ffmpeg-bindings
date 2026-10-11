@@ -1472,6 +1472,66 @@ mod primaries_lookup {
         }
     }
 
+    /// Whether `num/den` (`den > 0`), standing in for the entry's
+    /// `ref_num/100000` coordinate, keeps the description's exact distance
+    /// to the entry below 1/1000: the verdict of exact rational arithmetic,
+    /// which C's `int` reduction (`av_reduce`, `INT_MAX`) only approximates
+    /// once `den * 100000` exceeds `INT_MAX`.
+    fn exactly_inside(num: i32, den: i32, ref_num: i32) -> bool {
+        let diff = (i128::from(num) * 100_000 - i128::from(ref_num) * i128::from(den)).abs();
+        diff * 1000 < i128::from(den) * 100_000
+    }
+
+    /// BT.709's white point `x` moved to within `1e-13` of 1/1000 away, with
+    /// denominators too large for C's reduction to keep the difference
+    /// exact: exact arithmetic says inside, C's `av_reduce` says 1/1000.
+    const REDUCED_TO_THE_TOLERANCE: [(i32, i32); 3] = [
+        (311_418_082, 999_095_547),
+        (322_460_225, 1_034_521_094),
+        (528_928_917, 1_696_916_641),
+    ];
+
+    #[test]
+    fn reduced_sums_follow_c_not_exact_arithmetic() {
+        let bt709 = c_desc(ffi::AVColorPrimaries::AVCOL_PRI_BT709.0).unwrap();
+        let base = fields(&bt709);
+        // Each part of the description, with the one coordinate at a random
+        // large denominator placed one part short of, at, or past 1/1000
+        // from the entry, plus the known reduced-to-the-tolerance ones.
+        let mut rng = XorShift(0x2545_f491_4f6c_dd1d);
+        let mut cases: Vec<(usize, i32, i32)> = REDUCED_TO_THE_TOLERANCE
+            .iter()
+            .map(|&(num, den)| (0, num, den))
+            .collect();
+        for round in 0..3000 {
+            let i = 2 * (round % 8);
+            let den = (rng.next() % (i64::from(i32::MAX) - 100_001) as u64) as i64 + 100_001;
+            let sign = if rng.next() & 1 == 0 { 1 } else { -1 };
+            // (ref + sign/1000) * den, rounded down, then one part around.
+            let target = i64::from(base[i]) * den * 10 + sign * den * 1000;
+            let num = target.div_euclid(1_000_000) + (rng.next() % 3) as i64 - 1;
+            if let Ok(num) = i32::try_from(num) {
+                cases.push((i, num, den as i32));
+            }
+        }
+        let (mut compared, mut reduced_away) = (0, 0);
+        for (i, num, den) in cases {
+            let mut f = base;
+            (f[i], f[i + 1]) = (num, den);
+            let c = desc(f);
+            let rust = ColorPrimariesDescriptor::from_raw(c).as_ref().identify();
+            let expect = c_identify(&c);
+            assert_eq!(rust, expect, "{i} {num}/{den}");
+            compared += 1;
+            if exactly_inside(num, den, base[i]) && expect.is_none() {
+                reduced_away += 1;
+            }
+        }
+        assert!(compared > 2000, "{compared}");
+        // The wrapper follows C's reduction, not the exact verdict.
+        assert!(reduced_away >= 3, "{reduced_away}");
+    }
+
     const EDGES: [i32; 16] = [
         0,
         1,
