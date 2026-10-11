@@ -1,0 +1,13 @@
+batch-3 exit 0 at 09:47
+purged crustify/.worktrees/crustify/batches/20261005/libavutil/crypto/wave-1/batch-3
+batch-3 scan-unsafe.json 
+batch-0 exit 0 at 09:56
+purged crustify/.worktrees/crustify/batches/20261005/libavutil/crypto/wave-1/batch-0
+batch-0 scan-unsafe.json 
+batch-2 exit 0 at 10:01
+purged crustify/.worktrees/crustify/batches/20261005/libavutil/crypto/wave-1/batch-2
+batch-2 scan-unsafe.json 
+batch-1 exit 0 at 10:06
+purged crustify/.worktrees/crustify/batches/20261005/libavutil/crypto/wave-1/batch-1
+batch-1 scan-unsafe.json 
+all 4 batches exited
