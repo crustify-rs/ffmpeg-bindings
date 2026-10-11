@@ -1,0 +1,9 @@
+error[E0502]: cannot borrow `array` as mutable because it is also borrowed as immutable
+ --> tests/ub_safe/compile_fail/frame_side_data_clone_from_own_array.rs
+  |
+  |     let src = array.as_ref().get(0).unwrap();
+  |               ----- immutable borrow occurs here
+  |     let _ = array.as_mut().add_clone(src, SideDataFlags::NONE);
+  |             ^^^^^^^^^^^^^^           --- immutable borrow later used here
+  |             |
+  |             mutable borrow occurs here

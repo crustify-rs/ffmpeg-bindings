@@ -486,15 +486,16 @@ unsafe impl CDrop<BufferReference> for BufferUnref {
 /// release: 2^32 of them would wrap it, so a later release frees the buffer
 /// under live references. Half the range leaves the other half for clones
 /// that pass the check concurrently on other threads, at most one per thread.
-const MAX_REFERENCES: c_uint = c_uint::MAX / 2;
+pub(crate) const MAX_REFERENCES: c_uint = c_uint::MAX / 2;
 
-/// Whether a buffer counting `count` references may take another.
-fn may_add_reference(count: c_uint) -> bool {
+/// Whether a buffer counting `count` references may take another; any
+/// wrapper of a C routine that adds a reference checks it first.
+pub(crate) fn may_add_reference(count: c_uint) -> bool {
     count < MAX_REFERENCES
 }
 
 /// `AVERROR(ENOMEM)`, the one error buffer.h's routines report.
-const ENOMEM: c_int = -(ffi::ENOMEM as c_int);
+pub(crate) const ENOMEM: c_int = -(ffi::ENOMEM as c_int);
 
 /// A buffer.h status as a `Result`.
 fn status(ret: c_int) -> Result<(), c_int> {
@@ -1359,7 +1360,7 @@ impl fmt::Debug for UninitBuffer {
 }
 
 #[cfg(test)]
-mod unit_tests {
+pub(crate) mod unit_tests {
     use super::*;
     use core::sync::atomic::{AtomicUsize, Ordering};
     use std::sync::Arc;
@@ -1849,7 +1850,7 @@ mod unit_tests {
     }
 
     /// The count of `buf`'s buffer, as C reads it and through the mirror.
-    fn counts(buf: &BufferReferenceBox) -> (c_int, c_uint) {
+    pub(crate) fn counts(buf: &BufferReferenceBox) -> (c_int, c_uint) {
         let body = buf.as_ref().buffer().as_ptr().cast::<BufferBody>();
         // SAFETY: a live reference; C atomically loads its buffer's count.
         let c = unsafe { ffi::av_buffer_get_ref_count(buf.as_c_ptr()) };
@@ -1859,7 +1860,7 @@ mod unit_tests {
     }
 
     /// Sets the count of `buf`'s buffer behind C's back.
-    fn set_count(buf: &BufferReferenceBox, count: c_uint) {
+    pub(crate) fn set_count(buf: &BufferReferenceBox, count: c_uint) {
         let body = buf.as_ref().buffer().as_ptr().cast_mut();
         let body = body.cast::<BufferBody>();
         // SAFETY: as in `counts`; no other thread reaches the body, and the

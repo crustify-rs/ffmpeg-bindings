@@ -850,3 +850,10 @@ function ^av_frame_side_data_clone$
 function ^av_frame_side_data_add$
 function ^av_frame_side_data_get_c$
 var ^AV_FRAME_SIDE_DATA_FLAG_.*
+
+# Buffer-frame wave 3, batch 1: the rest of the side data array routines
+# frame.rs's SideDataArrayMut wraps (removal by type, and the static inline
+# lookup over mutable entries, compiled by bindgen's wrap_static_fns; _get_c,
+# _new, _clone and _remove_by_props are in earlier blocks).
+function ^av_frame_side_data_remove$
+function ^av_frame_side_data_get$

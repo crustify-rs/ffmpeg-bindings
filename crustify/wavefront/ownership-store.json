@@ -7675,6 +7675,94 @@
    ]
   },
   {
+   "name": "av_frame_side_data_get",
+   "defined_in": "libavutil/frame.h",
+   "ptr_args": [
+    {
+     "name": "sd",
+     "ptr": {
+      "scalar": null,
+      "array": {
+       "by_ref": {
+        "owned": null,
+        "borrowed": {
+         "lifetime": "arg:sd"
+        }
+       }
+      },
+      "string": false,
+      "owned": false,
+      "borrowed": {
+       "lifetime": "arg:sd"
+      },
+      "nullable": true,
+      "mutable": false,
+      "note": "static inline alias of av_frame_side_data_get_c for an array of mutable entry pointers (AVFrameSideData * const *): the block is read only, nb_sd entries dereferenced, NULL only when nb_sd <= 0. C neither frees nor keeps it."
+     }
+    }
+   ],
+   "ptr_ret": {
+    "ptr": {
+     "scalar": {
+      "by_val": true
+     },
+     "array": null,
+     "string": false,
+     "owned": false,
+     "borrowed": {
+      "lifetime": "arg:sd"
+     },
+     "nullable": true,
+     "mutable": false,
+     "note": "av_frame_side_data_get_c's result: the first entry of the type, borrowed from the array, NULL when none. The array's entries are mutable, so a caller holding the array exclusively (av_frame_side_data_new/_add/_clone cast it) may write the entry it returns."
+    }
+   }
+  },
+  {
+   "name": "av_frame_side_data_get_c",
+   "defined_in": "libavutil/side_data.c",
+   "ptr_args": [
+    {
+     "name": "sd",
+     "ptr": {
+      "scalar": null,
+      "array": {
+       "by_ref": {
+        "owned": null,
+        "borrowed": {
+         "lifetime": "arg:sd"
+        }
+       }
+      },
+      "string": false,
+      "owned": false,
+      "borrowed": {
+       "lifetime": "arg:sd"
+      },
+      "nullable": true,
+      "mutable": false,
+      "note": "The array's entry pointer block, borrowed for the call and read only: nb_sd pointers to live entries, each dereferenced (sd[i]->type); NULL only when nb_sd <= 0, as the loop never reads it then. C neither frees nor keeps it."
+     }
+    }
+   ],
+   "ptr_ret": {
+    "ptr": {
+     "scalar": {
+      "by_val": true
+     },
+     "array": null,
+     "string": false,
+     "owned": false,
+     "borrowed": {
+      "lifetime": "arg:sd"
+     },
+     "nullable": true,
+     "mutable": false,
+     "note": "The first entry (lowest index) whose type equals the argument, one of sd's own entry pointers, so borrowed from the array that owns it and valid until that array removes, replaces or frees it; NULL when none matches. Const only for C's const-correctness: callers that hold the array mutably (av_frame_side_data_new/_add/_clone, av_frame_get_side_data's frame list) cast it back and write the entry."
+    }
+   }
+  },
+  {
    "name": "av_frame_side_data_name",
    "defined_in": "libavutil/side_data.c",
    "ptr_ret": {
