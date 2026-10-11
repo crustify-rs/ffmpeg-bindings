@@ -529,6 +529,12 @@
    "fields": []
   },
   {
+   "name": "AVMD5",
+   "defined_in": "libavutil/md5.c",
+   "_comment_agent": "Public header forward declaration only; body is private and scalar/inline-array only, no pointer fields or child resources. av_md5_alloc returns fresh zeroed av_mallocz storage or NULL, but hashing requires av_md5_init. All callers retain sole ownership or borrow through hash/hmac parents; av_free/av_freep releases the allocation, and no cloner/refcount/disposer exists. Update reads and copies input during the call, retains no pointer; final writes exactly 16 digest bytes and leaves a memory-valid state, with C-specific post-final semantics preserved. Opaque ffibox layout/Ref/Mut plus CBox policy allocate with actual C size, never sizeof the bindgen opaque marker; only exclusive handles write. No Send/Sync added, no private fields exposed.",
+   "fields": []
+  },
+  {
    "name": "AVMatrixEncoding",
    "defined_in": "libavutil/channel_layout.h",
    "_comment_agent": "Plain C enum (NONE=0, DOLBY, DPLII, DPLIIX, DPLIIZ, DOLBYEX, DOLBYHEADPHONE=6, NB=7 count sentinel), no fields, no lifecycle. Every enumerator is non-negative, so the C compiler and bindgen give it an unsigned underlying type (ffi::AVMatrixEncoding is a c_uint newtype); a negative int written into its storage reads back as a large unsigned value, never as a negative one. Stored as a raw int: the payload of AV_FRAME_DATA_MATRIXENCODING frame side data (decoders write the enum into the side-data bytes), SwrContext's AV_OPT_TYPE_INT option matrix_encoding (default AV_MATRIX_ENCODING_NONE, range NONE..NB-1, named consts none/dolby/dplii), and taken by value by swr_build_matrix2. Readers of side data and option memory may see any value, so the Rust representation is a #[repr(transparent)] newtype MatrixEncoding over ffi::AVMatrixEncoding with associated constants, infallible raw conversions both ways, index() into 0..COUNT, Default = NONE (the zeroed value and the swr option default), and CPlainElem (every c_uint bit pattern valid). Corrected by the formats wave-0 review: the previous finding called the encoding c_int.",
@@ -538,6 +544,12 @@
    "name": "AVMediaType",
    "defined_in": "libavutil/avutil.h",
    "_comment_agent": "Plain C enum (UNKNOWN=-1, VIDEO..ATTACHMENT=0..4, NB=5 count sentinel), no fields, no lifecycle. Stored by C in public struct fields (AVCodecParameters.codec_type, AVCodecContext.codec_type, AVCodec.type, AVCodecDescriptor.type, AVFilterPad/filter types), in a C-allocated array (AVDeviceInfo.media_types), returned (avcodec_get_type, av_buffersink_get_type, avfilter_pad_get_type) and taken by value (av_get_media_type_string, whose default case returns NULL for any other value). Users write public fields directly, so C memory may hold any int, NB included. Rust representation: #[repr(transparent)] newtype MediaType over ffi::AVMediaType with associated constants, infallible raw conversions both ways, and CPlainElem (every c_int bit pattern valid) so C arrays read as plain slices.",
+   "fields": []
+  },
+  {
+   "name": "AVMurMur3",
+   "defined_in": "libavutil/murmur3.c",
+   "_comment_agent": "Public header forward declaration only; body is private and scalar/inline-array only, no pointer fields or child resources. av_murmur3_alloc returns fresh zeroed av_mallocz storage or NULL, but hashing requires av_murmur3_init/av_murmur3_init_seeded. All callers retain sole ownership or borrow through hash/hmac parents; av_free/av_freep releases the allocation, and no cloner/refcount/disposer exists. Update reads and copies input during the call, retains no pointer; final writes exactly 16 digest bytes and leaves a memory-valid state, with C-specific post-final semantics preserved. Opaque ffibox layout/Ref/Mut plus CBox policy allocate with actual C size, never sizeof the bindgen opaque marker; only exclusive handles write. No Send/Sync added, no private fields exposed.",
    "fields": []
   },
   {
@@ -6090,6 +6102,147 @@
    "defined_in": "libavutil/mem.c"
   },
   {
+   "name": "av_md5_alloc",
+   "defined_in": "libavutil/md5.c",
+   "lifetime": {
+    "for": "return",
+    "is_dropper": false,
+    "is_disposer": false,
+    "is_cloner": null,
+    "is_constructor": {
+     "alloc": true,
+     "init": false
+    }
+   },
+   "ptr_ret": {
+    "ptr": {
+     "scalar": {
+      "by_val": true
+     },
+     "array": null,
+     "string": false,
+     "owned": true,
+     "borrowed": null,
+     "nullable": true,
+     "mutable": true,
+     "note": "Fresh zero-filled context allocation of private C size from av_mallocz; av_free/av_freep releases it. Allocation alone is not hashing initialization; call init before hashing."
+    }
+   }
+  },
+  {
+   "name": "av_md5_final",
+   "defined_in": "libavutil/md5.c",
+   "ptr_args": [
+    {
+     "name": "ctx",
+     "ptr": {
+      "scalar": {
+       "by_val": true
+      },
+      "array": null,
+      "string": false,
+      "owned": false,
+      "borrowed": {
+       "lifetime": "call"
+      },
+      "nullable": false,
+      "mutable": true,
+      "note": "Borrowed non-null full C context for this call; exclusively mutated, no transfer or retention. Init accepts allocated storage; update/final require initialized hashing state."
+     }
+    },
+    {
+     "name": "dst",
+     "ptr": {
+      "scalar": null,
+      "array": {
+       "by_val": true
+      },
+      "string": false,
+      "owned": false,
+      "borrowed": {
+       "lifetime": "call"
+      },
+      "nullable": false,
+      "mutable": true,
+      "note": "Borrowed writable array of exactly 16 output bytes, never retained."
+     }
+    }
+   ]
+  },
+  {
+   "name": "av_md5_init",
+   "defined_in": "libavutil/md5.c",
+   "lifetime": {
+    "for": "ctx",
+    "is_dropper": false,
+    "is_disposer": false,
+    "is_cloner": null,
+    "is_constructor": {
+     "alloc": false,
+     "init": true
+    }
+   },
+   "ptr_args": [
+    {
+     "name": "ctx",
+     "ptr": {
+      "scalar": {
+       "by_val": true
+      },
+      "array": null,
+      "string": false,
+      "owned": false,
+      "borrowed": {
+       "lifetime": "call"
+      },
+      "nullable": false,
+      "mutable": true,
+      "note": "Borrowed non-null full C context for this call; exclusively mutated, no transfer or retention. Init accepts allocated storage; update/final require initialized hashing state."
+     }
+    }
+   ]
+  },
+  {
+   "name": "av_md5_update",
+   "defined_in": "libavutil/md5.c",
+   "ptr_args": [
+    {
+     "name": "ctx",
+     "ptr": {
+      "scalar": {
+       "by_val": true
+      },
+      "array": null,
+      "string": false,
+      "owned": false,
+      "borrowed": {
+       "lifetime": "call"
+      },
+      "nullable": false,
+      "mutable": true,
+      "note": "Borrowed non-null full C context for this call; exclusively mutated, no transfer or retention. Init accepts allocated storage; update/final require initialized hashing state."
+     }
+    },
+    {
+     "name": "src",
+     "ptr": {
+      "scalar": null,
+      "array": {
+       "by_val": true
+      },
+      "string": false,
+      "owned": false,
+      "borrowed": {
+       "lifetime": "call"
+      },
+      "nullable": false,
+      "mutable": false,
+      "note": "Borrowed input array of len bytes; read/copied only during the call and never retained. Wrapper uses non-null slices, including length zero."
+     }
+    }
+   ]
+  },
+  {
    "name": "av_memcpy_backptr",
    "defined_in": "libavutil/mem.c",
    "ptr_args": [
@@ -6166,6 +6319,163 @@
   {
    "name": "av_mul_q",
    "defined_in": "libavutil/rational.c"
+  },
+  {
+   "name": "av_murmur3_alloc",
+   "defined_in": "libavutil/murmur3.c",
+   "lifetime": {
+    "for": "return",
+    "is_dropper": false,
+    "is_disposer": false,
+    "is_cloner": null,
+    "is_constructor": {
+     "alloc": true,
+     "init": false
+    }
+   },
+   "ptr_ret": {
+    "ptr": {
+     "scalar": {
+      "by_val": true
+     },
+     "array": null,
+     "string": false,
+     "owned": true,
+     "borrowed": null,
+     "nullable": true,
+     "mutable": true,
+     "note": "Fresh zero-filled context allocation of private C size from av_mallocz; av_free/av_freep releases it. Allocation alone is not hashing initialization; call init before hashing."
+    }
+   }
+  },
+  {
+   "name": "av_murmur3_final",
+   "defined_in": "libavutil/murmur3.c",
+   "ptr_args": [
+    {
+     "name": "c",
+     "ptr": {
+      "scalar": {
+       "by_val": true
+      },
+      "array": null,
+      "string": false,
+      "owned": false,
+      "borrowed": {
+       "lifetime": "call"
+      },
+      "nullable": false,
+      "mutable": true,
+      "note": "Borrowed non-null full C context for this call; exclusively mutated, no transfer or retention. Init accepts allocated storage; update/final require initialized hashing state."
+     }
+    }
+   ]
+  },
+  {
+   "name": "av_murmur3_init",
+   "defined_in": "libavutil/murmur3.c",
+   "lifetime": {
+    "for": "c",
+    "is_dropper": false,
+    "is_disposer": false,
+    "is_cloner": null,
+    "is_constructor": {
+     "alloc": false,
+     "init": true
+    }
+   },
+   "ptr_args": [
+    {
+     "name": "c",
+     "ptr": {
+      "scalar": {
+       "by_val": true
+      },
+      "array": null,
+      "string": false,
+      "owned": false,
+      "borrowed": {
+       "lifetime": "call"
+      },
+      "nullable": false,
+      "mutable": true,
+      "note": "Borrowed non-null full C context for this call; exclusively mutated, no transfer or retention. Init accepts allocated storage; update/final require initialized hashing state."
+     }
+    }
+   ]
+  },
+  {
+   "name": "av_murmur3_init_seeded",
+   "defined_in": "libavutil/murmur3.c",
+   "lifetime": {
+    "for": "c",
+    "is_dropper": false,
+    "is_disposer": false,
+    "is_cloner": null,
+    "is_constructor": {
+     "alloc": false,
+     "init": true
+    }
+   },
+   "ptr_args": [
+    {
+     "name": "c",
+     "ptr": {
+      "scalar": {
+       "by_val": true
+      },
+      "array": null,
+      "string": false,
+      "owned": false,
+      "borrowed": {
+       "lifetime": "call"
+      },
+      "nullable": false,
+      "mutable": true,
+      "note": "Borrowed non-null full C context for this call; exclusively mutated, no transfer or retention. Init accepts allocated storage; update/final require initialized hashing state."
+     }
+    }
+   ]
+  },
+  {
+   "name": "av_murmur3_update",
+   "defined_in": "libavutil/murmur3.c",
+   "ptr_args": [
+    {
+     "name": "c",
+     "ptr": {
+      "scalar": {
+       "by_val": true
+      },
+      "array": null,
+      "string": false,
+      "owned": false,
+      "borrowed": {
+       "lifetime": "call"
+      },
+      "nullable": false,
+      "mutable": true,
+      "note": "Borrowed non-null full C context for this call; exclusively mutated, no transfer or retention. Init accepts allocated storage; update/final require initialized hashing state."
+     }
+    },
+    {
+     "name": "src",
+     "ptr": {
+      "scalar": null,
+      "array": {
+       "by_val": true
+      },
+      "string": false,
+      "owned": false,
+      "borrowed": {
+       "lifetime": "call"
+      },
+      "nullable": false,
+      "mutable": false,
+      "note": "Borrowed input array of len bytes; read/copied only during the call and never retained. Wrapper uses non-null slices, including length zero."
+     }
+    }
+   ]
   },
   {
    "name": "av_nearer_q",

@@ -654,3 +654,17 @@ function av_hash_final
 # C's consumer of AVHMACType in its enum equivalence tests.
 function av_hmac_alloc
 function av_hmac_free
+
+
+# libavutil crypto wave 0, batch 5: opaque MD5 and Murmur3 contexts,
+# allocation/initialization and the C operations exercised through their handles.
+function av_md5_alloc
+function av_md5_init
+function av_md5_update
+function av_md5_final
+function av_md5_sum
+function av_murmur3_alloc
+function av_murmur3_init
+function av_murmur3_init_seeded
+function av_murmur3_update
+function av_murmur3_final
