@@ -2971,3 +2971,927 @@ mod getters {
         assert_eq!(c_children(&raw const ARR_CLASS.0).len(), 2);
     }
 }
+
+/// Options wave 1, batch 1: the typed setters, the array editors and the
+/// dictionary appliers against the raw C calls, on independently owned
+/// objects (with a child each) and values, comparing codes, every option as
+/// C formats it, array sizes and leftover dictionaries after every step.
+mod typed_setters {
+    use core::ffi::{CStr, c_char, c_int, c_uint, c_void};
+    use core::ptr;
+
+    use ffmpeg::libavutil::channel_layout::{ChannelLayout, ChannelLayoutVal};
+    use ffmpeg::libavutil::dict::{Dict, DictionaryRef};
+    use ffmpeg::libavutil::ffi;
+    use ffmpeg::libavutil::opt::{ObjectMut, SearchFlags};
+    use ffmpeg::libavutil::pixfmt::PixelFormat;
+    use ffmpeg::libavutil::rational::Rational;
+    use ffmpeg::libavutil::samplefmt::SampleFormat;
+
+    use super::fixture::{ARRAYS_NAMES, OBJ_OPTIONS, Owned, OwnedArrays};
+    use ffi::AVOptionType as T;
+
+    const ALLOW_NULL: c_int = ffi::AV_OPT_ALLOW_NULL as c_int;
+    const CHILDREN: c_int = ffi::AV_OPT_SEARCH_CHILDREN as c_int;
+    const REPLACE: c_int = ffi::AV_OPT_ARRAY_REPLACE as c_int;
+    const EINVAL: i32 = -22;
+    const ERANGE: i32 = -34;
+
+    fn under_bsan() -> bool {
+        std::env::var("CRUSTIFY_FFMPEG_VARIANT").as_deref() == Ok("bsan")
+    }
+
+    fn flags_of(children: bool) -> (c_int, SearchFlags) {
+        if children {
+            (CHILDREN, SearchFlags::CHILDREN)
+        } else {
+            (0, SearchFlags::NONE)
+        }
+    }
+
+    fn code(r: Result<(), i32>) -> i32 {
+        r.err().unwrap_or(0)
+    }
+
+    /// `av_opt_get(obj, name, AV_OPT_ALLOW_NULL)` and, for arrays, the size.
+    fn c_get(obj: *mut c_void, name: &CStr) -> (i32, Option<Vec<u8>>, i32, c_uint) {
+        let mut out = ptr::null_mut();
+        // SAFETY: a live well-formed object, a live name, a writable slot;
+        // every binary length is consistent and binary arrays stay empty.
+        let ret = unsafe { ffi::av_opt_get(obj, name.as_ptr(), ALLOW_NULL, &mut out) };
+        let s = (!out.is_null()).then(|| {
+            // SAFETY: a returned string is an owned C string, freed here.
+            let s = unsafe { CStr::from_ptr(out.cast::<c_char>()) }
+                .to_bytes()
+                .to_vec();
+            // SAFETY: as above.
+            unsafe { ffi::av_free(out.cast()) };
+            s
+        });
+        let mut n = 0;
+        // SAFETY: as above, with a writable count.
+        let size = unsafe { ffi::av_opt_get_array_size(obj, name.as_ptr(), 0, &mut n) };
+        (ret, s, size, n)
+    }
+
+    /// What C reads of `objs`, option by option.
+    fn observe(objs: &[*mut c_void], names: &[&CStr]) -> Vec<(i32, Option<Vec<u8>>, i32, c_uint)> {
+        objs.iter()
+            .flat_map(|&obj| names.iter().map(move |n| c_get(obj, n)))
+            .collect()
+    }
+
+    /// The option names of `OBJ_CLASS`, and one that names nothing.
+    fn obj_names() -> Vec<&'static CStr> {
+        let mut v: Vec<&'static CStr> = OBJ_OPTIONS.0[..OBJ_OPTIONS.0.len() - 1]
+            .iter()
+            // SAFETY: every name of the static table is a literal.
+            .map(|o| unsafe { CStr::from_ptr(o.name) })
+            .collect();
+        v.push(c"missing");
+        v
+    }
+
+    /// A dictionary's entries, in order, as C iterates them.
+    fn c_entries(m: *const ffi::AVDictionary) -> Vec<(Vec<u8>, Vec<u8>)> {
+        let mut out = Vec::new();
+        let mut e = ptr::null();
+        loop {
+            // SAFETY: `m` is NULL or a live dictionary, `e` NULL or its
+            // previous entry; nothing writes it during the walk.
+            e = unsafe { ffi::av_dict_iterate(m, e) };
+            if e.is_null() {
+                return out;
+            }
+            // SAFETY: an entry of `m`, with live NUL-terminated strings.
+            let (k, v) = unsafe { (CStr::from_ptr((*e).key), CStr::from_ptr((*e).value)) };
+            out.push((k.to_bytes().to_vec(), v.to_bytes().to_vec()));
+        }
+    }
+
+    /// `d`'s entries, read by C through its pointer.
+    fn entries(d: &mut Dict) -> Vec<(Vec<u8>, Vec<u8>)> {
+        let b = d.take();
+        let seen = c_entries(b.as_ref().map_or(ptr::null(), |b| b.as_c_ptr()));
+        *d = Dict::from(b);
+        seen
+    }
+
+    /// A C dictionary of `pairs` (`AV_DICT_MULTIKEY`), NULL when empty.
+    fn c_dict(pairs: &[(&CStr, &CStr)]) -> *mut ffi::AVDictionary {
+        let mut m = ptr::null_mut();
+        for (k, v) in pairs {
+            // SAFETY: a live slot and strings; failures abort the test.
+            let ret = unsafe {
+                ffi::av_dict_set(
+                    &mut m,
+                    k.as_ptr(),
+                    v.as_ptr(),
+                    ffi::AV_DICT_MULTIKEY as c_int,
+                )
+            };
+            assert!(ret >= 0);
+        }
+        m
+    }
+
+    fn c_dict_free(mut m: *mut ffi::AVDictionary) {
+        // SAFETY: NULL or a dictionary this test built and owns.
+        unsafe { ffi::av_dict_free(&mut m) };
+    }
+
+    /// A C layout parsed from `desc`, which the caller uninitialises.
+    fn c_layout(desc: &CStr) -> ffi::AVChannelLayout {
+        let mut l = ffi::AVChannelLayout::default();
+        // SAFETY: a writable zeroed local and a live string.
+        let ret = unsafe { ffi::av_channel_layout_from_string(&mut l, desc.as_ptr()) };
+        assert_eq!(ret, 0, "{desc:?}");
+        l
+    }
+
+    fn c_layout_uninit(mut l: ffi::AVChannelLayout) {
+        // SAFETY: a layout `c_layout` built, owned here.
+        unsafe { ffi::av_channel_layout_uninit(&mut l) };
+    }
+
+    type Pairs = &'static [(&'static CStr, &'static CStr)];
+
+    /// The values of an array edit, of each element type.
+    #[derive(Clone, Copy, Debug)]
+    enum Vals {
+        Str(&'static [&'static CStr]),
+        OptStr(&'static [Option<&'static CStr>]),
+        I32(&'static [i32]),
+        I64(&'static [i64]),
+        U32(&'static [u32]),
+        U64(&'static [u64]),
+        F32(&'static [f32]),
+        F64(&'static [f64]),
+        Q(&'static [(i32, i32)]),
+        Pix(&'static [i32]),
+        Sample(&'static [i32]),
+        Size(&'static [(i32, i32)]),
+        Color(&'static [[u8; 4]]),
+        Layout(&'static [&'static CStr]),
+        Dict(&'static [Option<Pairs>]),
+    }
+
+    /// One step of a sequence.
+    #[derive(Clone, Copy, Debug)]
+    enum Op {
+        Q(&'static CStr, (i32, i32), bool),
+        Rate(&'static CStr, (i32, i32), bool),
+        Pix(&'static CStr, i32, bool),
+        Sample(&'static CStr, i32, bool),
+        Layout(&'static CStr, &'static CStr, bool),
+        DictVal(&'static CStr, Option<Pairs>, bool),
+        Insert(&'static CStr, u32, Vals, bool),
+        Replace(&'static CStr, u32, Vals, bool),
+        Remove(&'static CStr, u32, u32, bool),
+        FromDict(Pairs, Option<bool>),
+    }
+
+    /// `av_opt_set_array` of `vals` in C, building C copies of the values.
+    fn c_array(obj: *mut c_void, name: &CStr, flags: c_int, start: u32, vals: Vals) -> i32 {
+        macro_rules! call {
+            ($ty:ident, $v:expr, $n:expr) => {
+                // SAFETY: a live well-formed object and name; `$v` holds `$n`
+                // values of the C type of `$ty`, live for the call; the
+                // corpus holds only values C stores without undefined
+                // behaviour.
+                unsafe {
+                    ffi::av_opt_set_array(
+                        obj,
+                        name.as_ptr(),
+                        flags,
+                        start,
+                        $n as c_uint,
+                        T::$ty,
+                        $v,
+                    )
+                }
+            };
+        }
+        match vals {
+            Vals::Str(v) => {
+                let p: Vec<*const c_char> = v.iter().map(|s| s.as_ptr()).collect();
+                call!(AV_OPT_TYPE_STRING, p.as_ptr().cast(), p.len())
+            }
+            Vals::OptStr(v) => {
+                let p: Vec<*const c_char> = v
+                    .iter()
+                    .map(|s| s.map_or(ptr::null(), CStr::as_ptr))
+                    .collect();
+                call!(AV_OPT_TYPE_STRING, p.as_ptr().cast(), p.len())
+            }
+            Vals::I32(v) => call!(AV_OPT_TYPE_INT, v.as_ptr().cast(), v.len()),
+            Vals::I64(v) => call!(AV_OPT_TYPE_INT64, v.as_ptr().cast(), v.len()),
+            Vals::U32(v) => call!(AV_OPT_TYPE_UINT, v.as_ptr().cast(), v.len()),
+            Vals::U64(v) => call!(AV_OPT_TYPE_UINT64, v.as_ptr().cast(), v.len()),
+            Vals::F32(v) => call!(AV_OPT_TYPE_FLOAT, v.as_ptr().cast(), v.len()),
+            Vals::F64(v) => call!(AV_OPT_TYPE_DOUBLE, v.as_ptr().cast(), v.len()),
+            Vals::Q(v) => {
+                let p: Vec<ffi::AVRational> = v
+                    .iter()
+                    .map(|&(num, den)| ffi::AVRational { num, den })
+                    .collect();
+                call!(AV_OPT_TYPE_RATIONAL, p.as_ptr().cast(), p.len())
+            }
+            Vals::Pix(v) => call!(AV_OPT_TYPE_PIXEL_FMT, v.as_ptr().cast(), v.len()),
+            Vals::Sample(v) => call!(AV_OPT_TYPE_SAMPLE_FMT, v.as_ptr().cast(), v.len()),
+            Vals::Size(v) => {
+                let p: Vec<[c_int; 2]> = v.iter().map(|&(w, h)| [w, h]).collect();
+                call!(AV_OPT_TYPE_IMAGE_SIZE, p.as_ptr().cast(), p.len())
+            }
+            Vals::Color(v) => call!(AV_OPT_TYPE_COLOR, v.as_ptr().cast(), v.len()),
+            Vals::Layout(v) => {
+                let p: Vec<ffi::AVChannelLayout> = v.iter().map(|d| c_layout(d)).collect();
+                let ret = call!(AV_OPT_TYPE_CHLAYOUT, p.as_ptr().cast(), p.len());
+                p.into_iter().for_each(c_layout_uninit);
+                ret
+            }
+            Vals::Dict(v) => {
+                let p: Vec<*mut ffi::AVDictionary> = v
+                    .iter()
+                    .map(|d| d.map_or(ptr::null_mut(), c_dict))
+                    .collect();
+                let ret = call!(AV_OPT_TYPE_DICT, p.as_ptr().cast(), p.len());
+                p.into_iter().for_each(c_dict_free);
+                ret
+            }
+        }
+    }
+
+    /// The same edit through the wrapper, with Rust-owned values.
+    fn rust_array(
+        m: &mut ObjectMut<'_>,
+        name: &CStr,
+        replace: bool,
+        start: u32,
+        vals: Vals,
+        f: SearchFlags,
+    ) -> i32 {
+        let start = start as usize;
+        macro_rules! edit {
+            ($v:expr) => {
+                code(if replace {
+                    m.replace_array(name, start, $v, f)
+                } else {
+                    m.insert_array(name, start, $v, f)
+                })
+            };
+        }
+        match vals {
+            Vals::Str(v) => edit!(v),
+            Vals::OptStr(v) => edit!(v),
+            Vals::I32(v) => edit!(v),
+            Vals::I64(v) => edit!(v),
+            Vals::U32(v) => edit!(v),
+            Vals::U64(v) => edit!(v),
+            Vals::F32(v) => edit!(v),
+            Vals::F64(v) => edit!(v),
+            Vals::Q(v) => edit!(
+                &v.iter()
+                    .map(|&(n, d)| Rational::new(n, d))
+                    .collect::<Vec<_>>()
+            ),
+            Vals::Pix(v) => edit!(
+                &v.iter()
+                    .map(|&p| PixelFormat::from_raw(ffi::AVPixelFormat(p)))
+                    .collect::<Vec<_>>()
+            ),
+            Vals::Sample(v) => edit!(
+                &v.iter()
+                    .map(|&s| SampleFormat::from_raw(ffi::AVSampleFormat(s)))
+                    .collect::<Vec<_>>()
+            ),
+            Vals::Size(v) => edit!(v),
+            Vals::Color(v) => edit!(v),
+            Vals::Layout(v) => {
+                let owned: Vec<ChannelLayoutVal> =
+                    v.iter().map(|d| ChannelLayout::parse(d).unwrap()).collect();
+                edit!(&owned.iter().map(|l| l.as_ref()).collect::<Vec<_>>())
+            }
+            Vals::Dict(v) => {
+                let owned: Vec<Dict> = v
+                    .iter()
+                    .map(|d| Dict::from_entries(d.unwrap_or(&[]).iter().copied()).unwrap())
+                    .collect();
+                edit!(
+                    &owned
+                        .iter()
+                        .map(Dict::as_ref)
+                        .collect::<Vec<Option<DictionaryRef<'_>>>>()
+                )
+            }
+        }
+    }
+
+    fn c_apply(obj: *mut c_void, op: Op, leftover: &mut Vec<(Vec<u8>, Vec<u8>)>) -> i32 {
+        let n = |name: &CStr| name.as_ptr();
+        // SAFETY: each call gets a live, well-formed object, live strings and
+        // values; the corpus holds only values C handles without undefined
+        // behaviour.
+        unsafe {
+            match op {
+                Op::Q(name, (num, den), c) => {
+                    ffi::av_opt_set_q(obj, n(name), ffi::AVRational { num, den }, flags_of(c).0)
+                }
+                Op::Rate(name, (num, den), c) => ffi::av_opt_set_video_rate(
+                    obj,
+                    n(name),
+                    ffi::AVRational { num, den },
+                    flags_of(c).0,
+                ),
+                Op::Pix(name, p, c) => {
+                    ffi::av_opt_set_pixel_fmt(obj, n(name), ffi::AVPixelFormat(p), flags_of(c).0)
+                }
+                Op::Sample(name, s, c) => {
+                    ffi::av_opt_set_sample_fmt(obj, n(name), ffi::AVSampleFormat(s), flags_of(c).0)
+                }
+                Op::Layout(name, desc, c) => {
+                    let l = c_layout(desc);
+                    let ret = ffi::av_opt_set_chlayout(obj, n(name), &l, flags_of(c).0);
+                    c_layout_uninit(l);
+                    ret
+                }
+                Op::DictVal(name, pairs, c) => {
+                    let d = pairs.map_or(ptr::null_mut(), c_dict);
+                    let ret = ffi::av_opt_set_dict_val(obj, n(name), d, flags_of(c).0);
+                    c_dict_free(d);
+                    ret
+                }
+                Op::Insert(name, start, vals, c) => c_array(obj, name, flags_of(c).0, start, vals),
+                Op::Replace(name, start, vals, c) => {
+                    c_array(obj, name, flags_of(c).0 | REPLACE, start, vals)
+                }
+                Op::Remove(name, start, count, c) => ffi::av_opt_set_array(
+                    obj,
+                    n(name),
+                    flags_of(c).0,
+                    start,
+                    count,
+                    T::AV_OPT_TYPE_INT,
+                    ptr::null(),
+                ),
+                Op::FromDict(pairs, flags) => {
+                    let mut d = c_dict(pairs);
+                    let ret = match flags {
+                        None => ffi::av_opt_set_dict(obj, &mut d),
+                        Some(c) => ffi::av_opt_set_dict2(obj, &mut d, flags_of(c).0),
+                    };
+                    *leftover = c_entries(d);
+                    c_dict_free(d);
+                    ret
+                }
+            }
+        }
+    }
+
+    fn rust_apply(obj: *mut c_void, op: Op, leftover: &mut Vec<(Vec<u8>, Vec<u8>)>) -> i32 {
+        // SAFETY: a live, well-formed object, accessed through this handle
+        // only while it lives.
+        let mut m = unsafe { ObjectMut::from_ptr(obj) }.unwrap();
+        match op {
+            Op::Q(name, (num, den), c) => {
+                code(m.set_rational(name, Rational::new(num, den), flags_of(c).1))
+            }
+            Op::Rate(name, (num, den), c) => {
+                code(m.set_video_rate(name, Rational::new(num, den), flags_of(c).1))
+            }
+            Op::Pix(name, p, c) => code(m.set_pixel_format(
+                name,
+                PixelFormat::from_raw(ffi::AVPixelFormat(p)),
+                flags_of(c).1,
+            )),
+            Op::Sample(name, s, c) => code(m.set_sample_format(
+                name,
+                SampleFormat::from_raw(ffi::AVSampleFormat(s)),
+                flags_of(c).1,
+            )),
+            Op::Layout(name, desc, c) => {
+                let l = ChannelLayout::parse(desc).unwrap();
+                code(m.set_channel_layout(name, l.as_ref(), flags_of(c).1))
+            }
+            Op::DictVal(name, pairs, c) => {
+                let d = Dict::from_entries(pairs.unwrap_or(&[]).iter().copied()).unwrap();
+                code(m.set_dictionary(name, d.as_ref(), flags_of(c).1))
+            }
+            Op::Insert(name, start, vals, c) => {
+                rust_array(&mut m, name, false, start, vals, flags_of(c).1)
+            }
+            Op::Replace(name, start, vals, c) => {
+                rust_array(&mut m, name, true, start, vals, flags_of(c).1)
+            }
+            Op::Remove(name, start, count, c) => {
+                code(m.remove_array(name, start as usize, count as usize, flags_of(c).1))
+            }
+            Op::FromDict(pairs, flags) => {
+                let mut d = Dict::from_entries(pairs.iter().copied()).unwrap();
+                let ret = code(match flags {
+                    None => m.set_from_dict(&mut d),
+                    Some(c) => m.set_from_dict_with(&mut d, flags_of(c).1),
+                });
+                *leftover = entries(&mut d);
+                ret
+            }
+        }
+    }
+
+    /// The code the wrapper refuses an array edit with where C's would be
+    /// undefined behaviour, by an independent model: an insertion into the
+    /// binary array (C writes past each element), or a number converted to a
+    /// rational or video rate element that is NaN, or within the option's
+    /// bounds but beyond `int`.
+    fn refused(op: Op) -> Option<i32> {
+        let (name, vals) = match op {
+            Op::Insert(n, _, v, _) | Op::Replace(n, _, v, _) => (n, v),
+            // A scalar store over an array option, or a type mismatch message
+            // that reads past `opt_type_desc` for it.
+            Op::Q(n, ..)
+            | Op::Rate(n, ..)
+            | Op::Pix(n, ..)
+            | Op::Sample(n, ..)
+            | Op::Layout(n, ..)
+            | Op::DictVal(n, ..)
+                if [c"array", c"strings", c"empty"].contains(&n) =>
+            {
+                return Some(EINVAL);
+            }
+            _ => return None,
+        };
+        if name == c"bins" {
+            return Some(EINVAL);
+        }
+        let (min, max) = match name.to_bytes() {
+            b"qs" | b"rates" => (0.0, i32::MAX as f64),
+            b"wide_qs" => (-1e300, 1e300),
+            _ => return None,
+        };
+        let fits = |d: f64| d > -2_147_483_649.0 && d < 2_147_483_648.0;
+        let bad = |d: f64| d.is_nan() || ((min..=max).contains(&d) && !fits(d));
+        let any = match vals {
+            Vals::I64(v) => v.iter().any(|&i| bad(i as f64)),
+            Vals::F32(v) => v.iter().any(|&f| bad(f64::from(f))),
+            Vals::F64(v) => v.iter().any(|&f| bad(f)),
+            _ => false,
+        };
+        any.then_some(ERANGE)
+    }
+
+    /// Runs `ops` on a C-driven and a Rust-driven object pair, comparing
+    /// codes, leftovers and what C reads of both after every step; `refused`
+    /// steps are run on the Rust object only and must fail with the code
+    /// given, leaving it as C observes it.
+    fn run(
+        c_objs: &[*mut c_void],
+        r_objs: &[*mut c_void],
+        names: &[&CStr],
+        ops: &[(Op, Option<i32>)],
+    ) {
+        assert_eq!(observe(c_objs, names), observe(r_objs, names));
+        for (i, &(op, refused)) in ops.iter().enumerate() {
+            let step = format!("step {i}: {op:?}");
+            let (mut c_left, mut r_left) = (Vec::new(), Vec::new());
+            let before = observe(r_objs, names);
+            let r = rust_apply(r_objs[0], op, &mut r_left);
+            if let Some(err) = refused {
+                assert_eq!(r, err, "{step}");
+                assert_eq!(observe(r_objs, names), before, "{step}");
+                continue;
+            }
+            assert_eq!(c_apply(c_objs[0], op, &mut c_left), r, "{step}");
+            assert_eq!(r_left, c_left, "{step}");
+            assert_eq!(observe(c_objs, names), observe(r_objs, names), "{step}");
+        }
+    }
+
+    const STEREO_ONE: Pairs = &[(c"a", c"1"), (c"b", c"x y")];
+    const ONE: Pairs = &[(c"k", c"v")];
+
+    /// Scalar typed setters and dictionary appliers on `OBJ_CLASS`.
+    fn scalar_ops() -> Vec<(Op, Option<i32>)> {
+        let mut ops = Vec::new();
+        for name in obj_names() {
+            for c in [false, true] {
+                ops.extend(
+                    [
+                        Op::Q(name, (3, 2), c),
+                        Op::Q(name, (-7, 3), c),
+                        Op::Q(name, (1, 0), c),
+                        Op::Q(name, (0, 0), c),
+                        Op::Q(name, (i32::MAX, -1), c),
+                        Op::Rate(name, (30000, 1001), c),
+                        Op::Rate(name, (25, 0), c),
+                        Op::Pix(name, 3, c),
+                        Op::Pix(name, -1, c),
+                        Op::Pix(name, 99_999, c),
+                        Op::Sample(name, 8, c),
+                        Op::Sample(name, -2, c),
+                        Op::Layout(name, c"5.1", c),
+                        Op::Layout(name, c"FL@a+FR@b+LFE", c),
+                        Op::DictVal(name, Some(STEREO_ONE), c),
+                        Op::DictVal(name, None, c),
+                    ]
+                    .map(|op| (op, refused(op))),
+                );
+            }
+        }
+        // `av_opt_set_q` on an array stores over the array pointer, and the
+        // other typed setters' type mismatch message on an array reads past
+        // `opt_type_desc`: the generated steps on `array`, `strings` and
+        // `empty` are refused (see `refused`).
+        ops.extend([
+            (
+                Op::FromDict(
+                    &[
+                        (c"int", c"5"),
+                        (c"string", c"s"),
+                        (c"nosuch", c"1"),
+                        (c"other", c"2"),
+                    ],
+                    None,
+                ),
+                None,
+            ),
+            (
+                Op::FromDict(
+                    &[(c"int", c"5"), (c"int", c"1000"), (c"nosuch", c"1")],
+                    None,
+                ),
+                None,
+            ),
+            (
+                Op::FromDict(
+                    &[(c"flags", c"one+eight"), (c"layout", c"quad")],
+                    Some(true),
+                ),
+                None,
+            ),
+            (Op::FromDict(&[(c"ro", c"1")], Some(false)), None),
+            (Op::FromDict(&[], None), None),
+            (
+                Op::FromDict(&[(c"a", c"1"), (c"a", c"2")], Some(true)),
+                None,
+            ),
+            (
+                Op::FromDict(&[(c"dict", c"x=1:y=2"), (c"strings", c"p|q")], Some(false)),
+                None,
+            ),
+            (
+                Op::FromDict(&[(c"int", c"1"), (c"dbl", c"ld(1e300)")], None),
+                Some(EINVAL),
+            ),
+        ]);
+        ops
+    }
+
+    #[test]
+    fn scalar_setters_and_dictionaries_agree() {
+        // BSan reports C's reads through the end pointers glibc's uninstrumented
+        // `strtod` / `strtol` / `strtoul` store (`eval.c:120`, `parseutils.c:391`)
+        // as accesses of freed or foreign allocations, depending on earlier
+        // frames (the shared recipes' stale-shadow class): the dictionary steps
+        // parse numbers through C's own `av_opt_set`.
+        if under_bsan() {
+            return;
+        }
+        let (c, r) = (Owned::with_child(), Owned::with_child());
+        let names = obj_names();
+        run(
+            &[c.as_obj(), c.child().cast()],
+            &[r.as_obj(), r.child().cast()],
+            &names,
+            &scalar_ops(),
+        );
+    }
+
+    /// `INT64_MAX` as a double, which C stores exactly.
+    const I64_MAX_F: &[f64] = &[i64::MAX as f64];
+    /// `UINT64_MAX` as a double, and a value between 2^63 and 2^64.
+    const U64_HIGH_F: &[f64] = &[u64::MAX as f64, 1e19];
+
+    /// Array edits of every value type on every array of `ARRAYS_CLASS`.
+    fn array_ops() -> Vec<(Op, Option<i32>)> {
+        use Vals::*;
+        let all: [Vals; 15] = [
+            Str(&[c"3", c"1/2", c"red", c"5.1"]),
+            OptStr(&[None, Some(c"7")]),
+            I32(&[5, -3]),
+            I64(&[1 << 40, 9]),
+            U32(&[7, u32::MAX]),
+            U64(&[u64::MAX, 2]),
+            F32(&[0.5, 0.25]),
+            F64(&[2.5, -1e12]),
+            Q(&[(1, 3), (5, 0)]),
+            Pix(&[0, 3]),
+            Sample(&[1, -1]),
+            Size(&[(640, 480), (-1, 2)]),
+            Color(&[[1, 2, 3, 4]]),
+            Layout(&[c"stereo", c"FL@x+FR@y"]),
+            Dict(&[Some(ONE), None, Some(STEREO_ONE)]),
+        ];
+        let mut ops = Vec::new();
+        for name in ARRAYS_NAMES {
+            if name == c"bins" {
+                continue;
+            }
+            for (i, vals) in all.iter().enumerate() {
+                let c = i % 3 == 0;
+                ops.extend(
+                    [
+                        Op::Insert(name, 0, *vals, c),
+                        Op::Replace(name, 1, *vals, c),
+                        Op::Insert(name, 9, *vals, c),
+                        Op::Remove(name, 1, 1, c),
+                    ]
+                    .map(|op| (op, refused(op))),
+                );
+            }
+            ops.extend([
+                (Op::Remove(name, 0, 2, false), None),
+                (Op::Replace(name, 0, Vals::I32(&[]), true), None),
+                (Op::Insert(name, 0, Vals::Str(&[]), false), None),
+                (Op::Remove(name, 0, 100, false), None),
+                (Op::Remove(name, 0, 0, true), None),
+            ]);
+        }
+        ops.extend([
+            // Undefined conversions in C, refused.
+            (
+                Op::Insert(c"qs", 0, Vals::F64(&[f64::NAN]), false),
+                Some(ERANGE),
+            ),
+            (
+                Op::Insert(c"wide_qs", 0, Vals::F64(&[0.5, 1e10]), false),
+                Some(ERANGE),
+            ),
+            (
+                Op::Replace(c"wide_qs", 0, Vals::I64(&[1 << 40]), true),
+                Some(ERANGE),
+            ),
+            (
+                Op::Insert(c"rates", 0, Vals::F32(&[f32::NAN]), false),
+                Some(ERANGE),
+            ),
+            (
+                Op::Insert(c"dbls", 0, Vals::Str(&[c"1", c"ld(1e300)"]), false),
+                Some(EINVAL),
+            ),
+            (
+                Op::Insert(c"colors", 0, Vals::Str(&[c"red@nan"]), false),
+                Some(EINVAL),
+            ),
+            (
+                Op::Insert(c"bins", 0, Vals::Str(&[c"0a"]), false),
+                Some(EINVAL),
+            ),
+            (
+                Op::Insert(c"bins", 0, Vals::OptStr(&[None]), false),
+                Some(EINVAL),
+            ),
+            // `write_number`'s 64-bit extremes: `INT64_MAX` and `UINT64_MAX`
+            // as doubles, and a `uint64_t` beyond the `int64_t` range.
+            (Op::Insert(c"i64s", 0, Vals::F64(I64_MAX_F), false), None),
+            (Op::Insert(c"durations", 0, Vals::F64(I64_MAX_F), false), None),
+            (Op::Insert(c"u64s", 0, Vals::F64(U64_HIGH_F), false), None),
+            // C's own failures.
+            (
+                Op::Insert(c"strs", 0, Vals::Str(&[c"x", c"y", c"z"]), false),
+                None,
+            ),
+            (Op::Remove(c"strs", 0, 2, false), None),
+            (
+                Op::Insert(c"ints", 0, Vals::I32(&[1, 2, 3, 4, 5]), false),
+                None,
+            ),
+            (Op::Insert(c"ints", 0, Vals::F64(&[1e9]), false), None),
+            (
+                Op::Insert(c"wide_qs", 0, Vals::F64(&[0.5, 2.5]), false),
+                None,
+            ),
+            (
+                Op::Insert(c"wide_qs", 0, Vals::I32(&[i32::MIN]), false),
+                None,
+            ),
+            (
+                Op::FromDict(
+                    &[
+                        (c"strs", c"p;q"),
+                        (c"layouts", c"mono|quad"),
+                        (c"nosuch", c"z"),
+                    ],
+                    Some(false),
+                ),
+                None,
+            ),
+            (
+                Op::FromDict(&[(c"strs", c"p;q;r;s"), (c"ints", c"1")], Some(true)),
+                None,
+            ),
+        ]);
+        ops
+    }
+
+    #[test]
+    fn array_edits_agree() {
+        // BSan: as above, C's string parses reach the glibc end pointers.
+        if under_bsan() {
+            return;
+        }
+        let (c, r) = (OwnedArrays::with_child(), OwnedArrays::with_child());
+        run(
+            &[c.as_obj(), c.child().cast()],
+            &[r.as_obj(), r.child().cast()],
+            &ARRAYS_NAMES,
+            &array_ops(),
+        );
+    }
+
+    /// Random edits, without string parses, on zeroed objects, so that
+    /// BorrowSanitizer runs them without C's evaluator (whose `av_strtod`
+    /// end pointers it misreports).
+    #[test]
+    fn random_array_edits_agree() {
+        let mut state = 0xfeed_face_0123_4567u64;
+        let mut next = move || {
+            state ^= state << 13;
+            state ^= state >> 7;
+            state ^= state << 17;
+            state
+        };
+        let pool: [Vals; 12] = [
+            Vals::I32(&[5, -3, 0]),
+            Vals::I64(&[1 << 40, 9]),
+            Vals::U32(&[7]),
+            Vals::U64(&[3, 4]),
+            Vals::F32(&[0.5]),
+            Vals::F64(&[2.5, 7.0]),
+            Vals::Q(&[(1, 3), (2, 1)]),
+            Vals::Pix(&[0]),
+            Vals::Size(&[(1, 2), (3, 4)]),
+            Vals::Color(&[[9, 9, 9, 9]]),
+            Vals::Layout(&[c"mono", c"FL@x+FR@y"]),
+            Vals::Dict(&[Some(ONE), None]),
+        ];
+        let names: Vec<&CStr> = ARRAYS_NAMES.into_iter().filter(|n| *n != c"bins").collect();
+        let rounds = if under_bsan() { 40 } else { 600 };
+        let ops: Vec<(Op, Option<i32>)> = (0..rounds)
+            .map(|_| {
+                let name = names[(next() % names.len() as u64) as usize];
+                let (start, c) = ((next() % 4) as u32, next() % 2 == 0);
+                let vals = pool[(next() % pool.len() as u64) as usize];
+                let op = match next() % 3 {
+                    0 => Op::Insert(name, start, vals, c),
+                    1 => Op::Replace(name, start, vals, c),
+                    _ => Op::Remove(name, start, (next() % 3) as u32, c),
+                };
+                (op, refused(op))
+            })
+            .collect();
+        let (c, r) = (
+            OwnedArrays::zeroed_with_child(),
+            OwnedArrays::zeroed_with_child(),
+        );
+        run(
+            &[c.as_obj(), c.child().cast()],
+            &[r.as_obj(), r.child().cast()],
+            &ARRAYS_NAMES,
+            &ops,
+        );
+    }
+
+    /// Allocation failures: C's own errors agree, and the array or option is
+    /// left as C leaves it, except for the channel layout C leaves without a
+    /// map (corrected; see the unit tests), which is compared once reset.
+    #[test]
+    fn allocation_failures_agree() {
+        const KEY: &str = "CRUSTIFY_EQUIV_OPT_TYPED_ISOLATED";
+        if under_bsan() {
+            return;
+        }
+        if std::env::var_os(KEY).is_none() {
+            let status = std::process::Command::new(std::env::current_exe().unwrap())
+                .args([
+                    "--exact",
+                    "opt::typed_setters::allocation_failures_agree",
+                    "--test-threads=1",
+                ])
+                .env(KEY, "1")
+                .status()
+                .unwrap();
+            assert!(status.success(), "isolated run failed: {status}");
+            return;
+        }
+        let set_limit = |limit: usize| {
+            // SAFETY: `av_max_alloc` takes a size by value; nothing else runs
+            // in this process.
+            unsafe { ffi::av_max_alloc(limit) }
+        };
+        let names = ARRAYS_NAMES;
+        for limit in [0, 1, 8, 16, 24, 48, 64, 128] {
+            let (c, r) = (OwnedArrays::with_child(), OwnedArrays::with_child());
+            let (co, ro) = (
+                [c.as_obj(), c.child().cast()],
+                [r.as_obj(), r.child().cast()],
+            );
+            // Steps whose values build without allocating.
+            for op in [
+                Op::Insert(c"strs", 1, Vals::Str(&[c"abcdefghijklmnop"]), false),
+                Op::Insert(c"ints", 0, Vals::I32(&[1, 2, 3]), false),
+                Op::Remove(c"ints", 0, 1, false),
+                Op::Replace(c"layouts", 0, Vals::Str(&[c"FL@abc+FR@def"]), true),
+            ] {
+                let (mut cl, mut rl) = (Vec::new(), Vec::new());
+                set_limit(limit);
+                let cr = c_apply(co[0], op, &mut cl);
+                let rr = rust_apply(ro[0], op, &mut rl);
+                set_limit(i32::MAX as usize);
+                assert_eq!(cr, rr, "{op:?} at {limit}");
+                assert_eq!(
+                    observe(&co, &names),
+                    observe(&ro, &names),
+                    "{op:?} at {limit}"
+                );
+            }
+            // Layouts, dictionaries and applied dictionaries, built first.
+            let c_layouts = [c_layout(c"FL@abc+FR@def+LFE@ghi")];
+            let r_layouts = [ChannelLayout::parse(c"FL@abc+FR@def+LFE@ghi").unwrap()];
+            let c_dicts = [c_dict(STEREO_ONE)];
+            let r_dicts = [Dict::from_entries(STEREO_ONE.iter().copied()).unwrap()];
+            let pairs: Pairs = &[(c"strs", c"x;y"), (c"nosuch", c"value")];
+            let mut c_applied = c_dict(pairs);
+            let mut r_applied = Dict::from_entries(pairs.iter().copied()).unwrap();
+            // SAFETY: a live, well-formed object used through this handle only.
+            let mut m = unsafe { ObjectMut::from_ptr(ro[0]) }.unwrap();
+            set_limit(limit);
+            // SAFETY: live objects, names and values of the C element types.
+            let c_codes = unsafe {
+                [
+                    ffi::av_opt_set_array(
+                        co[0],
+                        c"layouts".as_ptr(),
+                        REPLACE,
+                        0,
+                        1,
+                        T::AV_OPT_TYPE_CHLAYOUT,
+                        c_layouts.as_ptr().cast(),
+                    ),
+                    ffi::av_opt_set_array(
+                        co[0],
+                        c"dicts".as_ptr(),
+                        CHILDREN,
+                        0,
+                        1,
+                        T::AV_OPT_TYPE_DICT,
+                        c_dicts.as_ptr().cast(),
+                    ),
+                    ffi::av_opt_set_dict(co[0], &mut c_applied),
+                ]
+            };
+            let r_codes = [
+                code(m.replace_array(c"layouts", 0, &[r_layouts[0].as_ref()], SearchFlags::NONE)),
+                code(m.insert_array(c"dicts", 0, &[r_dicts[0].as_ref()], SearchFlags::CHILDREN)),
+                code(m.set_from_dict(&mut r_applied)),
+            ];
+            set_limit(i32::MAX as usize);
+            assert_eq!(c_codes, r_codes, "at {limit}");
+            assert_eq!(c_entries(c_applied), entries(&mut r_applied), "at {limit}");
+            assert_eq!(observe(&co, &names), observe(&ro, &names), "at {limit}");
+            c_layouts.into_iter().for_each(c_layout_uninit);
+            c_dicts.into_iter().for_each(c_dict_free);
+            c_dict_free(c_applied);
+        }
+        // Scalar layouts: C's failed map copy leaves an unreadable layout,
+        // which the reference resets as the wrapper does.
+        for limit in [0, 16, 32] {
+            let (c, r) = (Owned::new(), Owned::new());
+            let l = c_layout(c"FL@abc+FR@def");
+            let rl = ChannelLayout::parse(c"FL@abc+FR@def").unwrap();
+            set_limit(limit);
+            // SAFETY: live objects, name and layout.
+            let cr = unsafe { ffi::av_opt_set_chlayout(c.as_obj(), c"layout".as_ptr(), &l, 0) };
+            // SAFETY: a live, well-formed object used through this handle only.
+            let mut m = unsafe { ObjectMut::from_ptr(r.as_obj()) }.unwrap();
+            let rr = code(m.set_channel_layout(c"layout", rl.as_ref(), SearchFlags::NONE));
+            set_limit(i32::MAX as usize);
+            c_layout_uninit(l);
+            assert_eq!(cr, rr, "at {limit}");
+            if cr < 0 {
+                // SAFETY: the live object's layout, which C left with a NULL
+                // map and owns nothing.
+                unsafe {
+                    let p = &raw mut (*c.ptr()).layout;
+                    assert!((*p).u.map.is_null());
+                    p.write(ffi::AVChannelLayout::default());
+                }
+            }
+            let names = obj_names();
+            assert_eq!(
+                observe(&[c.as_obj()], &names),
+                observe(&[r.as_obj()], &names),
+                "at {limit}"
+            );
+        }
+    }
+}

@@ -586,3 +586,21 @@ function av_opt_get_pixel_fmt
 function av_opt_get_q
 function av_opt_get_sample_fmt
 function av_opt_get_video_rate
+
+# libavutil/opt.h, parseutils.h: options wave 1, batch 1's typed option
+# setters, array editor and dictionary appliers (AV_OPT_ARRAY_REPLACE selects
+# av_opt_set_array's replacement), and the ratio, video rate and date helpers.
+function av_opt_set_array
+function av_opt_set_chlayout
+function av_opt_set_dict
+function av_opt_set_dict2
+function av_opt_set_dict_val
+function av_opt_set_pixel_fmt
+function av_opt_set_q
+function av_opt_set_sample_fmt
+function av_opt_set_video_rate
+var AV_OPT_ARRAY_REPLACE
+function av_parse_ratio
+function av_parse_video_rate
+function av_small_strptime
+function av_timegm

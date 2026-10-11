@@ -1,0 +1,11 @@
+error[E0597]: `s` does not live long enough
+ --> tests/ub_safe/compile_fail/parseutils_strptime_rest_outlives_input.rs
+  |
+  |     let rest = {
+  |         ---- borrow later stored here
+  |         let s = CString::new("12:00:00 rest").unwrap();
+  |             - binding `s` declared here
+  |         small_strptime(&s, c"%T", tm.as_mut())
+  |                        ^^ borrowed value does not live long enough
+  |     };
+  |     - `s` dropped here while still borrowed

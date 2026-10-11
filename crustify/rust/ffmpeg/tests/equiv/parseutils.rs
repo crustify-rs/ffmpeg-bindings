@@ -679,3 +679,443 @@ mod info_tags_and_colors {
         assert!(unsafe { ffi::av_get_known_color_name(-1, &mut rgb) }.is_null());
     }
 }
+
+/// Options wave 1, batch 1: ratios, video rates, date fields and UTC times,
+/// against the raw C calls on the same inputs and independently owned
+/// out-parameters.
+mod ratios_and_dates {
+    use core::ffi::{CStr, c_int, c_void};
+    use core::ptr::{self, null_mut};
+
+    use ffmpeg::libavutil::bprint::{Tm, TmRef};
+    use ffmpeg::libavutil::ffi;
+    use ffmpeg::libavutil::opt::ObjectRef;
+    use ffmpeg::libavutil::parseutils::{
+        parse_ratio, parse_ratio_with_context, parse_video_rate, small_strptime, timegm,
+    };
+    use ffmpeg::libavutil::rational::Rational;
+
+    use super::{CLASS, Ctx, captured, isolated};
+    use crate::log::LogState;
+
+    const MAX_OFFSET: c_int = ffi::AV_LOG_MAX_OFFSET as c_int;
+
+    /// Ratios: both `sscanf` forms (with `int` narrowing and saturation),
+    /// expressions, and strings C rejects.
+    const RATIOS: [&CStr; 34] = [
+        c"16:9",
+        c"4:3",
+        c"-1:-2",
+        c"0:0",
+        c"1:0",
+        c"-7:0",
+        c"0:5",
+        c"4294967297:3",
+        c"99999999999999999999:1",
+        c"-2147483649:1",
+        c"2147483647:-2147483648",
+        c" 7 : 3",
+        c" 7:3",
+        c"7:3 ",
+        c"7:3x",
+        c"1.5",
+        c"0.333",
+        c"PI",
+        c"1/3",
+        c"2*3",
+        c"sqrt(2)",
+        c"1e100",
+        c"-1e100",
+        c"1e-300",
+        c"30000/1001",
+        c"29.97",
+        c"1001000",
+        c"0/0",
+        c"",
+        c"x",
+        c"1:",
+        c":1",
+        c"max(3,4):2",
+        c"1k",
+    ];
+
+    const RATES: [&CStr; 24] = [
+        c"ntsc",
+        c"pal",
+        c"qntsc",
+        c"qpal",
+        c"sntsc",
+        c"spal",
+        c"film",
+        c"ntsc-film",
+        c"NTSC",
+        c"25",
+        c"30000/1001",
+        c"29.97",
+        c"24000:1001",
+        c"0",
+        c"-1",
+        c"1:0",
+        c"0:1",
+        c"1e-9",
+        c"1e10",
+        c"x",
+        c"",
+        c"2147483647:1",
+        c"1/0",
+        c"0.000001",
+    ];
+
+    fn pair(q: Rational) -> (i32, i32) {
+        let q = q.into_raw();
+        (q.num, q.den)
+    }
+
+    /// `av_parse_ratio` in C.
+    fn c_ratio(
+        s: &CStr,
+        max: c_int,
+        log_offset: c_int,
+        ctx: *mut c_void,
+    ) -> Result<(i32, i32), i32> {
+        let mut q = ffi::AVRational::default();
+        // SAFETY: a writable local, a live string, a non-negative `max`, a
+        // corpus of expressions the evaluator handles without undefined
+        // behaviour, and a NULL or live logging context.
+        let ret = unsafe { ffi::av_parse_ratio(&mut q, s.as_ptr(), max, log_offset, ctx) };
+        if ret < 0 {
+            Err(ret)
+        } else {
+            Ok((q.num, q.den))
+        }
+    }
+
+    /// `av_parse_video_rate` in C.
+    fn c_rate(s: &CStr) -> Result<(i32, i32), i32> {
+        let mut q = ffi::AVRational::default();
+        // SAFETY: a writable local and a live string of the corpus.
+        let ret = unsafe { ffi::av_parse_video_rate(&mut q, s.as_ptr()) };
+        if ret < 0 {
+            Err(ret)
+        } else {
+            Ok((q.num, q.den))
+        }
+    }
+
+    #[test]
+    fn ratios_agree_at_every_bound() {
+        let _s = LogState::lock();
+        for s in RATIOS {
+            for max in [0, 1, 2, 255, 1001, 1_001_000, i32::MAX] {
+                let rust = parse_ratio_with_context(s, max, MAX_OFFSET, None).map(pair);
+                assert_eq!(rust, c_ratio(s, max, MAX_OFFSET, null_mut()), "{s:?} {max}");
+            }
+        }
+    }
+
+    #[test]
+    fn video_rates_agree() {
+        for s in RATES {
+            assert_eq!(parse_video_rate(s).map(pair), c_rate(s), "{s:?}");
+        }
+        for s in RATIOS {
+            assert_eq!(parse_video_rate(s).map(pair), c_rate(s), "{s:?}");
+        }
+    }
+
+    /// Random `num:den` strings, and decimals evaluated as expressions.
+    #[test]
+    fn random_ratios_agree() {
+        let mut state = 0x0bad_c0de_1234_5678u64;
+        let mut next = move || {
+            state ^= state << 13;
+            state ^= state >> 7;
+            state ^= state << 17;
+            state
+        };
+        for _ in 0..3000 {
+            let (a, b) = (
+                next() as i64 >> (next() % 64),
+                next() as i32 >> (next() % 32),
+            );
+            let max = (next() >> 33) as i32 >> (next() % 31);
+            let s = std::ffi::CString::new(match next() % 3 {
+                0 => format!("{a}:{b}"),
+                1 => format!("{}", a as f64 / f64::from(b.max(1))),
+                _ => format!("{b}/{}", a.max(1)),
+            })
+            .unwrap();
+            let rust = parse_ratio(&s, max).map(pair);
+            assert_eq!(rust, c_ratio(&s, max, 0, null_mut()), "{s:?} {max}");
+            assert_eq!(parse_video_rate(&s).map(pair), c_rate(&s), "{s:?}");
+        }
+    }
+
+    /// The evaluator's messages: logged with the offset, in an `Eval`
+    /// context whose parent is the given one.
+    #[test]
+    fn ratio_messages_agree() {
+        if !isolated("parseutils::ratios_and_dates::ratio_messages_agree") {
+            return;
+        }
+        let _s = LogState::lock();
+        let mut ctx = Ctx { class: &CLASS.0 };
+        let obj: *mut c_void = (&raw mut ctx).cast();
+        for s in RATIOS {
+            for offset in [0, -8, 8, MAX_OFFSET] {
+                let c = captured(|| {
+                    let _ = c_ratio(s, 100, offset, null_mut());
+                    let _ = c_ratio(s, 100, offset, obj);
+                    let _ = c_rate(s);
+                });
+                let rust = captured(|| {
+                    let _ = parse_ratio_with_context(s, 100, offset, None);
+                    // SAFETY: `ctx` is a live object of a well-formed class
+                    // without options, which nothing writes while the
+                    // handle lives.
+                    let log_ctx = unsafe { ObjectRef::from_ptr(obj) };
+                    let _ = parse_ratio_with_context(s, 100, offset, log_ctx);
+                    let _ = parse_video_rate(s);
+                });
+                assert_eq!(rust, c, "{s:?} {offset}");
+            }
+        }
+    }
+
+    /// Every field of a `struct tm`.
+    fn fields_c(t: &ffi::tm) -> [i64; 10] {
+        [
+            t.tm_sec.into(),
+            t.tm_min.into(),
+            t.tm_hour.into(),
+            t.tm_mday.into(),
+            t.tm_mon.into(),
+            t.tm_year.into(),
+            t.tm_wday.into(),
+            t.tm_yday.into(),
+            t.tm_isdst.into(),
+            t.tm_gmtoff,
+        ]
+    }
+
+    fn fields(t: TmRef<'_>) -> [i64; 10] {
+        [
+            t.sec().into(),
+            t.min().into(),
+            t.hour().into(),
+            t.mday().into(),
+            t.mon().into(),
+            t.year().into(),
+            t.wday().into(),
+            t.yday().into(),
+            t.isdst().into(),
+            t.gmtoff(),
+        ]
+    }
+
+    const FORMATS: [&CStr; 22] = [
+        c"%Y-%m-%d",
+        c"%Y - %m - %d",
+        c"%Y%m%d",
+        c"%H:%M:%S",
+        c"%H%M%S",
+        c"%J:%M:%S",
+        c"%M:%S",
+        c"%T",
+        c"%b %d %Y",
+        c"%B",
+        c"%h",
+        c"%%",
+        c"%",
+        c"%x",
+        c"a%%b",
+        c" %H",
+        c"%d/%m",
+        c"",
+        c"%Y%",
+        c"%H %M",
+        c"T%T",
+        c"%m",
+    ];
+
+    const INPUTS: [&CStr; 30] = [
+        c"2024-02-29",
+        c"2024 - 2 - 9",
+        c"2024-2-9",
+        c"20240229",
+        c"12:34:56",
+        c"123456",
+        c"99999:59:59",
+        c"9999:59:59",
+        c"1:2",
+        c"23:59:60",
+        c"24:00:00",
+        c"Feb 29 2024",
+        c"february",
+        c"FEBRUARY 1 1",
+        c"febr",
+        c"sep",
+        c"September",
+        c"%",
+        c"a%b",
+        c"  \t7",
+        c"31/12",
+        c"32/12",
+        c"",
+        c"-1:00",
+        c"+1",
+        c"12345678901",
+        c"T12:00:00",
+        c"0",
+        c"00",
+        c"13",
+    ];
+
+    /// One call of each implementation on its own `struct tm`: the rest's
+    /// offset, then every field.
+    fn step(s: &CStr, fmt: &CStr, c: &mut ffi::tm, r: &mut Tm) {
+        // SAFETY: live strings and a live, writable `struct tm`.
+        let c_rest = unsafe { ffi::av_small_strptime(s.as_ptr(), fmt.as_ptr(), c) };
+        let c_off = (!c_rest.is_null()).then(|| c_rest as usize - s.as_ptr() as usize);
+        let r_rest = small_strptime(s, fmt, r.as_mut());
+        let r_off = r_rest.map(|rest| rest.as_ptr() as usize - s.as_ptr() as usize);
+        assert_eq!(r_off, c_off, "{s:?} {fmt:?}");
+        if let Some(rest) = r_rest {
+            assert_eq!(rest.to_bytes(), &s.to_bytes()[r_off.unwrap()..]);
+        }
+        assert_eq!(fields(r.as_ref()), fields_c(c), "{s:?} {fmt:?}");
+    }
+
+    #[test]
+    fn strptime_agrees_on_every_input_and_format() {
+        for fmt in FORMATS {
+            for s in INPUTS {
+                let (mut c, mut r) = (
+                    ffi::tm {
+                        tm_zone: ptr::null(),
+                        ..Default::default()
+                    },
+                    Tm::new(),
+                );
+                step(s, fmt, &mut c, &mut r);
+            }
+        }
+    }
+
+    /// Calls in sequence on the same `struct tm`: fields a call does not
+    /// read keep their values, and a failed call keeps what it stored.
+    #[test]
+    fn strptime_sequences_agree_after_every_call() {
+        let (mut c, mut r) = (
+            ffi::tm {
+                tm_zone: ptr::null(),
+                ..Default::default()
+            },
+            Tm::new(),
+        );
+        let mut state = 0x5eed_5eed_5eed_5eedu64;
+        let mut next = move || {
+            state ^= state << 13;
+            state ^= state >> 7;
+            state ^= state << 17;
+            state
+        };
+        for _ in 0..5000 {
+            let fmt = FORMATS[(next() % FORMATS.len() as u64) as usize];
+            let s = INPUTS[(next() % INPUTS.len() as u64) as usize];
+            step(s, fmt, &mut c, &mut r);
+        }
+    }
+
+    /// `av_timegm` on a copy of `t`.
+    fn c_timegm(t: TmRef<'_>) -> i64 {
+        let mut c = ffi::tm {
+            tm_sec: t.sec(),
+            tm_min: t.min(),
+            tm_hour: t.hour(),
+            tm_mday: t.mday(),
+            tm_mon: t.mon(),
+            tm_year: t.year(),
+            tm_wday: t.wday(),
+            tm_yday: t.yday(),
+            tm_isdst: t.isdst(),
+            tm_gmtoff: t.gmtoff(),
+            tm_zone: ptr::null(),
+        };
+        // SAFETY: a live local `struct tm`; every caller checked that C's
+        // arithmetic does not overflow (the wrapper returned a value).
+        unsafe { ffi::av_timegm(&mut c) }
+    }
+
+    #[test]
+    fn utc_times_agree_wherever_c_is_defined() {
+        let edges = [
+            i32::MIN,
+            -5_885_416,
+            -5_885_415,
+            -1_000_000,
+            -596_523,
+            -1,
+            0,
+            1,
+            2,
+            11,
+            12,
+            13,
+            28,
+            29,
+            31,
+            59,
+            60,
+            70,
+            100,
+            596_523,
+            5_881_615,
+            5_881_616,
+            i32::MAX,
+        ];
+        let mut state = 0x7777_aaaa_5555_3333u64;
+        let mut next = move || {
+            state ^= state << 13;
+            state ^= state >> 7;
+            state ^= state << 17;
+            state
+        };
+        let mut defined = 0;
+        for i in 0..100_000 {
+            let mut f = [0i32; 6];
+            for v in &mut f {
+                *v = if i % 2 == 0 {
+                    edges[(next() % edges.len() as u64) as usize]
+                } else {
+                    (next() as i32) >> (next() % 32)
+                };
+            }
+            let mut t = Tm::new();
+            let mut m = t.as_mut();
+            m.set_year(f[0]);
+            m.set_mon(f[1]);
+            m.set_mday(f[2]);
+            m.set_hour(f[3]);
+            m.set_min(f[4]);
+            m.set_sec(f[5]);
+            m.set_wday(next() as i32);
+            if let Some(v) = timegm(t.as_ref()) {
+                defined += 1;
+                assert_eq!(v, c_timegm(t.as_ref()), "{f:?}");
+            }
+        }
+        assert!(defined > 10_000, "{defined}");
+        // Calendar dates, as `strptime` reads them, agree with C too.
+        for s in [
+            c"1970-01-01 00:00:00",
+            c"2000-02-29 23:59:59",
+            c"9999-12-31 23:59:59",
+            c"0000-01-01 00:00:00",
+        ] {
+            let mut t = Tm::new();
+            small_strptime(s, c"%Y-%m-%d %T", t.as_mut()).unwrap();
+            assert_eq!(timegm(t.as_ref()), Some(c_timegm(t.as_ref())), "{s:?}");
+        }
+    }
+}

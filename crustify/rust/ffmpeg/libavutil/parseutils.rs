@@ -10,12 +10,20 @@
 //! [`find_info_tag`] reads one tag of a URL query string into a caller's
 //! buffer; [`known_color_name`] enumerates the named colors the color parser
 //! recognizes.
+//!
+//! [`parse_ratio`] and [`parse_video_rate`] read a [`Rational`] (an aspect
+//! ratio, a frame rate); [`small_strptime`] reads date and time fields into
+//! a [`Tm`](super::bprint::Tm), and [`timegm`] turns one into seconds since
+//! the epoch, refusing the values C's unchecked arithmetic overflows on.
 
 use core::ffi::{CStr, c_char, c_int};
-use core::ptr;
+use core::ptr::{self, NonNull};
 
+use super::bprint::{TmMut, TmRef};
+use super::eval;
 use super::ffi;
 use super::opt::ObjectRef;
+use super::rational::Rational;
 
 /// `AVERROR(EINVAL)`.
 const AVERROR_EINVAL: c_int = -(ffi::EINVAL as c_int);
@@ -290,6 +298,218 @@ pub fn known_color_name(index: usize) -> Option<(&'static CStr, [u8; 3])> {
     unsafe { Some((CStr::from_ptr(name), rgb.cast::<[u8; 3]>().read())) }
 }
 
+// Options wave 1, batch 1: ratios, video rates, date fields and UTC times.
+
+/// `av_parse_ratio` of `ratio`, refused as [`parse_ratio_with_context`]
+/// documents.
+fn parse_ratio_raw(
+    ratio: &CStr,
+    max: i32,
+    log_offset: i32,
+    log_ctx: Option<ObjectRef<'_>>,
+) -> Result<Rational, i32> {
+    if max < 0 || eval::refuses(ratio.to_bytes(), log_offset) {
+        return Err(AVERROR_EINVAL);
+    }
+    let log_ctx = log_ctx.map_or(ptr::null_mut(), |o| o.as_ptr());
+    let mut q = ffi::AVRational::default();
+    // SAFETY: `q` is a writable local and `ratio` a live NUL-terminated
+    // string C only reads; a non-negative `max` keeps `av_reduce` and
+    // `av_d2q` within `int`, `refuses` rejected every expression whose
+    // evaluation could reach undefined behaviour at `log_offset`, and
+    // `log_ctx` is NULL or a live object whose class callbacks `av_log` may
+    // call, as `ObjectRef` guarantees for the call.
+    let ret = unsafe { ffi::av_parse_ratio(&mut q, ratio.as_ptr(), max, log_offset, log_ctx) };
+    if ret < 0 {
+        Err(ret)
+    } else {
+        Ok(Rational::from_raw(q))
+    }
+}
+
+/// Wraps: av_parse_ratio
+///
+/// The ratio `ratio` gives, both terms at most `max` in magnitude:
+///
+/// - `<num>:<den>` and nothing after it, two decimal integers as glibc's
+///   `sscanf` reads `%d` (leading whitespace and a sign allowed, narrowed to
+///   `int` modulo 2^32, `-1` beyond the `long` range), reduced to lowest
+///   terms ([`reduce`](super::rational::reduce)), the closest approximation
+///   within `max` when it does not fit; `0:0` and `x:0` stay undefined and
+///   infinite;
+/// - anything else, an expression of the evaluator's own constants and
+///   functions ([`eval::parse_and_eval`] with no constants or functions),
+///   whose value [`Rational::from_f64`] approximates within `max`.
+///
+/// # Errors
+///
+/// The evaluator's: `AVERROR(EINVAL)` for an expression that does not parse
+/// or evaluates to NaN (logged at `AV_LOG_ERROR` in an `"Eval"` context),
+/// `AVERROR(ENOMEM)`. Also `AVERROR(EINVAL)`, before C runs, for a negative
+/// `max`, which C's reduction cannot bound, and for an expression
+/// [`eval::parse_and_eval`] refuses.
+///
+/// ```
+/// use ffmpeg::libavutil::parseutils::parse_ratio;
+/// use ffmpeg::libavutil::rational::Rational;
+/// assert_eq!(parse_ratio(c"16:12", 255).map(Rational::into_raw).map(|q| (q.num, q.den)), Ok((4, 3)));
+/// assert_eq!(parse_ratio(c"0.75", 255).map(Rational::into_raw).map(|q| (q.num, q.den)), Ok((3, 4)));
+/// ```
+pub fn parse_ratio(ratio: &CStr, max: i32) -> Result<Rational, i32> {
+    parse_ratio_raw(ratio, max, 0, None)
+}
+
+/// Wraps: av_parse_ratio
+///
+/// As [`parse_ratio`], logging an expression's errors with `log_offset`
+/// added to their level, as messages of an `"Eval"` context whose parent is
+/// `log_ctx` (`None` for none); `ffi::AV_LOG_MAX_OFFSET` silences them, as
+/// C's `av_parse_ratio_quiet` does.
+///
+/// # Errors
+///
+/// As [`parse_ratio`]; the refused expressions include a `log_offset` that
+/// overflows an `int` added to C's levels.
+pub fn parse_ratio_with_context(
+    ratio: &CStr,
+    max: i32,
+    log_offset: i32,
+    log_ctx: Option<ObjectRef<'_>>,
+) -> Result<Rational, i32> {
+    parse_ratio_raw(ratio, max, log_offset, log_ctx)
+}
+
+/// Wraps: av_parse_video_rate
+///
+/// The frame rate `rate` gives, both terms positive: a named rate (`ntsc`,
+/// `pal`, `qntsc`, `qpal`, `sntsc`, `spal`, `film`, `ntsc-film`;
+/// case-sensitive), or a ratio as [`parse_ratio`] reads it, quietly,
+/// within 1001000 (`"30000/1001"`, `"29.97"`), or within `i32::MAX` when that
+/// leaves a zero term.
+///
+/// # Errors
+///
+/// `AVERROR(EINVAL)` for a rate that does not parse or whose terms are not
+/// both positive, `AVERROR(ENOMEM)`; nothing is logged. Also
+/// `AVERROR(EINVAL)`, before C runs, for an expression
+/// [`eval::parse_and_eval`] refuses.
+pub fn parse_video_rate(rate: &CStr) -> Result<Rational, i32> {
+    if eval::refuses(rate.to_bytes(), ffi::AV_LOG_MAX_OFFSET as c_int) {
+        return Err(AVERROR_EINVAL);
+    }
+    let mut q = ffi::AVRational::default();
+    // SAFETY: `q` is a writable local and `rate` a live NUL-terminated
+    // string C only reads; C's quiet ratio parses use non-negative bounds,
+    // and `refuses` rejected every expression whose quiet evaluation could
+    // reach undefined behaviour.
+    let ret = unsafe { ffi::av_parse_video_rate(&mut q, rate.as_ptr()) };
+    if ret < 0 {
+        Err(ret)
+    } else {
+        Ok(Rational::from_raw(q))
+    }
+}
+
+/// Wraps: av_small_strptime
+///
+/// Reads the start of `s` as `fmt` describes it, storing each field it
+/// reads in `tm`, and returns the rest of `s`: the bytes after the last one
+/// read, possibly the empty string. `fmt` is a subset of `strptime`'s:
+///
+/// - `%H`: an hour, 0 to 23, of at most 2 digits (`tm_hour`);
+/// - `%J`: hours, of at most 4 digits (`tm_hour`);
+/// - `%M`, `%S`: a minute or second, 0 to 59, of at most 2 digits
+///   (`tm_min`, `tm_sec`);
+/// - `%Y`: a year of at most 4 digits (`tm_year`, less 1900);
+/// - `%m`: a month, 1 to 12, of at most 2 digits (`tm_mon`, less 1);
+/// - `%d`: a day of the month, 1 to 31, of at most 2 digits (`tm_mday`);
+/// - `%T`: `%H:%M:%S`;
+/// - `%b`, `%B`, `%h`: a month's English name, its first three letters or
+///   all of it, in any case (`tm_mon`);
+/// - `%%`: a `%`;
+/// - a white-space byte: any run of white space, possibly empty;
+/// - any other byte: itself.
+///
+/// Numbers are decimal digits only: no sign or white space.
+///
+/// `None` when `s` does not match, or `fmt` holds another `%` conversion
+/// or ends in `%`; `tm` then keeps the fields stored before the mismatch.
+/// No other field of `tm` is written.
+///
+/// ```
+/// use ffmpeg::libavutil::bprint::Tm;
+/// use ffmpeg::libavutil::parseutils::small_strptime;
+/// let mut tm = Tm::new();
+/// let rest = small_strptime(c"2024-02-29 12:34:56 UTC", c"%Y-%m-%d %T", tm.as_mut());
+/// assert_eq!(rest, Some(c" UTC"));
+/// assert_eq!((tm.as_ref().year(), tm.as_ref().mon(), tm.as_ref().mday()), (124, 1, 29));
+/// assert_eq!(tm.as_ref().sec(), 56);
+/// ```
+pub fn small_strptime<'s>(s: &'s CStr, fmt: &CStr, mut tm: TmMut<'_>) -> Option<&'s CStr> {
+    // SAFETY: `s` and `fmt` are live NUL-terminated strings C only reads,
+    // never past their NULs (a trailing `%` fails as it reads the NUL), and
+    // `tm` a live `struct tm` of which C writes only integer fields.
+    let rest = unsafe { ffi::av_small_strptime(s.as_ptr(), fmt.as_ptr(), tm.as_mut_ptr()) };
+    // SAFETY: a non-NULL result points into `s`, at a byte C has not read
+    // past or at its NUL, so it is a suffix of the same string, live for
+    // `'s`.
+    NonNull::new(rest).map(|p| unsafe { CStr::from_ptr(p.as_ptr()) })
+}
+
+/// The `int` sum C's `av_timegm` computes the days of `tm` with, and its
+/// seconds of the day, or `None` when either overflows an `int` (C's signed
+/// overflow, undefined behaviour). Mirrors C's operations in their order.
+fn timegm_terms(tm: TmRef<'_>) -> Option<(c_int, c_int)> {
+    let (mut y, mut m) = (tm.year().checked_add(1900)?, tm.mon().checked_add(1)?);
+    if m < 3 {
+        m = m.checked_add(12)?;
+        y = y.checked_sub(1)?;
+    }
+    let days = tm
+        .mday()
+        .checked_add(153i32.checked_mul(m)?.checked_sub(457)? / 5)?
+        .checked_add(365i32.checked_mul(y)?)?
+        .checked_add(y / 4)?
+        .checked_sub(y / 100)?
+        .checked_add(y / 400)?
+        .checked_sub(719_469)?;
+    let secs = 3600i32
+        .checked_mul(tm.hour())?
+        .checked_add(60i32.checked_mul(tm.min())?)?
+        .checked_add(tm.sec())?;
+    Some((days, secs))
+}
+
+/// Wraps: av_timegm
+///
+/// The seconds since 1970-01-01 00:00:00 UTC of the UTC time `tm`, from its
+/// year, month, day, hour, minute and second; the other fields are ignored.
+/// The fields are not range-checked: an overflowing one carries into the
+/// next (minute 60 is the next hour's first, month 12 the next year's
+/// January; a day 0 is the month's eve).
+///
+/// `None` when the computation overflows C's `int` arithmetic, which C
+/// does not check (undefined behaviour): for a year beyond about 5.8
+/// million either way, or an hour, minute or second whose seconds of the
+/// day exceed the `int` range.
+///
+/// ```
+/// use ffmpeg::libavutil::bprint::Tm;
+/// use ffmpeg::libavutil::parseutils::timegm;
+/// let mut tm = Tm::new();
+/// let mut t = tm.as_mut();
+/// t.set_year(100);
+/// t.set_mday(1);
+/// assert_eq!(timegm(tm.as_ref()), Some(946_684_800));
+/// ```
+pub fn timegm(tm: TmRef<'_>) -> Option<i64> {
+    timegm_terms(tm)?;
+    // SAFETY: the shared handle covers a live `struct tm`, which C only
+    // reads although its parameter is not `const`; `timegm_terms` checked
+    // that none of C's `int` operations overflows.
+    Some(unsafe { ffi::av_timegm(tm.as_ptr().cast_mut()) })
+}
+
 /// Whether `av_parse_color(color)` (the whole string, `slen` of -1) reaches
 /// an alpha specifier `strtod` reads as NaN (`"red@nan"`): C then stores the
 /// NaN in a `uint8_t`, undefined behaviour (`parseutils.c:433`). As
@@ -562,5 +782,149 @@ mod unit_tests {
         let mut empty = [0u8; 0];
         assert_eq!(find_info_tag(&mut empty, c"a", c"?a=1"), Some(c""));
         assert_eq!(find_info_tag(&mut empty, c"b", c"?a=1"), None);
+    }
+    /// Options wave 1, batch 1: ratio refusals and `av_timegm`'s overflow
+    /// model.
+    mod timegm_and_ratios {
+        use super::*;
+        use crate::libavutil::bprint::Tm;
+
+        /// `av_timegm`'s computation in `i64`, with whether every
+        /// intermediate value of C's `int` operations fits an `int`.
+        fn model(year: i32, mon: i32, mday: i32, hour: i32, min: i32, sec: i32) -> (i64, bool) {
+            let fits = core::cell::Cell::new(true);
+            let int = |v: i64| {
+                fits.set(fits.get() && i32::try_from(v).is_ok());
+                v
+            };
+            let (mut y, mut m) = (int(i64::from(year) + 1900), int(i64::from(mon) + 1));
+            if m < 3 {
+                m = int(m + 12);
+                y = int(y - 1);
+            }
+            let a = int(int(153 * m) - 457) / 5;
+            let mut days = int(i64::from(mday) + a);
+            days = int(days + int(365 * y));
+            days = int(days + y / 4);
+            days = int(days - y / 100);
+            days = int(days + y / 400);
+            days = int(days - 719_469);
+            let mut secs = int(int(3600 * i64::from(hour)) + int(60 * i64::from(min)));
+            secs = int(secs + i64::from(sec));
+            (86_400 * days + secs, fits.get())
+        }
+
+        fn tm(year: i32, mon: i32, mday: i32, hour: i32, min: i32, sec: i32) -> Tm {
+            let mut t = Tm::new();
+            let mut m = t.as_mut();
+            m.set_year(year);
+            m.set_mon(mon);
+            m.set_mday(mday);
+            m.set_hour(hour);
+            m.set_min(min);
+            m.set_sec(sec);
+            t
+        }
+
+        /// Values around each bound C's `int` operations cross.
+        const EDGES: [i32; 23] = [
+            i32::MIN,
+            i32::MIN + 1,
+            -5_883_517 - 1900,
+            -5_883_516 - 1900,
+            -596_524,
+            -596_523,
+            -35_791_395,
+            -1,
+            0,
+            1,
+            2,
+            11,
+            12,
+            59,
+            60,
+            596_523,
+            596_524,
+            35_791_394,
+            35_791_395,
+            5_883_516 - 1900,
+            5_883_517 - 1900,
+            i32::MAX - 1,
+            i32::MAX,
+        ];
+
+        #[test]
+        fn timegm_refuses_exactly_cs_int_overflows() {
+            let mut state = 0x1234_5678_9abc_def0u64;
+            let mut next = move || {
+                state ^= state << 13;
+                state ^= state >> 7;
+                state ^= state << 17;
+                EDGES[(state % EDGES.len() as u64) as usize]
+            };
+            for _ in 0..200_000 {
+                let f = [next(), next(), next(), next(), next(), next()];
+                let t = tm(f[0], f[1], f[2], f[3], f[4], f[5]);
+                let (value, fits) = model(f[0], f[1], f[2], f[3], f[4], f[5]);
+                assert_eq!(timegm_terms(t.as_ref()).is_some(), fits, "{f:?}");
+                assert_eq!(timegm(t.as_ref()), fits.then_some(value), "{f:?}");
+            }
+        }
+
+        /// As above for the check alone, which runs no C (Miri).
+        #[test]
+        fn timegm_terms_flag_every_int_overflow() {
+            let windows = EDGES.windows(6);
+            for f in windows.chain([&[0, 0, 1, 0, 0, 0][..], &[70, 11, 31, 23, 59, 59]]) {
+                let t = tm(f[0], f[1], f[2], f[3], f[4], f[5]);
+                let (_, fits) = model(f[0], f[1], f[2], f[3], f[4], f[5]);
+                assert_eq!(timegm_terms(t.as_ref()).is_some(), fits, "{f:?}");
+            }
+            for &e in &EDGES {
+                for field in 0..6 {
+                    let mut f = [70, 0, 1, 0, 0, 0];
+                    f[field] = e;
+                    let t = tm(f[0], f[1], f[2], f[3], f[4], f[5]);
+                    let (_, fits) = model(f[0], f[1], f[2], f[3], f[4], f[5]);
+                    assert_eq!(timegm_terms(t.as_ref()).is_some(), fits, "{f:?}");
+                }
+            }
+        }
+
+        /// The corrected behaviour: C's signed overflows (UBSan:
+        /// `parseutils.c:577`, `:585`, `:587`) become `None`.
+        #[test]
+        fn timegm_overflows_are_none() {
+            assert_eq!(timegm(tm(6_000_000, 0, 1, 0, 0, 0).as_ref()), None);
+            assert_eq!(timegm(tm(70, 0, 1, 600_000, 0, 0).as_ref()), None);
+            assert_eq!(timegm(tm(70, i32::MAX, 1, 0, 0, 0).as_ref()), None);
+            assert_eq!(timegm(tm(70, 0, i32::MAX, 0, 0, 0).as_ref()), None);
+            assert_eq!(timegm(tm(70, 0, 1, 0, 0, 0).as_ref()), Some(0));
+            assert_eq!(timegm(tm(70, 0, 0, 0, 0, -1).as_ref()), Some(-86_401));
+        }
+
+        #[test]
+        fn negative_bounds_and_refused_expressions_fail_before_c() {
+            assert_eq!(parse_ratio(c"1:2", -1), Err(AVERROR_EINVAL));
+            assert_eq!(
+                parse_ratio(c"1:2", 0)
+                    .map(Rational::into_raw)
+                    .map(|q| (q.num, q.den)),
+                Ok((0, 1))
+            );
+            assert_eq!(parse_ratio(c"ld(1e300)", 100), Err(AVERROR_EINVAL));
+            assert_eq!(parse_ratio(c"st(0,1)+random(0)", 100), Err(AVERROR_EINVAL));
+            assert_eq!(
+                parse_ratio_with_context(c"1:2", 10, i32::MAX, None),
+                Err(AVERROR_EINVAL)
+            );
+            assert_eq!(parse_video_rate(c"ld(-1e300)"), Err(AVERROR_EINVAL));
+            assert_eq!(
+                parse_video_rate(c"ntsc")
+                    .map(Rational::into_raw)
+                    .map(|q| (q.num, q.den)),
+                Ok((30000, 1001))
+            );
+        }
     }
 }
