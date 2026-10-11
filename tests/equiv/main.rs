@@ -28,3 +28,4 @@ mod rational;
 mod samplefmt;
 mod time;
 mod timestamp;
+mod xtea;

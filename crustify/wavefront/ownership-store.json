@@ -725,6 +725,12 @@
    "fields": []
   },
   {
+   "name": "AVXTEA",
+   "defined_in": "libavutil/xtea.h",
+   "_comment_agent": "AVXTEA is sixteen inline uint32_t words, no pointer fields, casts, locks, refcounts or field resources. av_xtea_alloc calls av_mallocz(sizeof(AVXTEA)); callers pair it with av_free. rtmpcrypt.c uses an automatic context. Both init routines copy a 16-byte key into ONLY words 0..4, preserving words 4..16; their key argument is omitted by extraction because it is an array parameter. All cipher readers index only 0..4, never modify or retain the context, and support zero words. Plain word copies are independent; no dedicated C clone/disposer. Safe inline values and Heap-owned CBox storage retain ABI; borrow handles exclude concurrent modification. No Send/Sync opt-in.",
+   "fields": []
+  },
+  {
    "name": "av_alias16",
    "defined_in": "libavutil/intreadwrite.h",
    "_comment_agent": "A union (the composer reports kind=struct for the anonymous typedef'd union) declared __attribute__((may_alias)) for type punning in the AV_RN/AV_WN/AV_COPY/AV_SWAP/AV_ZERO macros. Fields u16 and u8[2] are plain scalars that both cover all 2 bytes, so every bit pattern is valid for every field and reading any field of an initialised object is defined. No pointer fields, no allocation, no teardown, no clone routine: C only ever casts existing storage to av_alias16* (opaque_in footprint) or holds it by value. Lifecycle: none; a by-value, trivially copyable value type, all-zero valid.",
@@ -11270,6 +11276,100 @@
      "note": "p when non-NULL, else x (NULL when both are), const cast away: borrows whichever argument it is. Header inline."
     }
    }
+  },
+  {
+   "name": "av_xtea_alloc",
+   "defined_in": "libavutil/xtea.c",
+   "lifetime": {
+    "for": "return",
+    "is_dropper": false,
+    "is_disposer": false,
+    "is_cloner": null,
+    "is_constructor": {
+     "alloc": true,
+     "init": false
+    }
+   },
+   "ptr_ret": {
+    "ptr": {
+     "scalar": {
+      "by_val": true
+     },
+     "array": null,
+     "string": false,
+     "owned": true,
+     "borrowed": null,
+     "nullable": true,
+     "mutable": true,
+     "note": "Fresh zero-filled AVXTEA from av_mallocz; sole ownership transferred to caller, freed with av_free. No fields own resources."
+    }
+   }
+  },
+  {
+   "name": "av_xtea_init",
+   "defined_in": "libavutil/xtea.c",
+   "lifetime": {
+    "for": "ctx",
+    "is_dropper": false,
+    "is_disposer": false,
+    "is_cloner": null,
+    "is_constructor": {
+     "alloc": false,
+     "init": true
+    }
+   },
+   "ptr_args": [
+    {
+     "name": "ctx",
+     "ptr": {
+      "scalar": {
+       "by_val": true
+      },
+      "array": null,
+      "string": false,
+      "owned": false,
+      "borrowed": {
+       "lifetime": "call"
+      },
+      "nullable": false,
+      "mutable": true,
+      "note": "Exclusively borrowed context for this call; writes only first four u32 words, preserving last twelve. Key array parameter omitted by extraction: exactly 16 borrowed readable bytes, endian-decoded and copied, not retained. No allocation or transfer; caller preinitializes tail before safe adoption."
+     }
+    }
+   ]
+  },
+  {
+   "name": "av_xtea_le_init",
+   "defined_in": "libavutil/xtea.c",
+   "lifetime": {
+    "for": "ctx",
+    "is_dropper": false,
+    "is_disposer": false,
+    "is_cloner": null,
+    "is_constructor": {
+     "alloc": false,
+     "init": true
+    }
+   },
+   "ptr_args": [
+    {
+     "name": "ctx",
+     "ptr": {
+      "scalar": {
+       "by_val": true
+      },
+      "array": null,
+      "string": false,
+      "owned": false,
+      "borrowed": {
+       "lifetime": "call"
+      },
+      "nullable": false,
+      "mutable": true,
+      "note": "Exclusively borrowed context for this call; writes only first four u32 words, preserving last twelve. Key array parameter omitted by extraction: exactly 16 borrowed readable bytes, endian-decoded and copied, not retained. No allocation or transfer; caller preinitializes tail before safe adoption."
+     }
+    }
+   ]
   },
   {
    "name": "av_zero_extend_c",

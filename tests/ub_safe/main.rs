@@ -29,6 +29,7 @@ mod rational;
 mod samplefmt;
 mod time;
 mod timestamp;
+mod xtea;
 
 /// Programs under `compile_fail/` must be rejected by the compiler.
 #[test]

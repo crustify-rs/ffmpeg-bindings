@@ -616,3 +616,10 @@ function av_opt_eval_int64
 function av_opt_eval_q
 function av_opt_eval_uint
 function av_opt_is_set_to_default
+
+# libavutil/xtea.h: AVXTEA lifecycle and C readers for type equivalence tests.
+function av_xtea_alloc
+function av_xtea_init
+function av_xtea_le_init
+function av_xtea_crypt
+function av_xtea_le_crypt
