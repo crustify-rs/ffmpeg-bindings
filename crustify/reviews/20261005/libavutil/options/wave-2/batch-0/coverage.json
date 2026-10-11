@@ -1,0 +1,42 @@
+{
+ "method": {
+  "c": "CRUSTIFY_FFMPEG_VARIANT=coverage (gcc gcov build), GCOV_PREFIX=/tmp/rw2b0/cov/gcov, gcov 13 -b -c -f over opt.c, driven by the opt tests of the lib, equiv, ub_safe and ub_unsafe binaries (cargo +nightly test -p ffmpeg --lib --tests -- opt:: --skip compile_fail) on the fixed tree; the review's dictionary-default test was added after and measured alone (cargo test --test equiv -- unparsable_dictionary)",
+  "rust": "RUSTFLAGS=-C instrument-coverage in the same run, nightly llvm-profdata merge + llvm-cov report/show over the four test binaries, opt.rs",
+  "note": "the workset's C functions are all at 100% of lines except av_opt_find2's FAKE_OBJ target store (unreachable: the wrappers pass a target slot only without FAKE_OBJ) and av_opt_is_set_to_default's unsupported-type default (unreachable: every type opt.h defines has a case). The review's test unparsable_dictionary_defaults_fail_as_c covers is_set_to_default's failed dictionary-default parse (opt.c:2745-2746), the one reachable gap. The Rust misses in opt.rs are options-wave-0 lines (options_refusal's NULL-token return, default_number's catch-all) and test-harness arms (panic! arms, BSan early returns, unused fixture callbacks); the wave-2 section (opt.rs RangeFlags .. eval) has no missed line"
+ },
+ "c": {
+  "files": {
+   "libavutil/opt.c": {
+    "lines": {"count": 1674, "percent": 97.19},
+    "note": "whole file, before the dictionary-default test (+2 lines after it)"
+   }
+  },
+  "functions": {
+   "av_opt_eval_flags": {"lines": 1, "percent": 100.0},
+   "av_opt_eval_int": {"lines": 1, "percent": 100.0},
+   "av_opt_eval_uint": {"lines": 1, "percent": 100.0},
+   "av_opt_eval_int64": {"lines": 1, "percent": 100.0},
+   "av_opt_eval_float": {"lines": 1, "percent": 100.0},
+   "av_opt_eval_double": {"lines": 1, "percent": 100.0},
+   "av_opt_eval_q": {"lines": 1, "percent": 100.0},
+   "set_string_number": {"lines": 69, "percent": 100.0},
+   "write_number": {"lines": 47, "percent": 100.0},
+   "av_opt_find": {"lines": 2, "percent": 100.0},
+   "av_opt_find2": {"lines": 24, "percent": 95.83, "missed": ["opt.c:2112 (*target_obj = NULL with FAKE_OBJ)"]},
+   "av_opt_next": {"lines": 7, "percent": 100.0},
+   "av_opt_is_set_to_default": {"lines": 92, "percent": 93.48, "missed": ["opt.c:2745-2746 (covered by the review's test, measured alone)", "opt.c:2776-2778, 2780 (unsupported type)"]},
+   "av_opt_query_ranges": {"lines": 12, "percent": 100.0},
+   "av_opt_query_ranges_default": {"lines": 50, "percent": 100.0},
+   "av_opt_freep_ranges": {"lines": 11, "percent": 100.0}
+  }
+ },
+ "rust": {
+  "files": {
+   "crustify/rust/ffmpeg/libavutil/opt.rs": {
+    "regions": {"count": 5006, "percent": 99.04},
+    "functions": {"count": 357, "percent": 98.88},
+    "lines": {"count": 3342, "percent": 99.28}
+   }
+  }
+ }
+}

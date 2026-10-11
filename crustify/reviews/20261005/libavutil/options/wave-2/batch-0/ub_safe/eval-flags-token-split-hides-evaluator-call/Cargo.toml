@@ -1,0 +1,10 @@
+[package]
+name = "eval-flags-token-split-hides-evaluator-call"
+version = "0.0.0"
+edition = "2024"
+publish = false
+
+[workspace]
+
+[dependencies]
+ffmpeg = { path = "../../../../../../../../rust/ffmpeg" }
