@@ -1,0 +1,9 @@
+{
+  "ptr_args": {
+    "0": {"ptr": {"scalar": null, "array": {"by_val": true}, "string": false, "owned": false, "borrowed": {"lifetime": "arg:dst"}, "nullable": false, "mutable": true,
+      "note": "Output of exactly 16 bytes (the digest, AV_WL32 four words), written once at the end; not read. Borrowed for the call, no retention."}},
+    "1": {"ptr": {"scalar": null, "array": {"by_val": true}, "string": false, "owned": false, "borrowed": {"lifetime": "arg:src"}, "nullable": false, "mutable": false,
+      "note": "Input of len bytes, read for the call only through a stack context. av_md5_update forms src + (len & ~63) even for len 0, so NULL is not valid in C. No retention."}}
+  },
+  "lifetime": null
+}
