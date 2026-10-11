@@ -436,14 +436,13 @@ mod luma_coefficients {
 /// [`PrimaryCoefficients`]: ffmpeg::libavutil::csp::PrimaryCoefficients
 mod primary_coefficients {
     use core::mem::{align_of, offset_of, size_of};
-    use core::ptr::{NonNull, addr_of};
 
-    use ffibox::CSlice;
     use ffmpeg::libavutil::csp::{
         CieXy, PrimaryCoefficients, PrimaryCoefficientsMut, PrimaryCoefficientsRef,
     };
     use ffmpeg::libavutil::ffi;
     use ffmpeg::libavutil::mem::HeapBox;
+    use ffmpeg::libavutil::pixfmt::ColorPrimaries;
     use ffmpeg::libavutil::rational::Rational;
 
     /// Every primaries value C may describe, past the end of both ranges
@@ -455,22 +454,12 @@ mod primary_coefficients {
         (0..=nb).chain(ext..=ext_nb).map(ffi::AVColorPrimaries)
     }
 
-    /// The primaries of C's description for `p`, if it has one, as a safe
-    /// handle over C's static storage: the test's one adoption of C-owned
-    /// `AVPrimaryCoefficients`.
+    /// The primaries of C's description for `p`, if it has one, read in
+    /// place in C's static storage through the safe lookup.
     fn c_entry(p: ffi::AVColorPrimaries) -> Option<PrimaryCoefficientsRef<'static>> {
-        // SAFETY: takes any value and returns NULL or a pointer into C's
-        // static, never-written table.
-        let d = NonNull::new(unsafe { ffi::av_csp_primaries_desc_from_id(p) }.cast_mut())?;
-        // SAFETY: `d` is a live description; the projection forms no
-        // reference.
-        let prim = unsafe { addr_of!((*d.as_ptr()).prim) }.cast_mut();
-        let prim = NonNull::new(prim).unwrap().cast::<PrimaryCoefficients>();
-        // SAFETY: `prim` addresses one live, initialised, never-written
-        // `AVPrimaryCoefficients` of a static table;
-        // `PrimaryCoefficients` is transparent over it.
-        let one: CSlice<'static, _> = unsafe { CSlice::from_raw_parts(prim, 1) };
-        one.get(0)
+        ColorPrimaries::from_raw(p)
+            .descriptor()
+            .map(|d| d.primaries())
     }
 
     /// Copies of every gamut description C holds, with its primaries value.
@@ -916,15 +905,15 @@ mod luma_lookup {
 /// [`ColorPrimariesDescriptor`]: ffmpeg::libavutil::csp::ColorPrimariesDescriptor
 mod color_primaries_descriptor {
     use core::mem::{align_of, offset_of, size_of};
-    use core::ptr::{self, NonNull, addr_of};
+    use core::ptr::{self, addr_of};
 
-    use ffibox::CSlice;
     use ffmpeg::libavutil::csp::{
         CieXy, CieXyMut, ColorPrimariesDescriptor, ColorPrimariesDescriptorMut,
         ColorPrimariesDescriptorRef, PrimaryCoefficients,
     };
     use ffmpeg::libavutil::ffi;
     use ffmpeg::libavutil::mem::HeapBox;
+    use ffmpeg::libavutil::pixfmt::ColorPrimaries;
     use ffmpeg::libavutil::rational::Rational;
 
     /// Every primaries value C may describe, past the end of both ranges
@@ -936,19 +925,10 @@ mod color_primaries_descriptor {
         (0..=nb).chain(ext..=ext_nb).map(ffi::AVColorPrimaries)
     }
 
-    /// C's description for `p`, if it has one, as a safe handle over C's
-    /// static storage: the test's one adoption of a C-owned
-    /// `AVColorPrimariesDesc`.
+    /// C's description for `p`, if it has one, read in place in C's static
+    /// storage through the safe lookup.
     fn c_entry(p: ffi::AVColorPrimaries) -> Option<ColorPrimariesDescriptorRef<'static>> {
-        // SAFETY: takes any value and returns NULL or a pointer into C's
-        // static, never-written tables.
-        let d = NonNull::new(unsafe { ffi::av_csp_primaries_desc_from_id(p) }.cast_mut())?;
-        let d = d.cast::<ColorPrimariesDescriptor>();
-        // SAFETY: `d` addresses one live, initialised, never-written
-        // `AVColorPrimariesDesc` of a static table;
-        // `ColorPrimariesDescriptor` is transparent over it.
-        let one: CSlice<'static, _> = unsafe { CSlice::from_raw_parts(d, 1) };
-        one.get(0)
+        ColorPrimaries::from_raw(p).descriptor()
     }
 
     /// Copies of every gamut description C holds, with its primaries value.
@@ -1279,5 +1259,352 @@ mod color_primaries_descriptor {
             assert_eq!(embedded_id(&rust), c_id_at(&copy.target_display_primaries));
             assert_eq!(c_id_at(&copy.target_display_primaries), id, "{p:?}");
         }
+    }
+}
+
+/// `ColorPrimaries::descriptor` and `ColorPrimariesDescriptorRef::identify`
+/// against `av_csp_primaries_desc_from_id` and
+/// `av_csp_primaries_id_from_desc`: the lookup for every value past both
+/// ranges and the `unsigned` extremes, the identification of every
+/// description C holds, read in place and from copies, around C's 1/1000
+/// tolerance, and along random sequences of single-coordinate edits to
+/// independently owned descriptions, compared after every edit. C's
+/// `AVCOL_PRI_UNSPECIFIED` is the wrapper's `None`.
+///
+/// Descriptions with a `0/0` coordinate or two zero denominators are where
+/// the wrapper corrects C (which reports BT.709 for them, see
+/// `csp::unit_tests`): the sequences check the wrapper's `None` there
+/// instead.
+mod primaries_lookup {
+    use ffmpeg::libavutil::csp::{CieXy, ColorPrimariesDescriptor, ColorPrimariesDescriptorRef};
+    use ffmpeg::libavutil::ffi;
+    use ffmpeg::libavutil::mem::HeapBox;
+    use ffmpeg::libavutil::pixfmt::ColorPrimaries;
+
+    /// Every value C has a table slot for, its neighbours, and the extremes,
+    /// as C's `unsigned` enum takes them.
+    fn values() -> impl Iterator<Item = u32> {
+        let nb = ffi::AVColorPrimaries::AVCOL_PRI_NB.0;
+        let ext = ffi::AVColorPrimaries::AVCOL_PRI_EXT_BASE.0;
+        let ext_nb = ffi::AVColorPrimaries::AVCOL_PRI_EXT_NB.0;
+        (0..nb + 3).chain(ext - 2..ext_nb + 3).chain([
+            u32::MAX,
+            u32::MAX - 1,
+            1 << 31,
+            (1 << 31) - 1,
+        ])
+    }
+
+    /// C's description for `raw`, copied out of its table.
+    fn c_desc(raw: u32) -> Option<ffi::AVColorPrimariesDesc> {
+        // SAFETY: by value; C checks the value against both tables and
+        // returns NULL or a pointer into one of them.
+        let d = unsafe { ffi::av_csp_primaries_desc_from_id(ffi::AVColorPrimaries(raw)) };
+        // SAFETY: a non-NULL result is a live, initialised table entry; the
+        // copy is plain data.
+        (!d.is_null()).then(|| unsafe { d.read() })
+    }
+
+    /// C's identification of `d`, as the wrapper reports it.
+    fn c_identify(d: &ffi::AVColorPrimariesDesc) -> Option<ColorPrimaries> {
+        // SAFETY: `d` is a live, initialised description C only reads.
+        let id = unsafe { ffi::av_csp_primaries_id_from_desc(d) };
+        (id != ffi::AVColorPrimaries::AVCOL_PRI_UNSPECIFIED).then(|| ColorPrimaries::from_raw(id))
+    }
+
+    fn fields(d: &ffi::AVColorPrimariesDesc) -> [i32; 16] {
+        let mut out = [0; 16];
+        for (i, xy) in [d.wp, d.prim.r, d.prim.g, d.prim.b].iter().enumerate() {
+            out[4 * i..4 * i + 4].copy_from_slice(&[xy.x.num, xy.x.den, xy.y.num, xy.y.den]);
+        }
+        out
+    }
+
+    fn rust_fields(d: ColorPrimariesDescriptorRef<'_>) -> [i32; 16] {
+        fields(&d.get().into_raw())
+    }
+
+    fn desc(f: [i32; 16]) -> ffi::AVColorPrimariesDesc {
+        let q = |i: usize| ffi::AVRational {
+            num: f[i],
+            den: f[i + 1],
+        };
+        let xy = |i: usize| ffi::AVCIExy {
+            x: q(i),
+            y: q(i + 2),
+        };
+        ffi::AVColorPrimariesDesc {
+            wp: xy(0),
+            prim: ffi::AVPrimaryCoefficients {
+                r: xy(4),
+                g: xy(8),
+                b: xy(12),
+            },
+        }
+    }
+
+    /// Where the wrapper deliberately differs from C.
+    fn corrected(f: &[i32; 16]) -> bool {
+        let dens = (0..8).filter(|i| f[2 * i + 1] == 0);
+        dens.clone().count() >= 2 || dens.into_iter().any(|i| f[2 * i] == 0)
+    }
+
+    #[test]
+    fn descriptors_are_cs_table_entries() {
+        let mut found = 0;
+        for raw in values() {
+            let rust = ColorPrimaries::from_raw(ffi::AVColorPrimaries(raw)).descriptor();
+            let c = c_desc(raw);
+            assert_eq!(rust.is_some(), c.is_some(), "{raw}");
+            if let (Some(r), Some(c)) = (rust, c) {
+                assert_eq!(rust_fields(r), fields(&c), "{raw}");
+                assert_eq!(r.get(), ColorPrimariesDescriptor::from_raw(c), "{raw}");
+                found += 1;
+            }
+        }
+        assert!(found >= 12, "{found}");
+    }
+
+    #[test]
+    fn repeated_lookups_return_the_same_entry() {
+        for raw in values() {
+            let p = ColorPrimaries::from_raw(ffi::AVColorPrimaries(raw));
+            let (a, b) = (p.descriptor(), p.descriptor());
+            assert_eq!(a.map(rust_fields), b.map(rust_fields), "{raw}");
+        }
+    }
+
+    #[test]
+    fn every_description_identifies_as_in_c() {
+        let mut ids = Vec::new();
+        for raw in values() {
+            let Some(c) = c_desc(raw) else { continue };
+            let rust = ColorPrimaries::from_raw(ffi::AVColorPrimaries(raw))
+                .descriptor()
+                .unwrap();
+            let expect = c_identify(&c);
+            // In place in C's table, from a copy, and from `av_malloc`
+            // storage.
+            assert_eq!(rust.identify(), expect, "{raw}");
+            let copy = rust.get();
+            assert_eq!(copy.as_ref().identify(), expect, "{raw}");
+            let mut boxed = HeapBox::<ColorPrimariesDescriptor>::new_zeroed().unwrap();
+            boxed.as_mut().set(copy);
+            assert_eq!(boxed.as_ref().identify(), expect, "{raw}");
+            ids.push((raw, expect));
+        }
+        // Each H.273 description names itself, but SMPTE 240M, whose
+        // identical entry SMPTE 170M comes first, and V-Gamut, which C does
+        // not search.
+        for (raw, id) in ids {
+            let p = ColorPrimaries::from_raw(ffi::AVColorPrimaries(raw));
+            match p {
+                ColorPrimaries::SMPTE240M => assert_eq!(id, Some(ColorPrimaries::SMPTE170M)),
+                ColorPrimaries::V_GAMUT => assert_eq!(id, None),
+                _ => assert_eq!(id, Some(p)),
+            }
+        }
+    }
+
+    /// `x` moved by `k` millionths, in lowest terms.
+    fn nudge(num: i32, den: i32, k: i64) -> (i32, i32) {
+        let (n, d) = (
+            i64::from(num) * 1_000_000 + i64::from(den) * k,
+            i64::from(den) * 1_000_000,
+        );
+        let (mut a, mut b) = (n.abs(), d.abs());
+        while b != 0 {
+            (a, b) = (b, a % b);
+        }
+        ((n / a).try_into().unwrap(), (d / a).try_into().unwrap())
+    }
+
+    #[test]
+    fn tolerance_boundary_matches_c() {
+        // [inside, at or past 1/1000][elsewhere, the unmoved entry's id]
+        let mut outcomes = [[0; 2]; 2];
+        for raw in values() {
+            let Some(c) = c_desc(raw) else { continue };
+            let base = fields(&c);
+            // One coordinate, or two sharing the distance; C's tolerance is
+            // a strict 1/1000 on the sum.
+            for (i, j) in [
+                (0, None),
+                (4, None),
+                (14, None),
+                (2, Some(8)),
+                (6, Some(12)),
+            ] {
+                for total in [0, 1, 999, 1000, 1001, 2000] {
+                    for sign in [1, -1] {
+                        let mut f = base;
+                        let (ki, kj) = match j {
+                            None => (total, 0),
+                            Some(_) => (total / 2, total - total / 2),
+                        };
+                        (f[i], f[i + 1]) = nudge(f[i], f[i + 1], sign * ki);
+                        if let Some(j) = j {
+                            (f[j], f[j + 1]) = nudge(f[j], f[j + 1], -sign * kj);
+                        }
+                        let d = desc(f);
+                        let rust = ColorPrimariesDescriptor::from_raw(d).as_ref().identify();
+                        assert_eq!(rust, c_identify(&d), "{raw} {i} {j:?} {total} {sign}");
+                        let own = rust == c_identify(&c);
+                        outcomes[usize::from(total >= 1000)][usize::from(own)] += 1;
+                    }
+                }
+            }
+        }
+        // Inside the tolerance every description keeps its entry's
+        // identification; at and past it, the H.273 ones lose it.
+        assert_eq!(outcomes[0][0], 0, "{outcomes:?}");
+        assert!(outcomes[1][0] > 0 && outcomes[1][1] > 0, "{outcomes:?}");
+    }
+
+    struct XorShift(u64);
+
+    impl XorShift {
+        fn next(&mut self) -> u64 {
+            self.0 ^= self.0 << 13;
+            self.0 ^= self.0 >> 7;
+            self.0 ^= self.0 << 17;
+            self.0
+        }
+    }
+
+    /// Whether `num/den` (`den > 0`), standing in for the entry's
+    /// `ref_num/100000` coordinate, keeps the description's exact distance
+    /// to the entry below 1/1000: the verdict of exact rational arithmetic,
+    /// which C's `int` reduction (`av_reduce`, `INT_MAX`) only approximates
+    /// once `den * 100000` exceeds `INT_MAX`.
+    fn exactly_inside(num: i32, den: i32, ref_num: i32) -> bool {
+        let diff = (i128::from(num) * 100_000 - i128::from(ref_num) * i128::from(den)).abs();
+        diff * 1000 < i128::from(den) * 100_000
+    }
+
+    /// BT.709's white point `x` moved to within `1e-13` of 1/1000 away, with
+    /// denominators too large for C's reduction to keep the difference
+    /// exact: exact arithmetic says inside, C's `av_reduce` says 1/1000.
+    const REDUCED_TO_THE_TOLERANCE: [(i32, i32); 3] = [
+        (311_418_082, 999_095_547),
+        (322_460_225, 1_034_521_094),
+        (528_928_917, 1_696_916_641),
+    ];
+
+    #[test]
+    fn reduced_sums_follow_c_not_exact_arithmetic() {
+        let bt709 = c_desc(ffi::AVColorPrimaries::AVCOL_PRI_BT709.0).unwrap();
+        let base = fields(&bt709);
+        // Each part of the description, with the one coordinate at a random
+        // large denominator placed one part short of, at, or past 1/1000
+        // from the entry, plus the known reduced-to-the-tolerance ones.
+        let mut rng = XorShift(0x2545_f491_4f6c_dd1d);
+        let mut cases: Vec<(usize, i32, i32)> = REDUCED_TO_THE_TOLERANCE
+            .iter()
+            .map(|&(num, den)| (0, num, den))
+            .collect();
+        for round in 0..3000 {
+            let i = 2 * (round % 8);
+            let den = (rng.next() % (i64::from(i32::MAX) - 100_001) as u64) as i64 + 100_001;
+            let sign = if rng.next() & 1 == 0 { 1 } else { -1 };
+            // (ref + sign/1000) * den, rounded down, then one part around.
+            let target = i64::from(base[i]) * den * 10 + sign * den * 1000;
+            let num = target.div_euclid(1_000_000) + (rng.next() % 3) as i64 - 1;
+            if let Ok(num) = i32::try_from(num) {
+                cases.push((i, num, den as i32));
+            }
+        }
+        let (mut compared, mut reduced_away) = (0, 0);
+        for (i, num, den) in cases {
+            let mut f = base;
+            (f[i], f[i + 1]) = (num, den);
+            let c = desc(f);
+            let rust = ColorPrimariesDescriptor::from_raw(c).as_ref().identify();
+            let expect = c_identify(&c);
+            assert_eq!(rust, expect, "{i} {num}/{den}");
+            compared += 1;
+            if exactly_inside(num, den, base[i]) && expect.is_none() {
+                reduced_away += 1;
+            }
+        }
+        assert!(compared > 2000, "{compared}");
+        // The wrapper follows C's reduction, not the exact verdict.
+        assert!(reduced_away >= 3, "{reduced_away}");
+    }
+
+    const EDGES: [i32; 16] = [
+        0,
+        1,
+        -1,
+        2,
+        3,
+        i32::MAX,
+        i32::MIN,
+        i32::MAX - 1,
+        i32::MIN + 1,
+        100_000,
+        -100_000,
+        31_270,
+        1 << 30,
+        -(1 << 30),
+        46_341,
+        99_999,
+    ];
+
+    #[test]
+    fn random_edits_identify_as_in_c_after_each_step() {
+        let entries: Vec<[i32; 16]> = values().filter_map(c_desc).map(|d| fields(&d)).collect();
+        let mut rng = XorShift(0x9e37_79b9_7f4a_7c15);
+        let (mut compared, mut corrected_steps) = (0, 0);
+        for round in 0..400 {
+            let start = entries[round % entries.len()];
+            // The Rust description in an `av_malloc` block, C's in its own
+            // struct, edited in the same order.
+            let mut rust = HeapBox::<ColorPrimariesDescriptor>::new_zeroed().unwrap();
+            rust.as_mut()
+                .set(ColorPrimariesDescriptor::from_raw(desc(start)));
+            let mut c = desc(start);
+            for step in 0..12 {
+                let i = (rng.next() % 16) as usize;
+                let r = rng.next();
+                let mut f = fields(&c);
+                f[i] = match r % 4 {
+                    0 => EDGES[(r >> 8) as usize % EDGES.len()],
+                    1 => (r >> 16) as i32,
+                    2 => f[i].wrapping_add((r >> 16) as i32 % 7 - 3),
+                    _ => f[i].checked_neg().unwrap_or(f[i]),
+                };
+                c = desc(f);
+                let xy = CieXy::from_raw(match i / 4 {
+                    0 => c.wp,
+                    1 => c.prim.r,
+                    2 => c.prim.g,
+                    _ => c.prim.b,
+                });
+                let mut m = rust.as_mut();
+                match i / 4 {
+                    0 => m.set_white_point(xy),
+                    1 => m.primaries_mut().set_r(xy),
+                    2 => m.primaries_mut().set_g(xy),
+                    _ => m.primaries_mut().set_b(xy),
+                }
+                assert_eq!(rust_fields(rust.as_ref()), f, "{round} {step}");
+                if corrected(&f) {
+                    assert_eq!(rust.as_ref().identify(), None, "{round} {step} {f:?}");
+                    corrected_steps += 1;
+                } else {
+                    assert_eq!(
+                        rust.as_ref().identify(),
+                        c_identify(&c),
+                        "{round} {step} {f:?}"
+                    );
+                    compared += 1;
+                }
+            }
+        }
+        assert!(
+            compared > 4000 && corrected_steps > 0,
+            "{compared} {corrected_steps}"
+        );
     }
 }

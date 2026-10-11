@@ -34,6 +34,9 @@
 //! [`ColorPrimariesDescriptorRef`] or [`ColorPrimariesDescriptorMut`], the
 //! white point as a [`CieXyRef`] or [`CieXyMut`] and the primaries as a
 //! [`PrimaryCoefficientsRef`] or [`PrimaryCoefficientsMut`] over their own.
+//! [`ColorPrimaries::descriptor`] borrows C's description of a gamut, and
+//! [`identify`](ColorPrimariesDescriptorRef::identify) names the gamut a
+//! description lies within C's tolerance of.
 
 use core::fmt;
 use core::ptr::{addr_of, addr_of_mut};
@@ -41,7 +44,7 @@ use core::ptr::{addr_of, addr_of_mut};
 use ffibox::{CZeroable, define_ctype};
 
 use super::ffi;
-use super::pixfmt::{ColorSpace, ColorTransfer};
+use super::pixfmt::{ColorPrimaries, ColorSpace, ColorTransfer};
 use super::rational::{Rational, RationalMut, RationalRef};
 
 /// Wraps: av_csp_trc_function
@@ -811,11 +814,12 @@ define_ctype!(
     /// (`as_mut()`).
     ///
     /// C hands these out as shared borrows of its static, never-written
-    /// tables (`av_csp_primaries_desc_from_id`), reads them field by field
-    /// (`av_csp_primaries_id_from_desc`) and embeds them by value in Dolby
-    /// Vision metadata (`AVDOVIDmLevel9`, `AVDOVIDmLevel10`); nothing
-    /// allocates, frees or clones one on its own, so it is a value type with
-    /// no owner, built by [`ColorPrimariesDescriptor::new`],
+    /// tables ([`ColorPrimaries::descriptor`]), reads them field by field
+    /// ([`identify`](ColorPrimariesDescriptorRef::identify)) and embeds them
+    /// by value in Dolby Vision metadata (`AVDOVIDmLevel9`,
+    /// `AVDOVIDmLevel10`); nothing allocates, frees or clones one on its own,
+    /// so it is a value type with no owner, built by
+    /// [`ColorPrimariesDescriptor::new`],
     /// [`from_raw`](ColorPrimariesDescriptor::from_raw) or `zeroed()`. No
     /// coordinate is checked, by C or here: each takes any pair of `int`s, as
     /// a [`Rational`] does.
@@ -1142,6 +1146,96 @@ impl ColorSpace {
             let p = ffi::av_csp_luma_coeffs_from_avcsp(self.into_raw());
             LumaCoefficientsRef::from_ptr(p.cast_mut())
         }
+    }
+}
+
+impl ColorPrimaries {
+    /// Wraps: av_csp_primaries_desc_from_id
+    ///
+    /// The complete description of this gamut, its white point and the
+    /// chromaticities of its primaries, borrowed from C's static,
+    /// never-written tables for the whole program: D65 (`0.3127`, `0.3290`)
+    /// and red at (`0.64`, `0.33`) for [`BT709`](Self::BT709). `None` for
+    /// primaries C has no description of: the unspecified and reserved
+    /// values, and every value C does not know.
+    ///
+    /// ```
+    /// use ffmpeg::libavutil::pixfmt::ColorPrimaries;
+    /// let bt709 = ColorPrimaries::BT709.descriptor().unwrap();
+    /// let wp = bt709.white_point();
+    /// assert_eq!((wp.x().num(), wp.x().den()), (31270, 100000));
+    /// assert_eq!(bt709.identify(), Some(ColorPrimaries::BT709));
+    /// assert!(ColorPrimaries::UNSPECIFIED.descriptor().is_none());
+    /// ```
+    #[must_use]
+    pub fn descriptor(self) -> Option<ColorPrimariesDescriptorRef<'static>> {
+        // SAFETY: `av_csp_primaries_desc_from_id` takes the enum by value,
+        // checks it against both of its tables, and returns NULL or the
+        // address of an entry of `csp.c`'s static `const` tables, which
+        // lives, unwritten, for the whole program; a shared `'static` handle
+        // only reads it.
+        unsafe {
+            let p = ffi::av_csp_primaries_desc_from_id(self.into_raw());
+            ColorPrimariesDescriptorRef::from_ptr(p.cast_mut())
+        }
+    }
+}
+
+impl ColorPrimariesDescriptorRef<'_> {
+    /// Wraps: av_csp_primaries_id_from_desc
+    ///
+    /// The primaries C describes within 1/1000 of this gamut: the first entry
+    /// of C's table, in [`ColorPrimaries`] order, for which the sum of the
+    /// absolute differences of all eight coordinates is below 1/1000. `None`
+    /// when no entry is that close.
+    ///
+    /// The sum is C's, in `int` rationals: each difference and each partial
+    /// sum is reduced to the closest rational whose parts fit an `int`
+    /// (`av_sub_q`, `av_add_q`), which is exact while the denominators stay
+    /// small (the tables use 100000 and 3) and approximate, to about
+    /// `2e-13`, once a coordinate's denominator makes the exact one exceed
+    /// `i32::MAX`. A description that close to the tolerance is judged as C
+    /// judges it, not as exact arithmetic would: `311418082/999095547` as
+    /// BT.709's white point `x` lies `1e-13` inside 1/1000 of it, yet
+    /// reduces to exactly 1/1000 and identifies as nothing.
+    ///
+    /// SMPTE 240M's description identifies as
+    /// [`SMPTE170M`](ColorPrimaries::SMPTE170M), whose entry is identical
+    /// and comes first. Only H.273's range is searched, not FFmpeg's
+    /// extensions: [`V_GAMUT`](ColorPrimaries::V_GAMUT)'s own description
+    /// identifies as nothing.
+    ///
+    /// A description with a zero denominator is no chromaticity and matches
+    /// nothing here. C agrees for a single infinite coordinate, whose
+    /// difference stays infinite, but sums a `0/0` coordinate, or two
+    /// infinite ones, into a `0/0` difference that it compares unordered
+    /// with the tolerance yet reads as within it, and reports
+    /// [`BT709`](ColorPrimaries::BT709) for such a description, the
+    /// all-zero, unspecified one included; this diverges from C there.
+    ///
+    /// ```
+    /// use ffmpeg::libavutil::csp::ColorPrimariesDescriptor;
+    /// use ffmpeg::libavutil::pixfmt::ColorPrimaries;
+    /// let p3 = ColorPrimaries::SMPTE432.descriptor().unwrap();
+    /// assert_eq!(p3.identify(), Some(ColorPrimaries::SMPTE432));
+    /// assert_eq!(ColorPrimariesDescriptor::default().as_ref().identify(), None);
+    /// ```
+    #[must_use]
+    pub fn identify(&self) -> Option<ColorPrimaries> {
+        let d = self.get().into_raw();
+        let points = [d.wp, d.prim.r, d.prim.g, d.prim.b];
+        if points.iter().any(|xy| xy.x.den == 0 || xy.y.den == 0) {
+            return None;
+        }
+        // SAFETY: `av_csp_primaries_id_from_desc` only reads the live,
+        // initialised `AVColorPrimariesDesc` behind the shared handle's
+        // pointer, during the call. Its differences against table
+        // coordinates and their sums stay within `av_sub_q`'s and
+        // `av_add_q`'s `int64_t` range for every `int`, and `av_reduce`
+        // keeps each numerator's magnitude within `INT_MAX` for its `abs`.
+        let id = unsafe { ffi::av_csp_primaries_id_from_desc(self.as_ptr()) };
+        let id = ColorPrimaries::from_raw(id);
+        (id != ColorPrimaries::UNSPECIFIED).then_some(id)
     }
 }
 
@@ -2058,5 +2152,73 @@ mod unit_tests {
         assert_traits::<ColorPrimariesDescriptor>();
         assert_handle::<ColorPrimariesDescriptorRef<'static>>();
         assert_handle::<ColorPrimariesDescriptorMut<'static>>();
+    }
+
+    /// The coordinate parts (`descriptor_raw` order) of every denominator.
+    const DENOMINATORS: [usize; 8] = [1, 3, 5, 7, 9, 11, 13, 15];
+
+    #[test]
+    fn identify_answers_zero_denominators_without_c() {
+        // No FFI on this path, so it also runs under Miri.
+        assert_eq!(ColorPrimariesDescriptor::zeroed().as_ref().identify(), None);
+        for (i, num) in DENOMINATORS
+            .into_iter()
+            .flat_map(|i| [(i, 0), (i, 7), (i, -1)])
+        {
+            let mut f = DESCRIPTOR;
+            f[i] = 0;
+            f[i - 1] = num;
+            let d = ColorPrimariesDescriptor::from_raw(descriptor_raw(f));
+            assert_eq!(d.as_ref().identify(), None, "{i} {num}");
+        }
+    }
+
+    /// C's identification of `d`, read in place.
+    fn c_identify(d: &ffi::AVColorPrimariesDesc) -> ffi::AVColorPrimaries {
+        // SAFETY: `d` is a live, initialised description C only reads.
+        unsafe { ffi::av_csp_primaries_id_from_desc(d) }
+    }
+
+    #[test]
+    fn identify_corrects_c_matching_unordered_differences_as_bt709() {
+        let bt709 = ffi::AVColorPrimaries::AVCOL_PRI_BT709;
+        // The all-zero description: C sums `0/0` differences, which
+        // `av_cmp_q` reports unordered (`INT_MIN`), read as a match.
+        let zero = ffi::AVColorPrimariesDesc::default();
+        assert_eq!(c_identify(&zero), bt709);
+        assert_eq!(
+            ColorPrimariesDescriptor::from_raw(zero).as_ref().identify(),
+            None
+        );
+        let bt2020 = ColorPrimaries::BT2020
+            .descriptor()
+            .unwrap()
+            .get()
+            .into_raw();
+        let fields = descriptor_fields(ColorPrimariesDescriptor::from_raw(bt2020).as_ref());
+        assert_eq!(c_identify(&bt2020), ffi::AVColorPrimaries::AVCOL_PRI_BT2020);
+        for &i in &DENOMINATORS {
+            // One `0/0` coordinate anywhere.
+            let mut f = fields;
+            f[i - 1..=i].copy_from_slice(&[0, 0]);
+            let d = descriptor_raw(f);
+            assert_eq!(c_identify(&d), bt709, "{i}");
+            assert_eq!(
+                ColorPrimariesDescriptor::from_raw(d).as_ref().identify(),
+                None
+            );
+            for &j in DENOMINATORS.iter().filter(|&&j| j > i) {
+                // Two infinite coordinates: `1/0 + 1/0` is `0/0` in C.
+                let mut f = fields;
+                f[i - 1..=i].copy_from_slice(&[5, 0]);
+                f[j - 1..=j].copy_from_slice(&[-3, 0]);
+                let d = descriptor_raw(f);
+                assert_eq!(c_identify(&d), bt709, "{i} {j}");
+                assert_eq!(
+                    ColorPrimariesDescriptor::from_raw(d).as_ref().identify(),
+                    None
+                );
+            }
+        }
     }
 }

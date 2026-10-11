@@ -2455,6 +2455,49 @@
    }
   },
   {
+   "name": "av_csp_primaries_desc_from_id",
+   "defined_in": "libavutil/csp.c",
+   "ptr_ret": {
+    "ptr": {
+     "scalar": {
+      "by_val": true
+     },
+     "array": null,
+     "string": false,
+     "owned": false,
+     "borrowed": {
+      "lifetime": "static"
+     },
+     "nullable": true,
+     "mutable": false,
+     "note": "NULL for a primaries value outside 0..AVCOL_PRI_NB and AVCOL_PRI_EXT_BASE..AVCOL_PRI_EXT_NB (unsigned compares), or whose static entry has prim.r.x.num == 0 (the unspecified/reserved slots); otherwise the address of one entry of csp.c's static const color_primaries / color_primaries_ext tables: immutable, never freed, process lifetime. Callers (png_get_chrm, ff_fmt_from_frame, gamut_from_colorspace, infer_prim_ref, create_filtergraph) only read it or copy it by value. Wrapped as ColorPrimaries::descriptor() -> Option<ColorPrimariesDescriptorRef<'static>>."
+    }
+   }
+  },
+  {
+   "name": "av_csp_primaries_id_from_desc",
+   "defined_in": "libavutil/csp.c",
+   "ptr_args": [
+    {
+     "name": "prm",
+     "ptr": {
+      "scalar": {
+       "by_val": true
+      },
+      "array": null,
+      "string": false,
+      "owned": false,
+      "borrowed": {
+       "lifetime": "arg:prm"
+      },
+      "nullable": false,
+      "mutable": false,
+      "note": "One AVColorPrimariesDesc, dereferenced unconditionally (never NULL-checked) and only read, field by field, during the call; nothing is retained. Every int value is UB-free: abs_sub_q's av_sub_q against table coordinates and av_add_q of reduced deltas never reach the INT_MIN*INT_MIN overflow, and av_reduce keeps |num| <= INT_MAX so abs() is defined. C defect: a coordinate of 0/0, or two with zero denominators, makes delta 0/0, av_cmp_q returns INT_MIN (unordered) and C reads it as within tolerance, returning AVCOL_PRI_BT709 for e.g. the all-zero description; the Rust wrapper returns None for any zero denominator. Only the AVCOL_PRI_NB table is searched, so V-Gamut is never identified. Wrapped as ColorPrimariesDescriptorRef::identify() -> Option<ColorPrimaries>."
+     }
+    }
+   ]
+  },
+  {
    "name": "av_csp_trc_func_from_id",
    "defined_in": "libavutil/csp.c",
    "ptr_ret": {
