@@ -16,7 +16,7 @@ Copy this template into the campaign checkout, then fill it as work lands.
 - **`--max-syms`** — `25`
 - **`--max-loc`** — `500`
 - **`--min-fields`** — `20`
-- **orchestrator parallelism** — `10` concurrent batch processes
+- **orchestrator parallelism** — up to `16` concurrent batch processes from `libavutil/options`; `10` before
 - **branch** — `crustify/campaigns/20261005`, tip `<sha>`
 - **deps** — crustify `12b8cab` (`main`, plus an uncommitted `translator.md` edit), ffibox `196c5fb` (`main`)
 - **build version** — `3`
@@ -27,15 +27,15 @@ Copy this template into the campaign checkout, then fill it as work lands.
 Thin batches with `"objective": "review"`, LLM-as-a-Judge over each landed wave.
 
 - **agent backend** — `claude`
-- **model** — `openrouter/anthropic/claude-fable-5.1`
+- **model** — `openrouter/anthropic/claude-opus-5.5` from `libavutil/options`; `openrouter/anthropic/claude-fable-5.1` before (see Notes)
 - **`--billing`** — `api`
 - **`--max-types`** — `2` (wave 0); the wave's types from wave 1
 - **`--max-syms`** — `25` (wave 0); the wave's symbols from wave 1
 - **`--max-loc`** — `500` (wave 0); unbounded from wave 1
 - **`--min-fields`** — `20`
-- **orchestrator parallelism** — `10` concurrent batch processes
-- **branch** — `crustify/reviews/20261005/libavutil/formats/wave-4`, tip `ecedfd8867`
-- **agents** — `30` (one stopped by the provider), over `10` wave(s)
+- **orchestrator parallelism** — up to `16` concurrent batch processes from `libavutil/options`; `10` before
+- **branch** — `crustify/reviews/20261005/libavutil/options/wave-2`, tip `be8e0f1a23`
+- **agents** — `34` (one stopped by the provider), over `13` wave(s)
 
 `rv`-prefixed columns below carry the review pass; the unprefixed ones remain
 the campaign's.
@@ -145,6 +145,7 @@ Implementation `openrouter/anthropic/claude-opus-5.5` via `claude`; review
 | `raw-lifetime-string` | `0` | `3` | `48m03s` | `$3.77` | `$5.25` | `$9.02` | — | `$3.01` |
 | `libavutil/core` | `21` | `159` | `47h12m32s` | `$214.04` | `$207.73` | `$421.77` | `$7.10` | `$1.72` |
 | `libavutil/formats` | `19` | `100` | `21h42m45s` | `$142.10` | `$336.68` | `$478.78` | `$11.31` | `$2.64` |
+| `libavutil/options` | `6` | `78` | `6h15m34s` | `$122.01` | `$63.52` | `$185.53` | `$6.15` | `$1.91` |
 | `<link-unit>/<subsystem>` | `<n>` | `<n>` | `<n>h<n>m<n>s` | `$<n>` | `$<n>` | `$<n>` | `$<n>` | `$<n>` |
 | orchestrator | `<n>` | `<n>` | — | — | — | `$<n>`+ | — | — |
 | **Σ recorded agents** | **`<n>`** | **`<n>`** | **`<n>h<n>m`** | **`$<n>`** | **`$<n>`** | **`$<n>`** | **`$<n>`** | **`$<n>`** |
@@ -359,7 +360,8 @@ Implementation `openrouter/anthropic/claude-opus-5.5` via `claude`; review
 |`libavutil/options`|`0`|`4`| wrap | `5` | `1890` |`+1890/-5`| `36.70`% / `98.30`% | `+2` | `+2` | `$10.23` | `38m09s` | `$2.05` | `$0.005` |
 |`libavutil/options`|`1`|`0`| wrap | `22` | `2525` |`+2525/-3`| `46.37`% / `98.03`% | `+12` | `+7` | `$16.52` | `39m25s` | `$0.75` | `$0.007` |
 |`libavutil/options`|`1`|`1`| wrap | `13` | `3012` |`+3012/-16`| `47.89`% / `97.60`% | `0` | `+3` | `$21.33` | `49m00s` | `$1.64` | `$0.007` |
-| **Σ** |  |  |  | **`323`** | **`37270`** | **`+37270/-325`** | **`47.89`% / `97.60`%** | **`+27`** | **`+38`** | **`$317.42`** | — | **`$0.98`** | **`$0.009`** |
+|`libavutil/options`|`2`|`0`| wrap | `14` | `1543` |`+1543/-185`| `47.98`% / `97.87`% | `-2` | `-2` | `$13.57` | `40m30s` | `$0.97` | `$0.009` |
+| **Σ** |  |  |  | **`337`** | **`38813`** | **`+38813/-510`** | **`47.98`% / `97.87`%** | **`+25`** | **`+36`** | **`$330.99`** | — | **`$0.98`** | **`$0.009`** |
 
 ### Batches: tests
 
@@ -387,7 +389,8 @@ Implementation `openrouter/anthropic/claude-opus-5.5` via `claude`; review
 |`libavutil/options`|`0`|`4`|`+11` (`+1.91`/`-0.02` pp)|`+11` (`+6.41`/`+0.81` pp)|`+18` (`+4.89`/`+0.24` pp)|`+12` (`+1.25`/`-0.17` pp)|
 |`libavutil/options`|`1`|`0`|`+12` (`+1.47`/`-1.17` pp)|`+0` (`-0.02`/`-1.16` pp)|`+10` (`+0.99`/`+0.08` pp)|`+20` (`+1.50`/`-0.32` pp)|
 |`libavutil/options`|`1`|`1`|`+10` (`+0.74`/`-0.77` pp)|`+5` (`+2.09`/`+5.39` pp)|`+11` (`+1.61`/`+0.05` pp)|`+14` (`+1.09`/`-0.81` pp)|
-| **Σ** |  |  | **`+262` (`+30.45`/`+14.53` pp)** | **`+66` (`+21.51`/`+15.49` pp)** | **`+301` (`+32.91`/`+23.97` pp)** | **`+324` (`+20.79`/`-7.35` pp)** |
+|`libavutil/options`|`2`|`0`|`+2` (`+0.36`/`+1.44` pp)|`+3` (`+0.06`/`+1.93` pp)|`+4` (`+0.06`/`+0.41` pp)|`+8` (`+0.22`/`+0.16` pp)|
+| **Σ** |  |  | **`+264` (`+30.81`/`+15.97` pp)** | **`+69` (`+21.57`/`+17.42` pp)** | **`+305` (`+32.97`/`+24.38` pp)** | **`+332` (`+21.01`/`-7.19` pp)** |
 
 ### Batches — review
 
@@ -409,7 +412,8 @@ Implementation `openrouter/anthropic/claude-opus-5.5` via `claude`; review
 |`libavutil/formats`|`4`|`0`| `2` |`+44/-0`| `33.58`% / `98.22`% | `0` | `0` | `+78/-7` | `$12.25` | `57m14s` | `$6.12` |
 |`libavutil/options`|`0`|`1`| `29` |`+1112/-350`| `45.39`% / `98.31`% | `-2` | `-2` | `+1381/-507` | `$26.49` | `73m04s` | `$0.91` |
 |`libavutil/options`|`1`|`0`| `35` |`+240/-2`| `47.89`% / `97.81`% | `0` | `0` | `+338/-9` | `$13.35` | `26m24s` | `$0.38` |
-| **Σ** |  |  | **`323`** | **`+3052/-411`** | **`47.89`% / `97.81`%** | **`-2`** | **`-2`** | **`+3973/-653`** | **`$338.91`** | — | **`$1.05`** |
+|`libavutil/options`|`2`|`0`| `14` |`+251/-1`| `47.99`% / `97.87`% | `0` | `0` | `+335/-10` | `$15.34` | `81m25s` | `$1.10` |
+| **Σ** |  |  | **`337`** | **`+3303/-412`** | **`47.99`% / `97.87`%** | **`-2`** | **`-2`** | **`+4308/-663`** | **`$354.25`** | — | **`$1.05`** |
 
 ### Batches — review: tests
 
@@ -431,7 +435,8 @@ Implementation `openrouter/anthropic/claude-opus-5.5` via `claude`; review
 |`libavutil/formats`|`4`|`0`|`+0` (`+0.00`/`-0.02` pp)|`+0` (`+0.00`/`+0.00` pp)|`+1` (`+0.01`/`+0.00` pp)|`+0` (`+0.00`/`+0.00` pp)|
 |`libavutil/options`|`0`|`1`|`+1` (`+0.00`/`-0.39` pp)|`+4` (`+0.13`/`+1.56` pp)|`+1` (`+0.60`/`+0.31` pp)|`+4` (`+0.06`/`-0.06` pp)|
 |`libavutil/options`|`1`|`0`|`+0` (`+0.00`/`-0.04` pp)|`+1` (`+0.26`/`+1.15` pp)|`+1` (`-0.01`/`+0.03` pp)|`+1` (`+0.06`/`+0.23` pp)|
-| **Σ** |  |  | **`+3` (`+0.00`/`+0.00` pp)** | **`+6` (`+0.39`/`+2.39` pp)** | **`+10` (`+0.72`/`+1.18` pp)** | **`+16` (`+0.63`/`+0.85` pp)** |
+|`libavutil/options`|`2`|`0`|`+1` (`+0.00`/`+0.02` pp)|`+1` (`+0.00`/`+0.03` pp)|`+2` (`+0.02`/`+0.03` pp)|`+1` (`+0.00`/`+0.01` pp)|
+| **Σ** |  |  | **`+4` (`+0.00`/`+0.02` pp)** | **`+7` (`+0.39`/`+2.42` pp)** | **`+12` (`+0.74`/`+1.21` pp)** | **`+17` (`+0.63`/`+0.86` pp)** |
 
 ### Batches — review: PoC + reports
 
@@ -453,7 +458,8 @@ Implementation `openrouter/anthropic/claude-opus-5.5` via `claude`; review
 | `libavutil/formats` | `4` | `0` | — | `+0` | `+0` | `+0` | `+0` | `+0` | `+0` | `+1` | `1` | `0` |
 | `libavutil/options` | `0` | `1` | — | `+2` | `+0` | `+3` | `+0` | `+0` | `+0` | `+0` | `5` | `0` |
 | `libavutil/options` | `1` | `0` | — | `+0` | `+0` | `+1` | `+0` | `+0` | `+0` | `+1` | `2` | `0` |
-| **Σ** |  |  | — | **`+3`** | **`+2`** | **`+4`** | **`+2`** | **`+0`** | **`+4`** | **`+11`** | **`26`** | **`0`** |
+| `libavutil/options` | `2` | `0` | — | `+0` | `+1` | `+0` | `+0` | `+0` | `+0` | `+1` | `2` | `0` |
+| **Σ** |  |  | — | **`+3`** | **`+3`** | **`+4`** | **`+2`** | **`+0`** | **`+4`** | **`+12`** | **`28`** | **`0`** |
 
 ## Safety audit
 
@@ -1447,3 +1453,171 @@ reviewed tip was promoted with the merge commit `749652a1d1`, whose Rust tree eq
   `core`'s end), with an unsafe-LoC ratio of 0.134. The union run covers 33.58% of libavutil's
   C and 98.22% of the authored Rust, with 565 unit, 482 `ub_safe`, 72 `ub_unsafe` and 469
   equivalence tests.
+
+### `libavutil/options` wave 0
+
+`options` is based on `f391dca889`: the campaign tip `0c2bf754ab` plus the `dict`, `eval` and
+`parseutils` header modules (`opt.rs` already existed). From this sub-campaign on, at the
+user's direction (TASK.md, 2026-10-11), every review runs on
+`openrouter/anthropic/claude-opus-5.5` instead of Fable 5.1, and orchestrator parallelism is
+up to 16; no `options` wave had more than 5 batches.
+
+Wave 0 is 3 type batches (`AVDictionary` with `AVDictionaryEntry`, `AVExpr` with
+`AVOptionArrayDef`, `AVOptionRange` with `AVOptionType`) and two symbol batches (24 and 5
+symbols). It launched at 01:28Z on 2026-10-11, and all 5 batches landed between 01:52Z and
+03:02Z, ending at `dc97af2db7`. All 35 scheduled items carry their anchors there. Translation
+cost `$70.60` for 201.1M tokens and 4h12m of agent wall time.
+
+- `Dictionary` is owned as `DictionaryBox` (never empty) or `Dict` (C's nullable
+  `AVDictionary *` slot, built through `av_dict_set`), released by `av_dict_free` and cloned by
+  `av_dict_copy` with `AV_DICT_MULTIKEY`; entries are borrow-only. `Expr` is owned as
+  `ExprBox` (`av_expr_free`), built only by `Expr::parse` from `&CStr` names and safe
+  `extern "C" fn` callbacks; it is `Send`, not `Sync`, since evaluation writes the root's
+  registers. `OptionType` is an open newtype with the `ARRAY` flag; `OptionRange` is only
+  borrowed from its list.
+- Batch 3 introduced `opt::ObjectRef`/`ObjectMut`, borrowed handles over any
+  `AVOptions`-enabled object (adopted through an unsafe `from_ptr` seam until the concrete
+  objects are wrapped), and `BareObject`, a safe class-only object for `ub_safe` and log
+  contexts. It wrapped 21 `av_opt_*` items on them. The setters and getters refuse, before C
+  runs, the values C turns into undefined behaviour: evaluator builtins converting
+  out-of-range doubles (`ld(1e300)`), `+`/`-` flag operands outside `int64`, rationals whose
+  bounds exceed `int`, scalar stores over array options, and out-of-bounds type-name lookups
+  in C's error logs. Beyond C, `free_options` resets binary lengths that C leaves stale and
+  later dereferences through NULL.
+- Batch 4 wrapped the parsers. `parse_color` refuses a NaN opacity (`red@nan`,
+  float-cast-overflow at `parseutils.c:433`) and a prefix ending inside the `#`/`0x` marker
+  (an uninitialised stack read). Concurrent local-time `av_parse_time` calls are a TSan false
+  positive inside glibc's `tzset`, so the suites serialize them.
+- Parse-heavy tests return early under BSan: glibc `strtod`/`strtol` end pointers keep a stale
+  shadow slot, so BSan reports a use after free at `eval.c:120`. Batch 1 reproduced this from
+  pure C (two parses, the second after an `alloca`).
+- Smells went from 25 to 28 `unsafe fn` and from 58 to 60 raw pointers: `set_options_string`
+  and `parse_color_with_context` took raw contexts, and `Expr::parse_with_context` a raw
+  parent log context.
+
+### `libavutil/options` review wave 0
+
+Two `openrouter/anthropic/claude-opus-5.5` reviewers: batch 0 took the 6 types and batch 1 the
+29 symbols. Together they cost `$34.83` for 97.6M tokens and 1h46m.
+
+- **Types reviewer** (32m55s, `$8.34`): landed `a4e1df7363` (reports) and `9ff1ec06ed`
+  (fix). `unsafe/expr-parse-with-context-raw-log-context`: batch 3's `ObjectRef` made the raw
+  parent log context obsolete, so `Expr::parse_with_context` is now safe over
+  `Option<ObjectRef>`. `conventions/expr-send-safety-comment-past-scan-window`: `Expr`'s
+  nine-line `SAFETY:` block exceeded `scan-unsafe`'s six-line window. No UB or equivalence
+  defect.
+- **Symbols reviewer** (73m04s, `$26.49`): landed `2e5089333e` (reports and reproducers) and
+  `6fe884cbf0` (fixes). Three UB defects, each in a safe method on an object adopted within
+  the seam's contract, each rerun by the orchestrator under `asan-ubsan`:
+  - `set-flag-operand-clock-race`: `ObjectMut::set` previews a flag operand to refuse C's
+    unchecked conversion, then C evaluates it again, and an operand calling `time()` changes
+    value in between. Exits 1 on `dc97af2db7` (UBSan `opt.c:508`, `1e+30 is outside the range
+    of representable values of type 'long'`) and 0 on `6fe884cbf0`. Previews now refuse
+    expressions that read the clock.
+  - `set-array-default-constant-mismatch`: the preview evaluated an array option's `default`
+    as 0, but C's `DEFAULT_NUMVAL` reads the definition's address bits. Same UBSan report on
+    `dc97af2db7`, 0 on `6fe884cbf0`.
+  - `bare-object-foreign-callbacks-read-past-object`: `BareObject::new` accepted classes whose
+    `item_name`/`get_category` read their object, so logging read past the 8-byte bare
+    object. ASan heap-buffer-overflow on `dc97af2db7`, 0 on `6fe884cbf0`.
+
+  Two `unsafe` reports made `set_options_string` (now `ObjectMut::set_options_string`) and
+  `parse_color_with_context` safe, and two `wavefront` reports corrected the log-context and
+  option-value records. The rewritten equivalence module found that a failed color parse, like
+  a failed image size, copies C's uninitialised stack buffer into the field (seen under TSan
+  only), so both are masked after a failing set.
+- All three reproducers held, so all are accepted. The review brought the smells back to 25
+  `unsafe fn` and 57 raw pointers. The reviewed tip `6fe884cbf0` was promoted to
+  `crustify/subcampaigns/20261005/libavutil/options`. Wave wall time, from the first launch
+  (01:28Z) to the last review landing (04:17Z), was 2h48m11s.
+
+### `libavutil/options` wave 1
+
+Wave 1 is two symbol batches (22 and 13 symbols), based on `6fe884cbf0`. It launched at 04:20Z,
+and both batches landed (`cb5f693dd4` at 04:59Z, `f589c22d1d` at 05:08Z). All 35 items carry
+their anchors there. Translation cost `$37.85` for 124.5M tokens and 1h28m of agent wall time.
+
+- `dict.rs` gained the readers and writers (`len`, `iter`, `get`/`get_all`, `serialize`,
+  `set`, `remove`, `set_owned` for the `DONT_STRDUP` hand-over, `set_int`, `parse_pairs`,
+  `copy_from`). `eval.rs` gained `Expression`, an evaluable parse that keeps the constant
+  count C does not (`av_expr_eval` reads `const_values[const_index]` unchecked) and refuses
+  the evaluator's unchecked conversions.
+- `opt.rs` gained the typed getters and setters, array edits over two sealed traits
+  (`ArrayElement` for owned outputs, `ArrayInput` for borrowed inputs) and the dictionary
+  appliers. Refused before C runs: any element of a binary array (C writes each length past
+  the element's pointer, ASan `opt.c:373`), numbers C converts unchecked into rational or
+  video-rate elements, and layouts the option's describers cannot read. `get_video_rate`
+  reads the stored rate, where C's `av_opt_get_video_rate` fails with `EINVAL` on every video
+  rate option (documented divergence). `parseutils::timegm` mirrors `av_timegm`'s `int` sums
+  with checked operations and returns `None` where C overflows.
+- Smells went to 37 `unsafe fn` and 67 raw pointers, from the private `ArrayInput`/element C
+  sides and `parse_ratio_with_context`'s log context.
+
+### `libavutil/options` review wave 1
+
+One `openrouter/anthropic/claude-opus-5.5` reviewer for the 35 symbols (26m24s, `$13.35`,
+45.1M tokens) landed `c63e0d92cb` (reports and reproducer) and `47e76c2f3d` (fix).
+`ub_unsafe/remove-array-shrink-failure-double-free`: `av_opt_set_array`'s removal frees and
+shifts the elements before its shrinking `av_realloc_array`. Under an `av_max_alloc` limit,
+which safe code can set, that call fails with `ENOMEM` and C keeps the old count, so
+`av_opt_free` frees a shifted string twice. Rerun by the orchestrator, the reproducer exits 1
+on `f589c22d1d` (ASan `attempting double-free`) and 0 on `47e76c2f3d`, so it is accepted.
+`remove_array` now writes the new count back after that failure; this is a correction beyond C.
+A `misc` report fixed `insert_array`'s doc (C stores a rational into an integer-like element
+as `llrint(1/den)*num`), and a `wavefront` report corrected three records. Neither smell
+moved. The reviewed tip was promoted; wave wall time (04:20Z to 05:37Z) was 1h16m54s.
+
+### `libavutil/options` wave 2
+
+Wave 2, the sub-campaign's last, is one batch of 14 `opt.c` symbols, based on `281ee40415`
+(the reviewed wave-1 tip plus its records). It launched at 05:40Z and landed `1d434aef61` at
+06:20Z, with all 14 items anchored, for `$13.57` (41.4M tokens, 40m30s). It wrapped the option
+lookups (`find`, `find_with_target`, and `ClassRef::find` through C's fake object), the option
+walk, the per-option default check (which refuses an option outside the object's own table,
+whose offset C would read out of bounds) and the `av_opt_eval_*` evaluators in an
+`EvalContext`. The safe `option_ranges` queries on `ObjectRef` and `ClassRef` replaced wave 0's
+unsafe raw-object `OptionRanges::query`, so the smells fell to 35 `unsafe fn` and 65 raw
+pointers.
+
+### `libavutil/options` review wave 2
+
+One `openrouter/anthropic/claude-opus-5.5` reviewer for the 14 symbols (81m25s, `$15.34`,
+39.1M tokens) landed `8558dbce7c` (reports and reproducer) and `be8e0f1a23` (fixes).
+`ub_safe/eval-flags-token-split-hides-evaluator-call` is reachable from safe code: C cuts a
+flags value into tokens of at most 255 bytes, and the refusal checked the whole value, so
+`0*` + 253 zeros + `ld(1e300)` reached `ld`'s unchecked `(int)1e300` through `eval_flags` on
+C's `cpuflags` class. Rerun by the orchestrator, the reproducer exits 1 on `1d434aef61` (UBSan
+`eval.c:206`) and 0 on `be8e0f1a23`, so it is accepted. The fix checks every token, for
+`eval_flags` and for the setters that share the refusal. A `wavefront` report corrected
+`av_opt_eval_flags`' record.
+
+As the sub-campaign's last wave, this reviewer ran the workspace BSan gate covering all of
+`options`. On the wave tip every binary stopped at its first report within 2–91 s. Each test
+was then run alone (1882 processes): 44 reported, all reads through glibc `strtod`/`strtol`/
+`strtoul` end pointers (`eval.c:120`, `:429`, `:581`, `parseutils.c:166`, `:391`), the known
+false-positive class. The two sites not listed before reproduce from pure C
+(`misc/bsan-gate-strto-end-pointer-false-positives`). On the landed tree, with those tests
+skipped, equivalence (525), `ub_safe` (551), `ub_unsafe` (95) and the lib binary
+single-threaded passed. One libc-only unit sweep that timed out at 3000 s now sweeps three
+bytes instead of four under BSan. The reviewed tip was promoted; wave wall time (05:40Z to
+07:43Z) was 2h02m50s.
+
+### `libavutil/options` sub-campaign totals
+
+- The Overview row counts 6 types and 78 symbols over 3 waves. `$/type` and `$/sym` divide
+  each kind's translation and review cost by its units: types `$36.91` over 6, symbols
+  `$148.62` over 78.
+- Review cost 0.52× translation (`$63.52` against `$122.01`), against 2.4× in `formats`. The
+  workspace BSan gate ran once, in the last review wave.
+- Five reproducers held: four in the option object API (`set` previews and the clock,
+  array defaults, foreign class callbacks on `BareObject`, the array shrink failure) and one
+  reachable from safe code (the flags token cut). All are UB or memory errors in C reached
+  through wrappers whose refusals did not match what C evaluates.
+- `sub-campaign wall` runs from the scaffold (01:27Z on 2026-10-11) to the last review landing
+  (07:43Z), with no pauses. Agent wall time sums to 9h53m: 6h20m translating and 3h33m
+  reviewing.
+- At the end the unseeded scan reads 35 `unsafe fn` and 65 raw-pointer smells (25 and 58 at
+  `formats`' end), with an unsafe-LoC ratio of 0.129. Most of the new ones are the documented
+  `ObjectRef`/`ObjectMut::from_ptr` adoption seams and private C sides of the array traits.
+  The union run covers 47.99% of libavutil's C and 97.87% of the authored Rust, with 678
+  unit, 559 `ub_safe`, 107 `ub_unsafe` and 544 equivalence tests.
