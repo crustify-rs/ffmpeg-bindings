@@ -2922,6 +2922,51 @@
    "defined_in": "libavutil/bswap.h"
   },
   {
+   "name": "av_buffer_default_free",
+   "defined_in": "libavutil/buffer.c",
+   "lifetime": {
+    "for": "data",
+    "is_dropper": true,
+    "is_disposer": false,
+    "is_cloner": null,
+    "is_constructor": null
+   },
+   "ptr_args": [
+    {
+     "name": "data",
+     "ptr": {
+      "scalar": null,
+      "array": {
+       "by_val": true
+      },
+      "string": false,
+      "owned": true,
+      "borrowed": null,
+      "nullable": true,
+      "mutable": true,
+      "note": "The buffer's data, an av_malloc-family block, released with av_free (NULL is a no-op). Installed as AVBuffer.free by buffer_create when no callback is given, and passed explicitly by av_buffer_alloc/av_buffer_realloc."
+     }
+    },
+    {
+     "name": "opaque",
+     "ptr": {
+      "scalar": {
+       "by_val": true
+      },
+      "array": null,
+      "string": false,
+      "owned": false,
+      "borrowed": {
+       "lifetime": "arg:opaque"
+      },
+      "nullable": true,
+      "mutable": false,
+      "note": "Unused: the AVBuffer free-callback signature's opaque, ignored by the body (av_buffer_alloc/realloc and buffer_create pass NULL)."
+     }
+    }
+   ]
+  },
+  {
    "name": "av_buffer_pool_init",
    "defined_in": "libavutil/buffer.c",
    "lifetime": {
@@ -13050,6 +13095,57 @@
    ]
   },
   {
+   "name": "av_refstruct_allocz",
+   "defined_in": "libavutil/refstruct.h",
+   "lifetime": {
+    "for": "return",
+    "is_dropper": false,
+    "is_disposer": false,
+    "is_cloner": null,
+    "is_constructor": {
+     "alloc": true,
+     "init": false
+    }
+   },
+   "ptr_ret": {
+    "ptr": {
+     "scalar": {
+      "by_val": true
+     },
+     "array": null,
+     "string": false,
+     "owned": true,
+     "borrowed": null,
+     "nullable": true,
+     "mutable": true,
+     "note": "Static inline: av_refstruct_alloc_ext_c(size, 0, {NULL}, NULL). Returns a zeroed object of `size` bytes after a REFCOUNT_OFFSET header in one av_malloc block, holding one counted reference the caller releases with av_refstruct_unref (no free_cb, so the payload is never finalized). NULL when size + REFCOUNT_OFFSET overflows or av_malloc fails (av_max_alloc). Aligned to at least 16."
+    }
+   }
+  },
+  {
+   "name": "av_refstruct_exclusive",
+   "defined_in": "libavutil/refstruct.c",
+   "ptr_args": [
+    {
+     "name": "obj",
+     "ptr": {
+      "scalar": {
+       "by_val": true
+      },
+      "array": null,
+      "string": false,
+      "owned": false,
+      "borrowed": {
+       "lifetime": "arg:obj"
+      },
+      "nullable": false,
+      "mutable": false,
+      "note": "obj is a live RefStruct object (never NULL); C acquire-loads the header's count and returns whether it is 1."
+     }
+    }
+   ]
+  },
+  {
    "name": "av_refstruct_pool_alloc",
    "defined_in": "libavutil/refstruct.c",
    "lifetime": {
@@ -13104,6 +13200,184 @@
       "nullable": false,
       "mutable": true,
       "note": "`*poolp` is NULL (no-op) or one counted reference to a pool, which the call releases and NULLs. Static inline over av_refstruct_unref(poolp): the last reference runs refstruct_pool_uninit (marks the pool uninited, frees the free list's entries through free_entry_cb) and pool_unref; the struct itself is freed only once every outstanding entry has also been returned (pool_return_entry), so entries may outlive the last pool reference."
+     }
+    }
+   ]
+  },
+  {
+   "name": "av_refstruct_ref",
+   "defined_in": "libavutil/refstruct.c",
+   "lifetime": {
+    "for": "obj",
+    "is_dropper": false,
+    "is_disposer": false,
+    "is_cloner": {
+     "deep": false,
+     "upref": true
+    },
+    "is_constructor": null
+   },
+   "ptr_args": [
+    {
+     "name": "obj",
+     "ptr": {
+      "scalar": {
+       "by_val": true
+      },
+      "array": null,
+      "string": false,
+      "owned": false,
+      "borrowed": {
+       "lifetime": "arg:obj"
+      },
+      "nullable": false,
+      "mutable": true,
+      "note": "obj is a live RefStruct object (never NULL: get_refcount reads the header before it). Only the bookkeeping header at obj - REFCOUNT_OFFSET is written (relaxed atomic increment); the user data is untouched."
+     }
+    }
+   ],
+   "ptr_ret": {
+    "ptr": {
+     "scalar": {
+      "by_val": true
+     },
+     "array": null,
+     "string": false,
+     "owned": true,
+     "borrowed": null,
+     "nullable": false,
+     "mutable": true,
+     "note": "Returns obj itself, now carrying one more counted reference the caller owns and must release with av_refstruct_unref."
+    }
+   }
+  },
+  {
+   "name": "av_refstruct_ref_c",
+   "defined_in": "libavutil/refstruct.c",
+   "lifetime": {
+    "for": "obj",
+    "is_dropper": false,
+    "is_disposer": false,
+    "is_cloner": {
+     "deep": false,
+     "upref": true
+    },
+    "is_constructor": null
+   },
+   "ptr_args": [
+    {
+     "name": "obj",
+     "ptr": {
+      "scalar": {
+       "by_val": true
+      },
+      "array": null,
+      "string": false,
+      "owned": false,
+      "borrowed": {
+       "lifetime": "arg:obj"
+      },
+      "nullable": false,
+      "mutable": false,
+      "note": "As av_refstruct_ref, for a const reference: C casts const away only to increment the bookkeeping header's atomic count, never touching the user data."
+     }
+    }
+   ],
+   "ptr_ret": {
+    "ptr": {
+     "scalar": {
+      "by_val": true
+     },
+     "array": null,
+     "string": false,
+     "owned": true,
+     "borrowed": null,
+     "nullable": false,
+     "mutable": false,
+     "note": "Returns obj as a const reference the caller owns (one more count) and releases with av_refstruct_unref; the holder must not write the user data through it."
+    }
+   }
+  },
+  {
+   "name": "av_refstruct_replace",
+   "defined_in": "libavutil/refstruct.c",
+   "lifetime": {
+    "for": "src",
+    "is_dropper": false,
+    "is_disposer": false,
+    "is_cloner": {
+     "deep": false,
+     "upref": true
+    },
+    "is_constructor": null
+   },
+   "ptr_args": [
+    {
+     "name": "dstp",
+     "ptr": {
+      "scalar": {
+       "by_ref": {
+        "owned": true,
+        "borrowed": null
+       }
+      },
+      "array": null,
+      "string": false,
+      "owned": false,
+      "borrowed": {
+       "lifetime": "arg:dstp"
+      },
+      "nullable": false,
+      "mutable": true,
+      "note": "dstp is a slot (void * standing for T **) holding NULL or an owned reference. If *dstp == src nothing happens; otherwise the old reference is released (av_refstruct_unref) and a new reference to src (av_refstruct_ref_c), or NULL, is stored. The slot is borrowed for the call."
+     }
+    },
+    {
+     "name": "src",
+     "ptr": {
+      "scalar": {
+       "by_val": true
+      },
+      "array": null,
+      "string": false,
+      "owned": false,
+      "borrowed": {
+       "lifetime": "arg:src"
+      },
+      "nullable": true,
+      "mutable": false,
+      "note": "src is NULL or a live RefStruct object the caller keeps its own reference to; C up-refs it into *dstp (const cast away in the stored slot)."
+     }
+    }
+   ]
+  },
+  {
+   "name": "av_refstruct_unref",
+   "defined_in": "libavutil/refstruct.c",
+   "lifetime": {
+    "for": "objp",
+    "is_dropper": true,
+    "is_disposer": false,
+    "is_cloner": null,
+    "is_constructor": null
+   },
+   "ptr_args": [
+    {
+     "name": "objp",
+     "ptr": {
+      "scalar": {
+       "by_ref": {
+        "owned": true,
+        "borrowed": null
+       }
+      },
+      "array": null,
+      "string": false,
+      "owned": true,
+      "borrowed": null,
+      "nullable": false,
+      "mutable": true,
+      "note": "objp is a slot (void * standing for T **): C memcpy-reads the object pointer from it, writes NULL back, then drops one counted reference of the object (free_cb then ref->free when the count hits zero). The slot itself is borrowed for the call; the reference it held is consumed. A NULL *objp is a no-op; objp itself must not be NULL."
      }
     }
    ]

@@ -1,0 +1,16 @@
+error[E0505]: cannot move out of `a` because it is borrowed
+ --> tests/ub_safe/compile_fail/refstruct_handle_outlives_reference.rs
+  |
+  |     let a = RefStructArc::<IntFloat64>::new_zeroed().unwrap();
+  |         - binding `a` declared here
+  |     let r = a.as_ref();
+  |             - borrow of `a` occurs here
+  |     drop(a);
+  |          ^ move out of `a` occurs here
+  |     let _ = r.bits();
+  |             - borrow later used here
+  |
+help: consider cloning the value if the performance cost is acceptable
+  |
+8 |     let r = a.clone().as_ref();
+  |              ++++++++

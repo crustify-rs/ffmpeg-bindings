@@ -15,6 +15,10 @@
 //!   caller's pool is a sole owner, [`BufferPoolBox`], released with
 //!   `av_buffer_pool_uninit`; buffers taken from the pool keep its body alive
 //!   after that, so they never borrow from the box.
+//!
+//! [`default_free`] is the release an `AVBuffer` applies to its data when it
+//! was created without a free callback (`av_buffer_default_free`): the data
+//! is an `av_malloc`-family block, a [`HeapVec`], freed with `av_free`.
 
 use core::ffi::c_void;
 use core::ptr::{self, NonNull};
@@ -22,6 +26,7 @@ use core::ptr::{self, NonNull};
 use ffibox::{CBox, CDrop, define_ctype};
 
 use super::ffi;
+use super::mem::HeapVec;
 
 define_ctype!(
     /// Wraps: AVBuffer
@@ -286,6 +291,20 @@ where
     // last reference's acq_rel decrement orders them), with the `Box<F>`
     // leaked by `with_allocator`.
     drop(unsafe { Box::from_raw(state.cast::<F>()) });
+}
+
+/// Wraps: av_buffer_default_free
+///
+/// Releases `data` as an `AVBuffer` created without a free callback releases
+/// its data: C frees the `av_malloc`-family block with `av_free` and ignores
+/// its `opaque` argument. The elements are never dropped, as when `data`
+/// drops; an empty array is a no-op.
+pub fn default_free<T>(data: HeapVec<T>) {
+    let (data, _) = data.into_raw_parts();
+    // SAFETY: `data` is NULL or the `av_malloc`-family block whose claim
+    // `into_raw_parts` gave up; C passes it to `av_free` once and never reads
+    // the NULL opaque.
+    unsafe { ffi::av_buffer_default_free(ptr::null_mut(), data.cast()) }
 }
 
 #[cfg(test)]
