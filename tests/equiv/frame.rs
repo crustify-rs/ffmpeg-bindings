@@ -2117,3 +2117,1025 @@ mod side_data_array_routines {
         }
     }
 }
+
+/// [`Frame`] against C's `AVFrame` (buffer-frame wave 3, batch 0): a new
+/// frame against `av_frame_alloc`'s; a Rust frame and a C frame driven
+/// through the same random sequences of field, buffer, plane, extra buffer,
+/// `extended_data`, side data, metadata and channel layout changes, compared
+/// after every step by C's own reading of both (every field, where each
+/// plane points among the buffers, the buffers' bytes, counts and
+/// writability, side data and metadata) and by the Rust getters; every
+/// step's clone against `av_frame_clone`'s and the reset against
+/// `av_frame_unref`; planes against `av_frame_get_plane_buffer` and
+/// writability against `av_buffer_is_writable`; and frames whose planes are
+/// external memory, copied by both clones.
+///
+/// [`Frame`]: ffmpeg::libavutil::frame::Frame
+mod frame_type {
+    use core::ffi::{CStr, c_int};
+    use core::ptr;
+
+    use ffmpeg::libavutil::avutil::PictureType;
+    use ffmpeg::libavutil::buffer::{BufferReference, BufferReferenceBox};
+    use ffmpeg::libavutil::channel_layout::ChannelLayout;
+    use ffmpeg::libavutil::dict::Dict;
+    use ffmpeg::libavutil::ffi;
+    use ffmpeg::libavutil::frame::{
+        DecodeErrorFlags, Frame, FrameBox, FrameFlags, FrameRef, NUM_DATA_POINTERS, PlaneError,
+        SideDataFlags, SideDataType,
+    };
+    use ffmpeg::libavutil::pixfmt::{
+        AlphaMode, ChromaLocation, ColorPrimaries, ColorRange, ColorSpace, ColorTransfer,
+    };
+    use ffmpeg::libavutil::rational::Rational;
+
+    /// Where a plane pointer points: NULL, inside unified buffer `index`
+    /// (`buf`, then `extended_buf`) at `offset`, or nowhere C allocated.
+    #[derive(Clone, Copy, Debug, PartialEq, Eq)]
+    enum At {
+        Null,
+        In(usize, usize),
+        Stray,
+    }
+
+    /// What C sees of a frame.
+    #[derive(Clone, Debug, PartialEq, Eq)]
+    struct Seen {
+        ints: Vec<i64>,
+        linesize: [c_int; NUM_DATA_POINTERS],
+        layout: (u32, c_int),
+        opaque: usize,
+        planes: Vec<At>,
+        extended: Option<Vec<At>>,
+        buffers: Vec<Option<(Vec<u8>, c_int, bool)>>,
+        side_data: Vec<(u32, Vec<u8>, Pairs)>,
+        metadata: Pairs,
+        opaque_ref: Option<(Vec<u8>, c_int)>,
+        hw: bool,
+        private: bool,
+    }
+
+    /// Key/value pairs as bytes, in iteration order.
+    type Pairs = Vec<(Vec<u8>, Vec<u8>)>;
+
+    /// C's reading of a dictionary, in iteration order.
+    fn c_pairs(m: *const ffi::AVDictionary) -> Pairs {
+        let mut out = Vec::new();
+        let mut e = ptr::null();
+        loop {
+            // SAFETY: `m` is NULL or a live dictionary; `e` is NULL or its
+            // previous entry.
+            e = unsafe { ffi::av_dict_iterate(m, e) };
+            if e.is_null() {
+                return out;
+            }
+            // SAFETY: a live entry, whose key and value are C strings.
+            let (k, v) = unsafe { (CStr::from_ptr((*e).key), CStr::from_ptr((*e).value)) };
+            out.push((k.to_bytes().into(), v.to_bytes().into()));
+        }
+    }
+
+    /// C's reading of a reference: bytes, count, writability.
+    fn c_buf(b: *const ffi::AVBufferRef) -> (Vec<u8>, c_int, bool) {
+        // SAFETY: a live reference whose window is initialised bytes.
+        unsafe {
+            let bytes = if (*b).size == 0 {
+                Vec::new()
+            } else {
+                std::slice::from_raw_parts((*b).data, (*b).size).to_vec()
+            };
+            (
+                bytes,
+                ffi::av_buffer_get_ref_count(b),
+                ffi::av_buffer_is_writable(b) != 0,
+            )
+        }
+    }
+
+    /// The unified buffer list of a frame: `buf`, then `extended_buf`.
+    ///
+    /// # Safety
+    ///
+    /// `f` must be a live frame.
+    unsafe fn c_buffers(f: *const ffi::AVFrame) -> Vec<*mut ffi::AVBufferRef> {
+        // SAFETY: the caller's live frame and its extra block.
+        unsafe {
+            let mut v: Vec<_> = (*f).buf.to_vec();
+            for i in 0..(*f).nb_extended_buf.max(0) as usize {
+                v.push(*(*f).extended_buf.add(i));
+            }
+            v
+        }
+    }
+
+    /// Where `p` points among `bufs`.
+    fn c_at(bufs: &[*mut ffi::AVBufferRef], p: *const u8) -> At {
+        if p.is_null() {
+            return At::Null;
+        }
+        for (i, &b) in bufs.iter().enumerate() {
+            if b.is_null() {
+                continue;
+            }
+            // SAFETY: a live reference.
+            let (data, size) = unsafe { ((*b).data, (*b).size) };
+            let off = p.addr().wrapping_sub(data.addr());
+            if p.addr() >= data.addr() && off < size {
+                return At::In(i, off);
+            }
+        }
+        At::Stray
+    }
+
+    /// C's reading of the frame at `f`.
+    ///
+    /// # Safety
+    ///
+    /// `f` must be a live frame whose buffers hold initialised bytes.
+    unsafe fn c_seen(f: *const ffi::AVFrame) -> Seen {
+        // SAFETY: the caller's live frame, every pointer of which is NULL or
+        // live.
+        unsafe {
+            let bufs = c_buffers(f);
+            let x = &*f;
+            let separate = x.extended_data.cast_const() != (&raw const (*f).data).cast();
+            let extended = separate.then(|| {
+                (0..x.ch_layout.nb_channels.max(0) as usize)
+                    .map(|i| c_at(&bufs, *x.extended_data.add(i)))
+                    .collect()
+            });
+            let side_data = (0..x.nb_side_data.max(0) as usize)
+                .map(|i| {
+                    let e = *x.side_data.add(i);
+                    (
+                        (*e).type_.0,
+                        if (*e).size == 0 {
+                            Vec::new()
+                        } else {
+                            std::slice::from_raw_parts((*e).data, (*e).size).to_vec()
+                        },
+                        c_pairs((*e).metadata),
+                    )
+                })
+                .collect();
+            Seen {
+                ints: vec![
+                    x.width.into(),
+                    x.height.into(),
+                    x.nb_samples.into(),
+                    x.format.into(),
+                    x.pict_type.0.into(),
+                    x.sample_aspect_ratio.num.into(),
+                    x.sample_aspect_ratio.den.into(),
+                    x.pts,
+                    x.pkt_dts,
+                    x.time_base.num.into(),
+                    x.time_base.den.into(),
+                    x.quality.into(),
+                    x.repeat_pict.into(),
+                    x.sample_rate.into(),
+                    x.flags.into(),
+                    x.color_range.0.into(),
+                    x.color_primaries.0.into(),
+                    x.color_trc.0.into(),
+                    x.colorspace.0.into(),
+                    x.chroma_location.0.into(),
+                    x.best_effort_timestamp,
+                    x.decode_error_flags.into(),
+                    x.crop_top as i64,
+                    x.crop_bottom as i64,
+                    x.crop_left as i64,
+                    x.crop_right as i64,
+                    x.duration,
+                    x.alpha_mode.0.into(),
+                ],
+                linesize: x.linesize,
+                layout: (x.ch_layout.order.0, x.ch_layout.nb_channels),
+                opaque: x.opaque.addr(),
+                planes: x.data.iter().map(|&p| c_at(&bufs, p)).collect(),
+                extended,
+                buffers: bufs
+                    .iter()
+                    .map(|&b| (!b.is_null()).then(|| c_buf(b)))
+                    .collect(),
+                side_data,
+                metadata: c_pairs(x.metadata),
+                opaque_ref: (!x.opaque_ref.is_null()).then(|| {
+                    let (bytes, count, _) = c_buf(x.opaque_ref);
+                    (bytes, count)
+                }),
+                hw: !x.hw_frames_ctx.is_null(),
+                private: !x.private_ref.is_null(),
+            }
+        }
+    }
+
+    /// C's reading of a Rust frame, which C reads through its pointer.
+    fn rust_seen(f: &FrameBox) -> Seen {
+        // SAFETY: the box's live frame, whose buffers hold initialised
+        // bytes, read only.
+        unsafe { c_seen(f.as_c_ptr()) }
+    }
+
+    /// The Rust getters' reading of a frame, in [`Seen`]'s terms.
+    fn getters(r: FrameRef<'_>) -> Seen {
+        let mut bufs: Vec<_> = (0..NUM_DATA_POINTERS).map(|i| r.buffer(i)).collect();
+        bufs.extend((0..r.extended_buffer_count()).map(|i| r.extended_buffer(i)));
+        // Where a plane view starts among the buffers' bytes; Rust gives no
+        // view of a pointer outside them.
+        let at = |view: Option<&[u8]>| match view {
+            None => At::Null,
+            Some(v) => bufs
+                .iter()
+                .enumerate()
+                .find_map(|(i, b)| {
+                    let d = b.as_ref()?.data();
+                    let off = v.as_ptr().addr().wrapping_sub(d.as_ptr().addr());
+                    (off < d.len() && v.len() == d.len() - off).then_some(At::In(i, off))
+                })
+                .unwrap_or(At::Stray),
+        };
+        let pairs = |m: Option<ffmpeg::libavutil::dict::DictionaryRef<'_>>| {
+            m.map_or_else(Vec::new, |m| {
+                m.iter()
+                    .map(|p| (p.key().to_bytes().into(), p.value().to_bytes().into()))
+                    .collect()
+            })
+        };
+        let sar = r.sample_aspect_ratio().get().into_raw();
+        let tb = r.time_base().get().into_raw();
+        let layout = r.channel_layout();
+        Seen {
+            ints: vec![
+                r.width().into(),
+                r.height().into(),
+                r.sample_count().into(),
+                r.format().into(),
+                r.picture_type().into_raw().0.into(),
+                sar.num.into(),
+                sar.den.into(),
+                r.pts(),
+                r.packet_dts(),
+                tb.num.into(),
+                tb.den.into(),
+                r.quality().into(),
+                r.repeat_pict().into(),
+                r.sample_rate().into(),
+                r.flags().bits().into(),
+                r.color_range().into_raw().0.into(),
+                r.color_primaries().into_raw().0.into(),
+                r.color_transfer().into_raw().0.into(),
+                r.color_space().into_raw().0.into(),
+                r.chroma_location().into_raw().0.into(),
+                r.best_effort_timestamp(),
+                r.decode_error_flags().bits().into(),
+                r.crop_top() as i64,
+                r.crop_bottom() as i64,
+                r.crop_left() as i64,
+                r.crop_right() as i64,
+                r.duration(),
+                r.alpha_mode().into_raw().0.into(),
+            ],
+            linesize: r.linesizes(),
+            layout: (layout.order().into_raw().0, layout.channel_count()),
+            opaque: r.opaque().addr(),
+            planes: (0..NUM_DATA_POINTERS).map(|i| at(r.plane(i))).collect(),
+            extended: r.has_extended_data().then(|| {
+                (0..r.extended_plane_count())
+                    .map(|i| at(r.extended_plane(i)))
+                    .collect()
+            }),
+            buffers: bufs
+                .iter()
+                .map(|b| b.map(|b| (b.data().to_vec(), b.ref_count() as c_int, b.is_writable())))
+                .collect(),
+            side_data: r
+                .side_data()
+                .iter()
+                .map(|e| {
+                    (
+                        e.kind().into_raw().0,
+                        e.data().to_vec(),
+                        pairs(e.metadata()),
+                    )
+                })
+                .collect(),
+            metadata: pairs(r.metadata()),
+            opaque_ref: r
+                .opaque_ref()
+                .map(|b| (b.data().to_vec(), b.ref_count() as c_int)),
+            hw: r.hw_frames_context().is_some(),
+            private: r.has_private_ref(),
+        }
+    }
+
+    /// A frame C allocates and writes, freed with `av_frame_free`.
+    struct CFrame(*mut ffi::AVFrame);
+
+    impl CFrame {
+        fn new() -> Self {
+            // SAFETY: no precondition.
+            let f = unsafe { ffi::av_frame_alloc() };
+            assert!(!f.is_null());
+            Self(f)
+        }
+
+        fn seen(&self) -> Seen {
+            // SAFETY: the frame C built, whose buffers this test filled.
+            unsafe { c_seen(self.0) }
+        }
+
+        fn bufs(&self) -> Vec<*mut ffi::AVBufferRef> {
+            // SAFETY: a live frame.
+            unsafe { c_buffers(self.0) }
+        }
+
+        /// The C frame's `extended_data` entries this test may touch, and
+        /// whether the array is separate.
+        fn extended(&self) -> (*mut *mut u8, usize, bool) {
+            // SAFETY: a live frame.
+            unsafe {
+                let f = self.0;
+                let own = (&raw mut (*f).data).cast::<*mut u8>();
+                let ext = (*f).extended_data;
+                if ext == own {
+                    (ext, NUM_DATA_POINTERS, false)
+                } else {
+                    (ext, (*f).ch_layout.nb_channels.max(0) as usize, true)
+                }
+            }
+        }
+
+        /// Clears the plane pointers a well-behaved C user must clear after
+        /// a buffer change: every one outside the buffers, and all of them
+        /// without a buffer at index 0.
+        fn prune(&mut self) {
+            let bufs = self.bufs();
+            let counted = !bufs[0].is_null();
+            let keep = |p: *mut u8| counted && matches!(c_at(&bufs, p), At::In(..)) || p.is_null();
+            // SAFETY: a live frame and its own `extended_data` entries.
+            unsafe {
+                for i in 0..NUM_DATA_POINTERS {
+                    if !keep((*self.0).data[i]) {
+                        (*self.0).data[i] = ptr::null_mut();
+                    }
+                }
+                let (ext, n, separate) = self.extended();
+                if separate {
+                    for i in 0..n {
+                        if !keep(*ext.add(i)) {
+                            *ext.add(i) = ptr::null_mut();
+                        }
+                    }
+                }
+            }
+        }
+
+        /// The pointer `offset` bytes into unified buffer `b`, as
+        /// `set_plane` checks it.
+        fn target(&self, b: usize, offset: usize) -> Result<*mut u8, PlaneError> {
+            let bufs = self.bufs();
+            if bufs[0].is_null() {
+                return Err(PlaneError::NoBuffer);
+            }
+            let buf = *bufs.get(b).ok_or(PlaneError::NoBuffer)?;
+            if buf.is_null() {
+                return Err(PlaneError::NoBuffer);
+            }
+            // SAFETY: a live reference.
+            let (data, size) = unsafe { ((*buf).data, (*buf).size) };
+            if offset >= size {
+                return Err(PlaneError::OutOfBounds);
+            }
+            Ok(data.wrapping_add(offset))
+        }
+    }
+
+    impl Drop for CFrame {
+        fn drop(&mut self) {
+            // SAFETY: frees the frame and everything it holds.
+            unsafe { ffi::av_frame_free(&mut self.0) }
+        }
+    }
+
+    /// `len` bytes from `seed`.
+    fn pattern(len: usize, seed: u8) -> Vec<u8> {
+        (0..len)
+            .map(|i| (i as u8).wrapping_mul(7).wrapping_add(seed))
+            .collect()
+    }
+
+    /// A Rust reference holding `bytes`.
+    fn rust_buffer(bytes: &[u8]) -> BufferReferenceBox {
+        BufferReference::alloc(bytes.len())
+            .unwrap()
+            .copy_from_slice(bytes)
+    }
+
+    /// A C reference holding `bytes`.
+    fn c_buffer(bytes: &[u8]) -> *mut ffi::AVBufferRef {
+        // SAFETY: a fresh reference to `len` bytes, filled from `bytes`.
+        unsafe {
+            let b = ffi::av_buffer_alloc(bytes.len());
+            assert!(!b.is_null());
+            ptr::copy_nonoverlapping(bytes.as_ptr(), (*b).data, bytes.len());
+            b
+        }
+    }
+
+    /// A C dictionary of `pairs`.
+    fn c_dict(pairs: &[(&CStr, &CStr)]) -> *mut ffi::AVDictionary {
+        let mut m = ptr::null_mut();
+        for (k, v) in pairs {
+            // SAFETY: C copies the strings into `m`.
+            let r = unsafe {
+                ffi::av_dict_set(
+                    &mut m,
+                    k.as_ptr(),
+                    v.as_ptr(),
+                    ffi::AV_DICT_MULTIKEY as c_int,
+                )
+            };
+            assert!(r >= 0);
+        }
+        m
+    }
+
+    /// xorshift64*.
+    struct Rng(u64);
+
+    impl Rng {
+        fn next(&mut self) -> u64 {
+            self.0 ^= self.0 >> 12;
+            self.0 ^= self.0 << 25;
+            self.0 ^= self.0 >> 27;
+            self.0.wrapping_mul(0x2545_f491_4f6c_dd1d)
+        }
+
+        fn below(&mut self, n: u64) -> usize {
+            (self.next() % n) as usize
+        }
+    }
+
+    const PAIRS: [(&CStr, &CStr); 3] = [(c"a", c"1"), (c"b", c"2"), (c"a", c"3")];
+
+    /// Asserts both frames read the same to C, and the Rust frame the same
+    /// through its getters, and that their clones agree. Returns how many
+    /// planes point into buffers, and whether the frames cloned.
+    fn compare(r: &FrameBox, c: &CFrame, step: &str) -> (usize, bool) {
+        let seen = c.seen();
+        assert_eq!(rust_seen(r), seen, "{step}");
+        assert_eq!(getters(r.as_ref()), seen, "{step} (getters)");
+        assert!(!seen.planes.contains(&At::Stray), "{step}");
+        let placed = seen.planes.iter().chain(seen.extended.iter().flatten());
+        let placed = placed.filter(|a| matches!(a, At::In(..))).count();
+        // SAFETY: a live frame, read only.
+        let cc = unsafe { ffi::av_frame_clone(c.0) };
+        let rc = r.as_ref().try_clone();
+        let cloned = rc.is_some();
+        assert_eq!(cloned, !cc.is_null(), "{step} (clone)");
+        if let Some(rc) = rc {
+            let cc = CFrame(cc);
+            assert_eq!(rust_seen(&rc), cc.seen(), "{step} (clones)");
+            assert_eq!(rust_seen(r), c.seen(), "{step} (after clone)");
+            // C's lookup reads `extended_data[i]` unchecked (for i < 4 on
+            // video), so only entries the frame holds are asked for.
+            for i in 0..rc.as_ref().extended_plane_count().min(NUM_DATA_POINTERS) {
+                // SAFETY: live frames, read only, holding entry `i`.
+                let (x, y) = unsafe {
+                    (
+                        ffi::av_frame_get_plane_buffer(rc.as_c_ptr(), i as c_int),
+                        ffi::av_frame_get_plane_buffer(cc.0, i as c_int),
+                    )
+                };
+                assert_eq!(x.is_null(), y.is_null(), "{step} (plane buffer {i})");
+            }
+        }
+        for i in 0..r.as_ref().extended_plane_count().min(NUM_DATA_POINTERS) {
+            // SAFETY: a live frame holding `extended_data[i]`, read only; C
+            // compares addresses.
+            let pb = unsafe { ffi::av_frame_get_plane_buffer(r.as_c_ptr(), i as c_int) };
+            let view = r.as_ref().extended_plane(i);
+            if !pb.is_null() {
+                // SAFETY: the live reference C found.
+                let (data, size) = unsafe { ((*pb).data, (*pb).size) };
+                let v = view.expect("C found the plane's buffer");
+                assert_eq!(
+                    v.as_ptr().addr() + v.len(),
+                    data.addr() + size,
+                    "{step} ({i})"
+                );
+            }
+        }
+        // SAFETY: a live frame, read only.
+        let writable = unsafe { ffi::av_frame_is_writable(c.0) } != 0;
+        // SAFETY: as above.
+        let rust_writable = unsafe { ffi::av_frame_is_writable(r.as_c_ptr()) } != 0;
+        assert_eq!(rust_writable, writable, "{step}");
+        (placed, cloned)
+    }
+
+    #[test]
+    fn new_frames_match_av_frame_alloc() {
+        let r = Frame::new().unwrap();
+        let c = CFrame::new();
+        assert_eq!(compare(&r, &c, "new"), (0, false));
+        assert!(r.as_ref().try_clone().is_none());
+        // SAFETY: both live; C's defaults put `extended_data` at `data`.
+        unsafe {
+            let (x, y) = (r.as_c_ptr(), c.0);
+            assert_eq!((*x).extended_data, (&raw mut (*x).data).cast());
+            assert_eq!((*y).extended_data, (&raw mut (*y).data).cast());
+        }
+    }
+
+    /// One random step, applied to both frames.
+    fn step(rng: &mut Rng, r: &mut FrameBox, c: &mut CFrame) -> String {
+        let f = c.0;
+        match rng.below(18) {
+            0 => {
+                let i = if rng.below(2) == 0 {
+                    0
+                } else {
+                    rng.below(NUM_DATA_POINTERS as u64)
+                };
+                let len = rng.below(48) + 16;
+                let bytes = pattern(len, rng.next() as u8);
+                let none = rng.below(6) == 0;
+                let old = r
+                    .as_mut()
+                    .replace_buffer(i, (!none).then(|| rust_buffer(&bytes)));
+                // SAFETY: the frame's slot, which takes the new reference;
+                // the old one is released after the planes are pruned, as
+                // the Rust side's drop of the reference it returns is.
+                let mut was = unsafe {
+                    let was = (*f).buf[i];
+                    (*f).buf[i] = if none {
+                        ptr::null_mut()
+                    } else {
+                        c_buffer(&bytes)
+                    };
+                    was
+                };
+                c.prune();
+                drop(old);
+                // SAFETY: the reference the frame held.
+                unsafe { ffi::av_buffer_unref(&mut was) };
+                format!("buffer {i} = {}", if none { 0 } else { len })
+            }
+            1 | 2 => {
+                let p = rng.below(NUM_DATA_POINTERS as u64 + 1);
+                let b = if rng.below(2) == 0 {
+                    0
+                } else {
+                    rng.below(NUM_DATA_POINTERS as u64 + 3)
+                };
+                let off = rng.below(24);
+                let x = r.as_mut().set_plane(p, b, off);
+                let y = if p >= NUM_DATA_POINTERS {
+                    Err(PlaneError::NoPlane)
+                } else {
+                    c.target(b, off).map(|t| {
+                        // SAFETY: plane `p` of the live frame.
+                        unsafe { (*f).data[p] = t };
+                    })
+                };
+                assert_eq!(x, y);
+                format!("plane {p} = {b}+{off}")
+            }
+            3 => {
+                let p = rng.below(NUM_DATA_POINTERS as u64 + 1);
+                r.as_mut().clear_plane(p);
+                if p < NUM_DATA_POINTERS {
+                    // SAFETY: plane `p` of the live frame.
+                    unsafe { (*f).data[p] = ptr::null_mut() };
+                }
+                format!("clear plane {p}")
+            }
+            4 => {
+                let len = rng.below(24) + 1;
+                let bytes = pattern(len, 9);
+                r.as_mut()
+                    .push_extended_buffer(rust_buffer(&bytes))
+                    .unwrap();
+                // SAFETY: the frame's extra block, grown by one reference.
+                unsafe {
+                    let n = (*f).nb_extended_buf as usize;
+                    let grown =
+                        ffi::av_realloc_array((*f).extended_buf.cast(), n + 1, size_of_ptr());
+                    assert!(!grown.is_null());
+                    (*f).extended_buf = grown.cast();
+                    *(*f).extended_buf.add(n) = c_buffer(&bytes);
+                    (*f).nb_extended_buf += 1;
+                }
+                "push extended".into()
+            }
+            5 => {
+                let x = r.as_mut().pop_extended_buffer();
+                // SAFETY: the frame's extra block, shrunk by one; the
+                // reference taken out is released after the planes are
+                // pruned, as the Rust side's is.
+                let mut y = unsafe {
+                    let n = (*f).nb_extended_buf as usize;
+                    if n == 0 {
+                        ptr::null_mut()
+                    } else {
+                        let last = *(*f).extended_buf.add(n - 1);
+                        (*f).nb_extended_buf -= 1;
+                        if n == 1 {
+                            ffi::av_freep((&raw mut (*f).extended_buf).cast());
+                        }
+                        last
+                    }
+                };
+                c.prune();
+                assert_eq!(x.is_some(), !y.is_null());
+                drop(x);
+                // SAFETY: the reference taken out, or NULL.
+                unsafe { ffi::av_buffer_unref(&mut y) };
+                "pop extended".into()
+            }
+            6 => {
+                let i = rng.below(4);
+                let bytes = pattern(rng.below(16) + 1, 3);
+                let x = r.as_mut().replace_extended_buffer(i, rust_buffer(&bytes));
+                // SAFETY: entry `i` of the frame's extra block, when present;
+                // the old reference is released after the planes are pruned.
+                let mut y = unsafe {
+                    if i < (*f).nb_extended_buf as usize {
+                        let slot = (*f).extended_buf.add(i);
+                        core::mem::replace(&mut *slot, c_buffer(&bytes))
+                    } else {
+                        ptr::null_mut()
+                    }
+                };
+                c.prune();
+                assert_eq!(x.is_ok(), !y.is_null());
+                drop(x);
+                // SAFETY: the reference taken out, or NULL.
+                unsafe { ffi::av_buffer_unref(&mut y) };
+                format!("replace extended {i}")
+            }
+            7 => {
+                let n = rng.below(12) as i32;
+                let x = r.as_mut().set_channel_layout(ChannelLayout::unspecified(n));
+                let (_, _, separate) = c.extended();
+                // SAFETY: the frame's layout, unspecified order (no map).
+                let y = unsafe {
+                    if separate && n > (*f).ch_layout.nb_channels {
+                        false
+                    } else {
+                        ffi::av_channel_layout_uninit(&raw mut (*f).ch_layout);
+                        (*f).ch_layout.nb_channels = n;
+                        true
+                    }
+                };
+                assert_eq!(x.is_ok(), y);
+                format!("layout {n}")
+            }
+            8 => {
+                let x = r.as_mut().alloc_extended_data();
+                let (ext, _, separate) = c.extended();
+                // SAFETY: the frame's layout and `extended_data`, which takes
+                // a fresh block copying `data`.
+                let y = unsafe {
+                    let n = (*f).ch_layout.nb_channels;
+                    if n <= 0 {
+                        Err(-(ffi::EINVAL as c_int))
+                    } else {
+                        let block = ffi::av_calloc(n as usize, size_of_ptr()).cast::<*mut u8>();
+                        for i in 0..(n as usize).min(NUM_DATA_POINTERS) {
+                            *block.add(i) = (*f).data[i];
+                        }
+                        if separate {
+                            ffi::av_free(ext.cast());
+                        }
+                        (*f).extended_data = block;
+                        Ok(())
+                    }
+                };
+                assert_eq!(x, y);
+                "alloc extended data".into()
+            }
+            9 => {
+                r.as_mut().reset_extended_data();
+                let (ext, _, separate) = c.extended();
+                // SAFETY: the frame's own block, freed, and its `data`.
+                unsafe {
+                    if separate {
+                        ffi::av_free(ext.cast());
+                    }
+                    (*f).extended_data = (&raw mut (*f).data).cast();
+                }
+                "reset extended data".into()
+            }
+            10 => {
+                let i = rng.below(14);
+                let b = if rng.below(2) == 0 { 0 } else { rng.below(12) };
+                let off = rng.below(24);
+                let x = r.as_mut().set_extended_plane(i, b, off);
+                let (ext, n, _) = c.extended();
+                let y = if i >= n {
+                    Err(PlaneError::NoPlane)
+                } else {
+                    c.target(b, off).map(|t| {
+                        // SAFETY: entry `i < n` of `extended_data`.
+                        unsafe { *ext.add(i) = t };
+                    })
+                };
+                assert_eq!(x, y);
+                format!("extended plane {i} = {b}+{off}")
+            }
+            11 => {
+                let kind = [7u32, 20, 20, 15][rng.below(4)];
+                let bytes = pattern(rng.below(20), 1);
+                let x = r
+                    .as_mut()
+                    .side_data_mut()
+                    .add(
+                        SideDataType::from_raw(ffi::AVFrameSideDataType(kind)),
+                        rust_buffer(&bytes),
+                        SideDataFlags::NONE,
+                    )
+                    .is_ok();
+                let mut slot = c_buffer(&bytes);
+                // SAFETY: the frame's side data variables and a reference C
+                // takes on success.
+                let y = unsafe {
+                    let e = ffi::av_frame_side_data_add(
+                        &raw mut (*f).side_data,
+                        &raw mut (*f).nb_side_data,
+                        ffi::AVFrameSideDataType(kind),
+                        &mut slot,
+                        0,
+                    );
+                    ffi::av_buffer_unref(&mut slot);
+                    !e.is_null()
+                };
+                assert_eq!(x, y);
+                format!("side data {kind}")
+            }
+            12 => {
+                let n = rng.below(4);
+                r.as_mut()
+                    .set_metadata(Dict::from_entries(PAIRS[..n].iter().copied()).unwrap());
+                // SAFETY: the frame's dictionary, replaced.
+                unsafe {
+                    ffi::av_dict_free(&raw mut (*f).metadata);
+                    (*f).metadata = c_dict(&PAIRS[..n]);
+                }
+                format!("metadata {n}")
+            }
+            13 => {
+                let none = rng.below(3) == 0;
+                let bytes = pattern(5, 4);
+                r.as_mut()
+                    .set_opaque_ref((!none).then(|| rust_buffer(&bytes)));
+                // SAFETY: the frame's user data reference, replaced.
+                unsafe {
+                    ffi::av_buffer_unref(&raw mut (*f).opaque_ref);
+                    if !none {
+                        (*f).opaque_ref = c_buffer(&bytes);
+                    }
+                }
+                format!("opaque_ref {none}")
+            }
+            14 => {
+                let p = rng.below(NUM_DATA_POINTERS as u64);
+                let byte = rng.next() as u8;
+                let x = r.as_mut().plane_mut(p).map(|v| v.fill(byte)).is_some();
+                let bufs = c.bufs();
+                // SAFETY: plane `p` of the live frame, written as `plane_mut`
+                // does when its buffer is writable.
+                let y = unsafe {
+                    match c_at(&bufs, (*f).data[p]) {
+                        At::In(b, off)
+                            if !bufs[0].is_null() && ffi::av_buffer_is_writable(bufs[b]) != 0 =>
+                        {
+                            let size = (*bufs[b]).size;
+                            ptr::write_bytes((*f).data[p], byte, size - off);
+                            true
+                        }
+                        _ => false,
+                    }
+                };
+                assert_eq!(x, y);
+                format!("write plane {p}")
+            }
+            15 => {
+                let v = rng.next() as i64;
+                let w = v as i32;
+                let mut m = r.as_mut();
+                m.set_width(w);
+                m.set_height(w >> 3);
+                m.set_sample_count(w >> 5);
+                m.set_format(w % 200);
+                m.set_picture_type(PictureType::from_raw(ffi::AVPictureType(w as u32 % 9)));
+                m.set_sample_aspect_ratio(Rational::new(w, 7));
+                m.set_pts(v);
+                m.set_packet_dts(v ^ 1);
+                m.time_base_mut().set_num(w ^ 3);
+                m.set_quality(w ^ 4);
+                m.set_repeat_pict(w & 3);
+                m.set_sample_rate(w >> 1);
+                m.set_flags(FrameFlags::from_bits_retain(w));
+                m.set_color_range(ColorRange::from_raw(ffi::AVColorRange(w as u32 % 4)));
+                m.set_color_primaries(ColorPrimaries::from_raw(ffi::AVColorPrimaries(
+                    w as u32 % 23,
+                )));
+                m.set_color_transfer(ColorTransfer::from_raw(ffi::AVColorTransferCharacteristic(
+                    w as u32 % 19,
+                )));
+                m.set_color_space(ColorSpace::from_raw(ffi::AVColorSpace(w as u32 % 18)));
+                m.set_chroma_location(ChromaLocation::from_raw(ffi::AVChromaLocation(
+                    w as u32 % 7,
+                )));
+                m.set_best_effort_timestamp(!v);
+                m.set_decode_error_flags(DecodeErrorFlags::from_bits_retain(w & 15));
+                m.set_crop_top(v as usize);
+                m.set_crop_bottom(v as usize >> 2);
+                m.set_crop_left(3);
+                m.set_crop_right(v as usize & 0xffff);
+                m.set_duration(v >> 4);
+                m.set_alpha_mode(AlphaMode::from_raw(ffi::AVAlphaMode(w as u32 % 3)));
+                m.set_linesize(w as usize & 7, w);
+                m.set_opaque(ptr::without_provenance_mut(v as usize));
+                // SAFETY: plain fields of the live frame.
+                unsafe {
+                    let x = &mut *f;
+                    x.width = w;
+                    x.height = w >> 3;
+                    x.nb_samples = w >> 5;
+                    x.format = w % 200;
+                    x.pict_type = ffi::AVPictureType(w as u32 % 9);
+                    x.sample_aspect_ratio = ffi::AVRational { num: w, den: 7 };
+                    x.pts = v;
+                    x.pkt_dts = v ^ 1;
+                    x.time_base.num = w ^ 3;
+                    x.quality = w ^ 4;
+                    x.repeat_pict = w & 3;
+                    x.sample_rate = w >> 1;
+                    x.flags = w;
+                    x.color_range = ffi::AVColorRange(w as u32 % 4);
+                    x.color_primaries = ffi::AVColorPrimaries(w as u32 % 23);
+                    x.color_trc = ffi::AVColorTransferCharacteristic(w as u32 % 19);
+                    x.colorspace = ffi::AVColorSpace(w as u32 % 18);
+                    x.chroma_location = ffi::AVChromaLocation(w as u32 % 7);
+                    x.best_effort_timestamp = !v;
+                    x.decode_error_flags = w & 15;
+                    x.crop_top = v as usize;
+                    x.crop_bottom = v as usize >> 2;
+                    x.crop_left = 3;
+                    x.crop_right = v as usize & 0xffff;
+                    x.duration = v >> 4;
+                    x.alpha_mode = ffi::AVAlphaMode(w as u32 % 3);
+                    x.linesize[w as usize & 7] = w;
+                    x.opaque = ptr::without_provenance_mut(v as usize);
+                }
+                "scalars".into()
+            }
+            16 => {
+                let mut m = r.as_mut();
+                m.set_pixel_format(ffmpeg::libavutil::pixfmt::PixelFormat::GRAY8);
+                m.set_width(4);
+                m.set_height(2);
+                m.set_sample_count(0);
+                m.set_linesize(0, 4);
+                // SAFETY: plain fields of the live frame.
+                unsafe {
+                    (*f).format = ffi::AVPixelFormat::AV_PIX_FMT_GRAY8.0;
+                    (*f).width = 4;
+                    (*f).height = 2;
+                    (*f).nb_samples = 0;
+                    (*f).linesize[0] = 4;
+                }
+                "gray 4x2".into()
+            }
+            _ => {
+                if rng.below(4) == 0 {
+                    r.as_mut().reset();
+                    // SAFETY: a live frame.
+                    unsafe { ffi::av_frame_unref(f) };
+                    "reset".into()
+                } else {
+                    "nothing".into()
+                }
+            }
+        }
+    }
+
+    /// `seen` with each buffer's bytes reduced to their count, for frames
+    /// whose buffers' bytes outside the planes C leaves uninitialised.
+    fn shape(mut seen: Seen) -> Seen {
+        for b in seen.buffers.iter_mut().flatten() {
+            b.0 = (b.0.len() as u64).to_le_bytes().to_vec();
+        }
+        seen
+    }
+
+    /// The size of a pointer, which C's arrays of planes and references
+    /// hold.
+    fn size_of_ptr() -> usize {
+        core::mem::size_of::<*mut u8>()
+    }
+
+    #[test]
+    fn random_sequences_read_alike_after_every_step() {
+        // How many steps saw planes placed in buffers, and clones made, so
+        // that the sequences are known to reach both.
+        let (mut placed, mut cloned) = (0, 0);
+        for seed in 1..=40u64 {
+            let mut rng = Rng(seed.wrapping_mul(0x9e37_79b9_7f4a_7c15) | 1);
+            let mut r = Frame::new().unwrap();
+            let mut c = CFrame::new();
+            for n in 0..60 {
+                let what = step(&mut rng, &mut r, &mut c);
+                let (p, cl) = compare(&r, &c, &format!("seed {seed} step {n}: {what}"));
+                placed += usize::from(p > 0);
+                cloned += usize::from(cl);
+            }
+            // Released alike: references both sides kept outlive the frames.
+            let keep_r: Vec<_> = (0..NUM_DATA_POINTERS)
+                .filter_map(|i| r.as_ref().buffer(i).map(|b| b.try_clone().unwrap()))
+                .collect();
+            let keep_c: Vec<_> = c
+                .bufs()
+                .into_iter()
+                .take(NUM_DATA_POINTERS)
+                .filter(|b| !b.is_null())
+                // SAFETY: a live reference, copied.
+                .map(|b| unsafe { ffi::av_buffer_ref(b) })
+                .collect();
+            r.as_mut().reset();
+            // SAFETY: a live frame.
+            unsafe { ffi::av_frame_unref(c.0) };
+            compare(&r, &c, &format!("seed {seed} reset"));
+            drop((r, c));
+            assert_eq!(keep_r.len(), keep_c.len());
+            for (x, mut y) in keep_r.into_iter().zip(keep_c) {
+                // SAFETY: the reference this test holds.
+                assert_eq!(x.as_ref().ref_count() as c_int, unsafe {
+                    ffi::av_buffer_get_ref_count(y)
+                });
+                // SAFETY: released once.
+                unsafe { ffi::av_buffer_unref(&mut y) };
+            }
+        }
+        eprintln!("placed {placed}, cloned {cloned} of 2400 steps");
+        assert!(
+            placed > 200 && cloned > 200,
+            "placed {placed}, cloned {cloned}"
+        );
+    }
+
+    /// Frames whose plane is external memory: both clones copy it into
+    /// buffers of their own, alike.
+    #[test]
+    fn clones_copy_external_planes_alike() {
+        for (w, h) in [(1, 1), (7, 3), (32, 32)] {
+            let mut mem = pattern((w * h) as usize, 5);
+            let mut r = Frame::new().unwrap();
+            let c = CFrame::new();
+            let mut m = r.as_mut();
+            m.set_pixel_format(ffmpeg::libavutil::pixfmt::PixelFormat::GRAY8);
+            m.set_width(w);
+            m.set_height(h);
+            m.set_linesize(0, w);
+            // SAFETY: the frame holds no buffer; `mem` is the whole plane at
+            // stride `w` and outlives both frames; nothing writes it.
+            unsafe { m.set_data_ptr(0, mem.as_mut_ptr()) };
+            // SAFETY: the same fields of the C frame.
+            unsafe {
+                (*c.0).format = ffi::AVPixelFormat::AV_PIX_FMT_GRAY8.0;
+                (*c.0).width = w;
+                (*c.0).height = h;
+                (*c.0).linesize[0] = w;
+                (*c.0).data[0] = mem.as_mut_ptr();
+            }
+            let rc = r.as_ref().try_clone().unwrap();
+            // SAFETY: a live frame, read only.
+            let cc = CFrame(unsafe { ffi::av_frame_clone(c.0) });
+            assert!(!cc.0.is_null());
+            // The copies' strides and buffers are C's choice, alike; their
+            // lines hold `mem`'s, and the rest, which C leaves uninitialised,
+            // is zero on the Rust side.
+            assert_eq!(shape(rust_seen(&rc)), shape(cc.seen()));
+            let line = rc.as_ref().linesizes()[0] as usize;
+            let plane = rc.as_ref().plane(0).unwrap();
+            // SAFETY: the C copy's live plane, whose first `h` lines C wrote.
+            let c_plane = unsafe { (*cc.0).data[0] };
+            for y in 0..h as usize {
+                let w = w as usize;
+                assert_eq!(&plane[y * line..y * line + w], &mem[y * w..(y + 1) * w]);
+                // SAFETY: line `y` of the C copy, `w` bytes C wrote.
+                let c_line = unsafe { std::slice::from_raw_parts(c_plane.add(y * line), w) };
+                assert_eq!(c_line, &plane[y * line..y * line + w]);
+                let pad = &plane[y * line + w..(y + 1) * line];
+                assert_eq!(pad, &vec![0; pad.len()][..]);
+            }
+            let rest = &plane[h as usize * line..];
+            assert_eq!(rest, &vec![0; rest.len()][..]);
+            drop((r, c));
+        }
+    }
+}

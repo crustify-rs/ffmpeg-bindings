@@ -1,0 +1,12 @@
+error[E0505]: cannot move out of `frame` because it is borrowed
+ --> tests/ub_safe/compile_fail/frame_buffer_handle_outlives_frame.rs
+  |
+  |     let mut frame = Frame::new().unwrap();
+  |         --------- binding `frame` declared here
+...
+  |     let buf = frame.as_ref().buffer(0).unwrap();
+  |               ----- borrow of `frame` occurs here
+  |     drop(frame);
+  |          ^^^^^ move out of `frame` occurs here
+  |     assert_eq!(buf.len(), 8);
+  |                --- borrow later used here

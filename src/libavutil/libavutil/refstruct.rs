@@ -496,7 +496,7 @@ const ALIGN: usize = 16;
 /// other references still reach; 2^64 take centuries. Every path that adds a
 /// counted reference refuses to compile, or (the non-generic pool policy)
 /// refuses at run time, where this is `false`.
-const COUNT_IS_WIDE: bool = usize::BITS >= 64;
+pub(crate) const COUNT_IS_WIDE: bool = usize::BITS >= 64;
 
 /// `av_refstruct_unref` and `av_refstruct_ref`, as the policy of a reference
 /// to a RefStruct object through which the holder may write once it is the

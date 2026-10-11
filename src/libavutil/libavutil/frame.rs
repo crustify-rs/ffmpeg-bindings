@@ -24,25 +24,45 @@
 //! [`SideDataArrayRef`] or [`SideDataArrayMut`]. Its payload is read as
 //! initialised bytes, and written only while its buffer has no other
 //! reference.
+//!
+//! [`Frame`] is `AVFrame`, decoded audio or video: its planes, the buffer
+//! references holding them, what describes them, its timing, color
+//! properties, side data and metadata. Its owner is a [`FrameBox`], made by
+//! [`Frame::new`] (`av_frame_alloc`) and freed with `av_frame_free`;
+//! [`FrameMut::reset`] (`av_frame_unref`) empties it and
+//! [`FrameRef::try_clone`] (`av_frame_clone`) copies it, sharing its
+//! buffers. Rust reads a plane only through the buffer reference holding it
+//! ([`FrameRef::plane`]), and writes it only while that buffer has no other
+//! reference ([`FrameMut::plane_mut`]); the format, dimensions, sample count
+//! and line sizes are plain values. Its [`flags`](FrameRef::flags) and
+//! [`decode_error_flags`](FrameRef::decode_error_flags) are a
+//! [`FrameFlags`] and a [`DecodeErrorFlags`].
 
-use core::ffi::{CStr, c_int, c_uint};
+use core::ffi::{CStr, c_int, c_uint, c_void};
 use core::fmt;
 use core::hash::{Hash, Hasher};
 use core::iter::FusedIterator;
 use core::marker::PhantomData;
-use core::mem::{ManuallyDrop, MaybeUninit};
+use core::mem::{ManuallyDrop, MaybeUninit, size_of};
 use core::ops::{BitAnd, BitAndAssign, BitOr, BitOrAssign, Range, Sub, SubAssign};
 use core::ptr::{self, NonNull, addr_of, addr_of_mut};
 use core::slice;
 
-use ffibox::{CBox, CPlainElem, CZeroable, define_ctype};
+use ffibox::{CBox, CNew, CPlainElem, CZeroable, define_ctype, impl_cdrop};
 
+use super::avutil::PictureType;
 use super::buffer::{
     BufferReference, BufferReferenceBox, BufferReferenceRef, ENOMEM, may_add_reference,
 };
+use super::channel_layout::{ChannelLayout, ChannelLayoutMut, ChannelLayoutRef, ChannelLayoutVal};
 use super::dict::{Dict, DictionaryBox, DictionaryRef};
 use super::ffi;
+use super::pixfmt::{
+    AlphaMode, ChromaLocation, ColorPrimaries, ColorRange, ColorSpace, ColorTransfer, PixelFormat,
+};
 use super::rational::{Rational, RationalMut, RationalRef};
+use super::refstruct;
+use super::samplefmt::SampleFormat;
 
 /// Wraps: AVFrameSideDataType
 /// Handwritten
@@ -2463,6 +2483,2193 @@ impl SideDataArray {
     }
 }
 
+/// `AVERROR(EINVAL)`.
+const EINVAL: c_int = -(ffi::EINVAL as c_int);
+
+/// The number of plane pointers, line sizes and buffer references a frame
+/// holds inline (`AV_NUM_DATA_POINTERS`).
+pub const NUM_DATA_POINTERS: usize = ffi::AV_NUM_DATA_POINTERS as usize;
+
+/// A set of flag bits C keeps in an `int` field and combines with bitwise
+/// operators, so that any bit pattern is a valid value, unknown bits
+/// included: the set operations carry them along, and `Debug` shows them in
+/// hex after the named ones.
+macro_rules! int_flags {
+    (
+        $(#[$attr:meta])*
+        $name:ident { $($(#[$fattr:meta])* $flag:ident = $bits:expr,)+ }
+    ) => {
+        $(#[$attr])*
+        #[repr(transparent)]
+        #[derive(Clone, Copy, Default, PartialEq, Eq, Hash)]
+        pub struct $name(c_int);
+
+        impl $name {
+            $($(#[$fattr])* pub const $flag: Self = Self($bits as c_int);)+
+
+            /// Every named flag with its constant's name, in declaration
+            /// order.
+            const KNOWN: &'static [(Self, &'static str)] = &[$((Self::$flag, stringify!($flag)),)+];
+
+            /// The set with no flag, as a zeroed field holds.
+            #[inline]
+            #[must_use]
+            pub const fn empty() -> Self {
+                Self(0)
+            }
+
+            /// The set with exactly `bits`, named or not.
+            #[inline]
+            #[must_use]
+            pub const fn from_bits_retain(bits: c_int) -> Self {
+                Self(bits)
+            }
+
+            /// The set's raw bits, as C stores them.
+            #[inline]
+            #[must_use]
+            pub const fn bits(self) -> c_int {
+                self.0
+            }
+
+            /// Whether no bit is set.
+            #[inline]
+            #[must_use]
+            pub const fn is_empty(self) -> bool {
+                self.0 == 0
+            }
+
+            /// Whether every bit of `other` is set in `self`.
+            #[inline]
+            #[must_use]
+            pub const fn contains(self, other: Self) -> bool {
+                self.0 & other.0 == other.0
+            }
+
+            /// Sets every bit of `other`.
+            #[inline]
+            pub fn insert(&mut self, other: Self) {
+                self.0 |= other.0;
+            }
+
+            /// Clears every bit of `other`.
+            #[inline]
+            pub fn remove(&mut self, other: Self) {
+                self.0 &= !other.0;
+            }
+        }
+
+        impl fmt::Debug for $name {
+            fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+                f.write_str(concat!(stringify!($name), "("))?;
+                let mut rest = self.0;
+                let mut first = true;
+                for &(flag, name) in Self::KNOWN {
+                    if self.contains(flag) {
+                        if !first {
+                            f.write_str(" | ")?;
+                        }
+                        f.write_str(name)?;
+                        rest &= !flag.0;
+                        first = false;
+                    }
+                }
+                if rest != 0 || first {
+                    if !first {
+                        f.write_str(" | ")?;
+                    }
+                    write!(f, "{rest:#x}")?;
+                }
+                f.write_str(")")
+            }
+        }
+
+        impl BitOr for $name {
+            type Output = Self;
+
+            #[inline]
+            fn bitor(self, rhs: Self) -> Self {
+                Self(self.0 | rhs.0)
+            }
+        }
+
+        impl BitOrAssign for $name {
+            #[inline]
+            fn bitor_assign(&mut self, rhs: Self) {
+                self.0 |= rhs.0;
+            }
+        }
+
+        impl BitAnd for $name {
+            type Output = Self;
+
+            #[inline]
+            fn bitand(self, rhs: Self) -> Self {
+                Self(self.0 & rhs.0)
+            }
+        }
+
+        /// The bits of `self` not in `rhs`.
+        impl Sub for $name {
+            type Output = Self;
+
+            #[inline]
+            fn sub(self, rhs: Self) -> Self {
+                Self(self.0 & !rhs.0)
+            }
+        }
+    };
+}
+
+int_flags! {
+    /// The `AV_FRAME_FLAG_*` bits of a frame's [`flags`](FrameRef::flags):
+    /// properties of its content that decoders set and filters and encoders
+    /// read.
+    FrameFlags {
+        /// The data may be corrupted, e.g. by decoding errors.
+        CORRUPT = ffi::AV_FRAME_FLAG_CORRUPT,
+        /// The frame is a key frame.
+        KEY = ffi::AV_FRAME_FLAG_KEY,
+        /// The frame is to be decoded, but not output.
+        DISCARD = ffi::AV_FRAME_FLAG_DISCARD,
+        /// The content is interlaced.
+        INTERLACED = ffi::AV_FRAME_FLAG_INTERLACED,
+        /// The top field is displayed first, when the content is interlaced.
+        TOP_FIELD_FIRST = ffi::AV_FRAME_FLAG_TOP_FIELD_FIRST,
+        /// The frame was originally encoded losslessly.
+        LOSSLESS = ffi::AV_FRAME_FLAG_LOSSLESS,
+    }
+}
+
+int_flags! {
+    /// The `FF_DECODE_ERROR_*` bits of a frame's
+    /// [`decode_error_flags`](FrameRef::decode_error_flags): the errors a
+    /// decoder met while still producing the frame.
+    DecodeErrorFlags {
+        /// The bitstream was invalid.
+        INVALID_BITSTREAM = ffi::FF_DECODE_ERROR_INVALID_BITSTREAM,
+        /// A reference frame was missing.
+        MISSING_REFERENCE = ffi::FF_DECODE_ERROR_MISSING_REFERENCE,
+        /// Error concealment was applied.
+        CONCEALMENT_ACTIVE = ffi::FF_DECODE_ERROR_CONCEALMENT_ACTIVE,
+        /// Slices failed to decode.
+        DECODE_SLICES = ffi::FF_DECODE_ERROR_DECODE_SLICES,
+    }
+}
+
+/// Why [`FrameMut::set_plane`] or [`FrameMut::set_extended_plane`] refused
+/// to point a plane into a buffer.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+pub enum PlaneError {
+    /// The frame has no such plane: an index of [`NUM_DATA_POINTERS`] or
+    /// more, or of [`extended_plane_count`](FrameRef::extended_plane_count)
+    /// or more.
+    NoPlane,
+    /// The frame holds no buffer reference at that index, or none at index
+    /// 0, without which C reads the frame as not reference counted.
+    NoBuffer,
+    /// The offset is not inside the buffer reference's bytes.
+    OutOfBounds,
+}
+
+impl fmt::Display for PlaneError {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.write_str(match self {
+            Self::NoPlane => "no such plane",
+            Self::NoBuffer => "no such buffer reference",
+            Self::OutOfBounds => "offset outside the buffer reference",
+        })
+    }
+}
+
+impl std::error::Error for PlaneError {}
+
+define_ctype!(
+    /// Wraps: AVFrame
+    ///
+    /// Decoded audio or video: the planes of its samples or pixels, the
+    /// buffer references that hold them, what describes them (format,
+    /// dimensions or sample count and channel layout, line sizes), their
+    /// timing and color properties, and its side data and metadata. Its
+    /// getters are on [`FrameRef`] (`as_ref()`), its setters on [`FrameMut`]
+    /// (`as_mut()`).
+    ///
+    /// C allocates a frame only through `av_frame_alloc` and keeps its size
+    /// out of the ABI, so a frame is never held by value: its owner is a
+    /// [`FrameBox`], built by [`Frame::new`] and freed with
+    /// `av_frame_free`. [`FrameMut::reset`] (`av_frame_unref`) releases
+    /// everything a frame holds and gives it back its defaults, and
+    /// [`FrameRef::try_clone`] (`av_frame_clone`) makes a new frame sharing
+    /// its buffers.
+    ///
+    /// Every frame a handle reaches owns what its pointers hold:
+    ///
+    /// - each non-NULL `buf[i]`, `hw_frames_ctx` and `opaque_ref` is a
+    ///   reference satisfying [`BufferReference`](super::buffer::BufferReference)'s invariant, and
+    ///   `hw_frames_ctx` one to a hardware frames context;
+    /// - `extended_buf` is NULL with a zero `nb_extended_buf`, or an
+    ///   `av_malloc`-family block of `nb_extended_buf` such references,
+    ///   none NULL;
+    /// - `side_data` and `nb_side_data` are a side data array as
+    ///   [`SideDataArray`] holds one;
+    /// - `metadata` is NULL or a non-empty dictionary;
+    /// - `private_ref` is NULL or a RefStruct reference, which only the
+    ///   FFmpeg library holding the frame sets;
+    /// - `ch_layout` satisfies [`ChannelLayout`]'s invariant;
+    /// - `extended_data` is the frame's own `data` array, or an
+    ///   `av_malloc`-family block of at least `ch_layout.nb_channels`
+    ///   plane pointers;
+    /// - while `buf[0]` holds a reference, every non-NULL plane pointer
+    ///   (`data`, and the first `nb_channels` of a separate `extended_data`)
+    ///   points inside the bytes of one of `buf` and `extended_buf`; while it
+    ///   holds none, which C reads as a frame whose data is not reference
+    ///   counted, every plane pointer is NULL unless the caller of
+    ///   [`FrameMut::set_data_ptr`] or [`FrameMut::set_extended_data_ptr`]
+    ///   vouched for it.
+    ///
+    /// Nothing else is part of it: in particular, the format, dimensions,
+    /// sample count, line sizes and cropping are plain values, which the
+    /// safe setters change freely, and which need not describe planes that
+    /// fit the buffers. Rust reads a plane through its buffer reference
+    /// alone ([`FrameRef::plane`]); wrappers of C routines that read or
+    /// write planes through those values (`av_frame_copy`,
+    /// `av_frame_make_writable`, `av_frame_apply_cropping`, any filter or
+    /// encoder) must check them first. So must wrappers that hand frames
+    /// from hardware decoders out as `Frame`s, whose buffers do not hold
+    /// bytes.
+    ///
+    /// Buffers shared with other frames are written by none of them: a plane
+    /// is writable ([`FrameMut::plane_mut`]) only while its buffer has no
+    /// other reference and is not read-only, as C's convention has it.
+    ///
+    /// A plane is borrowed from its frame:
+    ///
+    /// ```compile_fail,E0505
+    /// use ffmpeg::libavutil::buffer::BufferReference;
+    /// use ffmpeg::libavutil::frame::Frame;
+    /// let mut frame = Frame::new().unwrap();
+    /// frame.as_mut().set_buffer(0, Some(BufferReference::alloc_zeroed(8).unwrap()));
+    /// frame.as_mut().set_plane(0, 0, 0).unwrap();
+    /// let plane = frame.as_ref().plane(0).unwrap();
+    /// drop(frame);
+    /// assert_eq!(plane[0], 0);
+    /// ```
+    ///
+    /// and frozen while a buffer change could take its bytes away:
+    ///
+    /// ```compile_fail,E0502
+    /// use ffmpeg::libavutil::buffer::BufferReference;
+    /// use ffmpeg::libavutil::frame::Frame;
+    /// let mut frame = Frame::new().unwrap();
+    /// frame.as_mut().set_buffer(0, Some(BufferReference::alloc_zeroed(8).unwrap()));
+    /// frame.as_mut().set_plane(0, 0, 0).unwrap();
+    /// let plane = frame.as_ref().plane(0).unwrap();
+    /// frame.as_mut().set_buffer(0, None);
+    /// assert_eq!(plane[0], 0);
+    /// ```
+    ///
+    /// `Send` and `Sync`: what a frame owns is, and the shared bytes are
+    /// written only through a sole reference.
+    Frame,
+    FrameRef,
+    FrameMut,
+    ffi::AVFrame
+);
+
+// A frame is plain data and the owners its pointers hold: buffer references
+// (`Send`: C counts them atomically, and their data releases may run on any
+// thread), `av_malloc`-family arrays of them and of plane pointers into their
+// bytes, side data entries and a dictionary (`Send`), a channel layout
+// (`Send`), a RefStruct reference (atomically counted, released through
+// `av_free`) and the `opaque` cookie, which nothing in FFmpeg or this crate
+// dereferences.
+// SAFETY: `av_frame_free` and `av_frame_unref` release all of it with
+// `av_buffer_unref`, `av_dict_free`, `av_frame_side_data_free`,
+// `av_refstruct_unref`, `av_channel_layout_uninit` and `av_freep`, none tied
+// to the allocating thread.
+unsafe impl Send for Frame {}
+// SAFETY: as for `Send for Frame`: the handle is the only access to the
+// frame, and every write it makes to shared bytes is checked sole.
+unsafe impl Send for FrameMut<'_> {}
+
+// Through a shared handle, Rust reads the frame's fields, its bytes through
+// its buffer references (`Sync`), its side data, dictionary and channel
+// layout (`Sync`, read only), and C reads it in `av_frame_clone`, which only
+// reads its source while it counts new references to the shared buffers and
+// RefStruct objects atomically.
+// SAFETY: nothing above writes; bytes are written only through an exclusive
+// handle whose buffer has a single reference, so not while another
+// reference, or a shared handle to this frame, exists.
+unsafe impl Sync for Frame {}
+// SAFETY: as for `Sync for Frame`: copies of a shared handle only read.
+unsafe impl Send for FrameRef<'_> {}
+// SAFETY: as above.
+unsafe impl Sync for FrameRef<'_> {}
+// SAFETY: `&FrameMut` reaches the frame only through `as_ref`, a shared
+// handle; the setters and `plane_mut` need `&mut`.
+unsafe impl Sync for FrameMut<'_> {}
+
+/// `av_frame_free` on a local slot holding `frame`.
+///
+/// # Safety
+///
+/// `frame` must be a frame `av_frame_alloc` made, satisfying [`Frame`]'s
+/// invariant, that nothing uses afterwards.
+unsafe fn frame_free(frame: *mut ffi::AVFrame) {
+    let mut slot = frame;
+    // SAFETY: the caller hands over its sole claim on a live frame; C
+    // releases what it holds (`av_frame_unref`), frees the struct and NULLs
+    // only the local slot.
+    unsafe { ffi::av_frame_free(&mut slot) }
+}
+
+/// Wraps: av_frame_free
+///
+/// The release policy of a [`FrameBox`]: `av_frame_free` releases every
+/// buffer reference, side data entry, dictionary and array the frame holds
+/// and frees the struct. Its constructor is `av_frame_alloc`
+/// ([`Frame::new`]).
+///
+/// No `Clone`: `av_frame_clone` fails for ordinary frames (any frame without
+/// a buffer reference, whose data C copies into a buffer it can only
+/// allocate for a known format and size), where `Clone` would abort; the
+/// copy is [`FrameRef::try_clone`].
+///
+/// ```compile_fail,E0599
+/// use ffmpeg::libavutil::frame::Frame;
+/// let frame = Frame::new().unwrap();
+/// let _ = frame.clone();
+/// ```
+///
+/// Stateless: C frees with `av_free`, and the buffers' data releases may
+/// run on any thread.
+#[derive(Clone, Copy, Debug, Default)]
+pub struct FrameFree;
+
+impl_cdrop!(FrameFree, Frame, frame_free);
+
+// SAFETY: a non-NULL result is a fresh frame C allocated with av_malloc and
+// set to its defaults (get_frame_defaults: every pointer NULL, extended_data
+// at its own data array, an unspecified empty channel layout), which holds
+// nothing and so satisfies `Frame`'s invariant, and which `av_frame_free`
+// releases.
+unsafe impl CNew<Frame> for FrameFree {
+    fn c_new(&self) -> Option<NonNull<Frame>> {
+        // SAFETY: no precondition; NULL when C cannot allocate.
+        NonNull::new(unsafe { ffi::av_frame_alloc() }.cast())
+    }
+}
+
+/// A frame, owned: dropping it releases everything the frame holds and the
+/// frame (`av_frame_free`). Built by [`Frame::new`] (`av_frame_alloc`);
+/// copied by [`FrameRef::try_clone`]. `Send` and `Sync` with [`Frame`].
+///
+/// Never allocated bare:
+///
+/// ```compile_fail,E0599
+/// use ffmpeg::libavutil::frame::FrameBox;
+/// let _ = FrameBox::new_zeroed();
+/// ```
+pub type FrameBox = CBox<Frame, FrameFree>;
+
+impl Frame {
+    /// Wraps: av_frame_alloc
+    ///
+    /// A new frame with C's defaults: no data, buffer, side data or
+    /// metadata, an unknown format (-1), no timestamps
+    /// (`AV_NOPTS_VALUE`), a 0/1 time base and sample aspect ratio,
+    /// unspecified color properties and an empty channel layout. `None` when
+    /// C cannot allocate it.
+    #[must_use]
+    pub fn new() -> Option<FrameBox> {
+        FrameBox::new()
+    }
+
+    /// Exchanges the planes of two frames and the buffers holding them: `buf`,
+    /// `extended_buf` and its count, `data`, `linesize` and `extended_data`,
+    /// which stays pointed at its own frame's `data` where it was.
+    ///
+    /// # Safety
+    ///
+    /// `a` and `b` must be distinct live frames nothing else reaches.
+    unsafe fn swap_planes(a: *mut ffi::AVFrame, b: *mut ffi::AVFrame) {
+        // SAFETY: two distinct live frames, by the caller's contract; each field
+        // is read and written whole through raw places.
+        unsafe {
+            let own_a = (*a).extended_data == addr_of_mut!((*a).data).cast();
+            let own_b = (*b).extended_data == addr_of_mut!((*b).data).cast();
+            ptr::swap(addr_of_mut!((*a).buf), addr_of_mut!((*b).buf));
+            ptr::swap(
+                addr_of_mut!((*a).extended_buf),
+                addr_of_mut!((*b).extended_buf),
+            );
+            ptr::swap(
+                addr_of_mut!((*a).nb_extended_buf),
+                addr_of_mut!((*b).nb_extended_buf),
+            );
+            ptr::swap(addr_of_mut!((*a).data), addr_of_mut!((*b).data));
+            ptr::swap(addr_of_mut!((*a).linesize), addr_of_mut!((*b).linesize));
+            ptr::swap(
+                addr_of_mut!((*a).extended_data),
+                addr_of_mut!((*b).extended_data),
+            );
+            if own_b {
+                (*a).extended_data = addr_of_mut!((*a).data).cast();
+            }
+            if own_a {
+                (*b).extended_data = addr_of_mut!((*b).data).cast();
+            }
+        }
+    }
+}
+
+impl<'a> FrameRef<'a> {
+    /// The `buf` array, copied out.
+    fn buffer_ptrs(&self) -> [*mut ffi::AVBufferRef; NUM_DATA_POINTERS] {
+        // SAFETY: a read of the `buf` array projected through the shared
+        // handle's pointer to a live, initialised `AVFrame`.
+        unsafe { addr_of!((*self.as_ptr()).buf).read() }
+    }
+
+    /// The `extended_buf` pointer and its count, 0 for a NULL array.
+    fn extended_buffer_parts(&self) -> (*mut *mut ffi::AVBufferRef, usize) {
+        let p = self.as_ptr();
+        // SAFETY: reads of two fields projected through the shared handle's
+        // pointer to a live, initialised `AVFrame`.
+        let (bufs, count) = unsafe {
+            (
+                addr_of!((*p).extended_buf).read(),
+                addr_of!((*p).nb_extended_buf).read(),
+            )
+        };
+        if bufs.is_null() {
+            (bufs, 0)
+        } else {
+            (bufs, usize::try_from(count).unwrap_or(0))
+        }
+    }
+
+    /// The `data` array, copied out.
+    fn data_ptrs(&self) -> [*mut u8; NUM_DATA_POINTERS] {
+        // SAFETY: a read of the `data` array projected through the shared
+        // handle's pointer to a live, initialised `AVFrame`.
+        unsafe { addr_of!((*self.as_ptr()).data).read() }
+    }
+
+    /// The `extended_data` pointer and the number of entries Rust reads
+    /// there: the frame's own `data` array when it points at it, else the
+    /// channel count (the invariant's minimum).
+    fn extended_parts(&self) -> (*mut *mut u8, usize) {
+        let p = self.as_ptr();
+        // SAFETY: a read of the `extended_data` field projected through the
+        // shared handle's pointer to a live, initialised `AVFrame`; the
+        // address of its `data` field, projected without a read.
+        let (ext, own) = unsafe { (addr_of!((*p).extended_data).read(), addr_of!((*p).data)) };
+        if ext.cast_const() == own.cast() {
+            (ext, NUM_DATA_POINTERS)
+        } else {
+            let channels = self.channel_layout().channel_count();
+            (ext, usize::try_from(channels).unwrap_or(0))
+        }
+    }
+
+    /// Whether `extended_data` is a separate array rather than the frame's
+    /// own `data`.
+    fn has_extended_array(&self) -> bool {
+        let p = self.as_ptr();
+        // SAFETY: as in `extended_parts`.
+        let (ext, own) = unsafe { (addr_of!((*p).extended_data).read(), addr_of!((*p).data)) };
+        ext.cast_const() != own.cast()
+    }
+
+    /// Whether `buf[0]` holds a reference, which C takes for a frame whose
+    /// data is reference counted.
+    fn is_counted(&self) -> bool {
+        !self.buffer_ptrs()[0].is_null()
+    }
+
+    /// Every buffer reference the frame holds, `buf` first, in C's search
+    /// order (`av_frame_get_plane_buffer`'s, past its first NULL).
+    fn buffers(&self) -> impl Iterator<Item = BufferReferenceRef<'a>> + use<'a> {
+        let this = *self;
+        (0..NUM_DATA_POINTERS)
+            .filter_map(move |i| this.buffer(i))
+            .chain((0..this.extended_buffer_count()).filter_map(move |i| this.extended_buffer(i)))
+    }
+
+    /// The buffer reference whose bytes `p` points inside, and its offset
+    /// there; `None` for NULL, a frame that is not reference counted, or a
+    /// pointer inside none of them.
+    fn locate(&self, p: *const u8) -> Option<(BufferReferenceRef<'a>, usize)> {
+        if p.is_null() || !self.is_counted() {
+            return None;
+        }
+        self.buffers().find_map(|buf| {
+            // Read from the fields, without a view of the bytes.
+            let (start, len) = buf.parts();
+            let start = start.as_ptr().addr();
+            let offset = p.addr().wrapping_sub(start);
+            (p.addr() >= start && offset < len).then_some((buf, offset))
+        })
+    }
+
+    /// The bytes from `p` to the end of the buffer reference it points
+    /// inside.
+    fn view(&self, p: *const u8) -> Option<&'a [u8]> {
+        let (buf, offset) = self.locate(p)?;
+        Some(&buf.data()[offset..])
+    }
+
+    /// Field: AVFrame.data
+    ///
+    /// Plane `i`'s bytes: from where its `data` pointer points to the end of
+    /// the buffer reference holding it, borrowed for as long as the frame
+    /// is. `None` for a NULL plane, an index of [`NUM_DATA_POINTERS`] or
+    /// more, and the planes of a frame that is not reference counted (no
+    /// buffer reference at index 0), whose bytes no buffer bounds.
+    ///
+    /// A plane usually starts its buffer's bytes, or, for video, shares one
+    /// buffer with the other planes; with a negative line size it may point
+    /// at its last line, so the view holds only that line's bytes and
+    /// whatever follows. How many of the bytes are the plane's is for the
+    /// format, dimensions or sample count and line size to tell. Nothing
+    /// writes them meanwhile: a writer needs the only reference to their
+    /// buffer, and the frame holds one.
+    #[must_use]
+    pub fn plane(&self, i: usize) -> Option<&'a [u8]> {
+        self.view(*self.data_ptrs().get(i)?)
+    }
+
+    /// Field: AVFrame.extended_data
+    ///
+    /// Plane or channel `i`'s bytes through `extended_data`, as
+    /// [`plane`](Self::plane) reads `data`: where it points to the end of the
+    /// buffer reference holding it. `None` for a NULL entry, an index of
+    /// [`extended_plane_count`](Self::extended_plane_count) or more, and the
+    /// entries of a frame that is not reference counted.
+    ///
+    /// For video and for audio with at most [`NUM_DATA_POINTERS`] planes,
+    /// `extended_data` is the frame's own `data`, and this reads what
+    /// `plane` does; planar audio with more channels lists every channel's
+    /// plane here.
+    #[must_use]
+    pub fn extended_plane(&self, i: usize) -> Option<&'a [u8]> {
+        let (ext, count) = self.extended_parts();
+        if i >= count {
+            return None;
+        }
+        // SAFETY: `ext` is the frame's `data` array of `NUM_DATA_POINTERS`
+        // entries or, by the type's invariant, an array of at least the
+        // channel count's; `i` is below the matching count.
+        self.view(unsafe { ext.add(i).read() })
+    }
+
+    /// Field: AVFrame.extended_data
+    ///
+    /// The number of entries [`extended_plane`](Self::extended_plane) reads:
+    /// [`NUM_DATA_POINTERS`] while `extended_data` is the frame's own `data`,
+    /// and the channel layout's count (none for a negative one) while it is
+    /// a separate array ([`FrameMut::alloc_extended_data`]).
+    #[must_use]
+    pub fn extended_plane_count(&self) -> usize {
+        self.extended_parts().1
+    }
+
+    /// Whether `extended_data` is an array of its own
+    /// ([`FrameMut::alloc_extended_data`]) rather than the frame's `data`.
+    #[must_use]
+    pub fn has_extended_data(&self) -> bool {
+        self.has_extended_array()
+    }
+
+    /// Field: AVFrame.linesize
+    ///
+    /// The line sizes of the planes: for video, each plane's byte stride,
+    /// negative for a bottom-up plane; for audio, the size of each plane in
+    /// `[0]` alone.
+    #[must_use]
+    pub fn linesizes(&self) -> [i32; NUM_DATA_POINTERS] {
+        // SAFETY: a read of the `linesize` array projected through the shared
+        // handle's pointer to a live, initialised `AVFrame`.
+        unsafe { addr_of!((*self.as_ptr()).linesize).read() }
+    }
+
+    /// Field: AVFrame.width
+    ///
+    /// The coded width of a video frame, in pixels.
+    #[must_use]
+    pub fn width(&self) -> i32 {
+        // SAFETY: a read of an `int` field projected through the shared
+        // handle's pointer to a live, initialised `AVFrame`.
+        unsafe { addr_of!((*self.as_ptr()).width).read() }
+    }
+
+    /// Field: AVFrame.height
+    ///
+    /// The coded height of a video frame, in pixels.
+    #[must_use]
+    pub fn height(&self) -> i32 {
+        // SAFETY: as in `width`, for the `height` field.
+        unsafe { addr_of!((*self.as_ptr()).height).read() }
+    }
+
+    /// Field: AVFrame.nb_samples
+    ///
+    /// The number of audio samples per channel.
+    #[must_use]
+    pub fn sample_count(&self) -> i32 {
+        // SAFETY: as in `width`, for the `nb_samples` field.
+        unsafe { addr_of!((*self.as_ptr()).nb_samples).read() }
+    }
+
+    /// Field: AVFrame.format
+    ///
+    /// The format as C stores it: a [`PixelFormat`] for video, a
+    /// [`SampleFormat`] for audio, -1 when unknown.
+    #[must_use]
+    pub fn format(&self) -> i32 {
+        // SAFETY: as in `width`, for the `format` field.
+        unsafe { addr_of!((*self.as_ptr()).format).read() }
+    }
+
+    /// The format read as a video frame's pixel format;
+    /// [`PixelFormat::NONE`] when unknown.
+    #[must_use]
+    pub fn pixel_format(&self) -> PixelFormat {
+        PixelFormat::from_raw(ffi::AVPixelFormat(self.format()))
+    }
+
+    /// The format read as an audio frame's sample format;
+    /// [`SampleFormat::NONE`] when unknown.
+    #[must_use]
+    pub fn sample_format(&self) -> SampleFormat {
+        SampleFormat::from_raw(ffi::AVSampleFormat(self.format()))
+    }
+
+    /// Field: AVFrame.pict_type
+    ///
+    /// The picture type of a video frame.
+    #[must_use]
+    pub fn picture_type(&self) -> PictureType {
+        // SAFETY: a read of an enum field projected through the shared
+        // handle's pointer to a live, initialised `AVFrame`; every value of
+        // the C enum's integer is a valid `PictureType`.
+        PictureType::from_raw(unsafe { addr_of!((*self.as_ptr()).pict_type).read() })
+    }
+
+    /// Field: AVFrame.sample_aspect_ratio
+    ///
+    /// The sample aspect ratio of a video frame, 0/1 when unknown, as a
+    /// handle over it that lives as long as this one.
+    #[must_use]
+    pub fn sample_aspect_ratio(&self) -> RationalRef<'a> {
+        // SAFETY: the field is projected through the shared handle's pointer
+        // to a live, initialised `AVFrame`, so it is non-NULL, aligned and
+        // initialised; the frame stays live and unwritten for `'a`, which
+        // the returned getter-only handle cannot outlive.
+        unsafe { RationalRef::from_ptr(addr_of!((*self.as_ptr()).sample_aspect_ratio).cast_mut()) }
+            .expect("a field of a live struct is not NULL")
+    }
+
+    /// Field: AVFrame.pts
+    ///
+    /// The presentation timestamp, in [`time_base`](Self::time_base) units;
+    /// `AV_NOPTS_VALUE` when unknown.
+    #[must_use]
+    pub fn pts(&self) -> i64 {
+        // SAFETY: a read of an `int64_t` field projected through the shared
+        // handle's pointer to a live, initialised `AVFrame`.
+        unsafe { addr_of!((*self.as_ptr()).pts).read() }
+    }
+
+    /// Field: AVFrame.pkt_dts
+    ///
+    /// The decoding timestamp of the packet the frame was decoded from;
+    /// `AV_NOPTS_VALUE` when unknown.
+    #[must_use]
+    pub fn packet_dts(&self) -> i64 {
+        // SAFETY: as in `pts`, for the `pkt_dts` field.
+        unsafe { addr_of!((*self.as_ptr()).pkt_dts).read() }
+    }
+
+    /// Field: AVFrame.time_base
+    ///
+    /// The time base of the frame's timestamps, as a handle over it that
+    /// lives as long as this one.
+    #[must_use]
+    pub fn time_base(&self) -> RationalRef<'a> {
+        // SAFETY: as in `sample_aspect_ratio`, for the `time_base` field.
+        unsafe { RationalRef::from_ptr(addr_of!((*self.as_ptr()).time_base).cast_mut()) }
+            .expect("a field of a live struct is not NULL")
+    }
+
+    /// Field: AVFrame.quality
+    ///
+    /// The quality, from 1 (good) to `FF_LAMBDA_MAX` (bad).
+    #[must_use]
+    pub fn quality(&self) -> i32 {
+        // SAFETY: as in `width`, for the `quality` field.
+        unsafe { addr_of!((*self.as_ptr()).quality).read() }
+    }
+
+    /// Field: AVFrame.opaque
+    ///
+    /// The owner's user pointer, as the address it is. FFmpeg never
+    /// dereferences it (it only copies it with the frame's properties, and
+    /// to and from packets when asked), so what it points at is its
+    /// setter's business.
+    #[must_use]
+    pub fn opaque(&self) -> *mut c_void {
+        // SAFETY: a read of the `opaque` field projected through the shared
+        // handle's pointer to a live, initialised `AVFrame`; the pointer is
+        // copied, not dereferenced.
+        unsafe { addr_of!((*self.as_ptr()).opaque).read() }
+    }
+
+    /// Field: AVFrame.repeat_pict
+    ///
+    /// The number of fields to repeat: the frame lasts `repeat_pict + 2`
+    /// field durations.
+    #[must_use]
+    pub fn repeat_pict(&self) -> i32 {
+        // SAFETY: as in `width`, for the `repeat_pict` field.
+        unsafe { addr_of!((*self.as_ptr()).repeat_pict).read() }
+    }
+
+    /// Field: AVFrame.sample_rate
+    ///
+    /// The sample rate of the audio, in Hz.
+    #[must_use]
+    pub fn sample_rate(&self) -> i32 {
+        // SAFETY: as in `width`, for the `sample_rate` field.
+        unsafe { addr_of!((*self.as_ptr()).sample_rate).read() }
+    }
+
+    /// Field: AVFrame.buf
+    ///
+    /// Buffer reference `i` of the planes' bytes, borrowed from the frame;
+    /// `None` when the frame holds none at `i` or `i` is
+    /// [`NUM_DATA_POINTERS`] or more. Its
+    /// [`try_clone`](BufferReferenceRef::try_clone) shares the bytes, which
+    /// makes no plane in them writable while the copy lives.
+    #[must_use]
+    pub fn buffer(&self, i: usize) -> Option<BufferReferenceRef<'a>> {
+        let buf = *self.buffer_ptrs().get(i)?;
+        // SAFETY: by the type's invariant, NULL or a live reference the frame
+        // owns, which nothing releases or replaces while the frame is
+        // borrowed shared.
+        unsafe { BufferReferenceRef::from_ptr(buf) }
+    }
+
+    /// Field: AVFrame.extended_buf
+    ///
+    /// Extra buffer reference `i`, for the planes of audio with more
+    /// planes than [`NUM_DATA_POINTERS`], borrowed from the frame; `None`
+    /// past the [`extended_buffer_count`](Self::extended_buffer_count).
+    #[must_use]
+    pub fn extended_buffer(&self, i: usize) -> Option<BufferReferenceRef<'a>> {
+        let (bufs, count) = self.extended_buffer_parts();
+        if i >= count {
+            return None;
+        }
+        // SAFETY: by the type's invariant, `bufs` is a block of `count`
+        // references, and `i < count`.
+        let buf = unsafe { bufs.add(i).read() };
+        // SAFETY: by the type's invariant, a live reference the frame owns,
+        // which nothing releases or replaces while the frame is borrowed
+        // shared.
+        unsafe { BufferReferenceRef::from_ptr(buf) }
+    }
+
+    /// Field: AVFrame.nb_extended_buf
+    ///
+    /// The number of extra buffer references.
+    #[must_use]
+    pub fn extended_buffer_count(&self) -> usize {
+        self.extended_buffer_parts().1
+    }
+
+    /// Field: AVFrame.side_data
+    /// Field: AVFrame.nb_side_data
+    ///
+    /// The frame's side data, borrowed from it.
+    #[must_use]
+    pub fn side_data(&self) -> SideDataArrayRef<'a> {
+        let p = self.as_ptr();
+        // SAFETY: reads of two fields projected through the shared handle's
+        // pointer to a live, initialised `AVFrame`.
+        let (entries, len) = unsafe {
+            (
+                addr_of!((*p).side_data).read(),
+                addr_of!((*p).nb_side_data).read(),
+            )
+        };
+        // SAFETY: by the type's invariant, a side data array of live entries
+        // the frame owns, which nothing changes or frees while the frame is
+        // borrowed shared.
+        unsafe { SideDataArrayRef::from_raw_parts(entries, len) }
+    }
+
+    /// Field: AVFrame.flags
+    ///
+    /// The frame's flags.
+    #[must_use]
+    pub fn flags(&self) -> FrameFlags {
+        // SAFETY: as in `width`, for the `flags` field.
+        FrameFlags::from_bits_retain(unsafe { addr_of!((*self.as_ptr()).flags).read() })
+    }
+
+    /// Field: AVFrame.color_range
+    ///
+    /// The color range, MPEG or JPEG.
+    #[must_use]
+    pub fn color_range(&self) -> ColorRange {
+        // SAFETY: as in `picture_type`, for the `color_range` field.
+        ColorRange::from_raw(unsafe { addr_of!((*self.as_ptr()).color_range).read() })
+    }
+
+    /// Field: AVFrame.color_primaries
+    ///
+    /// The color primaries.
+    #[must_use]
+    pub fn color_primaries(&self) -> ColorPrimaries {
+        // SAFETY: as in `picture_type`, for the `color_primaries` field.
+        ColorPrimaries::from_raw(unsafe { addr_of!((*self.as_ptr()).color_primaries).read() })
+    }
+
+    /// Field: AVFrame.color_trc
+    ///
+    /// The color transfer characteristic.
+    #[must_use]
+    pub fn color_transfer(&self) -> ColorTransfer {
+        // SAFETY: as in `picture_type`, for the `color_trc` field.
+        ColorTransfer::from_raw(unsafe { addr_of!((*self.as_ptr()).color_trc).read() })
+    }
+
+    /// Field: AVFrame.colorspace
+    ///
+    /// The YUV color space.
+    #[must_use]
+    pub fn color_space(&self) -> ColorSpace {
+        // SAFETY: as in `picture_type`, for the `colorspace` field.
+        ColorSpace::from_raw(unsafe { addr_of!((*self.as_ptr()).colorspace).read() })
+    }
+
+    /// Field: AVFrame.chroma_location
+    ///
+    /// The location of the chroma samples.
+    #[must_use]
+    pub fn chroma_location(&self) -> ChromaLocation {
+        // SAFETY: as in `picture_type`, for the `chroma_location` field.
+        ChromaLocation::from_raw(unsafe { addr_of!((*self.as_ptr()).chroma_location).read() })
+    }
+
+    /// Field: AVFrame.best_effort_timestamp
+    ///
+    /// The timestamp a decoder estimated by heuristics, in stream time base;
+    /// `AV_NOPTS_VALUE` when unknown.
+    #[must_use]
+    pub fn best_effort_timestamp(&self) -> i64 {
+        // SAFETY: as in `pts`, for the `best_effort_timestamp` field.
+        unsafe { addr_of!((*self.as_ptr()).best_effort_timestamp).read() }
+    }
+
+    /// Field: AVFrame.metadata
+    ///
+    /// The frame's metadata, borrowed from it; `None` when it has none.
+    #[must_use]
+    pub fn metadata(&self) -> Option<DictionaryRef<'a>> {
+        // SAFETY: a read of the `metadata` pointer projected through the
+        // shared handle's pointer to a live, initialised `AVFrame`.
+        let dict = unsafe { addr_of!((*self.as_ptr()).metadata).read() };
+        // SAFETY: by the type's invariant, `dict` is NULL or a non-empty
+        // dictionary the frame owns, which nothing frees or writes while the
+        // frame is borrowed shared.
+        unsafe { DictionaryRef::from_ptr(dict) }
+    }
+
+    /// Field: AVFrame.decode_error_flags
+    ///
+    /// The errors the decoder met while producing the frame.
+    #[must_use]
+    pub fn decode_error_flags(&self) -> DecodeErrorFlags {
+        // SAFETY: as in `width`, for the `decode_error_flags` field.
+        DecodeErrorFlags::from_bits_retain(unsafe {
+            addr_of!((*self.as_ptr()).decode_error_flags).read()
+        })
+    }
+
+    /// Field: AVFrame.hw_frames_ctx
+    ///
+    /// The reference to the hardware frames context of a hardware frame,
+    /// borrowed from the frame; `None` for a software frame. Its bytes are
+    /// the context's `AVHWFramesContext` struct.
+    // A typed handle replaces this byte view once hwcontext.h's
+    // AVHWFramesContext is wrapped.
+    #[must_use]
+    pub fn hw_frames_context(&self) -> Option<BufferReferenceRef<'a>> {
+        // SAFETY: a read of the `hw_frames_ctx` pointer projected through the
+        // shared handle's pointer to a live, initialised `AVFrame`.
+        let buf = unsafe { addr_of!((*self.as_ptr()).hw_frames_ctx).read() };
+        // SAFETY: by the type's invariant, NULL or a live reference the frame
+        // owns, which nothing releases or replaces while the frame is
+        // borrowed shared.
+        unsafe { BufferReferenceRef::from_ptr(buf) }
+    }
+
+    /// Field: AVFrame.opaque_ref
+    ///
+    /// The owner's reference-counted user data, borrowed from the frame;
+    /// `None` when it has none. FFmpeg only shares it with the frame's
+    /// copies, and to and from packets when asked.
+    #[must_use]
+    pub fn opaque_ref(&self) -> Option<BufferReferenceRef<'a>> {
+        // SAFETY: a read of the `opaque_ref` pointer projected through the
+        // shared handle's pointer to a live, initialised `AVFrame`.
+        let buf = unsafe { addr_of!((*self.as_ptr()).opaque_ref).read() };
+        // SAFETY: as in `hw_frames_context`.
+        unsafe { BufferReferenceRef::from_ptr(buf) }
+    }
+
+    /// Field: AVFrame.crop_top
+    ///
+    /// The number of pixel rows to discard from the top of a video frame for
+    /// presentation.
+    #[must_use]
+    pub fn crop_top(&self) -> usize {
+        // SAFETY: a read of a `size_t` field projected through the shared
+        // handle's pointer to a live, initialised `AVFrame`.
+        unsafe { addr_of!((*self.as_ptr()).crop_top).read() }
+    }
+
+    /// Field: AVFrame.crop_bottom
+    ///
+    /// The number of pixel rows to discard from the bottom.
+    #[must_use]
+    pub fn crop_bottom(&self) -> usize {
+        // SAFETY: as in `crop_top`, for the `crop_bottom` field.
+        unsafe { addr_of!((*self.as_ptr()).crop_bottom).read() }
+    }
+
+    /// Field: AVFrame.crop_left
+    ///
+    /// The number of pixel columns to discard from the left.
+    #[must_use]
+    pub fn crop_left(&self) -> usize {
+        // SAFETY: as in `crop_top`, for the `crop_left` field.
+        unsafe { addr_of!((*self.as_ptr()).crop_left).read() }
+    }
+
+    /// Field: AVFrame.crop_right
+    ///
+    /// The number of pixel columns to discard from the right.
+    #[must_use]
+    pub fn crop_right(&self) -> usize {
+        // SAFETY: as in `crop_top`, for the `crop_right` field.
+        unsafe { addr_of!((*self.as_ptr()).crop_right).read() }
+    }
+
+    /// Field: AVFrame.private_ref
+    ///
+    /// Whether the FFmpeg library holding the frame keeps a private
+    /// RefStruct reference in it. That reference is the library's alone,
+    /// which C clears before the frame leaves it, so a frame Rust receives
+    /// has none, and nothing here sets one; [`FrameMut::reset`] and the
+    /// frame's drop release it and [`try_clone`](Self::try_clone) shares it.
+    #[must_use]
+    pub fn has_private_ref(&self) -> bool {
+        // SAFETY: a read of the `private_ref` pointer projected through the
+        // shared handle's pointer to a live, initialised `AVFrame`; it is
+        // compared, not dereferenced.
+        !unsafe { addr_of!((*self.as_ptr()).private_ref).read() }.is_null()
+    }
+
+    /// Field: AVFrame.ch_layout
+    ///
+    /// The channel layout of the audio, as a handle over it that lives as
+    /// long as this one.
+    #[must_use]
+    pub fn channel_layout(&self) -> ChannelLayoutRef<'a> {
+        // SAFETY: the field is projected through the shared handle's pointer
+        // to a live, initialised `AVFrame`, so it is non-NULL and aligned,
+        // and it satisfies `ChannelLayout`'s invariant by the type's; the
+        // frame stays live and unwritten for `'a`.
+        unsafe { ChannelLayoutRef::from_ptr(addr_of!((*self.as_ptr()).ch_layout).cast_mut()) }
+            .expect("a field of a live struct is not NULL")
+    }
+
+    /// Field: AVFrame.duration
+    ///
+    /// The duration of the frame, in [`time_base`](Self::time_base) units; 0
+    /// when unknown.
+    #[must_use]
+    pub fn duration(&self) -> i64 {
+        // SAFETY: as in `pts`, for the `duration` field.
+        unsafe { addr_of!((*self.as_ptr()).duration).read() }
+    }
+
+    /// Field: AVFrame.alpha_mode
+    ///
+    /// How the alpha channel of the video is to be handled.
+    #[must_use]
+    pub fn alpha_mode(&self) -> AlphaMode {
+        // SAFETY: as in `picture_type`, for the `alpha_mode` field.
+        AlphaMode::from_raw(unsafe { addr_of!((*self.as_ptr()).alpha_mode).read() })
+    }
+
+    /// Whether every reference `av_frame_clone` would add stays below the
+    /// counts C could wrap: one per buffer reference (planes, side data,
+    /// hardware context, user data) and one to the private RefStruct
+    /// object.
+    fn may_clone(&self) -> bool {
+        let wide = !self.has_private_ref() || refstruct::COUNT_IS_WIDE;
+        let mut refs = self
+            .buffers()
+            .chain(self.hw_frames_context())
+            .chain(self.opaque_ref())
+            .chain(self.side_data().iter().map(|e| e.buffer()));
+        wide && refs.all(|buf| may_add_reference(buf.ref_count()))
+    }
+
+    /// Wraps: av_frame_clone
+    ///
+    /// A new frame describing the same data: the same properties, side data
+    /// (sharing each payload's buffer), metadata (copied) and channel
+    /// layout (copied), and new references to the same buffers (so no
+    /// plane in them is writable while both frames live).
+    ///
+    /// A frame that is not reference counted (no buffer reference at index
+    /// 0) has its data copied instead, into buffers C allocates for its
+    /// format and dimensions or sample count and channel layout. For a frame
+    /// with no planes, such as a new one, that copy fails, and so does the
+    /// clone: use C's `av_frame_copy_props` for properties alone. C leaves
+    /// the bytes of those buffers outside the copied lines (padding, and
+    /// alignment gaps) uninitialised; here they are zero.
+    ///
+    /// `None` when C fails (the copy above, or memory), or when one of the
+    /// buffers' counts would near wrapping.
+    #[must_use]
+    pub fn try_clone(&self) -> Option<FrameBox> {
+        if !self.may_clone() {
+            return None;
+        }
+        // C allocates a frame and av_frame_ref's it: it copies the scalar
+        // fields, deep-copies the metadata, side data entries (sharing their
+        // buffers) and channel layout, adds references to the buffers, the
+        // hardware context, the user data and the RefStruct object, and
+        // copies `extended_data`'s channel count of entries when separate.
+        // SAFETY: a live frame, read only, whose invariant keeps all of that
+        // valid; a frame that is not reference counted has NULL planes (C
+        // fails at the first one) or planes whose setter vouched for them.
+        // On failure C frees the copy and returns NULL.
+        let mut copy = unsafe { ffi::av_frame_clone(self.as_ptr()) };
+        if !copy.is_null() && !self.is_counted() {
+            // The copy's buffers come from av_buffer_alloc and hold
+            // uninitialised bytes around the copied lines, which the type's
+            // invariant forbids: trade them for a zeroed set holding the
+            // same copy.
+            let mut zeroed = self.copy_into_zeroed_buffers();
+            if zeroed.is_null() {
+                // SAFETY: the copy C made, which nothing else reaches; its
+                // release reads none of its bytes.
+                unsafe { ffi::av_frame_free(&mut copy) };
+                return None;
+            }
+            // SAFETY: two live frames C built, which nothing else reaches;
+            // `zeroed` then holds the copy's buffers, which its release frees
+            // without reading their bytes.
+            unsafe {
+                Frame::swap_planes(copy, zeroed);
+                ffi::av_frame_free(&mut zeroed);
+            }
+        }
+        // SAFETY: NULL, or a fresh frame C built by the invariant's rules,
+        // whose planes point into its own references to the same buffers, or
+        // to buffers of initialised bytes holding a copy of the data.
+        unsafe { FrameBox::from_c(copy) }
+    }
+
+    /// A new frame of this frame's geometry, holding buffers C allocates for
+    /// it (`av_frame_get_buffer`, as `av_frame_ref` does) whose bytes are
+    /// zeroed before C copies this frame's data into them
+    /// (`av_frame_copy`); NULL when C fails.
+    fn copy_into_zeroed_buffers(&self) -> *mut ffi::AVFrame {
+        // SAFETY: no precondition; NULL when C cannot allocate.
+        let mut f = unsafe { ffi::av_frame_alloc() };
+        if f.is_null() {
+            return f;
+        }
+        let src = self.as_ptr();
+        // SAFETY: `f` is a fresh frame nothing else reaches and `src` a live
+        // one, read only. C copies the layout (by the invariant, one C
+        // accepts), allocates buffers for the geometry, whose bytes are
+        // zeroed over each reference's window before C copies `src`'s planes
+        // into them, through the geometry it copied the planes with in
+        // `av_frame_clone`; every failure frees `f`.
+        unsafe {
+            (*f).format = (*src).format;
+            (*f).width = (*src).width;
+            (*f).height = (*src).height;
+            (*f).nb_samples = (*src).nb_samples;
+            let ok =
+                ffi::av_channel_layout_copy(&raw mut (*f).ch_layout, &raw const (*src).ch_layout)
+                    >= 0
+                    && ffi::av_frame_get_buffer(f, 0) >= 0;
+            if ok {
+                let extra = usize::try_from((*f).nb_extended_buf).unwrap_or(0);
+                let extra = (0..extra).map(|i| (*f).extended_buf.add(i).read());
+                for buf in (*f).buf.into_iter().chain(extra).filter(|b| !b.is_null()) {
+                    ptr::write_bytes((*buf).data, 0, (*buf).size);
+                }
+            }
+            if !ok || ffi::av_frame_copy(f, src) < 0 {
+                ffi::av_frame_free(&mut f);
+            }
+        }
+        f
+    }
+}
+
+impl fmt::Debug for FrameRef<'_> {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.debug_struct("Frame")
+            .field("format", &self.format())
+            .field("width", &self.width())
+            .field("height", &self.height())
+            .field("sample_count", &self.sample_count())
+            .field("pts", &self.pts())
+            .field("flags", &self.flags())
+            .field("buffers", &self.buffers().count())
+            .field("side_data", &self.side_data().len())
+            .finish_non_exhaustive()
+    }
+}
+
+impl fmt::Debug for FrameMut<'_> {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        self.as_ref().fmt(f)
+    }
+}
+
+/// A reference field of a frame other than its plane buffers.
+#[derive(Clone, Copy)]
+enum ReferenceField {
+    /// `hw_frames_ctx`.
+    HwFramesContext,
+    /// `opaque_ref`.
+    OpaqueRef,
+}
+
+impl FrameMut<'_> {
+    /// Clears every plane pointer the type's invariant no longer allows
+    /// after a change of buffer references: all of them when `buf[0]` holds
+    /// none, else those pointing inside none of the references.
+    fn prune_planes(&mut self) {
+        let shared = self.as_ref();
+        let counted = shared.is_counted();
+        let keep = |p: *mut u8| p.is_null() || (counted && shared.locate(p).is_some());
+        let mut data = shared.data_ptrs();
+        let (ext, count) = shared.extended_parts();
+        let separate = shared.has_extended_array();
+        for p in &mut data {
+            if !keep(*p) {
+                *p = ptr::null_mut();
+            }
+        }
+        let entry = |i: usize| {
+            // SAFETY: by the type's invariant, a separate `extended_data`
+            // holds at least `count`, the channel count, entries, and `i` is
+            // below it.
+            unsafe { ext.add(i).read() }
+        };
+        let stale: Vec<usize> = if separate {
+            (0..count).filter(|&i| !keep(entry(i))).collect()
+        } else {
+            Vec::new()
+        };
+        let p = self.as_mut_ptr();
+        // SAFETY: a write of the `data` array projected through the exclusive
+        // handle's pointer to a live `AVFrame`; its pointers own nothing.
+        unsafe { addr_of_mut!((*p).data).write(data) };
+        for i in stale {
+            // SAFETY: as above, entry `i < count` of the separate
+            // `extended_data` array the frame owns.
+            unsafe { ext.add(i).write(ptr::null_mut()) };
+        }
+    }
+
+    /// The pointer to `offset` bytes into buffer reference `buffer` (`buf`
+    /// below [`NUM_DATA_POINTERS`], `extended_buf` from there on), checked
+    /// as a plane pointer the type's invariant allows.
+    fn plane_target(&self, buffer: usize, offset: usize) -> Result<*mut u8, PlaneError> {
+        let shared = self.as_ref();
+        if !shared.is_counted() {
+            return Err(PlaneError::NoBuffer);
+        }
+        let buf = match buffer.checked_sub(NUM_DATA_POINTERS) {
+            None => shared.buffer(buffer),
+            Some(i) => shared.extended_buffer(i),
+        }
+        .ok_or(PlaneError::NoBuffer)?;
+        let (start, len) = buf.parts();
+        if offset >= len {
+            return Err(PlaneError::OutOfBounds);
+        }
+        // SAFETY: `offset < len`, inside the reference's bytes, whose pointer
+        // comes from C's own field so that writes may go through it.
+        Ok(unsafe { start.add(offset) }.as_ptr())
+    }
+
+    /// The bytes from `p` to the end of the buffer reference it points
+    /// inside, writable when that buffer has no other reference and is not
+    /// read-only.
+    ///
+    /// The slice is derived from the reference's own `data` pointer, not
+    /// from `p`, whose provenance may be a shared view's.
+    fn view_mut(&mut self, p: *mut u8) -> Option<&mut [u8]> {
+        let (buf, offset) = self.as_ref().locate(p)?;
+        if !buf.is_writable() {
+            return None;
+        }
+        let (start, len) = buf.parts();
+        // SAFETY: `start + offset` is `p`, `offset < len` bytes into the
+        // initialised bytes of a reference the frame owns, which are
+        // writable: the buffer is not read-only and the frame holds its only
+        // reference (the acquire load ordered every released one before us).
+        // The exclusive borrow of `self` stops the frame being cloned, or the
+        // reference released, while the slice lives.
+        Some(unsafe { slice::from_raw_parts_mut(start.as_ptr().add(offset), len - offset) })
+    }
+
+    /// Field: AVFrame.data
+    ///
+    /// Plane `i`'s bytes, writable, as [`FrameRef::plane`] reads them, when
+    /// the buffer holding them has no other reference and is not read-only;
+    /// `None` otherwise. Cloning the frame or the buffer reference makes them
+    /// unwritable until the copy is gone.
+    #[must_use]
+    pub fn plane_mut(&mut self, i: usize) -> Option<&mut [u8]> {
+        let p = *self.as_ref().data_ptrs().get(i)?;
+        self.view_mut(p)
+    }
+
+    /// Field: AVFrame.data
+    ///
+    /// Points plane `plane` `offset` bytes into buffer reference `buffer`,
+    /// counted across `buf` (`0..NUM_DATA_POINTERS`) and then `extended_buf`.
+    ///
+    /// # Errors
+    ///
+    /// [`PlaneError::NoPlane`] for a plane of [`NUM_DATA_POINTERS`] or more;
+    /// [`PlaneError::NoBuffer`] when the frame holds no reference at
+    /// `buffer`, or none at index 0; [`PlaneError::OutOfBounds`] when
+    /// `offset` is not below that reference's length. The plane is left as
+    /// it was.
+    pub fn set_plane(
+        &mut self,
+        plane: usize,
+        buffer: usize,
+        offset: usize,
+    ) -> Result<(), PlaneError> {
+        if plane >= NUM_DATA_POINTERS {
+            return Err(PlaneError::NoPlane);
+        }
+        let target = self.plane_target(buffer, offset)?;
+        let p = self.as_mut_ptr();
+        // SAFETY: a write of entry `plane < NUM_DATA_POINTERS` of the `data`
+        // array projected through the exclusive handle's pointer to a live
+        // `AVFrame`; `target` points inside one of its references, as the
+        // invariant asks of a reference-counted frame.
+        unsafe {
+            addr_of_mut!((*p).data)
+                .cast::<*mut u8>()
+                .add(plane)
+                .write(target)
+        };
+        Ok(())
+    }
+
+    /// Field: AVFrame.data
+    ///
+    /// Makes plane `i` NULL, as C wants of every plane the format does not
+    /// use; does nothing for an index of [`NUM_DATA_POINTERS`] or more.
+    pub fn clear_plane(&mut self, i: usize) {
+        if i < NUM_DATA_POINTERS {
+            let p = self.as_mut_ptr();
+            // SAFETY: as in `set_plane`; NULL is always allowed.
+            unsafe {
+                addr_of_mut!((*p).data)
+                    .cast::<*mut u8>()
+                    .add(i)
+                    .write(ptr::null_mut())
+            };
+        }
+    }
+
+    /// Field: AVFrame.data
+    ///
+    /// Stores `data` as plane `i`'s pointer, unchecked, for a frame whose
+    /// data is not reference counted: memory the caller keeps, which C reads
+    /// and copies (`av_frame_clone` copies it into buffers of its own) and
+    /// which [`FrameRef::plane`] does not read.
+    ///
+    /// # Panics
+    ///
+    /// For an index of [`NUM_DATA_POINTERS`] or more.
+    ///
+    /// # Safety
+    ///
+    /// `data` must be NULL, or point inside one of the frame's buffer
+    /// references while it holds one at index 0 (as
+    /// [`set_plane`](Self::set_plane) checks), or, while it holds none
+    /// there, point at memory that, until the plane is cleared or replaced
+    /// or the frame reset or dropped:
+    ///
+    /// - is valid for reads (and for writes, where C writes the frame) of the
+    ///   whole plane as C reads it through the frame's format, dimensions or
+    ///   sample count, channel layout, line sizes and `extended_data` at each
+    ///   call that reads the frame's data (`av_frame_clone`'s copy among
+    ///   them), whatever setter changed those since;
+    /// - is not written through any other path while the frame or a C copy
+    ///   of the pointer may read it.
+    ///
+    /// A buffer reference added later at index 0 clears every plane outside
+    /// it, this one included.
+    pub unsafe fn set_data_ptr(&mut self, i: usize, data: *mut u8) {
+        assert!(i < NUM_DATA_POINTERS, "plane {i} out of range");
+        let p = self.as_mut_ptr();
+        // SAFETY: as in `set_plane`; the caller vouches for the pointer, which
+        // the invariant then admits.
+        unsafe { addr_of_mut!((*p).data).cast::<*mut u8>().add(i).write(data) };
+    }
+
+    /// Field: AVFrame.extended_data
+    ///
+    /// Entry `i` of `extended_data`'s bytes, writable, as
+    /// [`FrameRef::extended_plane`] reads them, when the buffer holding them
+    /// has no other reference and is not read-only; `None` otherwise.
+    #[must_use]
+    pub fn extended_plane_mut(&mut self, i: usize) -> Option<&mut [u8]> {
+        let (ext, count) = self.as_ref().extended_parts();
+        if i >= count {
+            return None;
+        }
+        // SAFETY: as in `FrameRef::extended_plane`.
+        let p = unsafe { ext.add(i).read() };
+        self.view_mut(p)
+    }
+
+    /// Field: AVFrame.extended_data
+    ///
+    /// Points entry `i` of `extended_data` `offset` bytes into buffer
+    /// reference `buffer`, as [`set_plane`](Self::set_plane) does for
+    /// `data`. While `extended_data` is the frame's own `data`, that is
+    /// plane `i`.
+    ///
+    /// # Errors
+    ///
+    /// As `set_plane`'s, [`PlaneError::NoPlane`] meaning an index of
+    /// [`FrameRef::extended_plane_count`] or more.
+    pub fn set_extended_plane(
+        &mut self,
+        i: usize,
+        buffer: usize,
+        offset: usize,
+    ) -> Result<(), PlaneError> {
+        let (ext, count) = self.as_ref().extended_parts();
+        if i >= count {
+            return Err(PlaneError::NoPlane);
+        }
+        let target = self.plane_target(buffer, offset)?;
+        // SAFETY: entry `i` below the count the invariant guarantees of the
+        // frame's own `data` array or separate block, reached through the
+        // exclusive handle; `target` points inside one of its references.
+        unsafe { ext.add(i).write(target) };
+        Ok(())
+    }
+
+    /// Field: AVFrame.extended_data
+    ///
+    /// Makes entry `i` of `extended_data` NULL; does nothing for an index of
+    /// [`FrameRef::extended_plane_count`] or more.
+    pub fn clear_extended_plane(&mut self, i: usize) {
+        let (ext, count) = self.as_ref().extended_parts();
+        if i < count {
+            // SAFETY: as in `set_extended_plane`; NULL is always allowed.
+            unsafe { ext.add(i).write(ptr::null_mut()) };
+        }
+    }
+
+    /// Field: AVFrame.extended_data
+    ///
+    /// Stores `data` as entry `i` of `extended_data`, unchecked, as
+    /// [`set_data_ptr`](Self::set_data_ptr) does for `data`.
+    ///
+    /// # Panics
+    ///
+    /// For an index of [`FrameRef::extended_plane_count`] or more.
+    ///
+    /// # Safety
+    ///
+    /// As for `set_data_ptr`.
+    pub unsafe fn set_extended_data_ptr(&mut self, i: usize, data: *mut u8) {
+        let (ext, count) = self.as_ref().extended_parts();
+        assert!(i < count, "extended plane {i} out of range");
+        // SAFETY: as in `set_extended_plane`; the caller vouches for the
+        // pointer, which the invariant then admits.
+        unsafe { ext.add(i).write(data) };
+    }
+
+    /// Field: AVFrame.extended_data
+    ///
+    /// Gives the frame an `extended_data` array of its own, of one entry per
+    /// channel of its layout, as C allocates for planar audio with more
+    /// channels than [`NUM_DATA_POINTERS`]: the first entries copy `data`,
+    /// the rest are NULL. An array the frame had already is freed.
+    ///
+    /// # Errors
+    ///
+    /// `AVERROR(EINVAL)` for a layout of no channel; `AVERROR(ENOMEM)` when
+    /// the array cannot be allocated. The frame is left as it was.
+    pub fn alloc_extended_data(&mut self) -> Result<(), i32> {
+        let shared = self.as_ref();
+        let channels = shared.channel_layout().channel_count();
+        let count = match usize::try_from(channels) {
+            Ok(n) if n > 0 => n,
+            _ => return Err(EINVAL),
+        };
+        let data = shared.data_ptrs();
+        // SAFETY: no precondition; a zeroed block of `count` pointers, or
+        // NULL when C cannot allocate it (an overflowing size included).
+        let block = unsafe { ffi::av_calloc(count, size_of::<*mut u8>()) }.cast::<*mut u8>();
+        if block.is_null() {
+            return Err(ENOMEM);
+        }
+        for (i, &plane) in data.iter().enumerate().take(count) {
+            // SAFETY: `i < count`, inside the fresh block.
+            unsafe { block.add(i).write(plane) };
+        }
+        self.replace_extended_array(block);
+        Ok(())
+    }
+
+    /// Field: AVFrame.extended_data
+    ///
+    /// Frees the frame's own `extended_data` array, if any, and points
+    /// `extended_data` back at `data`, as C's defaults have it.
+    pub fn reset_extended_data(&mut self) {
+        let p = self.as_mut_ptr();
+        // SAFETY: the address of the `data` field, projected without a read.
+        let own = unsafe { addr_of_mut!((*p).data) }.cast::<*mut u8>();
+        self.replace_extended_array(own);
+    }
+
+    /// Makes `with` the frame's `extended_data`, freeing a separate array it
+    /// replaces.
+    fn replace_extended_array(&mut self, with: *mut *mut u8) {
+        let separate = self.as_ref().has_extended_array();
+        let p = self.as_mut_ptr();
+        // SAFETY: a read and a write of the `extended_data` pointer projected
+        // through the exclusive handle's pointer to a live `AVFrame`. `with`
+        // is the frame's own `data` array or a block of at least the channel
+        // count's entries the frame now owns, each NULL or copied from `data`,
+        // as the invariant asks.
+        let old = unsafe {
+            let old = addr_of!((*p).extended_data).read();
+            addr_of_mut!((*p).extended_data).write(with);
+            old
+        };
+        if separate && old != with {
+            // SAFETY: by the type's invariant, the frame's own
+            // `av_malloc`-family block, which no longer reaches the frame.
+            unsafe { ffi::av_free(old.cast()) };
+        }
+    }
+
+    /// Field: AVFrame.linesize
+    ///
+    /// Sets plane `i`'s line size.
+    ///
+    /// # Panics
+    ///
+    /// For an index of [`NUM_DATA_POINTERS`] or more.
+    pub fn set_linesize(&mut self, i: usize, linesize: i32) {
+        assert!(i < NUM_DATA_POINTERS, "plane {i} out of range");
+        let p = self.as_mut_ptr();
+        // SAFETY: a write of entry `i < NUM_DATA_POINTERS` of the `linesize`
+        // array projected through the exclusive handle's pointer to a live
+        // `AVFrame`; Rust reads no plane through it.
+        unsafe {
+            addr_of_mut!((*p).linesize)
+                .cast::<c_int>()
+                .add(i)
+                .write(linesize)
+        };
+    }
+
+    /// Field: AVFrame.linesize
+    ///
+    /// Sets every plane's line size.
+    pub fn set_linesizes(&mut self, linesizes: [i32; NUM_DATA_POINTERS]) {
+        // SAFETY: as in `set_linesize`, for the whole array.
+        unsafe { addr_of_mut!((*self.as_mut_ptr()).linesize).write(linesizes) };
+    }
+
+    /// Field: AVFrame.width
+    ///
+    /// Sets the coded width. Rust reads no plane through it; C routines that
+    /// do (copies, allocations, cropping) check it as their wrappers say.
+    pub fn set_width(&mut self, width: i32) {
+        // SAFETY: a write of an `int` field projected through the exclusive
+        // handle's pointer to a live `AVFrame`; not part of the invariant.
+        unsafe { addr_of_mut!((*self.as_mut_ptr()).width).write(width) }
+    }
+
+    /// Field: AVFrame.height
+    ///
+    /// Sets the coded height, as [`set_width`](Self::set_width) does the
+    /// width.
+    pub fn set_height(&mut self, height: i32) {
+        // SAFETY: as in `set_width`, for the `height` field.
+        unsafe { addr_of_mut!((*self.as_mut_ptr()).height).write(height) }
+    }
+
+    /// Field: AVFrame.nb_samples
+    ///
+    /// Sets the number of audio samples per channel, as
+    /// [`set_width`](Self::set_width) does the width.
+    pub fn set_sample_count(&mut self, count: i32) {
+        // SAFETY: as in `set_width`, for the `nb_samples` field.
+        unsafe { addr_of_mut!((*self.as_mut_ptr()).nb_samples).write(count) }
+    }
+
+    /// Field: AVFrame.format
+    ///
+    /// Sets the format as C stores it, -1 for unknown, as
+    /// [`set_width`](Self::set_width) does the width.
+    pub fn set_format(&mut self, format: i32) {
+        // SAFETY: as in `set_width`, for the `format` field.
+        unsafe { addr_of_mut!((*self.as_mut_ptr()).format).write(format) }
+    }
+
+    /// Sets the format to a video frame's pixel format.
+    pub fn set_pixel_format(&mut self, format: PixelFormat) {
+        self.set_format(format.into_raw().0);
+    }
+
+    /// Sets the format to an audio frame's sample format.
+    pub fn set_sample_format(&mut self, format: SampleFormat) {
+        self.set_format(format.into_raw().0);
+    }
+
+    /// Field: AVFrame.pict_type
+    ///
+    /// Sets the picture type.
+    pub fn set_picture_type(&mut self, kind: PictureType) {
+        // SAFETY: a write of an enum field projected through the exclusive
+        // handle's pointer to a live `AVFrame`; the old value owns nothing.
+        unsafe { addr_of_mut!((*self.as_mut_ptr()).pict_type).write(kind.into_raw()) }
+    }
+
+    /// Field: AVFrame.sample_aspect_ratio
+    ///
+    /// An exclusive handle over the sample aspect ratio, for writing its
+    /// parts; this handle is frozen while it lives.
+    #[must_use]
+    pub fn sample_aspect_ratio_mut(&mut self) -> RationalMut<'_> {
+        // SAFETY: the field is projected through the exclusive handle's
+        // pointer to a live `AVFrame`, so it is non-NULL, aligned and
+        // initialised; the result borrows `self` exclusively, so it is the
+        // only access to the field while it lives.
+        unsafe { RationalMut::from_ptr(addr_of_mut!((*self.as_mut_ptr()).sample_aspect_ratio)) }
+            .expect("a field of a live struct is not NULL")
+    }
+
+    /// Field: AVFrame.sample_aspect_ratio
+    ///
+    /// Sets the sample aspect ratio.
+    pub fn set_sample_aspect_ratio(&mut self, ratio: Rational) {
+        // SAFETY: as in `set_picture_type`, for the `sample_aspect_ratio`
+        // field.
+        unsafe { addr_of_mut!((*self.as_mut_ptr()).sample_aspect_ratio).write(ratio.into_raw()) }
+    }
+
+    /// Field: AVFrame.pts
+    ///
+    /// Sets the presentation timestamp.
+    pub fn set_pts(&mut self, pts: i64) {
+        // SAFETY: a write of an `int64_t` field projected through the
+        // exclusive handle's pointer to a live `AVFrame`.
+        unsafe { addr_of_mut!((*self.as_mut_ptr()).pts).write(pts) }
+    }
+
+    /// Field: AVFrame.pkt_dts
+    ///
+    /// Sets the decoding timestamp of the frame's packet.
+    pub fn set_packet_dts(&mut self, dts: i64) {
+        // SAFETY: as in `set_pts`, for the `pkt_dts` field.
+        unsafe { addr_of_mut!((*self.as_mut_ptr()).pkt_dts).write(dts) }
+    }
+
+    /// Field: AVFrame.time_base
+    ///
+    /// An exclusive handle over the time base, for writing its parts; this
+    /// handle is frozen while it lives.
+    #[must_use]
+    pub fn time_base_mut(&mut self) -> RationalMut<'_> {
+        // SAFETY: as in `sample_aspect_ratio_mut`, for the `time_base` field.
+        unsafe { RationalMut::from_ptr(addr_of_mut!((*self.as_mut_ptr()).time_base)) }
+            .expect("a field of a live struct is not NULL")
+    }
+
+    /// Field: AVFrame.time_base
+    ///
+    /// Sets the time base.
+    pub fn set_time_base(&mut self, time_base: Rational) {
+        // SAFETY: as in `set_picture_type`, for the `time_base` field.
+        unsafe { addr_of_mut!((*self.as_mut_ptr()).time_base).write(time_base.into_raw()) }
+    }
+
+    /// Field: AVFrame.quality
+    ///
+    /// Sets the quality.
+    pub fn set_quality(&mut self, quality: i32) {
+        // SAFETY: as in `set_width`, for the `quality` field.
+        unsafe { addr_of_mut!((*self.as_mut_ptr()).quality).write(quality) }
+    }
+
+    /// Field: AVFrame.opaque
+    ///
+    /// Stores the user pointer `opaque`, NULL included. Nothing in FFmpeg or
+    /// this crate dereferences or frees it, so any address is safe to store:
+    /// keeping what it points at alive for as long as the caller means to
+    /// read it back is the caller's concern.
+    #[allow(clippy::not_unsafe_ptr_arg_deref)] // stored, never dereferenced
+    pub fn set_opaque(&mut self, opaque: *mut c_void) {
+        // SAFETY: a write of the `opaque` field projected through the
+        // exclusive handle's pointer to a live `AVFrame`; the pointer is
+        // stored, not dereferenced, and the old one owned nothing.
+        unsafe { addr_of_mut!((*self.as_mut_ptr()).opaque).write(opaque) }
+    }
+
+    /// Field: AVFrame.repeat_pict
+    ///
+    /// Sets the number of fields to repeat.
+    pub fn set_repeat_pict(&mut self, repeat: i32) {
+        // SAFETY: as in `set_width`, for the `repeat_pict` field.
+        unsafe { addr_of_mut!((*self.as_mut_ptr()).repeat_pict).write(repeat) }
+    }
+
+    /// Field: AVFrame.sample_rate
+    ///
+    /// Sets the sample rate.
+    pub fn set_sample_rate(&mut self, rate: i32) {
+        // SAFETY: as in `set_width`, for the `sample_rate` field.
+        unsafe { addr_of_mut!((*self.as_mut_ptr()).sample_rate).write(rate) }
+    }
+
+    /// Field: AVFrame.buf
+    ///
+    /// Makes `with` buffer reference `i` (none for `None`) and returns the
+    /// reference the frame held there, as an owner. Every plane pointer
+    /// left pointing inside none of the frame's references is cleared, and
+    /// so is every plane when the frame is left without a reference at
+    /// index 0; planes are then pointed into the new bytes with
+    /// [`set_plane`](Self::set_plane).
+    ///
+    /// C wants `buf` filled from index 0 without a gap, and reads a frame
+    /// without a reference at 0 as not reference counted.
+    ///
+    /// # Panics
+    ///
+    /// For an index of [`NUM_DATA_POINTERS`] or more.
+    #[must_use = "dropping the old reference releases it; use `set_buffer` for that"]
+    pub fn replace_buffer(
+        &mut self,
+        i: usize,
+        with: Option<BufferReferenceBox>,
+    ) -> Option<BufferReferenceBox> {
+        assert!(i < NUM_DATA_POINTERS, "buffer {i} out of range");
+        let new = with.map_or(ptr::null_mut(), BufferReferenceBox::into_c);
+        let p = self.as_mut_ptr();
+        // SAFETY: a read and a write of entry `i < NUM_DATA_POINTERS` of the
+        // `buf` array projected through the exclusive handle's pointer to a
+        // live `AVFrame`; `new` is NULL or a reference nothing else owns,
+        // which keeps the invariant's first point, and `prune_planes`
+        // restores its last.
+        let old = unsafe {
+            let slot = addr_of_mut!((*p).buf)
+                .cast::<*mut ffi::AVBufferRef>()
+                .add(i);
+            let old = slot.read();
+            slot.write(new);
+            old
+        };
+        self.prune_planes();
+        // SAFETY: by the type's invariant, `old` is NULL or a reference the
+        // frame owned, which no longer reaches the frame.
+        unsafe { BufferReferenceBox::from_c(old) }
+    }
+
+    /// Field: AVFrame.buf
+    ///
+    /// Makes `with` buffer reference `i` and releases the one the frame held,
+    /// as [`replace_buffer`](Self::replace_buffer) and a drop.
+    ///
+    /// # Panics
+    ///
+    /// For an index of [`NUM_DATA_POINTERS`] or more.
+    pub fn set_buffer(&mut self, i: usize, with: Option<BufferReferenceBox>) {
+        drop(self.replace_buffer(i, with));
+    }
+
+    /// Field: AVFrame.buf
+    ///
+    /// Takes buffer reference `i` out, as [`replace_buffer`](Self::replace_buffer)
+    /// with `None`; `None` when the frame held none there.
+    ///
+    /// # Panics
+    ///
+    /// For an index of [`NUM_DATA_POINTERS`] or more.
+    #[must_use]
+    pub fn take_buffer(&mut self, i: usize) -> Option<BufferReferenceBox> {
+        self.replace_buffer(i, None)
+    }
+
+    /// Field: AVFrame.extended_buf
+    ///
+    /// Makes `with` extra buffer reference `i` and returns the one the frame
+    /// held there, clearing the plane pointers left pointing inside no
+    /// reference as [`replace_buffer`](Self::replace_buffer) does; `with`
+    /// comes back as the error past the
+    /// [`extended_buffer_count`](FrameRef::extended_buffer_count).
+    pub fn replace_extended_buffer(
+        &mut self,
+        i: usize,
+        with: BufferReferenceBox,
+    ) -> Result<BufferReferenceBox, BufferReferenceBox> {
+        let (bufs, count) = self.as_ref().extended_buffer_parts();
+        if i >= count {
+            return Err(with);
+        }
+        // SAFETY: entry `i < count` of the `extended_buf` block the frame
+        // owns, reached through the exclusive handle; the new reference is
+        // nothing else's and never NULL, as the invariant asks, and
+        // `prune_planes` restores its last point.
+        let old = unsafe {
+            let old = bufs.add(i).read();
+            bufs.add(i).write(with.into_c());
+            old
+        };
+        self.prune_planes();
+        // SAFETY: by the type's invariant, a reference the frame owned, which
+        // no longer reaches the frame.
+        Ok(unsafe { BufferReferenceBox::from_c(old) }
+            .expect("an extra buffer reference is not NULL"))
+    }
+
+    /// Field: AVFrame.extended_buf
+    ///
+    /// Appends `with` to the extra buffer references, growing their array;
+    /// `with` comes back when C cannot.
+    pub fn push_extended_buffer(
+        &mut self,
+        with: BufferReferenceBox,
+    ) -> Result<(), BufferReferenceBox> {
+        let (bufs, count) = self.as_ref().extended_buffer_parts();
+        let Ok(new_count) = c_int::try_from(count + 1) else {
+            return Err(with);
+        };
+        // SAFETY: `bufs` is NULL or the frame's own `av_malloc`-family block;
+        // C reallocates it to `count + 1` pointers, keeping the first
+        // `count`, or returns NULL and leaves it alone.
+        let grown = unsafe {
+            ffi::av_realloc_array(bufs.cast(), count + 1, size_of::<*mut ffi::AVBufferRef>())
+        }
+        .cast::<*mut ffi::AVBufferRef>();
+        if grown.is_null() {
+            return Err(with);
+        }
+        let p = self.as_mut_ptr();
+        // SAFETY: entry `count` of the grown block, and writes of the two
+        // fields projected through the exclusive handle's pointer to a live
+        // `AVFrame`, which keep the invariant: `count + 1` non-NULL
+        // references the frame owns.
+        unsafe {
+            grown.add(count).write(with.into_c());
+            addr_of_mut!((*p).extended_buf).write(grown);
+            addr_of_mut!((*p).nb_extended_buf).write(new_count);
+        }
+        Ok(())
+    }
+
+    /// Field: AVFrame.extended_buf
+    ///
+    /// Takes the last extra buffer reference out, freeing their array with
+    /// the last one, and clears the plane pointers left pointing inside no
+    /// reference as [`replace_buffer`](Self::replace_buffer) does; `None`
+    /// when the frame holds none.
+    #[must_use]
+    pub fn pop_extended_buffer(&mut self) -> Option<BufferReferenceBox> {
+        let (bufs, count) = self.as_ref().extended_buffer_parts();
+        let last = count.checked_sub(1)?;
+        let p = self.as_mut_ptr();
+        // SAFETY: entry `last < count` of the frame's `extended_buf` block,
+        // and writes of the two fields projected through the exclusive
+        // handle's pointer to a live `AVFrame`: the count drops to `last`,
+        // and an emptied block is freed and NULLed, as the invariant asks.
+        let old = unsafe {
+            let old = bufs.add(last).read();
+            if last == 0 {
+                ffi::av_free(bufs.cast());
+                addr_of_mut!((*p).extended_buf).write(ptr::null_mut());
+            }
+            addr_of_mut!((*p).nb_extended_buf).write(last as c_int);
+            old
+        };
+        self.prune_planes();
+        // SAFETY: by the type's invariant, a reference the frame owned, which
+        // no longer reaches the frame.
+        let old = unsafe { BufferReferenceBox::from_c(old) };
+        Some(old.expect("an extra buffer reference is not NULL"))
+    }
+
+    /// Field: AVFrame.side_data
+    /// Field: AVFrame.nb_side_data
+    ///
+    /// The frame's side data, writable, borrowed exclusively from it.
+    #[must_use]
+    pub fn side_data_mut(&mut self) -> SideDataArrayMut<'_> {
+        let p = self.as_mut_ptr();
+        // SAFETY: projections of two fields through the exclusive handle's
+        // pointer to a live `AVFrame`, without a read.
+        let (entries, len) = unsafe {
+            (
+                addr_of_mut!((*p).side_data),
+                addr_of_mut!((*p).nb_side_data),
+            )
+        };
+        // The frame's two side data variables, which hold an array as
+        // `SideDataArrayRef::from_raw_parts` requires by the type's
+        // invariant, exclusively borrowed with the frame.
+        SideDataArrayMut {
+            entries: NonNull::new(entries).expect("a field of a live struct is not NULL"),
+            len: NonNull::new(len).expect("a field of a live struct is not NULL"),
+            _borrow: PhantomData,
+        }
+    }
+
+    /// Field: AVFrame.flags
+    ///
+    /// Sets the frame's flags.
+    pub fn set_flags(&mut self, flags: FrameFlags) {
+        // SAFETY: as in `set_width`, for the `flags` field.
+        unsafe { addr_of_mut!((*self.as_mut_ptr()).flags).write(flags.bits()) }
+    }
+
+    /// Field: AVFrame.color_range
+    ///
+    /// Sets the color range.
+    pub fn set_color_range(&mut self, range: ColorRange) {
+        // SAFETY: as in `set_picture_type`, for the `color_range` field.
+        unsafe { addr_of_mut!((*self.as_mut_ptr()).color_range).write(range.into_raw()) }
+    }
+
+    /// Field: AVFrame.color_primaries
+    ///
+    /// Sets the color primaries.
+    pub fn set_color_primaries(&mut self, primaries: ColorPrimaries) {
+        // SAFETY: as in `set_picture_type`, for the `color_primaries` field.
+        unsafe { addr_of_mut!((*self.as_mut_ptr()).color_primaries).write(primaries.into_raw()) }
+    }
+
+    /// Field: AVFrame.color_trc
+    ///
+    /// Sets the color transfer characteristic.
+    pub fn set_color_transfer(&mut self, transfer: ColorTransfer) {
+        // SAFETY: as in `set_picture_type`, for the `color_trc` field.
+        unsafe { addr_of_mut!((*self.as_mut_ptr()).color_trc).write(transfer.into_raw()) }
+    }
+
+    /// Field: AVFrame.colorspace
+    ///
+    /// Sets the YUV color space.
+    pub fn set_color_space(&mut self, space: ColorSpace) {
+        // SAFETY: as in `set_picture_type`, for the `colorspace` field.
+        unsafe { addr_of_mut!((*self.as_mut_ptr()).colorspace).write(space.into_raw()) }
+    }
+
+    /// Field: AVFrame.chroma_location
+    ///
+    /// Sets the location of the chroma samples.
+    pub fn set_chroma_location(&mut self, location: ChromaLocation) {
+        // SAFETY: as in `set_picture_type`, for the `chroma_location` field.
+        unsafe { addr_of_mut!((*self.as_mut_ptr()).chroma_location).write(location.into_raw()) }
+    }
+
+    /// Field: AVFrame.best_effort_timestamp
+    ///
+    /// Sets the estimated timestamp.
+    pub fn set_best_effort_timestamp(&mut self, timestamp: i64) {
+        // SAFETY: as in `set_pts`, for the `best_effort_timestamp` field.
+        unsafe { addr_of_mut!((*self.as_mut_ptr()).best_effort_timestamp).write(timestamp) }
+    }
+
+    /// Field: AVFrame.metadata
+    ///
+    /// Makes `with` the frame's metadata, and returns the metadata the frame
+    /// held.
+    #[must_use = "dropping the old metadata frees it; use `set_metadata` for that"]
+    pub fn replace_metadata(&mut self, with: Dict) -> Dict {
+        let new = Option::<DictionaryBox>::from(with).map_or(ptr::null_mut(), CBox::into_c);
+        let p = self.as_mut_ptr();
+        // SAFETY: a read and a write of the `metadata` pointer projected
+        // through the exclusive handle's pointer to a live `AVFrame`; `new`
+        // is NULL or a non-empty dictionary nothing else owns, which keeps
+        // the type's invariant.
+        let old = unsafe {
+            let old = addr_of!((*p).metadata).read();
+            addr_of_mut!((*p).metadata).write(new);
+            old
+        };
+        // SAFETY: by the type's invariant, `old` is NULL or a non-empty
+        // dictionary the frame owned, which no longer reaches the frame.
+        Dict::from(unsafe { DictionaryBox::from_c(old) })
+    }
+
+    /// Field: AVFrame.metadata
+    ///
+    /// Makes `with` the frame's metadata, and frees the metadata the frame
+    /// held, as [`replace_metadata`](Self::replace_metadata) and a drop.
+    pub fn set_metadata(&mut self, with: Dict) {
+        drop(self.replace_metadata(with));
+    }
+
+    /// Field: AVFrame.metadata
+    ///
+    /// Takes the frame's metadata out, leaving it none.
+    #[must_use]
+    pub fn take_metadata(&mut self) -> Dict {
+        self.replace_metadata(Dict::new())
+    }
+
+    /// Field: AVFrame.decode_error_flags
+    ///
+    /// Sets the decode error flags.
+    pub fn set_decode_error_flags(&mut self, flags: DecodeErrorFlags) {
+        // SAFETY: as in `set_width`, for the `decode_error_flags` field.
+        unsafe { addr_of_mut!((*self.as_mut_ptr()).decode_error_flags).write(flags.bits()) }
+    }
+
+    /// Makes `with` the frame's reference in `field` (none for `None`), and
+    /// returns the one it held. For [`ReferenceField::HwFramesContext`],
+    /// `with` must be a hardware frames context reference, which this
+    /// private helper leaves to its callers.
+    fn replace_reference(
+        &mut self,
+        field: ReferenceField,
+        with: Option<BufferReferenceBox>,
+    ) -> Option<BufferReferenceBox> {
+        let new = with.map_or(ptr::null_mut(), BufferReferenceBox::into_c);
+        let p = self.as_mut_ptr();
+        // SAFETY: a read and a write of one reference field projected through
+        // the exclusive handle's pointer to a live `AVFrame`; `new` is NULL or
+        // a reference nothing else owns, of the kind the field takes.
+        let old = unsafe {
+            let slot = match field {
+                ReferenceField::HwFramesContext => addr_of_mut!((*p).hw_frames_ctx),
+                ReferenceField::OpaqueRef => addr_of_mut!((*p).opaque_ref),
+            };
+            slot.replace(new)
+        };
+        // SAFETY: by the type's invariant, `old` is NULL or a reference the
+        // frame owned, which no longer reaches the frame.
+        unsafe { BufferReferenceBox::from_c(old) }
+    }
+
+    /// Field: AVFrame.hw_frames_ctx
+    ///
+    /// Makes `with` the frame's hardware frames context reference (none for
+    /// `None`) and returns the one it held.
+    ///
+    /// # Safety
+    ///
+    /// `with` must be `None`, or a reference to a hardware frames context
+    /// (one `av_hwframe_ctx_alloc` made, or a reference to it), whose bytes C
+    /// reads as an `AVHWFramesContext` (`av_frame_make_writable`,
+    /// `av_frame_copy`, the `av_hwframe_*` routines, hardware decoders,
+    /// filters and encoders).
+    // A safe setter taking a typed frames context replaces this seam once
+    // hwcontext.h's AVHWFramesContext is wrapped.
+    #[must_use = "dropping the old reference releases it"]
+    pub unsafe fn replace_hw_frames_context(
+        &mut self,
+        with: Option<BufferReferenceBox>,
+    ) -> Option<BufferReferenceBox> {
+        // The caller vouches for `with`.
+        self.replace_reference(ReferenceField::HwFramesContext, with)
+    }
+
+    /// Field: AVFrame.hw_frames_ctx
+    ///
+    /// Takes the frame's hardware frames context reference out, leaving it
+    /// none; `None` when it held none.
+    #[must_use]
+    pub fn take_hw_frames_context(&mut self) -> Option<BufferReferenceBox> {
+        self.replace_reference(ReferenceField::HwFramesContext, None)
+    }
+
+    /// Field: AVFrame.opaque_ref
+    ///
+    /// Makes `with` the owner's reference-counted user data (none for
+    /// `None`) and returns the reference the frame held.
+    #[must_use = "dropping the old reference releases it; use `set_opaque_ref` for that"]
+    pub fn replace_opaque_ref(
+        &mut self,
+        with: Option<BufferReferenceBox>,
+    ) -> Option<BufferReferenceBox> {
+        // Any reference is allowed there, as FFmpeg only shares and releases
+        // it.
+        self.replace_reference(ReferenceField::OpaqueRef, with)
+    }
+
+    /// Field: AVFrame.opaque_ref
+    ///
+    /// Makes `with` the owner's reference-counted user data and releases the
+    /// reference the frame held, as
+    /// [`replace_opaque_ref`](Self::replace_opaque_ref) and a drop.
+    pub fn set_opaque_ref(&mut self, with: Option<BufferReferenceBox>) {
+        drop(self.replace_opaque_ref(with));
+    }
+
+    /// Field: AVFrame.crop_top
+    ///
+    /// Sets the number of rows to discard from the top. Rust reads no plane
+    /// through it; `av_frame_apply_cropping` checks it against the
+    /// dimensions.
+    pub fn set_crop_top(&mut self, rows: usize) {
+        // SAFETY: a write of a `size_t` field projected through the exclusive
+        // handle's pointer to a live `AVFrame`; not part of the invariant.
+        unsafe { addr_of_mut!((*self.as_mut_ptr()).crop_top).write(rows) }
+    }
+
+    /// Field: AVFrame.crop_bottom
+    ///
+    /// Sets the number of rows to discard from the bottom.
+    pub fn set_crop_bottom(&mut self, rows: usize) {
+        // SAFETY: as in `set_crop_top`, for the `crop_bottom` field.
+        unsafe { addr_of_mut!((*self.as_mut_ptr()).crop_bottom).write(rows) }
+    }
+
+    /// Field: AVFrame.crop_left
+    ///
+    /// Sets the number of columns to discard from the left.
+    pub fn set_crop_left(&mut self, columns: usize) {
+        // SAFETY: as in `set_crop_top`, for the `crop_left` field.
+        unsafe { addr_of_mut!((*self.as_mut_ptr()).crop_left).write(columns) }
+    }
+
+    /// Field: AVFrame.crop_right
+    ///
+    /// Sets the number of columns to discard from the right.
+    pub fn set_crop_right(&mut self, columns: usize) {
+        // SAFETY: as in `set_crop_top`, for the `crop_right` field.
+        unsafe { addr_of_mut!((*self.as_mut_ptr()).crop_right).write(columns) }
+    }
+
+    /// Field: AVFrame.ch_layout
+    ///
+    /// An exclusive handle over the channel layout, for changing it in
+    /// place; `None` while `extended_data` is an array of the frame's own
+    /// ([`FrameRef::has_extended_data`]), whose length C knows only as the
+    /// channel count, which the handle could raise past it. This handle is
+    /// frozen while it lives.
+    #[must_use]
+    pub fn channel_layout_mut(&mut self) -> Option<ChannelLayoutMut<'_>> {
+        if self.as_ref().has_extended_array() {
+            return None;
+        }
+        // SAFETY: the field is projected through the exclusive handle's
+        // pointer to a live `AVFrame`, so it is non-NULL and aligned, and it
+        // satisfies `ChannelLayout`'s invariant; the result borrows `self`
+        // exclusively. With `extended_data` the frame's own `data`, the
+        // channel count bounds nothing the invariant reads.
+        unsafe { ChannelLayoutMut::from_ptr(addr_of_mut!((*self.as_mut_ptr()).ch_layout)) }
+    }
+
+    /// Field: AVFrame.ch_layout
+    ///
+    /// Makes `with` the frame's channel layout and returns the layout it
+    /// held. While `extended_data` is an array of the frame's own, a layout
+    /// of more channels than the current one would overrun it, so `with`
+    /// comes back as the error instead.
+    pub fn replace_channel_layout(
+        &mut self,
+        with: ChannelLayoutVal,
+    ) -> Result<ChannelLayoutVal, ChannelLayoutVal> {
+        let shared = self.as_ref();
+        if shared.has_extended_array()
+            && with.as_ref().channel_count() > shared.channel_layout().channel_count()
+        {
+            return Err(with);
+        }
+        let new = with.into_inner();
+        let p = self.as_mut_ptr();
+        // SAFETY: a read and a write of the `ch_layout` field projected
+        // through the exclusive handle's pointer to a live frame; `new` satisfies
+        // `ChannelLayout`'s invariant and is nothing else's, and its count
+        // keeps a separate `extended_data` long enough. The old value moves
+        // out whole, so its map has one owner still.
+        let old = unsafe {
+            addr_of_mut!((*p).ch_layout)
+                .cast::<ChannelLayout>()
+                .replace(new)
+        };
+        Ok(ChannelLayoutVal::new(old))
+    }
+
+    /// Field: AVFrame.ch_layout
+    ///
+    /// Makes `with` the frame's channel layout and disposes of the layout it
+    /// held, as [`replace_channel_layout`](Self::replace_channel_layout) and
+    /// a drop; `with` comes back as the error where that refuses it.
+    pub fn set_channel_layout(&mut self, with: ChannelLayoutVal) -> Result<(), ChannelLayoutVal> {
+        self.replace_channel_layout(with).map(drop)
+    }
+
+    /// Field: AVFrame.duration
+    ///
+    /// Sets the duration.
+    pub fn set_duration(&mut self, duration: i64) {
+        // SAFETY: as in `set_pts`, for the `duration` field.
+        unsafe { addr_of_mut!((*self.as_mut_ptr()).duration).write(duration) }
+    }
+
+    /// Field: AVFrame.alpha_mode
+    ///
+    /// Sets how the alpha channel is to be handled.
+    pub fn set_alpha_mode(&mut self, mode: AlphaMode) {
+        // SAFETY: as in `set_picture_type`, for the `alpha_mode` field.
+        unsafe { addr_of_mut!((*self.as_mut_ptr()).alpha_mode).write(mode.into_raw()) }
+    }
+
+    /// Wraps: av_frame_unref
+    ///
+    /// Releases everything the frame holds (buffer references, side data,
+    /// metadata, `extended_data` and `extended_buf` arrays, the hardware
+    /// context, user data and private references, the channel layout) and
+    /// gives every field its default back, as [`Frame::new`] makes it.
+    pub fn reset(&mut self) {
+        // SAFETY: a live frame satisfying the type's invariant, which C
+        // releases field by field (av_frame_side_data_free, av_buffer_unref,
+        // av_dict_free, av_refstruct_unref, av_channel_layout_uninit,
+        // av_freep of a separate extended_data) before writing the defaults
+        // av_frame_alloc writes. No handle into the frame outlives the
+        // exclusive borrow.
+        unsafe { ffi::av_frame_unref(self.as_mut_ptr()) }
+    }
+}
+
 #[cfg(test)]
 mod unit_tests {
     use super::*;
@@ -3367,5 +5574,561 @@ mod unit_tests {
     #[should_panic(expected = "source length differs")]
     fn side_data_payload_copies_need_equal_lengths() {
         copy_into(&mut [MaybeUninit::uninit(); 2], b"abc");
+    }
+
+    /// `AVBuffer`'s private layout (`buffer_internal.h`), through which a
+    /// frame test sets a count no number of live clones could reach.
+    #[repr(C)]
+    struct FrameBufferBody {
+        data: *mut u8,
+        size: usize,
+        refcount: c_uint,
+        free: Option<unsafe extern "C" fn(*mut c_void, *mut u8)>,
+        opaque: *mut c_void,
+        flags: c_int,
+        flags_internal: c_int,
+    }
+
+    /// Sets the count of `buf`'s buffer behind C's back, returning the old
+    /// one.
+    fn frame_set_count(buf: BufferReferenceRef<'_>, count: c_uint) -> c_uint {
+        assert_eq!(size_of::<FrameBufferBody>(), 48);
+        let body = buf.buffer().as_ptr().cast_mut().cast::<FrameBufferBody>();
+        // SAFETY: `body` is the live 48-byte body `buf` counts, which this
+        // single-threaded test alone reaches; the caller restores the true
+        // count before any reference is released.
+        unsafe {
+            let old = addr_of!((*body).refcount).read();
+            addr_of_mut!((*body).refcount).write(count);
+            old
+        }
+    }
+
+    /// A frame holding one zeroed buffer of `len` bytes at index 0.
+    fn frame_with_buffer(len: usize) -> FrameBox {
+        let mut f = Frame::new().unwrap();
+        f.as_mut()
+            .set_buffer(0, Some(BufferReference::alloc_zeroed(len).unwrap()));
+        f
+    }
+
+    /// The raw plane pointers of a frame.
+    fn frame_data(f: &FrameBox) -> [*mut u8; NUM_DATA_POINTERS] {
+        f.as_ref().data_ptrs()
+    }
+
+    #[test]
+    fn frame_flags_are_cs_bits() {
+        let all = [
+            (FrameFlags::CORRUPT, ffi::AV_FRAME_FLAG_CORRUPT),
+            (FrameFlags::KEY, ffi::AV_FRAME_FLAG_KEY),
+            (FrameFlags::DISCARD, ffi::AV_FRAME_FLAG_DISCARD),
+            (FrameFlags::INTERLACED, ffi::AV_FRAME_FLAG_INTERLACED),
+            (
+                FrameFlags::TOP_FIELD_FIRST,
+                ffi::AV_FRAME_FLAG_TOP_FIELD_FIRST,
+            ),
+            (FrameFlags::LOSSLESS, ffi::AV_FRAME_FLAG_LOSSLESS),
+        ];
+        for (flag, bits) in all {
+            assert_eq!(flag.bits(), bits as c_int);
+        }
+        let errors = [
+            (
+                DecodeErrorFlags::INVALID_BITSTREAM,
+                ffi::FF_DECODE_ERROR_INVALID_BITSTREAM,
+            ),
+            (
+                DecodeErrorFlags::MISSING_REFERENCE,
+                ffi::FF_DECODE_ERROR_MISSING_REFERENCE,
+            ),
+            (
+                DecodeErrorFlags::CONCEALMENT_ACTIVE,
+                ffi::FF_DECODE_ERROR_CONCEALMENT_ACTIVE,
+            ),
+            (
+                DecodeErrorFlags::DECODE_SLICES,
+                ffi::FF_DECODE_ERROR_DECODE_SLICES,
+            ),
+        ];
+        for (flag, bits) in errors {
+            assert_eq!(flag.bits(), bits as c_int);
+        }
+        assert_eq!(NUM_DATA_POINTERS, 8);
+    }
+
+    #[test]
+    fn frame_flags_set_operations_keep_unknown_bits() {
+        let mut f = FrameFlags::empty();
+        assert!(f.is_empty() && f == FrameFlags::default());
+        f.insert(FrameFlags::KEY | FrameFlags::LOSSLESS);
+        assert!(f.contains(FrameFlags::KEY) && !f.contains(FrameFlags::CORRUPT));
+        f.remove(FrameFlags::KEY);
+        assert_eq!(f, FrameFlags::LOSSLESS);
+        let odd = FrameFlags::from_bits_retain(i32::MIN | 0x40 | 2);
+        assert_eq!(odd.bits(), i32::MIN | 0x42);
+        assert_eq!((odd & FrameFlags::KEY), FrameFlags::KEY);
+        assert_eq!((odd - FrameFlags::KEY).bits(), i32::MIN | 0x40);
+        let mut acc = FrameFlags::empty();
+        acc |= odd;
+        assert_eq!(acc, odd);
+        assert_eq!(format!("{:?}", FrameFlags::empty()), "FrameFlags(0x0)");
+        assert_eq!(
+            format!("{:?}", FrameFlags::KEY | FrameFlags::INTERLACED),
+            "FrameFlags(KEY | INTERLACED)"
+        );
+        assert_eq!(
+            format!("{:?}", FrameFlags::from_bits_retain(0x102)),
+            "FrameFlags(KEY | 0x100)"
+        );
+        assert_eq!(
+            format!("{:?}", DecodeErrorFlags::from_bits_retain(0x30)),
+            "DecodeErrorFlags(0x30)"
+        );
+        assert_eq!(
+            format!("{:?}", DecodeErrorFlags::CONCEALMENT_ACTIVE),
+            "DecodeErrorFlags(CONCEALMENT_ACTIVE)"
+        );
+    }
+
+    #[test]
+    fn frame_plane_errors_describe_themselves() {
+        for (e, s) in [
+            (PlaneError::NoPlane, "no such plane"),
+            (PlaneError::NoBuffer, "no such buffer reference"),
+            (
+                PlaneError::OutOfBounds,
+                "offset outside the buffer reference",
+            ),
+        ] {
+            assert_eq!(e.to_string(), s);
+            let _: &dyn std::error::Error = &e;
+        }
+    }
+
+    /// A plane pointer at the end of its buffer's window is inside none, as
+    /// for C's `av_frame_get_plane_buffer`; the one before it is.
+    #[test]
+    #[cfg_attr(miri, ignore)]
+    fn frame_locate_bounds_planes_by_the_window() {
+        let mut f = frame_with_buffer(16);
+        let (start, len) = f.as_ref().buffer(0).unwrap().parts();
+        let start = start.as_ptr();
+        let r = f.as_ref();
+        assert!(r.locate(start.wrapping_add(len)).is_none());
+        assert_eq!(r.locate(start.wrapping_add(len - 1)).unwrap().1, len - 1);
+        assert_eq!(r.locate(start).unwrap().1, 0);
+        assert!(r.locate(start.wrapping_sub(1)).is_none());
+        assert!(r.locate(ptr::null()).is_none());
+        // A frame not reference counted locates nothing, even inside a
+        // buffer it holds past index 0.
+        let b = f.as_mut().take_buffer(0).unwrap();
+        f.as_mut().set_buffer(1, Some(b));
+        let (start, _) = f.as_ref().buffer(1).unwrap().parts();
+        assert!(f.as_ref().locate(start.as_ptr()).is_none());
+        assert_eq!(f.as_mut().set_plane(0, 1, 0), Err(PlaneError::NoBuffer));
+    }
+
+    /// Buffer changes clear exactly the plane pointers no reference holds
+    /// any more, and every one once `buf[0]` is gone.
+    #[test]
+    #[cfg_attr(miri, ignore)]
+    fn frame_buffer_changes_prune_stale_planes() {
+        let mut f = frame_with_buffer(32);
+        f.as_mut()
+            .set_buffer(1, Some(BufferReference::alloc_zeroed(8).unwrap()));
+        let mut m = f.as_mut();
+        m.set_plane(0, 0, 0).unwrap();
+        m.set_plane(1, 0, 16).unwrap();
+        m.set_plane(2, 1, 4).unwrap();
+        let before = frame_data(&f);
+        assert!(before[..3].iter().all(|p| !p.is_null()));
+        // Replacing buf[1] clears plane 2 only.
+        let old = f
+            .as_mut()
+            .replace_buffer(1, Some(BufferReference::alloc_zeroed(8).unwrap()));
+        assert!(old.is_some());
+        let after = frame_data(&f);
+        assert_eq!(after[..2], before[..2]);
+        assert!(after[2].is_null());
+        // A second reference to buf[0]'s buffer keeps its planes when buf[0]
+        // goes elsewhere, as long as buf[0] holds a reference.
+        let copy = f.as_ref().buffer(0).unwrap().try_clone().unwrap();
+        f.as_mut().set_buffer(1, Some(copy));
+        let swapped = f
+            .as_mut()
+            .replace_buffer(0, Some(BufferReference::alloc_zeroed(4).unwrap()));
+        assert_eq!(frame_data(&f)[..2], before[..2]);
+        drop(swapped);
+        // Taking buf[0] clears everything, even planes inside buf[1].
+        drop(f.as_mut().take_buffer(0));
+        assert!(frame_data(&f).iter().all(|p| p.is_null()));
+    }
+
+    /// The separate `extended_data` array is pruned over the channel count,
+    /// and freed by `reset_extended_data` and by the frame's drop (a leak
+    /// otherwise).
+    #[test]
+    #[cfg_attr(miri, ignore)]
+    fn frame_extended_arrays_are_pruned_and_freed() {
+        let mut f = frame_with_buffer(64);
+        f.as_mut()
+            .set_channel_layout(ChannelLayout::unspecified(10))
+            .unwrap();
+        f.as_mut().set_plane(0, 0, 0).unwrap();
+        f.as_mut().alloc_extended_data().unwrap();
+        assert!(f.as_ref().has_extended_data());
+        assert_eq!(f.as_ref().extended_plane_count(), 10);
+        for i in 0..10 {
+            f.as_mut().set_extended_plane(i, 0, i).unwrap();
+        }
+        // A second allocation frees the first array (else a leak).
+        f.as_mut().alloc_extended_data().unwrap();
+        assert!(f.as_ref().extended_plane(0).is_some());
+        assert!(f.as_ref().extended_plane(9).is_none());
+        for i in 0..10 {
+            f.as_mut().set_extended_plane(i, 0, i).unwrap();
+        }
+        let (ext, _) = f.as_ref().extended_parts();
+        f.as_mut()
+            .set_buffer(0, Some(BufferReference::alloc_zeroed(4).unwrap()));
+        // SAFETY: the frame's own extended array of 10 entries.
+        let entries: Vec<_> = (0..10).map(|i| unsafe { ext.add(i).read() }).collect();
+        assert!(entries.iter().all(|p| p.is_null()));
+        f.as_mut().set_extended_plane(9, 0, 3).unwrap();
+        f.as_mut().reset_extended_data();
+        assert!(!f.as_ref().has_extended_data());
+        assert_eq!(f.as_ref().extended_plane_count(), NUM_DATA_POINTERS);
+        f.as_mut().reset_extended_data();
+        f.as_mut().alloc_extended_data().unwrap();
+        drop(f);
+    }
+
+    #[test]
+    #[cfg_attr(miri, ignore)]
+    fn frame_extended_arrays_need_a_channel() {
+        let mut f = Frame::new().unwrap();
+        assert_eq!(f.as_mut().alloc_extended_data(), Err(EINVAL));
+        f.as_mut()
+            .set_channel_layout(ChannelLayout::unspecified(-3))
+            .unwrap();
+        assert_eq!(f.as_mut().alloc_extended_data(), Err(EINVAL));
+        assert!(!f.as_ref().has_extended_data());
+        assert_eq!(f.as_ref().extended_plane_count(), NUM_DATA_POINTERS);
+        // A separate array may outlive every channel: C then refuses to
+        // copy it, and Rust reads no entry.
+        let mut f = frame_with_buffer(8);
+        f.as_mut()
+            .set_channel_layout(ChannelLayout::unspecified(2))
+            .unwrap();
+        f.as_mut().alloc_extended_data().unwrap();
+        f.as_mut()
+            .set_channel_layout(ChannelLayout::unspecified(0))
+            .unwrap();
+        assert!(f.as_ref().has_extended_data());
+        assert_eq!(f.as_ref().extended_plane_count(), 0);
+        assert!(f.as_ref().extended_plane(0).is_none());
+        assert!(f.as_ref().try_clone().is_none());
+    }
+
+    /// The extra buffer block grows, shrinks and goes with its last entry,
+    /// keeping `extended_buf` NULL exactly when the count is 0.
+    #[test]
+    #[cfg_attr(miri, ignore)]
+    fn frame_extended_buffer_block_tracks_its_count() {
+        let mut f = Frame::new().unwrap();
+        let parts = |f: &FrameBox| f.as_ref().extended_buffer_parts();
+        assert!(parts(&f).0.is_null());
+        for n in 1..=3 {
+            f.as_mut()
+                .push_extended_buffer(BufferReference::alloc_zeroed(n).unwrap())
+                .unwrap();
+            assert!(!parts(&f).0.is_null());
+            assert_eq!(parts(&f).1, n);
+        }
+        let back = f
+            .as_mut()
+            .replace_extended_buffer(3, BufferReference::alloc_zeroed(9).unwrap())
+            .unwrap_err();
+        assert_eq!(back.as_ref().len(), 9);
+        let old = f.as_mut().replace_extended_buffer(1, back).unwrap();
+        assert_eq!(old.as_ref().len(), 2);
+        assert_eq!(f.as_ref().extended_buffer(1).unwrap().len(), 9);
+        for n in (0..3).rev() {
+            assert!(f.as_mut().pop_extended_buffer().is_some());
+            assert_eq!(parts(&f).1, n);
+        }
+        assert!(parts(&f).0.is_null());
+        assert!(f.as_mut().pop_extended_buffer().is_none());
+    }
+
+    /// `try_clone` counts every reference `av_frame_clone` would add, and
+    /// refuses before C is called when one buffer is at the limit.
+    #[test]
+    #[cfg_attr(miri, ignore)]
+    fn frame_clones_stop_at_the_reference_limit() {
+        let mut f = frame_with_buffer(8);
+        f.as_mut().set_plane(0, 0, 0).unwrap();
+        f.as_mut()
+            .set_opaque_ref(Some(BufferReference::alloc_zeroed(1).unwrap()));
+        f.as_mut()
+            .side_data_mut()
+            .add(
+                SideDataType::AFD,
+                BufferReference::alloc_zeroed(1).unwrap(),
+                SideDataFlags::NONE,
+            )
+            .unwrap();
+        f.as_mut()
+            .push_extended_buffer(BufferReference::alloc_zeroed(2).unwrap())
+            .unwrap();
+        let limit = c_uint::MAX / 2;
+        let holders: [fn(FrameRef<'_>) -> BufferReferenceRef<'_>; 4] = [
+            |r| r.buffer(0).unwrap(),
+            |r| r.opaque_ref().unwrap(),
+            |r| r.side_data().get(0).unwrap().buffer(),
+            |r| r.extended_buffer(0).unwrap(),
+        ];
+        for holder in holders {
+            let old = frame_set_count(holder(f.as_ref()), limit);
+            assert!(f.as_ref().try_clone().is_none());
+            frame_set_count(holder(f.as_ref()), limit - 1);
+            let copy = f.as_ref().try_clone().expect("one below the limit");
+            assert_eq!(holder(copy.as_ref()).ref_count(), limit);
+            drop(copy);
+            assert_eq!(frame_set_count(holder(f.as_ref()), old), limit - 1);
+        }
+    }
+
+    /// A private RefStruct reference, which only C code sets, is shared by a
+    /// clone and released by `reset` and by the frame's drop.
+    #[test]
+    #[cfg_attr(miri, ignore)]
+    fn frame_private_refs_are_shared_and_released() {
+        // SAFETY: a zeroed 16-byte RefStruct object, or NULL.
+        let obj = unsafe { ffi::av_refstruct_allocz(16) };
+        assert!(!obj.is_null());
+        let mut f = frame_with_buffer(4);
+        assert!(!f.as_ref().has_private_ref());
+        // SAFETY: the frame takes over the caller's one reference, as a
+        // library's private_ref; nothing else reaches the field.
+        unsafe { addr_of_mut!((*f.as_mut().as_mut_ptr()).private_ref).write(obj) };
+        assert!(f.as_ref().has_private_ref());
+        // SAFETY: `obj` is live while the frame holds it.
+        let exclusive = || unsafe { ffi::av_refstruct_exclusive(obj) != 0 };
+        assert!(exclusive());
+        let copy = f.as_ref().try_clone().unwrap();
+        assert!(copy.as_ref().has_private_ref() && !exclusive());
+        drop(copy);
+        assert!(exclusive());
+        let mut copy = f.as_ref().try_clone().unwrap();
+        copy.as_mut().reset();
+        assert!(!copy.as_ref().has_private_ref() && exclusive());
+        drop(f);
+    }
+
+    /// `reset` frees a separate `extended_data` and every extra buffer, and
+    /// writes the defaults back over everything (ASan and LSan check the
+    /// release).
+    #[test]
+    #[cfg_attr(miri, ignore)]
+    fn frame_reset_releases_owned_arrays() {
+        let mut f = frame_with_buffer(32);
+        f.as_mut()
+            .set_channel_layout(ChannelLayout::custom(12).unwrap())
+            .unwrap();
+        f.as_mut().alloc_extended_data().unwrap();
+        f.as_mut()
+            .push_extended_buffer(BufferReference::alloc_zeroed(3).unwrap())
+            .unwrap();
+        f.as_mut().set_extended_plane(11, 8, 1).unwrap();
+        f.as_mut()
+            .set_metadata(Dict::from_entries([(c"k", c"v")]).unwrap());
+        f.as_mut().set_width(7);
+        f.as_mut().reset();
+        let r = f.as_ref();
+        assert!(!r.has_extended_data() && r.extended_buffer_count() == 0);
+        assert!(r.buffer(0).is_none() && r.metadata().is_none());
+        assert_eq!((r.width(), r.format()), (0, -1));
+        assert_eq!(r.channel_layout().channel_count(), 0);
+        assert!(r.extended_buffer_parts().0.is_null());
+    }
+
+    #[test]
+    #[cfg_attr(miri, ignore)]
+    fn frame_debug_names_the_shape() {
+        let mut f = frame_with_buffer(4);
+        f.as_mut().set_pts(5);
+        let s = format!("{:?}", f.as_ref());
+        assert!(s.starts_with("Frame {"), "{s}");
+        assert!(s.contains("pts: 5") && s.contains("buffers: 1"), "{s}");
+        assert_eq!(format!("{:?}", f.as_mut()), s);
+    }
+
+    /// A frame and two buffer references laid out in Rust memory, with no C
+    /// routine behind them: the plane bookkeeping (`set_plane`, `plane`,
+    /// `extended_plane`, `locate`, `prune_planes`) and `swap_planes` run
+    /// under Miri. The references are never released through C.
+    #[test]
+    fn frame_plane_bookkeeping_over_rust_memory() {
+        let mut bytes = [vec![1u8; 16], vec![2u8; 8]];
+        let bufs: Vec<*mut ffi::AVBufferRef> = bytes
+            .iter_mut()
+            .map(|b| {
+                Box::into_raw(Box::new(ffi::AVBufferRef {
+                    buffer: ptr::null_mut(),
+                    data: b.as_mut_ptr(),
+                    size: b.len(),
+                }))
+            })
+            .collect();
+        let frames = [(); 2].map(|()| Box::into_raw(Box::new(ffi::AVFrame::default())));
+        for &f in &frames {
+            // SAFETY: a zeroed Rust-held frame; `extended_data` at its own
+            // `data`, as C's defaults have it.
+            unsafe { (*f).extended_data = addr_of_mut!((*f).data).cast() };
+        }
+        let [a, b] = frames;
+        // SAFETY: the Rust-held frame `a`, reached only through this handle
+        // until the end of the test, holding references to live Rust bytes.
+        let mut m = unsafe { FrameMut::from_ptr(a) }.unwrap();
+        assert_eq!(m.set_plane(0, 0, 0), Err(PlaneError::NoBuffer));
+        // SAFETY: as above; the frame takes the two references.
+        unsafe { ((*a).buf[0], (*a).buf[1]) = (bufs[0], bufs[1]) };
+        m.set_plane(0, 0, 3).unwrap();
+        m.set_plane(1, 1, 7).unwrap();
+        assert_eq!(m.set_plane(2, 1, 8), Err(PlaneError::OutOfBounds));
+        assert_eq!(m.as_ref().plane(0).unwrap(), [1; 13]);
+        assert_eq!(m.as_ref().extended_plane(1).unwrap(), [2]);
+        assert_eq!(m.as_ref().locate(m.as_ref().data_ptrs()[1]).unwrap().1, 7);
+        // Dropping buf[1] from the frame behind its back, then pruning,
+        // clears plane 1 only; dropping buf[0] clears plane 0 too.
+        // SAFETY: as above.
+        unsafe { (*a).buf[1] = ptr::null_mut() };
+        m.prune_planes();
+        assert!(m.as_ref().plane(1).is_none() && m.as_ref().plane(0).is_some());
+        // SAFETY: as above.
+        unsafe { (*a).buf[1] = bufs[1] };
+        m.set_plane(1, 1, 0).unwrap();
+        // SAFETY: as above.
+        unsafe { (*a).buf[0] = ptr::null_mut() };
+        m.prune_planes();
+        assert!(m.as_ref().data_ptrs().iter().all(|p| p.is_null()));
+        // SAFETY: as above; `a` holds buf[1] at index 0 now.
+        unsafe { (*a).buf[0] = bufs[1] };
+        m.set_plane(2, 0, 5).unwrap();
+        // The planes and buffers move to `b`, whose `extended_data` stays
+        // its own.
+        // SAFETY: two distinct Rust-held frames nothing else reaches.
+        unsafe { Frame::swap_planes(a, b) };
+        // SAFETY: as above.
+        unsafe {
+            assert!((*a).buf[0].is_null() && (*a).data[2].is_null());
+            assert_eq!((*b).buf[0], bufs[1]);
+            assert_eq!((*b).extended_data, addr_of_mut!((*b).data).cast());
+            assert_eq!((*a).extended_data, addr_of_mut!((*a).data).cast());
+        }
+        // SAFETY: the Rust-held frame `b`, as `a` above.
+        let r = unsafe { FrameRef::from_ptr(b) }.unwrap();
+        assert_eq!(r.plane(2).unwrap(), [2; 3]);
+        for p in frames {
+            // SAFETY: the frames boxed above, which hold no C resource.
+            drop(unsafe { Box::from_raw(p) });
+        }
+        for p in bufs {
+            // SAFETY: the references boxed above, released here, not by C.
+            drop(unsafe { Box::from_raw(p) });
+        }
+    }
+
+    /// Runs the calling test alone in a child process, so that it may change
+    /// process-wide state (`av_max_alloc`); true in the child.
+    fn frame_isolated(name: &str) -> bool {
+        const KEY: &str = "CRUSTIFY_UNIT_FRAME_ISOLATED";
+        if std::env::var_os(KEY).is_some() {
+            return true;
+        }
+        let status = std::process::Command::new(std::env::current_exe().unwrap())
+            .args(["--exact", name, "--test-threads=1"])
+            .env(KEY, "1")
+            .status()
+            .unwrap();
+        assert!(status.success(), "isolated run failed: {status}");
+        false
+    }
+
+    /// Under allocation limits, `Frame::new`, `try_clone` (C's failure paths
+    /// in `av_frame_ref`: the extra block, the `extended_data` copy, the
+    /// data copy's buffers), `alloc_extended_data` and
+    /// `push_extended_buffer` fail cleanly: nothing leaks (LSan), and the
+    /// frames keep what they held.
+    #[test]
+    #[cfg_attr(miri, ignore)]
+    fn frame_allocation_failures_leave_frames_whole() {
+        if !frame_isolated(
+            "libavutil::frame::unit_tests::frame_allocation_failures_leave_frames_whole",
+        ) {
+            return;
+        }
+        let frame_size = size_of::<ffi::AVFrame>();
+        let mut f = frame_with_buffer(16);
+        let mut m = f.as_mut();
+        m.set_plane(0, 0, 0).unwrap();
+        m.set_channel_layout(ChannelLayout::unspecified(70))
+            .unwrap();
+        m.alloc_extended_data().unwrap();
+        for _ in 0..62 {
+            m.push_extended_buffer(BufferReference::alloc_zeroed(4).unwrap())
+                .unwrap();
+        }
+        m.set_extended_plane(69, 69, 1).unwrap();
+        m.set_metadata(Dict::from_entries([(c"k", c"v")]).unwrap());
+        // 70 entries: the copy's array outgrows the smallest limits.
+        let mut entries = m.side_data_mut();
+        for _ in 0..70 {
+            let buf = BufferReference::alloc_zeroed(1).unwrap();
+            entries
+                .add(SideDataType::SEI_UNREGISTERED, buf, SideDataFlags::NONE)
+                .unwrap();
+        }
+        let mut g = Frame::new().unwrap();
+        g.as_mut()
+            .set_format(ffi::AVPixelFormat::AV_PIX_FMT_GRAY8.0);
+        g.as_mut().set_width(64);
+        g.as_mut().set_height(64);
+        let set_limit = |n: usize| {
+            // SAFETY: no precondition; this process runs this test alone.
+            unsafe { ffi::av_max_alloc(n) }
+        };
+        set_limit(frame_size - 1);
+        assert!(Frame::new().is_none());
+        assert!(f.as_ref().try_clone().is_none());
+        for limit in [frame_size, 500, 600, 2048, 1 << 16] {
+            set_limit(limit);
+            if let Some(copy) = f.as_ref().try_clone() {
+                assert_eq!(copy.as_ref().extended_plane(69).unwrap().len(), 3);
+                assert_eq!(f.as_ref().buffer(0).unwrap().ref_count(), 2);
+            }
+            assert_eq!(f.as_ref().buffer(0).unwrap().ref_count(), 1);
+            assert_eq!(f.as_ref().extended_plane(69).unwrap().len(), 3);
+            assert!(g.as_ref().try_clone().is_none());
+            let mut h = Frame::new().unwrap();
+            h.as_mut()
+                .set_channel_layout(ChannelLayout::unspecified(200))
+                .unwrap();
+            let allocated = h.as_mut().alloc_extended_data();
+            assert_eq!(allocated.is_ok(), 200 * size_of::<*mut u8>() <= limit);
+            for n in 0..80 {
+                let pushed = h
+                    .as_mut()
+                    .push_extended_buffer(BufferReference::alloc_zeroed(1).unwrap());
+                if pushed.is_err() {
+                    assert!((n + 1) * size_of::<*mut u8>() > limit);
+                    break;
+                }
+            }
+        }
+        set_limit(c_int::MAX as usize);
+        assert!(f.as_ref().try_clone().is_some());
     }
 }

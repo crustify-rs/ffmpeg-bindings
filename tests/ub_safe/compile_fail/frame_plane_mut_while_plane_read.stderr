@@ -1,0 +1,10 @@
+error[E0502]: cannot borrow `m` as mutable because it is also borrowed as immutable
+ --> tests/ub_safe/compile_fail/frame_plane_mut_while_plane_read.rs
+  |
+  |     let shared = m.as_ref().plane(0).unwrap();
+  |                  - immutable borrow occurs here
+  |     let writable = m.plane_mut(0).unwrap();
+  |                    ^^^^^^^^^^^^^^ mutable borrow occurs here
+  |     writable[0] = 1;
+  |     assert_eq!(shared[0], 0);
+  |                --------- immutable borrow later used here

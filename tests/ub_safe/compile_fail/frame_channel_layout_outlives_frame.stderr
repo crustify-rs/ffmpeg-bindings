@@ -1,0 +1,11 @@
+error[E0505]: cannot move out of `frame` because it is borrowed
+ --> tests/ub_safe/compile_fail/frame_channel_layout_outlives_frame.rs
+  |
+  |     let frame = Frame::new().unwrap();
+  |         ----- binding `frame` declared here
+  |     let layout = frame.as_ref().channel_layout();
+  |                  ----- borrow of `frame` occurs here
+  |     drop(frame);
+  |          ^^^^^ move out of `frame` occurs here
+  |     assert_eq!(layout.channel_count(), 0);
+  |                ------ borrow later used here
