@@ -668,3 +668,16 @@ function av_murmur3_init
 function av_murmur3_init_seeded
 function av_murmur3_update
 function av_murmur3_final
+
+# libavutil crypto wave 0, batch 0: opaque AES types, lifecycle, and C
+# observers used by lifecycle equivalence tests. No private layout is imported.
+type ^AVAES$
+type ^AVAESCTR$
+function ^av_aes_alloc$
+function ^av_aes_init$
+function ^av_aes_crypt$
+function ^av_aes_ctr_alloc$
+function ^av_aes_ctr_init$
+function ^av_aes_ctr_free$
+function ^av_aes_ctr_crypt$
+function ^av_aes_ctr_get_iv$

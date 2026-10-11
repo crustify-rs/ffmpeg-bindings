@@ -2,6 +2,36 @@
  "_comment": "Authored analysis: ownership, lifecycle, refcount and locking judgements that no composer can derive, keyed to the C entities they describe. The structural half of each record (field layout, signatures, footprints, casts) is composed from the CodeQL tables on demand and merged in at read time, so a re-extract rewrites nothing here. Written only by `wavefront <repo> <target> query {types,symbols} --update`; read through wavefront.manifests. Hand-edit at your own risk: `--update` validates a submission against the composed skeleton (unknown field, wrong kind, ptr-invariant violation) and this file does not.",
  "types": [
   {
+   "name": "AVAES",
+   "defined_in": "libavutil/aes_internal.h",
+   "_comment_agent": "Public forward declaration only. av_aes_alloc allocates aligned, zeroed private storage; av_aes_init copies 16/24/32 bytes into the inline round schedule. state is scratch, rounds/crypt select dispatch. No retained key or other resource. Invalid key bits alter rounds/crypt before returning EINVAL, so validate before safe reinitialization. Every observed holder exclusively accesses its context and frees it with av_free/av_freep. No clone API; no Send/Sync asserted.",
+   "fields": [
+    {
+     "name": "crypt",
+     "ptr": {
+      "scalar": {
+       "by_val": true
+      },
+      "array": null,
+      "string": false,
+      "owned": false,
+      "borrowed": {
+       "lifetime": "static"
+      },
+      "nullable": true,
+      "mutable": false,
+      "note": "av_aes_alloc zeroes crypt (construction only); av_aes_init and ff_init_aes_x86 replace it with process-lifetime C/assembly functions. No ownership or captured caller data. Initialized contexts have a non-null crypt function. Internal, not published in aes.h."
+     }
+    }
+   ]
+  },
+  {
+   "name": "AVAESCTR",
+   "defined_in": "libavutil/aes_ctr.c",
+   "_comment_agent": "Public forward declaration only. Counter[16], encrypted_counter[16], block_offset and inline AVAES, no owned/borrowed pointer fields. av_aes_ctr_alloc uses av_mallocz; init copies key, initializes embedded AES, resets counter/offset; av_aes_ctr_free calls av_free without reading storage. get_iv returns a borrowed pointer into counter, invalidated by free and changed by crypt/setters/reinit. No clone API. C never retains caller key, IV or processing buffers.",
+   "fields": []
+  },
+  {
    "name": "AVAlphaMode",
    "defined_in": "libavutil/pixfmt.h",
    "_comment_agent": "C enum (c_uint under bindgen), no fields, no lifecycle. Open value set: AVFrame.alpha_mode is a public field C users write directly, frame.c copies it verbatim, and av_alpha_mode_from_name returns AVERROR(EINVAL) (-22, i.e. 0xffffffea as c_uint) typed as enum AVAlphaMode; av_alpha_mode_name maps (unsigned)mode >= AVALPHA_MODE_NB to NULL. AVALPHA_MODE_NB is 'Not part of ABI'. Zero (UNSPECIFIED) is the zeroed and get_frame_defaults value. Wrapped as a transparent newtype accepting every bit pattern.",
@@ -937,6 +967,190 @@
   {
    "name": "av_add_stable",
    "defined_in": "libavutil/mathematics.c"
+  },
+  {
+   "name": "av_aes_alloc",
+   "defined_in": "libavutil/aes.c",
+   "lifetime": {
+    "for": "return",
+    "is_dropper": false,
+    "is_disposer": false,
+    "is_cloner": null,
+    "is_constructor": {
+     "alloc": true,
+     "init": false
+    }
+   },
+   "ptr_ret": {
+    "ptr": {
+     "scalar": {
+      "by_val": true
+     },
+     "array": null,
+     "string": false,
+     "owned": true,
+     "borrowed": null,
+     "nullable": true,
+     "mutable": true,
+     "note": "Fresh aligned av_mallocz private body; construction-phase storage, not yet usable for crypt. Caller releases with av_free (AES) or av_aes_ctr_free (CTR)."
+    }
+   }
+  },
+  {
+   "name": "av_aes_ctr_alloc",
+   "defined_in": "libavutil/aes_ctr.c",
+   "lifetime": {
+    "for": "return",
+    "is_dropper": false,
+    "is_disposer": false,
+    "is_cloner": null,
+    "is_constructor": {
+     "alloc": true,
+     "init": false
+    }
+   },
+   "ptr_ret": {
+    "ptr": {
+     "scalar": {
+      "by_val": true
+     },
+     "array": null,
+     "string": false,
+     "owned": true,
+     "borrowed": null,
+     "nullable": true,
+     "mutable": true,
+     "note": "Fresh aligned av_mallocz private body; construction-phase storage, not yet usable for crypt. Caller releases with av_free (AES) or av_aes_ctr_free (CTR)."
+    }
+   }
+  },
+  {
+   "name": "av_aes_ctr_free",
+   "defined_in": "libavutil/aes_ctr.c",
+   "lifetime": {
+    "for": "a",
+    "is_dropper": true,
+    "is_disposer": false,
+    "is_cloner": null,
+    "is_constructor": null
+   },
+   "ptr_args": [
+    {
+     "name": "a",
+     "ptr": {
+      "scalar": {
+       "by_val": true
+      },
+      "array": null,
+      "string": false,
+      "owned": true,
+      "borrowed": null,
+      "nullable": true,
+      "mutable": true,
+      "note": "Consumes av_malloc-family storage; no reads, so accepts allocated but not initialized contexts and null."
+     }
+    }
+   ]
+  },
+  {
+   "name": "av_aes_ctr_init",
+   "defined_in": "libavutil/aes_ctr.c",
+   "lifetime": {
+    "for": "a",
+    "is_dropper": false,
+    "is_disposer": false,
+    "is_cloner": null,
+    "is_constructor": {
+     "alloc": false,
+     "init": true
+    }
+   },
+   "ptr_args": [
+    {
+     "name": "a",
+     "ptr": {
+      "scalar": {
+       "by_val": true
+      },
+      "array": null,
+      "string": false,
+      "owned": false,
+      "borrowed": {
+       "lifetime": "call"
+      },
+      "nullable": false,
+      "mutable": true,
+      "note": "Exclusively borrowed full private body; may be initialized in place or reinitialized. Not retained."
+     }
+    },
+    {
+     "name": "key",
+     "ptr": {
+      "scalar": null,
+      "array": {
+       "by_val": true
+      },
+      "string": false,
+      "owned": false,
+      "borrowed": {
+       "lifetime": "call"
+      },
+      "nullable": false,
+      "mutable": false,
+      "note": "Reads and copies exactly key_bits/8 bytes (AES valid sizes 16/24/32) or 16 bytes (CTR), retains no pointer."
+     }
+    }
+   ]
+  },
+  {
+   "name": "av_aes_init",
+   "defined_in": "libavutil/aes.c",
+   "lifetime": {
+    "for": "a",
+    "is_dropper": false,
+    "is_disposer": false,
+    "is_cloner": null,
+    "is_constructor": {
+     "alloc": false,
+     "init": true
+    }
+   },
+   "ptr_args": [
+    {
+     "name": "a",
+     "ptr": {
+      "scalar": {
+       "by_val": true
+      },
+      "array": null,
+      "string": false,
+      "owned": false,
+      "borrowed": {
+       "lifetime": "call"
+      },
+      "nullable": false,
+      "mutable": true,
+      "note": "Exclusively borrowed full private body; may be initialized in place or reinitialized. Not retained."
+     }
+    },
+    {
+     "name": "key",
+     "ptr": {
+      "scalar": null,
+      "array": {
+       "by_val": true
+      },
+      "string": false,
+      "owned": false,
+      "borrowed": {
+       "lifetime": "call"
+      },
+      "nullable": false,
+      "mutable": false,
+      "note": "Reads and copies exactly key_bits/8 bytes (AES valid sizes 16/24/32) or 16 bytes (CTR), retains no pointer."
+     }
+    }
+   ]
   },
   {
    "name": "av_alpha_mode_from_name",
