@@ -1,0 +1,20 @@
+{
+ "ptr_args": {
+  "0": {
+   "ptr": {
+    "scalar": {
+     "by_val": true
+    },
+    "array": null,
+    "string": false,
+    "owned": false,
+    "borrowed": {
+     "lifetime": "arg:ctx"
+    },
+    "nullable": true,
+    "mutable": true,
+    "note": "AVClass-enabled object (first member a const AVClass *), borrowed mutably for the call and not retained: av_opt_set(ctx, key, val, AV_OPT_SEARCH_CHILDREN) writes each option's field at its offset, releasing the field's previous value (av_freep for strings and binaries, av_dict_free, array frees) and storing fresh av_malloc-family values that ctx then owns (av_opt_free releases them). Children reached through the class's child_next are written likewise. Also the av_log context. NULL, or a NULL class, makes every key fail with AVERROR_OPTION_NOT_FOUND. Not touched when opts is NULL or empty. Each value reaches C UB exactly as av_opt_set's val does (see there). Wrapped as the safe opt::ObjectMut::set_options_string (options wave-0 batch-1 review), which refuses a list holding any such value before C runs."
+   }
+  }
+ }
+}

@@ -1,0 +1,20 @@
+{
+ "ptr_args": {
+  "10": {
+   "ptr": {
+    "scalar": {
+     "by_val": true
+    },
+    "array": null,
+    "string": false,
+    "owned": false,
+    "borrowed": {
+     "lifetime": "arg:log_ctx"
+    },
+    "nullable": true,
+    "mutable": false,
+    "note": "Parent log context (an AVClass-enabled object) of the parser's \"Eval\" context, read by av_log during the call only; NULL for none. The default callback names the parent too, calling its class's item_name and get_category on it, so it must be an object those callbacks accept: a live object of its class, not merely a struct that starts with the class pointer, unless the class's item_name is NULL or av_default_item_name and it has no get_category (opt::BareObject admits only such classes since the options wave-0 batch-1 review). Wrapped as Option<opt::ObjectRef>."
+   }
+  }
+ }
+}
