@@ -1,0 +1,81 @@
+{
+  "method": {
+    "rust": "RUSTFLAGS=-C instrument-coverage; cargo +nightly test -p ffmpeg --lib --tests -- refstruct buffer --skip compile_fail; nightly llvm-profdata merge + llvm-cov export -summary-only over the lib, equiv, ub_safe and ub_unsafe binaries, reported for the two homes (whole files, so wave 0's type items in them are included)",
+    "c": "the same run with CRUSTIFY_FFMPEG_VARIANT=coverage and GCOV_PREFIX; gcov -b -c -f over refstruct.c and buffer.c, reported for the workset's functions (av_refstruct_allocz is a header inline over av_refstruct_alloc_ext_c)",
+    "note": "measured on the landed tree (wave tip 2161c1d053 plus this review). Every line of the workset's C functions runs. The one missed Rust line in refstruct.rs is the pool up-ref's narrow-target refusal (`return false` when COUNT_IS_WIDE is false), unreachable on the 64-bit host. The buffer.rs misses belong to wave 0 type batch 1 (BufferRef::ptr_eq and a unit-test closure), outside this workset; every line of default_free runs."
+  },
+  "rust": {
+    "libavutil/buffer.rs": {
+      "regions": {
+        "count": 248,
+        "percent": 97.18
+      },
+      "functions": {
+        "count": 25,
+        "percent": 92
+      },
+      "lines": {
+        "count": 199,
+        "percent": 96.48
+      }
+    },
+    "libavutil/refstruct.rs": {
+      "regions": {
+        "count": 416,
+        "percent": 99.76
+      },
+      "functions": {
+        "count": 52,
+        "percent": 100
+      },
+      "lines": {
+        "count": 292,
+        "percent": 99.66
+      }
+    }
+  },
+  "c": {
+    "av_refstruct_exclusive": {
+      "lines": {
+        "count": 4,
+        "percent": 100.0
+      }
+    },
+    "av_refstruct_replace": {
+      "lines": {
+        "count": 9,
+        "percent": 100.0
+      }
+    },
+    "av_refstruct_ref_c": {
+      "lines": {
+        "count": 4,
+        "percent": 100.0
+      }
+    },
+    "av_refstruct_ref": {
+      "lines": {
+        "count": 4,
+        "percent": 100.0
+      }
+    },
+    "av_refstruct_unref": {
+      "lines": {
+        "count": 11,
+        "percent": 100.0
+      }
+    },
+    "av_refstruct_alloc_ext_c": {
+      "lines": {
+        "count": 14,
+        "percent": 100.0
+      }
+    },
+    "av_buffer_default_free": {
+      "lines": {
+        "count": 3,
+        "percent": 100.0
+      }
+    }
+  }
+}

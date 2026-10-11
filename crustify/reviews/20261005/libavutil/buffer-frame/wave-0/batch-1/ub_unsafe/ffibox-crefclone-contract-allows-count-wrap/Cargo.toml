@@ -1,0 +1,10 @@
+[package]
+name = "ffibox-crefclone-contract-allows-count-wrap"
+version = "0.0.0"
+edition = "2024"
+publish = false
+
+[workspace]
+
+[dependencies]
+ffibox = { path = "/opt/venv/share/ffibox" }
