@@ -1,0 +1,51 @@
+{
+  "ptr_args": {
+    "0": {
+      "ptr": {
+        "scalar": {
+          "by_val": true
+        },
+        "array": null,
+        "string": false,
+        "owned": false,
+        "borrowed": {
+          "lifetime": "arg:obj"
+        },
+        "nullable": false,
+        "mutable": true,
+        "note": "AVClass-bearing object (first member a non-NULL const AVClass *), written for the call: the option's field at its offset (or a child's, with AV_OPT_SEARCH_CHILDREN) is replaced, releasing the owned value it held. Wrapped as opt::ObjectMut (exclusive borrow). The array field ({T *elems; unsigned count}) is grown, shrunk or replaced through av_realloc_array / av_calloc, releasing removed or replaced elements with opt_free_elem. BINARY arrays overrun: opt_type_desc gives elements pointer size, but opt_copy_elem/set_string_binary write the int length after the pointer (ASan heap-buffer-overflow, opt.c:373), so inserts into them are refused. Removal (NULL val) releases the range and memmoves the tail before av_realloc_array shrinks the block; when that realloc fails (an av_max_alloc limit below the new size) C returns ENOMEM without storing the new count, so the last slots repeat shifted elements or hold released ones, which a later read or av_opt_free uses again (ASan double-free at opt.c:132): ObjectMut::remove_array writes the new count back after that ENOMEM."
+      }
+    },
+    "1": {
+      "ptr": {
+        "scalar": null,
+        "array": null,
+        "string": true,
+        "owned": false,
+        "borrowed": {
+          "lifetime": "arg:name"
+        },
+        "nullable": false,
+        "mutable": false,
+        "note": "Option name, compared with strcmp during the call only. Must not be NULL."
+      }
+    },
+    "6": {
+      "ptr": {
+        "scalar": null,
+        "array": {
+          "by_val": true
+        },
+        "string": false,
+        "owned": false,
+        "borrowed": {
+          "lifetime": "arg:val"
+        },
+        "nullable": true,
+        "mutable": false,
+        "note": "nb_elems elements of the C type val_type names (type-erased): copied (opt_copy_elem: strings av_strdup'd, dicts and chlayouts deep-copied) when val_type is the array's element type, parsed as av_opt_set when STRING, converted with write_number for INT/INT64/FLOAT/DOUBLE/RATIONAL, else ENOSYS. Read for the call only; the caller keeps ownership. NULL removes nb_elems elements from start_elem. Wrapped generically over the sealed opt::ArrayInput trait (T::C, T::TYPE; opt::ArrayElement is av_opt_get_array's output trait): insert_array, replace_array (AV_OPT_ARRAY_REPLACE), remove_array (NULL). A RATIONAL value converts with write_number(num 1, den, intnum num), so into an integer array it stores llrint(1/den)*num, not the rounded quotient av_opt_set_q stores (3/2 -> 0 vs 2)."
+      }
+    }
+  },
+  "lifetime": null
+}

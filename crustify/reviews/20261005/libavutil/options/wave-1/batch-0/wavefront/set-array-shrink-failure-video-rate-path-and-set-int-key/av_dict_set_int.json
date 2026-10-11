@@ -1,0 +1,47 @@
+{
+  "ptr_args": {
+    "0": {
+      "ptr": {
+        "scalar": {
+          "by_ref": {
+            "owned": true,
+            "borrowed": null
+          }
+        },
+        "array": null,
+        "string": false,
+        "owned": false,
+        "borrowed": {
+          "lifetime": "arg:pm"
+        },
+        "nullable": false,
+        "mutable": true,
+        "note": "The caller's AVDictionary * slot (dereferenced unconditionally) and the dictionary it owns, NULL for the empty one. Every insertion goes through av_dict_set, which av_mallocz's the dictionary when *pm is NULL and frees it (NULLing *pm) when its count drops to 0; a failed pair leaves the pairs before it stored. Rust: Dict::with_slot hands it the slot."
+      }
+    },
+    "1": {
+      "ptr": {
+        "scalar": null,
+        "array": null,
+        "string": true,
+        "owned": true,
+        "borrowed": {
+          "lifetime": "arg:key"
+        },
+        "nullable": true,
+        "mutable": false,
+        "note": "Key passed to av_dict_set with the caller's flags (AV_DICT_DONT_STRDUP_VAL dropped, DONT_STRDUP_KEY kept: then ownership of an av_malloc'd key transfers as for av_dict_set). NULL fails with EINVAL."
+      }
+    }
+  },
+  "lifetime": {
+    "for": "pm",
+    "is_dropper": false,
+    "is_disposer": false,
+    "is_cloner": null,
+    "is_constructor": {
+      "alloc": true,
+      "init": false
+    }
+  }
+}
