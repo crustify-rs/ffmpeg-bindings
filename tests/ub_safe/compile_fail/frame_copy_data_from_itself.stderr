@@ -1,0 +1,9 @@
+error[E0502]: cannot borrow `frame` as immutable because it is also borrowed as mutable
+ --> tests/ub_safe/compile_fail/frame_copy_data_from_itself.rs
+  |
+  |     let mut dst = frame.as_mut();
+  |                   ----- mutable borrow occurs here
+  |     dst.copy_data_from(frame.as_ref()).unwrap();
+  |         -------------- ^^^^^ immutable borrow occurs here
+  |         |
+  |         mutable borrow later used by call

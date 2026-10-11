@@ -31,7 +31,14 @@
 //! [`Frame::new`] (`av_frame_alloc`) and freed with `av_frame_free`;
 //! [`FrameMut::reset`] (`av_frame_unref`) empties it and
 //! [`FrameRef::try_clone`] (`av_frame_clone`) copies it, sharing its
-//! buffers. Rust reads a plane only through the buffer reference holding it
+//! buffers. [`FrameMut::alloc_buffers`] (`av_frame_get_buffer`) gives it
+//! zeroed planes for its format and dimensions or samples, and
+//! [`FrameMut::make_writable`] copies shared ones; frames reference, replace
+//! and move into one another ([`FrameMut::try_clone_from`],
+//! [`FrameMut::assign`], [`FrameMut::move_from`]) and copy each other's
+//! planes and properties ([`FrameMut::copy_data_from`],
+//! [`FrameMut::copy_props_from`]), checked against the buffers the planes
+//! lie in. Rust reads a plane only through the buffer reference holding it
 //! ([`FrameRef::plane`]), and writes it only while that buffer has no other
 //! reference ([`FrameMut::plane_mut`]); the format, dimensions, sample count
 //! and line sizes are plain values. Its [`flags`](FrameRef::flags) and
@@ -57,12 +64,14 @@ use super::buffer::{
 use super::channel_layout::{ChannelLayout, ChannelLayoutMut, ChannelLayoutRef, ChannelLayoutVal};
 use super::dict::{Dict, DictionaryBox, DictionaryRef};
 use super::ffi;
+use super::imgutils;
+use super::pixdesc::{PixelFormatDescriptorRef, PixelFormatFlags};
 use super::pixfmt::{
     AlphaMode, ChromaLocation, ColorPrimaries, ColorRange, ColorSpace, ColorTransfer, PixelFormat,
 };
 use super::rational::{Rational, RationalMut, RationalRef};
 use super::refstruct;
-use super::samplefmt::SampleFormat;
+use super::samplefmt::{self, SampleFormat};
 
 /// Wraps: AVFrameSideDataType
 /// Handwritten
@@ -2858,9 +2867,11 @@ unsafe impl Send for FrameMut<'_> {}
 
 // Through a shared handle, Rust reads the frame's fields, its bytes through
 // its buffer references (`Sync`), its side data, dictionary and channel
-// layout (`Sync`, read only), and C reads it in `av_frame_clone`, which only
-// reads its source while it counts new references to the shared buffers and
-// RefStruct objects atomically.
+// layout (`Sync`, read only), and C reads it: in `av_frame_is_writable`,
+// `av_frame_get_plane_buffer` and `av_frame_get_side_data`, and as the source
+// of `av_frame_clone`, `av_frame_ref`, `av_frame_replace`, `av_frame_copy`
+// and `av_frame_copy_props`, which only read their source while they count
+// new references to the shared buffers and RefStruct objects atomically.
 // SAFETY: nothing above writes; bytes are written only through an exclusive
 // handle whose buffer has a single reference, so not while another
 // reference, or a shared handle to this frame, exists.
@@ -3618,7 +3629,7 @@ impl<'a> FrameRef<'a> {
     /// 0) has its data copied instead, into buffers C allocates for its
     /// format and dimensions or sample count and channel layout. For a frame
     /// with no planes, such as a new one, that copy fails, and so does the
-    /// clone: use C's `av_frame_copy_props` for properties alone. C leaves
+    /// clone: [`FrameMut::copy_props_from`] copies properties alone. C leaves
     /// the bytes of those buffers outside the copied lines (padding, and
     /// alignment gaps) uninitialised; here they are zero.
     ///
@@ -3648,13 +3659,13 @@ impl<'a> FrameRef<'a> {
             // uninitialised bytes around the copied lines, which the type's
             // invariant forbids: trade them for a zeroed set holding the
             // same copy.
-            let mut zeroed = self.copy_into_zeroed_buffers();
-            if zeroed.is_null() {
+            let Ok(zeroed) = self.copy_into_zeroed_buffers() else {
                 // SAFETY: the copy C made, which nothing else reaches; its
                 // release reads none of its bytes.
                 unsafe { ffi::av_frame_free(&mut copy) };
                 return None;
-            }
+            };
+            let mut zeroed = zeroed.as_ptr();
             // SAFETY: two live frames C built, which nothing else reaches;
             // `zeroed` then holds the copy's buffers, which its release frees
             // without reading their bytes.
@@ -3672,41 +3683,63 @@ impl<'a> FrameRef<'a> {
     /// A new frame of this frame's geometry, holding buffers C allocates for
     /// it (`av_frame_get_buffer`, as `av_frame_ref` does) whose bytes are
     /// zeroed before C copies this frame's data into them
-    /// (`av_frame_copy`); NULL when C fails.
-    fn copy_into_zeroed_buffers(&self) -> *mut ffi::AVFrame {
+    /// (`av_frame_copy`). Fails with C's error, `AVERROR(ENOMEM)` when C
+    /// cannot allocate the frame, and `AVERROR(EINVAL)` when the copy would
+    /// reach bytes it must not ([`copy_is_sound`]).
+    fn copy_into_zeroed_buffers(&self) -> Result<NonNull<ffi::AVFrame>, c_int> {
         // SAFETY: no precondition; NULL when C cannot allocate.
         let mut f = unsafe { ffi::av_frame_alloc() };
         if f.is_null() {
-            return f;
+            return Err(ENOMEM);
         }
         let src = self.as_ptr();
         // SAFETY: `f` is a fresh frame nothing else reaches and `src` a live
         // one, read only. C copies the layout (by the invariant, one C
-        // accepts), allocates buffers for the geometry, whose bytes are
-        // zeroed over each reference's window before C copies `src`'s planes
-        // into them, through the geometry it copied the planes with in
-        // `av_frame_clone`; every failure frees `f`.
-        unsafe {
+        // accepts) and allocates buffers for the geometry, whose bytes are
+        // zeroed over each reference's window, which makes `f` a frame
+        // satisfying the invariant.
+        let mut ret = unsafe {
             (*f).format = (*src).format;
             (*f).width = (*src).width;
             (*f).height = (*src).height;
             (*f).nb_samples = (*src).nb_samples;
-            let ok =
-                ffi::av_channel_layout_copy(&raw mut (*f).ch_layout, &raw const (*src).ch_layout)
-                    >= 0
-                    && ffi::av_frame_get_buffer(f, 0) >= 0;
-            if ok {
+            let mut ret =
+                ffi::av_channel_layout_copy(&raw mut (*f).ch_layout, &raw const (*src).ch_layout);
+            if ret >= 0 {
+                ret = ffi::av_frame_get_buffer(f, 0);
+            }
+            if ret >= 0 {
                 let extra = usize::try_from((*f).nb_extended_buf).unwrap_or(0);
                 let extra = (0..extra).map(|i| (*f).extended_buf.add(i).read());
                 for buf in (*f).buf.into_iter().chain(extra).filter(|b| !b.is_null()) {
                     ptr::write_bytes((*buf).data, 0, (*buf).size);
                 }
             }
-            if !ok || ffi::av_frame_copy(f, src) < 0 {
-                ffi::av_frame_free(&mut f);
+            ret
+        };
+        if ret >= 0 {
+            // SAFETY: `f`, live and satisfying the invariant, read only while
+            // the check runs.
+            let copy = unsafe { FrameRef::from_ptr(f) }.expect("C allocated the frame");
+            ret = if copy_is_sound(copy, *self) {
+                // SAFETY: `f`, reached by nothing else, and `src`, read only:
+                // C copies `src`'s planes into `f`'s through the geometry
+                // it copied the planes with, reaching only what the check
+                // above allows.
+                unsafe { ffi::av_frame_copy(f, src) }
+            } else {
+                EINVAL
+            };
+        }
+        match NonNull::new(f) {
+            Some(f) if ret >= 0 => Ok(f),
+            _ => {
+                // SAFETY: `f`, nothing else's; its release reads none of its
+                // bytes.
+                unsafe { ffi::av_frame_free(&mut f) };
+                Err(ret)
             }
         }
-        f
     }
 }
 
@@ -4772,6 +4805,1133 @@ impl FrameMut<'_> {
     }
 }
 
+/// `AVERROR(ENOSYS)`.
+const ENOSYS: c_int = -(ffi::ENOSYS as c_int);
+
+/// The largest `align` [`FrameMut::alloc_buffers`] hands C: C sums four
+/// plane paddings and four alignments of the largest of 64 and `align` in an
+/// `int`, which overflows past `2^27`.
+const MAX_BUFFER_ALIGN: usize = 1 << 27;
+
+/// The bytes of a palette, which C copies whole from plane 1 of a palettized
+/// format.
+const PALETTE_SIZE: usize = 4 * 256;
+
+int_flags! {
+    /// The `AV_FRAME_CROP_*` flags of [`FrameMut::apply_cropping`].
+    CropFlags {
+        /// Crop exactly, even where that leaves the planes' pointers less
+        /// aligned than FFmpeg's routines expect: without it, C rounds the
+        /// left edge down to keep the alignment it can. C's own SIMD code
+        /// may crash on unaligned planes, so wrappers handing a frame cropped
+        /// this way (or with planes placed at any offset by
+        /// [`FrameMut::set_plane`]) to codecs or filters must check its
+        /// alignment.
+        UNALIGNED = ffi::AV_FRAME_CROP_UNALIGNED.0,
+    }
+}
+
+/// The bytes a C routine reaches from one plane pointer: `rows` rows of
+/// `len` bytes, `linesize` bytes apart (rows before the pointer for a
+/// negative one).
+#[derive(Clone, Copy, Debug)]
+struct Rows {
+    len: usize,
+    rows: usize,
+    linesize: isize,
+}
+
+impl Rows {
+    /// One run of `len` bytes.
+    fn run(len: usize) -> Self {
+        Self {
+            len,
+            rows: 1,
+            linesize: 0,
+        }
+    }
+
+    /// Whether every row lies inside a run of `size` bytes, whose byte
+    /// `offset` the plane pointer addresses.
+    fn fit(self, offset: usize, size: usize) -> bool {
+        let Some(last) = self.rows.checked_sub(1) else {
+            return true;
+        };
+        let Some(span) = last.checked_mul(self.linesize.unsigned_abs()) else {
+            return false;
+        };
+        let (first, end) = if self.linesize < 0 {
+            (offset.checked_sub(span), offset.checked_add(self.len))
+        } else {
+            let end = offset
+                .checked_add(span)
+                .and_then(|e| e.checked_add(self.len));
+            (Some(offset), end)
+        };
+        first.is_some() && end.is_some_and(|end| end <= size)
+    }
+}
+
+/// What C's `image_copy` (behind `av_image_copy2`) reaches of a `width` x
+/// `height` image: the row width and rows of each of planes 0 to 3 it copies,
+/// and whether it copies a palette from plane 1.
+#[derive(Clone, Copy, Debug, Default)]
+struct ImageReach {
+    planes: [Option<(usize, usize)>; 4],
+    palette: bool,
+}
+
+/// [`ImageReach`] for an image of `format`, as C computes it; `None` where
+/// C's own arithmetic is undefined whatever the planes: a negative width it
+/// copies as a `size_t` (palettized formats), a row width overflowing `int`
+/// ([`imgutils::linesize_overflows`]) or a chroma height of `INT_MIN`, which
+/// `AV_CEIL_RSHIFT` negates.
+fn image_reach(format: PixelFormat, width: c_int, height: c_int) -> Option<ImageReach> {
+    let mut reach = ImageReach::default();
+    let Some(desc) = format.descriptor() else {
+        // C copies nothing.
+        return Some(reach);
+    };
+    let flags = desc.flags();
+    if flags.contains(PixelFormatFlags::HWACCEL) {
+        return Some(reach);
+    }
+    let rows = |h: c_int| usize::try_from(h).unwrap_or(0);
+    if flags.contains(PixelFormatFlags::PALETTE) {
+        // `width` bytes of each row of plane 0, then the whole palette.
+        if width < 0 && height > 0 {
+            return None;
+        }
+        reach.planes[0] = Some((usize::try_from(width).unwrap_or(0), rows(height)));
+        reach.palette = true;
+        return Some(reach);
+    }
+    let count = usize::from(desc.component_count());
+    let planes = desc.components().iter().take(count).map(|c| c.plane() + 1);
+    let planes = usize::try_from(planes.max().unwrap_or(0)).unwrap_or(0);
+    for (i, slot) in reach.planes.iter_mut().enumerate().take(planes) {
+        let len = match imgutils::linesize(format, width, i) {
+            Ok(len) => len,
+            Err(_) if imgutils::linesize_overflows(format, width, i) => return None,
+            // C logs the failure and copies no further plane.
+            Err(_) => break,
+        };
+        let h = if i == 1 || i == 2 {
+            if height == c_int::MIN {
+                return None;
+            }
+            -((-height) >> desc.log2_chroma_h())
+        } else {
+            height
+        };
+        *slot = Some((len as usize, rows(h)));
+    }
+    Some(reach)
+}
+
+/// Whether `av_frame_copy(dst, src)` reaches only bytes it may: every row it
+/// writes lies inside a writable buffer reference of `dst`, every row it
+/// reads inside a buffer reference of `src` (the planes of a frame that is
+/// not reference counted were vouched for by their setter), it reads no
+/// `extended_data` entry past either frame's, and none of its own arithmetic
+/// is undefined or aborts. Copies C refuses before reaching a plane
+/// (different formats, a smaller destination, different sample counts or
+/// layouts, a NULL plane) pass: C reports them. Neither frame may hold a
+/// hardware frames context, whose copy C hands to `av_hwframe_transfer_data`.
+fn copy_is_sound(dst: FrameRef<'_>, src: FrameRef<'_>) -> bool {
+    if dst.format() != src.format() || dst.format() < 0 {
+        return true;
+    }
+    if dst.width() > 0 && dst.height() > 0 {
+        if dst.width() < src.width() || dst.height() < src.height() {
+            return true;
+        }
+        video_copy_is_sound(dst, src)
+    } else if dst.sample_count() > 0 && dst.channel_layout().is_valid() {
+        audio_copy_is_sound(dst, src)
+    } else {
+        true
+    }
+}
+
+/// [`copy_is_sound`] for `frame_copy_video`.
+fn video_copy_is_sound(dst: FrameRef<'_>, src: FrameRef<'_>) -> bool {
+    let format = dst.pixel_format();
+    let (dd, sd) = (dst.data_ptrs(), src.data_ptrs());
+    // C refuses NULL planes among the format's first.
+    let checked = format.plane_count().unwrap_or(0).min(4);
+    if (0..checked).any(|i| dd[i].is_null() || sd[i].is_null()) {
+        return true;
+    }
+    let Some(reach) = image_reach(format, src.width(), src.height()) else {
+        return false;
+    };
+    let (dl, sl) = (dst.linesizes(), src.linesizes());
+    for (i, extent) in reach.planes.iter().enumerate() {
+        let Some((len, rows)) = *extent else {
+            continue;
+        };
+        if dd[i].is_null() || sd[i].is_null() {
+            // C skips the plane.
+            continue;
+        }
+        let (dl, sl) = (dl[i] as isize, sl[i] as isize);
+        if len > dl.unsigned_abs() || len > sl.unsigned_abs() {
+            // C asserts a row fits its linesize, and aborts.
+            return false;
+        }
+        let at = |linesize| Rows {
+            len,
+            rows,
+            linesize,
+        };
+        if !dst.reaches(dd[i], at(dl), true) || !src.reaches(sd[i], at(sl), false) {
+            return false;
+        }
+    }
+    let palette = Rows::run(PALETTE_SIZE);
+    !reach.palette
+        || (!dd[1].is_null()
+            && !sd[1].is_null()
+            && dst.reaches(dd[1], palette, true)
+            && src.reaches(sd[1], palette, false))
+}
+
+/// [`copy_is_sound`] for `frame_copy_audio`, which reads one
+/// `extended_data` entry per plane of the destination's layout.
+fn audio_copy_is_sound(dst: FrameRef<'_>, src: FrameRef<'_>) -> bool {
+    let format = dst.sample_format();
+    let channels = dst.channel_layout().channel_count();
+    let planar = format.is_planar();
+    // A valid layout has channels.
+    let planes = if planar {
+        usize::try_from(channels).unwrap_or(0)
+    } else {
+        1
+    };
+    // C reads one entry per plane once the sample counts and layouts
+    // compare equal; where they differ, C refuses too, with the same error.
+    if planes > dst.extended_plane_count() || planes > src.extended_plane_count() {
+        return false;
+    }
+    let ((de, _), (se, _)) = (dst.extended_parts(), src.extended_parts());
+    let entry = |ext: *mut *mut u8, i: usize| {
+        // SAFETY: `i < planes`, at most the entries the frame holds there.
+        unsafe { ext.add(i).read() }
+    };
+    if (0..planes).any(|i| entry(de, i).is_null() || entry(se, i).is_null()) {
+        return true;
+    }
+    // `av_samples_copy`'s `int` products.
+    let bytes = c_int::try_from(format.bytes_per_sample()).unwrap_or(0);
+    let block = if planar {
+        Some(bytes)
+    } else {
+        bytes.checked_mul(channels)
+    };
+    let Some(size) = block.and_then(|b| dst.sample_count().checked_mul(b)) else {
+        return false;
+    };
+    let run = Rows::run(size as usize);
+    (0..planes)
+        .all(|i| dst.reaches(entry(de, i), run, true) && src.reaches(entry(se, i), run, false))
+}
+
+/// `ff_ctz` of `v` as C takes it, converted to `unsigned int`; `None` where
+/// that is zero, for which `__builtin_ctz` is undefined.
+fn c_ctz(v: usize) -> Option<u32> {
+    let v = v as c_uint;
+    (v != 0).then(|| v.trailing_zeros())
+}
+
+impl<'a> FrameRef<'a> {
+    /// Whether a C routine may reach `rows` from plane pointer `p`, a
+    /// non-NULL plane of this frame, writing them when `write`. In a
+    /// reference-counted frame, every row must lie inside the bytes of the
+    /// buffer reference `p` points into, which for a write must be writable;
+    /// the planes of a frame that is not reference counted were vouched for
+    /// by their setter.
+    fn reaches(&self, p: *const u8, rows: Rows, write: bool) -> bool {
+        if !self.is_counted() {
+            return true;
+        }
+        self.locate(p).is_some_and(|(buf, offset)| {
+            rows.fit(offset, buf.parts().1) && (!write || buf.is_writable())
+        })
+    }
+
+    /// Why C must not copy this frame's properties
+    /// (`av_frame_copy_props`) into a frame of `width` x `height`: a
+    /// reference it would add whose count could near wrapping
+    /// (`AVERROR(ENOMEM)`), or a side data entry it copies whose payload is
+    /// an empty window at NULL, which C `memcpy`s from (undefined even for
+    /// no byte; `AVERROR(EINVAL)`).
+    fn props_copy_refusal(&self, width: c_int, height: c_int) -> Option<c_int> {
+        let wide = !self.has_private_ref() || refstruct::COUNT_IS_WIDE;
+        if !wide
+            || !self
+                .opaque_ref()
+                .is_none_or(|b| may_add_reference(b.ref_count()))
+        {
+            return Some(ENOMEM);
+        }
+        let resized = self.width() != width || self.height() != height;
+        let copied = |e: &SideDataRef<'_>| !(resized && e.kind() == SideDataType::PAN_SCAN);
+        let null = |e: SideDataRef<'_>| {
+            // SAFETY: a read of the `data` field projected through the shared
+            // handle's pointer to a live `AVFrameSideData`.
+            unsafe { addr_of!((*e.as_ptr()).data).read() }.is_null()
+        };
+        self.side_data()
+            .iter()
+            .filter(copied)
+            .any(null)
+            .then_some(EINVAL)
+    }
+
+    /// The offsets C's `calc_cropping_offsets` gives the leading `planes`
+    /// planes when the left edge crops `left` columns; `None` where C fails
+    /// (`AVERROR_BUG`: a plane no component of the format lies in).
+    fn crop_offsets(
+        &self,
+        desc: PixelFormatDescriptorRef<'_>,
+        planes: usize,
+        left: usize,
+    ) -> Option<[usize; 4]> {
+        let mut offsets = [0; 4];
+        let linesizes = self.linesizes();
+        let palette = desc.flags().contains(PixelFormatFlags::PALETTE);
+        let count = usize::from(desc.component_count());
+        for i in 0..planes {
+            let chroma = i == 1 || i == 2;
+            let (shift_x, shift_y) = if chroma {
+                (desc.log2_chroma_w(), desc.log2_chroma_h())
+            } else {
+                (0, 0)
+            };
+            if palette && i == 1 {
+                offsets[1] = 0;
+                break;
+            }
+            let comp = desc
+                .components()
+                .iter()
+                .take(count)
+                .find(|c| c.plane() as usize == i)?;
+            // C computes in `size_t`, `int`s converted to it.
+            let rows = (self.crop_top() >> shift_y).wrapping_mul(linesizes[i] as isize as usize);
+            let columns = (left >> shift_x).wrapping_mul(comp.step() as isize as usize);
+            offsets[i] = rows.wrapping_add(columns);
+        }
+        Some(offsets)
+    }
+
+    /// Whether `av_frame_apply_cropping` with `flags` stays defined and
+    /// leaves every plane pointer inside the buffer reference it pointed
+    /// into: it mirrors C's checks and offset arithmetic. Cropping C refuses
+    /// before moving a plane passes: C reports it.
+    fn crop_is_sound(&self, flags: CropFlags) -> bool {
+        let (width, height) = (self.width(), self.height());
+        if width <= 0 || height <= 0 {
+            return true;
+        }
+        let (top, bottom) = (self.crop_top(), self.crop_bottom());
+        let (left, right) = (self.crop_left(), self.crop_right());
+        // C's range checks, in `size_t`.
+        let int_max = c_int::MAX as usize;
+        if left >= int_max.wrapping_sub(right)
+            || top >= int_max.wrapping_sub(bottom)
+            || left.wrapping_add(right) >= width as usize
+            || top.wrapping_add(bottom) >= height as usize
+        {
+            return true;
+        }
+        let Some(desc) = self.pixel_format().descriptor() else {
+            return true;
+        };
+        let fmt_flags = desc.flags();
+        if fmt_flags.contains(PixelFormatFlags::BITSTREAM)
+            || fmt_flags.contains(PixelFormatFlags::HWACCEL)
+        {
+            // C crops the right and bottom edges alone, moving no plane.
+            return true;
+        }
+        let data = self.data_ptrs();
+        let planes = data.iter().take_while(|p| !p.is_null()).count();
+        // C reads an offset for every leading plane, but computes them only
+        // for planes 0 and 1 of a palettized format: the others are
+        // uninitialised, past plane 3 outside its array, and past plane 7
+        // it reads `data` itself out of bounds.
+        if fmt_flags.contains(PixelFormatFlags::PALETTE) && planes > 2 {
+            return false;
+        }
+        let Some(mut offsets) = self.crop_offsets(desc, planes, left) else {
+            return true;
+        };
+        // Past here a format of planes C computed, so at most 4 (or 2).
+        if !flags.contains(CropFlags::UNALIGNED) {
+            let unset = c_int::MAX as u32;
+            let crop_align = match left {
+                0 => unset,
+                _ => match c_ctz(left) {
+                    Some(z) => z,
+                    None => return false,
+                },
+            };
+            let mut min_align = unset;
+            for &offset in &offsets[..planes] {
+                let align = match offset {
+                    0 => unset,
+                    _ => match c_ctz(offset) {
+                        Some(z) => z,
+                        None => return false,
+                    },
+                };
+                min_align = min_align.min(align);
+            }
+            if crop_align < min_align {
+                return true;
+            }
+            if min_align < 5 && crop_align != unset {
+                // `1 << shift` in `int`.
+                let shift = 5 + crop_align - min_align;
+                if shift > 30 {
+                    return false;
+                }
+                let mask = !((1 << shift) - 1) as isize as usize;
+                match self.crop_offsets(desc, planes, left & mask) {
+                    Some(o) => offsets = o,
+                    None => return true,
+                }
+            }
+        }
+        // A moved plane must stay inside the reference it points into. The
+        // planes of a frame that is not reference counted are memory lent
+        // for the pointer their setter was given, which a move would leave.
+        let counted = self.is_counted();
+        offsets[..planes].iter().zip(data).all(|(&offset, p)| {
+            offset == 0
+                || counted
+                    && self.locate(p).is_some_and(|(buf, at)| {
+                        at.checked_add(offset)
+                            .is_some_and(|end| end < buf.parts().1)
+                    })
+        })
+    }
+
+    /// Wraps: av_frame_is_writable
+    ///
+    /// Whether every plane of the frame is this frame's alone to write: it is
+    /// reference counted, and none of its buffer references has another
+    /// reference or is read-only. Through a shared handle the answer may be
+    /// stale by the time it is read, as another holder of the handle may
+    /// clone the frame meanwhile; through an exclusive one it holds until the
+    /// frame or one of its references is cloned.
+    #[must_use]
+    pub fn is_writable(&self) -> bool {
+        // SAFETY: a live frame satisfying the type's invariant, which C only
+        // reads despite its non-const pointer: `buf`, `extended_buf` and each
+        // reference's buffer count (acquire-loaded) and flags.
+        unsafe { ffi::av_frame_is_writable(self.as_ptr().cast_mut()) != 0 }
+    }
+
+    /// Wraps: av_frame_get_plane_buffer
+    ///
+    /// The buffer reference holding plane or channel `plane` (an
+    /// [`extended_plane`](Self::extended_plane) index), borrowed from the
+    /// frame. C looks among the planes the frame's description says it has
+    /// (4 for video, one per channel of planar audio and one for packed
+    /// audio): `None` past those, for a NULL plane, and for one inside none
+    /// of the references `buf` holds up to its first gap and `extended_buf`.
+    /// Also `None` past the entries the frame holds, which C would read past
+    /// `extended_data`'s array for.
+    #[must_use]
+    pub fn plane_buffer(&self, plane: usize) -> Option<BufferReferenceRef<'a>> {
+        if plane >= self.extended_plane_count() {
+            return None;
+        }
+        let plane = c_int::try_from(plane).ok()?;
+        // SAFETY: a live frame, which C only reads: entry `plane` of its
+        // `extended_data`, one it holds (checked above), and the windows of
+        // its references.
+        let buf = unsafe { ffi::av_frame_get_plane_buffer(self.as_ptr(), plane) };
+        // SAFETY: NULL, or one of the frame's own references, which nothing
+        // releases or replaces while the frame is borrowed shared.
+        unsafe { BufferReferenceRef::from_ptr(buf) }
+    }
+
+    /// Wraps: av_frame_get_side_data
+    ///
+    /// The frame's first side data entry of `kind`, borrowed from it; `None`
+    /// when it has none.
+    #[must_use]
+    pub fn find_side_data(&self, kind: SideDataType) -> Option<SideDataRef<'a>> {
+        // SAFETY: a live frame, whose side data array C only reads; it
+        // returns one of its entries, or NULL.
+        let entry = unsafe { ffi::av_frame_get_side_data(self.as_ptr(), kind.into_raw()) };
+        // SAFETY: NULL, or an entry the frame owns, which nothing changes or
+        // frees while the frame is borrowed shared.
+        unsafe { SideDataRef::from_ptr(entry) }
+    }
+}
+
+impl FrameMut<'_> {
+    /// Releases every buffer reference holding planes, the `extended_buf`
+    /// array and a separate `extended_data` array, and clears every plane
+    /// pointer, repairing on the way what a failed `av_frame_get_buffer`
+    /// leaves: an `extended_data` of NULL, and `extended_buf` entries of
+    /// NULL.
+    fn release_planes(&mut self) {
+        let p = self.as_mut_ptr();
+        // Every field is read and written through raw places; what is left
+        // is a frame that holds no plane, as the invariant allows.
+        // SAFETY: a live frame, reached through the exclusive handle: `buf`
+        // and `extended_buf` entries are NULL or references the frame owns
+        // (`av_buffer_unref` takes either), `extended_buf` and a separate
+        // `extended_data` are NULL or blocks it owns.
+        unsafe {
+            let own = addr_of_mut!((*p).data).cast::<*mut u8>();
+            let ext = addr_of!((*p).extended_data).read();
+            if ext != own {
+                ffi::av_free(ext.cast());
+            }
+            addr_of_mut!((*p).extended_data).write(own);
+            for i in 0..NUM_DATA_POINTERS {
+                ffi::av_buffer_unref(
+                    addr_of_mut!((*p).buf)
+                        .cast::<*mut ffi::AVBufferRef>()
+                        .add(i),
+                );
+            }
+            let bufs = addr_of!((*p).extended_buf).read();
+            let count = usize::try_from(addr_of!((*p).nb_extended_buf).read()).unwrap_or(0);
+            if !bufs.is_null() {
+                for i in 0..count {
+                    ffi::av_buffer_unref(bufs.add(i));
+                }
+            }
+            ffi::av_freep(addr_of_mut!((*p).extended_buf).cast());
+            addr_of_mut!((*p).nb_extended_buf).write(0);
+            addr_of_mut!((*p).data).write([ptr::null_mut(); NUM_DATA_POINTERS]);
+        }
+    }
+
+    /// Trades the buffers C's copy of `src`'s data gave the frame, whose
+    /// bytes around the copied lines are uninitialised, for zeroed ones
+    /// holding the same copy; on failure the frame is reset, as C resets a
+    /// frame whose copy fails.
+    fn zero_copied_buffers(&mut self, src: FrameRef<'_>) -> Result<(), c_int> {
+        let p = self.as_mut_ptr();
+        match src.copy_into_zeroed_buffers() {
+            Ok(zeroed) => {
+                let mut zeroed = zeroed.as_ptr();
+                // SAFETY: the frame, reached through the exclusive handle, and
+                // a fresh frame C built, distinct and live; `zeroed` then
+                // holds the copy's buffers, which its release frees without
+                // reading their bytes.
+                unsafe {
+                    Frame::swap_planes(p, zeroed);
+                    ffi::av_frame_free(&mut zeroed);
+                }
+                Ok(())
+            }
+            Err(ret) => {
+                // SAFETY: the frame, live; its release reads none of the
+                // copy's bytes.
+                unsafe { ffi::av_frame_unref(p) };
+                Err(ret)
+            }
+        }
+    }
+
+    /// Wraps: av_frame_ref
+    ///
+    /// Makes this frame a new reference to `src`'s data, as
+    /// [`FrameRef::try_clone`] makes a new frame: first reset, it takes
+    /// `src`'s properties, side data (sharing each payload's buffer),
+    /// metadata, channel layout and new references to its buffers, so no
+    /// plane in them is writable while both frames live. A `src` that is
+    /// not reference counted has its data copied into buffers C allocates
+    /// (zeroed here around the copied lines).
+    ///
+    /// # Errors
+    ///
+    /// The frame is reset on every error. `AVERROR(ENOMEM)` when C cannot
+    /// allocate or a buffer's count would near wrapping; for a `src` that is
+    /// not reference counted, C's error copying its data (`AVERROR(EINVAL)`
+    /// for one without planes, such as a new frame), and `AVERROR(EINVAL)`
+    /// when C would read its planes past its `extended_data`, as
+    /// [`try_clone`](FrameRef::try_clone) refuses.
+    ///
+    /// ```
+    /// use ffmpeg::libavutil::buffer::BufferReference;
+    /// use ffmpeg::libavutil::frame::Frame;
+    /// let mut src = Frame::new().unwrap();
+    /// src.as_mut().set_buffer(0, Some(BufferReference::alloc_zeroed(8).unwrap()));
+    /// src.as_mut().set_pts(7);
+    /// let mut dst = Frame::new().unwrap();
+    /// dst.as_mut().try_clone_from(src.as_ref()).unwrap();
+    /// assert_eq!(dst.as_ref().pts(), 7);
+    /// assert_eq!(dst.as_ref().buffer(0).unwrap().ref_count(), 2);
+    /// ```
+    pub fn try_clone_from(&mut self, src: FrameRef<'_>) -> Result<(), c_int> {
+        self.reset();
+        if !src.may_clone() {
+            return Err(ENOMEM);
+        }
+        let copies = !src.is_counted();
+        if copies && src.copy_reads_past_extended_data() {
+            return Err(EINVAL);
+        }
+        // SAFETY: the frame, reset (as C requires of `dst`) and reached
+        // through the exclusive handle, and `src`, a distinct live frame read
+        // only, as in `try_clone`. On failure C resets the frame.
+        let ret = unsafe { ffi::av_frame_ref(self.as_mut_ptr(), src.as_ptr()) };
+        if ret < 0 {
+            return Err(ret);
+        }
+        if copies {
+            return self.zero_copied_buffers(src);
+        }
+        Ok(())
+    }
+
+    /// Wraps: av_frame_replace
+    ///
+    /// Makes this frame describe the same data as `src`, as
+    /// [`try_clone_from`](Self::try_clone_from) does, but keeping what it
+    /// shares already: a buffer reference to a buffer `src` references too
+    /// stays, taking `src`'s window. Its side data and metadata are replaced
+    /// by copies of `src`'s.
+    ///
+    /// A `src` that is not reference counted has its data copied into new
+    /// buffers when one of its first four planes is set (as
+    /// `try_clone_from` copies it); otherwise the frame takes its properties
+    /// and no plane.
+    ///
+    /// C's routine, replacing a frame holding extra buffer references
+    /// (`extended_buf`) by a `src` holding none, frees them but leaves their
+    /// count, which `av_frame_unref` and `av_frame_free` then walk through
+    /// a NULL array (as does C's own failure path); here the frame releases
+    /// them first and keeps a count of 0.
+    ///
+    /// # Errors
+    ///
+    /// `AVERROR(ENOMEM)` when a buffer's count would near wrapping, and
+    /// `AVERROR(EINVAL)` when C would read `src`'s planes past its
+    /// `extended_data`: the frame is then left as it was. Otherwise C's
+    /// errors (memory, a failed copy), on which the frame is reset.
+    pub fn assign(&mut self, src: FrameRef<'_>) -> Result<(), c_int> {
+        if !src.may_clone() {
+            return Err(ENOMEM);
+        }
+        let counted = src.is_counted();
+        let copies = !counted && src.data_ptrs()[..4].iter().any(|p| !p.is_null());
+        if copies && src.copy_reads_past_extended_data() {
+            return Err(EINVAL);
+        }
+        if src.extended_buffer_parts().0.is_null() {
+            // For a `src` without extra references, C frees the frame's but
+            // keeps their count, so that its own failure path (and every
+            // later reader) walks the count through NULL: release them here
+            // first, which C would do but for the count.
+            while let Some(buf) = self.pop_extended_buffer() {
+                drop(buf);
+            }
+        }
+        // SAFETY: the frame, reached through the exclusive handle, and `src`,
+        // a distinct live frame read only. C releases or replaces what the
+        // frame holds with new references and copies of `src`'s (their
+        // counts checked above), or resets it and copies `src`'s data as
+        // `av_frame_ref` does; on failure it resets the frame.
+        let ret = unsafe { ffi::av_frame_replace(self.as_mut_ptr(), src.as_ptr()) };
+        if ret < 0 {
+            return Err(ret);
+        }
+        if copies {
+            return self.zero_copied_buffers(src);
+        }
+        if !counted {
+            // C copied `src`'s plane pointers into a frame left without a
+            // buffer at index 0, where the invariant allows none.
+            self.prune_planes();
+        }
+        Ok(())
+    }
+
+    /// Wraps: av_frame_move_ref
+    ///
+    /// Resets this frame and moves everything `src` holds into it, leaving
+    /// `src` as [`Frame::new`] makes a frame: no data is copied and no
+    /// reference added.
+    pub fn move_from(&mut self, mut src: FrameMut<'_>) {
+        self.reset();
+        // SAFETY: two distinct live frames (both borrowed exclusively), the
+        // destination reset as C requires: C copies `src` whole, points the
+        // copy's `extended_data` at its own `data` where it was `src`'s, and
+        // gives `src` its defaults without releasing anything, so each owned
+        // pointer has one owner, now the destination.
+        unsafe { ffi::av_frame_move_ref(self.as_mut_ptr(), src.as_mut_ptr()) }
+    }
+
+    /// Wraps: av_frame_move_ref
+    ///
+    /// Moves everything this frame holds into a new frame, leaving this one
+    /// as [`Frame::new`] makes a frame; `None`, with this frame untouched,
+    /// when C cannot allocate the new one.
+    ///
+    /// ```
+    /// use ffmpeg::libavutil::frame::Frame;
+    /// let mut frame = Frame::new().unwrap();
+    /// frame.as_mut().set_pts(3);
+    /// let moved = frame.as_mut().take().unwrap();
+    /// assert_eq!(moved.as_ref().pts(), 3);
+    /// assert_eq!(frame.as_ref().pts(), Frame::new().unwrap().as_ref().pts());
+    /// ```
+    #[must_use]
+    pub fn take(&mut self) -> Option<FrameBox> {
+        let mut moved = Frame::new()?;
+        moved.as_mut().move_from(self.as_mut());
+        Some(moved)
+    }
+
+    /// Wraps: av_frame_copy
+    ///
+    /// Copies `src`'s planes into this frame's own, which must already
+    /// describe the same image or samples: the same format; for video
+    /// (positive width and height), at least `src`'s dimensions, of which
+    /// `src`'s width and height are copied, each row of each plane the format
+    /// uses (and a palettized format's palette); for audio, the same sample
+    /// count and channel layout, every channel's samples. Nothing but the
+    /// planes' bytes changes.
+    ///
+    /// # Errors
+    ///
+    /// `AVERROR(EINVAL)` for frames C will not copy (different formats,
+    /// dimensions, sample counts or layouts, a missing plane), and for a
+    /// copy that would reach bytes it must not: a row outside the buffer
+    /// reference its plane points into, a destination plane in a buffer that
+    /// is shared or read-only ([`FrameRef::is_writable`]; see
+    /// [`make_writable`](Self::make_writable)), a row wider than its line
+    /// size (on which C aborts), more channel planes than a frame's
+    /// `extended_data` holds, or sizes whose arithmetic overflows C's
+    /// `int`s. A row width whose computation fails in C stops C's copy
+    /// there, reporting success; it is refused here only where that
+    /// computation overflows. `AVERROR(ENOSYS)` for frames holding a
+    /// hardware frames context, which this crate cannot copy yet. Nothing
+    /// is written then.
+    pub fn copy_data_from(&mut self, src: FrameRef<'_>) -> Result<(), c_int> {
+        let dst = self.as_ref();
+        if dst.hw_frames_context().is_some() || src.hw_frames_context().is_some() {
+            return Err(ENOSYS);
+        }
+        if !copy_is_sound(dst, src) {
+            return Err(EINVAL);
+        }
+        // C writes only rows inside writable references of the frame (its
+        // sole ones, so no other view reads those bytes) or memory their
+        // setter vouched for, and reads only rows inside `src`'s references
+        // or vouched memory: all checked above.
+        // SAFETY: the frame, reached through the exclusive handle, and `src`,
+        // a distinct live frame read only. C reaches only the rows above,
+        // reads only the `extended_data` entries the frames hold, and its
+        // arithmetic stays defined, as checked.
+        let ret = unsafe { ffi::av_frame_copy(self.as_mut_ptr(), src.as_ptr()) };
+        if ret < 0 { Err(ret) } else { Ok(()) }
+    }
+
+    /// Wraps: av_frame_copy_props
+    ///
+    /// Copies `src`'s properties into this frame: every field but the
+    /// planes, buffers, format, dimensions, sample count, channel layout and
+    /// hardware context, so timing, color properties, cropping and flags
+    /// among them. `src`'s metadata is merged into the frame's (C's
+    /// `av_dict_copy`, which replaces the values of keys present in both),
+    /// and a copy of each of `src`'s side data entries (with its own new
+    /// payload and copied metadata) is appended to the frame's, except
+    /// `PAN_SCAN` entries when the frames' dimensions differ.
+    ///
+    /// # Errors
+    ///
+    /// `AVERROR(ENOMEM)` when C cannot allocate a side data copy, after
+    /// which the frame has lost all of its side data, as C leaves it, its
+    /// other properties copied. Refused with the frame unchanged:
+    /// `AVERROR(ENOMEM)` when a reference C would add could near wrapping its
+    /// count, and `AVERROR(EINVAL)` when an entry C would copy has an empty
+    /// payload at a NULL window ([`BufferReference::from_heap_vec`] of an
+    /// empty vector), which C copies from with `memcpy`.
+    pub fn copy_props_from(&mut self, src: FrameRef<'_>) -> Result<(), c_int> {
+        let dst = self.as_ref();
+        if let Some(ret) = src.props_copy_refusal(dst.width(), dst.height()) {
+            return Err(ret);
+        }
+        // C writes plain fields, merges into the frame's metadata, appends
+        // side data entries holding new buffers filled from `src`'s payloads
+        // or frees them all on failure, and replaces the private and user
+        // data references with new ones to `src`'s.
+        // SAFETY: the frame, reached through the exclusive handle, and `src`,
+        // a distinct live frame read only; no payload C copies is at NULL and
+        // no count it raises nears wrapping (checked above), so the invariant
+        // holds throughout.
+        let ret = unsafe { ffi::av_frame_copy_props(self.as_mut_ptr(), src.as_ptr()) };
+        if ret < 0 { Err(ret) } else { Ok(()) }
+    }
+
+    /// Wraps: av_frame_get_buffer
+    ///
+    /// Gives the frame new planes, in buffers C allocates for its format and
+    /// dimensions (video: a positive width and height) or for its sample
+    /// format, sample count and channel layout (audio), and sets its line
+    /// sizes, plane pointers and, for planar audio of more channels than
+    /// [`NUM_DATA_POINTERS`], an `extended_data` array and `extended_buf`
+    /// references. Their bytes are zeroed, where C leaves them
+    /// uninitialised. Line sizes already set (a nonzero first one) are kept
+    /// and laid out as given, else C picks them.
+    ///
+    /// Each plane, and each buffer, is aligned to `align` bytes, a power of
+    /// two up to `2^27`; 0 picks the alignment the CPU's SIMD code wants.
+    /// Planes and buffers the frame held are released first.
+    ///
+    /// ```
+    /// use ffmpeg::libavutil::frame::Frame;
+    /// use ffmpeg::libavutil::pixfmt::PixelFormat;
+    /// let mut frame = Frame::new().unwrap();
+    /// let mut m = frame.as_mut();
+    /// m.set_pixel_format(PixelFormat::GRAY8);
+    /// m.set_width(16);
+    /// m.set_height(4);
+    /// m.alloc_buffers(0).unwrap();
+    /// assert!(frame.as_ref().linesizes()[0] >= 16);
+    /// assert!(frame.as_ref().plane(0).unwrap().iter().all(|&b| b == 0));
+    /// assert!(frame.as_ref().is_writable());
+    /// ```
+    ///
+    /// # Errors
+    ///
+    /// `AVERROR(EINVAL)` for any other `align`, an unknown format or one C
+    /// cannot lay out, dimensions `av_image_check_size` refuses, no samples
+    /// or an invalid layout, and sizes beyond C's limits; `AVERROR(ENOMEM)`
+    /// when C cannot allocate. The frame then has no planes; when an
+    /// allocation fails, C resets it whole (properties and side data
+    /// included).
+    pub fn alloc_buffers(&mut self, align: usize) -> Result<(), c_int> {
+        if align != 0 && !(align.is_power_of_two() && align <= MAX_BUFFER_ALIGN) {
+            return Err(EINVAL);
+        }
+        self.release_planes();
+        let shared = self.as_ref();
+        let audio = shared.format() >= 0
+            && !(shared.width() > 0 && shared.height() > 0)
+            && shared.sample_count() > 0
+            && shared.channel_layout().is_valid();
+        let samples = shared.sample_count();
+        if audio && align == 0 && shared.linesizes()[0] == 0 && samples == c_int::MAX - 31 {
+            // C rounds this sample count up to a multiple of 32 as
+            // `nb_samples + 32 - 1`, which overflows; it is one already, and
+            // the line size C would compute is the one
+            // `samples_buffer_size` computes without overflowing, which C
+            // then takes as given.
+            let channels = shared.channel_layout().channel_count();
+            let size = samplefmt::samples_buffer_size(
+                usize::try_from(channels).unwrap_or(0),
+                samples as usize,
+                shared.sample_format(),
+                0,
+            )?;
+            let linesize = c_int::try_from(size.linesize).map_err(|_| EINVAL)?;
+            self.set_linesize(0, linesize);
+        }
+        let p = self.as_mut_ptr();
+        // On success C has stored fresh, sole references, and plane pointers
+        // and an `extended_data` inside or over them.
+        // SAFETY: the frame, reached through the exclusive handle, holds no
+        // plane, buffer or array C would overwrite; `align` is 0 or a power
+        // of two keeping C's `int` sums and pointer rounding in range, and no
+        // sample count overflows its default rounding (checked above).
+        let ret = unsafe { ffi::av_frame_get_buffer(p, align as c_int) };
+        if ret < 0 {
+            self.release_planes();
+            return Err(ret);
+        }
+        let shared = self.as_ref();
+        for buf in shared.buffers() {
+            let (data, len) = buf.parts();
+            // SAFETY: the window of a fresh reference the frame holds alone,
+            // `len` writable bytes (or a dangling pointer and 0), viewed by
+            // nothing yet: zeroing them makes the bytes initialised, as the
+            // invariant asks.
+            unsafe { ptr::write_bytes(data.as_ptr(), 0, len) };
+        }
+        Ok(())
+    }
+
+    /// Wraps: av_frame_make_writable
+    ///
+    /// Makes every plane of the frame its own to write
+    /// ([`FrameRef::is_writable`]): when one of its buffers is shared or
+    /// read-only, or it is not reference counted, its data is copied into new
+    /// buffers allocated for its format and dimensions or samples (zeroed
+    /// around the copied lines), its properties, side data (new payloads)
+    /// and metadata copied with it, as `av_frame_copy_props` copies them,
+    /// and the old buffers released.
+    ///
+    /// C's own routine leaves the copy's bytes around the copied lines
+    /// uninitialised and, when its allocation fails, leaks a copied custom
+    /// channel layout; this runs C's steps (`av_frame_get_buffer`,
+    /// `av_frame_copy`, `av_frame_copy_props`) without either.
+    ///
+    /// ```
+    /// use ffmpeg::libavutil::frame::Frame;
+    /// use ffmpeg::libavutil::pixfmt::PixelFormat;
+    /// let mut frame = Frame::new().unwrap();
+    /// let mut m = frame.as_mut();
+    /// m.set_pixel_format(PixelFormat::GRAY8);
+    /// m.set_width(2);
+    /// m.set_height(2);
+    /// m.alloc_buffers(0).unwrap();
+    /// m.plane_mut(0).unwrap()[0] = 9;
+    /// let copy = frame.as_ref().try_clone().unwrap();
+    /// assert!(!frame.as_ref().is_writable());
+    /// frame.as_mut().make_writable().unwrap();
+    /// assert!(frame.as_ref().is_writable());
+    /// assert_eq!(frame.as_ref().plane(0).unwrap()[0], 9);
+    /// drop(copy);
+    /// ```
+    ///
+    /// # Errors
+    ///
+    /// The errors of [`alloc_buffers`](Self::alloc_buffers),
+    /// [`copy_data_from`](Self::copy_data_from) and
+    /// [`copy_props_from`](Self::copy_props_from) on the copy, with the
+    /// frame unchanged: `AVERROR(EINVAL)` for a frame whose geometry does
+    /// not describe planes inside its buffers, `AVERROR(ENOSYS)` for a
+    /// hardware frame.
+    pub fn make_writable(&mut self) -> Result<(), c_int> {
+        let shared = self.as_ref();
+        if shared.is_writable() {
+            return Ok(());
+        }
+        if shared.hw_frames_context().is_some() {
+            return Err(ENOSYS);
+        }
+        if let Some(ret) = shared.props_copy_refusal(shared.width(), shared.height()) {
+            return Err(ret);
+        }
+        let mut copy = shared.copy_into_zeroed_buffers()?.as_ptr();
+        let p = self.as_mut_ptr();
+        // SAFETY: the copy, a fresh frame C built whose planes hold this
+        // frame's data in zeroed buffers, and the frame, live and read only
+        // here, as for `copy_props_from` (checked above). On failure the copy
+        // is freed and the frame untouched.
+        let ret = unsafe { ffi::av_frame_copy_props(copy, p) };
+        if ret < 0 {
+            // SAFETY: the copy, nothing else's.
+            unsafe { ffi::av_frame_free(&mut copy) };
+            return Err(ret);
+        }
+        // SAFETY: the frame, reached through the exclusive handle, and the
+        // copy, distinct and live: C releases everything the frame holds,
+        // moves the copy whole into it (`extended_data` re-pointed at its own
+        // `data` where it was the copy's), and the copy, left with its
+        // defaults, is freed.
+        unsafe {
+            ffi::av_frame_unref(p);
+            ffi::av_frame_move_ref(p, copy);
+            ffi::av_frame_free(&mut copy);
+        }
+        Ok(())
+    }
+
+    /// Wraps: av_frame_apply_cropping
+    ///
+    /// Crops the frame by its [`crop_top`](FrameRef::crop_top),
+    /// `crop_bottom`, `crop_left` and `crop_right`: its plane pointers move
+    /// to the first kept row and column, its width and height shrink, and
+    /// the crop fields become 0. Without [`CropFlags::UNALIGNED`] the left
+    /// edge is rounded down where it would misalign a plane; for hardware
+    /// and bitstream formats only the right and bottom edges are cropped,
+    /// and `crop_top` and `crop_left` stay as they were. No byte is copied.
+    ///
+    /// ```
+    /// use ffmpeg::libavutil::frame::{CropFlags, Frame};
+    /// use ffmpeg::libavutil::pixfmt::PixelFormat;
+    /// let mut frame = Frame::new().unwrap();
+    /// let mut m = frame.as_mut();
+    /// m.set_pixel_format(PixelFormat::GRAY8);
+    /// m.set_width(64);
+    /// m.set_height(8);
+    /// m.alloc_buffers(0).unwrap();
+    /// m.set_crop_top(2);
+    /// m.set_crop_right(4);
+    /// m.apply_cropping(CropFlags::empty()).unwrap();
+    /// assert_eq!((frame.as_ref().width(), frame.as_ref().height()), (60, 6));
+    /// assert_eq!(frame.as_ref().crop_top(), 0);
+    /// ```
+    ///
+    /// # Errors
+    ///
+    /// C's: `AVERROR(EINVAL)` for a frame without positive dimensions,
+    /// `AVERROR(ERANGE)` for crop fields leaving no pixel, `AVERROR_BUG` for
+    /// an unknown format, a plane set that the format has no component for,
+    /// or an alignment C cannot keep; the frame is then unchanged (but for
+    /// `crop_left`, which C may already have rounded). `AVERROR(EINVAL)`
+    /// for cropping that would move a plane pointer out of the buffer
+    /// reference it points into, or move any plane of a frame that is not
+    /// reference counted (memory lent through
+    /// [`set_data_ptr`](Self::set_data_ptr) for the pointer it was given),
+    /// or a line size and crop C's arithmetic
+    /// cannot handle without undefined behaviour (a negative line size with
+    /// rows cropped from the top, a palettized frame with planes past the
+    /// palette, offsets or edges whose low 32 bits are zero, a rounding
+    /// shift past 30), with the frame unchanged.
+    pub fn apply_cropping(&mut self, flags: CropFlags) -> Result<(), c_int> {
+        if !self.as_ref().crop_is_sound(flags) {
+            return Err(EINVAL);
+        }
+        // SAFETY: the frame, reached through the exclusive handle. C moves
+        // each leading plane pointer by the offset checked above to stay
+        // inside the reference it points into (so below `isize::MAX`),
+        // keeping the invariant, and writes plain fields; its arithmetic
+        // stays defined, as checked.
+        let ret = unsafe { ffi::av_frame_apply_cropping(self.as_mut_ptr(), flags.bits()) };
+        if ret < 0 { Err(ret) } else { Ok(()) }
+    }
+
+    /// Wraps: av_frame_get_side_data
+    ///
+    /// The frame's first side data entry of `kind`, writable; `None` when it
+    /// has none.
+    #[must_use]
+    pub fn find_side_data_mut(&mut self, kind: SideDataType) -> Option<SideDataMut<'_>> {
+        // SAFETY: a live frame, whose side data array C only reads; it
+        // returns one of its entries, or NULL.
+        let entry = unsafe { ffi::av_frame_get_side_data(self.as_mut_ptr(), kind.into_raw()) };
+        // SAFETY: NULL, or an entry the frame owns, exclusively borrowed with
+        // the frame.
+        unsafe { SideDataMut::from_ptr(entry) }
+    }
+
+    /// Wraps: av_frame_new_side_data
+    ///
+    /// Appends side data of `kind` with a new payload of `size` zeroed bytes,
+    /// and returns the entry holding it, writable
+    /// ([`data_mut`](SideDataMut::data_mut)) until its buffer is shared.
+    /// Unlike [`SideDataArrayMut::alloc_zeroed`], it appends even when an
+    /// entry of `kind` is present and `kind` is not `MULTI`, which
+    /// [`find_side_data`](FrameRef::find_side_data) then still finds first.
+    /// `None` when C cannot allocate.
+    ///
+    /// ```
+    /// use ffmpeg::libavutil::frame::{Frame, SideDataType};
+    /// let mut frame = Frame::new().unwrap();
+    /// let mut m = frame.as_mut();
+    /// m.alloc_side_data_zeroed(SideDataType::AFD, 1).unwrap().data_mut().unwrap()[0] = 8;
+    /// m.alloc_side_data_zeroed(SideDataType::AFD, 1).unwrap();
+    /// assert_eq!(frame.as_ref().side_data().len(), 2);
+    /// assert_eq!(frame.as_ref().find_side_data(SideDataType::AFD).unwrap().data(), [8]);
+    /// ```
+    pub fn alloc_side_data_zeroed(
+        &mut self,
+        kind: SideDataType,
+        size: usize,
+    ) -> Option<SideDataMut<'_>> {
+        self.new_side_data(kind, size, zero_into)
+    }
+
+    /// Wraps: av_frame_new_side_data
+    ///
+    /// Appends side data of `kind` with a new payload copied from `bytes`,
+    /// and returns the entry holding it, as
+    /// [`alloc_side_data_zeroed`](Self::alloc_side_data_zeroed) does with
+    /// zeroes.
+    pub fn alloc_side_data_from_slice(
+        &mut self,
+        kind: SideDataType,
+        bytes: &[u8],
+    ) -> Option<SideDataMut<'_>> {
+        self.new_side_data(kind, bytes.len(), |run| copy_into(run, bytes))
+    }
+
+    /// `av_frame_new_side_data` of `size` bytes, with `init` writing every
+    /// byte of the new payload before anything can read it.
+    fn new_side_data(
+        &mut self,
+        kind: SideDataType,
+        size: usize,
+        init: impl FnOnce(&mut [MaybeUninit<u8>]),
+    ) -> Option<SideDataMut<'_>> {
+        let p = self.as_mut_ptr();
+        // SAFETY: a live frame, reached through the exclusive handle, so no
+        // handle to an entry is alive while C grows the array: it appends an
+        // entry holding a fresh, sole reference to `size` uninitialised
+        // bytes, or fails with the frame as it was.
+        let entry = unsafe { ffi::av_frame_new_side_data(p, kind.into_raw(), size) };
+        if entry.is_null() {
+            return None;
+        }
+        // SAFETY: reads of the new entry's window, `size` bytes of a buffer
+        // the entry alone references, which nothing has read or lent yet.
+        let run = unsafe {
+            (
+                addr_of!((*entry).data).read(),
+                addr_of!((*entry).size).read(),
+            )
+        };
+        let run = match NonNull::new(run.0) {
+            Some(data) if run.1 > 0 => (data, run.1),
+            _ => (NonNull::dangling(), 0),
+        };
+        let data = run.0.cast::<MaybeUninit<u8>>().as_ptr();
+        // SAFETY: the window's bytes (or nothing), writable, viewed
+        // uninitialised and exclusively for `init`, which writes them all
+        // before the entry is handed out, restoring `SideData`'s invariant.
+        let bytes = unsafe { slice::from_raw_parts_mut(data, run.1) };
+        init(bytes);
+        // SAFETY: the new entry, its payload written in full, owned by the
+        // frame and exclusively borrowed with it.
+        unsafe { SideDataMut::from_ptr(entry) }
+    }
+
+    /// Wraps: av_frame_new_side_data_from_buf
+    ///
+    /// Appends side data of `kind` whose payload is `buf`'s bytes, and returns
+    /// the entry holding it; the entry takes `buf` over. Unlike
+    /// [`SideDataArrayMut::add`], it appends even when an entry of `kind` is
+    /// present and `kind` is not `MULTI`. `buf` comes back when C cannot
+    /// allocate the entry.
+    pub fn add_side_data(
+        &mut self,
+        kind: SideDataType,
+        buf: BufferReferenceBox,
+    ) -> Result<SideDataMut<'_>, BufferReferenceBox> {
+        let (p, raw) = (self.as_mut_ptr(), buf.into_c());
+        // SAFETY: a live frame, reached through the exclusive handle, so no
+        // handle to an entry is alive while C grows the array; `raw` is a
+        // live reference whose window is initialised bytes, which an
+        // appended entry takes over with that window, keeping `SideData`'s
+        // invariant. On failure C stores nothing.
+        let entry = unsafe { ffi::av_frame_new_side_data_from_buf(p, kind.into_raw(), raw) };
+        if entry.is_null() {
+            // SAFETY: C failed, so the reference is still the caller's.
+            let buf = unsafe { BufferReferenceBox::from_c(raw) };
+            return Err(buf.expect("C keeps the reference it did not add"));
+        }
+        // SAFETY: the new entry the frame owns, exclusively borrowed with it.
+        Ok(unsafe { SideDataMut::from_ptr(entry) }.expect("C returned an entry"))
+    }
+
+    /// Wraps: av_frame_remove_side_data
+    ///
+    /// Removes every side data entry of `kind`, freeing each with its buffer
+    /// reference and metadata, as [`SideDataArrayMut::remove`] does.
+    pub fn remove_side_data(&mut self, kind: SideDataType) {
+        // SAFETY: a live frame, reached through the exclusive handle, so no
+        // handle to an entry C frees or moves is alive; C keeps the count
+        // equal to the entries left, and their invariant.
+        unsafe { ffi::av_frame_remove_side_data(self.as_mut_ptr(), kind.into_raw()) }
+    }
+}
+
 #[cfg(test)]
 mod unit_tests {
     use super::*;
@@ -4780,6 +5940,9 @@ mod unit_tests {
     use core::mem::{align_of, offset_of, size_of};
     use core::ptr;
     use std::collections::hash_map::RandomState;
+
+    use crate::libavutil::mem::HeapVec;
+    use crate::libavutil::opt::AVERROR_BUG;
 
     const NAMED: [(SideDataType, &str); 38] = [
         (SideDataType::PAN_SCAN, "PAN_SCAN"),
@@ -6376,5 +7539,804 @@ mod unit_tests {
         assert_eq!(copy.as_ref().plane(0).unwrap()[..4096], lent[..]);
         assert_eq!(extra.as_ref().buffer(0).unwrap().ref_count(), 1);
         drop((copy, copied_plane, lent));
+    }
+
+    /// Rows fit a run when the first and last lie inside it, rows before the
+    /// pointer for a negative line size; overflowing spans never fit.
+    #[test]
+    fn frame_rows_fit_forward_and_backward() {
+        let rows = |len, rows, linesize| Rows {
+            len,
+            rows,
+            linesize,
+        };
+        assert!(rows(4, 0, 0).fit(100, 0));
+        assert!(rows(4, 3, 10).fit(6, 30));
+        assert!(!rows(4, 3, 10).fit(7, 30));
+        assert!(rows(4, 3, -10).fit(20, 24));
+        assert!(!rows(4, 3, -10).fit(19, 24));
+        assert!(!rows(4, 3, -10).fit(20, 23));
+        assert!(!rows(1, usize::MAX, 2).fit(0, usize::MAX));
+        assert!(!rows(2, 1, 0).fit(usize::MAX, usize::MAX));
+        assert!(Rows::run(5).fit(3, 8) && !Rows::run(5).fit(4, 8));
+    }
+
+    /// `ff_ctz` takes an `unsigned int`: values whose low 32 bits are zero
+    /// are C's undefined `__builtin_ctz(0)`.
+    #[test]
+    fn frame_c_ctz_refuses_truncated_zeroes() {
+        assert_eq!(c_ctz(8), Some(3));
+        assert_eq!(c_ctz(0), None);
+        assert_eq!(c_ctz(1 << 32), None);
+        assert_eq!(c_ctz((1 << 32) | 4), Some(2));
+        assert_eq!(c_ctz(usize::MAX), Some(0));
+    }
+
+    /// `image_reach` follows `image_copy`: rows and row widths per plane,
+    /// the palette, the planes C stops before, and the inputs whose
+    /// arithmetic C cannot do.
+    #[test]
+    #[cfg_attr(miri, ignore)]
+    fn frame_image_reach_follows_c() {
+        let r = image_reach(PixelFormat::YUV420P, 5, 3).unwrap();
+        assert_eq!(r.planes, [Some((5, 3)), Some((3, 2)), Some((3, 2)), None]);
+        assert!(!r.palette);
+        let r = image_reach(PixelFormat::NV12, 5, 3).unwrap();
+        assert_eq!(r.planes, [Some((5, 3)), Some((6, 2)), None, None]);
+        let r = image_reach(PixelFormat::PAL8, 7, 2).unwrap();
+        assert_eq!((r.planes[0], r.palette), (Some((7, 2)), true));
+        // A negative height copies no row (and the palette).
+        let r = image_reach(PixelFormat::PAL8, -1, -2).unwrap();
+        assert_eq!((r.planes[0], r.palette), (Some((0, 0)), true));
+        // A negative width C copies as `size_t` rows.
+        assert!(image_reach(PixelFormat::PAL8, -1, 1).is_none());
+        // C's row widths fail for a negative width: no plane.
+        let r = image_reach(PixelFormat::YUV420P, -1, 3).unwrap();
+        assert_eq!(r.planes, [None; 4]);
+        // `AV_CEIL_RSHIFT` negates the height for chroma planes only.
+        assert!(image_reach(PixelFormat::YUV420P, 4, c_int::MIN).is_none());
+        let r = image_reach(PixelFormat::GRAY8, 4, c_int::MIN).unwrap();
+        assert_eq!(r.planes[0], Some((4, 0)));
+        // A bitstream row of `INT_MAX` bits overflows C's round-up.
+        assert!(image_reach(PixelFormat::MONOWHITE, c_int::MAX, 1).is_none());
+        let r = image_reach(PixelFormat::MONOWHITE, 17, 1).unwrap();
+        assert_eq!(r.planes[0], Some((3, 1)));
+        for none in [PixelFormat::NONE, PixelFormat::VAAPI] {
+            let r = image_reach(none, 4, 4).unwrap();
+            assert_eq!((r.planes, r.palette), ([None; 4], false));
+        }
+    }
+
+    /// A GRAY8 frame of `w` x `h` with buffers from `alloc_buffers`.
+    fn frame_gray(w: c_int, h: c_int) -> FrameBox {
+        let mut f = Frame::new().unwrap();
+        let mut m = f.as_mut();
+        m.set_pixel_format(PixelFormat::GRAY8);
+        m.set_width(w);
+        m.set_height(h);
+        m.alloc_buffers(0).unwrap();
+        f
+    }
+
+    /// The copy check passes copies inside the buffers, and refuses rows
+    /// outside them, rows wider than their line size, unwritable
+    /// destinations, short palettes and audio planes C reads past
+    /// `extended_data` or sizes it overflows.
+    #[test]
+    #[cfg_attr(miri, ignore)]
+    fn frame_copy_soundness_bounds_every_row() {
+        let (mut dst, src) = (frame_gray(8, 4), frame_gray(8, 4));
+        assert!(copy_is_sound(dst.as_ref(), src.as_ref()));
+        // Taller than the source's buffer reaches, into a tall destination.
+        let big = frame_gray(8, 4096);
+        let mut tall = frame_gray(8, 4);
+        let ls = tall.as_ref().linesizes()[0] as usize;
+        let size = tall.as_ref().buffer(0).unwrap().len();
+        let rows = (size - 8) / ls + 1;
+        tall.as_mut().set_height(rows as c_int);
+        assert!(copy_is_sound(big.as_ref(), tall.as_ref()));
+        tall.as_mut().set_height(rows as c_int + 1);
+        assert!(!copy_is_sound(big.as_ref(), tall.as_ref()));
+        // ... or a destination too short for the source's rows.
+        let mut big = big;
+        big.as_mut().set_height(rows as c_int + 1);
+        dst.as_mut().set_height(4096);
+        assert!(!copy_is_sound(dst.as_ref(), big.as_ref()));
+        big.as_mut().set_height(rows as c_int);
+        assert!(copy_is_sound(dst.as_ref(), big.as_ref()));
+        dst.as_mut().set_height(4);
+        // C refuses a smaller destination itself.
+        assert!(copy_is_sound(dst.as_ref(), tall.as_ref()));
+        // A row wider than the line size: C aborts.
+        let mut narrow = frame_gray(8, 4);
+        narrow.as_mut().set_linesize(0, 4);
+        assert!(!copy_is_sound(dst.as_ref(), narrow.as_ref()));
+        // Bottom-up: rows before the plane pointer, none past the start.
+        let mut flipped = frame_gray(8, 4);
+        flipped.as_mut().set_linesize(0, -(ls as c_int));
+        assert!(!copy_is_sound(dst.as_ref(), flipped.as_ref()));
+        flipped.as_mut().set_plane(0, 0, 3 * ls).unwrap();
+        assert!(copy_is_sound(dst.as_ref(), flipped.as_ref()));
+        // A shared destination.
+        let copy = dst.as_ref().try_clone().unwrap();
+        assert!(!copy_is_sound(dst.as_ref(), src.as_ref()));
+        drop(copy);
+        assert!(copy_is_sound(dst.as_ref(), src.as_ref()));
+        // PAL8: the palette must be there on both sides.
+        let pal = |w| {
+            let mut f = Frame::new().unwrap();
+            let mut m = f.as_mut();
+            m.set_pixel_format(PixelFormat::PAL8);
+            m.set_width(w);
+            m.set_height(2);
+            m.alloc_buffers(0).unwrap();
+            f
+        };
+        let (mut a, mut b) = (pal(4), pal(4));
+        assert!(copy_is_sound(a.as_ref(), b.as_ref()));
+        b.as_mut().clear_plane(1);
+        assert!(!copy_is_sound(a.as_ref(), b.as_ref()));
+        let len = b.as_ref().buffer(0).unwrap().len();
+        b.as_mut().set_plane(1, 0, len - PALETTE_SIZE).unwrap();
+        assert!(copy_is_sound(a.as_ref(), b.as_ref()));
+        b.as_mut().set_plane(1, 0, len - PALETTE_SIZE + 1).unwrap();
+        assert!(!copy_is_sound(a.as_ref(), b.as_ref()));
+        a.as_mut().set_width(-1);
+        b.as_mut().set_width(-1);
+        b.as_mut().set_plane(1, 0, 0).unwrap();
+        // Not video for C: no planes are copied.
+        assert!(copy_is_sound(a.as_ref(), b.as_ref()));
+        // Audio: nine planar channels read past `data`.
+        let audio = |channels, samples| {
+            let mut f = Frame::new().unwrap();
+            let mut m = f.as_mut();
+            m.set_sample_format(SampleFormat::S16P);
+            m.set_sample_count(samples);
+            m.set_channel_layout(ChannelLayout::unspecified(channels))
+                .unwrap();
+            m.alloc_buffers(0).unwrap();
+            f
+        };
+        let (x, mut y) = (audio(9, 16), audio(9, 16));
+        assert!(copy_is_sound(y.as_ref(), x.as_ref()));
+        y.as_mut().reset_extended_data();
+        assert!(!copy_is_sound(y.as_ref(), x.as_ref()));
+        assert!(!copy_is_sound(x.as_ref(), y.as_ref()));
+        // `nb_samples * block_align` overflows `int`.
+        let (mut big, mut big2) = (audio(1, 16), audio(1, 16));
+        for f in [&mut big, &mut big2] {
+            f.as_mut().set_sample_count(c_int::MAX / 2 + 1);
+        }
+        assert!(!copy_is_sound(big.as_ref(), big2.as_ref()));
+        big.as_mut().set_sample_count(16);
+        big2.as_mut().set_sample_count(16);
+        assert!(copy_is_sound(big.as_ref(), big2.as_ref()));
+    }
+
+    /// The crop check refuses what C cannot compute: a negative line size
+    /// cropped from the top, a palettized frame with planes past the
+    /// palette, offsets and edges `ff_ctz` truncates to zero, rounding shifts
+    /// past 30, and moves out of a buffer or of lent memory.
+    #[test]
+    #[cfg_attr(miri, ignore)]
+    fn frame_crop_soundness_mirrors_c() {
+        let mut f = frame_gray(64, 8);
+        f.as_mut().set_crop_top(2);
+        f.as_mut().set_crop_left(32);
+        assert!(f.as_ref().crop_is_sound(CropFlags::empty()));
+        let ls = f.as_ref().linesizes()[0];
+        f.as_mut().set_linesize(0, -ls);
+        assert!(!f.as_ref().crop_is_sound(CropFlags::empty()));
+        f.as_mut().set_crop_top(0);
+        assert!(f.as_ref().crop_is_sound(CropFlags::empty()));
+        // Rows past the buffer.
+        let mut tall = frame_gray(64, 8);
+        tall.as_mut().set_height(1 << 20);
+        tall.as_mut().set_crop_top(1 << 19);
+        assert!(!tall.as_ref().crop_is_sound(CropFlags::UNALIGNED));
+        // PAL8 with a third plane.
+        let mut pal = Frame::new().unwrap();
+        let mut m = pal.as_mut();
+        m.set_pixel_format(PixelFormat::PAL8);
+        m.set_width(8);
+        m.set_height(8);
+        m.alloc_buffers(0).unwrap();
+        m.set_crop_top(1);
+        assert!(pal.as_ref().crop_is_sound(CropFlags::empty()));
+        pal.as_mut().set_plane(2, 0, 0).unwrap();
+        assert!(!pal.as_ref().crop_is_sound(CropFlags::empty()));
+        // `crop_left` of 2^32 passes C's range check through `size_t`
+        // wrap-around, and truncates to zero for `ff_ctz`.
+        let mut wrap = frame_gray(64, 8);
+        wrap.as_mut().set_crop_left(1 << 32);
+        wrap.as_mut().set_crop_right(usize::MAX - (1 << 32) + 2);
+        assert!(!wrap.as_ref().crop_is_sound(CropFlags::empty()));
+        // With `UNALIGNED`, the plane would leave its buffer.
+        assert!(!wrap.as_ref().crop_is_sound(CropFlags::UNALIGNED));
+        // A 2^30 left edge over an odd offset: `1 << 35`.
+        let mut wide = frame_gray(64, 8);
+        let mut m = wide.as_mut();
+        m.set_width(c_int::MAX);
+        m.set_linesize(0, 1);
+        m.set_crop_top(1);
+        m.set_crop_left(1 << 30);
+        assert!(!wide.as_ref().crop_is_sound(CropFlags::empty()));
+        // C's own refusals pass: no pixel left, no positive size.
+        let mut none = frame_gray(64, 8);
+        none.as_mut().set_crop_top(8);
+        assert!(none.as_ref().crop_is_sound(CropFlags::empty()));
+        none.as_mut().set_width(0);
+        assert!(none.as_ref().crop_is_sound(CropFlags::empty()));
+        // Lent planes may not move; cropping only the far edges is fine.
+        let mut mem = vec![0u8; 64 * 8];
+        let mut lent = Frame::new().unwrap();
+        let mut m = lent.as_mut();
+        m.set_pixel_format(PixelFormat::GRAY8);
+        m.set_width(64);
+        m.set_height(8);
+        m.set_linesize(0, 64);
+        // SAFETY: the frame holds no buffer; `mem` holds the whole plane,
+        // outlives the frame and is written by nothing else.
+        unsafe { m.set_data_ptr(0, mem.as_mut_ptr()) };
+        m.set_crop_right(4);
+        m.set_crop_bottom(4);
+        assert_eq!(m.apply_cropping(CropFlags::empty()), Ok(()));
+        assert_eq!((lent.as_ref().width(), lent.as_ref().height()), (60, 4));
+        lent.as_mut().set_crop_top(1);
+        assert_eq!(
+            lent.as_mut().apply_cropping(CropFlags::empty()),
+            Err(EINVAL)
+        );
+        assert_eq!(frame_data(&lent)[0], mem.as_mut_ptr());
+        drop((lent, mem));
+    }
+
+    /// Properties are not copied from entries at a NULL window (unless C
+    /// skips them) or past a reference limit.
+    #[test]
+    #[cfg_attr(miri, ignore)]
+    fn frame_props_copy_refusals() {
+        let mut f = frame_gray(4, 4);
+        assert_eq!(f.as_ref().props_copy_refusal(4, 4), None);
+        let empty = BufferReference::from_heap_vec(HeapVec::empty()).unwrap();
+        f.as_mut()
+            .add_side_data(SideDataType::PAN_SCAN, empty)
+            .unwrap();
+        assert_eq!(f.as_ref().props_copy_refusal(4, 4), Some(EINVAL));
+        // C skips pan-scan entries for frames of another size.
+        assert_eq!(f.as_ref().props_copy_refusal(4, 5), None);
+        let empty = BufferReference::from_heap_vec(HeapVec::empty()).unwrap();
+        f.as_mut().add_side_data(SideDataType::AFD, empty).unwrap();
+        assert_eq!(f.as_ref().props_copy_refusal(4, 5), Some(EINVAL));
+        f.as_mut().remove_side_data(SideDataType::AFD);
+        f.as_mut().remove_side_data(SideDataType::PAN_SCAN);
+        f.as_mut()
+            .set_opaque_ref(Some(BufferReference::alloc_zeroed(1).unwrap()));
+        let limit = c_uint::MAX / 2;
+        let old = frame_set_count(f.as_ref().opaque_ref().unwrap(), limit);
+        assert_eq!(f.as_ref().props_copy_refusal(4, 4), Some(ENOMEM));
+        let mut g = Frame::new().unwrap();
+        assert_eq!(g.as_mut().copy_props_from(f.as_ref()), Err(ENOMEM));
+        frame_set_count(f.as_ref().opaque_ref().unwrap(), old);
+        assert_eq!(g.as_mut().copy_props_from(f.as_ref()), Ok(()));
+        assert_eq!(f.as_ref().opaque_ref().unwrap().ref_count(), 2);
+    }
+
+    /// `release_planes` repairs what failing `av_frame_get_buffer` calls
+    /// leave: NULL `extended_buf` entries counted after a refused line size.
+    #[test]
+    #[cfg_attr(miri, ignore)]
+    fn frame_release_planes_repairs_failed_audio_allocations() {
+        let mut f = Frame::new().unwrap();
+        let mut m = f.as_mut();
+        m.set_sample_format(SampleFormat::U8P);
+        m.set_sample_count(4);
+        m.set_channel_layout(ChannelLayout::unspecified(10))
+            .unwrap();
+        m.set_linesize(0, -1);
+        let p = m.as_mut_ptr();
+        // SAFETY: a live frame holding no planes; C allocates its arrays,
+        // then refuses the line size.
+        let ret = unsafe { ffi::av_frame_get_buffer(p, 0) };
+        assert_eq!(ret, EINVAL);
+        // SAFETY: reads of the live frame's fields.
+        unsafe {
+            assert_eq!((*p).nb_extended_buf, 2);
+            assert!((*(*p).extended_buf).is_null());
+            assert_ne!((*p).extended_data, addr_of_mut!((*p).data).cast());
+        }
+        m.release_planes();
+        assert_eq!(m.as_ref().extended_buffer_count(), 0);
+        assert!(!m.as_ref().has_extended_data());
+        // The safe path repairs the same way.
+        assert_eq!(m.alloc_buffers(0), Err(EINVAL));
+        assert_eq!(m.as_ref().extended_buffer_count(), 0);
+        assert!(!m.as_ref().has_extended_data());
+        m.set_linesize(0, 0);
+        assert_eq!(m.alloc_buffers(0), Ok(()));
+        assert_eq!(m.as_ref().extended_buffer_count(), 2);
+        assert_eq!(m.as_ref().extended_plane(9).unwrap()[..4], [0; 4]);
+    }
+
+    /// C's default rounding of `INT_MAX - 31` samples overflows; the wrapper
+    /// hands C the line size it would compute, and C then fails to allocate
+    /// it past `av_max_alloc`'s default.
+    #[test]
+    #[cfg_attr(miri, ignore)]
+    fn frame_alloc_buffers_at_the_rounding_boundary() {
+        let mut f = Frame::new().unwrap();
+        let mut m = f.as_mut();
+        m.set_sample_format(SampleFormat::U8);
+        m.set_sample_count(c_int::MAX - 31);
+        m.set_channel_layout(ChannelLayout::unspecified(1)).unwrap();
+        assert_eq!(m.alloc_buffers(0), Err(ENOMEM));
+        assert!(m.as_ref().buffer(0).is_none());
+        // C reset the frame on the failed allocation.
+        assert_eq!(m.as_ref().sample_count(), 0);
+    }
+
+    /// Lent planes are copied into zeroed buffers by `try_clone_from`,
+    /// `assign` and `make_writable`; `assign` from a frame whose only lent
+    /// planes are past the first four takes none of them.
+    #[test]
+    #[cfg_attr(miri, ignore)]
+    fn frame_lent_planes_are_copied_or_dropped() {
+        let mut mem = vec![7u8; 5 * 3];
+        let mut lent = Frame::new().unwrap();
+        let mut m = lent.as_mut();
+        m.set_pixel_format(PixelFormat::GRAY8);
+        m.set_width(5);
+        m.set_height(3);
+        m.set_linesize(0, 5);
+        // SAFETY: the frame holds no buffer; `mem` holds the whole plane,
+        // outlives the frame and is written by nothing else.
+        unsafe { m.set_data_ptr(0, mem.as_mut_ptr()) };
+        let check = |f: &FrameBox| {
+            let r = f.as_ref();
+            let ls = r.linesizes()[0] as usize;
+            let plane = r.plane(0).unwrap();
+            for y in 0..3 {
+                assert_eq!(plane[y * ls..y * ls + 5], [7; 5]);
+                assert!(plane[y * ls + 5..(y + 1) * ls].iter().all(|&b| b == 0));
+            }
+            assert!(plane[3 * ls..].iter().all(|&b| b == 0));
+        };
+        let mut a = Frame::new().unwrap();
+        a.as_mut().try_clone_from(lent.as_ref()).unwrap();
+        check(&a);
+        let mut b = frame_gray(2, 2);
+        b.as_mut().assign(lent.as_ref()).unwrap();
+        check(&b);
+        lent.as_mut().make_writable().unwrap();
+        check(&lent);
+        // Only plane 4 lent: no copy, and the frame keeps no plane.
+        let mut high = Frame::new().unwrap();
+        // SAFETY: as above.
+        unsafe { high.as_mut().set_data_ptr(4, mem.as_mut_ptr()) };
+        let mut c = frame_gray(2, 2);
+        c.as_mut().assign(high.as_ref()).unwrap();
+        assert!(frame_data(&c).iter().all(|p| p.is_null()));
+        assert!(c.as_ref().buffer(0).is_none());
+        drop((high, mem));
+    }
+
+    /// Under allocation limits, `alloc_buffers` (the `extended_data`
+    /// allocation that leaves it NULL included), `make_writable` and
+    /// `try_clone_from` fail cleanly: nothing leaks (LSan), and the frames
+    /// keep their invariant.
+    #[test]
+    #[cfg_attr(miri, ignore)]
+    fn frame_routine_allocation_failures() {
+        if !frame_isolated("libavutil::frame::unit_tests::frame_routine_allocation_failures") {
+            return;
+        }
+        let set_limit = |n: usize| {
+            // SAFETY: no precondition; this process runs this test alone.
+            unsafe { ffi::av_max_alloc(n) }
+        };
+        let audio = || {
+            let mut f = Frame::new().unwrap();
+            let mut m = f.as_mut();
+            m.set_sample_format(SampleFormat::U8P);
+            m.set_sample_count(4);
+            m.set_channel_layout(ChannelLayout::custom(9).unwrap())
+                .unwrap();
+            f
+        };
+        // 9 planes: a 72-byte `extended_data`, an 8-byte `extended_buf`.
+        let mut f = audio();
+        set_limit(64);
+        let p = f.as_mut().as_mut_ptr();
+        // SAFETY: a live frame holding no planes.
+        assert_eq!(unsafe { ffi::av_frame_get_buffer(p, 0) }, ENOMEM);
+        // SAFETY: a read of the live frame's field.
+        assert!(unsafe { (*p).extended_data }.is_null());
+        f.as_mut().release_planes();
+        assert!(!f.as_ref().has_extended_data());
+        assert_eq!(f.as_mut().alloc_buffers(0), Err(ENOMEM));
+        assert!(!f.as_ref().has_extended_data());
+        set_limit(c_int::MAX as usize);
+        let mut shared = audio();
+        shared.as_mut().alloc_buffers(0).unwrap();
+        shared
+            .as_mut()
+            .alloc_side_data_from_slice(SideDataType::AFD, &[1])
+            .unwrap();
+        let keep = shared.as_ref().try_clone().unwrap();
+        for limit in [8, 64, 72, 100, 300, 400, 600, 1 << 12] {
+            let (mut f, mut g) = (audio(), Frame::new().unwrap());
+            set_limit(limit);
+            let allocated = f.as_mut().alloc_buffers(0);
+            let made = shared.as_mut().make_writable();
+            let cloned = g.as_mut().try_clone_from(keep.as_ref());
+            set_limit(c_int::MAX as usize);
+            assert_eq!(made.is_ok(), shared.as_ref().is_writable(), "{limit}");
+            assert_eq!(allocated.is_ok(), f.as_ref().buffer(0).is_some(), "{limit}");
+            assert_eq!(cloned.is_ok(), g.as_ref().buffer(0).is_some(), "{limit}");
+            if made.is_ok() {
+                shared = keep.as_ref().try_clone().unwrap();
+            }
+        }
+        assert_eq!(shared.as_mut().make_writable(), Ok(()));
+        assert_eq!(
+            shared
+                .as_ref()
+                .find_side_data(SideDataType::AFD)
+                .unwrap()
+                .data(),
+            [1]
+        );
+    }
+
+    /// `make_writable` of a frame C cannot allocate a copy for leaks nothing,
+    /// where C's own routine leaks its copied custom layout.
+    #[test]
+    #[cfg_attr(miri, ignore)]
+    fn frame_make_writable_failures_leak_nothing() {
+        let mut f = frame_with_buffer(8);
+        f.as_mut().set_plane(0, 0, 0).unwrap();
+        f.as_mut()
+            .set_channel_layout(ChannelLayout::custom(2).unwrap())
+            .unwrap();
+        let keep = f.as_ref().try_clone().unwrap();
+        // Format -1: `av_frame_get_buffer` refuses the copy.
+        assert_eq!(f.as_mut().make_writable(), Err(EINVAL));
+        assert_eq!(f.as_ref().buffer(0).unwrap().ref_count(), 2);
+        drop(keep);
+        assert_eq!(f.as_mut().make_writable(), Ok(()));
+    }
+
+    /// `av_frame_replace` frees a destination's extra references when the
+    /// source has none, but keeps their count, which every later walk of
+    /// `extended_buf` (`av_frame_unref` here) follows through NULL;
+    /// `assign` releases them first and keeps the count 0.
+    #[test]
+    #[cfg_attr(miri, ignore)]
+    fn frame_assign_from_a_frame_without_extra_references_keeps_no_count() {
+        let wide = || {
+            let mut f = Frame::new().unwrap();
+            let mut m = f.as_mut();
+            m.set_sample_format(SampleFormat::U8P);
+            m.set_sample_count(4);
+            m.set_channel_layout(ChannelLayout::unspecified(10))
+                .unwrap();
+            m.alloc_buffers(0).unwrap();
+            f
+        };
+        let src = frame_gray(4, 4);
+        // C's own routine leaves the count behind.
+        let mut c = wide();
+        let p = c.as_mut().as_mut_ptr();
+        // SAFETY: two distinct live frames.
+        let ret = unsafe { ffi::av_frame_replace(p, src.as_ref().as_ptr()) };
+        assert_eq!(ret, 0);
+        // SAFETY: reads of the live frame's fields; the count is repaired
+        // before the frame is used or dropped, as `av_frame_unref` would
+        // walk it.
+        unsafe {
+            assert!((*p).extended_buf.is_null());
+            assert_eq!((*p).nb_extended_buf, 2);
+            (*p).nb_extended_buf = 0;
+        }
+        // The wrapper keeps none.
+        let mut r = wide();
+        let extra = r.as_ref().extended_buffer(1).unwrap().try_clone().unwrap();
+        r.as_mut().assign(src.as_ref()).unwrap();
+        // SAFETY: reads of the live frame's fields.
+        unsafe {
+            let p = r.as_ref().as_ptr();
+            assert!((*p).extended_buf.is_null());
+            assert_eq!((*p).nb_extended_buf, 0);
+        }
+        assert_eq!(extra.as_ref().ref_count(), 1);
+        assert_eq!(r.as_ref().plane(0).unwrap(), src.as_ref().plane(0).unwrap());
+        r.as_mut().reset();
+    }
+
+    /// Frames holding a hardware frames context are refused before C, whose
+    /// copies would go through `av_hwframe_transfer_data`.
+    #[test]
+    #[cfg_attr(miri, ignore)]
+    fn frame_hardware_copies_are_refused() {
+        let mut hw = Frame::new().unwrap();
+        let ctx = BufferReference::alloc_zeroed(8).unwrap();
+        // Never read as a context: every routine below refuses first, and
+        // the frame's release only unreferences it.
+        let old = hw
+            .as_mut()
+            .replace_reference(ReferenceField::HwFramesContext, Some(ctx));
+        assert!(old.is_none());
+        let mut sw = frame_gray(4, 4);
+        assert_eq!(sw.as_mut().copy_data_from(hw.as_ref()), Err(ENOSYS));
+        assert_eq!(hw.as_mut().copy_data_from(sw.as_ref()), Err(ENOSYS));
+        assert_eq!(hw.as_mut().make_writable(), Err(ENOSYS));
+        hw.as_mut().reset();
+        assert!(hw.as_ref().hw_frames_context().is_none());
+    }
+
+    /// `crop_is_sound` also refuses an offset whose low 32 bits are zero
+    /// when the left edge is not cropped, and follows C's rounding of the
+    /// left edge to the alignment it keeps.
+    #[test]
+    #[cfg_attr(miri, ignore)]
+    fn frame_crop_offsets_follow_cs_alignment() {
+        let mut f = frame_gray(64, 8);
+        let mut m = f.as_mut();
+        m.set_height(1 << 17);
+        m.set_linesize(0, 1 << 16);
+        m.set_crop_top(1 << 16);
+        assert!(!f.as_ref().crop_is_sound(CropFlags::empty()));
+        // An odd left edge over aligned rows rounds down to 0: no move.
+        let mut f = frame_gray(64, 8);
+        f.as_mut().set_crop_left(1);
+        let before = frame_data(&f)[0];
+        assert!(f.as_ref().crop_is_sound(CropFlags::empty()));
+        assert_eq!(f.as_mut().apply_cropping(CropFlags::empty()), Ok(()));
+        assert_eq!((frame_data(&f)[0], f.as_ref().width()), (before, 64));
+        // Unaligned, it moves by one byte.
+        let mut f = frame_gray(64, 8);
+        let before = frame_data(&f)[0].addr();
+        f.as_mut().set_crop_left(1);
+        assert_eq!(f.as_mut().apply_cropping(CropFlags::UNALIGNED), Ok(()));
+        assert_eq!(frame_data(&f)[0].addr(), before + 1);
+        // A left edge less aligned than the rows: C's `AVERROR_BUG`, before
+        // it changes anything.
+        let mut f = frame_gray(64, 8);
+        let mut m = f.as_mut();
+        m.set_pixel_format(PixelFormat::GRAY16LE);
+        m.set_crop_left(2);
+        m.set_crop_top(1);
+        assert!(m.as_ref().crop_is_sound(CropFlags::empty()));
+        assert_eq!(m.apply_cropping(CropFlags::empty()), Err(AVERROR_BUG));
+        assert_eq!((m.as_ref().crop_left(), m.as_ref().crop_top()), (2, 1));
+    }
+
+    /// Under allocation limits, `assign`, `try_clone_from`,
+    /// `copy_props_from` and `alloc_side_data_zeroed` fail cleanly through
+    /// C's failure paths: nothing leaks (LSan), failed replacements and
+    /// references leave the frame reset, and a failed property copy leaves
+    /// it without side data, as documented.
+    #[test]
+    #[cfg_attr(miri, ignore)]
+    fn frame_routine_failures_under_allocation_limits() {
+        if !frame_isolated(
+            "libavutil::frame::unit_tests::frame_routine_failures_under_allocation_limits",
+        ) {
+            return;
+        }
+        let set_limit = |n: usize| {
+            // SAFETY: no precondition; this process runs this test alone.
+            unsafe { ffi::av_max_alloc(n) }
+        };
+        let planar = |channels| {
+            let mut f = Frame::new().unwrap();
+            let mut m = f.as_mut();
+            m.set_sample_format(SampleFormat::U8P);
+            m.set_sample_count(4);
+            m.set_channel_layout(ChannelLayout::custom(channels).unwrap())
+                .unwrap();
+            m.alloc_buffers(0).unwrap();
+            f
+        };
+        let mut full = planar(14);
+        let mut m = full.as_mut();
+        m.set_metadata(Dict::from_entries([(c"k", c"v")]).unwrap());
+        m.set_opaque_ref(Some(BufferReference::alloc_zeroed(1).unwrap()));
+        for _ in 0..12 {
+            m.alloc_side_data_zeroed(SideDataType::SEI_UNREGISTERED, 1)
+                .unwrap();
+        }
+        // Without a custom map, side data or metadata, the smallest limits
+        // fail C's later allocations: buffer references, the extra block,
+        // the `extended_data` copy.
+        let mut bare = planar(14);
+        bare.as_mut()
+            .set_channel_layout(ChannelLayout::unspecified(14))
+            .unwrap();
+        // With side data but no map, the property copies fail first; a
+        // frame without planes takes the property-only path of
+        // `av_frame_replace`.
+        let mut side = planar(14);
+        let mut props = Frame::new().unwrap();
+        for f in [&mut side, &mut props] {
+            let mut m = f.as_mut();
+            m.set_channel_layout(ChannelLayout::unspecified(14))
+                .unwrap();
+            for _ in 0..12 {
+                m.alloc_side_data_zeroed(SideDataType::SEI_UNREGISTERED, 1)
+                    .unwrap();
+            }
+        }
+        let mut outcomes = [[0usize; 2]; 4];
+        let limits = [16, 24, 32, 48, 64, 80, 96, 112, 128, 200, 300, 600, 1 << 12];
+        let sources = [&full, &bare, &side, &props];
+        for (src, limit) in sources.into_iter().flat_map(|s| limits.map(|l| (s, l))) {
+            let (mut a, mut b) = (planar(20), planar(9));
+            let (mut c, mut d) = (Frame::new().unwrap(), frame_gray(2, 2));
+            for _ in 0..12 {
+                d.as_mut()
+                    .alloc_side_data_zeroed(SideDataType::SEI_UNREGISTERED, 1)
+                    .unwrap();
+            }
+            set_limit(limit);
+            let results = [
+                a.as_mut().assign(src.as_ref()),
+                b.as_mut().try_clone_from(src.as_ref()),
+                c.as_mut().copy_props_from(src.as_ref()),
+                d.as_mut()
+                    .alloc_side_data_zeroed(SideDataType::AFD, 1)
+                    .map(drop)
+                    .ok_or(ENOMEM),
+            ];
+            set_limit(c_int::MAX as usize);
+            let buf = BufferReference::alloc_zeroed(1).unwrap();
+            set_limit(limit);
+            let added = d.as_mut().add_side_data(SideDataType::AFD, buf).map(drop);
+            set_limit(c_int::MAX as usize);
+            // C hands the reference back when it cannot add the entry.
+            if let Err(buf) = added {
+                assert_eq!(buf.as_ref().ref_count(), 1);
+            }
+            for (o, r) in outcomes.iter_mut().zip(&results) {
+                o[usize::from(r.is_ok())] += 1;
+            }
+            let (ra, rb, rc) = (&results[0], &results[1], &results[2]);
+            let counted = src.as_ref().buffer(0).is_some();
+            assert_eq!(
+                ra.is_ok() && counted,
+                a.as_ref().buffer(0).is_some(),
+                "{limit}"
+            );
+            assert_eq!(
+                rb.is_ok() && counted,
+                b.as_ref().buffer(0).is_some(),
+                "{limit}"
+            );
+            if ra.is_ok() && counted {
+                assert_eq!(a.as_ref().extended_buffer_count(), 6);
+                assert_eq!(a.as_ref().side_data().len(), src.as_ref().side_data().len());
+            }
+            if rc.is_err() {
+                assert!(c.as_ref().side_data().is_empty());
+            }
+        }
+        assert!(
+            outcomes.iter().all(|o| o[0] > 0 && o[1] > 0),
+            "{outcomes:?}"
+        );
+        // A shared frame whose side data array outgrows its plane buffer:
+        // the copy's planes allocate, its side data does not.
+        let mut many = frame_gray(2, 2);
+        for _ in 0..400 {
+            many.as_mut()
+                .alloc_side_data_zeroed(SideDataType::SEI_UNREGISTERED, 1)
+                .unwrap();
+        }
+        let keep = many.as_ref().try_clone().unwrap();
+        let size = many.as_ref().buffer(0).unwrap().len();
+        set_limit(size + 64);
+        let made = many.as_mut().make_writable();
+        set_limit(c_int::MAX as usize);
+        assert_eq!(made, Err(ENOMEM));
+        assert_eq!(many.as_ref().buffer(0).unwrap().ref_count(), 2);
+        assert_eq!(many.as_ref().side_data().len(), 400);
+        drop(keep);
+    }
+
+    /// Replacing a frame holding more extra references than `src`, or from a
+    /// `src` whose `extended_data` array counts no channel, goes through C's
+    /// own paths: the extra references beyond `src`'s are released, and C
+    /// refuses the channelless array, resetting the frame.
+    #[test]
+    #[cfg_attr(miri, ignore)]
+    fn frame_replacements_shrink_extra_references() {
+        let planar = |channels| {
+            let mut f = Frame::new().unwrap();
+            let mut m = f.as_mut();
+            m.set_sample_format(SampleFormat::U8P);
+            m.set_sample_count(4);
+            m.set_channel_layout(ChannelLayout::unspecified(channels))
+                .unwrap();
+            m.alloc_buffers(0).unwrap();
+            f
+        };
+        let (mut dst, src) = (planar(20), planar(10));
+        let extra = dst
+            .as_ref()
+            .extended_buffer(11)
+            .unwrap()
+            .try_clone()
+            .unwrap();
+        dst.as_mut().assign(src.as_ref()).unwrap();
+        assert_eq!(extra.as_ref().ref_count(), 1);
+        assert_eq!(dst.as_ref().extended_buffer_count(), 2);
+        assert_eq!(src.as_ref().extended_buffer(1).unwrap().ref_count(), 2);
+        let mut none = planar(9);
+        none.as_mut()
+            .set_channel_layout(ChannelLayout::unspecified(0))
+            .unwrap();
+        assert_eq!(dst.as_mut().assign(none.as_ref()), Err(EINVAL));
+        assert!(dst.as_ref().buffer(0).is_none());
+        assert_eq!(dst.as_mut().try_clone_from(none.as_ref()), Err(EINVAL));
+        assert_eq!(none.as_ref().buffer(0).unwrap().ref_count(), 1);
+    }
+
+    /// References and replacements refuse a source whose counts are at the
+    /// limit, or whose lent planes C would read past its `extended_data`,
+    /// before C is called.
+    #[test]
+    #[cfg_attr(miri, ignore)]
+    fn frame_references_refuse_before_c() {
+        let src = frame_gray(4, 4);
+        let mut dst = frame_gray(2, 2);
+        let limit = c_uint::MAX / 2;
+        let old = frame_set_count(src.as_ref().buffer(0).unwrap(), limit);
+        assert_eq!(dst.as_mut().assign(src.as_ref()), Err(ENOMEM));
+        assert_eq!(dst.as_ref().width(), 2);
+        assert_eq!(dst.as_mut().try_clone_from(src.as_ref()), Err(ENOMEM));
+        assert!(dst.as_ref().buffer(0).is_none());
+        frame_set_count(src.as_ref().buffer(0).unwrap(), old);
+        // Nine planar channels lent in `data`: C would read a ninth plane
+        // pointer past it.
+        let mut mems = vec![vec![1u8; 4]; 9];
+        let mut lent = Frame::new().unwrap();
+        let mut m = lent.as_mut();
+        m.set_sample_format(SampleFormat::U8P);
+        m.set_sample_count(4);
+        m.set_channel_layout(ChannelLayout::unspecified(9)).unwrap();
+        for (i, mem) in mems.iter_mut().take(NUM_DATA_POINTERS).enumerate() {
+            // SAFETY: the frame holds no buffer; `mem` holds the channel's
+            // samples, outlives the frame and is written by nothing else.
+            unsafe { m.set_data_ptr(i, mem.as_mut_ptr()) };
+        }
+        let mut dst = frame_gray(2, 2);
+        assert_eq!(dst.as_mut().assign(lent.as_ref()), Err(EINVAL));
+        assert!(dst.as_ref().buffer(0).is_some());
+        assert_eq!(dst.as_mut().try_clone_from(lent.as_ref()), Err(EINVAL));
+        drop((lent, mems));
+    }
+
+    /// Cropping a format C has no descriptor for, or planes the format has
+    /// no component in, is C's `AVERROR_BUG`, reached without a move.
+    #[test]
+    #[cfg_attr(miri, ignore)]
+    fn frame_crops_of_unknown_planes_are_cs_bugs() {
+        let mut f = frame_gray(8, 8);
+        f.as_mut().set_crop_top(1);
+        f.as_mut().set_format(100_000);
+        assert!(f.as_ref().crop_is_sound(CropFlags::empty()));
+        assert_eq!(
+            f.as_mut().apply_cropping(CropFlags::empty()),
+            Err(AVERROR_BUG)
+        );
+        f.as_mut().set_pixel_format(PixelFormat::GRAY8);
+        f.as_mut().set_plane(1, 0, 0).unwrap();
+        let before = frame_data(&f);
+        assert!(f.as_ref().crop_is_sound(CropFlags::empty()));
+        assert_eq!(
+            f.as_mut().apply_cropping(CropFlags::empty()),
+            Err(AVERROR_BUG)
+        );
+        assert_eq!(frame_data(&f), before);
     }
 }

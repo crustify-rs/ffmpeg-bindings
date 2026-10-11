@@ -1977,3 +1977,730 @@ mod frame_type {
         thread::spawn(move || drop(f)).join().unwrap();
     }
 }
+
+/// `AVFrame`'s routines: buffer allocation, copies of planes and properties,
+/// references, replacements and moves, writability, cropping, plane buffer
+/// and side data lookups, and the copies and crops the wrappers refuse
+/// because C would reach bytes it must not.
+mod frame_routines {
+    use std::sync::{Arc, Barrier};
+    use std::thread;
+
+    use ffmpeg::libavutil::buffer::BufferReference;
+    use ffmpeg::libavutil::channel_layout::ChannelLayout;
+    use ffmpeg::libavutil::dict::Dict;
+    use ffmpeg::libavutil::frame::{
+        CropFlags, Frame, FrameBox, FrameRef, NUM_DATA_POINTERS, SideDataType,
+    };
+    use ffmpeg::libavutil::mem::HeapVec;
+    use ffmpeg::libavutil::pixfmt::PixelFormat;
+    use ffmpeg::libavutil::samplefmt::SampleFormat;
+
+    const EINVAL: i32 = -22;
+    /// `AVERROR_BUG`, `FFERRTAG('B', 'U', 'G', '!')`.
+    const AVERROR_BUG: i32 = -i32::from_le_bytes(*b"BUG!");
+
+    /// A video frame of `format`, `w` x `h`, with buffers from
+    /// `alloc_buffers` at `align`.
+    fn video(format: PixelFormat, w: i32, h: i32, align: usize) -> FrameBox {
+        let mut f = Frame::new().unwrap();
+        let mut m = f.as_mut();
+        m.set_pixel_format(format);
+        m.set_width(w);
+        m.set_height(h);
+        m.alloc_buffers(align).unwrap();
+        f
+    }
+
+    /// An audio frame of `format`, `channels` x `samples`, with buffers from
+    /// `alloc_buffers` at `align`.
+    fn audio(format: SampleFormat, channels: i32, samples: i32, align: usize) -> FrameBox {
+        let mut f = Frame::new().unwrap();
+        let mut m = f.as_mut();
+        m.set_sample_format(format);
+        m.set_sample_count(samples);
+        m.set_channel_layout(ChannelLayout::unspecified(channels))
+            .unwrap();
+        m.alloc_buffers(align).unwrap();
+        f
+    }
+
+    /// Whether every byte of `bytes` is `b`, compared whole.
+    fn is_all(bytes: &[u8], b: u8) -> bool {
+        bytes == vec![b; bytes.len()].as_slice()
+    }
+
+    /// The rows the plane of a video frame holds, as C lays them out.
+    fn rows(format: PixelFormat, plane: usize, h: i32) -> usize {
+        let (_, sub) = format.chroma_subsampling().unwrap();
+        if plane == 1 || plane == 2 {
+            (h as usize).div_ceil(1 << sub)
+        } else {
+            h as usize
+        }
+    }
+
+    const FORMATS: [PixelFormat; 9] = [
+        PixelFormat::GRAY8,
+        PixelFormat::YUV420P,
+        PixelFormat::YUV444P16,
+        PixelFormat::NV12,
+        PixelFormat::RGB24,
+        PixelFormat::RGBA,
+        PixelFormat::PAL8,
+        PixelFormat::MONOWHITE,
+        PixelFormat::YUVA420P,
+    ];
+
+    /// Allocated planes read as zeroes, every row of every plane inside the
+    /// buffer holding it, and are writable whole.
+    #[test]
+    fn allocated_video_planes_are_zeroed_and_writable() {
+        for format in FORMATS {
+            for (w, h) in [(1, 1), (7, 3), (33, 17)] {
+                for align in [0, 1, 16, 64, 1 << 12] {
+                    let mut f = video(format, w, h, align);
+                    let r = f.as_ref();
+                    assert!(r.is_writable());
+                    let count = format.plane_count().unwrap();
+                    for i in 0..count {
+                        let plane = r.plane(i).unwrap();
+                        assert!(is_all(plane, 0), "{format:?} {w}x{h} {align} plane {i}");
+                        let ls = r.linesizes()[i] as usize;
+                        let need = (rows(format, i, h) - 1) * ls + 1;
+                        assert!(plane.len() >= need, "{format:?} {w}x{h} {align} plane {i}");
+                        if align > 1 {
+                            assert_eq!(plane.as_ptr().addr() % align.min(64), 0);
+                        }
+                        assert!(r.plane_buffer(i).is_some());
+                    }
+                    // Video planes share one buffer: a plane's view runs on
+                    // over the planes after it.
+                    let mut m = f.as_mut();
+                    for i in (0..count).rev() {
+                        m.plane_mut(i).unwrap().fill(i as u8 + 1);
+                        assert!(is_all(m.as_ref().plane(i).unwrap(), i as u8 + 1));
+                    }
+                }
+            }
+        }
+    }
+
+    /// Audio planes likewise, with an `extended_data` array and extra
+    /// buffers for more than 8 planar channels.
+    #[test]
+    fn allocated_audio_planes_are_zeroed_and_writable() {
+        let formats = [
+            SampleFormat::U8,
+            SampleFormat::S16P,
+            SampleFormat::FLTP,
+            SampleFormat::DBL,
+        ];
+        for format in formats {
+            for channels in [1, 2, 8, 9, 20] {
+                for samples in [1, 47, 1024] {
+                    let mut f = audio(format, channels, samples, 0);
+                    let planes = if format.is_planar() {
+                        channels as usize
+                    } else {
+                        1
+                    };
+                    let r = f.as_ref();
+                    assert_eq!(r.has_extended_data(), planes > NUM_DATA_POINTERS);
+                    assert_eq!(
+                        r.extended_buffer_count(),
+                        planes.saturating_sub(NUM_DATA_POINTERS)
+                    );
+                    let line = samples as usize
+                        * format.bytes_per_sample()
+                        * if format.is_planar() {
+                            1
+                        } else {
+                            channels as usize
+                        };
+                    for i in 0..planes {
+                        let plane = r.extended_plane(i).unwrap();
+                        assert!(plane.len() >= line && is_all(plane, 0));
+                        assert!(r.plane_buffer(i).is_some());
+                    }
+                    assert!(r.plane_buffer(planes).is_none());
+                    let mut m = f.as_mut();
+                    for i in 0..planes {
+                        m.extended_plane_mut(i).unwrap().fill(3);
+                    }
+                    assert!(f.as_ref().is_writable());
+                }
+            }
+        }
+    }
+
+    /// Alignments that are not powers of two up to `2^27` are refused before
+    /// C, and the frame keeps what it held; allocations C refuses leave the
+    /// frame without planes, and nothing leaks.
+    #[test]
+    fn allocations_refuse_bad_alignments_and_geometry() {
+        let mut f = video(PixelFormat::GRAY8, 8, 8, 0);
+        for align in [3, 48, (1 << 27) + 1, 1 << 28, usize::MAX] {
+            assert_eq!(f.as_mut().alloc_buffers(align), Err(EINVAL));
+            assert!(f.as_ref().buffer(0).is_some());
+        }
+        assert_eq!(f.as_mut().alloc_buffers(1 << 27), Ok(()));
+        assert!(is_all(f.as_ref().plane(0).unwrap()[..8].as_ref(), 0));
+        // Unknown formats, no size, too large a size, no samples.
+        let cases: [fn(&mut FrameBox); 5] = [
+            |f| f.as_mut().set_format(-1),
+            |f| f.as_mut().set_format(100_000),
+            |f| f.as_mut().set_width(0),
+            |f| f.as_mut().set_height(1 << 30),
+            |f| f.as_mut().set_pixel_format(PixelFormat::VAAPI),
+        ];
+        for case in cases {
+            let mut f = video(PixelFormat::GRAY8, 8, 8, 0);
+            let keep = f.as_ref().buffer(0).unwrap().try_clone().unwrap();
+            case(&mut f);
+            assert!(f.as_mut().alloc_buffers(0).is_err());
+            assert!(f.as_ref().buffer(0).is_none());
+            assert!(f.as_ref().plane(0).is_none());
+            assert_eq!(keep.as_ref().ref_count(), 1);
+        }
+        // A refused line size for ten planar channels.
+        let mut f = Frame::new().unwrap();
+        let mut m = f.as_mut();
+        m.set_sample_format(SampleFormat::U8P);
+        m.set_sample_count(4);
+        m.set_channel_layout(ChannelLayout::unspecified(10))
+            .unwrap();
+        m.set_linesize(0, -1);
+        assert_eq!(m.alloc_buffers(0), Err(EINVAL));
+        assert_eq!(m.as_ref().extended_buffer_count(), 0);
+        assert!(!m.as_ref().has_extended_data());
+        assert!(m.as_ref().extended_plane(9).is_none());
+        // Line sizes set beforehand are kept.
+        let mut f = Frame::new().unwrap();
+        let mut m = f.as_mut();
+        m.set_pixel_format(PixelFormat::GRAY8);
+        m.set_width(8);
+        m.set_height(2);
+        m.set_linesize(0, 100);
+        m.alloc_buffers(0).unwrap();
+        assert_eq!(m.as_ref().linesizes()[0], 100);
+        assert!(m.as_ref().plane(0).unwrap().len() >= 100 + 8);
+    }
+
+    /// Copies between allocated frames move every row, and leave padding
+    /// and the other frame's buffers alone.
+    #[test]
+    fn copies_move_every_row() {
+        for format in FORMATS {
+            let mut src = video(format, 9, 5, 0);
+            let mut dst = video(format, 9, 5, 1);
+            let count = format.plane_count().unwrap();
+            for i in 0..count {
+                src.as_mut().plane_mut(i).unwrap().fill(0x5a);
+            }
+            if format == PixelFormat::PAL8 {
+                src.as_mut().plane_mut(1).unwrap()[..1024].fill(0x77);
+            }
+            dst.as_mut().copy_data_from(src.as_ref()).unwrap();
+            let (d, s) = (dst.as_ref(), src.as_ref());
+            for i in 0..count {
+                let dl = d.linesizes()[i] as usize;
+                for y in 0..rows(format, i, 5) {
+                    // The first byte of every row is copied.
+                    let dp = &d.plane(i).unwrap()[y * dl..];
+                    assert_eq!(dp[0], 0x5a, "{format:?} plane {i} row {y}");
+                }
+            }
+            if format == PixelFormat::PAL8 {
+                assert!(is_all(&d.plane(1).unwrap()[..1024], 0x77));
+            }
+            assert!(s.is_writable() && d.is_writable());
+        }
+        for (format, channels) in [(SampleFormat::S16P, 12), (SampleFormat::FLT, 3)] {
+            let mut src = audio(format, channels, 31, 0);
+            let mut dst = audio(format, channels, 31, 1);
+            let planes = if format.is_planar() {
+                channels as usize
+            } else {
+                1
+            };
+            for i in 0..planes {
+                src.as_mut()
+                    .extended_plane_mut(i)
+                    .unwrap()
+                    .fill(i as u8 + 1);
+            }
+            dst.as_mut().copy_data_from(src.as_ref()).unwrap();
+            let line =
+                31 * format.bytes_per_sample() * if planes == 1 { channels as usize } else { 1 };
+            for i in 0..planes {
+                let plane = dst.as_ref().extended_plane(i).unwrap();
+                assert!(is_all(&plane[..line], i as u8 + 1));
+            }
+        }
+    }
+
+    /// Copies C would run past a buffer, write into a shared one, read past
+    /// `extended_data`, or abort on are refused, writing nothing; C's own
+    /// refusals come back as C's errors.
+    #[test]
+    fn copies_refuse_what_c_must_not_reach() {
+        let src = video(PixelFormat::GRAY8, 8, 4, 0);
+        let mut dst = video(PixelFormat::GRAY8, 8, 4096, 0);
+        // A source taller than its buffer.
+        let mut tall = video(PixelFormat::GRAY8, 8, 4, 0);
+        tall.as_mut().set_height(4096);
+        assert_eq!(dst.as_mut().copy_data_from(tall.as_ref()), Err(EINVAL));
+        assert!(is_all(dst.as_ref().plane(0).unwrap(), 0));
+        // Rows wider than the source's line size (C's abort).
+        let mut narrow = video(PixelFormat::GRAY8, 8, 4, 0);
+        narrow.as_mut().set_linesize(0, 2);
+        assert_eq!(dst.as_mut().copy_data_from(narrow.as_ref()), Err(EINVAL));
+        // A bottom-up source whose rows precede its buffer.
+        let mut flipped = video(PixelFormat::GRAY8, 8, 4, 0);
+        flipped.as_mut().set_linesize(0, -64);
+        assert_eq!(dst.as_mut().copy_data_from(flipped.as_ref()), Err(EINVAL));
+        // A shared destination.
+        let shared = dst.as_ref().try_clone().unwrap();
+        assert_eq!(dst.as_mut().copy_data_from(src.as_ref()), Err(EINVAL));
+        assert!(is_all(shared.as_ref().plane(0).unwrap(), 0));
+        drop(shared);
+        assert_eq!(dst.as_mut().copy_data_from(src.as_ref()), Ok(()));
+        // A read-only destination buffer.
+        let mut ro = video(PixelFormat::GRAY8, 8, 4, 0);
+        let len = ro.as_ref().buffer(0).unwrap().len();
+        let bytes = vec![1u8; len].into_boxed_slice();
+        let buf = BufferReference::from_read_only(bytes).unwrap();
+        ro.as_mut().set_buffer(0, Some(buf));
+        ro.as_mut().set_plane(0, 0, 0).unwrap();
+        assert_eq!(ro.as_mut().copy_data_from(src.as_ref()), Err(EINVAL));
+        assert!(is_all(ro.as_ref().plane(0).unwrap(), 1));
+        // A palette that is not there.
+        let mut pal = video(PixelFormat::PAL8, 4, 4, 0);
+        let mut nopal = video(PixelFormat::PAL8, 4, 4, 0);
+        nopal.as_mut().clear_plane(1);
+        assert_eq!(pal.as_mut().copy_data_from(nopal.as_ref()), Err(EINVAL));
+        assert_eq!(nopal.as_mut().copy_data_from(pal.as_ref()), Err(EINVAL));
+        // A palettized source of negative width C would copy as `size_t`.
+        let mut neg = video(PixelFormat::PAL8, 4, 4, 0);
+        neg.as_mut().set_width(-1);
+        assert_eq!(pal.as_mut().copy_data_from(neg.as_ref()), Err(EINVAL));
+        // A bitstream width whose row overflows C's round-up.
+        let mut mono = video(PixelFormat::MONOWHITE, 8, 1, 0);
+        let mut wide = video(PixelFormat::MONOWHITE, 8, 1, 0);
+        mono.as_mut().set_width(i32::MAX);
+        wide.as_mut().set_width(i32::MAX);
+        assert_eq!(mono.as_mut().copy_data_from(wide.as_ref()), Err(EINVAL));
+        // Planar audio past `extended_data`, and an overflowing size.
+        let mut a = audio(SampleFormat::U8P, 9, 4, 0);
+        let mut b = audio(SampleFormat::U8P, 9, 4, 0);
+        b.as_mut().reset_extended_data();
+        assert_eq!(a.as_mut().copy_data_from(b.as_ref()), Err(EINVAL));
+        assert_eq!(b.as_mut().copy_data_from(a.as_ref()), Err(EINVAL));
+        let mut c = audio(SampleFormat::DBL, 2, 4, 0);
+        let mut d = audio(SampleFormat::DBL, 2, 4, 0);
+        c.as_mut().set_sample_count(i32::MAX / 8);
+        d.as_mut().set_sample_count(i32::MAX / 8);
+        assert_eq!(c.as_mut().copy_data_from(d.as_ref()), Err(EINVAL));
+        // C's refusals: other formats, sizes, counts, layouts, planes.
+        let gray = video(PixelFormat::GRAY8, 4, 4, 0);
+        assert_eq!(pal.as_mut().copy_data_from(gray.as_ref()), Err(EINVAL));
+        let small = video(PixelFormat::GRAY8, 4, 2, 0);
+        let mut smaller = video(PixelFormat::GRAY8, 4, 1, 0);
+        assert_eq!(smaller.as_mut().copy_data_from(small.as_ref()), Err(EINVAL));
+        let e = audio(SampleFormat::U8P, 2, 4, 0);
+        let mut f = audio(SampleFormat::U8P, 3, 4, 0);
+        assert_eq!(f.as_mut().copy_data_from(e.as_ref()), Err(EINVAL));
+        let mut empty = Frame::new().unwrap();
+        assert_eq!(empty.as_mut().copy_data_from(gray.as_ref()), Err(EINVAL));
+    }
+
+    /// `make_writable` copies shared or read-only planes into zeroed
+    /// buffers of the frame's own, keeps writable ones, and refuses frames
+    /// whose geometry describes rows outside their buffers.
+    #[test]
+    fn make_writable_copies_only_shared_planes() {
+        let mut f = video(PixelFormat::YUV420P, 9, 5, 0);
+        f.as_mut().plane_mut(0).unwrap().fill(4);
+        assert_eq!(f.as_mut().make_writable(), Ok(()));
+        let copy = f.as_ref().try_clone().unwrap();
+        assert!(!f.as_ref().is_writable());
+        assert_eq!(f.as_mut().make_writable(), Ok(()));
+        assert!(f.as_ref().is_writable() && copy.as_ref().is_writable());
+        let ls = f.as_ref().linesizes()[0] as usize;
+        let plane = f.as_ref().plane(0).unwrap();
+        for y in 0..5 {
+            assert!(is_all(&plane[y * ls..y * ls + 9], 4));
+            assert!(is_all(&plane[y * ls + 9..(y + 1) * ls], 0));
+        }
+        // Read-only buffers are copied too.
+        let mut ro = Frame::new().unwrap();
+        let mut m = ro.as_mut();
+        m.set_pixel_format(PixelFormat::GRAY8);
+        m.set_width(4);
+        m.set_height(2);
+        m.set_linesize(0, 4);
+        let buf = BufferReference::from_read_only(vec![6u8; 8]).unwrap();
+        m.set_buffer(0, Some(buf));
+        m.set_plane(0, 0, 0).unwrap();
+        m.set_metadata(Dict::from_entries([(c"k", c"v")]).unwrap());
+        m.alloc_side_data_from_slice(SideDataType::AFD, &[9])
+            .unwrap();
+        assert_eq!(m.make_writable(), Ok(()));
+        assert!(ro.as_ref().is_writable());
+        assert!(is_all(&ro.as_ref().plane(0).unwrap()[..4], 6));
+        assert_eq!(ro.as_ref().side_data().len(), 1);
+        assert_eq!(ro.as_ref().metadata().unwrap().iter().count(), 1);
+        // A shared frame claiming more rows than its buffer holds.
+        let mut tall = video(PixelFormat::GRAY8, 8, 4, 0);
+        let keep = tall.as_ref().try_clone().unwrap();
+        tall.as_mut().set_height(4096);
+        assert_eq!(tall.as_mut().make_writable(), Err(EINVAL));
+        assert_eq!(tall.as_ref().buffer(0).unwrap().ref_count(), 2);
+        // A shared frame with a side data entry at a NULL window.
+        let mut nullsd = video(PixelFormat::GRAY8, 8, 4, 0);
+        let empty = BufferReference::from_heap_vec(HeapVec::empty()).unwrap();
+        nullsd
+            .as_mut()
+            .add_side_data(SideDataType::AFD, empty)
+            .unwrap();
+        let keep2 = nullsd.as_ref().try_clone().unwrap();
+        assert_eq!(nullsd.as_mut().make_writable(), Err(EINVAL));
+        drop((keep, keep2));
+        // A new frame has nothing to copy.
+        assert_eq!(Frame::new().unwrap().as_mut().make_writable(), Err(EINVAL));
+    }
+
+    /// References share buffers and copy properties; replacements keep
+    /// shared buffers; moves leave defaults; all release what they replace.
+    #[test]
+    fn references_replacements_and_moves_release_what_they_replace() {
+        let mut src = video(PixelFormat::YUV420P, 6, 4, 0);
+        src.as_mut().set_pts(42);
+        src.as_mut()
+            .alloc_side_data_from_slice(SideDataType::AFD, &[3])
+            .unwrap();
+        src.as_mut()
+            .set_metadata(Dict::from_entries([(c"a", c"1")]).unwrap());
+        let mut dst = audio(SampleFormat::S16P, 10, 8, 0);
+        let old = dst.as_ref().buffer(0).unwrap().try_clone().unwrap();
+        dst.as_mut().try_clone_from(src.as_ref()).unwrap();
+        assert_eq!(old.as_ref().ref_count(), 1);
+        assert_eq!(dst.as_ref().pts(), 42);
+        assert_eq!(src.as_ref().buffer(0).unwrap().ref_count(), 2);
+        assert_eq!(
+            dst.as_ref().plane(1).unwrap(),
+            src.as_ref().plane(1).unwrap()
+        );
+        assert_eq!(
+            dst.as_ref()
+                .find_side_data(SideDataType::AFD)
+                .unwrap()
+                .data(),
+            [3]
+        );
+        // A replacement from the same source keeps the reference.
+        dst.as_mut().assign(src.as_ref()).unwrap();
+        assert_eq!(src.as_ref().buffer(0).unwrap().ref_count(), 2);
+        assert_eq!(dst.as_ref().side_data().len(), 1);
+        // From another source, it trades the reference.
+        let other = audio(SampleFormat::U8P, 12, 4, 0);
+        dst.as_mut().assign(other.as_ref()).unwrap();
+        assert_eq!(src.as_ref().buffer(0).unwrap().ref_count(), 1);
+        assert_eq!(other.as_ref().extended_buffer(3).unwrap().ref_count(), 2);
+        assert_eq!(dst.as_ref().extended_plane_count(), 12);
+        assert!(dst.as_ref().side_data().is_empty());
+        // From a frame without planes, it takes properties alone.
+        let mut bare = Frame::new().unwrap();
+        bare.as_mut().set_pts(5);
+        dst.as_mut().assign(bare.as_ref()).unwrap();
+        assert!(dst.as_ref().buffer(0).is_none());
+        assert_eq!(
+            (dst.as_ref().pts(), dst.as_ref().extended_plane_count()),
+            (5, 8)
+        );
+        assert_eq!(other.as_ref().extended_buffer(3).unwrap().ref_count(), 1);
+        // A reference to a frame without planes fails, resetting.
+        assert_eq!(dst.as_mut().try_clone_from(bare.as_ref()), Err(EINVAL));
+        assert_eq!(dst.as_ref().pts(), Frame::new().unwrap().as_ref().pts());
+        // Moves.
+        let mut a = video(PixelFormat::GRAY8, 4, 4, 0);
+        let mut b = audio(SampleFormat::U8P, 9, 4, 0);
+        let ext = b.as_ref().extended_plane(8).unwrap().as_ptr();
+        a.as_mut().move_from(b.as_mut());
+        assert_eq!(a.as_ref().extended_plane(8).unwrap().as_ptr(), ext);
+        assert!(b.as_ref().buffer(0).is_none() && !b.as_ref().has_extended_data());
+        let c = a.as_mut().take().unwrap();
+        assert_eq!(c.as_ref().extended_plane(8).unwrap().as_ptr(), ext);
+        assert!(a.as_ref().buffer(0).is_none());
+        b.as_mut().move_from(Frame::new().unwrap().as_mut());
+        drop((a, b, c));
+    }
+
+    /// Properties copy into any frame: metadata merges, side data appends
+    /// with new payloads; entries at a NULL window are refused.
+    #[test]
+    fn property_copies_append_and_refuse_null_payloads() {
+        let mut src = Frame::new().unwrap();
+        let mut m = src.as_mut();
+        m.set_pts(9);
+        m.set_crop_left(3);
+        m.alloc_side_data_from_slice(SideDataType::AFD, &[1])
+            .unwrap();
+        m.alloc_side_data_zeroed(SideDataType::PAN_SCAN, 20)
+            .unwrap();
+        m.set_metadata(Dict::from_entries([(c"a", c"1"), (c"b", c"2")]).unwrap());
+        let mut dst = video(PixelFormat::GRAY8, 4, 4, 0);
+        dst.as_mut()
+            .set_metadata(Dict::from_entries([(c"a", c"0"), (c"c", c"3")]).unwrap());
+        dst.as_mut()
+            .alloc_side_data_zeroed(SideDataType::AFD, 1)
+            .unwrap();
+        dst.as_mut().copy_props_from(src.as_ref()).unwrap();
+        let d = dst.as_ref();
+        assert_eq!((d.pts(), d.crop_left()), (9, 3));
+        // Pan-scan entries are skipped for frames of another size.
+        assert_eq!(d.side_data().len(), 2);
+        assert_eq!(d.metadata().unwrap().iter().count(), 3);
+        let entry = d.side_data().get(1).unwrap();
+        let source = src.as_ref().side_data().get(0).unwrap();
+        assert!(!entry.buffer().buffer().ptr_eq(&source.buffer().buffer()));
+        assert_eq!(entry.buffer().ref_count(), 1);
+        let empty = BufferReference::from_heap_vec(HeapVec::empty()).unwrap();
+        src.as_mut()
+            .add_side_data(SideDataType::A53_CC, empty)
+            .unwrap();
+        let mut target = Frame::new().unwrap();
+        assert_eq!(target.as_mut().copy_props_from(src.as_ref()), Err(EINVAL));
+        assert_eq!(target.as_ref().pts(), Frame::new().unwrap().as_ref().pts());
+        // References share such an entry without copying its bytes.
+        let mut shared = Frame::new().unwrap();
+        shared.as_mut().assign(src.as_ref()).unwrap();
+        assert_eq!(shared.as_ref().side_data().len(), 3);
+    }
+
+    /// Cropping moves planes inside their buffers and shrinks the frame;
+    /// crops C cannot compute, or that would leave a buffer, are refused
+    /// with the frame unchanged.
+    #[test]
+    fn cropping_stays_inside_the_buffers() {
+        for format in FORMATS {
+            for flags in [CropFlags::empty(), CropFlags::UNALIGNED] {
+                let mut f = video(format, 64, 32, 0);
+                let mut m = f.as_mut();
+                m.set_crop_top(4);
+                m.set_crop_bottom(2);
+                m.set_crop_left(20);
+                m.set_crop_right(3);
+                let cropped = m.apply_cropping(flags);
+                if cropped == Err(AVERROR_BUG) && flags.is_empty() {
+                    // C cannot keep this format's alignment for this edge
+                    // (its offsets are more aligned than the edge).
+                    assert_eq!(f.as_ref().height(), 32, "{format:?}");
+                    continue;
+                }
+                assert_eq!(cropped, Ok(()), "{format:?} {flags:?}");
+                let r = f.as_ref();
+                if format == PixelFormat::MONOWHITE {
+                    // Bitstream formats: the right and bottom edges only.
+                    assert_eq!((r.width(), r.height()), (61, 30));
+                    assert_eq!((r.crop_top(), r.crop_right()), (4, 0));
+                    continue;
+                } else {
+                    assert_eq!(r.height(), 26);
+                    // Without `UNALIGNED`, C may round the left edge down.
+                    assert!((41..=61).contains(&r.width()), "{format:?}");
+                }
+                assert_eq!((r.crop_top(), r.crop_left()), (0, 0));
+                for i in 0..format.plane_count().unwrap() {
+                    assert!(r.plane(i).is_some(), "{format:?} {flags:?} plane {i}");
+                }
+            }
+        }
+        // Rows past the buffer, a negative line size cropped from the top,
+        // a palettized frame with extra planes, wrapped crops.
+        let mut tall = video(PixelFormat::GRAY8, 8, 8, 0);
+        tall.as_mut().set_height(1 << 20);
+        tall.as_mut().set_crop_top(1 << 19);
+        let before = tall.as_ref().plane(0).unwrap().as_ptr();
+        assert_eq!(
+            tall.as_mut().apply_cropping(CropFlags::UNALIGNED),
+            Err(EINVAL)
+        );
+        assert_eq!(tall.as_ref().plane(0).unwrap().as_ptr(), before);
+        assert_eq!(tall.as_ref().crop_top(), 1 << 19);
+        let mut flipped = video(PixelFormat::GRAY8, 8, 8, 0);
+        let ls = flipped.as_ref().linesizes()[0];
+        flipped.as_mut().set_linesize(0, -ls);
+        flipped.as_mut().set_crop_top(1);
+        assert_eq!(
+            flipped.as_mut().apply_cropping(CropFlags::empty()),
+            Err(EINVAL)
+        );
+        let mut pal = video(PixelFormat::PAL8, 8, 8, 0);
+        pal.as_mut().set_plane(2, 0, 0).unwrap();
+        pal.as_mut().set_crop_top(1);
+        assert_eq!(pal.as_mut().apply_cropping(CropFlags::empty()), Err(EINVAL));
+        let mut wrap = video(PixelFormat::GRAY8, 64, 8, 0);
+        wrap.as_mut().set_crop_left(1 << 32);
+        wrap.as_mut().set_crop_right(usize::MAX - (1 << 32) + 2);
+        assert_eq!(
+            wrap.as_mut().apply_cropping(CropFlags::empty()),
+            Err(EINVAL)
+        );
+        // C's own refusals.
+        let mut f = video(PixelFormat::GRAY8, 8, 8, 0);
+        f.as_mut().set_crop_left(8);
+        assert_eq!(f.as_mut().apply_cropping(CropFlags::empty()), Err(-34));
+        f.as_mut().set_width(0);
+        assert_eq!(f.as_mut().apply_cropping(CropFlags::empty()), Err(EINVAL));
+        // Hardware and bitstream formats crop the far edges only.
+        let mut mono = video(PixelFormat::MONOBLACK, 64, 8, 0);
+        let p = mono.as_ref().plane(0).unwrap().as_ptr();
+        mono.as_mut().set_crop_left(8);
+        mono.as_mut().set_crop_right(8);
+        assert_eq!(mono.as_mut().apply_cropping(CropFlags::empty()), Ok(()));
+        assert_eq!(
+            (
+                mono.as_ref().width(),
+                mono.as_ref().plane(0).unwrap().as_ptr()
+            ),
+            (56, p)
+        );
+    }
+
+    /// Plane buffer lookups never read past the `extended_data` entries a
+    /// frame holds.
+    #[test]
+    fn plane_buffer_lookups_stay_inside_extended_data() {
+        let mut v = video(PixelFormat::YUV420P, 4, 4, 0);
+        v.as_mut()
+            .set_channel_layout(ChannelLayout::unspecified(1))
+            .unwrap();
+        v.as_mut().alloc_extended_data().unwrap();
+        assert!(v.as_ref().plane_buffer(0).is_some());
+        for i in 1..NUM_DATA_POINTERS + 2 {
+            assert!(v.as_ref().plane_buffer(i).is_none());
+        }
+        let mut a = audio(SampleFormat::U8P, 9, 4, 0);
+        assert!(a.as_ref().plane_buffer(8).is_some());
+        a.as_mut().reset_extended_data();
+        assert!(a.as_ref().plane_buffer(7).is_some());
+        assert!(a.as_ref().plane_buffer(8).is_none());
+        assert!(a.as_ref().plane_buffer(usize::MAX).is_none());
+        let bare = Frame::new().unwrap();
+        assert!((0..NUM_DATA_POINTERS).all(|i| bare.as_ref().plane_buffer(i).is_none()));
+    }
+
+    /// Side data appends (even repeated kinds), lookups and removals.
+    #[test]
+    fn side_data_appends_finds_and_removes() {
+        let mut f = Frame::new().unwrap();
+        let mut m = f.as_mut();
+        m.alloc_side_data_from_slice(SideDataType::AFD, &[1])
+            .unwrap();
+        m.alloc_side_data_zeroed(SideDataType::AFD, 1)
+            .unwrap()
+            .data_mut()
+            .unwrap()[0] = 2;
+        let buf = BufferReference::alloc(3).unwrap().fill(5);
+        let entry = m.add_side_data(SideDataType::A53_CC, buf).unwrap();
+        assert_eq!(entry.as_ref().data(), [5; 3]);
+        m.alloc_side_data_zeroed(SideDataType::SEI_UNREGISTERED, 0)
+            .unwrap();
+        let empty = BufferReference::from_heap_vec(HeapVec::empty()).unwrap();
+        m.add_side_data(SideDataType::SEI_UNREGISTERED, empty)
+            .unwrap();
+        assert_eq!(m.as_ref().side_data().len(), 5);
+        m.find_side_data_mut(SideDataType::A53_CC)
+            .unwrap()
+            .data_mut()
+            .unwrap()[1] = 7;
+        assert_eq!(
+            m.as_ref().find_side_data(SideDataType::AFD).unwrap().data(),
+            [1]
+        );
+        assert_eq!(
+            m.as_ref()
+                .find_side_data(SideDataType::A53_CC)
+                .unwrap()
+                .data(),
+            [5, 7, 5]
+        );
+        assert!(
+            m.as_ref()
+                .find_side_data(SideDataType::GOP_TIMECODE)
+                .is_none()
+        );
+        m.remove_side_data(SideDataType::AFD);
+        assert_eq!(m.as_ref().side_data().len(), 3);
+        m.remove_side_data(SideDataType::SEI_UNREGISTERED);
+        m.remove_side_data(SideDataType::GOP_TIMECODE);
+        assert_eq!(m.as_ref().side_data().len(), 1);
+        // A shared payload is not writable.
+        let copy = f.as_ref().try_clone();
+        assert!(copy.is_none());
+        let mut g = Frame::new().unwrap();
+        g.as_mut().assign(f.as_ref()).unwrap();
+        assert!(
+            f.as_mut()
+                .find_side_data_mut(SideDataType::A53_CC)
+                .unwrap()
+                .data_mut()
+                .is_none()
+        );
+        drop(g);
+        assert!(
+            f.as_mut()
+                .find_side_data_mut(SideDataType::A53_CC)
+                .unwrap()
+                .data_mut()
+                .is_some()
+        );
+    }
+
+    /// Shared frames serve lookups, references, copies and property copies
+    /// on many threads at once, while each thread makes its own reference
+    /// writable.
+    #[test]
+    fn frames_serve_routines_across_threads() {
+        let mut src = video(PixelFormat::YUV420P, 16, 8, 0);
+        src.as_mut().plane_mut(0).unwrap().fill(8);
+        src.as_mut()
+            .alloc_side_data_from_slice(SideDataType::AFD, &[4])
+            .unwrap();
+        let src = Arc::new(src);
+        let barrier = Arc::new(Barrier::new(4));
+        let handles: Vec<_> = (0..4)
+            .map(|_| {
+                let src = Arc::clone(&src);
+                let barrier = Arc::clone(&barrier);
+                thread::spawn(move || {
+                    let r: FrameRef<'_> = FrameBox::as_ref(&src);
+                    barrier.wait();
+                    for _ in 0..8 {
+                        assert!(r.plane_buffer(0).is_some());
+                        assert_eq!(r.find_side_data(SideDataType::AFD).unwrap().data(), [4]);
+                        let _ = r.is_writable();
+                        let mut mine = Frame::new().unwrap();
+                        mine.as_mut().try_clone_from(r).unwrap();
+                        mine.as_mut().make_writable().unwrap();
+                        mine.as_mut().plane_mut(0).unwrap()[0] = 1;
+                        let mut copy = video(PixelFormat::YUV420P, 16, 8, 0);
+                        copy.as_mut().copy_data_from(r).unwrap();
+                        copy.as_mut().copy_props_from(r).unwrap();
+                        let mut other = Frame::new().unwrap();
+                        other.as_mut().assign(r).unwrap();
+                        assert_eq!(copy.as_ref().plane(0).unwrap()[0], 8);
+                    }
+                })
+            })
+            .collect();
+        for h in handles {
+            h.join().unwrap();
+        }
+        let src = Arc::into_inner(src).unwrap();
+        assert!(src.as_ref().is_writable());
+        thread::spawn(move || drop(src)).join().unwrap();
+    }
+}

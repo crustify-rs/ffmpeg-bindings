@@ -7646,6 +7646,29 @@
    }
   },
   {
+   "name": "av_frame_apply_cropping",
+   "defined_in": "libavutil/frame.c",
+   "ptr_args": [
+    {
+     "name": "frame",
+     "ptr": {
+      "scalar": {
+       "by_val": true
+      },
+      "array": null,
+      "string": false,
+      "owned": false,
+      "borrowed": {
+       "lifetime": "arg:frame"
+      },
+      "nullable": false,
+      "mutable": true,
+      "note": "The frame, borrowed: moves data[i] (every leading non-NULL plane) by crop offsets computed in size_t from crop_*, linesize[] and the descriptor's steps, then shrinks width/height and zeroes crop_*. UB: negative linesize with crop_top (size_t wrap pointer overflow), PAL formats with planes past data[1] (uninitialised/out-of-bounds offsets[], data[8] read), ff_ctz of a size_t truncated to 0, 1 << (5 + ctz) past 30. Rust: FrameMut::apply_cropping mirrors the arithmetic and refuses those and offsets leaving the plane's buffer. Rust also refuses moving any plane of a non-refcounted frame (memory lent through set_data_ptr for the given pointer). For BITSTREAM/HWACCEL formats C crops only right/bottom and leaves crop_top/crop_left set."
+     }
+    }
+   ]
+  },
+  {
    "name": "av_frame_clone",
    "defined_in": "libavutil/frame.c",
    "lifetime": {
@@ -7693,6 +7716,86 @@
    }
   },
   {
+   "name": "av_frame_copy",
+   "defined_in": "libavutil/frame.c",
+   "ptr_args": [
+    {
+     "name": "dst",
+     "ptr": {
+      "scalar": {
+       "by_val": true
+      },
+      "array": null,
+      "string": false,
+      "owned": false,
+      "borrowed": {
+       "lifetime": "arg:dst"
+      },
+      "nullable": false,
+      "mutable": true,
+      "note": "The destination frame, borrowed: its planes are WRITTEN through dst's format/size/nb_samples/ch_layout/linesize and src's width/height (video: av_image_copy2, palette memcpy of 1024 bytes from data[1] unconditionally for PAL formats; audio: av_samples_copy over planar-channel extended_data entries, unchecked count, int nb_samples*block_align). Nothing allocated or released; hw frames go to av_hwframe_transfer_data. Rust: FrameMut::copy_data_from checks every row C writes lies in a writable buffer of dst and every row it reads in a buffer of src (non-refcounted planes vouched by set_data_ptr), refuses hw frames."
+     }
+    },
+    {
+     "name": "src",
+     "ptr": {
+      "scalar": {
+       "by_val": true
+      },
+      "array": null,
+      "string": false,
+      "owned": false,
+      "borrowed": {
+       "lifetime": "arg:src"
+      },
+      "nullable": false,
+      "mutable": false,
+      "note": "The source frame, read only: its planes are read through its own linesize and width/height (video) or extended_data (audio)."
+     }
+    }
+   ]
+  },
+  {
+   "name": "av_frame_copy_props",
+   "defined_in": "libavutil/frame.c",
+   "ptr_args": [
+    {
+     "name": "dst",
+     "ptr": {
+      "scalar": {
+       "by_val": true
+      },
+      "array": null,
+      "string": false,
+      "owned": false,
+      "borrowed": {
+       "lifetime": "arg:dst"
+      },
+      "nullable": false,
+      "mutable": true,
+      "note": "The destination frame, borrowed: scalar properties overwritten, src's metadata merged in (av_dict_copy flags 0), every src side data entry (PANSCAN skipped when sizes differ) APPENDED as a fresh buffer (av_frame_new_side_data + memcpy of sd->size bytes from sd->data, NULL for an empty av_buffer_create(NULL,0) window: UB) with its metadata copied; on a side data allocation failure ALL of dst's side data is freed (ENOMEM). private_ref av_refstruct_replace'd, opaque_ref av_buffer_replace'd (unchecked counts). Planes untouched. Rust: FrameMut::copy_props_from."
+     }
+    },
+    {
+     "name": "src",
+     "ptr": {
+      "scalar": {
+       "by_val": true
+      },
+      "array": null,
+      "string": false,
+      "owned": false,
+      "borrowed": {
+       "lifetime": "arg:src"
+      },
+      "nullable": false,
+      "mutable": false,
+      "note": "The source frame, read only."
+     }
+    }
+   ]
+  },
+  {
    "name": "av_frame_free",
    "defined_in": "libavutil/frame.c",
    "lifetime": {
@@ -7719,6 +7822,419 @@
       "nullable": true,
       "mutable": true,
       "note": "The caller's AVFrame * slot (NULL slot or NULL frame are no-ops): av_frame_unref releases everything the frame holds, then av_freep frees the struct and NULLs the slot. Rust: FrameFree's CDrop (frame_free adapter on a local slot) for FrameBox."
+     }
+    }
+   ]
+  },
+  {
+   "name": "av_frame_get_buffer",
+   "defined_in": "libavutil/frame.c",
+   "lifetime": {
+    "for": "frame",
+    "is_dropper": false,
+    "is_disposer": false,
+    "is_cloner": null,
+    "is_constructor": {
+     "alloc": false,
+     "init": true
+    }
+   },
+   "ptr_args": [
+    {
+     "name": "frame",
+     "ptr": {
+      "scalar": {
+       "by_val": true
+      },
+      "array": null,
+      "string": false,
+      "owned": false,
+      "borrowed": {
+       "lifetime": "arg:frame"
+      },
+      "nullable": false,
+      "mutable": true,
+      "note": "The frame to fill, borrowed: by format/width/height (video, av_image_check_size, caller linesize[] reused when linesize[0] != 0) or nb_samples/ch_layout (audio) C av_buffer_alloc's buf[] (and for > 8 planar channels an av_calloc'd extended_data and extended_buf), and writes data/linesize/extended_data. Bytes are UNINITIALISED. Existing buf[0]/extended arrays are overwritten (leak). align > 2^27 overflows int in get_video_buffer, a non-power-of-two FFALIGN can move a pointer before its buffer, negative align reaches av_samples_get_buffer_size. Failures after allocation av_frame_unref the frame; the extended allocation failure leaves extended_data NULL, a bad caller linesize[0] leaves calloc'd NULL extended_buf entries counted. Rust: FrameMut::alloc_buffers releases the planes first, bounds align, zeroes the buffers, repairs failures."
+     }
+    }
+   ]
+  },
+  {
+   "name": "av_frame_get_plane_buffer",
+   "defined_in": "libavutil/frame.c",
+   "ptr_args": [
+    {
+     "name": "frame",
+     "ptr": {
+      "scalar": {
+       "by_val": true
+      },
+      "array": null,
+      "string": false,
+      "owned": false,
+      "borrowed": {
+       "lifetime": "arg:frame"
+      },
+      "nullable": false,
+      "mutable": false,
+      "note": "The frame, read only: reads extended_data[plane] for plane < 4 (video, nb_samples 0) or < channels/1 (audio) unchecked against the array's real length (a separate extended_data of fewer channels, or > 8 planar channels with extended_data == data). Rust: FrameRef::plane_buffer bounds plane by the entries the frame holds."
+     }
+    }
+   ],
+   "ptr_ret": {
+    "ptr": {
+     "scalar": {
+      "by_val": true
+     },
+     "array": null,
+     "string": false,
+     "owned": false,
+     "borrowed": {
+      "lifetime": "arg:frame"
+     },
+     "nullable": true,
+     "mutable": false,
+     "note": "NULL, or the frame's own buf[] (up to the first NULL) or extended_buf[] reference whose window holds the plane pointer: borrowed from the frame, not a new reference."
+    }
+   }
+  },
+  {
+   "name": "av_frame_get_side_data",
+   "defined_in": "libavutil/frame.c",
+   "ptr_args": [
+    {
+     "name": "frame",
+     "ptr": {
+      "scalar": {
+       "by_val": true
+      },
+      "array": null,
+      "string": false,
+      "owned": false,
+      "borrowed": {
+       "lifetime": "arg:frame"
+      },
+      "nullable": false,
+      "mutable": false,
+      "note": "The frame, read only (const): av_frame_side_data_get over its side data list."
+     }
+    }
+   ],
+   "ptr_ret": {
+    "ptr": {
+     "scalar": {
+      "by_val": true
+     },
+     "array": null,
+     "string": false,
+     "owned": false,
+     "borrowed": {
+      "lifetime": "arg:frame"
+     },
+     "nullable": true,
+     "mutable": true,
+     "note": "NULL, or the first entry of the type, owned by the frame (non-const for C callers). Rust: FrameRef::find_side_data / FrameMut::find_side_data_mut."
+    }
+   }
+  },
+  {
+   "name": "av_frame_is_writable",
+   "defined_in": "libavutil/frame.c",
+   "ptr_args": [
+    {
+     "name": "frame",
+     "ptr": {
+      "scalar": {
+       "by_val": true
+      },
+      "array": null,
+      "string": false,
+      "owned": false,
+      "borrowed": {
+       "lifetime": "arg:frame"
+      },
+      "nullable": false,
+      "mutable": false,
+      "note": "The frame, read only despite the non-const pointer: av_buffer_is_writable over buf[] and extended_buf[]; 0 for a non-refcounted frame. Rust: FrameRef::is_writable."
+     }
+    }
+   ]
+  },
+  {
+   "name": "av_frame_make_writable",
+   "defined_in": "libavutil/frame.c",
+   "ptr_args": [
+    {
+     "name": "frame",
+     "ptr": {
+      "scalar": {
+       "by_val": true
+      },
+      "array": null,
+      "string": false,
+      "owned": false,
+      "borrowed": {
+       "lifetime": "arg:frame"
+      },
+      "nullable": false,
+      "mutable": true,
+      "note": "The frame, borrowed: when any buffer is shared or read-only C allocates a frame of its geometry (av_frame_get_buffer, or av_hwframe_get_buffer for hw frames), av_frame_copy's the planes (reads through the frame's untrusted geometry), av_frame_copy_props's (side data memcpy), unrefs the frame and moves the copy in (uninitialised padding). A failing get_buffer returns without freeing the copied ch_layout (leaks a CUSTOM map). Rust: FrameMut::make_writable composes the same C steps over zeroed buffers."
+     }
+    }
+   ]
+  },
+  {
+   "name": "av_frame_move_ref",
+   "defined_in": "libavutil/frame.c",
+   "ptr_args": [
+    {
+     "name": "dst",
+     "ptr": {
+      "scalar": {
+       "by_val": true
+      },
+      "array": null,
+      "string": false,
+      "owned": false,
+      "borrowed": {
+       "lifetime": "arg:dst"
+      },
+      "nullable": false,
+      "mutable": true,
+      "note": "The destination frame, borrowed for the call: overwritten whole by *dst = *src (anything it held leaks; C only av_assert1's that it is clean), extended_data re-pointed at dst->data when it was src's own. Takes over everything src owned. Rust: FrameMut::move_from resets it first; FrameMut::take moves into a fresh av_frame_alloc'd frame."
+     }
+    },
+    {
+     "name": "src",
+     "ptr": {
+      "scalar": {
+       "by_val": true
+      },
+      "array": null,
+      "string": false,
+      "owned": false,
+      "borrowed": {
+       "lifetime": "arg:src"
+      },
+      "nullable": false,
+      "mutable": true,
+      "note": "The source frame, borrowed for the call: everything it owned moves to dst, then get_frame_defaults resets it without releasing anything (ownership transfer, not a free)."
+     }
+    }
+   ]
+  },
+  {
+   "name": "av_frame_new_side_data",
+   "defined_in": "libavutil/frame.c",
+   "ptr_args": [
+    {
+     "name": "frame",
+     "ptr": {
+      "scalar": {
+       "by_val": true
+      },
+      "array": null,
+      "string": false,
+      "owned": false,
+      "borrowed": {
+       "lifetime": "arg:frame"
+      },
+      "nullable": false,
+      "mutable": true,
+      "note": "The frame, borrowed: always APPENDS (no uniqueness or replace, unlike av_frame_side_data_new) an entry holding a fresh av_buffer_alloc(size) reference."
+     }
+    }
+   ],
+   "ptr_ret": {
+    "ptr": {
+     "scalar": {
+      "by_val": true
+     },
+     "array": null,
+     "string": false,
+     "owned": false,
+     "borrowed": {
+      "lifetime": "arg:frame"
+     },
+     "nullable": true,
+     "mutable": true,
+     "note": "NULL on failure, or the new entry, owned by the frame; its payload of size bytes is UNINITIALISED. Rust: FrameMut::alloc_side_data_zeroed / alloc_side_data_from_slice fill it before lending it."
+    }
+   }
+  },
+  {
+   "name": "av_frame_new_side_data_from_buf",
+   "defined_in": "libavutil/frame.c",
+   "ptr_args": [
+    {
+     "name": "buf",
+     "ptr": {
+      "scalar": {
+       "by_val": true
+      },
+      "array": null,
+      "string": false,
+      "owned": true,
+      "borrowed": null,
+      "nullable": true,
+      "mutable": true,
+      "note": "The reference to store: OWNED by the new entry on success; untouched (still the caller's) when C returns NULL (a NULL buf, an array at INT_MAX, allocation failure). Rust: FrameMut::add_side_data takes a BufferReferenceBox and gives it back as the error."
+     }
+    },
+    {
+     "name": "frame",
+     "ptr": {
+      "scalar": {
+       "by_val": true
+      },
+      "array": null,
+      "string": false,
+      "owned": false,
+      "borrowed": {
+       "lifetime": "arg:frame"
+      },
+      "nullable": false,
+      "mutable": true,
+      "note": "The frame, borrowed: appends an entry (ff_frame_side_data_add_from_buf) whose data/size are buf's window."
+     }
+    }
+   ],
+   "ptr_ret": {
+    "ptr": {
+     "scalar": {
+      "by_val": true
+     },
+     "array": null,
+     "string": false,
+     "owned": false,
+     "borrowed": {
+      "lifetime": "arg:frame"
+     },
+     "nullable": true,
+     "mutable": true,
+     "note": "NULL, or the new entry, owned by the frame."
+    }
+   }
+  },
+  {
+   "name": "av_frame_ref",
+   "defined_in": "libavutil/frame.c",
+   "lifetime": {
+    "for": "src",
+    "is_dropper": false,
+    "is_disposer": false,
+    "is_cloner": {
+     "deep": true,
+     "upref": false
+    },
+    "is_constructor": null
+   },
+   "ptr_args": [
+    {
+     "name": "dst",
+     "ptr": {
+      "scalar": {
+       "by_val": true
+      },
+      "array": null,
+      "string": false,
+      "owned": false,
+      "borrowed": {
+       "lifetime": "arg:dst"
+      },
+      "nullable": false,
+      "mutable": true,
+      "note": "The destination frame, borrowed for the call; C requires it clean (av_assert1 on its size and layout only): scalars, metadata, side data and buf[] are overwritten or appended without release, so a frame holding anything leaks. On failure C av_frame_unref's it. For a refcounted source it gains new references to every buf/extended_buf/hw_frames_ctx/opaque_ref (unchecked 32-bit AVBuffer counts) and private_ref, copies of metadata, side data entries (sharing buffers, force_copy=0) and channel layout, a memdup of a separate extended_data (nb_channels entries), and src's data/linesize. For a non-refcounted source (buf[0] NULL) it av_frame_get_buffer's (UNINITIALISED bytes outside the copied lines) and av_frame_copy's src's planes through src's geometry. Rust: FrameMut::try_clone_from resets it first, refuses counts near u32::MAX/2 and uncounted planar audio reading past extended_data, and swaps uncounted copies for zeroed buffers."
+     }
+    },
+    {
+     "name": "src",
+     "ptr": {
+      "scalar": {
+       "by_val": true
+      },
+      "array": null,
+      "string": false,
+      "owned": false,
+      "borrowed": {
+       "lifetime": "arg:src"
+      },
+      "nullable": false,
+      "mutable": false,
+      "note": "The source frame, read only: properties, side data, metadata and references are shared or copied into dst; its planes are read only when buf[0] is NULL (av_frame_copy, one extended_data entry per planar channel unchecked)."
+     }
+    }
+   ]
+  },
+  {
+   "name": "av_frame_remove_side_data",
+   "defined_in": "libavutil/frame.c",
+   "ptr_args": [
+    {
+     "name": "frame",
+     "ptr": {
+      "scalar": {
+       "by_val": true
+      },
+      "array": null,
+      "string": false,
+      "owned": false,
+      "borrowed": {
+       "lifetime": "arg:frame"
+      },
+      "nullable": false,
+      "mutable": true,
+      "note": "The frame, borrowed: av_frame_side_data_remove frees every entry of the type (buffer, metadata) and moves the last entry into each freed slot. Rust: FrameMut::remove_side_data."
+     }
+    }
+   ]
+  },
+  {
+   "name": "av_frame_replace",
+   "defined_in": "libavutil/frame.c",
+   "lifetime": {
+    "for": "src",
+    "is_dropper": false,
+    "is_disposer": false,
+    "is_cloner": {
+     "deep": true,
+     "upref": false
+    },
+    "is_constructor": null
+   },
+   "ptr_args": [
+    {
+     "name": "dst",
+     "ptr": {
+      "scalar": {
+       "by_val": true
+      },
+      "array": null,
+      "string": false,
+      "owned": false,
+      "borrowed": {
+       "lifetime": "arg:dst"
+      },
+      "nullable": false,
+      "mutable": true,
+      "note": "The destination frame, borrowed for the call; dst == src is EINVAL. A non-refcounted source unref's dst first and, when src->data[0..3] has a plane, takes av_frame_ref's copy path (uninitialised padding); otherwise dst's side data and metadata are freed and replaced, buf/extended_buf/hw_frames_ctx/opaque_ref/private_ref replaced through av_buffer_replace/av_refstruct_replace (a reference to the same AVBuffer is kept with src's window), a separate extended_data freed and memdup'd from src (nb_channels entries), data/linesize copied verbatim (so a non-refcounted src with only data[4..7] or extended entries leaves dst with src's raw plane pointers). Failure av_frame_unref's dst. Rust: FrameMut::assign (prunes such pointers, zero-swaps copied buffers). C DEFECT: when src has no extended_buf but dst has, C unrefs and av_freep's dst->extended_buf but leaves nb_extended_buf stale, so av_frame_unref/av_frame_free (and C's own fail path) walk NULL[i] (ASan SEGV in av_buffer_unref); Rust's assign pops dst's extra references first."
+     }
+    },
+    {
+     "name": "src",
+     "ptr": {
+      "scalar": {
+       "by_val": true
+      },
+      "array": null,
+      "string": false,
+      "owned": false,
+      "borrowed": {
+       "lifetime": "arg:src"
+      },
+      "nullable": false,
+      "mutable": false,
+      "note": "The source frame, read only; shared or copied into dst as for av_frame_ref."
      }
     }
    ]

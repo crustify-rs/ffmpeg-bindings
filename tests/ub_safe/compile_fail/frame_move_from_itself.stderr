@@ -1,0 +1,9 @@
+error[E0499]: cannot borrow `frame` as mutable more than once at a time
+ --> tests/ub_safe/compile_fail/frame_move_from_itself.rs
+  |
+  |     let mut dst = frame.as_mut();
+  |                   ----- first mutable borrow occurs here
+  |     dst.move_from(frame.as_mut());
+  |         --------- ^^^^^ second mutable borrow occurs here
+  |         |
+  |         first borrow later used by call

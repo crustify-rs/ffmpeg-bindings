@@ -2267,7 +2267,7 @@ mod frame_type {
     /// Where a plane pointer points: NULL, inside unified buffer `index`
     /// (`buf`, then `extended_buf`) at `offset`, or nowhere C allocated.
     #[derive(Clone, Copy, Debug, PartialEq, Eq)]
-    enum At {
+    pub(super) enum At {
         Null,
         In(usize, usize),
         Stray,
@@ -2275,7 +2275,7 @@ mod frame_type {
 
     /// What C sees of a frame.
     #[derive(Clone, Debug, PartialEq, Eq)]
-    struct Seen {
+    pub(super) struct Seen {
         ints: Vec<i64>,
         linesize: [c_int; NUM_DATA_POINTERS],
         layout: (u32, c_int),
@@ -2332,7 +2332,7 @@ mod frame_type {
     /// # Safety
     ///
     /// `f` must be a live frame.
-    unsafe fn c_buffers(f: *const ffi::AVFrame) -> Vec<*mut ffi::AVBufferRef> {
+    pub(super) unsafe fn c_buffers(f: *const ffi::AVFrame) -> Vec<*mut ffi::AVBufferRef> {
         // SAFETY: the caller's live frame and its extra block.
         unsafe {
             let mut v: Vec<_> = (*f).buf.to_vec();
@@ -2344,7 +2344,7 @@ mod frame_type {
     }
 
     /// Where `p` points among `bufs`.
-    fn c_at(bufs: &[*mut ffi::AVBufferRef], p: *const u8) -> At {
+    pub(super) fn c_at(bufs: &[*mut ffi::AVBufferRef], p: *const u8) -> At {
         if p.is_null() {
             return At::Null;
         }
@@ -2367,7 +2367,7 @@ mod frame_type {
     /// # Safety
     ///
     /// `f` must be a live frame whose buffers hold initialised bytes.
-    unsafe fn c_seen(f: *const ffi::AVFrame) -> Seen {
+    pub(super) unsafe fn c_seen(f: *const ffi::AVFrame) -> Seen {
         // SAFETY: the caller's live frame, every pointer of which is NULL or
         // live.
         unsafe {
@@ -2446,14 +2446,14 @@ mod frame_type {
     }
 
     /// C's reading of a Rust frame, which C reads through its pointer.
-    fn rust_seen(f: &FrameBox) -> Seen {
+    pub(super) fn rust_seen(f: &FrameBox) -> Seen {
         // SAFETY: the box's live frame, whose buffers hold initialised
         // bytes, read only.
         unsafe { c_seen(f.as_c_ptr()) }
     }
 
     /// The Rust getters' reading of a frame, in [`Seen`]'s terms.
-    fn getters(r: FrameRef<'_>) -> Seen {
+    pub(super) fn getters(r: FrameRef<'_>) -> Seen {
         let mut bufs: Vec<_> = (0..NUM_DATA_POINTERS).map(|i| r.buffer(i)).collect();
         bufs.extend((0..r.extended_buffer_count()).map(|i| r.extended_buffer(i)));
         // Where a plane view starts among the buffers' bytes; Rust gives no
@@ -2545,22 +2545,22 @@ mod frame_type {
     }
 
     /// A frame C allocates and writes, freed with `av_frame_free`.
-    struct CFrame(*mut ffi::AVFrame);
+    pub(super) struct CFrame(pub(super) *mut ffi::AVFrame);
 
     impl CFrame {
-        fn new() -> Self {
+        pub(super) fn new() -> Self {
             // SAFETY: no precondition.
             let f = unsafe { ffi::av_frame_alloc() };
             assert!(!f.is_null());
             Self(f)
         }
 
-        fn seen(&self) -> Seen {
+        pub(super) fn seen(&self) -> Seen {
             // SAFETY: the frame C built, whose buffers this test filled.
             unsafe { c_seen(self.0) }
         }
 
-        fn bufs(&self) -> Vec<*mut ffi::AVBufferRef> {
+        pub(super) fn bufs(&self) -> Vec<*mut ffi::AVBufferRef> {
             // SAFETY: a live frame.
             unsafe { c_buffers(self.0) }
         }
@@ -2634,7 +2634,7 @@ mod frame_type {
     }
 
     /// `len` bytes from `seed`.
-    fn pattern(len: usize, seed: u8) -> Vec<u8> {
+    pub(super) fn pattern(len: usize, seed: u8) -> Vec<u8> {
         (0..len)
             .map(|i| (i as u8).wrapping_mul(7).wrapping_add(seed))
             .collect()
@@ -2659,7 +2659,7 @@ mod frame_type {
     }
 
     /// A C dictionary of `pairs`.
-    fn c_dict(pairs: &[(&CStr, &CStr)]) -> *mut ffi::AVDictionary {
+    pub(super) fn c_dict(pairs: &[(&CStr, &CStr)]) -> *mut ffi::AVDictionary {
         let mut m = ptr::null_mut();
         for (k, v) in pairs {
             // SAFETY: C copies the strings into `m`.
@@ -3144,7 +3144,7 @@ mod frame_type {
 
     /// `seen` with each buffer's bytes reduced to their count, for frames
     /// whose buffers' bytes outside the planes C leaves uninitialised.
-    fn shape(mut seen: Seen) -> Seen {
+    pub(super) fn shape(mut seen: Seen) -> Seen {
         for b in seen.buffers.iter_mut().flatten() {
             b.0 = (b.0.len() as u64).to_le_bytes().to_vec();
         }
@@ -3327,5 +3327,812 @@ mod frame_type {
                 drop((r, c));
             }
         }
+    }
+}
+
+/// [`Frame`]'s routines against C's (buffer-frame wave 4, batch 0), on
+/// independently owned frames built alike, compared after every step by
+/// C's own reading of both frames (every field, where each plane points
+/// among the buffers, the buffers' bytes, counts and writability, side data
+/// and metadata) and by the Rust getters: buffer allocation against
+/// `av_frame_get_buffer` (whose bytes the C side zeroes, as the wrapper
+/// does), plane copies against `av_frame_copy`, property copies against
+/// `av_frame_copy_props`, references, replacements and moves against
+/// `av_frame_ref`, `av_frame_replace` and `av_frame_move_ref` (the C
+/// destination reset first, as the wrappers reset theirs), writability
+/// against `av_frame_make_writable` and `av_frame_is_writable`, cropping
+/// against `av_frame_apply_cropping`, plane buffer lookups against
+/// `av_frame_get_plane_buffer`, and side data additions, lookups and
+/// removals against `av_frame_new_side_data`,
+/// `av_frame_new_side_data_from_buf`, `av_frame_get_side_data` and
+/// `av_frame_remove_side_data`.
+///
+/// [`Frame`]: ffmpeg::libavutil::frame::Frame
+mod frame_routines {
+    use core::ffi::{CStr, c_int};
+    use core::ptr;
+
+    use ffmpeg::libavutil::buffer::BufferReference;
+    use ffmpeg::libavutil::channel_layout::ChannelLayout;
+    use ffmpeg::libavutil::dict::Dict;
+    use ffmpeg::libavutil::ffi;
+    use ffmpeg::libavutil::frame::{CropFlags, Frame, FrameBox, FrameRef, SideDataType};
+    use ffmpeg::libavutil::imgutils;
+    use ffmpeg::libavutil::pixfmt::PixelFormat;
+    use ffmpeg::libavutil::samplefmt::SampleFormat;
+
+    use super::frame_type::{At, CFrame, c_at, c_dict, getters, pattern, rust_seen, shape};
+
+    const EINVAL: c_int = -22;
+
+    /// A constructor of a [`Pair`].
+    type Make = fn() -> Pair;
+
+    /// A Rust frame and a C frame, built alike.
+    struct Pair {
+        r: FrameBox,
+        c: CFrame,
+    }
+
+    impl Pair {
+        /// Two new frames.
+        fn new() -> Self {
+            Self {
+                r: Frame::new().unwrap(),
+                c: CFrame::new(),
+            }
+        }
+
+        /// Two video frames of `format`, `w` x `h`, without buffers.
+        fn video(format: PixelFormat, w: c_int, h: c_int) -> Self {
+            let mut p = Self::new();
+            {
+                let mut m = p.r.as_mut();
+                m.set_pixel_format(format);
+                m.set_width(w);
+                m.set_height(h);
+            }
+            // SAFETY: the same fields of the live C frame.
+            unsafe {
+                (*p.c.0).format = format.into_raw().0;
+                (*p.c.0).width = w;
+                (*p.c.0).height = h;
+            }
+            p
+        }
+
+        /// Two audio frames of `format`, `channels` x `samples` (an
+        /// unspecified layout), without buffers.
+        fn audio(format: SampleFormat, channels: c_int, samples: c_int) -> Self {
+            let mut p = Self::new();
+            let mut m = p.r.as_mut();
+            m.set_sample_format(format);
+            m.set_sample_count(samples);
+            m.set_channel_layout(ChannelLayout::unspecified(channels))
+                .unwrap();
+            // SAFETY: the same fields of the live C frame; an unspecified
+            // layout has no map.
+            unsafe {
+                (*p.c.0).format = format.into_raw().0;
+                (*p.c.0).nb_samples = samples;
+                (*p.c.0).ch_layout.order = ffi::AVChannelOrder::AV_CHANNEL_ORDER_UNSPEC;
+                (*p.c.0).ch_layout.nb_channels = channels;
+            }
+            p.check("audio");
+            p
+        }
+
+        /// Allocates both frames' buffers at `align`, zeroing the C ones as
+        /// the wrapper zeroes its own; both results.
+        fn alloc(&mut self, align: usize) -> (Result<(), c_int>, c_int) {
+            let r = self.r.as_mut().alloc_buffers(align);
+            // SAFETY: a live frame holding no planes.
+            let c = unsafe { ffi::av_frame_get_buffer(self.c.0, align as c_int) };
+            if c >= 0 {
+                c_zero(&self.c);
+            }
+            (r, c)
+        }
+
+        /// Allocates both frames' buffers at `align`, which both succeed in.
+        fn allocated(&mut self, align: usize) {
+            assert_eq!(self.alloc(align), (Ok(()), 0));
+        }
+
+        /// Fills, plane by plane in `extended_data` order, the bytes from each
+        /// plane to the end of its buffer with `pattern(.., seed + i)`, on
+        /// both sides.
+        fn fill(&mut self, seed: u8) {
+            let mut m = self.r.as_mut();
+            for i in 0..m.as_ref().extended_plane_count() {
+                if let Some(v) = m.extended_plane_mut(i) {
+                    v.copy_from_slice(&pattern(v.len(), seed.wrapping_add(i as u8)));
+                }
+            }
+            let bufs = self.c.bufs();
+            let (ext, n) = c_extended(&self.c);
+            for i in 0..n {
+                // SAFETY: entry `i` of the frame's `extended_data`, which
+                // holds `n`.
+                let p = unsafe { *ext.add(i) };
+                if let At::In(b, off) = c_at(&bufs, p) {
+                    // SAFETY: a live reference the frame holds alone; `off` is
+                    // inside its window.
+                    unsafe {
+                        let size = (*bufs[b]).size - off;
+                        let bytes = pattern(size, seed.wrapping_add(i as u8));
+                        ptr::copy_nonoverlapping(bytes.as_ptr(), (*bufs[b]).data.add(off), size);
+                    }
+                }
+            }
+        }
+
+        /// Asserts both frames read the same, to C and through the getters.
+        fn check(&self, step: &str) {
+            let seen = self.c.seen();
+            assert_eq!(rust_seen(&self.r), seen, "{step}");
+            assert_eq!(getters(self.r.as_ref()), seen, "{step} (getters)");
+        }
+    }
+
+    /// The `extended_data` entries of a C frame, and how many it holds.
+    fn c_extended(c: &CFrame) -> (*mut *mut u8, usize) {
+        // SAFETY: a live frame.
+        unsafe {
+            let f = c.0;
+            let own = (&raw mut (*f).data).cast::<*mut u8>();
+            let ext = (*f).extended_data;
+            if ext == own {
+                (ext, ffi::AV_NUM_DATA_POINTERS as usize)
+            } else {
+                (ext, (*f).ch_layout.nb_channels.max(0) as usize)
+            }
+        }
+    }
+
+    /// Zeroes every buffer of a C frame.
+    fn c_zero(c: &CFrame) {
+        for b in c.bufs().into_iter().filter(|b| !b.is_null()) {
+            // SAFETY: a fresh reference the frame holds alone.
+            unsafe { ptr::write_bytes((*b).data, 0, (*b).size) };
+        }
+    }
+
+    const VIDEO: [PixelFormat; 10] = [
+        PixelFormat::GRAY8,
+        PixelFormat::YUV420P,
+        PixelFormat::YUV422P10,
+        PixelFormat::NV12,
+        PixelFormat::RGB24,
+        PixelFormat::BGRA,
+        PixelFormat::PAL8,
+        PixelFormat::MONOWHITE,
+        PixelFormat::YUVA444P16,
+        PixelFormat::UYVY422,
+    ];
+
+    const AUDIO: [SampleFormat; 5] = [
+        SampleFormat::U8,
+        SampleFormat::S16P,
+        SampleFormat::S32,
+        SampleFormat::FLTP,
+        SampleFormat::DBLP,
+    ];
+
+    #[test]
+    fn allocations_match_av_frame_get_buffer() {
+        let mut n = 0;
+        for format in VIDEO {
+            for (w, h) in [(1, 1), (7, 3), (33, 17), (640, 2)] {
+                for align in [0, 1, 2, 16, 32, 64] {
+                    let mut p = Pair::video(format, w, h);
+                    let (r, c) = p.alloc(align);
+                    assert_eq!(r, Ok(()), "{format:?} {w}x{h} {align}");
+                    assert_eq!(c, 0);
+                    p.check(&format!("{format:?} {w}x{h} {align}"));
+                    n += 1;
+                }
+                // Line sizes given beforehand.
+                let mut p = Pair::video(format, w, h);
+                p.r.as_mut().set_linesizes([256, 128, 128, 64, 0, 0, 0, 0]);
+                // SAFETY: the same field of the live C frame.
+                unsafe { (*p.c.0).linesize = [256, 128, 128, 64, 0, 0, 0, 0] };
+                let (r, c) = p.alloc(0);
+                assert_eq!(r.err().unwrap_or(0), c);
+                if c >= 0 {
+                    p.check(&format!("{format:?} {w}x{h} given"));
+                }
+            }
+        }
+        for format in AUDIO {
+            for channels in [1, 2, 8, 9, 24] {
+                for samples in [1, 47, 1000] {
+                    for align in [0, 1, 4, 64] {
+                        let mut p = Pair::audio(format, channels, samples);
+                        let (r, c) = p.alloc(align);
+                        assert_eq!((r, c), (Ok(()), 0));
+                        p.check(&format!("{format:?} {channels}x{samples} {align}"));
+                        n += 1;
+                    }
+                }
+            }
+        }
+        // C's refusals.
+        let refused: [Make; 7] = [
+            || Pair::video(PixelFormat::NONE, 4, 4),
+            || Pair::video(PixelFormat::from_raw(ffi::AVPixelFormat(100_000)), 4, 4),
+            || Pair::video(PixelFormat::VAAPI, 4, 4),
+            || Pair::video(PixelFormat::GRAY8, 1 << 20, 1 << 20),
+            || Pair::video(PixelFormat::GRAY8, 0, 4),
+            || Pair::audio(SampleFormat::U8, 0, 4),
+            || Pair::audio(SampleFormat::NONE, 2, 4),
+        ];
+        for (i, make) in refused.into_iter().enumerate() {
+            let mut p = make();
+            let (r, c) = p.alloc(0);
+            assert!(c < 0, "{i}");
+            assert_eq!(r, Err(c), "{i}");
+            p.check(&format!("refused {i}"));
+        }
+        assert!(n > 300);
+    }
+
+    #[test]
+    fn plane_copies_match_av_frame_copy() {
+        let mut pairs = Vec::new();
+        for format in VIDEO {
+            for (w, h) in [(1, 1), (9, 5), (64, 3)] {
+                pairs.push((Pair::video(format, w, h), Pair::video(format, w, h)));
+            }
+        }
+        for format in AUDIO {
+            for channels in [1, 3, 12] {
+                pairs.push((
+                    Pair::audio(format, channels, 33),
+                    Pair::audio(format, channels, 33),
+                ));
+            }
+        }
+        for (i, (mut src, mut dst)) in pairs.into_iter().enumerate() {
+            assert_eq!(src.alloc(0).1, 0);
+            assert_eq!(dst.alloc(1).1, 0);
+            src.fill(i as u8);
+            let r = dst.r.as_mut().copy_data_from(src.r.as_ref());
+            // SAFETY: two live frames; C reads `src`'s planes and writes
+            // `dst`'s, which both hold buffers for.
+            let c = unsafe { ffi::av_frame_copy(dst.c.0, src.c.0) };
+            assert_eq!((r, c), (Ok(()), 0), "{i}");
+            dst.check(&format!("copy {i}"));
+            src.check(&format!("copy {i} (source)"));
+            // Again, over the copy.
+            src.fill(i as u8 + 1);
+            let r = dst.r.as_mut().copy_data_from(src.r.as_ref());
+            // SAFETY: as above.
+            let c = unsafe { ffi::av_frame_copy(dst.c.0, src.c.0) };
+            assert_eq!((r, c), (Ok(()), 0), "{i}");
+            dst.check(&format!("copy {i} again"));
+        }
+        // C's refusals, which touch nothing.
+        let refusals: [(Make, Make); 5] = [
+            (
+                || Pair::video(PixelFormat::GRAY8, 4, 4),
+                || Pair::video(PixelFormat::PAL8, 4, 4),
+            ),
+            (
+                || Pair::video(PixelFormat::GRAY8, 4, 4),
+                || Pair::video(PixelFormat::GRAY8, 4, 3),
+            ),
+            (
+                || Pair::audio(SampleFormat::S16, 2, 8),
+                || Pair::audio(SampleFormat::S16, 2, 7),
+            ),
+            (
+                || Pair::audio(SampleFormat::S16P, 2, 8),
+                || Pair::audio(SampleFormat::S16P, 3, 8),
+            ),
+            (Pair::new, || Pair::video(PixelFormat::GRAY8, 4, 4)),
+        ];
+        for (i, (src, dst)) in refusals.into_iter().enumerate() {
+            let (mut src, mut dst) = (src(), dst());
+            let _ = src.alloc(0);
+            let _ = dst.alloc(0);
+            src.fill(3);
+            let r = dst.r.as_mut().copy_data_from(src.r.as_ref());
+            // SAFETY: two live frames C refuses to copy between.
+            let c = unsafe { ffi::av_frame_copy(dst.c.0, src.c.0) };
+            assert_eq!((r, c), (Err(EINVAL), EINVAL), "{i}");
+            dst.check(&format!("refusal {i}"));
+        }
+        // A destination with a NULL plane.
+        let (mut src, mut dst) = (
+            Pair::video(PixelFormat::YUV420P, 4, 4),
+            Pair::video(PixelFormat::YUV420P, 4, 4),
+        );
+        src.allocated(0);
+        dst.allocated(0);
+        dst.r.as_mut().clear_plane(2);
+        // SAFETY: the same plane of the live C frame.
+        unsafe { (*dst.c.0).data[2] = ptr::null_mut() };
+        let r = dst.r.as_mut().copy_data_from(src.r.as_ref());
+        // SAFETY: as above.
+        let c = unsafe { ffi::av_frame_copy(dst.c.0, src.c.0) };
+        assert_eq!((r, c), (Err(EINVAL), EINVAL));
+    }
+
+    /// Builds the same properties, metadata, side data and user data on both
+    /// frames of `p`, `k` choosing the values.
+    fn props(p: &mut Pair, k: i64) {
+        let pairs: [(&CStr, &CStr); 2] = if k % 2 == 0 {
+            [(c"a", c"1"), (c"B", c"2")]
+        } else {
+            [(c"b", c"3"), (c"c", c"4")]
+        };
+        let mut m = p.r.as_mut();
+        m.set_pts(k);
+        m.set_duration(k * 2);
+        m.set_crop_top(k as usize);
+        m.set_quality(k as c_int);
+        m.set_metadata(Dict::from_entries(pairs).unwrap());
+        m.alloc_side_data_from_slice(SideDataType::AFD, &[k as u8])
+            .unwrap();
+        m.alloc_side_data_from_slice(SideDataType::PAN_SCAN, &pattern(20, k as u8))
+            .unwrap();
+        m.set_opaque_ref(Some(
+            BufferReference::alloc(2)
+                .unwrap()
+                .copy_from_slice(&[k as u8, 1]),
+        ));
+        let f = p.c.0;
+        // SAFETY: the same fields of the live C frame; its side data entries
+        // are written in full, and the frame takes the dictionary and the
+        // reference.
+        unsafe {
+            (*f).pts = k;
+            (*f).duration = k * 2;
+            (*f).crop_top = k as usize;
+            (*f).quality = k as c_int;
+            ffi::av_dict_free(&mut (*f).metadata);
+            (*f).metadata = c_dict(&pairs);
+            let e = ffi::av_frame_new_side_data(f, ffi::AVFrameSideDataType::AV_FRAME_DATA_AFD, 1);
+            *(*e).data = k as u8;
+            let e =
+                ffi::av_frame_new_side_data(f, ffi::AVFrameSideDataType::AV_FRAME_DATA_PANSCAN, 20);
+            ptr::copy_nonoverlapping(pattern(20, k as u8).as_ptr(), (*e).data, 20);
+            ffi::av_buffer_unref(&mut (*f).opaque_ref);
+            let b = ffi::av_buffer_alloc(2);
+            *(*b).data = k as u8;
+            *(*b).data.add(1) = 1;
+            (*f).opaque_ref = b;
+        }
+        p.check(&format!("props {k}"));
+    }
+
+    #[test]
+    fn property_copies_match_av_frame_copy_props() {
+        let mut src = Pair::video(PixelFormat::GRAY8, 4, 4);
+        props(&mut src, 7);
+        for (w, h) in [(4, 4), (4, 5), (0, 0)] {
+            let mut dst = Pair::video(PixelFormat::GRAY8, w, h);
+            let _ = dst.alloc(0);
+            props(&mut dst, 2);
+            for step in 0..2 {
+                let r = dst.r.as_mut().copy_props_from(src.r.as_ref());
+                // SAFETY: two live frames.
+                let c = unsafe { ffi::av_frame_copy_props(dst.c.0, src.c.0) };
+                assert_eq!((r, c), (Ok(()), 0));
+                dst.check(&format!("{w}x{h} copy {step}"));
+                src.check(&format!("{w}x{h} copy {step} (source)"));
+            }
+        }
+    }
+
+    /// `av_frame_replace(d, s)`, after releasing `d`'s extra references
+    /// when `s` has none, as `assign` does: C's own routine frees them but
+    /// keeps their count (see `unit_tests::frame_assign_from_a_frame_without
+    /// _extra_references_keeps_no_count`).
+    fn c_replace(d: &CFrame, s: &CFrame) -> c_int {
+        // SAFETY: two distinct live frames; the released references are
+        // `d`'s own, and the count follows them.
+        unsafe {
+            let f = d.0;
+            if (*s.0).extended_buf.is_null() && !(*f).extended_buf.is_null() {
+                for i in 0..(*f).nb_extended_buf as usize {
+                    ffi::av_buffer_unref((*f).extended_buf.add(i));
+                }
+                ffi::av_freep((&raw mut (*f).extended_buf).cast());
+                (*f).nb_extended_buf = 0;
+            }
+            ffi::av_frame_replace(f, s.0)
+        }
+    }
+
+    /// Resets the C destination as the wrappers reset theirs.
+    fn c_unref(c: &CFrame) {
+        // SAFETY: a live frame.
+        unsafe { ffi::av_frame_unref(c.0) };
+    }
+
+    #[test]
+    fn references_replacements_and_moves_match_c() {
+        let mut a = Pair::video(PixelFormat::YUV420P, 6, 4);
+        a.allocated(0);
+        a.fill(1);
+        props(&mut a, 3);
+        let mut b = Pair::audio(SampleFormat::S16P, 12, 5);
+        b.allocated(0);
+        b.fill(9);
+        let mut bare = Pair::new();
+        bare.r.as_mut().set_pts(11);
+        // SAFETY: the same field of the live C frame.
+        unsafe { (*bare.c.0).pts = 11 };
+        let mut d = Pair::video(PixelFormat::GRAY8, 2, 2);
+        d.allocated(0);
+        let all = |a: &Pair, b: &Pair, d: &Pair, step: &str| {
+            a.check(&format!("{step} (a)"));
+            b.check(&format!("{step} (b)"));
+            d.check(&format!("{step} (d)"));
+        };
+        // References.
+        let r = d.r.as_mut().try_clone_from(a.r.as_ref());
+        c_unref(&d.c);
+        // SAFETY: a reset destination and a live source.
+        let c = unsafe { ffi::av_frame_ref(d.c.0, a.c.0) };
+        assert_eq!((r, c), (Ok(()), 0));
+        all(&a, &b, &d, "ref a");
+        // Replacements: the same source, another, a bare one.
+        for (src, name) in [(&a, "a"), (&b, "b"), (&a, "a again"), (&bare, "bare")] {
+            let r = d.r.as_mut().assign(src.r.as_ref());
+            let c = c_replace(&d.c, &src.c);
+            assert_eq!((r, c), (Ok(()), 0), "{name}");
+            all(&a, &b, &d, &format!("replace {name}"));
+        }
+        // A reference to a frame without planes fails, resetting.
+        let r = d.r.as_mut().try_clone_from(bare.r.as_ref());
+        c_unref(&d.c);
+        // SAFETY: as above.
+        let c = unsafe { ffi::av_frame_ref(d.c.0, bare.c.0) };
+        assert_eq!((r, c), (Err(EINVAL), EINVAL));
+        all(&a, &b, &d, "ref bare");
+        // Moves.
+        d.r.as_mut().move_from(b.r.as_mut());
+        c_unref(&d.c);
+        // SAFETY: a reset destination and a distinct live source.
+        unsafe { ffi::av_frame_move_ref(d.c.0, b.c.0) };
+        all(&a, &b, &d, "move b");
+        let e = Pair {
+            r: d.r.as_mut().take().unwrap(),
+            c: {
+                let e = CFrame::new();
+                // SAFETY: as above.
+                unsafe { ffi::av_frame_move_ref(e.0, d.c.0) };
+                e
+            },
+        };
+        all(&a, &e, &d, "take");
+        let r = d.r.as_mut().assign(e.r.as_ref());
+        let c = c_replace(&d.c, &e.c);
+        assert_eq!((r, c), (Ok(()), 0));
+        all(&a, &e, &d, "replace e");
+        drop(e);
+        all(&a, &b, &d, "drop e");
+    }
+
+    #[test]
+    fn replacements_of_extra_references_match_c() {
+        let mut src = Pair::audio(SampleFormat::U8P, 10, 4);
+        src.allocated(0);
+        src.fill(1);
+        let mut dst = Pair::audio(SampleFormat::U8P, 20, 4);
+        dst.allocated(0);
+        dst.fill(2);
+        let r = dst.r.as_mut().assign(src.r.as_ref());
+        let c = c_replace(&dst.c, &src.c);
+        assert_eq!((r, c), (Ok(()), 0));
+        dst.check("fewer extra references");
+        src.check("fewer extra references (source)");
+        // A separate `extended_data` counting no channel: C refuses it and
+        // resets the frame.
+        let mut none = Pair::audio(SampleFormat::U8P, 9, 4);
+        none.allocated(0);
+        none.r
+            .as_mut()
+            .set_channel_layout(ChannelLayout::unspecified(0))
+            .unwrap();
+        // SAFETY: the same field of the live C frame, whose separate array
+        // stays allocated for nine channels.
+        unsafe { (*none.c.0).ch_layout.nb_channels = 0 };
+        none.check("no channel");
+        let r = dst.r.as_mut().assign(none.r.as_ref());
+        let c = c_replace(&dst.c, &none.c);
+        assert_eq!((r, c), (Err(EINVAL), EINVAL));
+        dst.check("no channel replaced");
+        let r = dst.r.as_mut().try_clone_from(none.r.as_ref());
+        c_unref(&dst.c);
+        // SAFETY: a reset destination and a distinct live source.
+        let c = unsafe { ffi::av_frame_ref(dst.c.0, none.c.0) };
+        assert_eq!((r, c), (Err(EINVAL), EINVAL));
+        dst.check("no channel referenced");
+    }
+
+    /// The bytes of every row C copies of each plane of a video frame, for
+    /// frames whose padding C leaves uninitialised.
+    fn rows_of(f: FrameRef<'_>) -> Vec<Vec<u8>> {
+        let format = f.pixel_format();
+        let (_, sub) = format.chroma_subsampling().unwrap();
+        let mut out = Vec::new();
+        for i in 0..format.plane_count().unwrap() {
+            let len = imgutils::linesize(format, f.width(), i).unwrap() as usize;
+            let ls = f.linesizes()[i] as usize;
+            let h = if i == 1 || i == 2 {
+                (f.height() as usize).div_ceil(1 << sub)
+            } else {
+                f.height() as usize
+            };
+            let plane = f.plane(i).unwrap();
+            out.extend((0..h).map(|y| plane[y * ls..y * ls + len].to_vec()));
+        }
+        out
+    }
+
+    /// As [`rows_of`], for C's frame.
+    fn c_rows_of(c: &CFrame, format: PixelFormat) -> Vec<Vec<u8>> {
+        let (_, sub) = format.chroma_subsampling().unwrap();
+        let mut out = Vec::new();
+        // SAFETY: a live frame whose planes hold the rows C copied.
+        unsafe {
+            let f = c.0;
+            for i in 0..format.plane_count().unwrap() {
+                let len = imgutils::linesize(format, (*f).width, i).unwrap() as usize;
+                let ls = (*f).linesize[i] as usize;
+                let h = if i == 1 || i == 2 {
+                    ((*f).height as usize).div_ceil(1 << sub)
+                } else {
+                    (*f).height as usize
+                };
+                for y in 0..h {
+                    let row = std::slice::from_raw_parts((*f).data[i].add(y * ls), len);
+                    out.push(row.to_vec());
+                }
+            }
+        }
+        out
+    }
+
+    #[test]
+    fn make_writable_matches_av_frame_make_writable() {
+        for format in [PixelFormat::GRAY8, PixelFormat::YUV420P, PixelFormat::RGB24] {
+            let mut p = Pair::video(format, 9, 5);
+            p.allocated(0);
+            p.fill(4);
+            props(&mut p, 1);
+            // Writable: nothing to do.
+            let r = p.r.as_mut().make_writable();
+            // SAFETY: a live frame.
+            let c = unsafe { ffi::av_frame_make_writable(p.c.0) };
+            assert_eq!((r, c), (Ok(()), 0));
+            p.check(&format!("{format:?} writable"));
+            // Shared: both copy.
+            let keep_r = p.r.as_ref().try_clone().unwrap();
+            // SAFETY: a live frame, read only.
+            let mut keep_c = unsafe { ffi::av_frame_clone(p.c.0) };
+            let r = p.r.as_mut().make_writable();
+            // SAFETY: a live frame.
+            let c = unsafe { ffi::av_frame_make_writable(p.c.0) };
+            assert_eq!((r, c), (Ok(()), 0));
+            assert_eq!(shape(rust_seen(&p.r)), shape(p.c.seen()), "{format:?}");
+            assert_eq!(rows_of(p.r.as_ref()), c_rows_of(&p.c, format), "{format:?}");
+            // SAFETY: a live frame.
+            let c = unsafe { ffi::av_frame_is_writable(p.c.0) };
+            assert_eq!(p.r.as_ref().is_writable(), c != 0);
+            drop(keep_r);
+            // SAFETY: the clone this test made.
+            unsafe { ffi::av_frame_free(&mut keep_c) };
+        }
+        // Lent planes are copied alike.
+        let mut mem = pattern(5 * 3, 2);
+        let mut p = Pair::video(PixelFormat::GRAY8, 5, 3);
+        let mut m = p.r.as_mut();
+        m.set_linesize(0, 5);
+        // SAFETY: the frame holds no buffer; `mem` holds the whole plane,
+        // outlives both frames and is written by nothing else.
+        unsafe { m.set_data_ptr(0, mem.as_mut_ptr()) };
+        let r = m.make_writable();
+        // SAFETY: the same fields of the live C frame; `mem` as above.
+        let c = unsafe {
+            (*p.c.0).linesize[0] = 5;
+            (*p.c.0).data[0] = mem.as_mut_ptr();
+            ffi::av_frame_make_writable(p.c.0)
+        };
+        assert_eq!((r, c), (Ok(()), 0));
+        assert_eq!(shape(rust_seen(&p.r)), shape(p.c.seen()));
+        assert_eq!(rows_of(p.r.as_ref()), c_rows_of(&p.c, PixelFormat::GRAY8));
+        // Nothing to copy: both fail.
+        let mut p = Pair::video(PixelFormat::GRAY8, 4, 4);
+        let r = p.r.as_mut().make_writable();
+        // SAFETY: a live frame.
+        let c = unsafe { ffi::av_frame_make_writable(p.c.0) };
+        assert_eq!((r, c), (Err(EINVAL), EINVAL));
+        p.check("nothing");
+        drop((p, mem));
+    }
+
+    #[test]
+    fn cropping_matches_av_frame_apply_cropping() {
+        let crops = [
+            (0, 0, 0, 0),
+            (1, 0, 0, 0),
+            (0, 1, 0, 0),
+            (0, 0, 1, 0),
+            (0, 0, 0, 1),
+            (2, 3, 5, 7),
+            (4, 4, 32, 0),
+            (0, 0, 33, 30),
+            (15, 0, 0, 0),
+            (16, 0, 0, 0),
+            (0, 0, 64, 0),
+            (0, 0, 63, 0),
+        ];
+        let (mut moved, mut refused) = (0, 0);
+        for format in VIDEO {
+            for (top, bottom, left, right) in crops {
+                for flags in [CropFlags::empty(), CropFlags::UNALIGNED] {
+                    let mut p = Pair::video(format, 64, 16);
+                    p.allocated(0);
+                    let mut m = p.r.as_mut();
+                    m.set_crop_top(top);
+                    m.set_crop_bottom(bottom);
+                    m.set_crop_left(left);
+                    m.set_crop_right(right);
+                    let r = m.apply_cropping(flags);
+                    // SAFETY: the same fields of the live C frame, whose
+                    // planes stay inside its buffer for these crops.
+                    let c = unsafe {
+                        let f = p.c.0;
+                        ((*f).crop_top, (*f).crop_bottom) = (top, bottom);
+                        ((*f).crop_left, (*f).crop_right) = (left, right);
+                        ffi::av_frame_apply_cropping(f, flags.bits())
+                    };
+                    let what = format!("{format:?} {top} {bottom} {left} {right} {flags:?}");
+                    assert_eq!(r.err().unwrap_or(0), c, "{what}");
+                    p.check(&what);
+                    moved += usize::from(c == 0 && (top | left) != 0);
+                    refused += usize::from(c < 0);
+                }
+            }
+        }
+        assert!(moved > 50 && refused > 10, "{moved} {refused}");
+    }
+
+    #[test]
+    fn lookups_and_writability_match_c() {
+        let mut cases = [
+            Pair::video(PixelFormat::YUV420P, 8, 8),
+            Pair::video(PixelFormat::NV12, 8, 8),
+            Pair::audio(SampleFormat::FLTP, 10, 16),
+            Pair::audio(SampleFormat::S16, 3, 16),
+        ];
+        for (n, p) in cases.iter_mut().enumerate() {
+            p.allocated(0);
+            let r = p.r.as_ref();
+            let bufs = p.c.bufs();
+            let mut rbufs: Vec<_> = (0..8).map(|i| r.buffer(i)).collect();
+            rbufs.extend((0..r.extended_buffer_count()).map(|i| r.extended_buffer(i)));
+            for i in 0..r.extended_plane_count() {
+                let found = r.plane_buffer(i).map(|b| {
+                    let d = b.data().as_ptr();
+                    rbufs
+                        .iter()
+                        .position(|x| x.is_some_and(|x| x.data().as_ptr() == d))
+                        .unwrap()
+                });
+                // SAFETY: a live frame holding `extended_data[i]`.
+                let c = unsafe { ffi::av_frame_get_plane_buffer(p.c.0, i as c_int) };
+                let c = (!c.is_null()).then(|| bufs.iter().position(|&b| b == c).unwrap());
+                assert_eq!(found, c, "{n} plane {i}");
+            }
+            // SAFETY: a live frame.
+            let c = unsafe { ffi::av_frame_is_writable(p.c.0) } != 0;
+            assert!(r.is_writable() && c);
+            let keep = r.try_clone().unwrap();
+            // SAFETY: a live frame, and its clone.
+            let mut keep_c = unsafe { ffi::av_frame_clone(p.c.0) };
+            // SAFETY: as above.
+            let c = unsafe { ffi::av_frame_is_writable(p.c.0) } != 0;
+            assert!(!p.r.as_ref().is_writable() && !c);
+            drop(keep);
+            // SAFETY: the clone this test made.
+            unsafe { ffi::av_frame_free(&mut keep_c) };
+        }
+        let bare = Pair::new();
+        // SAFETY: a live frame.
+        let c = unsafe { ffi::av_frame_is_writable(bare.c.0) } != 0;
+        assert_eq!(bare.r.as_ref().is_writable(), c);
+    }
+
+    #[test]
+    fn side_data_routines_match_c() {
+        let mut p = Pair::new();
+        let kinds = [
+            SideDataType::AFD,
+            SideDataType::A53_CC,
+            SideDataType::AFD,
+            SideDataType::SEI_UNREGISTERED,
+            SideDataType::SEI_UNREGISTERED,
+            SideDataType::DISPLAY_MATRIX,
+        ];
+        let index = |p: &Pair, kind: SideDataType| {
+            let r = p.r.as_ref();
+            let found = r.find_side_data(kind).map(|e| {
+                let d = e.buffer().data().as_ptr();
+                (0..r.side_data().len())
+                    .position(|i| r.side_data().get(i).unwrap().buffer().data().as_ptr() == d)
+                    .unwrap()
+            });
+            // SAFETY: a live frame; C returns one of its entries, or NULL.
+            let e = unsafe { ffi::av_frame_get_side_data(p.c.0, kind.into_raw()) };
+            // SAFETY: as above.
+            let c = (!e.is_null()).then(|| unsafe {
+                (0..(*p.c.0).nb_side_data as usize)
+                    .position(|i| *(*p.c.0).side_data.add(i) == e)
+                    .unwrap()
+            });
+            assert_eq!(found, c, "{kind:?}");
+        };
+        for (k, kind) in kinds.into_iter().enumerate() {
+            let bytes = pattern(k * 3, k as u8);
+            if k % 2 == 0 {
+                p.r.as_mut()
+                    .alloc_side_data_from_slice(kind, &bytes)
+                    .unwrap();
+                // SAFETY: a live frame; the new entry's payload is written in
+                // full.
+                unsafe {
+                    let e = ffi::av_frame_new_side_data(p.c.0, kind.into_raw(), bytes.len());
+                    assert!(!e.is_null());
+                    ptr::copy_nonoverlapping(bytes.as_ptr(), (*e).data, bytes.len());
+                }
+            } else {
+                let buf = BufferReference::alloc(bytes.len())
+                    .unwrap()
+                    .copy_from_slice(&bytes);
+                p.r.as_mut().add_side_data(kind, buf).unwrap();
+                // SAFETY: a live frame, which takes the fresh reference.
+                unsafe {
+                    let b = ffi::av_buffer_alloc(bytes.len());
+                    ptr::copy_nonoverlapping(bytes.as_ptr(), (*b).data, bytes.len());
+                    assert!(
+                        !ffi::av_frame_new_side_data_from_buf(p.c.0, kind.into_raw(), b).is_null()
+                    );
+                }
+            }
+            p.check(&format!("add {k}"));
+            for kind in kinds {
+                index(&p, kind);
+            }
+        }
+        for kind in [
+            SideDataType::AFD,
+            SideDataType::GOP_TIMECODE,
+            SideDataType::SEI_UNREGISTERED,
+        ] {
+            p.r.as_mut().remove_side_data(kind);
+            // SAFETY: a live frame.
+            unsafe { ffi::av_frame_remove_side_data(p.c.0, kind.into_raw()) };
+            p.check(&format!("remove {kind:?}"));
+            for kind in kinds {
+                index(&p, kind);
+            }
+        }
+        // The zeroed form reads as C's payload after a zero fill.
+        p.r.as_mut()
+            .alloc_side_data_zeroed(SideDataType::AFD, 4)
+            .unwrap();
+        // SAFETY: as above.
+        unsafe {
+            let e =
+                ffi::av_frame_new_side_data(p.c.0, ffi::AVFrameSideDataType::AV_FRAME_DATA_AFD, 4);
+            ptr::write_bytes((*e).data, 0, 4);
+        }
+        p.check("zeroed");
     }
 }
