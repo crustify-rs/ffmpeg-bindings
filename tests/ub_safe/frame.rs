@@ -691,3 +691,398 @@ mod region_of_interest {
         }
     }
 }
+
+/// [`SideData`] entries and their [`SideDataArray`] (buffer-frame wave 2,
+/// batch 0): every getter over payloads from empty to page-sized, sized
+/// exactly so that a read past the end is an ASan report; writes through
+/// sole, shared and read-only buffers; buffer and metadata replacement with
+/// the old owners outliving the array; the array's handles and iterators;
+/// and entries read, written, cloned and dropped across threads.
+///
+/// [`SideData`]: ffmpeg::libavutil::frame::SideData
+/// [`SideDataArray`]: ffmpeg::libavutil::frame::SideDataArray
+mod side_data {
+    use std::sync::Arc;
+    use std::thread;
+
+    use ffmpeg::libavutil::buffer::{BufferReference, BufferReferenceBox};
+    use ffmpeg::libavutil::dict::{Dict, Flags};
+    use ffmpeg::libavutil::frame::{SideDataArray, SideDataFlags, SideDataRef, SideDataType};
+
+    use super::side_data_fixture::{SAMPLE, Spec, array, sample};
+
+    /// Whether every byte of `bytes` is `b`, compared as one slice: BSan
+    /// retags once per element an iterator yields.
+    fn is_all(bytes: &[u8], b: u8) -> bool {
+        *bytes == *vec![b; bytes.len()]
+    }
+
+    /// The entry's metadata as owned pairs, in iteration order.
+    fn pairs(e: SideDataRef<'_>) -> Vec<(String, String)> {
+        e.metadata().map_or_else(Vec::new, |m| {
+            m.iter()
+                .map(|p| {
+                    (
+                        p.key().to_string_lossy().into(),
+                        p.value().to_string_lossy().into(),
+                    )
+                })
+                .collect()
+        })
+    }
+
+    /// Every getter of every entry, checked against its spec.
+    fn check(array: &SideDataArray, specs: &[Spec<'_>]) {
+        assert_eq!(array.len(), specs.len());
+        for (e, spec) in array.as_ref().iter().zip(specs) {
+            assert_eq!(e.kind(), spec.kind);
+            assert_eq!(e.len(), spec.payload.len());
+            assert_eq!(e.is_empty(), spec.payload.is_empty());
+            assert!(e.data() == spec.payload);
+            assert!(e.buffer().data() == spec.payload);
+            assert!(!format!("{e:?}").is_empty());
+            let _ = pairs(e);
+        }
+    }
+
+    #[test]
+    fn getters_read_exactly_sized_payloads() {
+        let a = sample();
+        check(&a, &SAMPLE);
+        assert_eq!(
+            pairs(a.as_ref().get(1).unwrap()),
+            [("k".into(), "v".into())]
+        );
+        assert_eq!(pairs(a.as_ref().get(0).unwrap()), []);
+        assert!(a.as_ref().get(SAMPLE.len()).is_none());
+        assert!(a.as_ref().get(usize::MAX).is_none());
+        assert!(!format!("{a:?}").is_empty());
+    }
+
+    #[test]
+    fn empty_arrays_lend_nothing() {
+        let mut a = SideDataArray::new();
+        assert!(a.is_empty() && a.as_ref().is_empty() && a.as_mut().is_empty());
+        assert!(a.as_ref().get(0).is_none());
+        assert!(a.as_mut().get_mut(0).is_none());
+        assert_eq!(a.as_ref().iter().count(), 0);
+        assert_eq!(a.as_mut().iter_mut().count(), 0);
+        assert_eq!(format!("{a:?}"), "[]");
+        let b = SideDataArray::default();
+        assert_eq!(b.len(), 0);
+        let (sd, nb) = b.into_raw_parts();
+        assert!(sd.is_null() && nb == 0);
+    }
+
+    #[test]
+    fn iterators_walk_both_ends_and_report_their_length() {
+        let mut a = sample();
+        let kinds: Vec<_> = SAMPLE.iter().map(|s| s.kind).collect();
+        let r = a.as_ref();
+        assert_eq!(r.iter().map(|e| e.kind()).collect::<Vec<_>>(), kinds);
+        assert_eq!(
+            r.iter().rev().map(|e| e.kind()).collect::<Vec<_>>(),
+            kinds.iter().rev().copied().collect::<Vec<_>>()
+        );
+        let mut it = r.iter();
+        assert_eq!(it.len(), kinds.len());
+        it.next();
+        it.next_back();
+        assert_eq!(it.len(), kinds.len() - 2);
+        assert!(!format!("{it:?}").is_empty());
+        let all: Vec<_> = (&a).into_iter().collect();
+        assert_eq!(all.len(), kinds.len());
+        let mut m = a.as_mut().into_iter();
+        assert_eq!(m.len(), kinds.len());
+        assert_eq!(
+            m.next_back().unwrap().as_ref().kind(),
+            *kinds.last().unwrap()
+        );
+        assert_eq!(m.next().unwrap().as_ref().kind(), kinds[0]);
+        assert!(!format!("{m:?}").is_empty());
+        assert_eq!(m.by_ref().count(), kinds.len() - 2);
+        assert!(m.next_back().is_none() && m.next().is_none());
+        for _ in &mut a {}
+        let mut it = a.as_ref().iter();
+        it.by_ref().for_each(drop);
+        assert!(it.next().is_none() && it.next_back().is_none());
+    }
+
+    #[test]
+    fn sole_payloads_are_written_in_full_and_read_back() {
+        let mut a = sample();
+        for (i, mut e) in a.as_mut().iter_mut().enumerate() {
+            let bytes = e.data_mut().expect("C's entries hold sole references");
+            bytes.fill(i as u8);
+            assert!(!format!("{e:?}").is_empty());
+        }
+        for (i, e) in a.as_ref().iter().enumerate() {
+            assert!(is_all(e.data(), i as u8));
+        }
+    }
+
+    #[test]
+    fn shared_and_read_only_buffers_refuse_writes() {
+        let mut a = sample();
+        let mut entries = a.as_mut();
+        let mut e = entries.get_mut(2).unwrap();
+        let copy = e.as_ref().buffer().try_clone().unwrap();
+        assert!(e.data_mut().is_none());
+        drop(copy);
+        assert!(e.data_mut().is_some());
+        e.set_buffer(BufferReference::from_read_only(&b"read only"[..]).unwrap());
+        assert!(e.data_mut().is_none());
+        assert_eq!(e.as_ref().data(), b"read only");
+        e.set_buffer(BufferReference::from_owner(vec![9u8; 5]).unwrap());
+        e.data_mut().unwrap()[4] = 1;
+        assert_eq!(e.as_ref().data(), [9, 9, 9, 9, 1]);
+    }
+
+    #[test]
+    fn replaced_buffers_outlive_the_array() {
+        let mut a = sample();
+        let mut old = Vec::new();
+        for (i, mut e) in a.as_mut().iter_mut().enumerate() {
+            let fresh = BufferReference::alloc(i * 33).unwrap().fill(i as u8);
+            old.push(e.replace_buffer(fresh));
+            assert_eq!(e.as_ref().len(), i * 33);
+        }
+        let empty = BufferReference::alloc_zeroed(0).unwrap();
+        a.as_mut().get_mut(0).unwrap().set_buffer(empty);
+        assert!(a.as_ref().get(0).unwrap().data().is_empty());
+        let kept: Vec<BufferReferenceBox> = a
+            .as_ref()
+            .iter()
+            .map(|e| e.buffer().try_clone().unwrap())
+            .collect();
+        drop(a);
+        for (b, spec) in old.iter().zip(&SAMPLE) {
+            assert!(b.as_ref().data() == spec.payload);
+        }
+        for (i, b) in kept.iter().enumerate().skip(1) {
+            assert!(is_all(b.as_ref().data(), i as u8));
+        }
+    }
+
+    #[test]
+    fn metadata_moves_in_and_out_and_outlives_the_array() {
+        let mut a = sample();
+        let mut entries = a.as_mut();
+        let mut e = entries.get_mut(3).unwrap();
+        let taken = e.take_metadata();
+        assert!(e.as_ref().metadata().is_none());
+        assert_eq!(taken.len(), 3);
+        let mut d = Dict::new();
+        d.set(c"x", c"y", Flags::NONE).unwrap();
+        let none = e.replace_metadata(d);
+        assert!(none.is_empty());
+        e.set_metadata(taken.try_clone().unwrap());
+        e.set_metadata(Dict::new());
+        assert!(e.as_ref().metadata().is_none());
+        let mut f = entries.get_mut(1).unwrap();
+        let kept = f.replace_metadata(taken);
+        drop(a);
+        assert_eq!(kept.get(c"k", Flags::NONE).unwrap().value(), c"v");
+    }
+
+    #[test]
+    fn additions_with_every_flag_keep_or_return_the_buffer() {
+        let flags = [
+            SideDataFlags::NONE,
+            SideDataFlags::UNIQUE,
+            SideDataFlags::REPLACE,
+            SideDataFlags::UNIQUE | SideDataFlags::REPLACE,
+        ];
+        let kinds = [
+            SideDataType::AFD,
+            SideDataType::SEI_UNREGISTERED,
+            SideDataType::from_raw(ffmpeg::libavutil::ffi::AVFrameSideDataType(77)),
+        ];
+        let mut a = sample();
+        let mut kept = Vec::new();
+        for round in 0..40usize {
+            let kind = kinds[round % kinds.len()];
+            let f = flags[round / kinds.len() % flags.len()];
+            let buf = BufferReference::alloc(round).unwrap().fill(round as u8);
+            let copy = buf.as_ref().try_clone().unwrap();
+            let mut entries = a.as_mut();
+            match entries.add(kind, buf, f) {
+                Ok(mut e) => {
+                    assert_eq!(e.as_ref().kind(), kind);
+                    assert_eq!(e.as_ref().len(), round);
+                    assert!(e.as_ref().metadata().is_none());
+                    assert!(e.data_mut().is_none());
+                    e.set_metadata(Dict::from_entries([(c"round", c"x")]).unwrap());
+                }
+                Err(back) => {
+                    assert!(!f.contains(SideDataFlags::REPLACE));
+                    assert!(is_all(back.as_ref().data(), round as u8));
+                    kept.push(back);
+                }
+            }
+            kept.push(copy);
+            check_consistent(&a);
+        }
+        drop(a);
+        assert!(kept.iter().all(|b| b.as_ref().len() < 40));
+    }
+
+    /// Reads every byte and pair of every entry.
+    fn check_consistent(a: &SideDataArray) {
+        for e in a {
+            let _ = e.data().to_vec();
+            let _ = pairs(e);
+            let _ = e.buffer().data();
+        }
+    }
+
+    #[test]
+    fn owner_additions_lend_the_entry_until_the_next_use() {
+        let mut a = SideDataArray::new();
+        for i in 0..20u8 {
+            let buf = BufferReference::alloc(usize::from(i)).unwrap().fill(i);
+            let mut e = a
+                .add(SideDataType::SEI_UNREGISTERED, buf, SideDataFlags::NONE)
+                .unwrap();
+            e.data_mut().unwrap().fill(i ^ 0xff);
+            e.set_metadata(Dict::from_entries([(c"i", c"x")]).unwrap());
+        }
+        let buf = BufferReference::alloc_zeroed(2).unwrap();
+        a.add(SideDataType::STEREO_3D, buf, SideDataFlags::UNIQUE)
+            .unwrap();
+        let again = BufferReference::alloc_zeroed(3).unwrap();
+        let back = a
+            .add(SideDataType::STEREO_3D, again, SideDataFlags::NONE)
+            .unwrap_err();
+        assert_eq!(back.as_ref().len(), 3);
+        assert_eq!(a.len(), 21);
+        check_consistent(&a);
+        for (i, e) in a.as_ref().iter().take(20).enumerate() {
+            assert!(is_all(e.data(), i as u8 ^ 0xff));
+        }
+    }
+
+    #[test]
+    fn flags_combine_and_compare() {
+        let both = SideDataFlags::UNIQUE | SideDataFlags::REPLACE;
+        assert!(both.contains(SideDataFlags::UNIQUE) && both.contains(SideDataFlags::REPLACE));
+        assert!(!SideDataFlags::NONE.contains(SideDataFlags::UNIQUE));
+        let mut f = SideDataFlags::default();
+        f |= SideDataFlags::REPLACE;
+        assert_eq!(f, SideDataFlags::REPLACE);
+        assert_eq!(both.bits(), 3);
+        assert!(!format!("{f:?}").is_empty());
+    }
+
+    #[test]
+    fn kinds_take_any_value() {
+        let mut a = sample();
+        for raw in [0, 1, 37, 38, 1 << 31, u32::MAX] {
+            let kind = SideDataType::from_raw(ffmpeg::libavutil::ffi::AVFrameSideDataType(raw));
+            for mut e in a.as_mut().iter_mut() {
+                e.set_kind(kind);
+                assert_eq!(e.as_ref().kind(), kind);
+            }
+        }
+    }
+
+    #[test]
+    fn big_and_many_entries() {
+        let page = vec![0x5a; 1 << 16];
+        let specs: Vec<Spec<'_>> = (0..200)
+            .map(|i| Spec::new(SideDataType::SEI_UNREGISTERED, &page[..i * 97]))
+            .collect();
+        let a = array(&specs);
+        check(&a, &specs);
+    }
+
+    /// Payload bytes Rust writes, then C copies (`av_buffer_ref` sharing in
+    /// `try_clone`, the new buffer's window in `set_buffer`), alternated with
+    /// Rust views that end before C runs again.
+    #[test]
+    fn payload_writes_through_rust_reach_c_readers() {
+        let mut a = array(&SAMPLE[2..4]);
+        for round in 0..4u8 {
+            let mut entries = a.as_mut();
+            let mut e = entries.get_mut(usize::from(round % 2)).unwrap();
+            e.data_mut().unwrap().fill(round);
+            let copy = e.as_ref().buffer().try_clone().unwrap();
+            assert!(is_all(copy.as_ref().data(), round));
+            assert!(e.data_mut().is_none());
+            let fresh = BufferReference::alloc(17)
+                .unwrap()
+                .copy_from_slice(&[round; 17]);
+            let old = e.replace_buffer(fresh);
+            drop(copy);
+            assert!(is_all(old.as_ref().data(), round));
+            e.data_mut().unwrap()[16] = 0xee;
+            assert_eq!(e.as_ref().data()[16], 0xee);
+        }
+    }
+
+    #[test]
+    fn shared_arrays_read_and_clone_buffers_on_many_threads() {
+        let a = Arc::new(sample());
+        let workers: Vec<_> = (0..8)
+            .map(|_| {
+                let a = Arc::clone(&a);
+                thread::spawn(move || {
+                    let mut copies = Vec::new();
+                    for _ in 0..50 {
+                        for (e, spec) in a.as_ref().as_ref().iter().zip(&SAMPLE) {
+                            assert!(e.data() == spec.payload);
+                            copies.push(e.buffer().try_clone().unwrap());
+                            let _ = pairs(e);
+                        }
+                    }
+                    copies
+                })
+            })
+            .collect();
+        let copies: Vec<_> = workers
+            .into_iter()
+            .flat_map(|w| w.join().unwrap())
+            .collect();
+        drop(a);
+        assert!(
+            copies
+                .iter()
+                .all(|c| !format!("{:?}", c.as_ref()).is_empty())
+        );
+    }
+
+    #[test]
+    fn entries_are_written_on_scoped_threads_and_arrays_dropped_on_others() {
+        let mut a = sample();
+        let mut entries = a.as_mut();
+        thread::scope(|s| {
+            for (i, mut e) in entries.iter_mut().enumerate() {
+                s.spawn(move || {
+                    if let Some(bytes) = e.data_mut() {
+                        bytes.fill(i as u8 + 1);
+                    }
+                    e.set_kind(SideDataType::from_raw(
+                        ffmpeg::libavutil::ffi::AVFrameSideDataType(i as u32),
+                    ));
+                });
+            }
+        });
+        let r = a.as_ref();
+        thread::scope(|s| {
+            for _ in 0..4 {
+                s.spawn(move || {
+                    for (i, e) in r.iter().enumerate() {
+                        assert!(is_all(e.data(), i as u8 + 1));
+                    }
+                });
+            }
+        });
+        let copy = a.as_ref().get(3).unwrap().buffer().try_clone().unwrap();
+        thread::spawn(move || drop(a)).join().unwrap();
+        assert_eq!(copy.as_ref().len(), SAMPLE[3].payload.len());
+    }
+}
+
+/// Side data arrays C builds, filled, for the `side_data` tests.
+#[path = "../common/side_data.rs"]
+mod side_data_fixture;

@@ -839,3 +839,14 @@ function ^av_buffer_replace$
 function ^av_refstruct_allocz$
 function ^av_refstruct_ref_c$
 function ^av_refstruct_replace$
+
+# Buffer-frame wave 2, batch 0: the C readers and writers of AVFrameSideData's
+# fields that frame.rs's SideData and SideDataArray equivalence tests compare
+# against (clone copies data, size and metadata and references buf; add with
+# AV_FRAME_SIDE_DATA_FLAG_REPLACE replaces buf and frees metadata; get_c
+# looks entries up by type). av_frame_side_data_new and _free are in wave 0
+# batch 4's block.
+function ^av_frame_side_data_clone$
+function ^av_frame_side_data_add$
+function ^av_frame_side_data_get_c$
+var ^AV_FRAME_SIDE_DATA_FLAG_.*
