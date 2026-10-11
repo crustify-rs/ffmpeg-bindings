@@ -1,0 +1,7 @@
+{
+  "ptr_args": {
+    "1": {"ptr": {"scalar": null, "array": {"by_val": true}, "string": true, "owned": false, "borrowed": {"lifetime": "arg:out"}, "nullable": false, "mutable": true,
+      "note": "Output of exactly 37 bytes (uuid.h asks for no less than 37 characters): 36 lowercase characters with hyphens before bytes 4, 6, 8 and 10, then the NUL. No size argument; not read on entry. The 16-byte AVUUID input (arg 0) is an array-typedef parameter extraction does not enumerate. Borrowed for the call, no retention."}}
+  },
+  "lifetime": null
+}

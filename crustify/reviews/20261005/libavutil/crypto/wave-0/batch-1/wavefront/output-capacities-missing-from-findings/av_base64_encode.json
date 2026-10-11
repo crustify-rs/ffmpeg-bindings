@@ -1,0 +1,11 @@
+{
+  "ptr_args": {
+    "0": {"ptr": {"scalar": null, "array": {"by_val": true}, "string": true, "owned": false, "borrowed": {"lifetime": "arg:out"}, "nullable": false, "mutable": true,
+      "note": "Output buffer of out_size bytes, borrowed for the call. C fails (returns NULL, writes nothing) unless in_size < UINT_MAX / 4 and out_size >= AV_BASE64_SIZE(in_size) = (in_size + 2) / 3 * 4 + 1, then writes exactly AV_BASE64_SIZE(in_size) bytes: the encoded text and its NUL. Never writes past that, so out_size may be any int up to the buffer length (a buffer longer than INT_MAX is passed as INT_MAX). Not read on entry; holds a NUL-terminated string after success. No retention."}},
+    "2": {"ptr": {"scalar": null, "array": {"by_val": true}, "string": false, "owned": false, "borrowed": {"lifetime": "arg:in"}, "nullable": true, "mutable": false,
+      "note": "Input of in_size bytes, read for the call only (AV_RB32 reads 4 bytes only while more than 3 remain). Neither dereferenced nor offset when in_size is 0, so NULL is valid then. No retention."}}
+  },
+  "ptr_ret": {"ptr": {"scalar": null, "array": {"by_val": true}, "string": true, "owned": false, "borrowed": {"lifetime": "arg:out"}, "nullable": true, "mutable": true,
+    "note": "Returns exactly the caller output buffer, or null on a checked size error; no transfer or retention."}},
+  "lifetime": null
+}
