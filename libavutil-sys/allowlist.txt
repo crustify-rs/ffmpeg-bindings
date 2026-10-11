@@ -707,3 +707,11 @@ function av_uuid_parse_range
 function av_uuid_unparse
 function av_uuid_urn_parse
 var AV_LZO_(INPUT_PADDING|OUTPUT_PADDING|INPUT_DEPLETED|OUTPUT_FULL|INVALID_BACKPTR|ERROR)
+# crypto wave 0, batch 8: opaque TEA/Twofish lifecycle and the C readers
+# used to observe initialized contexts in equivalence tests.
+function av_tea_alloc
+function av_tea_init
+function av_tea_crypt
+function av_twofish_alloc
+function av_twofish_init
+function av_twofish_crypt
