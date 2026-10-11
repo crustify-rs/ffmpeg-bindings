@@ -63,3 +63,23 @@ fn allocation_failure_returns_an_error_without_an_owner() {
     ffmpeg::libavutil::mem::set_max_alloc(i32::MAX as usize);
     drop(Cast5::new(&[0; 16]).unwrap());
 }
+
+use ffmpeg::libavutil::cast5::context_size;
+
+#[test]
+fn batch10_immutable_size_across_threads() {
+    let size: &'static i32 = context_size();
+    assert!(*size > 0);
+    let workers: Vec<_> = (0..4)
+        .map(|_| {
+            std::thread::spawn(move || {
+                for _ in 0..100 {
+                    assert!(std::ptr::eq(size, context_size()));
+                }
+            })
+        })
+        .collect();
+    for worker in workers {
+        worker.join().unwrap();
+    }
+}

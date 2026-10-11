@@ -39,3 +39,13 @@ mod sha512;
 mod time;
 mod timestamp;
 mod xtea;
+
+// Crypto wave 0, symbol batch 10.
+mod adler32;
+mod base64;
+mod camellia;
+mod lzo;
+mod ripemd;
+mod tea;
+mod twofish;
+mod uuid;

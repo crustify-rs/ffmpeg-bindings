@@ -969,6 +969,29 @@
    "defined_in": "libavutil/mathematics.c"
   },
   {
+   "name": "av_adler32_update",
+   "defined_in": "libavutil/adler32.c",
+   "ptr_args": [
+    {
+     "name": "buf",
+     "ptr": {
+      "scalar": null,
+      "array": {
+       "by_val": true
+      },
+      "string": false,
+      "owned": false,
+      "borrowed": {
+       "lifetime": "arg:buf"
+      },
+      "nullable": true,
+      "mutable": false,
+      "note": "Synchronous borrowed buffer; no storage, retention, cloning or deallocation."
+     }
+    }
+   ]
+  },
+  {
    "name": "av_aes_alloc",
    "defined_in": "libavutil/aes.c",
    "lifetime": {
@@ -1153,6 +1176,11 @@
    ]
   },
   {
+   "name": "av_aes_size",
+   "defined_in": "libavutil/aes.c",
+   "locked_by": null
+  },
+  {
    "name": "av_alpha_mode_from_name",
    "defined_in": "libavutil/pixdesc.c",
    "ptr_args": [
@@ -1289,6 +1317,102 @@
      "nullable": true,
      "mutable": true,
      "note": "Fresh av_malloc(len + 1) block holding the formatted, NUL-terminated string; released by av_free. NULL when vsnprintf fails or allocation fails."
+    }
+   }
+  },
+  {
+   "name": "av_base64_decode",
+   "defined_in": "libavutil/base64.c",
+   "ptr_args": [
+    {
+     "name": "in_str",
+     "ptr": {
+      "scalar": null,
+      "array": {
+       "by_val": true
+      },
+      "string": true,
+      "owned": false,
+      "borrowed": {
+       "lifetime": "arg:in_str"
+      },
+      "nullable": false,
+      "mutable": false,
+      "note": "Synchronous borrowed buffer; no storage, retention, cloning or deallocation. NUL-terminated string."
+     }
+    },
+    {
+     "name": "out",
+     "ptr": {
+      "scalar": null,
+      "array": {
+       "by_val": true
+      },
+      "string": false,
+      "owned": false,
+      "borrowed": {
+       "lifetime": "arg:out"
+      },
+      "nullable": true,
+      "mutable": true,
+      "note": "Nullable selects validity-only path; non-null output is bounded/truncated by out_size. C may write a speculative fourth byte inside capacity; no retention."
+     }
+    }
+   ]
+  },
+  {
+   "name": "av_base64_encode",
+   "defined_in": "libavutil/base64.c",
+   "ptr_args": [
+    {
+     "name": "in",
+     "ptr": {
+      "scalar": null,
+      "array": {
+       "by_val": true
+      },
+      "string": false,
+      "owned": false,
+      "borrowed": {
+       "lifetime": "arg:in"
+      },
+      "nullable": false,
+      "mutable": false,
+      "note": "Synchronous borrowed buffer; no storage, retention, cloning or deallocation."
+     }
+    },
+    {
+     "name": "out",
+     "ptr": {
+      "scalar": null,
+      "array": {
+       "by_val": true
+      },
+      "string": true,
+      "owned": false,
+      "borrowed": {
+       "lifetime": "arg:out"
+      },
+      "nullable": false,
+      "mutable": true,
+      "note": "Synchronous borrowed buffer; no storage, retention, cloning or deallocation. NUL-terminated string."
+     }
+    }
+   ],
+   "ptr_ret": {
+    "ptr": {
+     "scalar": null,
+     "array": {
+      "by_val": true
+     },
+     "string": true,
+     "owned": false,
+     "borrowed": {
+      "lifetime": "arg:out"
+     },
+     "nullable": true,
+     "mutable": true,
+     "note": "Returns exactly the caller output buffer, or null on a checked size error; no transfer or retention."
     }
    }
   },
@@ -1824,6 +1948,11 @@
    }
   },
   {
+   "name": "av_camellia_size",
+   "defined_in": "libavutil/camellia.c",
+   "locked_by": null
+  },
+  {
    "name": "av_cast5_alloc",
    "defined_in": "libavutil/cast5.c",
    "lifetime": {
@@ -1900,6 +2029,11 @@
      }
     }
    ]
+  },
+  {
+   "name": "av_cast5_size",
+   "defined_in": "libavutil/cast5.c",
+   "locked_by": null
   },
   {
    "name": "av_ceil_log2_c",
@@ -2935,6 +3069,79 @@
   {
    "name": "av_cpu_max_align",
    "defined_in": "libavutil/cpu.c"
+  },
+  {
+   "name": "av_crc",
+   "defined_in": "libavutil/crc.c",
+   "ptr_args": [
+    {
+     "name": "buffer",
+     "ptr": {
+      "scalar": null,
+      "array": {
+       "by_val": true
+      },
+      "string": false,
+      "owned": false,
+      "borrowed": {
+       "lifetime": "arg:buffer"
+      },
+      "nullable": false,
+      "mutable": false,
+      "note": "Synchronous borrowed buffer; no storage, retention, cloning or deallocation."
+     }
+    },
+    {
+     "name": "ctx",
+     "ptr": {
+      "scalar": null,
+      "array": {
+       "by_val": true
+      },
+      "string": false,
+      "owned": false,
+      "borrowed": {
+       "lifetime": "arg:ctx"
+      },
+      "nullable": false,
+      "mutable": false,
+      "note": "Initialized private CRC table: 257 or 1024 uint32_t words, potentially architecture-specific tagged storage; init may leave unused entries untouched. No ownership transfer."
+     }
+    }
+   ]
+  },
+  {
+   "name": "av_crc_init",
+   "defined_in": "libavutil/crc.c",
+   "lifetime": {
+    "for": "ctx",
+    "is_dropper": false,
+    "is_disposer": false,
+    "is_cloner": null,
+    "is_constructor": {
+     "alloc": false,
+     "init": true
+    }
+   },
+   "ptr_args": [
+    {
+     "name": "ctx",
+     "ptr": {
+      "scalar": null,
+      "array": {
+       "by_val": true
+      },
+      "string": false,
+      "owned": false,
+      "borrowed": {
+       "lifetime": "arg:ctx"
+      },
+      "nullable": false,
+      "mutable": true,
+      "note": "Initialized private CRC table: 257 or 1024 uint32_t words, potentially architecture-specific tagged storage; init may leave unused entries untouched. No ownership transfer."
+     }
+    }
+   ]
   },
   {
    "name": "av_csp_approximate_eotf_gamma",
@@ -5497,6 +5704,26 @@
    ]
   },
   {
+   "name": "av_hash_names",
+   "defined_in": "libavutil/hash.c",
+   "ptr_ret": {
+    "ptr": {
+     "scalar": null,
+     "array": {
+      "by_val": true
+     },
+     "string": true,
+     "owned": false,
+     "borrowed": {
+      "lifetime": "static"
+     },
+     "nullable": true,
+     "mutable": false,
+     "note": "Immutable NUL-terminated name in hashdesc static storage, never freed."
+    }
+   }
+  },
+  {
    "name": "av_image_alloc",
    "defined_in": "libavutil/imgutils.c"
   },
@@ -6109,6 +6336,80 @@
    "defined_in": "libavutil/log.c"
   },
   {
+   "name": "av_lzo1x_decode",
+   "defined_in": "libavutil/lzo.c",
+   "ptr_args": [
+    {
+     "name": "in",
+     "ptr": {
+      "scalar": null,
+      "array": {
+       "by_val": true
+      },
+      "string": false,
+      "owned": false,
+      "borrowed": {
+       "lifetime": "arg:in"
+      },
+      "nullable": false,
+      "mutable": false,
+      "note": "Borrowed byte array; logical length plus 8 readable input or 12 writable output padding; no retained pointer."
+     }
+    },
+    {
+     "name": "inlen",
+     "ptr": {
+      "scalar": {
+       "by_val": true
+      },
+      "array": null,
+      "string": false,
+      "owned": false,
+      "borrowed": {
+       "lifetime": "arg:inlen"
+      },
+      "nullable": false,
+      "mutable": true,
+      "note": "Borrowed int remaining-length slot."
+     }
+    },
+    {
+     "name": "out",
+     "ptr": {
+      "scalar": null,
+      "array": {
+       "by_val": true
+      },
+      "string": false,
+      "owned": false,
+      "borrowed": {
+       "lifetime": "arg:out"
+      },
+      "nullable": false,
+      "mutable": true,
+      "note": "Borrowed byte array; logical length plus 8 readable input or 12 writable output padding; no retained pointer."
+     }
+    },
+    {
+     "name": "outlen",
+     "ptr": {
+      "scalar": {
+       "by_val": true
+      },
+      "array": null,
+      "string": false,
+      "owned": false,
+      "borrowed": {
+       "lifetime": "arg:outlen"
+      },
+      "nullable": false,
+      "mutable": true,
+      "note": "Borrowed int remaining-length slot."
+     }
+    }
+   ]
+  },
+  {
    "name": "av_make_error_string",
    "defined_in": "libavutil/error.h",
    "ptr_args": [
@@ -6412,6 +6713,51 @@
       "nullable": false,
       "mutable": true,
       "note": "Borrowed non-null full C context for this call; exclusively mutated, no transfer or retention. Init accepts allocated storage; update/final require initialized hashing state."
+     }
+    }
+   ]
+  },
+  {
+   "name": "av_md5_size",
+   "defined_in": "libavutil/md5.c",
+   "locked_by": null
+  },
+  {
+   "name": "av_md5_sum",
+   "defined_in": "libavutil/md5.c",
+   "ptr_args": [
+    {
+     "name": "dst",
+     "ptr": {
+      "scalar": null,
+      "array": {
+       "by_val": true
+      },
+      "string": false,
+      "owned": false,
+      "borrowed": {
+       "lifetime": "arg:dst"
+      },
+      "nullable": false,
+      "mutable": true,
+      "note": "Synchronous borrowed buffer; no storage, retention, cloning or deallocation."
+     }
+    },
+    {
+     "name": "src",
+     "ptr": {
+      "scalar": null,
+      "array": {
+       "by_val": true
+      },
+      "string": false,
+      "owned": false,
+      "borrowed": {
+       "lifetime": "arg:src"
+      },
+      "nullable": false,
+      "mutable": false,
+      "note": "Synchronous borrowed buffer; no storage, retention, cloning or deallocation."
      }
     }
    ]
@@ -10446,6 +10792,11 @@
    "defined_in": "libavutil/mathematics.c"
   },
   {
+   "name": "av_ripemd_size",
+   "defined_in": "libavutil/ripemd.c",
+   "locked_by": null
+  },
+  {
    "name": "av_sample_fmt_is_planar",
    "defined_in": "libavutil/samplefmt.c"
   },
@@ -10872,6 +11223,11 @@
    ]
   },
   {
+   "name": "av_sha512_size",
+   "defined_in": "libavutil/sha512.c",
+   "locked_by": null
+  },
+  {
    "name": "av_sha_alloc",
    "defined_in": "libavutil/sha.c",
    "lifetime": {
@@ -10931,6 +11287,11 @@
      }
     }
    ]
+  },
+  {
+   "name": "av_sha_size",
+   "defined_in": "libavutil/sha.c",
+   "locked_by": null
   },
   {
    "name": "av_size_mult",
@@ -11795,6 +12156,11 @@
    "defined_in": "libavutil/rational.c"
   },
   {
+   "name": "av_tea_size",
+   "defined_in": "libavutil/tea.c",
+   "locked_by": null
+  },
+  {
    "name": "av_timegm",
    "defined_in": "libavutil/parseutils.c",
    "ptr_args": [
@@ -11960,6 +12326,11 @@
    }
   },
   {
+   "name": "av_twofish_size",
+   "defined_in": "libavutil/twofish.c",
+   "locked_by": null
+  },
+  {
    "name": "av_usleep",
    "defined_in": "libavutil/time.c"
   },
@@ -12021,6 +12392,127 @@
       "nullable": false,
       "mutable": true,
       "note": "Out slot, written only once a sequence is well-formed and below 2^31 (also when the flag range checks then fail); untouched for an empty buffer, a malformed or overlong sequence. [Symbol: Returns 0 on success (and for an empty buffer, without consuming), AVERROR(EILSEQ) otherwise.]"
+     }
+    }
+   ]
+  },
+  {
+   "name": "av_uuid_copy",
+   "defined_in": "libavutil/uuid.h"
+  },
+  {
+   "name": "av_uuid_equal",
+   "defined_in": "libavutil/uuid.h"
+  },
+  {
+   "name": "av_uuid_nil",
+   "defined_in": "libavutil/uuid.h"
+  },
+  {
+   "name": "av_uuid_parse",
+   "defined_in": "libavutil/uuid.c",
+   "ptr_args": [
+    {
+     "name": "in",
+     "ptr": {
+      "scalar": null,
+      "array": {
+       "by_val": true
+      },
+      "string": true,
+      "owned": false,
+      "borrowed": {
+       "lifetime": "arg:in"
+      },
+      "nullable": false,
+      "mutable": false,
+      "note": "Synchronous borrowed buffer; no storage, retention, cloning or deallocation. NUL-terminated string."
+     }
+    }
+   ]
+  },
+  {
+   "name": "av_uuid_parse_range",
+   "defined_in": "libavutil/uuid.c",
+   "ptr_args": [
+    {
+     "name": "in_end",
+     "ptr": {
+      "scalar": null,
+      "array": {
+       "by_val": true
+      },
+      "string": false,
+      "owned": false,
+      "borrowed": {
+       "lifetime": "arg:in_end"
+      },
+      "nullable": false,
+      "mutable": false,
+      "note": "Borrowed endpoints of one 36-byte range; end is never dereferenced. UUID output is a borrowed 16-byte array parameter (not enumerated as pointer by extraction)."
+     }
+    },
+    {
+     "name": "in_start",
+     "ptr": {
+      "scalar": null,
+      "array": {
+       "by_val": true
+      },
+      "string": false,
+      "owned": false,
+      "borrowed": {
+       "lifetime": "arg:in_start"
+      },
+      "nullable": false,
+      "mutable": false,
+      "note": "Borrowed endpoints of one 36-byte range; end is never dereferenced. UUID output is a borrowed 16-byte array parameter (not enumerated as pointer by extraction)."
+     }
+    }
+   ]
+  },
+  {
+   "name": "av_uuid_unparse",
+   "defined_in": "libavutil/uuid.c",
+   "ptr_args": [
+    {
+     "name": "out",
+     "ptr": {
+      "scalar": null,
+      "array": {
+       "by_val": true
+      },
+      "string": true,
+      "owned": false,
+      "borrowed": {
+       "lifetime": "arg:out"
+      },
+      "nullable": false,
+      "mutable": true,
+      "note": "Synchronous borrowed buffer; no storage, retention, cloning or deallocation. NUL-terminated string."
+     }
+    }
+   ]
+  },
+  {
+   "name": "av_uuid_urn_parse",
+   "defined_in": "libavutil/uuid.c",
+   "ptr_args": [
+    {
+     "name": "in",
+     "ptr": {
+      "scalar": null,
+      "array": {
+       "by_val": true
+      },
+      "string": true,
+      "owned": false,
+      "borrowed": {
+       "lifetime": "arg:in"
+      },
+      "nullable": false,
+      "mutable": false,
+      "note": "Synchronous borrowed buffer; no storage, retention, cloning or deallocation. NUL-terminated string."
      }
     }
    ]

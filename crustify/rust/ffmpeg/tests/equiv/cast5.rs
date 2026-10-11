@@ -80,3 +80,15 @@ fn constructors_and_reinitialization_match_independent_c_contexts() {
         }
     }
 }
+
+use ffmpeg::libavutil::cast5;
+
+#[test]
+fn batch10_size_is_the_c_global() {
+    for _ in 0..4 {
+        // SAFETY: this global is an immutable const int with static lifetime.
+        let raw = unsafe { &ffi::av_cast5_size };
+        assert_eq!(cast5::context_size(), raw);
+        assert!(std::ptr::eq(cast5::context_size(), raw));
+    }
+}

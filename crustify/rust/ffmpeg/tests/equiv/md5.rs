@@ -78,3 +78,34 @@ fn interleaved_update_and_final_match_after_each_step() {
         assert_eq!(wrapped.as_mut().finalize(), expected);
     }
 }
+
+use ffmpeg::libavutil::md5;
+
+#[test]
+fn batch10_size_is_the_c_global() {
+    for _ in 0..4 {
+        // SAFETY: this global is an immutable const int with static lifetime.
+        let raw = unsafe { &ffi::av_md5_size };
+        assert_eq!(md5::context_size(), raw);
+        assert!(std::ptr::eq(md5::context_size(), raw));
+    }
+}
+
+#[test]
+fn batch10_digest_sequences_match_c() {
+    let data: Vec<_> = (0..1025).map(|i| (i * 97) as u8).collect();
+    for len in [0, 1, 55, 56, 63, 64, 65, 119, 120, 127, 128, 1024] {
+        let mut raw = [0xAA; 16];
+        let input = data[1..1 + len].to_vec();
+        let empty = 0u8;
+        let ptr = if input.is_empty() {
+            &raw const empty
+        } else {
+            input.as_ptr()
+        };
+        // SAFETY: source is readable for its length; destination is exclusive
+        // 16-byte storage and cannot overlap the separately owned source.
+        unsafe { ffi::av_md5_sum(raw.as_mut_ptr(), ptr, input.len()) };
+        assert_eq!(md5::sum(&data[1..1 + len]), raw);
+    }
+}

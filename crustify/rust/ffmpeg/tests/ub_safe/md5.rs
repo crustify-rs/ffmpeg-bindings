@@ -56,3 +56,40 @@ fn block_edges_and_drop_without_finalizing() {
         // Drop with a partially filled context; no finalizer is required.
     }
 }
+
+use ffmpeg::libavutil::md5::context_size;
+
+#[test]
+fn batch10_immutable_size_across_threads() {
+    let size: &'static i32 = context_size();
+    assert!(*size > 0);
+    let workers: Vec<_> = (0..4)
+        .map(|_| {
+            std::thread::spawn(move || {
+                for _ in 0..100 {
+                    assert!(std::ptr::eq(size, context_size()));
+                }
+            })
+        })
+        .collect();
+    for worker in workers {
+        worker.join().unwrap();
+    }
+}
+
+#[test]
+fn batch10_digest_boundary_lengths() {
+    use ffmpeg::libavutil::md5::sum;
+    let data: Vec<_> = (0..2049).map(|i| i as u8).collect();
+    assert_eq!(
+        sum(b""),
+        [
+            0xd4, 0x1d, 0x8c, 0xd9, 0x8f, 0x00, 0xb2, 0x04, 0xe9, 0x80, 0x09, 0x98, 0xec, 0xf8,
+            0x42, 0x7e
+        ]
+    );
+    for len in [0, 1, 55, 56, 63, 64, 65, 119, 120, 128, 2048] {
+        let independent = data[1..1 + len].to_vec();
+        assert_eq!(sum(&data[1..1 + len]), sum(&independent));
+    }
+}

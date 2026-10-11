@@ -55,3 +55,78 @@ fn identifiers_select_the_same_tables_without_cpu_extensions() {
     unsafe { ffmpeg::libavutil::cpu::force_cpu_flags(0) };
     constants_and_lookup_selection_match_c();
 }
+
+use ffmpeg::libavutil::crc::{Table, TableSize};
+
+#[test]
+fn batch10_table_outputs_and_stream_sequences_match_c() {
+    for (le, bits, poly) in [
+        (false, 8, 7),
+        (false, 16, 0x8005),
+        (false, 24, 0x864cfb),
+        (false, 32, 0x04c11db7),
+        (true, 16, 0xa001),
+        (true, 32, 0xedb88320),
+        (false, 8, 0),
+        (true, 31, 0x12345678),
+    ] {
+        for size in [TableSize::Compact, TableSize::Fast] {
+            let safe = Table::new(le, bits, poly, size).unwrap();
+            let mut raw = vec![0; safe.entries().len()];
+            // SAFETY: C receives aligned exclusive u32 storage of the accepted
+            // byte size and valid bits/poly, and retains no pointer.
+            let ret = unsafe {
+                ffi::av_crc_init(
+                    raw.as_mut_ptr(),
+                    i32::from(le),
+                    i32::from(bits),
+                    poly,
+                    (raw.len() * 4) as i32,
+                )
+            };
+            assert_eq!(ret, 0);
+            assert_eq!(safe.entries(), raw);
+            let (mut left, mut right) = (u32::MAX, u32::MAX);
+            for len in [0, 1, 2, 3, 4, 15, 16, 17, 63, 64, 65, 256, 1024] {
+                for offset in 0..4 {
+                    let mut reference = vec![0; len + 8];
+                    for (i, b) in reference.iter_mut().enumerate() {
+                        *b = (i * 107) as u8;
+                    }
+                    let source = reference[3 + offset..3 + offset + len].to_vec();
+                    left = safe.update(left, &source);
+                    // SAFETY: initialized private raw table and independent
+                    // readable input; prefix keeps C's end - 3 in allocation.
+                    right = unsafe {
+                        ffi::av_crc(raw.as_ptr(), right, reference.as_ptr().add(3 + offset), len)
+                    };
+                    assert_eq!(left, right);
+                }
+            }
+        }
+    }
+}
+
+#[test]
+fn batch10_scalar_tables_match_c_in_isolated_process() {
+    const CHILD: &str = "CRUSTIFY_B10_CRC_SCALAR_CHILD";
+    if std::env::var_os(CHILD).is_some() {
+        // SAFETY: this isolated process runs exactly this test, before any
+        // CRC operation or worker starts. Zero disables CPU features rather
+        // than asserting unavailable instructions. No concurrent C user
+        // exists, and the process exits without changing another test's flags.
+        unsafe { ffi::av_force_cpu_flags(0) };
+        batch10_table_outputs_and_stream_sequences_match_c();
+        return;
+    }
+    let status = std::process::Command::new(std::env::current_exe().unwrap())
+        .env(CHILD, "1")
+        .args([
+            "--exact",
+            "crc::batch10_scalar_tables_match_c_in_isolated_process",
+            "--test-threads=1",
+        ])
+        .status()
+        .unwrap();
+    assert!(status.success());
+}

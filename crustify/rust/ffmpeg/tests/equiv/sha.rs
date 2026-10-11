@@ -128,3 +128,15 @@ fn constructors_choose_the_expected_digest() {
     assert_eq!(reference.init(ALGORITHMS[2]), 0);
     probe(&mut owner, &mut reference, &[b"abc"]);
 }
+
+use ffmpeg::libavutil::sha;
+
+#[test]
+fn batch10_size_is_the_c_global() {
+    for _ in 0..4 {
+        // SAFETY: this global is an immutable const int with static lifetime.
+        let raw = unsafe { &ffi::av_sha_size };
+        assert_eq!(sha::context_size(), raw);
+        assert!(std::ptr::eq(sha::context_size(), raw));
+    }
+}

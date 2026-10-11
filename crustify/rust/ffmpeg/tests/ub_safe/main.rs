@@ -52,3 +52,13 @@ fn compile_fail() {
         trybuild::TestCases::new().compile_fail(dir.join("*.rs"));
     }
 }
+
+// Crypto wave 0, symbol batch 10.
+mod adler32;
+mod base64;
+mod camellia;
+mod lzo;
+mod ripemd;
+mod tea;
+mod twofish;
+mod uuid;

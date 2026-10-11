@@ -89,3 +89,21 @@ fn failed_allocations_match_and_clear_the_output() {
         assert_eq!(HashContext::new(name).err(), Some(expected));
     }
 }
+
+use ffmpeg::libavutil::hash;
+
+#[test]
+fn batch10_registry_indices_match_c() {
+    for i in [i32::MIN, -1].into_iter().chain(0..64).chain([i32::MAX]) {
+        // SAFETY: C checks every integer index and returns null or a static
+        // immutable NUL-terminated string which is never freed.
+        let ptr = unsafe { ffi::av_hash_names(i) };
+        let raw = if ptr.is_null() {
+            None
+        } else {
+            // SAFETY: non-null hashdesc names are immutable NUL-terminated statics.
+            Some(unsafe { std::ffi::CStr::from_ptr(ptr) })
+        };
+        assert_eq!(hash::name(i), raw);
+    }
+}

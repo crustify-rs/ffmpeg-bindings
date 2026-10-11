@@ -1,0 +1,9 @@
+error[E0499]: cannot borrow `output` as mutable more than once at a time
+ --> tests/ub_safe/compile_fail/base64_encoded_view_freezes_output.rs
+  |
+  |     let view = ffmpeg::libavutil::base64::encode(b"abc", &mut output).unwrap();
+  |                                                          ----------- first mutable borrow occurs here
+  |     output.fill(0);
+  |     ^^^^^^ second mutable borrow occurs here
+  |     println!("{view:?}");
+  |                ---- first borrow later used here
