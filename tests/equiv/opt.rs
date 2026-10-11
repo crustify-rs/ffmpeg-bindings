@@ -1,22 +1,29 @@
 //! Equivalence of `libavutil/opt.h`'s owned range lists and their ranges
 //! with the raw C queries and C's writes of the same fields, on
-//! independently owned lists of the shared test class; and of option types
-//! with the values C stores and reads.
+//! independently owned lists of the shared test classes (queried on a class,
+//! as C's fake object, and on objects); and of option types with the values
+//! C stores and reads.
 
 use core::ffi::{CStr, c_int, c_void};
 use core::mem::size_of;
 use std::ffi::CString;
 
 use ffmpeg::libavutil::ffi;
-use ffmpeg::libavutil::opt::{OptionRangeRef, OptionRanges, OptionRangesBox, OptionRangesRef};
+use ffmpeg::libavutil::opt::{
+    ObjectRef, OptionRangeRef, OptionRangesBox, OptionRangesRef, RangeFlags,
+};
 
 #[path = "../common/opt.rs"]
 pub(crate) mod fixture;
-use fixture::{CB_FAKE, CB_KEYS, CLASS, Ctx, FAKE, RANGED, UNKNOWN, UNRANGED};
+use fixture::{CB_FAKE, CB_KEYS, FAKE, FakeObj, Owned, RANGED, UNKNOWN, UNRANGED};
+
+use crate::log::LogState;
+use crate::log::class_fixture::with_class;
 
 const FAKE_OBJ: c_int = ffi::AV_OPT_SEARCH_FAKE_OBJ as c_int;
-const MULTI: c_int = ffi::AV_OPT_MULTI_COMPONENT_RANGE as c_int;
-const CHILDREN: c_int = ffi::AV_OPT_SEARCH_CHILDREN as c_int;
+const NONE: RangeFlags = RangeFlags::NONE;
+const MULTI: RangeFlags = RangeFlags::MULTI_COMPONENT;
+const CHILDREN: RangeFlags = RangeFlags::CHILDREN;
 
 /// Every key of the test class, including those a query rejects.
 fn all_keys() -> impl Iterator<Item = &'static CStr> {
@@ -121,11 +128,23 @@ enum Via {
     Default,
 }
 
-/// Runs the C query on `obj`.
-fn c_query(via: Via, obj: *mut c_void, key: &CStr, flags: c_int) -> (c_int, CList) {
+/// What a query runs on: a fixture class, which C sees as the fake object
+/// `fake`, or a live object of the well-formed `OBJ_CLASS`.
+#[derive(Clone, Copy)]
+enum On {
+    Class(&'static FakeObj),
+    Object(*mut c_void),
+}
+
+/// Runs the C query on `on`.
+fn c_query(via: Via, on: On, key: &CStr, flags: RangeFlags) -> (c_int, CList) {
+    let (obj, flags) = match on {
+        On::Class(fake) => (fake.as_obj(), flags.bits() | FAKE_OBJ),
+        On::Object(obj) => (obj, flags.bits()),
+    };
     let mut out = CList(core::ptr::null_mut());
-    // SAFETY: `out.0` is a writable slot; each caller passes an object of a
-    // well-formed fixture class, matching `flags`.
+    // SAFETY: `out.0` is a writable slot; `obj` is a fake object of a
+    // well-formed fixture class with `AV_OPT_SEARCH_FAKE_OBJ`, or an object.
     let ret = unsafe {
         match via {
             Via::Callback => ffi::av_opt_query_ranges(&mut out.0, obj, key.as_ptr(), flags),
@@ -135,28 +154,40 @@ fn c_query(via: Via, obj: *mut c_void, key: &CStr, flags: c_int) -> (c_int, CLis
     (ret, out)
 }
 
-/// Runs the Rust query on `obj`.
-fn rust_query(
-    via: Via,
-    obj: *mut c_void,
-    key: &CStr,
-    flags: c_int,
-) -> Result<OptionRangesBox, i32> {
-    // SAFETY: as for `c_query`.
-    unsafe {
-        match via {
-            Via::Callback => OptionRanges::query(obj, key, flags),
-            Via::Default => OptionRanges::query_default(obj, key, flags),
+/// Runs the Rust query on `on`: on the class `with_class` reaches through
+/// the fake object, or on the object's shared handle.
+fn rust_query(via: Via, on: On, key: &CStr, flags: RangeFlags) -> Result<OptionRangesBox, i32> {
+    match on {
+        On::Class(fake) => {
+            let _s = LogState::lock();
+            // SAFETY: `fake` is a `const AVClass *` to a fixture class with a
+            // name and no `item_name`, `get_category` or offsets, a context
+            // `log_with_context` accepts.
+            unsafe {
+                with_class(fake.as_obj(), |c| match via {
+                    Via::Callback => c.unwrap().option_ranges(key, flags),
+                    Via::Default => c.unwrap().default_option_ranges(key, flags),
+                })
+            }
+        }
+        On::Object(obj) => {
+            // SAFETY: each caller passes a live object of the well-formed
+            // `OBJ_CLASS`, which nothing writes during the query.
+            let obj = unsafe { ObjectRef::from_ptr(obj) }.unwrap();
+            match via {
+                Via::Callback => obj.option_ranges(key, flags),
+                Via::Default => obj.default_option_ranges(key, flags),
+            }
         }
     }
 }
 
-/// Runs both queries on `obj` and asserts they agree; returns both lists.
+/// Runs both queries on `on` and asserts they agree; returns both lists.
 #[track_caller]
-fn both(via: Via, obj: *mut c_void, key: &CStr, flags: c_int) -> (CList, Option<OptionRangesBox>) {
-    let (ret, c) = c_query(via, obj, key, flags);
-    let rust = rust_query(via, obj, key, flags);
-    let ctx = format!("{via:?} {key:?} flags={flags:#x}");
+fn both(via: Via, on: On, key: &CStr, flags: RangeFlags) -> (CList, Option<OptionRangesBox>) {
+    let (ret, c) = c_query(via, on, key, flags);
+    let rust = rust_query(via, on, key, flags);
+    let ctx = format!("{via:?} {key:?} flags={:#x}", flags.bits());
     match &rust {
         Err(e) => {
             assert!(
@@ -177,23 +208,31 @@ fn both(via: Via, obj: *mut c_void, key: &CStr, flags: c_int) -> (CList, Option<
 }
 
 #[test]
-fn every_key_and_flag_agrees_on_a_fake_object() {
+fn every_key_and_flag_agrees_on_a_class() {
     for via in [Via::Callback, Via::Default] {
         for key in all_keys() {
-            for flags in [FAKE_OBJ, FAKE_OBJ | MULTI, FAKE_OBJ | CHILDREN] {
-                both(via, FAKE.as_obj(), key, flags);
+            for flags in [NONE, MULTI, CHILDREN, MULTI | CHILDREN] {
+                both(via, On::Class(&FAKE), key, flags);
             }
         }
     }
 }
 
+/// On objects of `OBJ_CLASS`, with and without a child to search.
 #[test]
 fn every_key_agrees_on_a_real_object() {
-    let mut ctx = Ctx::new(&CLASS);
-    for via in [Via::Callback, Via::Default] {
-        for key in all_keys() {
-            for flags in [0, MULTI, CHILDREN] {
-                both(via, ctx.as_obj(), key, flags);
+    let keys: Vec<&CStr> = fixture::OBJ_OPTIONS.0[..fixture::OBJ_OPTIONS.0.len() - 1]
+        .iter()
+        // SAFETY: each entry before the terminator names a literal.
+        .map(|o| unsafe { CStr::from_ptr(o.name) })
+        .chain(all_keys())
+        .collect();
+    for o in [Owned::new(), Owned::with_child()] {
+        for via in [Via::Callback, Via::Default] {
+            for key in &keys {
+                for flags in [NONE, MULTI, CHILDREN, MULTI | CHILDREN] {
+                    both(via, On::Object(o.as_obj()), key, flags);
+                }
             }
         }
     }
@@ -202,43 +241,20 @@ fn every_key_agrees_on_a_real_object() {
 #[test]
 fn class_callback_lists_agree() {
     for key in all_keys() {
-        for flags in [FAKE_OBJ, FAKE_OBJ | MULTI] {
-            let (c, rust) = both(Via::Callback, CB_FAKE.as_obj(), key, flags);
+        for flags in [NONE, MULTI, CHILDREN] {
+            let (c, rust) = both(Via::Callback, On::Class(&CB_FAKE), key, flags);
             // The default query bypasses the callback on the same class.
-            both(Via::Default, CB_FAKE.as_obj(), key, flags);
+            both(Via::Default, On::Class(&CB_FAKE), key, flags);
             drop((c, rust));
         }
     }
     // The multi-component list really has three components of two ranges.
-    let (_, rust) = both(Via::Callback, CB_FAKE.as_obj(), c"size", FAKE_OBJ | MULTI);
+    let (_, rust) = both(Via::Callback, On::Class(&CB_FAKE), c"size", MULTI);
     let b = rust.unwrap();
     assert_eq!(
         (b.as_ref().range_count(), b.as_ref().component_count()),
         (2, 3)
     );
-}
-
-#[test]
-fn null_class_agrees_with_the_default_query() {
-    let mut ctx = Ctx::new(&CLASS);
-    ctx.class = core::ptr::null();
-    for key in [c"int", c"missing"] {
-        both(Via::Default, ctx.as_obj(), key, 0);
-    }
-    let fake = fixture::FakeObj(core::ptr::null());
-    let obj = (&raw const fake).cast_mut().cast();
-    both(Via::Default, obj, c"int", FAKE_OBJ);
-}
-
-/// The default query rejects a NULL object before reading it, with or
-/// without the fake-object flag.
-#[test]
-fn null_object_agrees_with_the_default_query() {
-    for key in [c"int", c"missing"] {
-        for flags in [0, FAKE_OBJ, MULTI, CHILDREN | FAKE_OBJ] {
-            both(Via::Default, core::ptr::null_mut(), key, flags);
-        }
-    }
 }
 
 /// Set in the child process an isolated test re-runs itself in.
@@ -269,10 +285,10 @@ fn allocation_failure_at_the_av_max_alloc_limit_agrees() {
     let slot = size_of::<*mut ffi::AVOptionRange>();
     let range = size_of::<ffi::AVOptionRange>();
     let largest = list.max(slot).max(range);
-    let mut ctx = Ctx::new(&CLASS);
-    let obj = ctx.as_obj();
+    let o = Owned::zeroed();
+    let obj = On::Object(o.as_obj());
     // A list built before the limit drops stays valid and releasable.
-    let (c_before, rust_before) = both(Via::Default, obj, c"int", 0);
+    let (c_before, rust_before) = both(Via::Default, obj, c"int", NONE);
 
     for limit in [
         0,
@@ -298,7 +314,7 @@ fn allocation_failure_at_the_av_max_alloc_limit_agrees() {
     }
     // SAFETY: as above; restores the default limit.
     unsafe { ffi::av_max_alloc(i32::MAX as usize) };
-    both(Via::Default, obj, c"int", 0);
+    both(Via::Default, obj, c"int", NONE);
     drop((c_before, rust_before));
 }
 
@@ -306,8 +322,8 @@ fn allocation_failure_at_the_av_max_alloc_limit_agrees() {
 /// list of either side as it was.
 #[test]
 fn query_sequences_keep_lists_independent() {
-    let mut ctx = Ctx::new(&CLASS);
-    let obj = ctx.as_obj();
+    let o = Owned::new();
+    let obj = On::Object(o.as_obj());
     let mut live: Vec<(List, CList, OptionRangesBox)> = Vec::new();
     let check = |live: &[(List, CList, OptionRangesBox)]| {
         for (expected, c, rust) in live {
@@ -321,9 +337,12 @@ fn query_sequences_keep_lists_independent() {
         } else {
             Via::Callback
         };
-        let flags = if step % 2 == 0 { MULTI } else { 0 };
+        let flags = if step % 2 == 0 { MULTI } else { NONE };
         let (c, rust) = both(via, obj, key, flags);
-        let rust = rust.unwrap();
+        let Some(rust) = rust else {
+            // `bare` is a key of the older `CLASS` only.
+            continue;
+        };
         live.push((c_list(c.0), c, rust));
         check(&live);
         // Drop from the front, the back and the middle in turn, each side
@@ -337,9 +356,8 @@ fn query_sequences_keep_lists_independent() {
         }
     }
     // Then the callback's owned strings, mixed in.
-    let cb = CB_FAKE.as_obj();
     for key in [c"size", c"sparse", c"size"] {
-        let (c, rust) = both(Via::Callback, cb, key, FAKE_OBJ | MULTI);
+        let (c, rust) = both(Via::Callback, On::Class(&CB_FAKE), key, MULTI);
         live.push((c_list(c.0), c, rust.unwrap()));
         check(&live);
     }
@@ -445,14 +463,14 @@ const WRITES: [Write; 14] = [
 /// the drops then release each side's strings once (LeakSanitizer, ASan).
 #[test]
 fn writes_agree_after_every_step() {
-    let cases: [(&fixture::FakeObj, &CStr, c_int); 4] = [
-        (&CB_FAKE, c"size", FAKE_OBJ | MULTI),
-        (&CB_FAKE, c"sparse", FAKE_OBJ),
-        (&FAKE, c"string", FAKE_OBJ),
-        (&FAKE, c"size", FAKE_OBJ | MULTI),
+    let cases: [(&'static FakeObj, &CStr, RangeFlags); 4] = [
+        (&CB_FAKE, c"size", MULTI),
+        (&CB_FAKE, c"sparse", NONE),
+        (&FAKE, c"string", NONE),
+        (&FAKE, c"size", MULTI),
     ];
-    for (obj, key, flags) in cases {
-        let (mut c, rust) = both(Via::Callback, obj.as_obj(), key, flags);
+    for (fake, key, flags) in cases {
+        let (mut c, rust) = both(Via::Callback, On::Class(fake), key, flags);
         let mut rust = rust.unwrap();
         let shape = c_list(c.0);
         let live: Vec<(usize, usize)> = (0..shape.nb_components)
@@ -3993,5 +4011,517 @@ mod rational_array_conversion {
             );
         }
         assert_eq!(m.as_ref().get_int(c"scalar", SearchFlags::NONE), Ok(6));
+    }
+}
+
+/// Options wave 2, batch 0: option lookups on objects and on classes, the
+/// walk of a class's options, the default check of one option and the
+/// numeric evaluators, against the raw C on the same objects and classes
+/// (C sees a class as the fake object `&class`): every option name with
+/// every unit and option flag, defaults after each step of a set sequence,
+/// and every option with every evaluator on values C evaluates without
+/// undefined behaviour, flags accumulated across calls.
+mod lookups {
+    use core::ffi::{CStr, c_char, c_int, c_void};
+    use core::ptr;
+
+    use ffmpeg::libavutil::ffi;
+    use ffmpeg::libavutil::opt::{EvalContext, ObjectMut, ObjectRef, OptionDefRef, SearchFlags};
+
+    use super::fixture::{OBJ_CLASS, OBJ_OPTIONS, Obj, Owned};
+
+    const CHILDREN: c_int = ffi::AV_OPT_SEARCH_CHILDREN as c_int;
+    const FAKE_OBJ: c_int = ffi::AV_OPT_SEARCH_FAKE_OBJ as c_int;
+    const EINVAL: i32 = -22;
+
+    /// What tells two table entries apart: the name, help and unit literals,
+    /// the offset, the type and the flags.
+    type Ident = (
+        *const c_char,
+        *const c_char,
+        *const c_char,
+        c_int,
+        u32,
+        c_int,
+    );
+
+    /// The entry at `o`, read raw; `None` for NULL.
+    fn c_ident(o: *const ffi::AVOption) -> Option<Ident> {
+        // SAFETY: NULL or an entry of a live static table.
+        let o = unsafe { o.as_ref() }?;
+        Some((o.name, o.help, o.unit, o.offset, o.type_.0, o.flags))
+    }
+
+    /// The entry behind `o`, through the safe getters.
+    fn rust_ident(o: OptionDefRef<'_>) -> Ident {
+        let p = |s: Option<&CStr>| s.map_or(ptr::null(), CStr::as_ptr);
+        let ty = o.option_type().value();
+        (
+            p(o.name()),
+            p(o.help()),
+            p(o.unit()),
+            o.offset(),
+            ty,
+            o.flags(),
+        )
+    }
+
+    /// Every option name of `OBJ_CLASS`, constants included, and two that
+    /// name nothing.
+    fn names() -> Vec<&'static CStr> {
+        let mut v: Vec<&'static CStr> = OBJ_OPTIONS.0[..OBJ_OPTIONS.0.len() - 1]
+            .iter()
+            // SAFETY: every name of the static table is a literal.
+            .map(|o| unsafe { CStr::from_ptr(o.name) })
+            .collect();
+        v.extend([c"missing", c""]);
+        v
+    }
+
+    const UNITS: [Option<&CStr>; 6] = [
+        None,
+        Some(c"mode"),
+        Some(c"fl"),
+        Some(c"big"),
+        Some(c"dunit"),
+        Some(c"nosuch"),
+    ];
+
+    const OPT_FLAGS: [c_int; 5] = [
+        0,
+        ffi::AV_OPT_FLAG_READONLY as c_int,
+        ffi::AV_OPT_FLAG_ENCODING_PARAM as c_int,
+        ffi::AV_OPT_FLAG_CHILD_CONSTS as c_int,
+        (ffi::AV_OPT_FLAG_READONLY | ffi::AV_OPT_FLAG_EXPORT) as c_int,
+    ];
+
+    /// The shared handle of `o`.
+    fn shared(o: &Owned) -> ObjectRef<'_> {
+        // SAFETY: a live object of the well-formed `OBJ_CLASS` (with its
+        // child), which nothing writes while the handle lives.
+        unsafe { ObjectRef::from_ptr(o.as_obj()) }.unwrap()
+    }
+
+    /// The exclusive handle of `o`.
+    fn exclusive(o: &Owned) -> ObjectMut<'_> {
+        // SAFETY: as for `shared`, used through no other handle meanwhile.
+        unsafe { ObjectMut::from_ptr(o.as_obj()) }.unwrap()
+    }
+
+    /// `OBJ_CLASS` as C's fake object: a pointer to its class pointer.
+    struct Fake(*const ffi::AVClass);
+
+    impl Fake {
+        fn new() -> Self {
+            Self(&OBJ_CLASS.0)
+        }
+        fn obj(&self) -> *mut c_void {
+            (&raw const self.0).cast_mut().cast()
+        }
+    }
+
+    /// An object with a child whose `int` differs from its own, so that a
+    /// found target tells the two apart.
+    fn parent_and_child() -> Owned {
+        let o = Owned::with_child();
+        // SAFETY: raw writes of the live child's field, no handle live.
+        unsafe { (*o.child()).int = 9 };
+        o
+    }
+
+    /// The `int` field C's target holds.
+    fn int_at(target: *mut c_void) -> c_int {
+        // SAFETY: every target here is a live `Obj`.
+        unsafe { (*target.cast::<Obj>()).int }
+    }
+
+    #[test]
+    fn finds_agree_on_objects_and_classes() {
+        let fake = Fake::new();
+        for o in [Owned::new(), parent_and_child()] {
+            let obj = shared(&o);
+            let class = obj.class();
+            for name in names() {
+                for unit in UNITS {
+                    let unit_ptr = unit.map_or(ptr::null(), CStr::as_ptr);
+                    for opt_flags in OPT_FLAGS {
+                        for (sf, flags) in
+                            [(0, SearchFlags::NONE), (CHILDREN, SearchFlags::CHILDREN)]
+                        {
+                            let ctx = format!("{name:?} {unit:?} {opt_flags:#x} {sf:#x}");
+                            let (n, u) = (name.as_ptr(), unit_ptr);
+                            // SAFETY: a live well-formed object, live strings.
+                            let c = unsafe { ffi::av_opt_find(o.as_obj(), n, u, opt_flags, sf) };
+                            let rust = obj.find(name, unit, opt_flags, flags);
+                            assert_eq!(rust.map(rust_ident), c_ident(c), "{ctx}");
+
+                            let mut target = ptr::null_mut();
+                            // SAFETY: as above; `target` is a writable slot.
+                            let c2 = unsafe {
+                                ffi::av_opt_find2(o.as_obj(), n, u, opt_flags, sf, &mut target)
+                            };
+                            let rust2 = obj.find_with_target(name, unit, opt_flags, flags);
+                            assert_eq!(rust2.map(|(o, _)| rust_ident(o)), c_ident(c2), "{ctx}");
+                            if let Some((_, t)) = rust2 {
+                                let int = t.get_int(c"int", SearchFlags::NONE).unwrap();
+                                assert_eq!(int, i64::from(int_at(target)), "{ctx}");
+                                assert!(t.class().ptr_eq(class));
+                            }
+
+                            // SAFETY: the fake object of the well-formed
+                            // class, with `AV_OPT_SEARCH_FAKE_OBJ`.
+                            let c3 = unsafe {
+                                ffi::av_opt_find(fake.obj(), n, u, opt_flags, sf | FAKE_OBJ)
+                            };
+                            let rust3 = class.find(name, unit, opt_flags, flags);
+                            assert_eq!(rust3.map(rust_ident), c_ident(c3), "{ctx}");
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    /// A class search with children visits the classes
+    /// `child_class_iterate` lists: `ARR_CLASS` lists `OBJ_CLASS`, then
+    /// itself, so only names `OBJ_CLASS` has are looked up with children (C
+    /// would recurse into `ARR_CLASS` again for any other).
+    #[test]
+    fn class_finds_search_potential_children_as_c() {
+        let o = super::fixture::ArrOwned::new();
+        // SAFETY: a live, defaulted object of the well-formed `ARR_CLASS`.
+        let class = unsafe { ObjectRef::from_ptr(o.as_obj()) }.unwrap().class();
+        let child = Owned::new();
+        let child_class = shared(&child).class();
+        let fake: *const ffi::AVClass = &super::fixture::ARR_CLASS.0;
+        let fake_obj = (&raw const fake).cast_mut().cast::<c_void>();
+        let mut found = 0;
+        for name in names() {
+            for unit in UNITS {
+                for opt_flags in OPT_FLAGS {
+                    if child_class
+                        .find(name, unit, opt_flags, SearchFlags::NONE)
+                        .is_none()
+                    {
+                        // C would go on into `ARR_CLASS` again.
+                        continue;
+                    }
+                    found += 1;
+                    let (n, u) = (name.as_ptr(), unit.map_or(ptr::null(), CStr::as_ptr));
+                    let flags = CHILDREN | FAKE_OBJ;
+                    // SAFETY: the fake object of a well-formed class; the
+                    // first potential child has the option.
+                    let c = unsafe { ffi::av_opt_find(fake_obj, n, u, opt_flags, flags) };
+                    let rust = class.find(name, unit, opt_flags, SearchFlags::CHILDREN);
+                    assert_eq!(rust.map(rust_ident), c_ident(c), "{name:?} {unit:?}");
+                    assert!(rust.is_some());
+                }
+            }
+        }
+        assert!(found > 0);
+    }
+
+    #[test]
+    fn options_walk_agrees_with_av_opt_next() {
+        let o = Owned::new();
+        let fake = Fake::new();
+        let mut c_walk = Vec::new();
+        let mut prev = ptr::null();
+        loop {
+            // SAFETY: the fake object of a well-formed class; `prev` is NULL
+            // or the entry returned last.
+            prev = unsafe { ffi::av_opt_next(fake.obj(), prev) };
+            let Some(ident) = c_ident(prev) else { break };
+            c_walk.push(ident);
+        }
+        let rust: Vec<_> = shared(&o).options().map(rust_ident).collect();
+        assert_eq!(rust, c_walk);
+        assert_eq!(rust.len(), OBJ_OPTIONS.0.len() - 1);
+    }
+
+    /// Option values set one step at a time, each a value C parses.
+    const STEPS: [(&CStr, &CStr); 30] = [
+        (c"int", c"8"),
+        (c"int", c"7"),
+        (c"string", c"x"),
+        (c"string", c"hello"),
+        (c"q", c"1/3"),
+        (c"q", c"1/2"),
+        (c"flags", c"+eight"),
+        (c"size", c"hd720"),
+        (c"rate", c"30"),
+        (c"color", c"blue"),
+        (c"binary", c"0a0c"),
+        (c"binary", c"0a0b"),
+        (c"dict", c"a=b"),
+        (c"dict", c"k=v"),
+        (c"array", c"3"),
+        (c"strings", c"x"),
+        (c"layout", c"mono"),
+        (c"pix", c"rgb24"),
+        (c"sample", c"s16"),
+        (c"duration", c"2"),
+        (c"uint", c"10"),
+        (c"big", c"high"),
+        (c"nostr", c"n"),
+        (c"wide_q", c"3"),
+        (c"flt", c"0.5"),
+        (c"dbl", c"2.5"),
+        (c"int64", c"0"),
+        (c"boolean", c"false"),
+        (c"layout", c"stereo"),
+        (c"array", c"1,2"),
+    ];
+
+    /// `is_option_set_to_default` and `av_opt_is_set_to_default` on every
+    /// entry of the parent and of its child, after each step.
+    #[test]
+    fn defaults_agree_after_every_step() {
+        let o = parent_and_child();
+        let check = |step: &str| {
+            let obj = shared(&o);
+            let child = obj.children().next().unwrap();
+            for (i, e) in obj.options().enumerate() {
+                let c_e = &raw const OBJ_OPTIONS.0[i];
+                for (r, c_obj) in [(obj, o.as_obj()), (child, o.child().cast())] {
+                    // SAFETY: a live object of `OBJ_CLASS` and an entry of its
+                    // table; binary lengths stay consistent.
+                    let c = unsafe { ffi::av_opt_is_set_to_default(c_obj, c_e) };
+                    let rust = r.is_option_set_to_default(e);
+                    assert_eq!(
+                        rust.map(c_int::from),
+                        if c < 0 { Err(c) } else { Ok(c) },
+                        "{step} {i}"
+                    );
+                }
+            }
+        };
+        check("defaults");
+        for (name, val) in STEPS {
+            exclusive(&o).set(name, val, SearchFlags::NONE).unwrap();
+            check(&format!("{name:?}={val:?}"));
+        }
+        // An option of the child, found through the parent, checked on the
+        // child, as C's `av_opt_is_set_to_default_by_name` does.
+        let obj = shared(&o);
+        let (int, target) = obj
+            .find_with_target(c"int", None, 0, SearchFlags::CHILDREN)
+            .unwrap();
+        assert_eq!(target.is_option_set_to_default(int), Ok(false));
+        assert_eq!(
+            obj.is_set_to_default(c"int", SearchFlags::CHILDREN),
+            Ok(false)
+        );
+    }
+
+    /// Values the evaluators parse without undefined behaviour in C, for
+    /// every type, constants of the fixture's units and errors included.
+    const VALUES: [&CStr; 34] = [
+        c"0",
+        c"1",
+        c"-1",
+        c"7",
+        c"seven",
+        c"seven+1",
+        c"default",
+        c"max",
+        c"min",
+        c"none",
+        c"all",
+        c"1/3",
+        c"3:2",
+        c"30000/1001",
+        c"2/0",
+        c"0/0",
+        c"1e3",
+        c"1k",
+        c"0x10",
+        c"-1e300",
+        c"1e300",
+        c"4294967295",
+        c"9223372036854775807",
+        c"high",
+        c"mixed",
+        c"low",
+        c"dflag",
+        c"one",
+        c"huge",
+        c"0.25",
+        c"abc",
+        c"",
+        c"1.5",
+        c"-5e9",
+    ];
+
+    /// One evaluation's code and result bits (NaN compares by bits).
+    type Eval = (i32, u64);
+
+    /// Every evaluator on `val` as option `e` (C's `c_e`), in context `ctx`
+    /// (C's `c_obj`): Rust's results, then C's.
+    fn evaluate(
+        e: OptionDefRef<'_>,
+        c_e: *const ffi::AVOption,
+        ctx: EvalContext<'_>,
+        c_obj: *mut c_void,
+        val: &CStr,
+    ) -> (Vec<Eval>, Vec<Eval>) {
+        fn code<T>(r: Result<T, i32>, bits: impl FnOnce(T) -> u64) -> Eval {
+            match r {
+                Ok(v) => (0, bits(v)),
+                Err(e) => (e, 0),
+            }
+        }
+        fn c_code(ret: c_int, bits: u64) -> Eval {
+            if ret < 0 { (ret, 0) } else { (0, bits) }
+        }
+        let mut f = 3;
+        let rust = vec![
+            code(e.eval_flags(ctx, val, &mut f).map(|()| f), |v| {
+                v as u32 as u64
+            }),
+            code(e.eval_int(ctx, val), |v| v as u32 as u64),
+            code(e.eval_uint(ctx, val), u64::from),
+            code(e.eval_int64(ctx, val), |v| v as u64),
+            code(e.eval_float(ctx, val), |v| u64::from(v.to_bits())),
+            code(e.eval_double(ctx, val), f64::to_bits),
+            code(e.eval_rational(ctx, val), |q| {
+                let q = q.into_raw();
+                (q.num as u32 as u64) << 32 | q.den as u32 as u64
+            }),
+        ];
+        let v = val.as_ptr();
+        let (mut fl, mut i, mut u, mut i64_, mut fv, mut d) = (3, 0, 0, 0, 0.0, 0.0);
+        let mut q = ffi::AVRational { num: 0, den: 0 };
+        // SAFETY: a live object of `OBJ_CLASS`, or the class's fake object
+        // for an option without child constants; an entry of its table; a
+        // live value no refusal applies to; writable outputs.
+        let c = unsafe {
+            vec![
+                c_code(
+                    ffi::av_opt_eval_flags(c_obj, c_e, v, &mut fl),
+                    fl as u32 as u64,
+                ),
+                c_code(ffi::av_opt_eval_int(c_obj, c_e, v, &mut i), i as u32 as u64),
+                c_code(ffi::av_opt_eval_uint(c_obj, c_e, v, &mut u), u64::from(u)),
+                c_code(
+                    ffi::av_opt_eval_int64(c_obj, c_e, v, &mut i64_),
+                    i64_ as u64,
+                ),
+                c_code(
+                    ffi::av_opt_eval_float(c_obj, c_e, v, &mut fv),
+                    u64::from(fv.to_bits()),
+                ),
+                c_code(ffi::av_opt_eval_double(c_obj, c_e, v, &mut d), d.to_bits()),
+                c_code(
+                    ffi::av_opt_eval_q(c_obj, c_e, v, &mut q),
+                    (q.num as u32 as u64) << 32 | q.den as u32 as u64,
+                ),
+            ]
+        };
+        (rust, c)
+    }
+
+    /// Whether the evaluator of option `name`'s type refuses `val` before C
+    /// reaches an unchecked conversion: a rational within wide bounds whose
+    /// value is outside the `int` range, or a flag operand outside the
+    /// `int64_t` range. C must not see these.
+    fn refused(name: &CStr, val: &CStr) -> bool {
+        let wide: [&CStr; 7] = [
+            c"max",
+            c"min",
+            c"1e300",
+            c"-1e300",
+            c"4294967295",
+            c"9223372036854775807",
+            c"-5e9",
+        ];
+        match name.to_bytes() {
+            b"wide_q" => wide.contains(&val),
+            b"flags" | b"cflags" => val == c"-1e300",
+            _ => false,
+        }
+    }
+
+    #[test]
+    fn evaluators_agree_on_objects_and_classes() {
+        let o = parent_and_child();
+        let obj = shared(&o);
+        let fake = Fake::new();
+        for (i, e) in obj.options().enumerate() {
+            let c_e = &raw const OBJ_OPTIONS.0[i];
+            let child_consts = e.flags() & ffi::AV_OPT_FLAG_CHILD_CONSTS as c_int != 0;
+            for val in VALUES {
+                let name = e.name().unwrap();
+                if refused(name, val) {
+                    let mut f = 0;
+                    let r = match name.to_bytes() {
+                        b"wide_q" => e.eval_rational(obj, val).map(drop),
+                        _ => e.eval_flags(obj, val, &mut f),
+                    };
+                    assert_eq!(r, Err(-34), "{name:?} = {val:?}");
+                    continue;
+                }
+                let (rust, c) = evaluate(e, c_e, obj.into(), o.as_obj(), val);
+                assert_eq!(rust, c, "object: {name:?} = {val:?}");
+                if child_consts {
+                    // C would hand the fake object to `child_next`.
+                    let mut f = 0;
+                    assert_eq!(e.eval_flags(obj.class(), val, &mut f), Err(EINVAL));
+                    continue;
+                }
+                let (rust, c) = evaluate(e, c_e, obj.class().into(), fake.obj(), val);
+                assert_eq!(rust, c, "class: {name:?} = {val:?}");
+            }
+        }
+    }
+
+    /// Flag tokens applied one call after another to one value on each side,
+    /// compared after every step, failing tokens' partial writes included.
+    #[test]
+    fn flag_sequences_agree_after_every_step() {
+        let o = parent_and_child();
+        let obj = shared(&o);
+        let fake = Fake::new();
+        let steps = [
+            c"+one",
+            c"+bit",
+            c"-one",
+            c"eight",
+            c"+one+bit-eight",
+            c"+nosuch",
+            c"+eight+abc",
+            c"all",
+            c"-all",
+            c"+1.5",
+            c"0x3",
+            c"-1",
+            c"+one",
+            c"huge",
+            c"none",
+            c"+4294967295",
+            c"one-",
+            c"+",
+            c"",
+        ];
+        for (cflags, c_obj, ctx) in [
+            (c"flags", o.as_obj(), EvalContext::from(obj)),
+            (c"cflags", o.as_obj(), EvalContext::from(obj)),
+            (c"flags", fake.obj(), EvalContext::from(obj.class())),
+        ] {
+            let e = obj.find(cflags, None, 0, SearchFlags::NONE).unwrap();
+            let i = obj
+                .options()
+                .position(|x| x.name() == Some(cflags))
+                .unwrap();
+            let c_e = &raw const OBJ_OPTIONS.0[i];
+            let (mut rust, mut c) = (3, 3);
+            for val in steps {
+                let r = e.eval_flags(ctx, val, &mut rust);
+                // SAFETY: as in `evaluate`.
+                let ret = unsafe { ffi::av_opt_eval_flags(c_obj, c_e, val.as_ptr(), &mut c) };
+                assert_eq!(r.err().unwrap_or(0), ret, "{cflags:?} {val:?}");
+                assert_eq!(rust, c, "{cflags:?} {val:?}");
+            }
+        }
     }
 }

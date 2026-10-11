@@ -12,8 +12,9 @@
 //!
 //! [`OptionRanges`] is the list `av_opt_query_ranges` and
 //! `av_opt_query_ranges_default` allocate (`AVOptionRanges`). It is owned as
-//! an [`OptionRangesBox`], built by [`OptionRanges::query`] or
-//! [`OptionRanges::query_default`] and released by `av_opt_freep_ranges`,
+//! an [`OptionRangesBox`], built by [`ObjectRef::option_ranges`] or
+//! [`ClassRef::option_ranges`] (or their `default_option_ranges` forms, which
+//! skip a class's callback) and released by `av_opt_freep_ranges`,
 //! which also frees every range it lists. C has no copy routine, so the box is
 //! not `Clone`, and the list's shape is read-only: its counts bound the
 //! release loop.
@@ -49,8 +50,13 @@
 //! before C runs, as each documents. [`parse_key_value`] reads one
 //! `key=value` pair of an options string.
 //!
-//! Raw seams remain where the dependency is wrapped by a later batch: the
-//! object a range query inspects (an `AVClass`-enabled `void *`).
+//! [`ObjectRef::find`] and [`ClassRef::find`] look an option up (the latter
+//! without an object, as C's `AV_OPT_SEARCH_FAKE_OBJ` does),
+//! [`ObjectRef::options`] walks a class's options, and
+//! [`ObjectRef::is_option_set_to_default`] checks one option found in the
+//! object. [`OptionDefRef::eval_int`] and its siblings evaluate a string as
+//! an option of their type parses it, in an [`EvalContext`]: an object, or a
+//! class alone.
 
 use core::ffi::{CStr, c_char, c_int, c_uint, c_void};
 use core::fmt;
@@ -749,75 +755,64 @@ unsafe impl CDrop<OptionRanges> for OptionRangesFree {
 /// `AVERROR_BUG`: `FFERRTAG('B', 'U', 'G', '!')`.
 pub(crate) const AVERROR_BUG: i32 = -i32::from_le_bytes(*b"BUG!");
 
-impl OptionRanges {
-    /// Wraps: av_opt_query_ranges
-    ///
-    /// The allowed ranges of option `key` of `obj`, from its class's
-    /// `query_ranges` callback, or as [`query_default`](Self::query_default)
-    /// builds them when the class has none. `flags` combines
-    /// `AV_OPT_SEARCH_*` with `AV_OPT_MULTI_COMPONENT_RANGE`; without the
-    /// latter, the list has one component. Fails with the callback's
-    /// `AVERROR` code: the default one returns `AVERROR(ENOMEM)` for an
-    /// unknown key as for an allocation failure, and `AVERROR(ENOSYS)` for a
-    /// type with no ranges.
-    ///
-    /// # Safety
-    ///
-    /// `obj` must address a live `AVClass`-enabled object (a struct whose
-    /// first member is a non-NULL `const AVClass *`) or, when `flags` has
-    /// `AV_OPT_SEARCH_FAKE_OBJ`, a live non-NULL `const AVClass *`. The class
-    /// must be well-formed: a NULL or terminated option table, child
-    /// iteration callbacks valid for `obj` when `flags` has
-    /// `AV_OPT_SEARCH_CHILDREN`, and a `query_ranges` callback, if any, that
-    /// honours `av_opt_query_ranges`' contract for `obj`. No other thread may
-    /// write `obj` during the call. The result borrows nothing from `obj`.
-    pub unsafe fn query(obj: *mut c_void, key: &CStr, flags: i32) -> Result<OptionRangesBox, i32> {
-        let mut ranges = core::ptr::null_mut();
-        // SAFETY: `ranges` is a writable slot, `key` a live NUL-terminated
-        // string, and the caller vouches for `obj` and its class.
-        let ret = unsafe { ffi::av_opt_query_ranges(&mut ranges, obj, key.as_ptr(), flags) };
-        if ret < 0 {
-            // On failure the list is not the caller's: the default query
-            // stores NULL, and a class callback keeps what it allocated.
-            return Err(ret);
-        }
-        // SAFETY: on success `ranges` is a fresh list the caller owns,
-        // released by `av_opt_freep_ranges`; `av_opt_query_ranges`
-        // dereferences it before returning, so NULL is a broken class
-        // callback, reported as a bug.
-        unsafe { OptionRangesBox::from_c(ranges) }.ok_or(AVERROR_BUG)
-    }
+/// Which query builds a range list: the class's `query_ranges` callback,
+/// when it has one (`av_opt_query_ranges`), or the default ranges
+/// (`av_opt_query_ranges_default`).
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+enum RangeQuery {
+    Class,
+    Default,
+}
 
-    /// Wraps: av_opt_query_ranges_default
-    ///
-    /// The allowed ranges of option `key` of `obj`, built from the option's
-    /// `min` / `max` and type without the class's `query_ranges` callback:
-    /// one range of one component. `flags` is as for [`query`](Self::query),
-    /// and so are the errors.
-    ///
-    /// # Safety
-    ///
-    /// As [`query`](Self::query), except that `obj` itself, or the class
-    /// pointer it addresses, may be NULL (the query then fails with
-    /// `AVERROR(ENOMEM)` without reading further), and the class's
-    /// `query_ranges` callback is not called.
-    pub unsafe fn query_default(
-        obj: *mut c_void,
-        key: &CStr,
-        flags: i32,
-    ) -> Result<OptionRangesBox, i32> {
-        let mut ranges = core::ptr::null_mut();
-        // SAFETY: as for `query`.
-        let ret =
-            unsafe { ffi::av_opt_query_ranges_default(&mut ranges, obj, key.as_ptr(), flags) };
-        if ret < 0 {
-            // On failure the default query stores NULL.
-            return Err(ret);
+/// What a range query inspects: an object, or a class alone, which C reads
+/// through a fake object (`AV_OPT_SEARCH_FAKE_OBJ`), a pointer to the class
+/// pointer.
+#[derive(Clone, Copy)]
+enum RangeTarget<'a> {
+    Object(ObjectRef<'a>),
+    Class(ClassRef<'a>),
+}
+
+/// The allowed ranges of option `key` of `target`, as `query` builds them.
+fn query_ranges(
+    query: RangeQuery,
+    target: RangeTarget<'_>,
+    key: &CStr,
+    flags: RangeFlags,
+) -> Result<OptionRangesBox, i32> {
+    let class;
+    let (obj, flags) = match target {
+        RangeTarget::Object(obj) => (obj.as_ptr(), flags.0),
+        RangeTarget::Class(c) => {
+            class = c.as_ptr();
+            let fake = ptr::from_ref(&class).cast_mut().cast::<c_void>();
+            (fake, flags.0 | SEARCH_FAKE_OBJ)
         }
-        // SAFETY: on success `ranges` is a fresh, non-NULL list the caller
-        // owns, released by `av_opt_freep_ranges`.
-        unsafe { OptionRangesBox::from_c(ranges) }.ok_or(AVERROR_BUG)
+    };
+    let mut ranges = ptr::null_mut();
+    let key = key.as_ptr();
+    // An object handle's contract makes the object live and unwritten during
+    // the call, its class well-formed and its callbacks valid for it. A
+    // well-formed class's callback accepts the fake object with FAKE_OBJ, as
+    // `av_opt_query_ranges` documents, and the default query reads only the
+    // class (and its potential children's) through it.
+    // SAFETY: `ranges` is a writable slot, `key` a live C string, and `obj`
+    // an object or a live fake object with FAKE_OBJ, as above.
+    let ret = unsafe {
+        match query {
+            RangeQuery::Class => ffi::av_opt_query_ranges(&mut ranges, obj, key, flags),
+            RangeQuery::Default => ffi::av_opt_query_ranges_default(&mut ranges, obj, key, flags),
+        }
+    };
+    if ret < 0 {
+        // On failure the list is not the caller's: the default query
+        // stores NULL, and a class callback keeps what it allocated.
+        return Err(ret);
     }
+    // SAFETY: on success `ranges` is a fresh list the caller owns, released
+    // by `av_opt_freep_ranges`; `av_opt_query_ranges` dereferences it before
+    // returning, so NULL is a broken class callback, reported as a bug.
+    unsafe { OptionRangesBox::from_c(ranges) }.ok_or(AVERROR_BUG)
 }
 
 impl<'a> OptionRangesRef<'a> {
@@ -1373,7 +1368,7 @@ impl<'a> ObjectRef<'a> {
     /// it, for a float, double or rational whose value is NaN or outside the
     /// `i64` range (`1/0`): C converts it unchecked, undefined behaviour.
     pub fn get_int(&self, name: &CStr, flags: SearchFlags) -> Result<i64, i32> {
-        if let Some((o, _)) = self.find(name, None, flags.0)
+        if let Some((o, _)) = self.lookup(name, None, flags.0)
             && !o.option_type().is_array()
             && matches!(
                 o.option_type(),
@@ -1467,7 +1462,7 @@ impl<'a> ObjectRef<'a> {
     /// [`get_int`](Self::get_int) refuses it) reads as not set, as C's failed
     /// read does.
     pub fn flag_is_set(&self, field: &CStr, flag: &CStr) -> bool {
-        let Some((field_opt, _)) = self.find(field, None, 0) else {
+        let Some((field_opt, _)) = self.lookup(field, None, 0) else {
             return false;
         };
         // C looks the flag up as a constant of the field's unit, and as an
@@ -1477,7 +1472,7 @@ impl<'a> ObjectRef<'a> {
         };
         // A lookup with a unit finds only named constants, so C's own
         // `flag->type != AV_OPT_TYPE_CONST` test always passes here.
-        let Some((flag_opt, _)) = self.find(flag, Some(unit), 0) else {
+        let Some((flag_opt, _)) = self.lookup(flag, Some(unit), 0) else {
             return false;
         };
         let Ok(value) = self.get_int(field, SearchFlags::NONE) else {
@@ -1548,10 +1543,22 @@ impl<'a> ObjectRef<'a> {
     /// `unit` is `None`, in the object or, with `AV_OPT_SEARCH_CHILDREN` in
     /// `search_flags`, a child, and the object that holds it: what
     /// `av_opt_find2` finds for the getters and setters.
-    fn find(
+    fn lookup(
         &self,
         name: &CStr,
         unit: Option<&CStr>,
+        search_flags: c_int,
+    ) -> Option<(OptionDefRef<'a>, NonNull<c_void>)> {
+        self.lookup_with(name, unit, 0, search_flags)
+    }
+
+    /// As [`lookup`](Self::lookup), matching only options whose flags
+    /// include `opt_flags`.
+    fn lookup_with(
+        &self,
+        name: &CStr,
+        unit: Option<&CStr>,
+        opt_flags: c_int,
         search_flags: c_int,
     ) -> Option<(OptionDefRef<'a>, NonNull<c_void>)> {
         let mut target = ptr::null_mut();
@@ -1562,7 +1569,7 @@ impl<'a> ObjectRef<'a> {
                 self.as_ptr(),
                 name.as_ptr(),
                 unit,
-                0,
+                opt_flags,
                 search_flags,
                 &mut target,
             )
@@ -2069,13 +2076,9 @@ impl<'c> BareObject<'c> {
     /// callbacks may read as one of its full-sized objects, or no name,
     /// which C would print.
     pub fn new(class: ClassRef<'c>) -> Option<Self> {
-        let bare = class.name().is_some()
+        let bare = logs_as_bare(class)
             && class.options().is_empty()
             && class.child_next().is_none()
-            && class.item_name().is_none_or(ItemNameFn::is_default)
-            && class.get_category().is_none()
-            && class.log_level_offset_offset().is_none()
-            && class.parent_log_context_offset().is_none()
             && class.state_flags_offset().is_none();
         bare.then_some(Self { class })
     }
@@ -2097,6 +2100,19 @@ impl<'c> BareObject<'c> {
     }
 }
 
+/// Whether C logs in the context of an object of `class` that is only its
+/// class pointer without reading past it or running class code on it: the
+/// class has a name, which C prints, `av_default_item_name` or no
+/// `item_name`, no `get_category` callback, and no log level or parent
+/// context offset, which C would read in the object.
+fn logs_as_bare(class: ClassRef<'_>) -> bool {
+    class.name().is_some()
+        && class.item_name().is_none_or(ItemNameFn::is_default)
+        && class.get_category().is_none()
+        && class.log_level_offset_offset().is_none()
+        && class.parent_log_context_offset().is_none()
+}
+
 impl fmt::Debug for BareObject<'_> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         f.debug_tuple("BareObject")
@@ -2116,7 +2132,7 @@ impl ObjectRef<'_> {
         val: &[u8],
         search_flags: c_int,
     ) -> Result<Option<i32>, i32> {
-        let Some((o, target)) = self.find(name, None, search_flags) else {
+        let Some((o, target)) = self.lookup(name, None, search_flags) else {
             return Ok(None);
         };
         if o.flags() & ffi::AV_OPT_FLAG_READONLY as c_int != 0 {
@@ -2166,7 +2182,7 @@ impl ObjectRef<'_> {
         name: &CStr,
         search_flags: c_int,
     ) -> Option<(NonNull<u8>, [u8; 8], usize)> {
-        let (o, target) = self.find(name, None, search_flags)?;
+        let (o, target) = self.lookup(name, None, search_flags)?;
         let len = match o.option_type() {
             OptionType::COLOR => 4,
             OptionType::IMAGE_SIZE => 8,
@@ -2191,7 +2207,7 @@ impl ObjectRef<'_> {
         intnum: i64,
         search_flags: c_int,
     ) -> Option<i32> {
-        let (o, _) = self.find(name, None, search_flags)?;
+        let (o, _) = self.lookup(name, None, search_flags)?;
         if o.flags() & ffi::AV_OPT_FLAG_READONLY as c_int != 0 {
             return None;
         }
@@ -2205,7 +2221,7 @@ impl ObjectRef<'_> {
     /// refuse a `required` type store in option `name` with: an array option,
     /// whose type index C's mismatch message reads past `opt_type_desc`.
     fn type_refusal(&self, name: &CStr, required: OptionType, search_flags: c_int) -> Option<i32> {
-        let (o, _) = self.find(name, None, search_flags)?;
+        let (o, _) = self.lookup(name, None, search_flags)?;
         let refused = o.flags() & ffi::AV_OPT_FLAG_READONLY as c_int == 0
             && o.option_type() != required
             && o.option_type().is_array();
@@ -2611,7 +2627,7 @@ impl ObjectRef<'_> {
     ///
     /// As [`get_rational`](Self::get_rational) for any other option.
     pub fn get_video_rate(&self, name: &CStr, flags: SearchFlags) -> Result<Rational, i32> {
-        if let Some((o, target)) = self.find(name, None, flags.0)
+        if let Some((o, target)) = self.lookup(name, None, flags.0)
             && o.option_type() == OptionType::VIDEO_RATE
         {
             let offset = usize::try_from(o.offset()).map_err(|_| AVERROR_BUG)?;
@@ -2756,7 +2772,7 @@ impl ObjectRef<'_> {
         if start_at >= size || size - start_at < count_at {
             return Err(EINVAL);
         }
-        let (o, _) = self.find(name, None, flags.0).ok_or(AVERROR_BUG)?;
+        let (o, _) = self.lookup(name, None, flags.0).ok_or(AVERROR_BUG)?;
         let base = o.option_type().base();
         if base == OptionType::BINARY {
             return Err(EINVAL);
@@ -3461,7 +3477,7 @@ impl ObjectRef<'_> {
         values: &[T],
         search_flags: c_int,
     ) -> Result<Option<i32>, i32> {
-        let Some((o, target)) = self.find(name, None, search_flags & !ARRAY_REPLACE) else {
+        let Some((o, target)) = self.lookup(name, None, search_flags & !ARRAY_REPLACE) else {
             return Ok(None);
         };
         let ty = o.option_type();
@@ -3484,7 +3500,7 @@ impl ObjectRef<'_> {
     /// array, for [`ObjectMut::remove_array`] to repair after a failed
     /// shrink.
     fn array_count_field(&self, name: &CStr, search_flags: c_int) -> Option<NonNull<c_uint>> {
-        let (o, target) = self.find(name, None, search_flags)?;
+        let (o, target) = self.lookup(name, None, search_flags)?;
         if !o.option_type().is_array() {
             return None;
         }
@@ -3503,7 +3519,7 @@ impl ObjectRef<'_> {
         name: &CStr,
         search_flags: c_int,
     ) -> Option<NonNull<ffi::AVChannelLayout>> {
-        let (o, target) = self.find(name, None, search_flags)?;
+        let (o, target) = self.lookup(name, None, search_flags)?;
         if o.option_type() != OptionType::CHANNEL_LAYOUT {
             return None;
         }
@@ -3720,6 +3736,494 @@ impl array_input::Sealed for ChannelLayoutRef<'_> {
     }
 }
 impl ArrayInput for ChannelLayoutRef<'_> {}
+
+// Options wave 2, batch 0: option lookups and the walk of a class's options,
+// the default check of one option, the numeric evaluators, and the range
+// queries on objects and on classes without an object.
+
+/// The flags of a range query: [`ObjectRef::option_ranges`],
+/// [`ClassRef::option_ranges`] and their default forms.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash)]
+pub struct RangeFlags(c_int);
+
+impl RangeFlags {
+    /// Look the option up in the object (or class) itself only, and list
+    /// one component.
+    pub const NONE: Self = Self(0);
+    /// `AV_OPT_SEARCH_CHILDREN`: look the option up in the children first,
+    /// recursively: an object's ([`ObjectRef::children`]), or a class's
+    /// potential children ([`ClassRef::potential_children`]).
+    pub const CHILDREN: Self = Self(ffi::AV_OPT_SEARCH_CHILDREN as c_int);
+    /// `AV_OPT_MULTI_COMPONENT_RANGE`: list as many components as a class's
+    /// `query_ranges` callback returns (an image size's pixel count, width
+    /// and height); without it a list has one.
+    pub const MULTI_COMPONENT: Self = Self(ffi::AV_OPT_MULTI_COMPONENT_RANGE as c_int);
+
+    /// The C flag bits.
+    pub const fn bits(self) -> c_int {
+        self.0
+    }
+}
+
+impl BitOr for RangeFlags {
+    type Output = Self;
+    fn bitor(self, rhs: Self) -> Self {
+        Self(self.0 | rhs.0)
+    }
+}
+
+/// `AV_OPT_SEARCH_FAKE_OBJ`: the object a lookup takes is a pointer to a
+/// class pointer.
+const SEARCH_FAKE_OBJ: c_int = ffi::AV_OPT_SEARCH_FAKE_OBJ as c_int;
+
+/// Lookups, the option walk, the default check of one option and range
+/// queries.
+impl<'a> ObjectRef<'a> {
+    /// Wraps: av_opt_find
+    ///
+    /// The option `name` of the object or, with [`SearchFlags::CHILDREN`],
+    /// of a child, whose options are searched first, recursively: an option
+    /// that is no named constant when `unit` is `None`, else a named constant
+    /// of `unit`, and only one whose flags include `opt_flags`
+    /// (`AV_OPT_FLAG_*`). `None` when no option matches.
+    pub fn find(
+        &self,
+        name: &CStr,
+        unit: Option<&CStr>,
+        opt_flags: i32,
+        flags: SearchFlags,
+    ) -> Option<OptionDefRef<'a>> {
+        let unit = unit.map_or(ptr::null(), CStr::as_ptr);
+        let (obj, name) = (self.as_ptr(), name.as_ptr());
+        // SAFETY: as for `get`: the handle's contract covers C's reads of the
+        // object, its children and their classes; `name` and `unit` are live
+        // C strings or NULL. No FAKE_OBJ flag reaches C.
+        let o = unsafe { ffi::av_opt_find(obj, name, unit, opt_flags, flags.0) };
+        // SAFETY: a found option is an entry of the option table of the
+        // object's class or a child's, which outlives the borrow and is never
+        // written.
+        unsafe { OptionDefRef::from_ptr(o.cast_mut()) }
+    }
+
+    /// Wraps: av_opt_find2
+    ///
+    /// As [`find`](Self::find), with the object that holds the option's
+    /// value: this object, or the child the option was found in, on which
+    /// [`is_option_set_to_default`](Self::is_option_set_to_default) checks it.
+    pub fn find_with_target(
+        &self,
+        name: &CStr,
+        unit: Option<&CStr>,
+        opt_flags: i32,
+        flags: SearchFlags,
+    ) -> Option<(OptionDefRef<'a>, ObjectRef<'a>)> {
+        let (o, target) = self.lookup_with(name, unit, opt_flags, flags.0)?;
+        // SAFETY: C found the option in this object or one of its children,
+        // each of which satisfies the handle's contract for `'a`.
+        let target = unsafe { ObjectRef::from_ptr(target.as_ptr()) }?;
+        Some((o, target))
+    }
+
+    /// Wraps: av_opt_next
+    ///
+    /// The options of the object's class, in table order, named constants
+    /// included: the entries `av_opt_next` walks, which [`ClassRef::options`]
+    /// lists too.
+    pub fn options(&self) -> Options<'a> {
+        Options {
+            obj: *self,
+            prev: None,
+            done: false,
+        }
+    }
+
+    /// Wraps: av_opt_is_set_to_default
+    ///
+    /// Whether option `o` holds its default value in the object: as
+    /// [`is_set_to_default`](Self::is_set_to_default), for an option already
+    /// found. A named constant always does.
+    ///
+    /// # Errors
+    ///
+    /// `AVERROR(EINVAL)`, before C runs, when `o` is not an entry of the
+    /// option table of the object's own class, whose offset C would read in
+    /// this object: an option found in a child is checked on that child (the
+    /// target [`find_with_target`](Self::find_with_target) returns).
+    /// Otherwise as [`is_set_to_default`](Self::is_set_to_default).
+    pub fn is_option_set_to_default(&self, o: OptionDefRef<'_>) -> Result<bool, i32> {
+        if !self.has_option(o) {
+            return Err(EINVAL);
+        }
+        // SAFETY: as for `get`; `o` is an entry of the table of the object's
+        // class, so its offset addresses its value in the object, as the
+        // contract makes it.
+        let ret = unsafe { ffi::av_opt_is_set_to_default(self.as_ptr(), o.as_ptr()) };
+        if ret < 0 { Err(ret) } else { Ok(ret > 0) }
+    }
+
+    /// Whether `o` is an entry of the option table of the object's class.
+    fn has_option(&self, o: OptionDefRef<'_>) -> bool {
+        let table = self.class().options();
+        let size = size_of::<ffi::AVOption>();
+        let at = o.as_ptr().addr().wrapping_sub(table.as_ptr().addr());
+        at < table.len() * size && at.is_multiple_of(size)
+    }
+
+    /// Wraps: av_opt_query_ranges
+    ///
+    /// The allowed ranges of option `key` of the object (or, with
+    /// [`RangeFlags::CHILDREN`], of a child), from its class's `query_ranges`
+    /// callback, or as
+    /// [`default_option_ranges`](Self::default_option_ranges) builds them
+    /// when the class has none. Without [`RangeFlags::MULTI_COMPONENT`], the
+    /// list has one component.
+    ///
+    /// # Errors
+    ///
+    /// The callback's `AVERROR` code: the default one fails with
+    /// `AVERROR(ENOMEM)` for an unknown key (a named constant included) as for
+    /// an allocation failure, and `AVERROR(ENOSYS)` for a type with no
+    /// ranges. `AVERROR_BUG` for a callback that succeeds without a list.
+    pub fn option_ranges(&self, key: &CStr, flags: RangeFlags) -> Result<OptionRangesBox, i32> {
+        query_ranges(RangeQuery::Class, RangeTarget::Object(*self), key, flags)
+    }
+
+    /// Wraps: av_opt_query_ranges_default
+    ///
+    /// The allowed ranges of option `key` of the object (or, with
+    /// [`RangeFlags::CHILDREN`], of a child), built from the option's `min` /
+    /// `max` and type without the class's callback: one range of one
+    /// component, whatever the flags.
+    ///
+    /// # Errors
+    ///
+    /// As the default query of [`option_ranges`](Self::option_ranges).
+    pub fn default_option_ranges(
+        &self,
+        key: &CStr,
+        flags: RangeFlags,
+    ) -> Result<OptionRangesBox, i32> {
+        query_ranges(RangeQuery::Default, RangeTarget::Object(*self), key, flags)
+    }
+}
+
+/// The options of an object's class, from [`ObjectRef::options`].
+#[derive(Clone)]
+pub struct Options<'a> {
+    obj: ObjectRef<'a>,
+    /// The entry C returned last; `None` before the first.
+    prev: Option<OptionDefRef<'a>>,
+    done: bool,
+}
+
+impl<'a> Iterator for Options<'a> {
+    type Item = OptionDefRef<'a>;
+
+    fn next(&mut self) -> Option<OptionDefRef<'a>> {
+        if self.done {
+            return None;
+        }
+        let prev = self.prev.map_or(ptr::null(), |o| o.as_ptr());
+        // SAFETY: the object is live and its class well-formed for `'a`, so
+        // its table is NULL or terminated; `prev` is NULL or the entry
+        // `av_opt_next` returned last, which is not the terminator.
+        let next = unsafe { ffi::av_opt_next(self.obj.as_ptr(), prev) };
+        // SAFETY: NULL or an entry of the class's table, which outlives the
+        // borrow and is never written.
+        let next = unsafe { OptionDefRef::from_ptr(next.cast_mut()) };
+        match next {
+            Some(o) => self.prev = Some(o),
+            None => self.done = true,
+        }
+        next
+    }
+}
+
+impl core::iter::FusedIterator for Options<'_> {}
+
+impl fmt::Debug for Options<'_> {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.debug_struct("Options")
+            .field("class", &self.obj.class().name())
+            .field("prev", &self.prev.and_then(|o| o.name()))
+            .finish()
+    }
+}
+
+/// Lookups and range queries on a class without an object: C's fake object
+/// (`AV_OPT_SEARCH_FAKE_OBJ`), a pointer to the class pointer, through which
+/// C reads only the class.
+impl<'a> ClassRef<'a> {
+    /// Wraps: av_opt_find
+    ///
+    /// The option `name` of the class or, with [`SearchFlags::CHILDREN`], of
+    /// the class of a potential child
+    /// ([`potential_children`](Self::potential_children)), whose options are
+    /// searched first, recursively; matched as [`ObjectRef::find`] matches.
+    pub fn find(
+        &self,
+        name: &CStr,
+        unit: Option<&CStr>,
+        opt_flags: i32,
+        flags: SearchFlags,
+    ) -> Option<OptionDefRef<'a>> {
+        let class = self.as_ptr();
+        let fake = ptr::from_ref(&class).cast_mut().cast::<c_void>();
+        let unit = unit.map_or(ptr::null(), CStr::as_ptr);
+        let search = flags.0 | SEARCH_FAKE_OBJ;
+        // SAFETY: with FAKE_OBJ, C reads only the class pointer `fake`
+        // addresses, live for the call, then the class's table and, with
+        // children, its `child_class_iterate` callback and the classes it
+        // returns, all well-formed for `'a`; `name` and `unit` are live C
+        // strings or NULL.
+        let o = unsafe { ffi::av_opt_find(fake, name.as_ptr(), unit, opt_flags, search) };
+        // SAFETY: a found option is an entry of the table of this class or
+        // of a potential child's, each of which lives, unwritten, for `'a`.
+        unsafe { OptionDefRef::from_ptr(o.cast_mut()) }
+    }
+
+    /// Wraps: av_opt_query_ranges
+    ///
+    /// The allowed ranges of option `key` of the class (or, with
+    /// [`RangeFlags::CHILDREN`], of a potential child's class), from its
+    /// `query_ranges` callback, which C hands the fake object, or as
+    /// [`default_option_ranges`](Self::default_option_ranges) builds them
+    /// when the class has none. Errors as for [`ObjectRef::option_ranges`].
+    pub fn option_ranges(&self, key: &CStr, flags: RangeFlags) -> Result<OptionRangesBox, i32> {
+        query_ranges(RangeQuery::Class, RangeTarget::Class(*self), key, flags)
+    }
+
+    /// Wraps: av_opt_query_ranges_default
+    ///
+    /// The allowed ranges of option `key` of the class (or, with
+    /// [`RangeFlags::CHILDREN`], of a potential child's class), built from
+    /// the option's `min` / `max` and type without the class's callback: one
+    /// range of one component. Errors as for
+    /// [`ObjectRef::default_option_ranges`].
+    pub fn default_option_ranges(
+        &self,
+        key: &CStr,
+        flags: RangeFlags,
+    ) -> Result<OptionRangesBox, i32> {
+        query_ranges(RangeQuery::Default, RangeTarget::Class(*self), key, flags)
+    }
+}
+
+/// The context a numeric evaluator ([`OptionDefRef::eval_int`] and its
+/// siblings) runs in: the object or class whose named constants a value may
+/// use, in whose name C logs.
+#[derive(Clone, Copy, Debug)]
+pub enum EvalContext<'a> {
+    /// An object: the constants of its class's table and, for an option with
+    /// `AV_OPT_FLAG_CHILD_CONSTS`, its children's.
+    Object(ObjectRef<'a>),
+    /// A class alone, as C's own callers pass a pointer to a class pointer:
+    /// the constants of its table. C logs in the name of that fake object,
+    /// so the evaluators refuse a class whose logging would read an object
+    /// (one that is not valid for a [`BareObject`] for its name, `item_name`,
+    /// `get_category` and offsets), and, for an option with
+    /// `AV_OPT_FLAG_CHILD_CONSTS`, one with a `child_next` callback.
+    Class(ClassRef<'a>),
+}
+
+impl<'a> From<ObjectRef<'a>> for EvalContext<'a> {
+    fn from(obj: ObjectRef<'a>) -> Self {
+        Self::Object(obj)
+    }
+}
+
+impl<'a> From<ClassRef<'a>> for EvalContext<'a> {
+    fn from(class: ClassRef<'a>) -> Self {
+        Self::Class(class)
+    }
+}
+
+/// A C numeric evaluator, `av_opt_eval_*`.
+type EvalFn<T> =
+    unsafe extern "C" fn(*mut c_void, *const ffi::AVOption, *const c_char, *mut T) -> c_int;
+
+/// Numeric evaluators: a value string read as this option reads it, into a
+/// Rust value rather than an object's field.
+///
+/// Each evaluates as [`ObjectMut::set`] parses the option, with the
+/// context's named constants, `default`, `max`, `min`, `none` and `all`, and
+/// checks the result against the option's bounds. The option need not
+/// belong to the context's class.
+///
+/// # Errors
+///
+/// `AVERROR(EINVAL)` for an option whose type is not exactly the
+/// evaluator's (an array of it included) or that is read-only, and for a
+/// class context the evaluators refuse (see [`EvalContext::Class`]); the
+/// error of an expression C cannot parse; `AVERROR(ERANGE)` (logged) for a
+/// value outside the option's bounds. Also the values [`ObjectMut::set`]
+/// refuses before C parses them for the same type: `AVERROR(EINVAL)` for an
+/// expression whose evaluation C converts unchecked, and `AVERROR(ERANGE)`
+/// for a flag operand outside the `int64_t` range or a rational within wide
+/// bounds outside the `int` range.
+impl OptionDefRef<'_> {
+    /// Wraps: av_opt_eval_flags
+    ///
+    /// Evaluates `val` as this flags option's value into `flags`: `+` / `-`
+    /// separated tokens, each a named constant of the option's unit or an
+    /// expression over them, setting (`+`) or clearing (`-`) its bits, or
+    /// replacing `flags` (unsigned). `flags` is read first and written after
+    /// each token, so a token that fails leaves the earlier ones applied, as
+    /// in C. A result must be a set of 32-bit flags.
+    pub fn eval_flags<'c>(
+        &self,
+        ctx: impl Into<EvalContext<'c>>,
+        val: &CStr,
+        flags: &mut i32,
+    ) -> Result<(), i32> {
+        self.eval(
+            ctx.into(),
+            OptionType::FLAGS,
+            val,
+            flags,
+            ffi::av_opt_eval_flags,
+        )
+    }
+
+    /// Wraps: av_opt_eval_int
+    ///
+    /// Evaluates `val` as this `INT` option's value, rounded to the nearest
+    /// integer.
+    pub fn eval_int<'c>(&self, ctx: impl Into<EvalContext<'c>>, val: &CStr) -> Result<i32, i32> {
+        let mut out = 0;
+        self.eval(
+            ctx.into(),
+            OptionType::INT,
+            val,
+            &mut out,
+            ffi::av_opt_eval_int,
+        )?;
+        Ok(out)
+    }
+
+    /// Wraps: av_opt_eval_uint
+    ///
+    /// Evaluates `val` as this `UINT` option's value, rounded to the nearest
+    /// integer.
+    pub fn eval_uint<'c>(&self, ctx: impl Into<EvalContext<'c>>, val: &CStr) -> Result<u32, i32> {
+        let mut out = 0;
+        self.eval(
+            ctx.into(),
+            OptionType::UINT,
+            val,
+            &mut out,
+            ffi::av_opt_eval_uint,
+        )?;
+        Ok(out)
+    }
+
+    /// Wraps: av_opt_eval_int64
+    ///
+    /// Evaluates `val` as this `INT64` option's value, rounded to the nearest
+    /// integer.
+    pub fn eval_int64<'c>(&self, ctx: impl Into<EvalContext<'c>>, val: &CStr) -> Result<i64, i32> {
+        let mut out = 0;
+        self.eval(
+            ctx.into(),
+            OptionType::INT64,
+            val,
+            &mut out,
+            ffi::av_opt_eval_int64,
+        )?;
+        Ok(out)
+    }
+
+    /// Wraps: av_opt_eval_float
+    ///
+    /// Evaluates `val` as this `FLOAT` option's value.
+    pub fn eval_float<'c>(&self, ctx: impl Into<EvalContext<'c>>, val: &CStr) -> Result<f32, i32> {
+        let mut out = 0.0;
+        self.eval(
+            ctx.into(),
+            OptionType::FLOAT,
+            val,
+            &mut out,
+            ffi::av_opt_eval_float,
+        )?;
+        Ok(out)
+    }
+
+    /// Wraps: av_opt_eval_double
+    ///
+    /// Evaluates `val` as this `DOUBLE` option's value.
+    pub fn eval_double<'c>(&self, ctx: impl Into<EvalContext<'c>>, val: &CStr) -> Result<f64, i32> {
+        let mut out = 0.0;
+        self.eval(
+            ctx.into(),
+            OptionType::DOUBLE,
+            val,
+            &mut out,
+            ffi::av_opt_eval_double,
+        )?;
+        Ok(out)
+    }
+
+    /// Wraps: av_opt_eval_q
+    ///
+    /// Evaluates `val` as this `RATIONAL` option's value: `num:den` or
+    /// `num/den` as written when within the bounds, else an expression's
+    /// value, kept as `value/1` when it is an integer and approximated within
+    /// `int` parts (`av_d2q`) otherwise.
+    pub fn eval_rational<'c>(
+        &self,
+        ctx: impl Into<EvalContext<'c>>,
+        val: &CStr,
+    ) -> Result<Rational, i32> {
+        let mut out = ffi::AVRational { num: 0, den: 0 };
+        self.eval(
+            ctx.into(),
+            OptionType::RATIONAL,
+            val,
+            &mut out,
+            ffi::av_opt_eval_q,
+        )?;
+        Ok(Rational::from(out))
+    }
+
+    /// `eval`, the evaluator of type `ty`, on `val` into `out`, after the
+    /// refusals the evaluators list.
+    fn eval<T>(
+        &self,
+        ctx: EvalContext<'_>,
+        ty: OptionType,
+        val: &CStr,
+        out: &mut T,
+        eval: EvalFn<T>,
+    ) -> Result<(), i32> {
+        let child_consts = self.flags() & ffi::AV_OPT_FLAG_CHILD_CONSTS as c_int != 0;
+        let class_ptr;
+        let obj = match ctx {
+            EvalContext::Object(obj) => obj.obj,
+            EvalContext::Class(class) => {
+                if !logs_as_bare(class) || (child_consts && class.child_next().is_some()) {
+                    return Err(EINVAL);
+                }
+                class_ptr = class.as_ptr();
+                NonNull::from(&class_ptr).cast()
+            }
+        };
+        // C rejects every other option before it reads `val`.
+        let parsed =
+            self.option_type() == ty && self.flags() & ffi::AV_OPT_FLAG_READONLY as c_int == 0;
+        if parsed && let Some(err) = elem_refusal(obj, *self, ty, val.to_bytes())? {
+            return Err(err);
+        }
+        // A class context is a live pointer to a class whose logging reads
+        // nothing past it, and which has no `child_next` for C to call on it
+        // when the option asks for its children's constants.
+        // SAFETY: `obj` is a live object under `ObjectRef`'s contract or such
+        // a class pointer; the option is a table entry, `val` a live C string
+        // and `out` a writable `T`; `elem_refusal` refused every value whose
+        // evaluation could reach undefined behaviour.
+        let ret = unsafe { eval(obj.as_ptr(), self.as_ptr(), val.as_ptr(), out) };
+        if ret < 0 { Err(ret) } else { Ok(()) }
+    }
+}
 
 #[cfg(test)]
 #[path = "../tests/common/opt.rs"]
@@ -4956,7 +5460,7 @@ mod unit_tests {
             // a local class over the same fields, live until it is restored.
             unsafe { (*o.ptr()).class = &class };
             let obj = object(&o);
-            let (opt, target) = obj.as_ref().find(c"flags", None, 0).unwrap();
+            let (opt, target) = obj.as_ref().lookup(c"flags", None, 0).unwrap();
             assert_eq!(number_value(target, opt, b"c1"), Ok(Some(1.0)));
             assert_eq!(number_value(target, opt, b"1+1"), Ok(None));
             assert_eq!(refusal(&o, c"flags", c"+1e30"), None);
@@ -4976,7 +5480,7 @@ mod unit_tests {
         fn quiet_evaluation_uses_the_unit_constants() {
             let o = Owned::new();
             let obj = object(&o);
-            let (flags, target) = obj.as_ref().find(c"flags", None, 0).unwrap();
+            let (flags, target) = obj.as_ref().lookup(c"flags", None, 0).unwrap();
             let value = |t: &[u8]| number_value(target, flags, t).unwrap();
             assert_eq!(value(b"one"), Some(1.0));
             assert_eq!(value(b"huge"), Some(i64::MAX as f64));
@@ -4996,7 +5500,7 @@ mod unit_tests {
         fn quiet_evaluation_refuses_the_clock() {
             let o = Owned::new();
             let obj = object(&o);
-            let (flags, target) = obj.as_ref().find(c"flags", None, 0).unwrap();
+            let (flags, target) = obj.as_ref().lookup(c"flags", None, 0).unwrap();
             for token in [
                 &b"time(0)"[..],
                 b"ti me (0)",
@@ -5024,14 +5528,14 @@ mod unit_tests {
         fn array_defaults_read_the_definition_address() {
             let o = Owned::new();
             let obj = object(&o);
-            let (array, _) = obj.as_ref().find(c"array", None, 0).unwrap();
+            let (array, _) = obj.as_ref().lookup(c"array", None, 0).unwrap();
             let address = (&raw const fixture::ARRAY_DEF.0).addr() as u64;
             let d = default_number(array);
             assert_eq!(d.to_bits(), address);
             assert!(d != 0.0 && d.is_subnormal());
-            let (empty, _) = obj.as_ref().find(c"empty", None, 0).unwrap();
+            let (empty, _) = obj.as_ref().lookup(c"empty", None, 0).unwrap();
             assert_eq!(default_number(empty).to_bits(), 0);
-            let (int, _) = obj.as_ref().find(c"int", None, 0).unwrap();
+            let (int, _) = obj.as_ref().lookup(c"int", None, 0).unwrap();
             assert_eq!(default_number(int), 7.0);
         }
 
@@ -5901,6 +6405,326 @@ mod unit_tests {
             let mut empty = Dict::new();
             assert_eq!(obj.set_from_dict(&mut empty), Ok(()));
             assert!(empty.as_ref().is_none());
+        }
+    }
+
+    /// Options wave 2, batch 0: the table check behind
+    /// `is_option_set_to_default`, the evaluators' refusals before C (class
+    /// contexts whose logging reads an object, values whose evaluation C
+    /// converts unchecked), the option walk's iterator plumbing and the range
+    /// flags.
+    mod lookups {
+        use super::*;
+        use fixture::{OBJ_CLASS, OBJ_OPTIONS, Owned};
+
+        /// The shared handle of a fixture object.
+        fn shared(o: &Owned) -> ObjectRef<'_> {
+            // SAFETY: `o` is a live object of the well-formed `OBJ_CLASS`,
+            // which nothing writes while the handle lives.
+            unsafe { ObjectRef::from_ptr(o.as_obj()) }.unwrap()
+        }
+
+        /// The handle of `class`, a static fixture class.
+        fn class(class: &'static fixture::Class) -> ClassRef<'static> {
+            // SAFETY: the fixture classes are well-formed statics.
+            unsafe { ClassRef::from_ptr((&raw const class.0).cast_mut()) }.unwrap()
+        }
+
+        /// The option `name` of `OBJ_CLASS`.
+        fn option(name: &CStr) -> OptionDefRef<'static> {
+            class(&OBJ_CLASS)
+                .find(name, None, 0, SearchFlags::NONE)
+                .unwrap()
+        }
+
+        #[test]
+        fn only_entries_of_the_object_class_table_are_its_options() {
+            // A zeroed stack object: the check reads only the class, so the
+            // test needs no C (and runs under Miri).
+            // SAFETY: every field of `Obj` is valid all-zero.
+            let mut raw: fixture::Obj = unsafe { core::mem::zeroed() };
+            raw.class = &OBJ_CLASS.0;
+            // SAFETY: a live object of the well-formed `OBJ_CLASS`, unwritten
+            // while the handle lives.
+            let obj = unsafe { ObjectRef::from_ptr((&raw mut raw).cast()) }.unwrap();
+            let n = OBJ_OPTIONS.0.len() - 1;
+            for i in 0..n {
+                // SAFETY: an entry of the live static table.
+                let e = unsafe { OptionDefRef::from_ptr((&raw const OBJ_OPTIONS.0[i]).cast_mut()) };
+                assert!(obj.has_option(e.unwrap()), "entry {i}");
+            }
+            // Entries of another table, the terminator and the entry after
+            // it are not.
+            assert!(!obj.has_option(entry(0)));
+            assert!(!obj.has_option(entry(NAMED - 1)));
+            // SAFETY: the terminator, read only by address here.
+            let end = unsafe { OptionDefRef::from_ptr((&raw const OBJ_OPTIONS.0[n]).cast_mut()) };
+            assert!(!obj.has_option(end.unwrap()));
+        }
+
+        #[test]
+        fn foreign_options_are_refused_and_child_options_checked_on_the_child() {
+            let o = Owned::with_child();
+            let obj = shared(&o);
+            // A foreign option is refused before C reads its offset.
+            assert_eq!(obj.is_option_set_to_default(entry(0)), Err(EINVAL));
+            // An option found in the child is one of the child's class, which
+            // is the parent's class too.
+            let (o_child, target) = obj
+                .find_with_target(c"int", None, 0, SearchFlags::CHILDREN)
+                .unwrap();
+            assert!(target.has_option(o_child) && obj.has_option(o_child));
+            assert_eq!(target.is_option_set_to_default(o_child), Ok(true));
+        }
+
+        #[test]
+        fn class_contexts_that_log_through_an_object_are_refused() {
+            let flags = option(c"flags");
+            let cflags = option(c"cflags");
+            let mut f = 0;
+            // `OBJ_CLASS` has a `child_next` callback: refused only for an
+            // option that searches its children for constants.
+            let obj_class = class(&OBJ_CLASS);
+            assert_eq!(flags.eval_flags(obj_class, c"one", &mut f), Ok(()));
+            assert_eq!(f, 1);
+            assert_eq!(cflags.eval_flags(obj_class, c"one", &mut f), Err(EINVAL));
+            // Classes whose logging would read the fake object or run class
+            // code on it.
+            let mut base = OBJ_CLASS.0;
+            base.child_next = None;
+            let mut cases = Vec::new();
+            for edit in 0..5 {
+                let mut c = base;
+                match edit {
+                    0 => c.class_name = ptr::null(),
+                    1 => c.log_level_offset_offset = 8,
+                    2 => c.parent_log_context_offset = 8,
+                    3 => {
+                        unsafe extern "C" fn cat(_: *mut c_void) -> ffi::AVClassCategory {
+                            ffi::AVClassCategory::AV_CLASS_CATEGORY_NA
+                        }
+                        c.get_category = Some(cat);
+                    }
+                    _ => {
+                        unsafe extern "C" fn name(_: *mut c_void) -> *const c_char {
+                            c"item".as_ptr()
+                        }
+                        c.item_name = Some(name);
+                    }
+                }
+                cases.push(c);
+            }
+            for c in &cases {
+                // SAFETY: a live local class, with the fixture's table.
+                let c = unsafe { ClassRef::from_ptr(ptr::from_ref(c).cast_mut()) }.unwrap();
+                assert_eq!(flags.eval_flags(c, c"one", &mut f), Err(EINVAL));
+                assert_eq!(option(c"int").eval_int(c, c"1"), Err(EINVAL));
+            }
+            // Without them the same class evaluates, child constants too.
+            // SAFETY: as above.
+            let bare = unsafe { ClassRef::from_ptr(ptr::from_ref(&base).cast_mut()) }.unwrap();
+            assert_eq!(cflags.eval_flags(bare, c"bit", &mut f), Ok(()));
+            assert_eq!(f, 2);
+        }
+
+        #[test]
+        fn values_reaching_unchecked_conversions_are_refused_before_c() {
+            let o = Owned::with_child();
+            let obj = shared(&o);
+            let mut f = 0;
+            // An evaluation builtin converting a double unchecked.
+            assert_eq!(option(c"dbl").eval_double(obj, c"ld(1e300)"), Err(EINVAL));
+            assert_eq!(option(c"int").eval_int(obj, c"st(1e30, 1)"), Err(EINVAL));
+            assert_eq!(
+                option(c"flags").eval_flags(obj, c"gcd(1e300, 2)", &mut f),
+                Err(EINVAL)
+            );
+            // A flag operand outside the `int64_t` range.
+            assert_eq!(
+                option(c"flags").eval_flags(obj, c"+huge", &mut f),
+                Err(ERANGE)
+            );
+            assert_eq!(
+                option(c"flags").eval_flags(obj, c"one-1e30", &mut f),
+                Err(ERANGE)
+            );
+            assert_eq!(f, 0, "refused before C wrote anything");
+            // ... or one reading the clock, which a preview cannot predict.
+            assert_eq!(
+                option(c"flags").eval_flags(obj, c"+time(0)", &mut f),
+                Err(EINVAL)
+            );
+            // A rational within wide bounds outside the `int` range.
+            assert_eq!(option(c"wide_q").eval_rational(obj, c"1e20"), Err(ERANGE));
+            assert_eq!(option(c"wide_q").eval_rational(obj, c"-3e9"), Err(ERANGE));
+            assert_eq!(
+                option(c"wide_q").eval_rational(obj, c"3"),
+                Ok(Rational::new(3, 1))
+            );
+            // Options C rejects itself are not previewed: no refusal, C's
+            // own `AVERROR(EINVAL)`.
+            assert_eq!(option(c"ro").eval_int(obj, c"ld(1e300)"), Err(EINVAL));
+            assert_eq!(option(c"array").eval_int(obj, c"1"), Err(EINVAL));
+            assert_eq!(option(c"dbl").eval_int(obj, c"1"), Err(EINVAL));
+            assert_eq!(option(c"int").eval_int64(obj, c"1"), Err(EINVAL));
+        }
+
+        #[test]
+        fn evaluators_read_constants_and_bounds_of_the_context() {
+            let o = Owned::with_child();
+            let obj = shared(&o);
+            let int = option(c"int");
+            assert_eq!(int.eval_int(obj, c"seven"), Ok(7));
+            assert_eq!(int.eval_int(obj, c"seven*2+min"), Ok(4));
+            assert_eq!(int.eval_int(obj, c"101"), Err(ERANGE));
+            assert_eq!(int.eval_int(class(&OBJ_CLASS), c"default"), Ok(7));
+            let mut f = 8;
+            let flags = option(c"flags");
+            assert_eq!(flags.eval_flags(obj, c"+one+bit-eight", &mut f), Ok(()));
+            assert_eq!(f, 3);
+            // A failing token keeps what the earlier ones wrote.
+            assert!(flags.eval_flags(obj, c"+eight+nosuch", &mut f).is_err());
+            assert_eq!(f, 11);
+            assert_eq!(option(c"uint").eval_uint(obj, c"4294967295"), Ok(u32::MAX));
+            assert_eq!(
+                option(c"int64").eval_int64(obj, c"-5e9"),
+                Ok(-5_000_000_000)
+            );
+            assert_eq!(option(c"flt").eval_float(obj, c"1/4"), Ok(0.25));
+            assert_eq!(option(c"dbl").eval_double(obj, c"1k"), Ok(1000.0));
+            assert_eq!(
+                option(c"q").eval_rational(obj, c"30000:1001"),
+                Ok(Rational::new(30000, 1001))
+            );
+            // The option need not belong to the context: an option of the
+            // older `CLASS` reads `OBJ_CLASS`'s `mode` constants.
+            assert_eq!(entry(0).eval_int(obj, c"seven"), Ok(7));
+        }
+
+        /// An object of a class whose options have no defaults, and whose
+        /// unit has a deprecated named constant.
+        #[repr(C)]
+        struct Plain {
+            class: *const ffi::AVClass,
+            size: [c_int; 2],
+            rate: ffi::AVRational,
+            color: [u8; 4],
+            text: *mut c_char,
+            n: c_int,
+        }
+
+        #[test]
+        fn absent_defaults_and_deprecated_constants() {
+            use core::mem::offset_of;
+            let opt =
+                |name: &'static CStr, offset: usize, ty: T, flags: u32, def: i64| ffi::AVOption {
+                    name: name.as_ptr(),
+                    help: c"help".as_ptr(),
+                    offset: offset as c_int,
+                    type_: ty,
+                    default_val: ffi::AVOption__bindgen_ty_1 { i64_: def },
+                    min: 0.0,
+                    max: 10.0,
+                    flags: flags as c_int,
+                    unit: if ty == T::AV_OPT_TYPE_INT || ty == T::AV_OPT_TYPE_CONST {
+                        c"u".as_ptr()
+                    } else {
+                        ptr::null()
+                    },
+                };
+            let table = [
+                opt(
+                    c"size",
+                    offset_of!(Plain, size),
+                    T::AV_OPT_TYPE_IMAGE_SIZE,
+                    0,
+                    0,
+                ),
+                opt(
+                    c"rate",
+                    offset_of!(Plain, rate),
+                    T::AV_OPT_TYPE_VIDEO_RATE,
+                    0,
+                    0,
+                ),
+                opt(
+                    c"color",
+                    offset_of!(Plain, color),
+                    T::AV_OPT_TYPE_COLOR,
+                    0,
+                    0,
+                ),
+                opt(
+                    c"text",
+                    offset_of!(Plain, text),
+                    T::AV_OPT_TYPE_STRING,
+                    0,
+                    0,
+                ),
+                opt(c"n", offset_of!(Plain, n), T::AV_OPT_TYPE_INT, 0, 0),
+                opt(
+                    c"old",
+                    0,
+                    T::AV_OPT_TYPE_CONST,
+                    ffi::AV_OPT_FLAG_DEPRECATED,
+                    3,
+                ),
+                // SAFETY: the all-zero terminator.
+                unsafe { core::mem::zeroed() },
+            ];
+            let mut class = OBJ_CLASS.0;
+            class.option = table.as_ptr();
+            class.child_next = None;
+            // SAFETY: every field of `Plain` is valid all-zero.
+            let mut raw: Plain = unsafe { core::mem::zeroed() };
+            raw.class = &raw const class;
+            // SAFETY: a live object of a well-formed local class (no
+            // defaults, a unit on its constant), unwritten while borrowed.
+            let obj = unsafe { ObjectRef::from_ptr((&raw mut raw).cast()) }.unwrap();
+            let checked: Vec<_> = obj
+                .options()
+                .map(|o| obj.is_option_set_to_default(o))
+                .collect();
+            // A NULL size, color and string default is zero, as the object
+            // holds; a NULL video rate is `0/0`, which C never compares
+            // equal.
+            let expected = [true, false, true, true, true, true].map(Ok);
+            assert_eq!(checked, expected);
+            // C warns about the deprecated constant and evaluates it.
+            let n = obj.find(c"n", None, 0, SearchFlags::NONE).unwrap();
+            assert_eq!(n.eval_int(obj, c"old"), Ok(3));
+            assert_eq!(n.eval_int(obj.class(), c"old+1"), Ok(4));
+        }
+
+        #[test]
+        fn options_walk_ends_and_stays_ended() {
+            let o = Owned::new();
+            let obj = shared(&o);
+            let mut walk = obj.options();
+            let first = walk.next().unwrap();
+            assert_eq!(first.name(), Some(c"int"));
+            let resumed = walk.clone();
+            assert!(format!("{walk:?}").contains("crustify-opt-obj"));
+            assert_eq!(walk.by_ref().count(), OBJ_OPTIONS.0.len() - 2);
+            assert!(walk.next().is_none() && walk.next().is_none());
+            assert_eq!(resumed.count(), OBJ_OPTIONS.0.len() - 2);
+            let names: Vec<_> = obj.options().map(|o| o.name()).collect();
+            let table: Vec<_> = obj.class().options().iter().map(|o| o.name()).collect();
+            assert_eq!(names, table);
+        }
+
+        #[test]
+        fn range_flags_combine_as_c_bits() {
+            let all = RangeFlags::CHILDREN | RangeFlags::MULTI_COMPONENT;
+            assert_eq!(
+                all.bits(),
+                (ffi::AV_OPT_SEARCH_CHILDREN | ffi::AV_OPT_MULTI_COMPONENT_RANGE) as c_int
+            );
+            assert_eq!(RangeFlags::default(), RangeFlags::NONE);
+            assert_eq!(
+                RangeFlags::NONE | RangeFlags::CHILDREN,
+                RangeFlags::CHILDREN
+            );
         }
     }
 }

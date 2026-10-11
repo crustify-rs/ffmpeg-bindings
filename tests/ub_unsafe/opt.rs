@@ -1,21 +1,46 @@
-//! UB tests for `libavutil/opt.h`'s unsafe range queries, each called within
-//! its `# Safety` contract, and for the safe getters and setters of the lists
-//! and ranges they return.
+//! UB tests for `libavutil/opt.h`'s object API on handles adopted within
+//! the unsafe seams' contracts: range queries on objects `ObjectRef::from_ptr`
+//! adopts and on classes `with_class` reaches through a logging context, the
+//! safe getters and setters of the lists and ranges they return, and the
+//! option setters, getters, lookups and evaluators on adopted objects.
 
-use core::ffi::{CStr, c_int};
+use core::ffi::CStr;
 
 use ffmpeg::libavutil::ffi;
-use ffmpeg::libavutil::opt::{OptionRangeRef, OptionRanges, OptionRangesBox, OptionRangesRef};
+use ffmpeg::libavutil::log::ClassRef;
+use ffmpeg::libavutil::opt::{
+    ObjectRef, OptionRangeRef, OptionRangesBox, OptionRangesRef, RangeFlags,
+};
 
 #[path = "../common/opt.rs"]
 pub(crate) mod fixture;
-use fixture::{CB_FAKE, CLASS, Ctx, EINVAL, FAKE, FakeObj, RANGED, UNKNOWN, UNRANGED};
+use fixture::{CB_FAKE, EINVAL, FAKE, FakeObj, Owned, RANGED, UNKNOWN, UNRANGED};
 
-const FAKE_OBJ: c_int = ffi::AV_OPT_SEARCH_FAKE_OBJ as c_int;
-const MULTI: c_int = ffi::AV_OPT_MULTI_COMPONENT_RANGE as c_int;
-const CHILDREN: c_int = ffi::AV_OPT_SEARCH_CHILDREN as c_int;
+use crate::log::LogState;
+use crate::log::class_fixture::with_class;
+
+const NONE: RangeFlags = RangeFlags::NONE;
+const MULTI: RangeFlags = RangeFlags::MULTI_COMPONENT;
+const CHILDREN: RangeFlags = RangeFlags::CHILDREN;
 const ENOMEM: i32 = -12;
 const ENOSYS: i32 = -38;
+
+/// `f` applied to the class of `fake` (a `const AVClass *` to a fixture
+/// class), as `with_class` reaches it, under the log state lock.
+fn with_fake_class<R>(fake: &'static FakeObj, f: impl FnOnce(ClassRef<'_>) -> R) -> R {
+    let _s = LogState::lock();
+    // SAFETY: `fake` is a `const AVClass *` to a well-formed fixture class
+    // with a name and no `item_name`, `get_category` or offsets: a logging
+    // context `log_with_context` accepts.
+    unsafe { with_class(fake.as_obj(), |c| f(c.unwrap())) }
+}
+
+/// The shared handle of `o`.
+fn shared(o: &Owned) -> ObjectRef<'_> {
+    // SAFETY: a live object of the well-formed `OBJ_CLASS` (with its child,
+    // if any), which nothing writes while the handle lives.
+    unsafe { ObjectRef::from_ptr(o.as_obj()) }.unwrap()
+}
 
 /// Every field of `e`, through the safe getters.
 fn fields(e: OptionRangeRef<'_>) -> (Option<&CStr>, [f64; 4], bool) {
@@ -52,21 +77,25 @@ fn read_all(r: OptionRangesRef<'_>) -> usize {
     n * c
 }
 
-/// `OptionRanges::query`, within its contract: a live object (or fake object)
-/// of a well-formed class with a non-NULL class pointer.
+/// `ClassRef::option_ranges` (`av_opt_query_ranges` on the fake object) on
+/// the fixture classes, and `ObjectRef::option_ranges` on adopted objects.
+/// Options wave 2, batch 0 replaced the former `unsafe fn
+/// OptionRanges::query(obj: *mut c_void, ..)` with these safe methods.
 mod query {
     use super::*;
 
-    fn query(obj: &'static FakeObj, key: &CStr, flags: c_int) -> Result<OptionRangesBox, i32> {
-        // SAFETY: `obj` is a `const AVClass *` to a well-formed fixture class,
-        // and `flags` carries `AV_OPT_SEARCH_FAKE_OBJ`.
-        unsafe { OptionRanges::query(obj.as_obj(), key, flags | FAKE_OBJ) }
+    fn query(
+        fake: &'static FakeObj,
+        key: &CStr,
+        flags: RangeFlags,
+    ) -> Result<OptionRangesBox, i32> {
+        with_fake_class(fake, |c| c.option_ranges(key, flags))
     }
 
     #[test]
-    fn every_ranged_key_on_a_fake_object() {
+    fn every_ranged_key_on_a_class() {
         for key in RANGED {
-            for flags in [0, MULTI, CHILDREN] {
+            for flags in [NONE, MULTI, CHILDREN] {
                 let b = query(&FAKE, key, flags).unwrap();
                 assert_eq!(read_all(b.as_ref()), 1);
             }
@@ -76,7 +105,7 @@ mod query {
     #[test]
     fn rejected_keys_own_nothing() {
         for key in UNRANGED {
-            assert_eq!(query(&FAKE, key, 0).err(), Some(ENOSYS), "{key:?}");
+            assert_eq!(query(&FAKE, key, NONE).err(), Some(ENOSYS), "{key:?}");
         }
         for key in UNKNOWN {
             assert_eq!(query(&FAKE, key, MULTI).err(), Some(ENOMEM), "{key:?}");
@@ -86,14 +115,27 @@ mod query {
 
     #[test]
     fn real_object_with_children_search() {
-        let mut ctx = Ctx::new(&CLASS);
-        for key in RANGED {
-            for flags in [0, MULTI, CHILDREN] {
-                // SAFETY: `ctx` is a live object of the well-formed `CLASS`,
-                // which has no children to iterate.
-                let b = unsafe { OptionRanges::query(ctx.as_obj(), key, flags) }.unwrap();
-                read_all(b.as_ref());
+        let o = Owned::with_child();
+        let obj = shared(&o);
+        for key in RANGED
+            .iter()
+            .chain(&[c"uint", c"wide_q", c"pix", c"sample"])
+        {
+            for flags in [NONE, MULTI, CHILDREN, MULTI | CHILDREN] {
+                let b = obj.option_ranges(key, flags);
+                let d = obj.default_option_ranges(key, flags);
+                // `OBJ_CLASS` has no callback: both are the default list.
+                match (b, d) {
+                    (Ok(b), Ok(d)) => assert_eq!(read_all(b.as_ref()), read_all(d.as_ref())),
+                    (b, d) => assert_eq!(b.err(), d.err(), "{key:?}"),
+                }
             }
+        }
+        for key in [c"flags", c"dict", c"array", c"strings", c"layout"] {
+            assert_eq!(obj.option_ranges(key, CHILDREN).err(), Some(ENOSYS));
+        }
+        for key in [c"missing", c"seven", c""] {
+            assert_eq!(obj.option_ranges(key, CHILDREN).err(), Some(ENOMEM));
         }
     }
 
@@ -104,10 +146,10 @@ mod query {
         let b = query(&CB_FAKE, c"size", MULTI).unwrap();
         assert_eq!(read_all(b.as_ref()), 6);
         // Without the multi-component flag, one component.
-        let one = query(&CB_FAKE, c"size", 0).unwrap();
+        let one = query(&CB_FAKE, c"size", NONE).unwrap();
         assert_eq!(read_all(one.as_ref()), 2);
         // A NULL element reads as NULL and is skipped by the release.
-        let sparse = query(&CB_FAKE, c"sparse", 0).unwrap();
+        let sparse = query(&CB_FAKE, c"sparse", NONE).unwrap();
         assert_eq!(read_all(sparse.as_ref()), 3);
         assert!(sparse.as_ref().get(1, 0).is_none());
         assert!(sparse.as_ref().ranges().nth(1).unwrap().is_none());
@@ -144,8 +186,9 @@ mod query {
 
     /// A list and its handles cross threads: one is read by several threads
     /// at once through copies of a shared handle, moved to another thread and
-    /// dropped there, and queried on many threads concurrently (`Send` /
-    /// `Sync` on `OptionRanges`; ThreadSanitizer reports any race).
+    /// dropped there, and a class is queried on many threads concurrently
+    /// (`Send` / `Sync` on `OptionRanges` and `ClassRef`; ThreadSanitizer
+    /// reports any race).
     #[test]
     fn lists_are_read_moved_and_dropped_across_threads() {
         let b = query(&CB_FAKE, c"size", MULTI).unwrap();
@@ -168,7 +211,7 @@ mod query {
 
         // Built on one thread, read on another, then returned to the first.
         let back = std::thread::spawn(|| {
-            let sparse = query(&CB_FAKE, c"sparse", 0).unwrap();
+            let sparse = query(&CB_FAKE, c"sparse", NONE).unwrap();
             assert_eq!(read_all(sparse.as_ref()), 3);
             sparse
         })
@@ -178,53 +221,59 @@ mod query {
 
         // Concurrent queries of one shared class, each list owned by its
         // thread.
-        let totals: Vec<usize> = std::thread::scope(|s| {
-            let workers: Vec<_> = (0..8)
-                .map(|i| {
-                    s.spawn(move || {
-                        let key = [c"size", c"sparse", c"int", c"string"][i % 4];
-                        let b = query(&CB_FAKE, key, if i % 2 == 0 { MULTI } else { 0 }).unwrap();
-                        read_all(b.as_ref())
+        let totals: Vec<usize> = with_fake_class(&CB_FAKE, |class| {
+            std::thread::scope(|s| {
+                let workers: Vec<_> = (0..8)
+                    .map(|i| {
+                        s.spawn(move || {
+                            let key = [c"size", c"sparse", c"int", c"string"][i % 4];
+                            let flags = if i % 2 == 0 { MULTI } else { NONE };
+                            let b = class.option_ranges(key, flags).unwrap();
+                            read_all(b.as_ref())
+                        })
                     })
-                })
-                .collect();
-            workers.into_iter().map(|w| w.join().unwrap()).collect()
+                    .collect();
+                workers.into_iter().map(|w| w.join().unwrap()).collect()
+            })
         });
         assert_eq!(totals, [6, 3, 1, 1, 6, 3, 1, 1]);
     }
 
     #[test]
     fn many_lists_live_at_once() {
-        let lists: Vec<_> = (0..64)
-            .map(|i| {
-                let key = [c"size", c"sparse", c"int", c"string"][i % 4];
-                query(&CB_FAKE, key, if i % 2 == 0 { MULTI } else { 0 }).unwrap()
-            })
-            .collect();
+        let lists: Vec<_> = with_fake_class(&CB_FAKE, |class| {
+            (0..64)
+                .map(|i| {
+                    let key = [c"size", c"sparse", c"int", c"string"][i % 4];
+                    let flags = if i % 2 == 0 { MULTI } else { NONE };
+                    class.option_ranges(key, flags).unwrap()
+                })
+                .collect()
+        });
         let total: usize = lists.iter().map(|b| read_all(b.as_ref())).sum();
         assert_eq!(total, 16 * (6 + 3 + 1 + 1));
     }
 }
 
-/// `OptionRanges::query_default`, within its contract, which also admits a
-/// NULL class pointer and skips the class callback.
+/// `ClassRef::default_option_ranges` and `ObjectRef::default_option_ranges`
+/// (`av_opt_query_ranges_default`), which skip the class callback. They
+/// replaced the former `unsafe fn OptionRanges::query_default`, whose NULL
+/// object and NULL class no safe handle can express.
 mod query_default {
     use super::*;
 
     fn query_default(
-        obj: &'static FakeObj,
+        fake: &'static FakeObj,
         key: &CStr,
-        flags: c_int,
+        flags: RangeFlags,
     ) -> Result<OptionRangesBox, i32> {
-        // SAFETY: `obj` is a `const AVClass *` to a well-formed fixture class,
-        // or NULL, and `flags` carries `AV_OPT_SEARCH_FAKE_OBJ`.
-        unsafe { OptionRanges::query_default(obj.as_obj(), key, flags | FAKE_OBJ) }
+        with_fake_class(fake, |c| c.default_option_ranges(key, flags))
     }
 
     #[test]
     fn every_key_one_range_of_one_component() {
         for key in RANGED {
-            for flags in [0, MULTI, CHILDREN] {
+            for flags in [NONE, MULTI, CHILDREN] {
                 let b = query_default(&FAKE, key, flags).unwrap();
                 let r = b.as_ref();
                 assert_eq!(
@@ -234,10 +283,10 @@ mod query_default {
             }
         }
         for key in UNRANGED {
-            assert_eq!(query_default(&FAKE, key, 0).err(), Some(ENOSYS));
+            assert_eq!(query_default(&FAKE, key, NONE).err(), Some(ENOSYS));
         }
         for key in UNKNOWN {
-            assert_eq!(query_default(&FAKE, key, 0).err(), Some(ENOMEM));
+            assert_eq!(query_default(&FAKE, key, NONE).err(), Some(ENOMEM));
         }
     }
 
@@ -248,39 +297,21 @@ mod query_default {
         let b = query_default(&CB_FAKE, c"size", MULTI).unwrap();
         assert_eq!(b.as_ref().component_count(), 1);
         // The callback's own keys are unknown options to the default query.
-        assert_eq!(query_default(&CB_FAKE, c"fail", 0).err(), Some(ENOMEM));
-    }
-
-    #[test]
-    fn null_class_fails_without_a_list() {
-        static NULL_CLASS: FakeObj = FakeObj(core::ptr::null());
-        assert_eq!(query_default(&NULL_CLASS, c"int", 0).err(), Some(ENOMEM));
-
-        let mut ctx = Ctx::new(&CLASS);
-        ctx.class = core::ptr::null();
-        // SAFETY: `ctx` is a live object whose class pointer is NULL, which
-        // `query_default` admits.
-        let r = unsafe { OptionRanges::query_default(ctx.as_obj(), c"int", 0) };
-        assert_eq!(r.err(), Some(ENOMEM));
-    }
-
-    #[test]
-    fn null_object_fails_without_a_list() {
-        for flags in [0, FAKE_OBJ, MULTI | CHILDREN, FAKE_OBJ | CHILDREN] {
-            // SAFETY: `query_default` admits a NULL `obj`, with any flags.
-            let r = unsafe { OptionRanges::query_default(core::ptr::null_mut(), c"int", flags) };
-            assert_eq!(r.err(), Some(ENOMEM), "flags={flags:#x}");
-        }
+        assert_eq!(query_default(&CB_FAKE, c"fail", NONE).err(), Some(ENOMEM));
     }
 
     #[test]
     fn real_object() {
-        let mut ctx = Ctx::new(&CLASS);
-        for key in RANGED {
-            // SAFETY: `ctx` is a live object of the well-formed `CLASS`.
-            let b = unsafe { OptionRanges::query_default(ctx.as_obj(), key, MULTI) }.unwrap();
-            read_all(b.as_ref());
+        let o = Owned::new();
+        let obj = shared(&o);
+        // `bare` is a key of the older `CLASS` only.
+        for key in RANGED.into_iter().filter(|&k| k != c"bare") {
+            let b = obj.default_option_ranges(key, MULTI).unwrap();
+            assert_eq!(read_all(b.as_ref()), 1);
         }
+        // The callback query of a class without one is the default query.
+        let b = obj.option_ranges(c"int", MULTI).unwrap();
+        assert_eq!(b.as_ref().component_count(), 1);
     }
 }
 
@@ -291,10 +322,8 @@ mod range_handles {
     use super::*;
     use ffmpeg::libavutil::mem::{HeapString, string_from_c_str};
 
-    fn query(obj: &'static FakeObj, key: &CStr, flags: c_int) -> OptionRangesBox {
-        // SAFETY: `obj` is a `const AVClass *` to a well-formed fixture class,
-        // and `flags` carries `AV_OPT_SEARCH_FAKE_OBJ`.
-        unsafe { OptionRanges::query(obj.as_obj(), key, flags | FAKE_OBJ) }.unwrap()
+    fn query(fake: &'static FakeObj, key: &CStr, flags: RangeFlags) -> OptionRangesBox {
+        with_fake_class(fake, |c| c.option_ranges(key, flags)).unwrap()
     }
 
     fn heap(s: &CStr) -> Option<HeapString> {
@@ -329,7 +358,7 @@ mod range_handles {
     /// A label taken out of a list outlives it; the list then frees none.
     #[test]
     fn taken_labels_outlive_the_list() {
-        let mut b = query(&CB_FAKE, c"size", 0);
+        let mut b = query(&CB_FAKE, c"size", NONE);
         let mut taken = Vec::new();
         for i in 0..2 {
             taken.push(b.as_mut().get_mut(i, 0).unwrap().take_label().unwrap());
@@ -339,7 +368,7 @@ mod range_handles {
         drop(b);
         assert!(taken.iter().all(|s| s.as_c_str() == c"range"));
         // A taken label moves to another list, which frees it in turn.
-        let mut other = query(&FAKE, c"int", 0);
+        let mut other = query(&FAKE, c"int", NONE);
         let mut m = other.as_mut();
         let mut e = m.get_mut(0, 0).unwrap();
         e.set_label(taken.pop());
@@ -370,7 +399,7 @@ mod range_handles {
     /// rewriting their neighbours leaves them NULL.
     #[test]
     fn null_elements_stay_null_around_writes() {
-        let mut b = query(&CB_FAKE, c"sparse", 0);
+        let mut b = query(&CB_FAKE, c"sparse", NONE);
         assert!(b.as_mut().get_mut(1, 0).is_none());
         for i in [0, 2] {
             let mut m = b.as_mut();
@@ -2026,5 +2055,247 @@ mod remove_array_shrink_failure {
             Ok(0)
         );
         // The owner's drop releases every element the counts cover, once.
+    }
+}
+
+/// Options wave 2, batch 0: lookups, the option walk, the default check of
+/// one option and the numeric evaluators on objects `ObjectRef::from_ptr`
+/// and `ObjectMut::from_ptr` adopt within their contract, and on their
+/// class: found options and walks outliving the handles that found them,
+/// defaults checked across writes and frees on a parent and its child,
+/// every evaluator on every option with the values C turns into undefined
+/// behaviour (UBSan reports a `runtime error:` C reaches), a class context
+/// shared by many threads (ThreadSanitizer), and lookups interleaved with
+/// writes through an exclusive handle's reborrows (BorrowSanitizer).
+mod lookups {
+    use super::*;
+    use ffmpeg::libavutil::opt::{EvalContext, ObjectMut, SearchFlags};
+    use fixture::OBJ_OPTIONS;
+
+    /// The exclusive handle of `o`.
+    fn exclusive(o: &Owned) -> ObjectMut<'_> {
+        // SAFETY: a live object of the well-formed `OBJ_CLASS` (with its
+        // child, if any), used through no other handle while this one lives.
+        unsafe { ObjectMut::from_ptr(o.as_obj()) }.unwrap()
+    }
+
+    const NAMED: usize = OBJ_OPTIONS.0.len() - 1;
+
+    #[test]
+    fn found_options_and_walks_outlive_the_handles_that_found_them() {
+        let o = Owned::with_child();
+        let (int, walk, found, class) = {
+            let obj = shared(&o);
+            let int = obj.find(c"int", None, 0, SearchFlags::NONE).unwrap();
+            let found = obj.find_with_target(c"bit", Some(c"fl"), 0, SearchFlags::CHILDREN);
+            (int, obj.options(), found.unwrap(), obj.class())
+        };
+        assert_eq!(int.name(), Some(c"int"));
+        assert_eq!(walk.clone().count(), NAMED);
+        let (bit, target) = found;
+        assert_eq!(bit.unit(), Some(c"fl"));
+        // A constant always holds its default; the target is the child.
+        assert_eq!(target.is_option_set_to_default(bit), Ok(true));
+        assert!(target.children().next().is_none());
+        let again = class.find(c"int", None, 0, SearchFlags::NONE).unwrap();
+        assert_eq!(again.offset(), int.offset());
+        let names: Vec<_> = walk.map(|e| e.name()).collect();
+        assert_eq!(names.len(), NAMED);
+        drop(o);
+    }
+
+    #[test]
+    fn defaults_are_checked_across_writes_and_frees_on_parent_and_child() {
+        let o = Owned::with_child();
+        for round in 0..4 {
+            {
+                let mut m = exclusive(&o);
+                match round {
+                    0 => {}
+                    1 => {
+                        m.set_int(c"int", 8, SearchFlags::CHILDREN).unwrap();
+                        m.set_bin(c"binary", &[0x0a, 0x0b], SearchFlags::NONE)
+                            .unwrap();
+                        m.set_bin(c"binary", &[1, 2, 3], SearchFlags::CHILDREN)
+                            .unwrap();
+                        m.set(c"string", c"changed", SearchFlags::NONE).unwrap();
+                    }
+                    2 => m.free_options(),
+                    _ => m.set_defaults(),
+                }
+            }
+            let obj = shared(&o);
+            let child = obj.children().next().unwrap();
+            for (k, r) in [obj, child].into_iter().enumerate() {
+                let checked: Vec<_> = r.options().map(|e| r.is_option_set_to_default(e)).collect();
+                assert_eq!(checked.len(), NAMED);
+                assert!(
+                    checked.iter().all(|c| c.is_ok()),
+                    "round {round}: {checked:?}"
+                );
+                // `set_defaults` resets the parent only; the child keeps
+                // round 1's `int` and `binary`.
+                if round == 3 && k == 0 {
+                    assert!(checked.iter().all(|c| *c == Ok(true)), "{checked:?}");
+                }
+            }
+            // An option of another class's table is refused before C reads
+            // its offset in this object.
+            let foreign = with_fake_class(&FAKE, |c| {
+                let e = c.options().iter().next().unwrap();
+                obj.is_option_set_to_default(e)
+            });
+            assert_eq!(foreign, Err(EINVAL));
+        }
+    }
+
+    /// Values C's evaluation turns into undefined behaviour (unchecked
+    /// conversions in builtins, flag operands and rationals out of range),
+    /// and their neighbours.
+    const VALUES: [&CStr; 33] = [
+        c"ld(1e300)",
+        c"st(1e30, 1)",
+        c"gcd(1e300, 2)",
+        c"bitand(1e30, 1)",
+        c"random(1e300)",
+        c"+huge",
+        c"-huge",
+        c"huge",
+        c"+1e30",
+        c"one-1e30",
+        c"+time(0)",
+        c"time(0)",
+        c"1e20",
+        c"-3e9",
+        c"max",
+        c"min",
+        c"all",
+        c"2147483647",
+        c"2147483648",
+        c"-2147483649",
+        c"1e300",
+        c"-1e300",
+        c"nan",
+        c"+nan",
+        c"inf",
+        c"-inf",
+        c"+9223372036854775807",
+        c"+9223372036854775808",
+        c"0/0",
+        c"1/0",
+        c"2147483647/1",
+        c"-2147483648:1",
+        c"3:0",
+    ];
+
+    #[test]
+    fn every_evaluator_on_every_option_refuses_undefined_values() {
+        let o = Owned::with_child();
+        let obj = shared(&o);
+        let class = obj.class();
+        let mut outcomes = 0;
+        for ctx in [EvalContext::from(obj), EvalContext::from(class)] {
+            for e in obj.options() {
+                for val in VALUES {
+                    let mut f = 0x55;
+                    let results = [
+                        e.eval_flags(ctx, val, &mut f).map(|()| f64::from(f)),
+                        e.eval_int(ctx, val).map(f64::from),
+                        e.eval_uint(ctx, val).map(f64::from),
+                        e.eval_int64(ctx, val).map(|v| v as f64),
+                        e.eval_float(ctx, val).map(f64::from),
+                        e.eval_double(ctx, val),
+                        e.eval_rational(ctx, val).map(|q| q.into_raw().num as f64),
+                    ];
+                    for r in results {
+                        match r {
+                            Ok(_) => outcomes += 1,
+                            Err(e) => assert!(e < 0),
+                        }
+                    }
+                }
+            }
+        }
+        assert!(outcomes > 0);
+    }
+
+    /// A class context and its options shared by several threads, each
+    /// evaluating, looking up and querying at once (`Send` / `Sync` on
+    /// `ClassRef` and `OptionDefRef`; an `EvalContext` holds no more than
+    /// its handle, and is not `Send` only because an object's is not).
+    #[test]
+    fn class_contexts_evaluate_on_many_threads() {
+        let o = Owned::new();
+        let class = shared(&o).class();
+        let flags = class.find(c"flags", None, 0, SearchFlags::NONE).unwrap();
+        let int = class.find(c"int", None, 0, SearchFlags::NONE).unwrap();
+        std::thread::scope(|s| {
+            for t in 0..8 {
+                s.spawn(move || {
+                    let ctx = EvalContext::from(class);
+                    for _ in 0..32 {
+                        let mut f = t;
+                        flags.eval_flags(ctx, c"+one+bit-eight", &mut f).unwrap();
+                        assert_eq!(f, (t | 3) & !8);
+                        assert_eq!(int.eval_int(ctx, c"seven+min"), Ok(-3));
+                        assert_eq!(int.eval_int(ctx, c"ld(1e300)"), Err(EINVAL));
+                        let found = class.find(c"seven", Some(c"mode"), 0, SearchFlags::NONE);
+                        assert!(found.is_some());
+                        let b = class
+                            .default_option_ranges(c"int", RangeFlags::NONE)
+                            .unwrap();
+                        assert_eq!(read_all(b.as_ref()), 1);
+                    }
+                });
+            }
+        });
+    }
+
+    /// Lookups, walks, default checks and range queries through shared
+    /// reborrows of one exclusive handle, interleaved with typed writes
+    /// through it and through a child's exclusive handle, on a zeroed object:
+    /// nothing here parses a string, which BorrowSanitizer misreports at
+    /// glibc-written end pointers.
+    #[test]
+    fn lookups_interleave_with_writes_through_reborrows() {
+        let o = Owned::zeroed_with_child();
+        let mut m = exclusive(&o);
+        for i in 0..8 {
+            m.as_mut().set_int(c"int", i, SearchFlags::NONE).unwrap();
+            let r = m.as_ref();
+            let int = r.find(c"int", None, 0, SearchFlags::NONE).unwrap();
+            assert_eq!(r.is_option_set_to_default(int), Ok(i == 7));
+            let (child_int, target) = r
+                .find_with_target(c"int", None, 0, SearchFlags::CHILDREN)
+                .unwrap();
+            assert_eq!(target.is_option_set_to_default(child_int), Ok(false));
+            assert_eq!(r.options().count(), NAMED);
+            let b = r
+                .default_option_ranges(c"int", RangeFlags::CHILDREN)
+                .unwrap();
+            assert_eq!(read_all(b.as_ref()), 1);
+            m.as_mut()
+                .set_double(c"dbl", 2.5 * i as f64, SearchFlags::NONE)
+                .unwrap();
+            let r = m.as_ref();
+            let dbl = r.find(c"dbl", None, 0, SearchFlags::NONE).unwrap();
+            assert_eq!(r.is_option_set_to_default(dbl), Ok(i == 1));
+            {
+                let mut children = m.children_mut();
+                let mut child = children.next_child().unwrap();
+                child.set_int(c"int", 7, SearchFlags::NONE).unwrap();
+            }
+            let (child_int, target) = m
+                .as_ref()
+                .find_with_target(c"int", None, 0, SearchFlags::CHILDREN)
+                .unwrap();
+            assert_eq!(target.is_option_set_to_default(child_int), Ok(true));
+            m.as_mut()
+                .children_mut()
+                .next_child()
+                .unwrap()
+                .set_int(c"int", 0, SearchFlags::NONE)
+                .unwrap();
+        }
     }
 }

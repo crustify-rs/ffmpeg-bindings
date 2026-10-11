@@ -81,10 +81,10 @@ fn under_bsan() -> bool {
 
 /// Serializes the tests here that touch the process-wide log callback, level
 /// or flags; restores the defaults when dropped.
-struct LogState(#[allow(dead_code)] MutexGuard<'static, ()>);
+pub(crate) struct LogState(#[allow(dead_code)] MutexGuard<'static, ()>);
 
 impl LogState {
-    fn lock() -> Self {
+    pub(crate) fn lock() -> Self {
         static LOCK: Mutex<()> = Mutex::new(());
         Self(LOCK.lock().unwrap_or_else(PoisonError::into_inner))
     }
@@ -366,7 +366,7 @@ const ISOLATED: &str = "CRUSTIFY_UB_ISOLATED";
 /// logging through it concurrently (the pointer libc's `strtod` hands back
 /// carries stale provenance while the byte it reads is inside a live
 /// block; formats wave-0 review, batch 1).
-fn isolated(name: &str) -> bool {
+pub(crate) fn isolated(name: &str) -> bool {
     if std::env::var_os(ISOLATED).is_some() {
         return true;
     }

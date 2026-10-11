@@ -1,0 +1,25 @@
+error[E0597]: `class` does not live long enough
+ --> tests/ub_safe/compile_fail/opt_found_option_outlives_object.rs
+  |
+  |     let found = {
+  |         ----- borrow later stored here
+  |         let class = Class::new(c"local", ClassCategory::NA);
+  |             ----- binding `class` declared here
+  |         let bare = BareObject::new(class.as_ref()).unwrap();
+  |                                    ^^^^^ borrowed value does not live long enough
+  |         bare.as_object().find(c"x", None, 0, SearchFlags::NONE)
+  |     };
+  |     - `class` dropped here while still borrowed
+
+error[E0597]: `bare` does not live long enough
+ --> tests/ub_safe/compile_fail/opt_found_option_outlives_object.rs
+  |
+  |     let found = {
+  |         ----- borrow later stored here
+  |         let class = Class::new(c"local", ClassCategory::NA);
+  |         let bare = BareObject::new(class.as_ref()).unwrap();
+  |             ---- binding `bare` declared here
+  |         bare.as_object().find(c"x", None, 0, SearchFlags::NONE)
+  |         ^^^^ borrowed value does not live long enough
+  |     };
+  |     - `bare` dropped here while still borrowed
