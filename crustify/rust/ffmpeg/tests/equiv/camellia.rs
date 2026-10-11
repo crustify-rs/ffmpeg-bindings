@@ -6,7 +6,7 @@ use ffmpeg::libavutil::{
 #[test]
 fn lifecycle_sequences_match_c() {
     // SAFETY: C returns a fresh zero-filled full-sized context, or NULL.
-    // CamelliaBox's Heap policy frees it once with av_free; no C pointer is kept.
+    // CamelliaBox's CamelliaFree policy frees it once with av_free; no C pointer is kept.
     let reference = unsafe { CamelliaBox::from_c(ffi::av_camellia_alloc()) }.unwrap();
     let mut safe = Camellia::new(&[0; 16]).unwrap();
     for len in [16, 24, 32, 16, 32, 24] {

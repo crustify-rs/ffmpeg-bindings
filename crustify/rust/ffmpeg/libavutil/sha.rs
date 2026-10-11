@@ -3,17 +3,17 @@
 //! The body is private to `sha.c`: this opaque layout is used only behind
 //! C-allocated pointers, never as inline storage. There are no public fields,
 //! sub-allocations, retained input pointers, reference counts, or C clone routines.
-//! Owners release their single allocation through [`Heap`]. No `Send` or `Sync`
+//! Owners release their single allocation through [`ShaFree`]. No `Send` or `Sync`
 //! implementation is asserted. Hash update/final operations are left to the
 //! symbol route; initialization is bound here to the object's lifecycle.
 
 use core::fmt;
 use core::ptr::NonNull;
 
-use ffibox::{CNew, define_ctype};
+use ffibox::{CBox, CDrop, CNew, define_ctype};
 
 use super::ffi;
-use super::mem::{Heap, HeapBox};
+use super::mem::Heap;
 
 /// A digest variant supported by this context's initializer.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
@@ -72,7 +72,30 @@ define_ctype!(
 /// exclusive.init(Algorithm::Sha256);
 /// let _ = format!("{shared:?}");
 /// ```
-pub type ShaBox = HeapBox<Sha>;
+///
+/// The opaque layout has no Rust size, so there is no Rust-sized allocation:
+///
+/// ```compile_fail,E0277
+/// use ffmpeg::libavutil::sha::ShaBox;
+/// let _ = ShaBox::new_uninit();
+/// ```
+pub type ShaBox = CBox<Sha, ShaFree>;
+
+/// Storage-only release of an `av_sha_alloc` context. Unlike [`Heap`], it
+/// offers no generic allocator: the opaque layout's Rust size is zero, so
+/// only C can size a SHA context.
+#[derive(Clone, Copy, Debug, Default)]
+pub struct ShaFree;
+
+/// Wraps: av_free
+// SAFETY: ShaBox adopts only `av_sha_alloc` storage, which owns no sub-allocations;
+// Heap's av_free releases that av_malloc-family block once without reading it.
+unsafe impl CDrop<Sha> for ShaFree {
+    unsafe fn c_drop(&self, ptr: NonNull<Sha>) {
+        // SAFETY: CDrop's caller transfers the unique av_malloc-family claim.
+        unsafe { <Heap as CDrop<Sha>>::c_drop(&Heap, ptr) }
+    }
+}
 
 impl Sha {
     /// Wraps: av_sha_alloc
@@ -97,7 +120,7 @@ impl Sha {
             return None;
         }
         // SAFETY: C initialized the context in its own full-sized allocation;
-        // ownership is unique and Heap releases it through av_free once.
+        // ownership is unique and ShaFree releases it through av_free once.
         unsafe { ShaBox::from_c(ptr) }
     }
 }
@@ -118,8 +141,8 @@ impl fmt::Debug for ShaMut<'_> {
 }
 
 // SAFETY: the typed constructor returns a uniquely owned, initialized context
-// in av_malloc-family storage, exactly the allocation Heap's CDrop releases.
-unsafe impl CNew<Sha> for Heap {
+// in av_malloc-family storage, exactly the allocation ShaFree releases.
+unsafe impl CNew<Sha> for ShaFree {
     fn c_new(&self) -> Option<NonNull<Sha>> {
         Sha::new(Algorithm::Sha256).and_then(|owner| NonNull::new(owner.into_raw()))
     }
@@ -184,7 +207,7 @@ mod unit_tests {
         let owner = Sha::new(Algorithm::Sha256).unwrap();
         let ptr = owner.into_c();
         // SAFETY: into_c transferred the sole initialized C allocation; no
-        // handles exist, and Heap remains its matching release policy.
+        // handles exist, and ShaFree remains its matching release policy.
         let mut owner = unsafe { ShaBox::from_c(ptr) }.unwrap();
         owner.as_mut().init(Algorithm::Sha256);
     }

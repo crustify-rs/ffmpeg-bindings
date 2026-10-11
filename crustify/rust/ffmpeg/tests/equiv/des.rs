@@ -120,3 +120,56 @@ fn lifecycle_fields_and_multicall_state_agree() {
     assert_eq!(safe.as_ref().round_keys(), before.1);
     assert_eq!(safe.as_ref().triple_des(), before.0);
 }
+
+#[test]
+fn copies_and_clones_track_c_struct_copies() {
+    let key: Vec<u8> = (0..24).map(|i| (i * 29 + 3) as u8).collect();
+    let raw = Reference::new();
+    // SAFETY: raw owns a live context; the key has the 24 bytes C reads for
+    // 192 bits, and C retains no pointer to it.
+    let ret = unsafe { ffi::av_des_init(raw.0, key.as_ptr(), 192, 0) };
+    assert_eq!(ret, 0);
+    let raw_copy = Reference::new();
+    // SAFETY: two distinct live AVDES allocations; C code copies the struct
+    // by assignment, which this byte copy of its whole size mirrors.
+    unsafe { core::ptr::copy_nonoverlapping(raw.0, raw_copy.0, 1) };
+
+    let original = Des::new_boxed(&key, false).unwrap();
+    let mut boxed = original.clone();
+    let mut inline = Des::new(&key, false).unwrap();
+    let inline_copy = inline;
+    // Diverge the originals: neither the clone nor any copy may follow.
+    drop(original);
+    inline.as_mut().init(&[0x11; 8], false).unwrap();
+    // SAFETY: raw is live; the 8-byte key matches 64 bits and is not retained.
+    let ret = unsafe { ffi::av_des_init(raw.0, [0x11; 8].as_ptr(), 64, 0) };
+    assert_eq!(ret, 0);
+
+    let crypt = |ctx: *mut ffi::AVDES, decrypt: i32| {
+        let input = Blocks(*b"fedcba9876543210");
+        let mut output = Blocks([0; 16]);
+        // SAFETY: ctx is a live keyed context; both buffers are 8-byte aligned
+        // two-block arrays that do not alias, ECB uses no IV, nothing is retained.
+        unsafe {
+            ffi::av_des_crypt(
+                ctx,
+                output.0.as_mut_ptr(),
+                input.0.as_ptr(),
+                2,
+                core::ptr::null_mut(),
+                decrypt,
+            )
+        };
+        output.0
+    };
+    for decrypt in [0, 1] {
+        let expected = crypt(raw_copy.0, decrypt);
+        assert_eq!(crypt(boxed.as_c_ptr(), decrypt), expected);
+    }
+    assert_eq!(boxed.as_ref().round_keys(), raw_copy.fields().1);
+    assert_eq!(inline_copy.as_ref().round_keys(), raw_copy.fields().1);
+    assert_eq!(inline_copy.as_ref().triple_des(), raw_copy.fields().0);
+    assert_eq!(inline.as_ref().round_keys()[0], raw.fields().1[0]);
+    boxed.as_mut().set_triple_des(0);
+    assert_eq!(inline_copy.as_ref().triple_des(), 1);
+}

@@ -7,8 +7,9 @@
 //! calls are serialized; future crypt wrappers must use the same internal
 //! lock. Raw C calls must exclude concurrent initialization/crypt accesses.
 
-use super::{ffi, mem::HeapBox};
-use ffibox::define_ctype;
+use super::{ffi, mem::Heap};
+use core::ptr::NonNull;
+use ffibox::{CBox, CDrop, define_ctype};
 use std::sync::{Mutex, MutexGuard};
 
 define_ctype!(
@@ -21,7 +22,30 @@ define_ctype!(
 
 /// A sole context allocated by `av_camellia_alloc` and freed by `av_free`.
 /// Not `Clone`: its layout is private and C publishes no copy routine.
-pub type CamelliaBox = HeapBox<Camellia>;
+///
+/// The opaque layout has no Rust size, so there is no Rust-sized allocation:
+///
+/// ```compile_fail,E0277
+/// use ffmpeg::libavutil::camellia::CamelliaBox;
+/// let _ = CamelliaBox::new_uninit();
+/// ```
+pub type CamelliaBox = CBox<Camellia, CamelliaFree>;
+
+/// Storage-only release of an `av_camellia_alloc` context. Unlike [`Heap`], it
+/// offers no generic allocator: the opaque layout's Rust size is zero, so
+/// only C can size a Camellia context.
+#[derive(Clone, Copy, Debug, Default)]
+pub struct CamelliaFree;
+
+/// Wraps: av_free
+// SAFETY: CamelliaBox adopts only `av_camellia_alloc` storage, which owns no sub-allocations;
+// Heap's av_free releases that av_malloc-family block once without reading it.
+unsafe impl CDrop<Camellia> for CamelliaFree {
+    unsafe fn c_drop(&self, ptr: NonNull<Camellia>) {
+        // SAFETY: CDrop's caller transfers the unique av_malloc-family claim.
+        unsafe { <Heap as CDrop<Camellia>>::c_drop(&Heap, ptr) }
+    }
+}
 
 /// Failure to construct or initialize a context.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -61,7 +85,7 @@ impl Camellia {
         key_bits(key)?;
         // SAFETY: C returns a fresh av_mallocz allocation of the concrete
         // context's full size, or NULL. All its scalar fields are initialized,
-        // it owns no other resources, and Heap releases it with av_free.
+        // it owns no other resources, and CamelliaFree releases it with av_free.
         let mut context = unsafe { CamelliaBox::from_c(ffi::av_camellia_alloc()) }
             .ok_or(InitError::AllocationFailed)?;
         context.as_mut().init(key)?;

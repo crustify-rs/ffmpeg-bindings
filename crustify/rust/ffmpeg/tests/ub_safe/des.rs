@@ -62,3 +62,37 @@ fn rust_only_layout_projection() {
         assert_eq!(copied.round_keys(), [[flag as u64; 16]; 3]);
     }
 }
+
+#[test]
+fn copies_and_clones_outlive_their_sources() {
+    let mut clones = Vec::new();
+    for len in [8, 24] {
+        let mut source = Des::new_boxed(&vec![0x3C; len], false).unwrap();
+        let first = source.clone();
+        {
+            let mut handle = source.as_mut();
+            handle.as_mut().set_round_keys([[u64::MAX; 16]; 3]);
+            handle.init(&[0x99; 8], true).unwrap();
+        }
+        let second = source.clone();
+        drop(source); // Parent first: clones own separate av_memdup blocks.
+        assert_ne!(first.as_ref().round_keys(), second.as_ref().round_keys());
+        clones.push(first.clone());
+        clones.push(first);
+        clones.push(second);
+    }
+    let allocated = DesBox::new().unwrap();
+    clones.push(allocated.clone());
+    drop(allocated);
+    for clone in &mut clones {
+        let mut copy = clone.clone();
+        copy.as_mut().set_triple_des(-1);
+        clone.as_mut().init(&[0x01; 24], false).unwrap();
+        assert_eq!(copy.as_ref().triple_des(), -1);
+    }
+    // Inline copies are independent values that need no teardown.
+    let mut inline = Des::new(&[0x42; 24], false).unwrap();
+    let copy = inline;
+    inline.as_mut().set_triple_des(0);
+    assert_eq!(copy.as_ref().triple_des(), 1);
+}

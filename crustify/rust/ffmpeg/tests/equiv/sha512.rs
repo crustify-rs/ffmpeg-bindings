@@ -44,7 +44,7 @@ fn probe(owner: &mut Sha512Box, reference: &mut Reference, chunks: &[&[u8]]) -> 
     for chunk in chunks {
         // A real byte address is used for C memcpy even for an empty update.
         let data = if chunk.is_empty() {
-            b"\0".as_ptr()
+            c"".as_ptr().cast()
         } else {
             chunk.as_ptr()
         };

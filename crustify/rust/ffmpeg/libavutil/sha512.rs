@@ -3,17 +3,17 @@
 //! The body is private to `sha512.c`: this opaque layout is used only behind
 //! C-allocated pointers, never as inline storage. There are no public fields,
 //! sub-allocations, retained input pointers, reference counts, or C clone routines.
-//! Owners release their single allocation through [`Heap`]. No `Send` or `Sync`
+//! Owners release their single allocation through [`Sha512Free`]. No `Send` or `Sync`
 //! implementation is asserted. Hash update/final operations are left to the
 //! symbol route; initialization is bound here to the object's lifecycle.
 
 use core::fmt;
 use core::ptr::NonNull;
 
-use ffibox::{CNew, define_ctype};
+use ffibox::{CBox, CDrop, CNew, define_ctype};
 
 use super::ffi;
-use super::mem::{Heap, HeapBox};
+use super::mem::Heap;
 
 /// A digest variant supported by this context's initializer.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
@@ -74,7 +74,30 @@ define_ctype!(
 /// exclusive.init(Algorithm::Sha512);
 /// let _ = format!("{shared:?}");
 /// ```
-pub type Sha512Box = HeapBox<Sha512>;
+///
+/// The opaque layout has no Rust size, so there is no Rust-sized allocation:
+///
+/// ```compile_fail,E0277
+/// use ffmpeg::libavutil::sha512::Sha512Box;
+/// let _ = Sha512Box::new_uninit();
+/// ```
+pub type Sha512Box = CBox<Sha512, Sha512Free>;
+
+/// Storage-only release of an `av_sha512_alloc` context. Unlike [`Heap`], it
+/// offers no generic allocator: the opaque layout's Rust size is zero, so
+/// only C can size a SHA-512 context.
+#[derive(Clone, Copy, Debug, Default)]
+pub struct Sha512Free;
+
+/// Wraps: av_free
+// SAFETY: Sha512Box adopts only `av_sha512_alloc` storage, which owns no sub-allocations;
+// Heap's av_free releases that av_malloc-family block once without reading it.
+unsafe impl CDrop<Sha512> for Sha512Free {
+    unsafe fn c_drop(&self, ptr: NonNull<Sha512>) {
+        // SAFETY: CDrop's caller transfers the unique av_malloc-family claim.
+        unsafe { <Heap as CDrop<Sha512>>::c_drop(&Heap, ptr) }
+    }
+}
 
 impl Sha512 {
     /// Wraps: av_sha512_alloc
@@ -99,7 +122,7 @@ impl Sha512 {
             return None;
         }
         // SAFETY: C initialized the context in its own full-sized allocation;
-        // ownership is unique and Heap releases it through av_free once.
+        // ownership is unique and Sha512Free releases it through av_free once.
         unsafe { Sha512Box::from_c(ptr) }
     }
 }
@@ -120,8 +143,8 @@ impl fmt::Debug for Sha512Mut<'_> {
 }
 
 // SAFETY: the typed constructor returns a uniquely owned, initialized context
-// in av_malloc-family storage, exactly the allocation Heap's CDrop releases.
-unsafe impl CNew<Sha512> for Heap {
+// in av_malloc-family storage, exactly the allocation Sha512Free releases.
+unsafe impl CNew<Sha512> for Sha512Free {
     fn c_new(&self) -> Option<NonNull<Sha512>> {
         Sha512::new(Algorithm::Sha512).and_then(|owner| NonNull::new(owner.into_raw()))
     }
@@ -187,7 +210,7 @@ mod unit_tests {
         let owner = Sha512::new(Algorithm::Sha512).unwrap();
         let ptr = owner.into_c();
         // SAFETY: into_c transferred the sole initialized C allocation; no
-        // handles exist, and Heap remains its matching release policy.
+        // handles exist, and Sha512Free remains its matching release policy.
         let mut owner = unsafe { Sha512Box::from_c(ptr) }.unwrap();
         owner.as_mut().init(Algorithm::Sha512);
     }

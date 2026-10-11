@@ -2,11 +2,13 @@
 //!
 //! C keeps the layout private. The context contains only inline key words and
 //! a round count; no key pointer is retained and there is no clone primitive.
-//! Storage remains C-allocated and is released by the [`super::mem::Heap`] policy.
+//! Storage remains C-allocated and is released by the [`TeaFree`] policy.
 
-use ffibox::define_ctype;
+use core::ptr::NonNull;
 
-use super::{ffi, mem::HeapBox};
+use ffibox::{CBox, CDrop, define_ctype};
+
+use super::{ffi, mem::Heap};
 
 define_ctype!(
     /// Wraps: AVTEA
@@ -35,7 +37,30 @@ define_ctype!(
 );
 
 /// Sole ownership of a C-allocated TEA context, freed with `av_free`.
-pub type TeaBox = HeapBox<Tea>;
+///
+/// The opaque layout has no Rust size, so there is no Rust-sized allocation:
+///
+/// ```compile_fail,E0277
+/// use ffmpeg::libavutil::tea::TeaBox;
+/// let _ = TeaBox::new_uninit();
+/// ```
+pub type TeaBox = CBox<Tea, TeaFree>;
+
+/// Storage-only release of an `av_tea_alloc` context. Unlike [`Heap`], it
+/// offers no generic allocator: the opaque layout's Rust size is zero, so
+/// only C can size a TEA context.
+#[derive(Clone, Copy, Debug, Default)]
+pub struct TeaFree;
+
+/// Wraps: av_free
+// SAFETY: TeaBox adopts only `av_tea_alloc` storage, which owns no sub-allocations;
+// Heap's av_free releases that av_malloc-family block once without reading it.
+unsafe impl CDrop<Tea> for TeaFree {
+    unsafe fn c_drop(&self, ptr: NonNull<Tea>) {
+        // SAFETY: CDrop's caller transfers the unique av_malloc-family claim.
+        unsafe { <Heap as CDrop<Tea>>::c_drop(&Heap, ptr) }
+    }
+}
 
 impl Tea {
     /// Wraps: av_tea_alloc
@@ -45,7 +70,7 @@ impl Tea {
     /// The key is copied, so its borrow ends when this call returns.
     pub fn new(key: &[u8; 16], rounds: i32) -> Option<TeaBox> {
         // SAFETY: the allocator returns fresh, zero-filled C storage with no
-        // nested resources. Heap frees it with the paired av_free. The owner
+        // nested resources. TeaFree frees it with the paired av_free. The owner
         // stays private until init has established the context's key/rounds.
         let mut owner = unsafe { TeaBox::from_c(ffi::av_tea_alloc()) }?;
         owner.as_mut().init(key, rounds);
@@ -105,7 +130,7 @@ mod unit_tests {
         let owner = Tea::new(&[7; 16], 64).unwrap();
         let ptr = owner.into_c();
         // SAFETY: into_c transferred the sole live allocation, still initialized
-        // and paired with Heap's av_free; no borrow remains.
+        // and paired with TeaFree's av_free; no borrow remains.
         let owner = unsafe { TeaBox::from_c(ptr) }.unwrap();
         drop(owner);
     }

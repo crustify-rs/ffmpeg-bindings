@@ -5,9 +5,9 @@
 //! no child allocation. C has no clone, refcount, or field-disposal primitive.
 
 use core::ffi::{CStr, c_int};
-use core::ptr;
+use core::ptr::{self, NonNull};
 
-use ffibox::{CBox, define_ctype, impl_cdrop};
+use ffibox::{CBox, CDrop, define_ctype};
 
 use super::ffi;
 
@@ -31,22 +31,18 @@ define_ctype!(
 #[derive(Clone, Copy, Debug, Default)]
 pub struct HashContextFree;
 
-/// Adapts the C pointer-to-pointer release to ffibox's sole-owner policy.
-///
-/// # Safety
-/// `context` must be the sole live allocation returned by `av_hash_alloc`,
-/// with no outstanding borrows, and must not be released again.
-unsafe fn free_context(context: *mut ffi::AVHashContext) {
-    let mut slot = context;
-    // SAFETY: the policy receives the uniquely owned allocation from
-    // av_hash_alloc. C frees its child and then the context, and clears only
-    // this writable local slot; it does not retain the slot's address.
-    unsafe { ffi::av_hash_freep(&mut slot) };
+// SAFETY: av_hash_freep releases precisely one av_hash_alloc allocation and
+// its children, matching every successful constructor branch.
+unsafe impl CDrop<HashContext> for HashContextFree {
+    unsafe fn c_drop(&self, ptr: NonNull<HashContext>) {
+        // Adapts the C pointer-to-pointer release to the sole-owner policy.
+        let mut slot = ptr.as_ptr().cast::<ffi::AVHashContext>();
+        // SAFETY: CDrop's caller transfers the uniquely owned av_hash_alloc
+        // allocation. C frees its child and then the context, and clears only
+        // this writable local slot; it does not retain the slot's address.
+        unsafe { ffi::av_hash_freep(&mut slot) };
+    }
 }
-
-// SAFETY (of the binding): free_context releases precisely one av_hash_alloc
-// allocation and its children, matching every successful constructor branch.
-impl_cdrop!(HashContextFree, HashContext, free_context);
 
 /// The sole owner of a C hash context. Not `Clone`: copying its private bytes
 /// would duplicate child ownership. Thread traits are intentionally withheld.

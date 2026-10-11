@@ -1,8 +1,10 @@
 //! Safe wrappers over `libavutil/des.h`.
 //!
 //! [`Des`] is resource-free, so it can live inline or behind [`DesBox`].
-//! C retains no pointer passed to initialization. All three key schedules
-//! are initialized, including the two inactive schedules in single-DES mode.
+//! Copies are independent contexts: an inline value is `Copy`, and a box
+//! clones through `av_memdup`. C retains no pointer passed to
+//! initialization. All three key schedules are initialized, including the
+//! two inactive schedules in single-DES mode.
 //! DES is obsolete and should not be used for new security protocols.
 
 use core::ptr::{NonNull, addr_of, addr_of_mut};
@@ -30,6 +32,7 @@ define_ctype!(
     /// }
     /// let _ = view.round_keys();
     /// ```
+    #[derive(Clone, Copy)]
     Des,
     DesRef,
     DesMut,
@@ -37,6 +40,7 @@ define_ctype!(
 );
 
 /// A C-allocated DES context, freed through the existing `av_free` policy.
+/// Cloning copies the context into a fresh `av_memdup` block.
 pub type DesBox = HeapBox<Des>;
 
 // An all-zero context has single-DES mode and zero round keys, accepted by
@@ -111,12 +115,12 @@ impl DesMut<'_> {
     /// two schedules unchanged. The input is read only during this call.
     pub fn init(&mut self, key: &[u8], decrypt: bool) -> Result<(), i32> {
         let bits = key_bits(key.len())?;
+        let mode = i32::from(decrypt);
         // SAFETY: the handle grants exclusive access to a live AVDES, and
         // bits is 64 or 192 with the corresponding 8 or 24 readable key
         // bytes. C reads the key during the call only and initializes the
         // selected schedules without changing the others.
-        let result =
-            unsafe { ffi::av_des_init(self.as_mut_ptr(), key.as_ptr(), bits, i32::from(decrypt)) };
+        let result = unsafe { ffi::av_des_init(self.as_mut_ptr(), key.as_ptr(), bits, mode) };
         if result < 0 { Err(result) } else { Ok(()) }
     }
 
@@ -188,6 +192,39 @@ mod unit_tests {
         // av_malloc-family allocation; no other owner or handle exists.
         let restored = unsafe { DesBox::from_c(raw) }.unwrap();
         assert_eq!(restored.as_ref().round_keys(), keys);
+    }
+
+    // No FFI: also run under Miri to check the by-value copy strategy.
+    #[test]
+    fn inline_copies_are_independent_contexts() {
+        let mut original = Des::zeroed();
+        original.as_mut().set_triple_des(1);
+        original.as_mut().set_round_keys([[7; 16]; 3]);
+        let copy = original;
+        original.as_mut().set_triple_des(0);
+        original.as_mut().set_round_keys([[9; 16]; 3]);
+        assert_eq!(copy.as_ref().triple_des(), 1);
+        assert_eq!(copy.as_ref().round_keys(), [[7; 16]; 3]);
+        assert_eq!(original.as_ref().round_keys(), [[9; 16]; 3]);
+    }
+
+    #[test]
+    fn boxed_clones_are_independent_allocations() {
+        let mut original = Des::new_boxed(&[0x5A; 24], false).unwrap();
+        let clone = original.clone();
+        assert_ne!(clone.as_c_ptr(), original.as_c_ptr());
+        assert_eq!(clone.as_ref().triple_des(), 1);
+        assert_eq!(clone.as_ref().round_keys(), original.as_ref().round_keys());
+        original.as_mut().init(&[0xC3; 8], true).unwrap();
+        assert_eq!(original.as_ref().triple_des(), 0);
+        assert_eq!(clone.as_ref().triple_des(), 1);
+        assert_ne!(
+            clone.as_ref().round_keys()[0],
+            original.as_ref().round_keys()[0]
+        );
+        drop(original);
+        let again = clone.clone();
+        assert_eq!(again.as_ref().round_keys(), clone.as_ref().round_keys());
     }
 
     #[test]
