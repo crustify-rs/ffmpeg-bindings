@@ -930,11 +930,21 @@ define_ctype!(
     ///
     /// C stores these as an array in side data and nothing allocates, frees
     /// or copies one on its own, so it is a value type with no owner. Each
-    /// element records its own size, `self_size`, which readers of the array
-    /// take as its stride and as the divisor of the payload size, and reject
-    /// when it is 0; [`new`](Self::new) sets it to the size of this struct.
-    /// No field is checked, by libavutil or here: encoders reject regions
-    /// they cannot use, such as a quantisation offset with a zero
+    /// element records its own size, `self_size`, which C requires to be
+    /// [`SELF_SIZE`](Self::SELF_SIZE), the size of this struct; [`new`](Self::new)
+    /// and [`Default`] set it so. Readers of the array take the first
+    /// element's `self_size` as its stride and as the divisor of the payload
+    /// size, and check only that it is not 0 and divides the size: then they
+    /// read a whole struct at every stride. Any other `self_size` therefore
+    /// misleads them. A smaller one passes their check and makes them read
+    /// past the payload's end (`vf_showinfo`, `vf_addroi`, and the encoders'
+    /// ROI readers), and 0 is an error to most of them but aborts the process
+    /// in `vf_addroi` (`av_assert0`). Nothing here stores regions in side
+    /// data, so a wrapper that hands such a payload to C must check every
+    /// element's `self_size` first.
+    ///
+    /// No other field is checked, by libavutil or here: encoders reject
+    /// regions they cannot use, such as a quantisation offset with a zero
     /// denominator.
     ///
     /// The offset's exclusive handle freezes the region's while it lives:
@@ -955,9 +965,10 @@ define_ctype!(
 );
 
 // SAFETY: all-zero is an empty region with a `0/0` offset and a `self_size`
-// of 0, all plain integers every accessor reads as they are; the type has no
-// teardown to reject it, and C's readers of side data reject a zero
-// `self_size` with an error, not by misbehaving.
+// of 0, all plain integers every accessor reads as they are, and the type has
+// no teardown to reject it. No safe wrapper hands a region to C: a zero
+// `self_size` is a C error, or an abort in vf_addroi, once side data carries
+// it, as the type's docs say.
 unsafe impl CZeroable for RegionOfInterest {}
 
 // SAFETY: an `AVRegionOfInterest` is 28 bytes of plain data, a `uint32_t`
@@ -1165,8 +1176,9 @@ impl<'a> RegionOfInterestRef<'a> {
 impl RegionOfInterestMut<'_> {
     /// Field: AVRegionOfInterest.self_size
     ///
-    /// Sets the size this element claims; C's readers need
-    /// [`RegionOfInterest::SELF_SIZE`].
+    /// Sets the size this element claims; C requires
+    /// [`RegionOfInterest::SELF_SIZE`], and its readers read past the side
+    /// data payload for a smaller nonzero size (see [`RegionOfInterest`]).
     pub fn set_self_size(&mut self, self_size: u32) {
         // SAFETY: a write of the `self_size` field projected through the
         // exclusive handle's pointer to a live `AVRegionOfInterest`; the old
