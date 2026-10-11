@@ -1,7 +1,8 @@
 //! UB tests for `libavutil/buffer.h`'s unsafe `BufferPool::with_allocator`,
 //! each allocator within its `# Safety` contract: it returns NULL or a sole,
 //! writable reference whose buffer holds at least the pool's size, releasable
-//! on any thread, and never requests a buffer from its own pool.
+//! on any thread, and neither it nor those buffers' free callbacks call into
+//! its own pool.
 //!
 //! Buffers are requested through C's `av_buffer_pool_get` on the owner's raw
 //! seam until `AVBufferRef` has a safe owner.
@@ -314,4 +315,56 @@ fn custom_buffers_keep_their_opaque_and_free() {
     drop(b);
     // Both entries went back through their own free when the pool went.
     assert_eq!(frees.load(Ordering::SeqCst), 2);
+}
+
+/// The buffer of another pool that `release_kept` returns, at most once.
+static KEPT: Mutex<Option<Owned>> = Mutex::new(None);
+
+/// `av_buffer_create` frees that also return `KEPT` to its own pool.
+unsafe extern "C" fn release_kept(_opaque: *mut c_void, data: *mut u8) {
+    // SAFETY: `data` came from av_malloc in
+    // `free_callbacks_may_release_buffers_of_other_pools`, freed once here.
+    unsafe { ffi::av_free(data.cast()) };
+    drop(KEPT.lock().unwrap().take());
+}
+
+/// The contract bars the free callbacks of the allocator's buffers from
+/// calling into their own pool, whose mutex C holds while dropping the owner
+/// flushes them; another pool's buffers are theirs to release.
+#[test]
+fn free_callbacks_may_release_buffers_of_other_pools() {
+    let other = BufferPool::new(32).unwrap();
+    // SAFETY: each call wraps `size` fresh av_malloc bytes in a sole,
+    // writable reference whose free (`release_kept`) runs on any thread and
+    // calls into `other` only, never this pool.
+    let pool = unsafe {
+        BufferPool::with_allocator(16, |size| {
+            let data = ffi::av_malloc(size).cast::<u8>();
+            if data.is_null() {
+                return ptr::null_mut();
+            }
+            let buf = ffi::av_buffer_create(data, size, Some(release_kept), ptr::null_mut(), 0);
+            if buf.is_null() {
+                ffi::av_free(data.cast());
+            }
+            buf
+        })
+    }
+    .unwrap();
+    let (a, b) = (Owned::get(&pool).unwrap(), Owned::get(&pool).unwrap());
+    drop(a);
+    let kept = Owned::get(&other).unwrap();
+    kept.fill(3);
+    *KEPT.lock().unwrap() = Some(kept);
+    // `a`'s entry is flushed under this pool's mutex; its free returns `kept`
+    // to `other`, locking only that pool's mutex.
+    thread::spawn(move || drop(pool)).join().unwrap();
+    assert!(KEPT.lock().unwrap().is_none());
+    // The last buffer frees the pool and, through `release_kept`, its data.
+    b.fill(4);
+    drop(b);
+    let again = Owned::get(&other).unwrap();
+    again.fill(6);
+    drop(other);
+    drop(again);
 }

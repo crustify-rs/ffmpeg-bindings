@@ -238,9 +238,12 @@ impl BufferPool {
     /// - be releasable by its buffer's free callback on any thread, at any
     ///   time until the pool is freed.
     ///
-    /// `alloc` must not call into this same pool: requesting one of its
-    /// buffers, releasing the last reference to one, or dropping its owner
-    /// all lock the pool mutex C holds during the call.
+    /// Neither `alloc` nor the free callback of a buffer it returns may call
+    /// into this same pool: requesting one of its buffers, releasing the last
+    /// reference to one, or dropping its owner all lock the pool mutex. C
+    /// holds that mutex during every `alloc` call, and while dropping the
+    /// owner hands the pool's free buffers to their free callbacks; the
+    /// pool's final release runs those callbacks as it frees the pool.
     pub unsafe fn with_allocator<F>(size: usize, alloc: F) -> Option<BufferPoolBox>
     where
         F: FnMut(usize) -> *mut ffi::AVBufferRef + Send + 'static,
@@ -541,6 +544,57 @@ mod unit_tests {
             .args([
                 "--exact",
                 "libavutil::buffer::unit_tests::entry_allocation_failure_releases_the_new_buffer",
+                "--test-threads=1",
+            ])
+            .env(FLAG, "1")
+            .status()
+            .unwrap();
+        assert!(status.success());
+    }
+
+    #[test]
+    #[cfg_attr(miri, ignore)]
+    fn recycled_entry_stays_free_when_its_reference_cannot_be_allocated() {
+        const FLAG: &str = "CRUSTIFY_BUFFER_POOL_RECYCLE_FAILURE_CHILD";
+        if std::env::var_os(FLAG).is_some() {
+            let calls = Arc::new(AtomicUsize::new(0));
+            let seen = calls.clone();
+            // SAFETY: av_buffer_alloc returns NULL or a sole, writable 8-byte
+            // reference; the allocator never touches the pool.
+            let pool = unsafe {
+                BufferPool::with_allocator(8, move |size| {
+                    seen.fetch_add(1, Ordering::SeqCst);
+                    ffi::av_buffer_alloc(size)
+                })
+            }
+            .unwrap();
+            let first = get(&pool);
+            assert!(!first.is_null());
+            // SAFETY: a live reference of this test's.
+            let data = unsafe { (*first).data };
+            unref(first);
+            // Reusing the free entry needs only a new 24-byte AVBufferRef,
+            // which a 16-byte limit refuses: C fails the request and keeps
+            // the entry listed, without calling the allocator.
+            // SAFETY: this isolated child runs only this exact test, so no
+            // concurrent C allocator reads or writes the process-wide limit.
+            unsafe { ffi::av_max_alloc(16) };
+            assert!(get(&pool).is_null());
+            // SAFETY: as above; C's default limit.
+            unsafe { ffi::av_max_alloc(i32::MAX as usize) };
+            let again = get(&pool);
+            assert!(!again.is_null());
+            // SAFETY: a live reference of this test's.
+            assert_eq!(unsafe { (*again).data }, data);
+            assert_eq!(calls.load(Ordering::SeqCst), 1);
+            unref(again);
+            drop(pool);
+            return;
+        }
+        let status = std::process::Command::new(std::env::current_exe().unwrap())
+            .args([
+                "--exact",
+                "libavutil::buffer::unit_tests::recycled_entry_stays_free_when_its_reference_cannot_be_allocated",
                 "--test-threads=1",
             ])
             .env(FLAG, "1")

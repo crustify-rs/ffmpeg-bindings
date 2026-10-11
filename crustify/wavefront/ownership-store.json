@@ -150,7 +150,7 @@
       },
       "nullable": false,
       "mutable": false,
-      "note": "av_buffer_pool_init's allocator, or av_buffer_alloc when NULL; init2 stores av_buffer_alloc as the fallback. Called by pool_alloc_buffer under the pool mutex with pool->size when alloc2 is NULL; its result must be a sole, writable reference whose AVBuffer data holds at least size bytes (recycled references reuse buffer->data with pool->size)."
+      "note": "av_buffer_pool_init's allocator, or av_buffer_alloc when NULL; init2 stores av_buffer_alloc as the fallback. Called by pool_alloc_buffer under the pool mutex with pool->size when alloc2 is NULL; its result must be a sole, writable reference whose AVBuffer data holds at least size bytes (recycled references reuse buffer->data with pool->size). The result's AVBuffer keeps its own free(opaque, data) callback in the BufferPoolEntry, and buffer_pool_flush calls it when the entry is flushed: under the pool mutex from av_buffer_pool_uninit, and unlocked from buffer_pool_free as the pool is freed; that callback must therefore not lock the pool either (no av_buffer_pool_get, no release of the last reference to one of its buffers, no av_buffer_pool_uninit), or the default, non-recursive mutex is locked twice on one thread."
      }
     },
     {
@@ -167,7 +167,7 @@
       },
       "nullable": true,
       "mutable": false,
-      "note": "av_buffer_pool_init2's allocator (NULL selects alloc = av_buffer_alloc); takes precedence over alloc. Called by pool_alloc_buffer under the pool mutex with (opaque, pool->size), with the same result contract as alloc."
+      "note": "av_buffer_pool_init2's allocator (NULL selects alloc = av_buffer_alloc); takes precedence over alloc. Called by pool_alloc_buffer under the pool mutex with (opaque, pool->size), with the same result contract as alloc. The result's AVBuffer keeps its own free(opaque, data) callback in the BufferPoolEntry, and buffer_pool_flush calls it when the entry is flushed: under the pool mutex from av_buffer_pool_uninit, and unlocked from buffer_pool_free as the pool is freed; that callback must therefore not lock the pool either (no av_buffer_pool_get, no release of the last reference to one of its buffers, no av_buffer_pool_uninit), or the default, non-recursive mutex is locked twice on one thread."
      }
     },
     {

@@ -215,9 +215,12 @@ mod side_data_type {
         fn get(&self, t: SideDataType) -> Option<SideDataType> {
             // SAFETY: `self.0` is a live frame.
             let sd = unsafe { ffi::av_frame_get_side_data(self.0, t.into_raw()) };
+            if sd.is_null() {
+                return None;
+            }
             // SAFETY: a non-NULL result is one of the frame's live entries.
-            (!sd.is_null())
-                .then(|| SideDataType::from_raw(unsafe { ptr::addr_of!((*sd).type_).read() }))
+            let raw = unsafe { ptr::addr_of!((*sd).type_).read() };
+            Some(SideDataType::from_raw(raw))
         }
 
         fn remove(&mut self, t: SideDataType) {
