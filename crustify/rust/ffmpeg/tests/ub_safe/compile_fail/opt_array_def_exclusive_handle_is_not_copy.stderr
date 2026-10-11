@@ -1,0 +1,9 @@
+error[E0382]: use of moved value: `m`
+ --> tests/ub_safe/compile_fail/opt_array_def_exclusive_handle_is_not_copy.rs
+  |
+  |     let m = d.as_mut();
+  |         - move occurs because `m` has type `OptionArrayDefMut<'_>`, which does not implement the `Copy` trait
+  |     let mut a = m;
+  |                 - value moved here
+  |     let mut b = m;
+  |                 ^ value used here after move

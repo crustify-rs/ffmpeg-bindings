@@ -533,3 +533,12 @@ function av_get_known_color_name
 # libavutil/dict.h: reads an AV_OPT_TYPE_DICT option's dictionary back in
 # av_set_options_string's equivalence tests.
 function av_dict_get
+
+# libavutil/eval.h: AVExpr's lifecycle (options wave 0, batch 1), and the
+# evaluator and counters that read a parsed tree, the C references for the
+# expression equivalence tests.
+function av_expr_parse
+function av_expr_free
+function av_expr_eval
+function av_expr_count_vars
+function av_expr_count_func

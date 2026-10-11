@@ -393,6 +393,79 @@
    "fields": []
   },
   {
+   "name": "AVExpr",
+   "defined_in": "libavutil/eval.c",
+   "_comment_agent": "Opaque outside eval.c (public eval.h only forward-declares it). A parsed expression is a tree of av_mallocz'd nodes; av_expr_parse av_reallocs the root into an AVExprRoot (cast to/from) holding two owned av_mallocz blocks, var[VARS] (st/ld registers, written by av_expr_eval) and prng_state[VARS]. Lifecycle: av_expr_parse (alloc constructor through AVExpr **) and av_expr_free (recursive dropper, NULL-tolerant); no clone. Constant names and function-name arrays are read only during parsing; const_index records the position, so av_expr_eval reads const_values[const_index] unchecked. Rust: CBox<Expr, ExprFree> (crustify/rust/ffmpeg/libavutil/eval.rs, options wave 0 batch 1).",
+   "fields": [
+    {
+     "name": "(unknown field).func0",
+     "ptr": {
+      "scalar": {
+       "by_val": true
+      },
+      "array": null,
+      "string": false,
+      "owned": false,
+      "borrowed": {
+       "lifetime": "static"
+      },
+      "nullable": true,
+      "mutable": false,
+      "note": "Anonymous-union member valid only when type == e_func0: a libm builtin (sin, exp, ...) or eval.c's etime, chosen by parse_primary; program-lifetime code, never freed. Read by eval_expr only."
+     }
+    },
+    {
+     "name": "(unknown field).func1",
+     "ptr": {
+      "scalar": {
+       "by_val": true
+      },
+      "array": null,
+      "string": false,
+      "owned": false,
+      "borrowed": {
+       "lifetime": "other"
+      },
+      "nullable": true,
+      "mutable": false,
+      "note": "Union member valid only when type == e_func1: a copy of av_expr_parse's funcs1[i] for the matched func1_names[i]; the caller's function, which must stay callable while the expression is evaluated (code: in practice static). The funcs1 array itself is not retained. Called by eval_expr with av_expr_eval's opaque."
+     }
+    },
+    {
+     "name": "(unknown field).func2",
+     "ptr": {
+      "scalar": {
+       "by_val": true
+      },
+      "array": null,
+      "string": false,
+      "owned": false,
+      "borrowed": {
+       "lifetime": "other"
+      },
+      "nullable": true,
+      "mutable": false,
+      "note": "As func1, for type == e_func2 and funcs2/func2_names."
+     }
+    },
+    {
+     "name": "param",
+     "ptr": {
+      "scalar": {
+       "by_val": true
+      },
+      "array": null,
+      "string": false,
+      "owned": true,
+      "borrowed": null,
+      "nullable": true,
+      "mutable": true,
+      "note": "Each of the 3 slots is NULL or an owned child node av_mallocz'd by parse_primary/make_eval_expr and released recursively by av_expr_free; written only during parsing. Children are never shared between parents (the do-nothing '(' path hands the inner node up instead of linking it twice)."
+     }
+    }
+   ]
+  },
+  {
    "name": "AVLumaCoefficients",
    "defined_in": "libavutil/csp.h",
    "_comment_agent": "formats wave-1 batch-1 (wrap): three AVRational values by value (cr, cg, cb), no pointer fields, no allocator, disposer or cloner. C's only producer is av_csp_luma_coeffs_from_avcsp, which returns a const pointer into the static const luma_coefficients[AVCOL_SPC_NB] table (a 'static shared borrow, never written) or NULL for out-of-range ids and all-zero entries (cr.num == 0). Consumers (libswscale/format.c, libavfilter colorspace/drawutils/tonemap) read fields or copy the struct by value. All-zero is valid (the table's unset entries). Wrapped as a value type with RationalRef/RationalMut handles over the projected fields.",
@@ -490,6 +563,28 @@
       "mutable": false,
       "nullable": true,
       "note": "String literal in a static const option table; NULL when the option belongs to no unit."
+     }
+    }
+   ]
+  },
+  {
+   "name": "AVOptionArrayDef",
+   "defined_in": "libavutil/opt.h",
+   "_comment_agent": "Plain static const descriptor reached through AVOption.default_val.arr of an array option (AV_OPT_TYPE_FLAG_ARRAY); no C routine allocates, copies or frees one. size_min/size_max bound element counts in opt_set_array and av_opt_set_array (size_max 0 = unlimited); sep 0 means ','; av_opt_set_defaults2 av_assert0s that sep is not alphanumeric or a backslash. Rust: OptionArrayDef layout with Ref/Mut handles, CZeroable (all-zero is no default, unlimited, comma), def settable only to a &'static CStr (crustify/rust/ffmpeg/libavutil/opt.rs).",
+   "fields": [
+    {
+     "name": "def",
+     "ptr": {
+      "scalar": null,
+      "array": null,
+      "string": true,
+      "owned": false,
+      "borrowed": {
+       "lifetime": "static"
+      },
+      "nullable": true,
+      "mutable": false,
+      "note": "Default value serialized with sep; NULL for none. Every definition is a static const table entry (iamf.c demixing_matrix_def, filter/codec option tables) and def a string literal; C never writes or frees it. Read by av_opt_set_defaults2 (opt_set_array), av_opt_is_set_to_default and log_default (av_opt_show2)."
      }
     }
    ]
@@ -3195,6 +3290,202 @@
       "nullable": false,
       "mutable": false,
       "note": "String to escape, read up to its NUL by av_bprint_escape for the call only. Must not be NULL."
+     }
+    }
+   ]
+  },
+  {
+   "name": "av_expr_free",
+   "defined_in": "libavutil/eval.c",
+   "lifetime": {
+    "for": "e",
+    "is_dropper": true,
+    "is_disposer": false,
+    "is_cloner": null,
+    "is_constructor": null
+   },
+   "ptr_args": [
+    {
+     "name": "e",
+     "ptr": {
+      "scalar": {
+       "by_val": true
+      },
+      "array": null,
+      "string": false,
+      "owned": true,
+      "borrowed": null,
+      "nullable": true,
+      "mutable": true,
+      "note": "Takes ownership of an expression tree (root or sub-node) and frees it recursively: param[0..3], and for a root the var and prng_state blocks, then the node; NULL is a no-op."
+     }
+    }
+   ]
+  },
+  {
+   "name": "av_expr_parse",
+   "defined_in": "libavutil/eval.c",
+   "lifetime": {
+    "for": "expr",
+    "is_dropper": false,
+    "is_disposer": false,
+    "is_cloner": null,
+    "is_constructor": {
+     "alloc": true,
+     "init": false
+    }
+   },
+   "ptr_args": [
+    {
+     "name": "const_names",
+     "ptr": {
+      "scalar": null,
+      "array": {
+       "by_ref": {
+        "owned": null,
+        "borrowed": {
+         "lifetime": "arg:const_names"
+        }
+       }
+      },
+      "string": false,
+      "owned": false,
+      "borrowed": {
+       "lifetime": "arg:const_names"
+      },
+      "nullable": true,
+      "mutable": false,
+      "note": "NULL or a NULL-terminated array of NUL-terminated names, read only during the call; the matched index is stored as const_index, so av_expr_eval's const_values must cover every index used."
+     }
+    },
+    {
+     "name": "expr",
+     "ptr": {
+      "scalar": {
+       "by_ref": {
+        "owned": true,
+        "borrowed": null
+       }
+      },
+      "array": null,
+      "string": false,
+      "owned": false,
+      "borrowed": {
+       "lifetime": "arg:expr"
+      },
+      "nullable": false,
+      "mutable": true,
+      "note": "Out-parameter slot, written only on success (left untouched on failure); must be non-NULL. On success the slot receives a fresh AVExprRoot the caller owns and frees with av_expr_free."
+     }
+    },
+    {
+     "name": "func1_names",
+     "ptr": {
+      "scalar": null,
+      "array": {
+       "by_ref": {
+        "owned": null,
+        "borrowed": {
+         "lifetime": "arg:func1_names"
+        }
+       }
+      },
+      "string": false,
+      "owned": false,
+      "borrowed": {
+       "lifetime": "arg:func1_names"
+      },
+      "nullable": true,
+      "mutable": false,
+      "note": "NULL or a NULL-terminated name array, read only during the call; funcs1 must have an entry for every name."
+     }
+    },
+    {
+     "name": "func2_names",
+     "ptr": {
+      "scalar": null,
+      "array": {
+       "by_ref": {
+        "owned": null,
+        "borrowed": {
+         "lifetime": "arg:func2_names"
+        }
+       }
+      },
+      "string": false,
+      "owned": false,
+      "borrowed": {
+       "lifetime": "arg:func2_names"
+      },
+      "nullable": true,
+      "mutable": false,
+      "note": "As func1_names, for two-argument functions."
+     }
+    },
+    {
+     "name": "funcs1",
+     "ptr": {
+      "scalar": null,
+      "array": {
+       "by_val": true
+      },
+      "string": false,
+      "owned": false,
+      "borrowed": {
+       "lifetime": "arg:funcs1"
+      },
+      "nullable": true,
+      "mutable": false,
+      "note": "Array of function pointers indexed like func1_names (read at the matched index only); the pointer value is copied into the node, the array is not retained. The functions must stay callable while the expression lives."
+     }
+    },
+    {
+     "name": "funcs2",
+     "ptr": {
+      "scalar": null,
+      "array": {
+       "by_val": true
+      },
+      "string": false,
+      "owned": false,
+      "borrowed": {
+       "lifetime": "arg:funcs2"
+      },
+      "nullable": true,
+      "mutable": false,
+      "note": "As funcs1, for two-argument functions."
+     }
+    },
+    {
+     "name": "log_ctx",
+     "ptr": {
+      "scalar": {
+       "by_val": true
+      },
+      "array": null,
+      "string": false,
+      "owned": false,
+      "borrowed": {
+       "lifetime": "arg:log_ctx"
+      },
+      "nullable": true,
+      "mutable": false,
+      "note": "Parent log context of the Parser's Eval class (parent_log_context_offset): NULL or an object whose first member is a const AVClass *, read by av_log only during the call."
+     }
+    },
+    {
+     "name": "s",
+     "ptr": {
+      "scalar": null,
+      "array": null,
+      "string": true,
+      "owned": false,
+      "borrowed": {
+       "lifetime": "arg:s"
+      },
+      "nullable": false,
+      "mutable": false,
+      "note": "Expression text, copied without whitespace into a temporary av_malloc block; read only during the call (also quoted in error logs)."
      }
     }
    ]

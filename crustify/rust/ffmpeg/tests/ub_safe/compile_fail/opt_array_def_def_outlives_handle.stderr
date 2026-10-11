@@ -1,0 +1,7 @@
+error: lifetime may not live long enough
+ --> tests/ub_safe/compile_fail/opt_array_def_def_outlives_handle.rs
+  |
+  | fn def<'a>(d: OptionArrayDefRef<'a>) -> Option<&'static CStr> {
+  |        -- lifetime `'a` defined here
+  |     d.def()
+  |     ^^^^^^^ returning this value requires that `'a` must outlive `'static`

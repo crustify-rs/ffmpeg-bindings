@@ -1,0 +1,9 @@
+error[E0308]: mismatched types
+ --> tests/ub_safe/compile_fail/eval_function_must_be_safe.rs
+  |
+  |     let _ = Expr::parse(c"f(1)", &[], &[(c"f", deref)], &[], 0);
+  |                                                ^^^^^ expected safe fn, found unsafe fn
+  |
+  = note: expected fn pointer `extern "C" fn(*mut c_void, f64) -> f64`
+                found fn item `unsafe extern "C" fn(*mut c_void, f64) -> f64 {deref}`
+  = note: unsafe functions cannot be coerced into safe function pointers
