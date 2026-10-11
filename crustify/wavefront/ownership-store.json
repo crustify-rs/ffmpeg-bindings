@@ -30,6 +30,12 @@
    ]
   },
   {
+   "name": "AVCAST5",
+   "defined_in": "libavutil/cast5.c",
+   "_comment_agent": "Opaque in cast5.h. Concrete private body contains two 17-element u32 arrays and rounds, no pointer fields or resources. av_cast5_alloc returns fresh av_mallocz storage, released by av_free; av_cast5_init copies a 5..16-byte key, sets rounds=12 or 16 and writes keys in place. C crypt routines only read context. No C clone/dispose/refcount and no retained buffers. Public fields: none. Consumers in libavutil/tests/cast5.c free with av_free; tools/crypto_bench.c retains a process-lifetime static allocation.",
+   "fields": []
+  },
+  {
    "name": "AVCIExy",
    "defined_in": "libavutil/csp.h",
    "_comment_agent": "Plain by-value pair of AVRational (x, y): the CIE 1931 chromaticity coordinates; no pointer fields, no heap lifecycle. Also spelled AVWhitepointCoefficients (typedef). C never allocates, frees, clones or constructs one on its own: it lives embedded by value as AVPrimaryCoefficients.r/g/b and AVColorPrimariesDesc.wp, in csp.c's static const color_primaries table (handed out as a const pointer by av_csp_primaries_desc_from_id, read field by field by av_csp_primaries_id_from_desc), and is passed and copied by value by its other readers and writers (swscale csputils cie_X/cie_Z/test_point_line, ff_cie_xy_equal; dovi_rpudec get_cie_xy returns one by value; fflcms2 XYZ_xy writes through an out pointer; pngdec/pngenc, vf_colorspace, colorspace.c read the fields). No coordinate is range-checked: C's table holds fractions such as 3127/10000, unspecified primaries are all-zero (0/0 coordinates, skipped by av_csp_primaries_id_from_desc on r.x.num == 0), and decoders store whatever the bitstream carries, so all-zero is a valid value. Wrapped as the ffibox layout type CieXy (CZeroable, Copy, Send + Sync as plain data) with CieXyRef x/y getters returning RationalRef handles over the projected places, and CieXyMut x_mut/y_mut handles plus set_x/set_y/set.",
@@ -45,6 +51,12 @@
      "locked_by": null
     }
    ]
+  },
+  {
+   "name": "AVCRCId",
+   "defined_in": "libavutil/crc.h",
+   "_comment_agent": "Resource-free scalar enum. All eight public polynomial encodings preserved, AV_CRC_MAX is a private sentinel, unknown encodings preserved. av_crc_get_table bounds-checks before indexing and returns immutable static storage (17-entry arch-specific data or 257/1024-entry ordinary tables); no fixed-length slice can be assumed.",
+   "fields": []
   },
   {
    "name": "AVChannel",
@@ -1539,6 +1551,84 @@
      "note": "Array of nmemb elements of size bytes, ZEROED (av_mallocz); also one zeroed object when nmemb is 1 (av_calloc(1, sizeof(RNNModel)) in libavfilter/af_arnndn.c, av_calloc(1, sizeof(*fc->ft)) in libavcodec/vvc/thread.c). NULL also when nmemb*size overflows size_t. Fresh av_malloc storage: posix_memalign(ALIGN) with ALIGN = 64/32/16 by SIMD config (16 is the floor); size 0 yields a 1-byte block, so NULL means failure: size > max_alloc_size (INT_MAX by default, av_max_alloc) or OOM. Released by av_free/av_freep."
     }
    }
+  },
+  {
+   "name": "av_cast5_alloc",
+   "defined_in": "libavutil/cast5.c",
+   "lifetime": {
+    "for": "return",
+    "is_dropper": false,
+    "is_disposer": false,
+    "is_cloner": null,
+    "is_constructor": {
+     "alloc": true,
+     "init": false
+    }
+   },
+   "ptr_ret": {
+    "ptr": {
+     "scalar": {
+      "by_val": true
+     },
+     "array": null,
+     "string": false,
+     "owned": true,
+     "borrowed": null,
+     "nullable": true,
+     "mutable": true,
+     "note": "Fresh sole-owned zero-filled AVCAST5 allocation; av_free releases it, no suballocations. Must initialize key before crypt."
+    }
+   }
+  },
+  {
+   "name": "av_cast5_init",
+   "defined_in": "libavutil/cast5.c",
+   "lifetime": {
+    "for": "cs",
+    "is_dropper": false,
+    "is_disposer": false,
+    "is_cloner": null,
+    "is_constructor": {
+     "alloc": false,
+     "init": true
+    }
+   },
+   "ptr_args": [
+    {
+     "name": "cs",
+     "ptr": {
+      "scalar": {
+       "by_val": true
+      },
+      "array": null,
+      "string": false,
+      "owned": false,
+      "borrowed": {
+       "lifetime": "call"
+      },
+      "nullable": false,
+      "mutable": true,
+      "note": "Exclusive borrow of full C-sized context; only writes private round keys, retains no pointer."
+     }
+    },
+    {
+     "name": "key",
+     "ptr": {
+      "scalar": null,
+      "array": {
+       "by_val": true
+      },
+      "string": false,
+      "owned": false,
+      "borrowed": {
+       "lifetime": "call"
+      },
+      "nullable": false,
+      "mutable": false,
+      "note": "Reads key_bits/8 bytes only after validating bits in 40..128 and divisible by 8; copied into local key, never retained. Invalid lengths return before any memory access."
+     }
+    }
+   ]
   },
   {
    "name": "av_ceil_log2_c",

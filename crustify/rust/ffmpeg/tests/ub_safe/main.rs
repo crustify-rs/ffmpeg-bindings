@@ -5,6 +5,8 @@ mod avstring;
 mod avutil;
 mod bprint;
 mod bswap;
+mod cast5;
+mod crc;
 mod channel_layout;
 mod common;
 mod cpu;

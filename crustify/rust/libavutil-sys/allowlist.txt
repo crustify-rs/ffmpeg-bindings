@@ -634,3 +634,10 @@ function av_sha512_alloc
 function av_sha512_init
 function av_sha512_update
 function av_sha512_final
+
+# Crypto wave 0, batch 2: CAST5 lifecycle and the C observations used by
+# constructor/reinitialization equivalence tests; CRC identifier lookup.
+function av_cast5_alloc
+function av_cast5_init
+function av_cast5_crypt
+function av_crc_get_table
