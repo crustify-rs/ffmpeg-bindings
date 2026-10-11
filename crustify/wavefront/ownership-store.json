@@ -374,6 +374,12 @@
    ]
   },
   {
+   "name": "AVDES",
+   "defined_in": "libavutil/des.h",
+   "_comment_agent": "des.h publishes resource-free scalar triple_des and uint64_t[3][16] round_keys. des.c allocator av_des_alloc uses av_mallocz; contexts are also stack-allocated in tests and freed by av_free/av_freep in libavformat. av_des_init reads exactly 8 or 24 key bytes and retains nothing. Only active key rows are initialized by init; safe wrapper zeroes every row first. Any integer flag and round keys remain memory-safe; no cloner, refcount, lock, disposer, or pointer field.",
+   "fields": []
+  },
+  {
    "name": "AVDictionary",
    "defined_in": "libavutil/dict.c",
    "_comment_agent": "Opaque outside dict.c: public code holds AVDictionary only as a pointer, NULL meaning the empty dictionary everywhere (av_dict_count/get/iterate/copy/get_string accept NULL). No constructor or init routine: a dictionary comes into being when av_dict_set (also av_dict_parse_string and av_dict_copy, through it) inserts into a NULL *pm, and av_dict_set frees it and NULLs *pm when its last entry goes, so mutation needs the AVDictionary ** slot. Releaser: av_dict_free(&p) (NULL-safe, NULLs the slot). Deep copy: av_dict_copy(&dst = NULL, src, AV_DICT_MULTIKEY) appends every entry in order, duplicates included (flags 0 would collapse case-insensitive duplicate keys); on failure dst holds a partial copy the caller frees. No refcount, lock or thread affinity: storage is av_malloc'd and the const-taking readers never write. Rust (options wave 0): define_ctype!(Dictionary) opaque, DictionaryFree = av_dict_free + av_dict_copy(MULTIKEY), DictionaryBox = CBox<Dictionary, DictionaryFree> for a non-empty dictionary, and Dict = Option<DictionaryBox> for C's nullable slot.",
@@ -503,6 +509,79 @@
       "nullable": true,
       "mutable": true,
       "note": "Each of the 3 slots is NULL or an owned child node av_mallocz'd by parse_primary/make_eval_expr and released recursively by av_expr_free; written only during parsing. Children are never shared between parents (the do-nothing '(' path hands the inner node up instead of linking it twice)."
+     }
+    }
+   ]
+  },
+  {
+   "name": "AVHMAC",
+   "defined_in": "libavutil/hmac.c",
+   "_comment_agent": "hmac.c private body is never published; public hmac.h is opaque. av_hmac_alloc constructs callbacks and owns one algorithm-specific hash allocation, but does not initialize hash state: keyed safe constructor also invokes av_hmac_init before returning. init copies short keys or hashes long keys into inline key[128]; init/update/final retain no caller buffer. Only av_hmac_free releases hash and parent, including alloc-before-key-init state. No clone, upref, lock, shared ownership, or inline public variant.",
+   "fields": [
+    {
+     "name": "final",
+     "ptr": {
+      "scalar": {
+       "by_val": true
+      },
+      "array": null,
+      "string": false,
+      "owned": false,
+      "borrowed": {
+       "lifetime": "static"
+      },
+      "mutable": false,
+      "nullable": true,
+      "note": "Static C algorithm callback selected together with hash/blocklen/hashlen; never owns code. Nonnull on successful alloc; zero only during failed construction. Not published by hmac.h and intentionally not exposed by opaque wrapper."
+     }
+    },
+    {
+     "name": "hash",
+     "ptr": {
+      "scalar": {
+       "by_val": true
+      },
+      "array": null,
+      "string": false,
+      "owned": true,
+      "borrowed": null,
+      "mutable": true,
+      "nullable": true,
+      "note": "Algorithm-discriminated singleton: AVMD5, AVSHA, or AVSHA512 allocated by its av_*_alloc. Nonnull on successful av_hmac_alloc; null on construction failure only. Exclusive mutable hash state; av_hmac_free uses av_freep then frees parent; no clone."
+     }
+    },
+    {
+     "name": "init",
+     "ptr": {
+      "scalar": {
+       "by_val": true
+      },
+      "array": null,
+      "string": false,
+      "owned": false,
+      "borrowed": {
+       "lifetime": "static"
+      },
+      "mutable": false,
+      "nullable": true,
+      "note": "Static C algorithm callback selected together with hash/blocklen/hashlen; never owns code. Nonnull on successful alloc; zero only during failed construction. Not published by hmac.h and intentionally not exposed by opaque wrapper."
+     }
+    },
+    {
+     "name": "update",
+     "ptr": {
+      "scalar": {
+       "by_val": true
+      },
+      "array": null,
+      "string": false,
+      "owned": false,
+      "borrowed": {
+       "lifetime": "static"
+      },
+      "mutable": false,
+      "nullable": true,
+      "note": "Static C algorithm callback selected together with hash/blocklen/hashlen; never owns code. Nonnull on successful alloc; zero only during failed construction. Not published by hmac.h and intentionally not exposed by opaque wrapper."
      }
     }
    ]
@@ -3403,6 +3482,84 @@
    }
   },
   {
+   "name": "av_des_alloc",
+   "defined_in": "libavutil/des.c",
+   "lifetime": {
+    "for": "return",
+    "is_dropper": false,
+    "is_disposer": false,
+    "is_cloner": null,
+    "is_constructor": {
+     "alloc": true,
+     "init": false
+    }
+   },
+   "ptr_ret": {
+    "ptr": {
+     "scalar": {
+      "by_val": true
+     },
+     "array": null,
+     "string": false,
+     "owned": true,
+     "borrowed": null,
+     "mutable": true,
+     "nullable": true,
+     "note": "Fresh sole-owned allocation; null on failure. DES is released by av_free, HMAC (including its hash) by av_hmac_free."
+    }
+   }
+  },
+  {
+   "name": "av_des_init",
+   "defined_in": "libavutil/des.c",
+   "lifetime": {
+    "for": "d",
+    "is_dropper": false,
+    "is_disposer": false,
+    "is_cloner": null,
+    "is_constructor": {
+     "alloc": false,
+     "init": true
+    }
+   },
+   "ptr_args": [
+    {
+     "name": "d",
+     "ptr": {
+      "scalar": {
+       "by_val": true
+      },
+      "array": null,
+      "string": false,
+      "owned": false,
+      "borrowed": {
+       "lifetime": "call"
+      },
+      "mutable": true,
+      "nullable": true,
+      "note": "Exclusive mutable context for a valid 64/192-bit key; ignored (and may be NULL) when key_bits is invalid and C returns EINVAL before any access."
+     }
+    },
+    {
+     "name": "key",
+     "ptr": {
+      "scalar": null,
+      "array": {
+       "by_val": true
+      },
+      "string": false,
+      "owned": false,
+      "borrowed": {
+       "lifetime": "call"
+      },
+      "mutable": false,
+      "nullable": true,
+      "note": "Array of exactly 8 or 24 readable bytes for key_bits=64/192. Copied to round keys during the call, never retained. Ignored (and may be NULL) for invalid key_bits."
+     }
+    }
+   ]
+  },
+  {
    "name": "av_dict_copy",
    "defined_in": "libavutil/dict.c",
    "lifetime": {
@@ -5734,6 +5891,112 @@
      "note": "Immutable NUL-terminated name in hashdesc static storage, never freed."
     }
    }
+  },
+  {
+   "name": "av_hmac_alloc",
+   "defined_in": "libavutil/hmac.c",
+   "lifetime": {
+    "for": "return",
+    "is_dropper": false,
+    "is_disposer": false,
+    "is_cloner": null,
+    "is_constructor": {
+     "alloc": true,
+     "init": false
+    }
+   },
+   "ptr_ret": {
+    "ptr": {
+     "scalar": {
+      "by_val": true
+     },
+     "array": null,
+     "string": false,
+     "owned": true,
+     "borrowed": null,
+     "mutable": true,
+     "nullable": true,
+     "note": "Fresh sole-owned allocation; null on failure. DES is released by av_free, HMAC (including its hash) by av_hmac_free."
+    }
+   }
+  },
+  {
+   "name": "av_hmac_free",
+   "defined_in": "libavutil/hmac.c",
+   "lifetime": {
+    "for": "c",
+    "is_dropper": true,
+    "is_disposer": false,
+    "is_cloner": null,
+    "is_constructor": null
+   },
+   "ptr_args": [
+    {
+     "name": "c",
+     "ptr": {
+      "scalar": {
+       "by_val": true
+      },
+      "array": null,
+      "string": false,
+      "owned": true,
+      "borrowed": null,
+      "mutable": true,
+      "nullable": true,
+      "note": "Destruction transfers sole ownership; initialization exclusively borrows during call."
+     }
+    }
+   ]
+  },
+  {
+   "name": "av_hmac_init",
+   "defined_in": "libavutil/hmac.c",
+   "lifetime": {
+    "for": "c",
+    "is_dropper": false,
+    "is_disposer": false,
+    "is_cloner": null,
+    "is_constructor": {
+     "alloc": false,
+     "init": true
+    }
+   },
+   "ptr_args": [
+    {
+     "name": "c",
+     "ptr": {
+      "scalar": {
+       "by_val": true
+      },
+      "array": null,
+      "string": false,
+      "owned": false,
+      "borrowed": {
+       "lifetime": "call"
+      },
+      "mutable": true,
+      "nullable": false,
+      "note": "Exclusive mutable context borrow; initialization keeps no caller pointer."
+     }
+    },
+    {
+     "name": "key",
+     "ptr": {
+      "scalar": null,
+      "array": {
+       "by_val": true
+      },
+      "string": false,
+      "owned": false,
+      "borrowed": {
+       "lifetime": "call"
+      },
+      "mutable": false,
+      "nullable": false,
+      "note": "Key bytes copied or hashed during call only; no retention. DES reads 8 or 24; HMAC reads keylen. Live nonnull input is supplied for empty keys."
+     }
+    }
+   ]
   },
   {
    "name": "av_image_alloc",

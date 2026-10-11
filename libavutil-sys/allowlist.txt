@@ -715,3 +715,12 @@ function av_tea_crypt
 function av_twofish_alloc
 function av_twofish_init
 function av_twofish_crypt
+
+# Crypto wave 0, batch 3: DES and HMAC lifecycle, plus their C observers
+# in equivalence tests. The public layouts are in api-types.txt already.
+function av_des_alloc
+function av_des_init
+function av_des_crypt
+function av_hmac_init
+function av_hmac_update
+function av_hmac_final
