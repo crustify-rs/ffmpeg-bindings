@@ -11,6 +11,7 @@ use core::ptr::{NonNull, addr_of, addr_of_mut};
 
 use ffibox::{CNew, CZeroable, define_ctype};
 
+use super::aes::{CryptError, Direction, buffer_count};
 use super::ffi;
 use super::mem::{Heap, HeapBox};
 
@@ -107,40 +108,30 @@ impl DesRef<'_> {
     }
 }
 
-fn block_count(len: usize) -> Result<i32, i32> {
-    if !len.is_multiple_of(8) {
-        return Err(-22);
-    }
-    i32::try_from(len / 8).map_err(|_| -22)
-}
-
 impl DesRef<'_> {
     /// Wraps: av_des_crypt
     ///
     /// Encrypt or decrypt whole 8-byte blocks. `None` selects ECB; an IV
-    /// selects CBC and is updated for the next call. Returns -22 without
-    /// changing output or IV for unequal lengths, partial blocks, or a block
-    /// count exceeding C's `int`. Unaligned byte buffers are supported by
+    /// selects CBC and is updated for the next call. Unequal lengths, partial
+    /// blocks, or a block count exceeding C's `int` return an error without
+    /// changing output or IV. Unaligned byte buffers are supported by
     /// C's actual AV_RB64/AV_WB64 implementation despite the header wording.
     ///
     /// Partially overlapping input/output cannot be passed through safe Rust:
     /// ```compile_fail,E0502
-    /// use ffmpeg::libavutil::des::Des;
+    /// use ffmpeg::libavutil::{aes::Direction, des::Des};
     /// let context = Des::new(&[0; 8], false).unwrap();
     /// let mut bytes = [0; 24];
-    /// context.as_ref().crypt(&mut bytes[8..], &bytes[..16], None, false).unwrap();
+    /// context.as_ref().crypt(&mut bytes[8..], &bytes[..16], None, Direction::Encrypt).unwrap();
     /// ```
     pub fn crypt(
         &self,
         dst: &mut [u8],
         src: &[u8],
         iv: Option<&mut [u8; 8]>,
-        decrypt: bool,
-    ) -> Result<(), i32> {
-        let count = block_count(src.len())?;
-        if dst.len() != src.len() {
-            return Err(-22);
-        }
+        direction: Direction,
+    ) -> Result<(), CryptError> {
+        let count = buffer_count(dst.len(), src.len(), 8)?;
         if count == 0 {
             return Ok(());
         }
@@ -156,7 +147,7 @@ impl DesRef<'_> {
                 src.as_ptr(),
                 count,
                 iv,
-                i32::from(decrypt),
+                direction.as_int(),
             );
         }
         Ok(())
@@ -169,9 +160,9 @@ impl DesRef<'_> {
         &self,
         data: &mut [u8],
         iv: Option<&mut [u8; 8]>,
-        decrypt: bool,
-    ) -> Result<(), i32> {
-        let count = block_count(data.len())?;
+        direction: Direction,
+    ) -> Result<(), CryptError> {
+        let count = buffer_count(data.len(), data.len(), 8)?;
         if count == 0 {
             return Ok(());
         }
@@ -188,7 +179,7 @@ impl DesRef<'_> {
                 ptr,
                 count,
                 iv,
-                i32::from(decrypt),
+                direction.as_int(),
             );
         }
         Ok(())
@@ -203,19 +194,19 @@ impl DesRef<'_> {
         &self,
         dst: &mut [u8],
         iv: Option<&mut [u8; 8]>,
-        decrypt: bool,
-    ) -> Result<(), i32> {
-        block_count(dst.len())?;
+        direction: Direction,
+    ) -> Result<(), CryptError> {
+        buffer_count(dst.len(), dst.len(), 8)?;
         dst.fill(0);
-        self.crypt_in_place(dst, iv, decrypt)
+        self.crypt_in_place(dst, iv, direction)
     }
 
     /// Wraps: av_des_mac
     ///
     /// CBC-MAC of whole blocks. Empty input returns the initial all-zero MAC.
     /// The context is borrowed read-only; no input or result pointer is retained.
-    pub fn mac(&self, src: &[u8]) -> Result<[u8; 8], i32> {
-        let count = block_count(src.len())?;
+    pub fn mac(&self, src: &[u8]) -> Result<[u8; 8], CryptError> {
+        let count = buffer_count(src.len(), src.len(), 8)?;
         let mut mac = [0; 8];
         if count != 0 {
             // SAFETY: C reads the context without changing it, reads count
@@ -291,38 +282,33 @@ mod unit_tests {
 
     #[test]
     fn crypt_validation_and_unchanged_buffers() {
+        use Direction::{Decrypt, Encrypt};
         let context = Des::zeroed();
         let view = context.as_ref();
         let mut dst = [0xA5; 16];
         let mut iv = [0x35; 8];
         assert_eq!(
-            view.crypt(&mut dst, &[0; 8], Some(&mut iv), false),
-            Err(-22)
+            view.crypt(&mut dst, &[0; 8], Some(&mut iv), Encrypt),
+            Err(CryptError::LengthMismatch)
         );
         assert_eq!(
-            view.crypt(&mut dst[..7], &[0; 7], Some(&mut iv), true),
-            Err(-22)
+            view.crypt(&mut dst[..7], &[0; 7], Some(&mut iv), Decrypt),
+            Err(CryptError::IncompleteBlock)
         );
         assert_eq!(
-            view.crypt_in_place(&mut dst[..15], Some(&mut iv), false),
-            Err(-22)
+            view.crypt_in_place(&mut dst[..15], Some(&mut iv), Encrypt),
+            Err(CryptError::IncompleteBlock)
         );
         assert_eq!(
-            view.crypt_zeros(&mut dst[..15], Some(&mut iv), false),
-            Err(-22)
+            view.crypt_zeros(&mut dst[..15], Some(&mut iv), Encrypt),
+            Err(CryptError::IncompleteBlock)
         );
-        assert_eq!(view.mac(&[0; 7]), Err(-22));
+        assert_eq!(view.mac(&[0; 7]), Err(CryptError::IncompleteBlock));
         assert_eq!(dst, [0xA5; 16]);
         assert_eq!(iv, [0x35; 8]);
-        assert_eq!(view.crypt(&mut [], &[], Some(&mut iv), true), Ok(()));
-        assert_eq!(view.crypt_in_place(&mut [], Some(&mut iv), false), Ok(()));
+        assert_eq!(view.crypt(&mut [], &[], Some(&mut iv), Decrypt), Ok(()));
+        assert_eq!(view.crypt_in_place(&mut [], Some(&mut iv), Encrypt), Ok(()));
         assert_eq!(view.mac(&[]), Ok([0; 8]));
-        assert_eq!(block_count(0), Ok(0));
-        assert_eq!(block_count(7), Err(-22));
-        if let Some(max_len) = (i32::MAX as usize).checked_mul(8) {
-            assert_eq!(block_count(max_len), Ok(i32::MAX));
-            assert_eq!(block_count(max_len + 8), Err(-22));
-        }
     }
 
     #[test]

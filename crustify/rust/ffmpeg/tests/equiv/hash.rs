@@ -219,11 +219,75 @@ fn all_algorithms_output_formats_and_capacities() {
                 }
                 match format {
                     0 => actual = safe.as_mut().finalize(),
-                    1 => safe.as_mut().finalize_bin(&mut actual).unwrap(),
+                    1 => safe.as_mut().finalize_bin(&mut actual),
                     2 => safe.as_mut().finalize_hex(&mut actual).unwrap(),
                     _ => safe.as_mut().finalize_b64(&mut actual).unwrap(),
                 }
                 assert_eq!(actual, expected, "{name:?} format={format} capacity={size}");
+            }
+        }
+    }
+}
+
+/// Outputs longer than C's `int` size parameter, which C callers offer as
+/// `INT_MAX` bytes (crypto wave-1 review,
+/// `equiv/hash-and-hmac-reject-outputs-beyond-c-ranges`).
+mod beyond_int_max {
+    use super::Reference;
+    use ffmpeg::libavutil::{ffi, hash::HashContext};
+
+    const LEN: usize = i32::MAX as usize + 1;
+    const HEAD: usize = 160;
+
+    /// BSan cost grows with a 2 GiB allocation's history (see the campaign's
+    /// test recipes); the plain and other sanitized runs cover these.
+    fn under_bsan() -> bool {
+        std::env::var("CRUSTIFY_FFMPEG_VARIANT").as_deref() == Ok("bsan")
+    }
+
+    /// A zeroed allocation, so only the pages written are ever mapped, with
+    /// a recognisable head and last byte.
+    fn buffer() -> Vec<u8> {
+        let mut buffer = vec![0u8; LEN];
+        buffer[..HEAD].fill(0xAA);
+        buffer[LEN - 1] = 0xAA;
+        buffer
+    }
+
+    #[test]
+    fn text_and_binary_finals_into_outputs_beyond_int_max_follow_c() {
+        if under_bsan() {
+            return;
+        }
+        for name in [c"SHA256", c"CRC32", c"SHA512"] {
+            for format in 0..3 {
+                let raw = Reference::new(name);
+                let mut expected = buffer();
+                // SAFETY: initialized context, readable input and an output
+                // writable for `INT_MAX` bytes; C writes at most that many.
+                unsafe {
+                    ffi::av_hash_update(raw.0, b"crustify".as_ptr(), 8);
+                    match format {
+                        0 => ffi::av_hash_final_bin(raw.0, expected.as_mut_ptr(), i32::MAX),
+                        1 => ffi::av_hash_final_hex(raw.0, expected.as_mut_ptr(), i32::MAX),
+                        _ => ffi::av_hash_final_b64(raw.0, expected.as_mut_ptr(), i32::MAX),
+                    }
+                }
+                let (head, last) = (expected[..HEAD].to_vec(), expected[LEN - 1]);
+                drop(expected);
+                let mut safe = HashContext::new(name).unwrap();
+                safe.as_mut().update(b"crustify");
+                let mut actual = buffer();
+                match format {
+                    0 => safe.as_mut().finalize_bin(&mut actual),
+                    1 => safe.as_mut().finalize_hex(&mut actual).unwrap(),
+                    _ => safe.as_mut().finalize_b64(&mut actual).unwrap(),
+                }
+                assert_eq!(actual[..HEAD], head, "{name:?} format={format}");
+                // C cannot address the last byte: the text formats leave it,
+                // and the binary format's zero padding reaches it.
+                let padded = if format == 0 { 0 } else { last };
+                assert_eq!(actual[LEN - 1], padded, "{name:?} format={format}");
             }
         }
     }

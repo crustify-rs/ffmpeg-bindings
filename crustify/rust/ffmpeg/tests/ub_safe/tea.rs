@@ -18,6 +18,7 @@ fn batch10_immutable_size_across_threads() {
     }
 }
 
+use ffmpeg::libavutil::aes::Direction::{Decrypt, Encrypt};
 use ffmpeg::libavutil::tea::Tea;
 
 #[test]
@@ -63,14 +64,18 @@ pub(super) fn batch2_foreign_writes_across_reborrows() {
                 .crypt_in_place(
                     &mut data[1..],
                     if cbc { Some(&mut iv) } else { None },
-                    false,
+                    Encrypt,
                 )
                 .unwrap();
             iv = initial_iv;
             parent
                 .as_mut()
                 .as_ref()
-                .crypt_in_place(&mut data[1..], if cbc { Some(&mut iv) } else { None }, true)
+                .crypt_in_place(
+                    &mut data[1..],
+                    if cbc { Some(&mut iv) } else { None },
+                    Decrypt,
+                )
                 .unwrap();
             assert_eq!(data, original);
             let mut output = vec![0; length + 1];
@@ -81,7 +86,7 @@ pub(super) fn batch2_foreign_writes_across_reborrows() {
                     &mut output[1..],
                     &data[1..],
                     if cbc { Some(&mut iv) } else { None },
-                    false,
+                    Encrypt,
                 )
                 .unwrap();
             data.fill(0); // C must not retain the input
@@ -91,7 +96,7 @@ pub(super) fn batch2_foreign_writes_across_reborrows() {
                 .crypt_in_place(
                     &mut output[1..],
                     if cbc { Some(&mut iv) } else { None },
-                    true,
+                    Decrypt,
                 )
                 .unwrap();
         }
@@ -105,7 +110,7 @@ fn batch2_copied_shared_key_schedule() {
     let copied = shared;
     let mut first = [0; 24];
     let mut second = first;
-    shared.crypt(&mut first, &[1; 24], None, false).unwrap();
-    copied.crypt(&mut second, &[1; 24], None, false).unwrap();
+    shared.crypt(&mut first, &[1; 24], None, Encrypt).unwrap();
+    copied.crypt(&mut second, &[1; 24], None, Encrypt).unwrap();
     assert_eq!(first, second);
 }

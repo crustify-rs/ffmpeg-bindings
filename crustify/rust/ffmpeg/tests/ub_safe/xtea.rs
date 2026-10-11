@@ -84,7 +84,7 @@ fn arrays_and_borrowed_elements() {
 }
 
 fn exercise_cipher(view: ffmpeg::libavutil::xtea::XteaRef<'_>) {
-    use ffmpeg::libavutil::xtea::Direction::{Decrypt, Encrypt};
+    use ffmpeg::libavutil::aes::Direction::{Decrypt, Encrypt};
     let snapshot = view.key();
     let shared = view;
     for le in [false, true] {

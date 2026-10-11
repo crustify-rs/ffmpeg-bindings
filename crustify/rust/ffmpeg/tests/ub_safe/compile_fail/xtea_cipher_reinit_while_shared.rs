@@ -1,4 +1,4 @@
-use ffmpeg::libavutil::xtea::{Direction, Xtea};
+use ffmpeg::libavutil::{aes::Direction, xtea::Xtea};
 fn main() {
     let mut ctx = Xtea::new(&[0; 16]);
     let view = ctx.as_ref();

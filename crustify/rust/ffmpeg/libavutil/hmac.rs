@@ -120,6 +120,13 @@ fn key_len(len: usize) -> Result<u32, i32> {
     u32::try_from(len).map_err(|_| -22)
 }
 
+/// The output size C is offered: a buffer longer than `UINT_MAX` bytes is
+/// offered as `UINT_MAX` bytes, as a C caller holding it would. C writes only
+/// the digest, so it writes the same bytes either way.
+fn c_capacity(len: usize) -> u32 {
+    u32::try_from(len).unwrap_or(u32::MAX)
+}
+
 impl HmacMut<'_> {
     /// Wraps: av_hmac_init
     ///
@@ -166,7 +173,7 @@ impl HmacMut<'_> {
     /// Too-small output returns -22 without changing state or output; trailing
     /// bytes are unchanged. Re-key with [`Self::init`] before a new message.
     pub fn finalize(&mut self, output: &mut [u8]) -> Result<usize, i32> {
-        let len = key_len(output.len())?;
+        let len = c_capacity(output.len());
         // SAFETY: exclusive keyed context and len writable bytes. C checks
         // capacity against its digest size before any access, including when
         // output is empty. The callbacks stay within that size, keep no pointer,
@@ -181,14 +188,15 @@ impl HmacMut<'_> {
 
     /// Wraps: av_hmac_calc
     ///
-    /// Re-key, hash the complete input, and finalize into `output`. Lengths
-    /// outside C's unsigned-int range return -22 before mutation. As in C,
+    /// Re-key, hash the complete input, and finalize into `output`. Data and
+    /// key lengths outside C's unsigned-int range return -22 before mutation;
+    /// any output length is accepted, as in [`Self::finalize`]. As in C,
     /// too-small output leaves the context re-keyed and updated, ready for a
     /// later finalization into a sufficiently large buffer.
     pub fn calculate(&mut self, data: &[u8], key: &[u8], output: &mut [u8]) -> Result<usize, i32> {
         let data_len = key_len(data.len())?;
         let key_size = key_len(key.len())?;
-        let output_len = key_len(output.len())?;
+        let output_len = c_capacity(output.len());
         let empty = 0u8;
         let data_ptr = if data.is_empty() {
             &raw const empty
@@ -263,8 +271,12 @@ mod unit_tests {
     fn length_conversion_rejects_truncation() {
         assert_eq!(key_len(0), Ok(0));
         assert_eq!(key_len(u32::MAX as usize), Ok(u32::MAX));
+        assert_eq!(c_capacity(0), 0);
+        assert_eq!(c_capacity(u32::MAX as usize), u32::MAX);
         if usize::BITS > u32::BITS {
             assert_eq!(key_len(u32::MAX as usize + 1), Err(-22));
+            assert_eq!(c_capacity(u32::MAX as usize + 1), u32::MAX);
+            assert_eq!(c_capacity(usize::MAX), u32::MAX);
         }
     }
 

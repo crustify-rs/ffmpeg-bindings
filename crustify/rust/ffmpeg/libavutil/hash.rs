@@ -134,8 +134,11 @@ impl HashContextMut<'_> {
     }
 }
 
-fn output_len(len: usize) -> Result<i32, i32> {
-    i32::try_from(len).map_err(|_| -22)
+/// The output size C is offered: a buffer longer than `INT_MAX` bytes is
+/// offered as `INT_MAX` bytes, as a C caller holding it would. No digest
+/// format comes near that size, so C writes the same bytes either way.
+fn c_capacity(len: usize) -> i32 {
+    i32::try_from(len).unwrap_or(i32::MAX)
 }
 
 impl HashContextMut<'_> {
@@ -166,11 +169,11 @@ impl HashContextMut<'_> {
 
     /// Wraps: av_hash_final_bin
     ///
-    /// Finalize with truncation or zero-padding to the output length. Returns
-    /// -22 before touching the context if the length exceeds C's `int` range.
-    /// An empty output still finalizes the context.
-    pub fn finalize_bin(&mut self, output: &mut [u8]) -> Result<(), i32> {
-        let len = output_len(output.len())?;
+    /// Finalize with truncation or zero-padding to the output length. An
+    /// empty output still finalizes the context. C pads at most `INT_MAX`
+    /// bytes; padding beyond them is written here.
+    pub fn finalize_bin(&mut self, output: &mut [u8]) {
+        let len = c_capacity(output.len());
         let mut empty = 0u8;
         let ptr = if output.is_empty() {
             &raw mut empty
@@ -181,7 +184,8 @@ impl HashContextMut<'_> {
         // byte stands in for empty output so C's zero-byte memcpy receives a
         // valid pointer. C truncates/pads within len and retains neither pointer.
         unsafe { ffi::av_hash_final_bin(self.as_mut_ptr(), ptr, len) };
-        Ok(())
+        // Empty unless the output is longer than C could pad.
+        output[len as usize..].fill(0);
     }
 
     /// Wraps: av_hash_final_hex
@@ -189,17 +193,17 @@ impl HashContextMut<'_> {
     /// Finalize into C's NUL-terminated lowercase hex representation. The
     /// buffer must contain at least two bytes; C writes nothing at smaller
     /// sizes, contrary to its documented termination guarantee. Returns -22
-    /// without modifying the context or output for smaller/oversized buffers.
+    /// without modifying the context or output for smaller buffers.
     /// Truncation, including odd-sized buffers, matches C; bytes beyond the
     /// terminating NUL are left unchanged.
     pub fn finalize_hex(&mut self, output: &mut [u8]) -> Result<(), i32> {
-        let len = output_len(output.len())?;
-        if len < 2 {
+        if output.len() < 2 {
             return Err(-22);
         }
-        // SAFETY: exclusive initialized context, at least two writable bytes,
-        // and int-representable capacity. C's snprintf loop stays within len,
-        // writes a terminator, and retains neither context nor output pointer.
+        let len = c_capacity(output.len());
+        // SAFETY: exclusive initialized context and at least len >= 2 writable
+        // bytes. C's snprintf loop stays within len, writes a terminator, and
+        // retains neither context nor output pointer.
         unsafe { ffi::av_hash_final_hex(self.as_mut_ptr(), output.as_mut_ptr(), len) };
         Ok(())
     }
@@ -207,17 +211,17 @@ impl HashContextMut<'_> {
     /// Wraps: av_hash_final_b64
     ///
     /// Finalize into NUL-terminated Base64, truncating to the output capacity.
-    /// Returns -22 before any mutation for empty or int-unrepresentable output.
-    /// Empty output would make C write at `dst[-1]`, so it is never passed to C.
+    /// Returns -22 before any mutation for empty output, which would make C
+    /// write at `dst[-1]`, so it is never passed to C.
     /// Bytes beyond the terminating NUL are left unchanged.
     pub fn finalize_b64(&mut self, output: &mut [u8]) -> Result<(), i32> {
-        let len = output_len(output.len())?;
-        if len == 0 {
+        if output.is_empty() {
             return Err(-22);
         }
-        // SAFETY: exclusive initialized context and positive int-representable
-        // output capacity. C copies at most len bytes and, on truncation,
-        // terminates at len-1, which is in bounds. No pointer is retained.
+        let len = c_capacity(output.len());
+        // SAFETY: exclusive initialized context and at least len >= 1 writable
+        // bytes. C copies at most len bytes and, on truncation, terminates at
+        // len-1, which is in bounds. No pointer is retained.
         unsafe { ffi::av_hash_final_b64(self.as_mut_ptr(), output.as_mut_ptr(), len) };
         Ok(())
     }
@@ -245,9 +249,10 @@ mod unit_tests {
 
     #[test]
     fn output_lengths_and_rejected_text_capacities() {
-        assert_eq!(output_len(0), Ok(0));
-        assert_eq!(output_len(i32::MAX as usize), Ok(i32::MAX));
-        assert_eq!(output_len(i32::MAX as usize + 1), Err(-22));
+        assert_eq!(c_capacity(0), 0);
+        assert_eq!(c_capacity(i32::MAX as usize), i32::MAX);
+        assert_eq!(c_capacity(i32::MAX as usize + 1), i32::MAX);
+        assert_eq!(c_capacity(usize::MAX), i32::MAX);
         let mut owner = HashContext::new(c"MD5").unwrap();
         owner.as_mut().update(b"abc");
         let mut output = [0xA5];

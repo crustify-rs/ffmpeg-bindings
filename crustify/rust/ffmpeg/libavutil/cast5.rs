@@ -151,7 +151,7 @@ pub fn context_size() -> &'static i32 {
 impl Cast5Ref<'_> {
     /// Wraps: av_cast5_crypt
     ///
-    /// Encrypt or decrypt whole blocks.
+    /// Encrypt or decrypt whole blocks in ECB mode.
     /// Buffers must have equal lengths; errors leave all state unchanged.
     pub fn crypt(
         &self,
@@ -164,8 +164,8 @@ impl Cast5Ref<'_> {
             return Ok(());
         }
         // SAFETY: the shared handle addresses an initialized full context;
-        // equal-length disjoint slices hold count whole blocks, and any IV is
-        // a separate writable 8-byte array. C retains no buffer pointers.
+        // equal-length disjoint slices hold count whole blocks. ECB takes no
+        // IV. C retains no buffer pointers.
         // C reads but never writes the schedule despite its mutable ABI pointer.
         unsafe {
             ffi::av_cast5_crypt(
@@ -187,10 +187,10 @@ impl Cast5Ref<'_> {
         }
         let ptr = data.as_mut_ptr();
         // SAFETY: one exclusive slice provides count whole readable/writable
-        // blocks. C explicitly supports src == dst, preserving ciphertext before
-        // CBC decryption writes it. The initialized context and optional IV are
-        // borrowed without writers and disjoint; no pointer is retained.
-        // C never writes the schedule despite its mutable ABI pointer.
+        // blocks. C reads each block before writing it, so src == dst is
+        // supported. The initialized context is borrowed without writers and
+        // no pointer is retained. C never writes the schedule despite its
+        // mutable ABI pointer.
         unsafe {
             ffi::av_cast5_crypt(
                 self.as_ptr().cast_mut(),

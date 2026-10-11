@@ -15,48 +15,13 @@ use core::ptr::{NonNull, addr_of, addr_of_mut};
 
 use ffibox::{CNew, CZeroable, define_ctype};
 
+use super::aes::{CryptError, Direction, buffer_count};
 use super::ffi;
 use super::mem::{Heap, HeapBox};
 
-/// Whether to encrypt plaintext or decrypt ciphertext.
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub enum Direction {
-    Encrypt,
-    Decrypt,
-}
+/// The signature shared by `av_xtea_crypt` and `av_xtea_le_crypt`.
+type CryptFn = unsafe extern "C" fn(*mut ffi::AVXTEA, *mut u8, *const u8, i32, *mut u8, i32);
 
-/// A rejected buffer shape. Rejection changes neither output nor CBC state.
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub enum CryptError {
-    /// Separate input and output must have equal byte lengths.
-    LengthMismatch,
-    /// The buffer must contain a whole number of eight-byte blocks.
-    PartialBlock,
-    /// The number of blocks cannot be represented by C's `int` count.
-    TooManyBlocks,
-}
-
-impl core::fmt::Display for CryptError {
-    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
-        f.write_str(match self {
-            Self::LengthMismatch => "XTEA input and output lengths differ",
-            Self::PartialBlock => "XTEA requires whole eight-byte blocks",
-            Self::TooManyBlocks => "XTEA block count exceeds C int",
-        })
-    }
-}
-
-impl std::error::Error for CryptError {}
-
-fn block_count(dst_len: usize, src_len: usize) -> Result<i32, CryptError> {
-    if dst_len != src_len {
-        return Err(CryptError::LengthMismatch);
-    }
-    if !dst_len.is_multiple_of(8) {
-        return Err(CryptError::PartialBlock);
-    }
-    i32::try_from(dst_len / 8).map_err(|_| CryptError::TooManyBlocks)
-}
 
 define_ctype!(
     /// Wraps: AVXTEA
@@ -199,14 +164,32 @@ impl XteaRef<'_> {
         direction: Direction,
         le: bool,
     ) -> Result<(), CryptError> {
-        let count = block_count(dst.len(), src.map_or(dst.len(), <[u8]>::len))?;
-        let src_ptr = src.map_or_else(|| dst.as_ptr(), <[u8]>::as_ptr);
-        let iv_ptr = iv.map_or(core::ptr::null_mut(), |iv| iv.as_mut_ptr());
         let crypt = if le {
             ffi::av_xtea_le_crypt
         } else {
             ffi::av_xtea_crypt
         };
+        self.process_with(crypt, dst, src, iv, direction)
+    }
+
+    /// `process` with the C routine as a parameter, so unit tests can run the
+    /// pointer derivation under Miri with a Rust model of C's accesses.
+    /// `crypt` must be `av_xtea_crypt`, `av_xtea_le_crypt`, or a routine that
+    /// accesses no more than they do.
+    fn process_with(
+        &self,
+        crypt: CryptFn,
+        dst: &mut [u8],
+        src: Option<&[u8]>,
+        iv: Option<&mut [u8; 8]>,
+        direction: Direction,
+    ) -> Result<(), CryptError> {
+        let count = buffer_count(dst.len(), src.map_or(dst.len(), <[u8]>::len), 8)?;
+        // In place, both C pointers come from one exclusive reborrow: a source
+        // pointer taken before `as_mut_ptr` would be invalidated by its retag.
+        let dst_ptr = dst.as_mut_ptr();
+        let src_ptr = src.map_or(dst_ptr.cast_const(), <[u8]>::as_ptr);
+        let iv_ptr = iv.map_or(core::ptr::null_mut(), |iv| iv.as_mut_ptr());
         // SAFETY: both C cipher paths only READ the live context's key, so
         // casting its shared pointer to mutable does not write shared storage.
         // Checked buffers cover count*8 bytes and either do not overlap or
@@ -215,11 +198,11 @@ impl XteaRef<'_> {
         unsafe {
             crypt(
                 self.as_ptr().cast_mut(),
-                dst.as_mut_ptr(),
+                dst_ptr,
                 src_ptr,
                 count,
                 iv_ptr,
-                i32::from(direction == Direction::Decrypt),
+                direction.as_int(),
             )
         }
         Ok(())
@@ -271,29 +254,73 @@ impl XteaMut<'_> {
 mod unit_tests {
     use super::*;
 
+    /// C's access pattern for an in-place call: each byte is read through
+    /// `src`, then written through `dst`.
+    unsafe extern "C" fn read_then_write(
+        _: *mut ffi::AVXTEA,
+        dst: *mut u8,
+        src: *const u8,
+        count: i32,
+        _: *mut u8,
+        _: i32,
+    ) {
+        for i in 0..count as usize * 8 {
+            // SAFETY: process_with passes count whole blocks behind both.
+            unsafe { *dst.add(i) = (*src.add(i)).wrapping_add(1) };
+        }
+    }
+
+    // No FFI: under Miri's Stacked Borrows a source pointer derived before
+    // the destination's exclusive retag fails here (crypto wave-1 review,
+    // `internal/xtea-in-place-source-pointer-taken-before-exclusive-retag`).
+    #[test]
+    fn in_place_pointers_share_one_exclusive_reborrow() {
+        let context = Xtea::from_key_words([0; 16]);
+        let mut data = [7u8; 24];
+        let mut iv = [0u8; 8];
+        let view = context.as_ref();
+        for direction in [Direction::Encrypt, Direction::Decrypt] {
+            let result =
+                view.process_with(read_then_write, &mut data, None, Some(&mut iv), direction);
+            assert_eq!(result, Ok(()));
+        }
+        assert_eq!(data, [9; 24]);
+        let source = [1u8; 16];
+        let mut output = [0u8; 16];
+        let result = view.process_with(
+            read_then_write,
+            &mut output,
+            Some(&source),
+            None,
+            Direction::Encrypt,
+        );
+        assert_eq!(result, Ok(()));
+        assert_eq!(output, [2; 16]);
+    }
+
     #[test]
     fn buffer_validation_and_errors() {
-        assert_eq!(block_count(8, 16), Err(CryptError::LengthMismatch));
+        assert_eq!(buffer_count(8, 16, 8), Err(CryptError::LengthMismatch));
         for len in 0..=65 {
             let expected = if len % 8 == 0 {
                 Ok((len / 8) as i32)
             } else {
-                Err(CryptError::PartialBlock)
+                Err(CryptError::IncompleteBlock)
             };
-            assert_eq!(block_count(len, len), expected);
+            assert_eq!(buffer_count(len, len, 8), expected);
         }
         if usize::BITS > 32 {
             let max = (i32::MAX as usize) * 8;
-            assert_eq!(block_count(max, max), Ok(i32::MAX));
+            assert_eq!(buffer_count(max, max, 8), Ok(i32::MAX));
             assert_eq!(
-                block_count(max + 8, max + 8),
-                Err(CryptError::TooManyBlocks)
+                buffer_count(max + 8, max + 8, 8),
+                Err(CryptError::CountOverflow)
             );
         }
         for error in [
             CryptError::LengthMismatch,
-            CryptError::PartialBlock,
-            CryptError::TooManyBlocks,
+            CryptError::IncompleteBlock,
+            CryptError::CountOverflow,
         ] {
             assert!(!error.to_string().is_empty());
         }
@@ -317,7 +344,7 @@ mod unit_tests {
                     if len % 8 != 0 {
                         assert_eq!(
                             view.process(&mut dst, None, Some(&mut iv), direction, le),
-                            Err(CryptError::PartialBlock)
+                            Err(CryptError::IncompleteBlock)
                         );
                         assert_eq!(
                             view.process(
@@ -327,7 +354,7 @@ mod unit_tests {
                                 direction,
                                 le
                             ),
-                            Err(CryptError::PartialBlock)
+                            Err(CryptError::IncompleteBlock)
                         );
                         assert_eq!(dst, vec![0xa5; len]);
                         assert_eq!(iv, [0x5a; 8]);
