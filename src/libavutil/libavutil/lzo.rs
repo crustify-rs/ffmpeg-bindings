@@ -68,4 +68,15 @@ mod unit_tests {
         assert_eq!(padded(&[], 12).unwrap(), vec![0; 12]);
         assert!(padded(&input, usize::MAX).is_err());
     }
+
+    #[test]
+    fn lengths_beyond_int_are_refused_before_copying() {
+        // A zeroed allocation: refusing it must not touch its pages.
+        let long = vec![0u8; i32::MAX as usize + 1];
+        let einval = -(ffi::EINVAL as i32);
+        assert_eq!(padded(&long, 8), Err(einval));
+        assert_eq!(decode(&long, &mut [0; 4]), Err(einval));
+        let mut long = long;
+        assert_eq!(decode(&[17, 0, 0], &mut long), Err(einval));
+    }
 }

@@ -138,6 +138,22 @@ impl HashContextMut<'_> {
     }
 }
 
+/// Wraps: av_hash_names
+///
+/// Name at a C hash registry index, or `None` for an invalid index.
+/// The registry and its NUL-terminated names are immutable static storage.
+pub fn name(index: i32) -> Option<&'static CStr> {
+    // SAFETY: every integer index is checked by C; no input pointers.
+    let ptr = unsafe { ffi::av_hash_names(index) };
+    if ptr.is_null() {
+        None
+    } else {
+        // SAFETY: the non-null result points to an immutable, NUL-terminated
+        // name in hash.c's static hashdesc array; it is never freed.
+        Some(unsafe { CStr::from_ptr(ptr) })
+    }
+}
+
 #[cfg(test)]
 mod unit_tests {
     use super::*;
@@ -160,21 +176,5 @@ mod unit_tests {
         let mut owner = unsafe { HashContextBox::from_c(raw) }.unwrap();
         owner.as_mut().init();
         assert_eq!(owner.as_ref().name(), c"MD5");
-    }
-}
-
-/// Wraps: av_hash_names
-///
-/// Name at a C hash registry index, or `None` for an invalid index.
-/// The registry and its NUL-terminated names are immutable static storage.
-pub fn name(index: i32) -> Option<&'static CStr> {
-    // SAFETY: every integer index is checked by C; no input pointers.
-    let ptr = unsafe { ffi::av_hash_names(index) };
-    if ptr.is_null() {
-        None
-    } else {
-        // SAFETY: the non-null result points to an immutable, NUL-terminated
-        // name in hash.c's static hashdesc array; it is never freed.
-        Some(unsafe { CStr::from_ptr(ptr) })
     }
 }
