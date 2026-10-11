@@ -36,6 +36,7 @@ mod pixelutils;
 mod pixfmt;
 mod random_seed;
 mod rational;
+mod rc4;
 mod samplefmt;
 mod sha;
 mod sha512;

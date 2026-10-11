@@ -1,0 +1,16 @@
+error[E0505]: cannot move out of `owner` because it is borrowed
+ --> tests/ub_safe/compile_fail/rc4_parent_drop.rs
+  |
+  |     let owner = Rc4::new(b"key").unwrap();
+  |         ----- binding `owner` declared here
+  |     let shared = owner.as_ref();
+  |                  ----- borrow of `owner` occurs here
+  |     drop(owner);
+  |          ^^^^^ move out of `owner` occurs here
+  |     let _ = shared.x();
+  |             ------ borrow later used here
+  |
+help: consider cloning the value if the performance cost is acceptable
+  |
+4 |     let shared = owner.clone().as_ref();
+  |                       ++++++++
