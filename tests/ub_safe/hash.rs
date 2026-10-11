@@ -52,3 +52,20 @@ fn ephemeral_algorithm_name_is_not_retained() {
     assert_eq!(owner.as_ref().name(), c"SHA256");
     assert_eq!(owner.as_ref().size(), 32);
 }
+
+use ffmpeg::libavutil::hash::name;
+
+#[test]
+fn batch10_static_names_and_invalid_indices() {
+    assert!(name(i32::MIN).is_none());
+    assert!(name(-1).is_none());
+    assert!(name(i32::MAX).is_none());
+    let first: &'static std::ffi::CStr = name(0).unwrap();
+    assert_eq!(first, c"MD5");
+    for i in 0..64 {
+        if let Some(s) = name(i) {
+            assert!(!s.to_bytes().is_empty());
+        }
+    }
+    assert_eq!(name(0), Some(first));
+}

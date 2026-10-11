@@ -681,3 +681,29 @@ function ^av_aes_ctr_init$
 function ^av_aes_ctr_free$
 function ^av_aes_ctr_crypt$
 function ^av_aes_ctr_get_iv$
+
+# libavutil crypto wave 0 batch 10: safe symbol boundaries and C references.
+function av_adler32_update
+var av_aes_size
+function av_base64_decode
+function av_base64_encode
+var av_camellia_size
+var av_cast5_size
+function av_crc
+function av_crc_init
+function av_hash_names
+function av_lzo1x_decode
+var av_md5_size
+var av_ripemd_size
+var av_sha512_size
+var av_sha_size
+var av_tea_size
+var av_twofish_size
+function av_uuid_copy
+function av_uuid_equal
+function av_uuid_nil
+function av_uuid_parse
+function av_uuid_parse_range
+function av_uuid_unparse
+function av_uuid_urn_parse
+var AV_LZO_(INPUT_PADDING|OUTPUT_PADDING|INPUT_DEPLETED|OUTPUT_FULL|INVALID_BACKPTR|ERROR)

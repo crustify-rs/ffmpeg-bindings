@@ -1,0 +1,11 @@
+error[E0597]: `table` does not live long enough
+ --> tests/ub_safe/compile_fail/crc_entries_outlive_table.rs
+  |
+  |         let table = Table::new(true, 32, 0xedb88320, TableSize::Fast).unwrap();
+  |             ----- binding `table` declared here
+  |         entries = table.entries();
+  |                   ^^^^^ borrowed value does not live long enough
+  |     }
+  |     - `table` dropped here while still borrowed
+  |     println!("{entries:?}");
+  |                ------- borrow later used here
