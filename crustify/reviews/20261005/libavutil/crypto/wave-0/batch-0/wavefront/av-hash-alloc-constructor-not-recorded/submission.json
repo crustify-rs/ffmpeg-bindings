@@ -1,0 +1,47 @@
+{
+  "ptr_args": {
+    "0": {
+      "ptr": {
+        "scalar": {
+          "by_ref": {
+            "owned": true,
+            "borrowed": null
+          }
+        },
+        "array": null,
+        "string": false,
+        "owned": false,
+        "borrowed": {
+          "lifetime": "arg:ctx"
+        },
+        "nullable": false,
+        "mutable": true,
+        "note": "Borrowed output slot (must not be NULL): written NULL first, then, on success only, given a fresh av_mallocz context that owns its algorithm child (av_md5/murmur3/ripemd/sha/sha512_alloc; CRC32 borrows the static table, adler32 has none). Constructor of AVHashContext: av_hash_freep releases context and child. On failure (unknown name EINVAL, ENOMEM) partial storage is freed and the slot stays NULL. Hashing state requires av_hash_init."
+      }
+    },
+    "1": {
+      "ptr": {
+        "scalar": null,
+        "array": null,
+        "string": true,
+        "owned": false,
+        "borrowed": {
+          "lifetime": "arg:name"
+        },
+        "nullable": false,
+        "mutable": false,
+        "note": "Case-insensitive name read only during call; never retained."
+      }
+    }
+  },
+  "lifetime": {
+    "for": "ctx",
+    "is_dropper": false,
+    "is_disposer": false,
+    "is_cloner": null,
+    "is_constructor": {
+      "alloc": true,
+      "init": false
+    }
+  }
+}
