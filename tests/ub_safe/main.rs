@@ -19,6 +19,7 @@ mod dict;
 mod error;
 mod eval;
 mod file;
+mod frame;
 mod hash;
 mod hmac;
 mod imgutils;

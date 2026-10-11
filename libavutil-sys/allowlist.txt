@@ -754,3 +754,12 @@ function ^av_hash_final_bin$
 function ^av_hash_final_hex$
 function ^av_hash_final_b64$
 function ^av_hmac_calc$
+
+# Buffer-frame wave 0, batch 2: C readers and writers of `AVFrameSideDataType`
+# (the descriptor table's names, and `AVFrameSideData.type` as the frame
+# side-data list stores and looks it up), which observe `SideDataType`'s
+# encodings in equivalence tests.
+function ^av_frame_side_data_name$
+function ^av_frame_new_side_data$
+function ^av_frame_get_side_data$
+function ^av_frame_remove_side_data$
