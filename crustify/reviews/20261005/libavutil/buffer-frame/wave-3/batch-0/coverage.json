@@ -1,0 +1,95 @@
+{
+  "method": {
+    "rust": "RUSTFLAGS=-C instrument-coverage; cargo +nightly test -p ffmpeg --lib --tests -- frame --skip compile_fail; nightly llvm-profdata merge + llvm-cov report over the four test binaries, for libavutil/frame.rs (the whole file, so the wave-0..3 side data items in it are included)",
+    "c": "the same run with CRUSTIFY_FFMPEG_VARIANT=coverage and GCOV_PREFIX (isolated children inherit both); gcov 13 -f over libavutil/frame.c (gcc 14 build), AVFrame's lifecycle functions and what av_frame_clone reaches",
+    "note": "Before this review's tests, av_frame_ref ran 81.67% and get_audio_buffer 81.58% of their lines: frame_allocation_failures_leave_frames_whole's 70 side data entries failed frame_copy_props first at every limit, so the extra block (327), the extended_data copy (360), the layout copy (297) and get_audio_buffer's array and plane buffer (172, 187) never failed. frame_clone_failures_one_allocation_at_a_time fails each alone under a 600-byte av_max_alloc. Still uncovered, all unreachable from this workset or environment-dependent: get_audio_buffer:196 (an extra plane buffer failing after identical ones succeeded), frame_copy_props:252-253 (PANSCAN skip; av_frame_ref copies the dimensions first) and 258-259 (force_copy, av_frame_copy_props only, wave 4), av_frame_ref:318/335 (24-byte av_buffer_ref failing after the 424-byte frame succeeded), :342-345 and frame_copy_video:677 (hardware; no device type in this build), frame_copy_audio:699 (dst and src layouts always equal after av_frame_ref). Rust: the 6 missed lines are try_clone's copy_into_zeroed_buffers failures after av_frame_clone's identical allocations succeeded (3594-3595, 3619, 3643-3645) and push_extended_buffer's INT_MAX count (4318)."
+  },
+  "rust": {
+    "libavutil/frame.rs": {
+      "regions": {
+        "count": 3363,
+        "percent": 99.46
+      },
+      "functions": {
+        "count": 411,
+        "percent": 100.0
+      },
+      "lines": {
+        "count": 2693,
+        "percent": 99.78
+      }
+    },
+    "libavutil/frame.rs (wave tip, before the review)": {
+      "regions": {
+        "count": 3302,
+        "percent": 99.45
+      },
+      "functions": {
+        "count": 410,
+        "percent": 100.0
+      },
+      "lines": {
+        "count": 2643,
+        "percent": 99.77
+      }
+    }
+  },
+  "c": {
+    "av_frame_alloc": {
+      "lines_percent": 100.0,
+      "lines": 5
+    },
+    "av_frame_free": {
+      "lines_percent": 100.0,
+      "lines": 4
+    },
+    "av_frame_unref": {
+      "lines_percent": 100.0,
+      "lines": 16
+    },
+    "av_frame_clone": {
+      "lines_percent": 100.0,
+      "lines": 6
+    },
+    "av_frame_ref": {
+      "lines_percent": 90.0,
+      "lines": 60
+    },
+    "frame_copy_props": {
+      "lines_percent": 91.49,
+      "lines": 47
+    },
+    "av_frame_get_buffer": {
+      "lines_percent": 100.0,
+      "lines": 7
+    },
+    "get_audio_buffer": {
+      "lines_percent": 94.74,
+      "lines": 38
+    },
+    "get_video_buffer": {
+      "lines_percent": 95.35,
+      "lines": 43
+    },
+    "av_frame_copy": {
+      "lines_percent": 100.0,
+      "lines": 7
+    },
+    "frame_copy_audio": {
+      "lines_percent": 91.67,
+      "lines": 12
+    },
+    "frame_copy_video": {
+      "lines_percent": 93.33,
+      "lines": 15
+    }
+  },
+  "c_before": {
+    "av_frame_ref": {
+      "lines_percent": 81.67
+    },
+    "get_audio_buffer": {
+      "lines_percent": 81.58
+    }
+  }
+}

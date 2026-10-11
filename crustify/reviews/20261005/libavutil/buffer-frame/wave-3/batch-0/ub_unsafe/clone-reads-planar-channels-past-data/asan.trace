@@ -1,0 +1,44 @@
+cloning a 9-channel planar frame whose extended_data is data
+AddressSanitizer:DEADLYSIGNAL
+=================================================================
+==1964182==ERROR: AddressSanitizer: SEGV on unknown address 0x000000000040 (pc 0x795a2ea277cd bp 0x7fffacca8ec0 sp 0x7fffacca8678 T0)
+==1964182==The signal is caused by a READ memory access.
+==1964182==HINT: address points to the zero page.
+    #0 0x795a2ea277cd in __memcpy_avx_unaligned_erms_rtm string/../sysdeps/x86_64/multiarch/memmove-vec-unaligned-erms.S:265
+    #1 0x56db668a9e1b in __asan_memcpy (<target>/x86_64-unknown-linux-gnu/debug/clone-reads-planar-channels-past-data+0x21de1b) (BuildId: fc7300856ab00f4e503482970b4014be11ae1659)
+    #2 0x795a2ef07dc0 in av_samples_copy /target/crustify/builds/asan-ubsan/src/libavutil/samplefmt.c:237:13
+    #3 0x795a2ee1dd73 in frame_copy_audio /target/crustify/builds/asan-ubsan/src/libavutil/frame.c:705:5
+    #4 0x795a2ee1dd73 in av_frame_copy /target/crustify/builds/asan-ubsan/src/libavutil/frame.c:720:16
+    #5 0x795a2ee19b8f in av_frame_ref /target/crustify/builds/asan-ubsan/src/libavutil/frame.c:305:15
+    #6 0x795a2ee20fed in av_frame_clone /target/crustify/builds/asan-ubsan/src/libavutil/frame.c:490:9
+    #7 0x56db668ea89b in <ffmpeg::libavutil::frame::FrameRef>::try_clone <wt>/crustify/rust/ffmpeg/libavutil/frame.rs:3565:33
+    #8 0x56db668e1157 in clone_reads_planar_channels_past_data::scenario <wt>/crustify/reviews/20261005/libavutil/buffer-frame/wave-3/batch-0/ub_unsafe/clone-reads-planar-channels-past-data/src/main.rs:50:31
+    #9 0x56db668e0820 in clone_reads_planar_channels_past_data::main <wt>/crustify/reviews/20261005/libavutil/buffer-frame/wave-3/batch-0/ub_unsafe/clone-reads-planar-channels-past-data/src/main.rs:60:9
+    #10 0x56db668dfa7a in <fn() as core::ops::function::FnOnce<()>>::call_once <rust>/library/core/src/ops/function.rs:250:5
+    #11 0x56db668df45d in std::sys::backtrace::__rust_begin_short_backtrace::<fn(), ()> <rust>/library/std/src/sys/backtrace.rs:166:18
+    #12 0x56db668e3e03 in std::rt::lang_start::<()>::{closure#0} <rust>/library/std/src/rt.rs:206:18
+    #13 0x56db66971f31 in <&dyn core::ops::function::Fn<(), Output = i32> + core::panic::unwind_safe::RefUnwindSafe + core::marker::Sync as core::ops::function::FnOnce<()>>::call_once <rust>/library/core/src/ops/function.rs:287:21
+    #14 0x56db6696938a in std::panicking::catch_unwind::do_call::<&dyn core::ops::function::Fn<(), Output = i32> + core::panic::unwind_safe::RefUnwindSafe + core::marker::Sync, i32> <rust>/library/std/src/panicking.rs:573:43
+    #15 0x56db6697674a in __rust_try std.4ab26c9dab9163a9-cgu.02
+    #16 0x56db6696850b in std::panicking::catch_unwind::<i32, &dyn core::ops::function::Fn<(), Output = i32> + core::panic::unwind_safe::RefUnwindSafe + core::marker::Sync> <rust>/library/std/src/panicking.rs:541:19
+    #17 0x56db66a9f51a in std::panic::catch_unwind::<&dyn core::ops::function::Fn<(), Output = i32> + core::panic::unwind_safe::RefUnwindSafe + core::marker::Sync, i32> <rust>/library/std/src/panic.rs:359:14
+    #18 0x56db668f7743 in std::rt::lang_start_internal::{closure#0} <rust>/library/std/src/rt.rs:175:24
+    #19 0x56db669691de in std::panicking::catch_unwind::do_call::<std::rt::lang_start_internal::{closure#0}, isize> <rust>/library/std/src/panicking.rs:573:43
+    #20 0x56db6697674a in __rust_try std.4ab26c9dab9163a9-cgu.02
+    #21 0x56db669682a7 in std::panicking::catch_unwind::<isize, std::rt::lang_start_internal::{closure#0}> <rust>/library/std/src/panicking.rs:541:19
+    #22 0x56db66a9f48b in std::panic::catch_unwind::<std::rt::lang_start_internal::{closure#0}, isize> <rust>/library/std/src/panic.rs:359:14
+    #23 0x56db669094d2 in std::rt::lang_start_internal <rust>/library/std/src/rt.rs:171:5
+    #24 0x56db668e3d6f in std::rt::lang_start::<()> <rust>/library/std/src/rt.rs:205:5
+    #25 0x56db668e14fd in main (<target>/x86_64-unknown-linux-gnu/debug/clone-reads-planar-channels-past-data+0x2554fd) (BuildId: fc7300856ab00f4e503482970b4014be11ae1659)
+    #26 0x795a2e8c01c9 in __libc_start_call_main csu/../sysdeps/nptl/libc_start_call_main.h:58:16
+    #27 0x795a2e8c028a in __libc_start_main csu/../csu/libc-start.c:360:3
+    #28 0x56db668156e4 in _start (<target>/x86_64-unknown-linux-gnu/debug/clone-reads-planar-channels-past-data+0x1896e4) (BuildId: fc7300856ab00f4e503482970b4014be11ae1659)
+
+==1964182==Register values:
+rax = 0x0000765a2dbe0940  rbx = 0x0000000000000000  rcx = 0x00000ecbc5b7412f  rdx = 0x0000000000000040  
+rdi = 0x0000765a2dbe0940  rsi = 0x0000000000000040  rbp = 0x00007fffacca8ec0  rsp = 0x00007fffacca8678  
+ r8 = 0x0000765a2dbe097f   r9 = 0x00000ecb45b7c12f  r10 = 0x00000ecbc5b74128  r11 = 0x00000ecb45b7c128  
+r12 = 0x00000ecbc5b74128  r13 = 0xffffffffffffffff  r14 = 0x0000000000000040  r15 = 0x0000000000000040  
+AddressSanitizer can not provide additional info.
+SUMMARY: AddressSanitizer: SEGV string/../sysdeps/x86_64/multiarch/memmove-vec-unaligned-erms.S:265 in __memcpy_avx_unaligned_erms_rtm
+==1964182==ABORTING

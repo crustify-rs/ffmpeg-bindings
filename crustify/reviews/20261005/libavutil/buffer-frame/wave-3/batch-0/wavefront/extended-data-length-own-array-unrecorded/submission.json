@@ -1,0 +1,21 @@
+{
+  "fields": {
+    "extended_data": {
+      "ptr": {
+        "scalar": null,
+        "array": {
+          "by_val": true
+        },
+        "string": false,
+        "owned": true,
+        "borrowed": {
+          "lifetime": "self"
+        },
+        "nullable": false,
+        "mutable": true,
+        "note": "Runtime-conditional: either the frame's own data array (get_frame_defaults, get_video_buffer, get_audio_buffer with <= 8 planes, av_frame_ref/av_frame_move_ref re-point it), borrowed from self, or an av_malloc-family block the frame owns (get_audio_buffer's av_calloc(planes), av_frame_ref's av_memdup of nb_channels entries), freed by av_frame_unref/av_frame_replace when != data. Its length is never stored, and C does not check which form it is before reading per channel: frame_copy_audio (av_frame_copy, and av_frame_ref/av_frame_clone of a frame without buf[0]) reads extended_data[i] for every channel of planar audio, and av_frame_get_plane_buffer for plane < nb_channels; with extended_data == data that runs past data[8] into linesize[] and the following fields, which C then dereferences as plane pointers. So the block must hold at least ch_layout.nb_channels plane pointers, each NULL or inside a buffer of the frame like data[], and planar audio with more than AV_NUM_DATA_POINTERS channels needs the separate block before any of those readers runs. Rust: FrameRef::extended_plane/extended_plane_count/has_extended_data, FrameMut::extended_plane_mut/set_extended_plane/clear_extended_plane, unsafe set_extended_data_ptr, alloc_extended_data (av_calloc of nb_channels; copies data only while buf[0] is set, so lent set_data_ptr planes are never duplicated), reset_extended_data; channel_layout_mut is None and replace_channel_layout refuses more channels while the block is separate; try_clone refuses a frame without buf[0] whose planar channels exceed extended_plane_count."
+      }
+    }
+  },
+  "_comment_agent": "AVFrame (libavutil/frame.h), buffer-frame wave 3 batch 0. A frame is allocated only by av_frame_alloc (av_malloc + get_frame_defaults; sizeof(AVFrame) is outside the ABI) and freed by av_frame_free (av_frame_unref + av_freep). av_frame_unref releases every owned field (side data array, buf[], extended_buf[] and its block, metadata, hw_frames_ctx, opaque_ref, private_ref, a separate extended_data, ch_layout's custom map) and rewrites the defaults; av_frame_ref/av_frame_clone build a new frame sharing every buffer (av_buffer_ref unchecked against AVBuffer's 32-bit count) and deep-copying metadata, side data entries and the channel layout, copying the data instead when buf[0] is NULL (av_frame_get_buffer + av_frame_copy, which fails on a frame without planes, e.g. a fresh one, so av_frame_clone cannot back a Clone); av_frame_move_ref moves the struct; av_frame_replace and av_frame_make_writable rebuild in place. No field holds a refcount of the frame itself. Geometry (format, width, height, nb_samples, ch_layout, linesize, crop_*) is plain data that C routines trust when reading planes (av_frame_copy, av_frame_apply_cropping, av_frame_get_plane_buffer reads extended_data[plane] for plane < 4 or channels): the Rust wrapper (frame.rs Frame/FrameRef/FrameMut, FrameBox = CBox<Frame, FrameFree>, CNew = av_frame_alloc, CDrop = av_frame_free on a local slot, try_clone = av_frame_clone after checking every buffer's count, reset = av_frame_unref) keeps ownership and plane-containment invariants and leaves geometry checks to the wrappers of plane-reading routines (wave 4). | Review (buffer-frame wave 3, batch 0): the earlier note said C reads nb_channels entries of the block, but missed that frame_copy_audio and av_frame_get_plane_buffer read them even when extended_data is the frame's own 8-entry data array (over-read into linesize, dereferenced; ASan SEGV through av_frame_clone), and that alloc_extended_data duplicated lent planes. See crustify/reviews/20261005/libavutil/buffer-frame/wave-3/batch-0/wavefront/extended-data-length-own-array-unrecorded."
+}
