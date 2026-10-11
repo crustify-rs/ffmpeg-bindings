@@ -1,0 +1,8 @@
+error[E0499]: cannot borrow `buffer` as mutable more than once at a time
+ --> tests/ub_safe/compile_fail/xtea_cipher_iv_alias.rs:5:54
+  |
+5 |     ctx.as_ref().crypt_le_in_place(&mut buffer, Some(&mut buffer), Direction::Decrypt).unwrap();
+  |                  ----------------- -----------       ^^^^^^^^^^^ second mutable borrow occurs here
+  |                  |                 |
+  |                  |                 first mutable borrow occurs here
+  |                  first borrow later used by call

@@ -1,11 +1,10 @@
-//! Compare lifecycle and field transitions against independently owned C
-//! contexts. Raw cipher calls only observe the type's key storage; the cipher
-//! symbols themselves are not part of this type batch's safe surface.
+//! Compare lifecycle, keys, buffers and CBC transitions on independently
+//! owned contexts through the public safe API and the raw C implementation.
 
 use core::ptr::addr_of_mut;
 
 use ffmpeg::libavutil::ffi;
-use ffmpeg::libavutil::xtea::{Xtea, XteaBox};
+use ffmpeg::libavutil::xtea::{Direction, Xtea, XteaBox, XteaRef};
 
 const KEYS: [[u8; 16]; 4] = [
     [0; 16],
@@ -57,7 +56,7 @@ fn allocation_and_reinitialization_preserve_the_full_public_array() {
 /// # Safety
 /// `ctx` must be a live initialized context, exclusively available during
 /// this call. Each cipher only reads its first four words and retains nothing.
-unsafe fn observe(ctx: *mut ffi::AVXTEA, le: bool, cbc: bool) -> ([u8; 24], [u8; 8]) {
+unsafe fn observe_c(ctx: *mut ffi::AVXTEA, le: bool, cbc: bool) -> ([u8; 24], [u8; 8]) {
     let crypt = if le {
         ffi::av_xtea_le_crypt
     } else {
@@ -113,18 +112,196 @@ fn c_cipher_observes_setters_and_initialization_identically() {
                 reference.key = words;
                 assert_eq!(wrapped.as_ref().key(), reference.key);
                 for cbc in [false, true] {
-                    // SAFETY: these independently owned initialized contexts
-                    // are exclusively available; observe retains no pointers.
-                    let (a, b) = unsafe {
-                        (
-                            observe(wrapped.as_c_ptr(), le, cbc),
-                            observe(&raw mut reference, le, cbc),
-                        )
-                    };
+                    let src = *b"abcdefgh01234567ABCDEFGH";
+                    let mut dst = [0; 24];
+                    let mut iv = *b"initial!";
+                    wrapped_call(
+                        wrapped.as_ref(),
+                        &mut dst,
+                        Some(&src),
+                        cbc.then_some(&mut iv),
+                        Direction::Encrypt,
+                        le,
+                    );
+                    let a = (dst, iv);
+                    iv = *b"initial!";
+                    wrapped_call(
+                        wrapped.as_ref(),
+                        &mut dst,
+                        None,
+                        cbc.then_some(&mut iv),
+                        Direction::Decrypt,
+                        le,
+                    );
+                    assert_eq!(dst, src);
+                    // SAFETY: independent initialized C context, exclusively
+                    // available; observe_c uses bounded buffers and retains nothing.
+                    let b = unsafe { observe_c(&raw mut reference, le, cbc) };
                     assert_eq!(a, b);
                     assert_eq!(wrapped.as_ref().key(), reference.key);
                 }
             }
+        }
+    }
+}
+
+fn wrapped_call(
+    ctx: XteaRef<'_>,
+    dst: &mut [u8],
+    src: Option<&[u8]>,
+    iv: Option<&mut [u8; 8]>,
+    direction: Direction,
+    le: bool,
+) {
+    match (le, src) {
+        (false, Some(src)) => ctx.crypt(dst, src, iv, direction),
+        (true, Some(src)) => ctx.crypt_le(dst, src, iv, direction),
+        (false, None) => ctx.crypt_in_place(dst, iv, direction),
+        (true, None) => ctx.crypt_le_in_place(dst, iv, direction),
+    }
+    .unwrap();
+}
+
+fn reference_call(
+    ctx: &XteaBox,
+    dst: &mut [u8],
+    src: Option<&[u8]>,
+    iv: Option<&mut [u8; 8]>,
+    direction: Direction,
+    le: bool,
+) {
+    let count = i32::try_from(dst.len() / 8).unwrap();
+    assert!(dst.len().is_multiple_of(8));
+    assert!(src.is_none_or(|src| src.len() == dst.len()));
+    let src = src.map_or_else(|| dst.as_ptr(), |src| src.as_ptr());
+    let iv = iv.map_or(core::ptr::null_mut(), |iv| iv.as_mut_ptr());
+    let crypt = if le {
+        ffi::av_xtea_le_crypt
+    } else {
+        ffi::av_xtea_crypt
+    };
+    // SAFETY: C only reads this live independently owned context; all buffers
+    // cover count*8 bytes, with disjoint or exact overlap and a disjoint eight-
+    // byte IV (or NULL). Count is nonnegative and no pointer is retained.
+    unsafe {
+        crypt(
+            ctx.as_c_ptr(),
+            dst.as_mut_ptr(),
+            src,
+            count,
+            iv,
+            i32::from(direction == Direction::Decrypt),
+        )
+    };
+}
+
+#[test]
+fn cipher_matrix_and_multicall_cbc_state_match_c() {
+    for key in KEYS {
+        for key_le in [false, true] {
+            // Initializer byte order is independent of block byte order.
+            let wrapped = if key_le {
+                Xtea::new_le(&key)
+            } else {
+                Xtea::new(&key)
+            };
+            let mut reference = XteaBox::new().unwrap();
+            if key_le {
+                // SAFETY: fresh exclusively owned context and sixteen readable
+                // key bytes; C copies the key and retains neither pointer.
+                unsafe { ffi::av_xtea_le_init(reference.as_c_ptr(), key.as_ptr()) };
+            } else {
+                // SAFETY: same initialized allocation and key extent as above.
+                unsafe { ffi::av_xtea_init(reference.as_c_ptr(), key.as_ptr()) };
+            }
+            for le in [false, true] {
+                for cbc in [false, true] {
+                    for inplace in [false, true] {
+                        for blocks in [0, 1, 2, 17] {
+                            let len = blocks * 8;
+                            let input: Vec<u8> = (0..len + 2)
+                                .map(|i| (i as u8).wrapping_mul(173).wrapping_add(0x80))
+                                .collect();
+                            let src = &input[1..len + 1]; // byte-aligned, not word-aligned
+                            let mut a = vec![0xa5; len + 2];
+                            let mut b = a.clone();
+                            if inplace {
+                                a[1..len + 1].copy_from_slice(src);
+                                b[1..len + 1].copy_from_slice(src);
+                            }
+                            let initial_iv = *b"initial!";
+                            let mut iv_a = initial_iv;
+                            let mut iv_b = initial_iv;
+                            // Split calls deliberately include an empty call;
+                            // compare output, key and IV after every transition.
+                            let split = if blocks > 1 { 8 } else { 0 };
+                            for range in [1..1, 1..1 + split, 1 + split..len + 1] {
+                                let source = (!inplace).then_some(&input[range.clone()]);
+                                wrapped_call(
+                                    wrapped.as_ref(),
+                                    &mut a[range.clone()],
+                                    source,
+                                    cbc.then_some(&mut iv_a),
+                                    Direction::Encrypt,
+                                    le,
+                                );
+                                reference_call(
+                                    &reference,
+                                    &mut b[range],
+                                    source,
+                                    cbc.then_some(&mut iv_b),
+                                    Direction::Encrypt,
+                                    le,
+                                );
+                                assert_eq!(a, b);
+                                assert_eq!(iv_a, iv_b);
+                                assert_eq!(wrapped.as_ref().key(), reference.as_ref().key());
+                            }
+                            let ciphertext = a.clone();
+                            iv_a = initial_iv;
+                            iv_b = initial_iv;
+                            // Decrypt with the opposite aliasing form.
+                            for range in [1..1 + split, 1 + split..len + 1, len + 1..len + 1] {
+                                let source = inplace.then_some(&ciphertext[range.clone()]);
+                                wrapped_call(
+                                    wrapped.as_ref(),
+                                    &mut a[range.clone()],
+                                    source,
+                                    cbc.then_some(&mut iv_a),
+                                    Direction::Decrypt,
+                                    le,
+                                );
+                                reference_call(
+                                    &reference,
+                                    &mut b[range],
+                                    source,
+                                    cbc.then_some(&mut iv_b),
+                                    Direction::Decrypt,
+                                    le,
+                                );
+                                assert_eq!(a, b);
+                                assert_eq!(iv_a, iv_b);
+                                assert_eq!(wrapped.as_ref().key(), reference.as_ref().key());
+                            }
+                            assert_eq!(&a[1..len + 1], src);
+                            assert_eq!(a[0], 0xa5);
+                            assert_eq!(a[len + 1], 0xa5);
+                            assert_eq!(
+                                iv_a,
+                                if cbc && len > 0 {
+                                    ciphertext[len - 7..len + 1].try_into().unwrap()
+                                } else {
+                                    initial_iv
+                                }
+                            );
+                        }
+                    }
+                }
+            }
+            // Reinitialization still preserves the public unused words.
+            reference.as_mut().set_key([u32::MAX; 16]);
+            reference.as_mut().init(&key);
+            assert_eq!(reference.as_ref().key()[4..], [u32::MAX; 12]);
         }
     }
 }

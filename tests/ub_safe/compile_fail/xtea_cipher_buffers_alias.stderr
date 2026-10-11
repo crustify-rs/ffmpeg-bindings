@@ -1,0 +1,8 @@
+error[E0502]: cannot borrow `buffer` as immutable because it is also borrowed as mutable
+ --> tests/ub_safe/compile_fail/xtea_cipher_buffers_alias.rs:5:37
+  |
+5 |     ctx.as_ref().crypt(&mut buffer, &buffer, None, Direction::Encrypt).unwrap();
+  |                  ----- -----------  ^^^^^^^ immutable borrow occurs here
+  |                  |     |
+  |                  |     mutable borrow occurs here
+  |                  mutable borrow later used by call

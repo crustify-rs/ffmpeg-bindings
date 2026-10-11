@@ -82,3 +82,88 @@ fn arrays_and_borrowed_elements() {
     assert_eq!(views.get(1).unwrap().key()[0], 0x00010203);
     assert_eq!(views.get(2).unwrap().key()[0], 0x03020100);
 }
+
+fn exercise_cipher(view: ffmpeg::libavutil::xtea::XteaRef<'_>) {
+    use ffmpeg::libavutil::xtea::Direction::{Decrypt, Encrypt};
+    let snapshot = view.key();
+    let shared = view;
+    for le in [false, true] {
+        for cbc in [false, true] {
+            for blocks in [0, 1, 2, 33] {
+                let len = blocks * 8;
+                let input: Vec<u8> = (0..len + 2).map(|i| (i as u8).wrapping_mul(137)).collect();
+                let mut output = vec![0xa5; len + 2];
+                let initial_iv = [0xff; 8];
+                let mut iv = initial_iv;
+                let iv_arg = cbc.then_some(&mut iv);
+                if le {
+                    shared.crypt_le(&mut output[1..len + 1], &input[1..len + 1], iv_arg, Encrypt)
+                } else {
+                    shared.crypt(&mut output[1..len + 1], &input[1..len + 1], iv_arg, Encrypt)
+                }
+                .unwrap();
+                assert_eq!(shared.key(), snapshot);
+                let encrypted = output.clone();
+                iv = initial_iv;
+                let iv_arg = cbc.then_some(&mut iv);
+                if le {
+                    view.crypt_le_in_place(&mut output[1..len + 1], iv_arg, Decrypt)
+                } else {
+                    view.crypt_in_place(&mut output[1..len + 1], iv_arg, Decrypt)
+                }
+                .unwrap();
+                assert_eq!(&output[1..len + 1], &input[1..len + 1]);
+                assert_eq!(output[0], 0xa5);
+                assert_eq!(output[len + 1], 0xa5);
+                assert_eq!(
+                    iv,
+                    if cbc && len > 0 {
+                        encrypted[len - 7..len + 1].try_into().unwrap()
+                    } else {
+                        initial_iv
+                    }
+                );
+                // Reborrow the same Rust buffers after C returns; retained
+                // foreign pointers must not exist across these writes.
+                output.fill(0x80);
+                iv.fill(0x40);
+                let iv_arg = cbc.then_some(&mut iv);
+                if le {
+                    view.crypt_le_in_place(&mut output[1..len + 1], iv_arg, Encrypt)
+                } else {
+                    view.crypt_in_place(&mut output[1..len + 1], iv_arg, Encrypt)
+                }
+                .unwrap();
+                assert_eq!(output[0], 0x80);
+                assert_eq!(output[len + 1], 0x80);
+            }
+        }
+    }
+}
+
+#[test]
+fn cipher_inline_shared_handles_and_foreign_buffer_reborrows() {
+    let mut inline = Xtea::new(&KEY);
+    exercise_cipher(inline.as_ref());
+    inline.as_mut().init_le(&[0xff; 16]);
+    exercise_cipher(inline.as_mut().as_ref());
+}
+
+#[test]
+fn cipher_heap_array_and_clone_keepalive() {
+    let mut owner = XteaBox::new().unwrap();
+    owner.as_mut().init(&KEY);
+    exercise_cipher(owner.as_ref());
+    let clone = owner.clone();
+    drop(owner);
+    exercise_cipher(clone.as_ref());
+    let mut array = alloc_cell_array_zeroed::<Xtea>(2).unwrap();
+    array.as_handles_mut().get_mut(1).unwrap().init_le(&KEY);
+    exercise_cipher(array.as_handles().get(0).unwrap());
+    exercise_cipher(array.as_handles_mut().get_mut(1).unwrap().as_ref());
+}
+
+#[test]
+fn cipher_compile_fail() {
+    trybuild::TestCases::new().compile_fail("tests/ub_safe/compile_fail/xtea_cipher_*.rs");
+}
