@@ -2795,7 +2795,10 @@ define_ctype!(
     /// alone ([`FrameRef::plane`]); wrappers of C routines that read or
     /// write planes through those values (`av_frame_copy`,
     /// `av_frame_make_writable`, `av_frame_apply_cropping`, any filter or
-    /// encoder) must check them first. So must wrappers that hand frames
+    /// encoder) must check them first, the channel count among them: C
+    /// reads one `extended_data` entry per channel of planar audio, past
+    /// `data` while `extended_data` is still the frame's own (see
+    /// [`FrameRef::try_clone`]). So must wrappers that hand frames
     /// from hardware decoders out as `Frame`s, whose buffers do not hold
     /// bytes.
     ///
@@ -3592,6 +3595,18 @@ impl<'a> FrameRef<'a> {
         wide && refs.all(|buf| may_add_reference(buf.ref_count()))
     }
 
+    /// Whether C's copy of this frame's data (`av_frame_copy`, which
+    /// `av_frame_clone` runs for a frame that is not reference counted)
+    /// would read more `extended_data` entries than the frame has: for
+    /// planar audio it reads one per channel, and an `extended_data` that
+    /// is still the frame's own `data` holds [`NUM_DATA_POINTERS`], past
+    /// which C takes the next fields for plane pointers.
+    fn copy_reads_past_extended_data(&self) -> bool {
+        let video = self.width() > 0 && self.height() > 0;
+        let channels = usize::try_from(self.channel_layout().channel_count()).unwrap_or(0);
+        !video && self.sample_format().is_planar() && channels > self.extended_plane_count()
+    }
+
     /// Wraps: av_frame_clone
     ///
     /// A new frame describing the same data: the same properties, side data
@@ -3607,11 +3622,14 @@ impl<'a> FrameRef<'a> {
     /// the bytes of those buffers outside the copied lines (padding, and
     /// alignment gaps) uninitialised; here they are zero.
     ///
-    /// `None` when C fails (the copy above, or memory), or when one of the
-    /// buffers' counts would near wrapping.
+    /// `None` when C fails (the copy above, or memory), when one of the
+    /// buffers' counts would near wrapping, and for a frame that is not
+    /// reference counted whose data C would read past its `extended_data`:
+    /// planar audio of more channels than [`NUM_DATA_POINTERS`] needs an
+    /// array of its own ([`FrameMut::alloc_extended_data`]).
     #[must_use]
     pub fn try_clone(&self) -> Option<FrameBox> {
-        if !self.may_clone() {
+        if !self.may_clone() || (!self.is_counted() && self.copy_reads_past_extended_data()) {
             return None;
         }
         // C allocates a frame and av_frame_ref's it: it copies the scalar
@@ -3621,8 +3639,9 @@ impl<'a> FrameRef<'a> {
         // copies `extended_data`'s channel count of entries when separate.
         // SAFETY: a live frame, read only, whose invariant keeps all of that
         // valid; a frame that is not reference counted has NULL planes (C
-        // fails at the first one) or planes whose setter vouched for them.
-        // On failure C frees the copy and returns NULL.
+        // fails at the first one) or planes whose setter vouched for them,
+        // and C reads no plane pointer past its `extended_data` (checked
+        // above). On failure C frees the copy and returns NULL.
         let mut copy = unsafe { ffi::av_frame_clone(self.as_ptr()) };
         if !copy.is_null() && !self.is_counted() {
             // The copy's buffers come from av_buffer_alloc and hold
@@ -3895,7 +3914,8 @@ impl FrameMut<'_> {
     ///   of the pointer may read it.
     ///
     /// A buffer reference added later at index 0 clears every plane outside
-    /// it, this one included.
+    /// it, this one included, and
+    /// [`alloc_extended_data`](Self::alloc_extended_data) does not copy it.
     pub unsafe fn set_data_ptr(&mut self, i: usize, data: *mut u8) {
         assert!(i < NUM_DATA_POINTERS, "plane {i} out of range");
         let p = self.as_mut_ptr();
@@ -3964,7 +3984,11 @@ impl FrameMut<'_> {
     /// Field: AVFrame.extended_data
     ///
     /// Stores `data` as entry `i` of `extended_data`, unchecked, as
-    /// [`set_data_ptr`](Self::set_data_ptr) does for `data`.
+    /// [`set_data_ptr`](Self::set_data_ptr) does for `data`. While
+    /// `extended_data` is the frame's own `data`, that is plane `i`: the
+    /// loan then ends with that plane, whatever array
+    /// [`alloc_extended_data`](Self::alloc_extended_data) gives the frame
+    /// later (whose entries start NULL).
     ///
     /// # Panics
     ///
@@ -3985,8 +4009,15 @@ impl FrameMut<'_> {
     ///
     /// Gives the frame an `extended_data` array of its own, of one entry per
     /// channel of its layout, as C allocates for planar audio with more
-    /// channels than [`NUM_DATA_POINTERS`]: the first entries copy `data`,
-    /// the rest are NULL. An array the frame had already is freed.
+    /// channels than [`NUM_DATA_POINTERS`]: for a reference-counted frame
+    /// the first entries copy `data`, the rest are NULL. An array the frame
+    /// had already is freed.
+    ///
+    /// Every entry of a frame that is not reference counted is NULL: its
+    /// planes are memory lent through [`set_data_ptr`](Self::set_data_ptr)
+    /// for as long as the plane holds it, and a copy here would outlive that
+    /// loan. Lend each entry with
+    /// [`set_extended_data_ptr`](Self::set_extended_data_ptr).
     ///
     /// # Errors
     ///
@@ -3999,7 +4030,13 @@ impl FrameMut<'_> {
             Ok(n) if n > 0 => n,
             _ => return Err(EINVAL),
         };
-        let data = shared.data_ptrs();
+        // Planes inside the frame's buffers are pruned with them; lent ones
+        // are not copied.
+        let data = if shared.is_counted() {
+            shared.data_ptrs()
+        } else {
+            [ptr::null_mut(); NUM_DATA_POINTERS]
+        };
         // SAFETY: no precondition; a zeroed block of `count` pointers, or
         // NULL when C cannot allocate it (an overflowing size included).
         let block = unsafe { ffi::av_calloc(count, size_of::<*mut u8>()) }.cast::<*mut u8>();
@@ -4559,7 +4596,11 @@ impl FrameMut<'_> {
     /// (one `av_hwframe_ctx_alloc` made, or a reference to it), whose bytes C
     /// reads as an `AVHWFramesContext` (`av_frame_make_writable`,
     /// `av_frame_copy`, the `av_hwframe_*` routines, hardware decoders,
-    /// filters and encoders).
+    /// filters and encoders). The context must be initialised
+    /// (`av_hwframe_ctx_init` succeeded) and nothing may write its bytes
+    /// while the frame, or a copy of it, holds the reference:
+    /// [`FrameRef::hw_frames_context`] lends them to safe code as a
+    /// `&[u8]`, through [`BufferReferenceRef::data`].
     // A safe setter taking a typed frames context replaces this seam once
     // hwcontext.h's AVHWFramesContext is wrapped.
     #[must_use = "dropping the old reference releases it"]
@@ -5865,6 +5906,77 @@ mod unit_tests {
         drop(f);
     }
 
+    /// `try_clone`'s guard: only planar audio whose channels outnumber
+    /// the `extended_data` entries makes C's copy read past them.
+    #[test]
+    #[cfg_attr(miri, ignore)]
+    fn frame_copies_reading_past_extended_data() {
+        let mut f = Frame::new().unwrap();
+        let reads_past = |f: &FrameBox| f.as_ref().copy_reads_past_extended_data();
+        assert!(!reads_past(&f));
+        f.as_mut()
+            .set_channel_layout(ChannelLayout::unspecified(9))
+            .unwrap();
+        // C's copy reads one plane of packed samples, whatever the layout.
+        f.as_mut().set_sample_format(SampleFormat::U8);
+        assert!(!reads_past(&f));
+        f.as_mut().set_sample_format(SampleFormat::FLTP);
+        assert!(reads_past(&f));
+        // Video copies read `data` alone.
+        f.as_mut().set_width(2);
+        f.as_mut().set_height(2);
+        assert!(!reads_past(&f));
+        f.as_mut().set_height(0);
+        assert!(reads_past(&f));
+        f.as_mut().alloc_extended_data().unwrap();
+        assert!(!reads_past(&f));
+        f.as_mut().reset_extended_data();
+        f.as_mut()
+            .set_channel_layout(ChannelLayout::unspecified(8))
+            .unwrap();
+        assert!(!reads_past(&f));
+        // Counted frames are copied by reference: the guard is not asked.
+        let mut f = frame_with_buffer(8);
+        f.as_mut()
+            .set_channel_layout(ChannelLayout::unspecified(9))
+            .unwrap();
+        f.as_mut().set_sample_format(SampleFormat::U8P);
+        assert!(reads_past(&f));
+        assert!(f.as_ref().try_clone().is_some());
+    }
+
+    /// `alloc_extended_data` copies `data` into the array only while the
+    /// frame is reference counted, whose planes buffer changes prune.
+    #[test]
+    #[cfg_attr(miri, ignore)]
+    fn frame_extended_arrays_copy_only_counted_planes() {
+        let mut lent = [0u8; 4];
+        let mut f = Frame::new().unwrap();
+        f.as_mut()
+            .set_channel_layout(ChannelLayout::unspecified(2))
+            .unwrap();
+        // SAFETY: the frame holds no buffer; `lent` outlives it, and no C
+        // routine reads the frame's planes here.
+        unsafe { f.as_mut().set_data_ptr(0, lent.as_mut_ptr()) };
+        f.as_mut().alloc_extended_data().unwrap();
+        let entry = |f: &FrameBox| {
+            let (ext, count) = f.as_ref().extended_parts();
+            assert_eq!(count, 2);
+            // SAFETY: entry 0 of the frame's own array of 2.
+            unsafe { ext.read() }
+        };
+        assert!(entry(&f).is_null());
+        assert_eq!(frame_data(&f)[0], lent.as_mut_ptr());
+        let mut f = frame_with_buffer(8);
+        f.as_mut()
+            .set_channel_layout(ChannelLayout::unspecified(2))
+            .unwrap();
+        f.as_mut().set_plane(0, 0, 3).unwrap();
+        f.as_mut().alloc_extended_data().unwrap();
+        assert_eq!(entry(&f), frame_data(&f)[0]);
+        assert!(!entry(&f).is_null());
+    }
+
     #[test]
     #[cfg_attr(miri, ignore)]
     fn frame_extended_arrays_need_a_channel() {
@@ -6119,10 +6231,11 @@ mod unit_tests {
     }
 
     /// Under allocation limits, `Frame::new`, `try_clone` (C's failure paths
-    /// in `av_frame_ref`: the extra block, the `extended_data` copy, the
-    /// data copy's buffers), `alloc_extended_data` and
-    /// `push_extended_buffer` fail cleanly: nothing leaks (LSan), and the
-    /// frames keep what they held.
+    /// in `av_frame_ref`'s side data copies, which fail first at these
+    /// limits, and in the data copy's buffers; the others are
+    /// `frame_clone_failures_one_allocation_at_a_time`'s),
+    /// `alloc_extended_data` and `push_extended_buffer` fail cleanly:
+    /// nothing leaks (LSan), and the frames keep what they held.
     #[test]
     #[cfg_attr(miri, ignore)]
     fn frame_allocation_failures_leave_frames_whole() {
@@ -6191,5 +6304,77 @@ mod unit_tests {
         }
         set_limit(c_int::MAX as usize);
         assert!(f.as_ref().try_clone().is_some());
+    }
+
+    /// Each of `av_frame_clone`'s allocations above a 600-byte limit fails
+    /// `try_clone` cleanly (LSan) on its own, with no side data to fail
+    /// first: `av_frame_ref`'s channel layout copy, extra block and
+    /// `extended_data` copy, and, for a frame that is not reference
+    /// counted, `get_audio_buffer`'s array and plane buffer.
+    #[test]
+    #[cfg_attr(miri, ignore)]
+    fn frame_clone_failures_one_allocation_at_a_time() {
+        if !frame_isolated(
+            "libavutil::frame::unit_tests::frame_clone_failures_one_allocation_at_a_time",
+        ) {
+            return;
+        }
+        const LIMIT: usize = 600;
+        const WIDE: usize = 100;
+        assert!(size_of::<ffi::AVFrame>() <= LIMIT && WIDE * size_of::<*mut u8>() > LIMIT);
+        // A custom map of 30 channels: 960 bytes.
+        let mut custom = Frame::new().unwrap();
+        custom
+            .as_mut()
+            .set_channel_layout(ChannelLayout::custom(30).unwrap())
+            .unwrap();
+        // 100 extra buffer references.
+        let mut extra = frame_with_buffer(8);
+        for _ in 0..WIDE {
+            extra
+                .as_mut()
+                .push_extended_buffer(BufferReference::alloc_zeroed(1).unwrap())
+                .unwrap();
+        }
+        // An `extended_data` array of 100 channels.
+        let mut channels = frame_with_buffer(8);
+        channels
+            .as_mut()
+            .set_channel_layout(ChannelLayout::unspecified(WIDE as i32))
+            .unwrap();
+        channels.as_mut().alloc_extended_data().unwrap();
+        // Not counted: C allocates an array of 100 channels for the copy.
+        let mut copied_channels = Frame::new().unwrap();
+        let mut m = copied_channels.as_mut();
+        m.set_sample_format(SampleFormat::U8P);
+        m.set_sample_count(1);
+        m.set_channel_layout(ChannelLayout::unspecified(WIDE as i32))
+            .unwrap();
+        m.alloc_extended_data().unwrap();
+        // Not counted: C allocates a 4 KiB plane buffer for the copy.
+        let mut lent = vec![5u8; 4096];
+        let mut copied_plane = Frame::new().unwrap();
+        let mut m = copied_plane.as_mut();
+        m.set_sample_format(SampleFormat::U8P);
+        m.set_sample_count(4096);
+        m.set_channel_layout(ChannelLayout::unspecified(1)).unwrap();
+        // SAFETY: the frame holds no buffer; `lent` holds the channel's 4096
+        // U8 samples, outlives the frame and is written by nothing else.
+        unsafe { m.set_data_ptr(0, lent.as_mut_ptr()) };
+        let frames = [&custom, &extra, &channels, &copied_channels, &copied_plane];
+        // SAFETY: no precondition; this process runs this test alone.
+        unsafe { ffi::av_max_alloc(LIMIT) };
+        for f in frames {
+            assert!(f.as_ref().try_clone().is_none());
+        }
+        // SAFETY: as above.
+        unsafe { ffi::av_max_alloc(c_int::MAX as usize) };
+        for f in [&custom, &extra, &channels] {
+            assert!(f.as_ref().try_clone().is_none() == f.as_ref().buffer(0).is_none());
+        }
+        let copy = copied_plane.as_ref().try_clone().unwrap();
+        assert_eq!(copy.as_ref().plane(0).unwrap()[..4096], lent[..]);
+        assert_eq!(extra.as_ref().buffer(0).unwrap().ref_count(), 1);
+        drop((copy, copied_plane, lent));
     }
 }

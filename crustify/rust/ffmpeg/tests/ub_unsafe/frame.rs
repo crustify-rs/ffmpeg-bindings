@@ -585,6 +585,105 @@ mod frame_type {
         unsafe { f.as_mut().set_extended_data_ptr(3, ptr::null_mut()) };
     }
 
+    /// Lends `mem` as `extended_data` entry `i`.
+    ///
+    /// # Safety
+    ///
+    /// As for `set_extended_data_ptr`: `mem` must hold the channel's
+    /// samples and outlive the frame's use of the entry.
+    unsafe fn lend_channel(f: &mut FrameBox, i: usize, mem: &mut [u8]) {
+        // SAFETY: the caller's contract.
+        unsafe { f.as_mut().set_extended_data_ptr(i, mem.as_mut_ptr()) };
+    }
+
+    /// Planar audio of more channels than `data` holds, all lent, whose
+    /// `extended_data` is still `data`: C's copy would take the fields
+    /// after `data` for channel 8's plane, so the clone is refused. With an
+    /// array of its own lending every channel, the clone copies them all
+    /// (review `ub_unsafe/clone-reads-planar-channels-past-data`).
+    #[test]
+    fn clones_refuse_channels_past_data() {
+        const SAMPLES: usize = 64;
+        let mut mems: Vec<Vec<u8>> = (0..NUM_DATA_POINTERS + 1)
+            .map(|c| pattern(SAMPLES + c)[c..].to_vec())
+            .collect();
+        let mut f = Frame::new().unwrap();
+        let mut m = f.as_mut();
+        m.set_sample_format(SampleFormat::U8P);
+        m.set_sample_count(SAMPLES as i32);
+        // C's convention for planar audio, and channel 8's would-be address.
+        m.set_linesize(0, SAMPLES as i32);
+        m.set_channel_layout(ChannelLayout::unspecified(9)).unwrap();
+        for (i, mem) in mems.iter_mut().take(NUM_DATA_POINTERS).enumerate() {
+            // SAFETY: the frame holds no buffer; `mem` holds the channel's
+            // SAMPLES U8 samples and outlives the frame.
+            unsafe { m.set_data_ptr(i, mem.as_mut_ptr()) };
+        }
+        assert!(f.as_ref().try_clone().is_none());
+        f.as_mut().alloc_extended_data().unwrap();
+        for (i, mem) in mems.iter_mut().enumerate() {
+            // SAFETY: as above, for entry `i` of the frame's own array.
+            unsafe { lend_channel(&mut f, i, mem) };
+        }
+        let copy = f.as_ref().try_clone().expect("C copies nine channels");
+        for (c, mem) in mems.iter().enumerate() {
+            let plane = copy.as_ref().extended_plane(c).unwrap();
+            assert_eq!(&plane[..SAMPLES], &mem[..SAMPLES]);
+        }
+        // Back to `data`: refused again, until the channels fit it.
+        f.as_mut().reset_extended_data();
+        assert!(f.as_ref().try_clone().is_none());
+        f.as_mut()
+            .set_channel_layout(ChannelLayout::unspecified(8))
+            .unwrap();
+        let copy = f.as_ref().try_clone().expect("C copies eight channels");
+        assert_eq!(
+            &copy.as_ref().plane(7).unwrap()[..SAMPLES],
+            &mems[7][..SAMPLES]
+        );
+        drop(f);
+    }
+
+    /// A lent plane that is replaced is read no more:
+    /// `alloc_extended_data` copies no lent plane, so the old block may go
+    /// (review `ub_unsafe/extended-data-keeps-a-replaced-external-plane`).
+    #[test]
+    fn extended_arrays_keep_no_lent_planes() {
+        const SAMPLES: usize = 64;
+        let mut left = pattern(SAMPLES);
+        let mut right = pattern(SAMPLES + 1)[1..].to_vec();
+        let mut new_left = pattern(SAMPLES + 2)[2..].to_vec();
+        let mut f = Frame::new().unwrap();
+        let mut m = f.as_mut();
+        m.set_sample_format(SampleFormat::U8P);
+        m.set_sample_count(SAMPLES as i32);
+        m.set_linesize(0, SAMPLES as i32);
+        m.set_channel_layout(ChannelLayout::unspecified(2)).unwrap();
+        // SAFETY: the frame holds no buffer; each block holds a channel's
+        // SAMPLES U8 samples, `left` until its plane is replaced below, the
+        // others for the frame's life.
+        unsafe {
+            m.set_data_ptr(0, left.as_mut_ptr());
+            m.set_data_ptr(1, right.as_mut_ptr());
+        }
+        m.alloc_extended_data().unwrap();
+        // SAFETY: as above.
+        unsafe { m.set_data_ptr(0, new_left.as_mut_ptr()) };
+        drop(left);
+        // The array's entries are NULL: C refuses to copy.
+        assert!(f.as_ref().try_clone().is_none());
+        // SAFETY: as above, lent to the array itself.
+        unsafe {
+            lend_channel(&mut f, 0, &mut new_left);
+            lend_channel(&mut f, 1, &mut right);
+        }
+        let copy = f.as_ref().try_clone().expect("C copies both channels");
+        drop(f);
+        let r = copy.as_ref();
+        assert_eq!(&r.extended_plane(0).unwrap()[..SAMPLES], &new_left[..]);
+        assert_eq!(&r.extended_plane(1).unwrap()[..SAMPLES], &right[..]);
+    }
+
     #[test]
     fn hw_frames_context_round_trips_none() {
         let mut f = Frame::new().unwrap();
