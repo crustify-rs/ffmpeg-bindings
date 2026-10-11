@@ -5255,6 +5255,61 @@
    "defined_in": "libavutil/common.h"
   },
   {
+   "name": "av_parse_color",
+   "defined_in": "libavutil/parseutils.c",
+   "ptr_args": [
+    {
+     "name": "color_string",
+     "ptr": {
+      "scalar": null,
+      "array": null,
+      "string": true,
+      "owned": false,
+      "borrowed": {
+       "lifetime": "arg:color_string"
+      },
+      "nullable": false,
+      "mutable": false,
+      "note": "Color string, read for the call only. Must be NUL-terminated even when slen >= 0: color_string[0] and strncmp(color_string, \"0x\", 2) read the full string, and the invalid-alpha log message prints it whole with %s. slen bounds only the copy into a 128-byte stack buffer (av_strlcpy, size FFMIN(slen - hex_offset + 1, 128), int compared as size_t). C reads that buffer uninitialised (UB) when slen == hex_offset - 1 (slen 0 with '#', slen 1 with '0x'), and for slen < hex_offset - 1 the negative size wraps to 128 and C parses past the slen prefix. slen near INT_MAX overflows slen - hex_offset + 1 (UB). The Rust prefix wrapper rejects len < hex_offset with EINVAL and caps len at 256 (equivalent once >= 127 + hex_offset). C also reaches UB (float-cast-overflow, UBSan parseutils.c:433) for an alpha specifier strtod reads wholly as NaN ('red@nan', '@-NaN(1)'): the [0, 1] range check and the alpha > 255 || alpha < 0 check are both false for NaN, then rgba_color[3] = alpha converts NaN to uint8_t. The Rust wrappers mirror C's alpha extraction (first '@' within the copied bytes) and glibc's NaN grammar and fail with EINVAL before C runs."
+     }
+    },
+    {
+     "name": "log_ctx",
+     "ptr": {
+      "scalar": {
+       "by_val": true
+      },
+      "array": null,
+      "string": false,
+      "owned": false,
+      "borrowed": {
+       "lifetime": "arg:log_ctx"
+      },
+      "nullable": true,
+      "mutable": false,
+      "note": "Log context passed to av_log on the error paths only, read during the call, not retained. NULL means no context; otherwise a struct whose first member is a const AVClass * (type-erased)."
+     }
+    },
+    {
+     "name": "rgba_color",
+     "ptr": {
+      "scalar": null,
+      "array": {
+       "by_val": true
+      },
+      "string": false,
+      "owned": false,
+      "borrowed": {
+       "lifetime": "arg:rgba_color"
+      },
+      "nullable": false,
+      "mutable": true,
+      "note": "Out array of exactly 4 bytes (R, G, B, A), written, never read, not retained. Must not be NULL. Partially written on failure: rgba_color[3] = 255 is stored before validation, and the RGB bytes before an invalid alpha suffix is rejected. The Rust wrapper returns a fresh [u8; 4] only on success."
+     }
+    }
+   ]
+  },
+  {
    "name": "av_parse_cpu_caps",
    "defined_in": "libavutil/cpu.c",
    "ptr_args": [
@@ -5288,6 +5343,99 @@
       "nullable": false,
       "mutable": false,
       "note": "Flags string, read for the call only, split at '+'/'-' into <=255-byte tokens, each a const name or an av_expr expression. Must not be NULL."
+     }
+    }
+   ]
+  },
+  {
+   "name": "av_parse_time",
+   "defined_in": "libavutil/parseutils.c",
+   "ptr_args": [
+    {
+     "name": "timestr",
+     "ptr": {
+      "scalar": null,
+      "array": null,
+      "string": true,
+      "owned": false,
+      "borrowed": {
+       "lifetime": "arg:timestr"
+      },
+      "nullable": false,
+      "mutable": false,
+      "note": "Date or duration string, read for the call only (av_small_strptime, strtoll, digit scans that stop at the NUL). Must not be NULL. No UB found for any input: date fields are capped at 4 digits, %J at 9999 hours, and the final scaling is range-checked against INT64_MAX/INT64_MIN. Date mode depends on the current time (now, missing date) and the local time zone (mktime, localtime_r)."
+     }
+    },
+    {
+     "name": "timeval",
+     "ptr": {
+      "scalar": {
+       "by_val": true
+      },
+      "array": null,
+      "string": false,
+      "owned": false,
+      "borrowed": {
+       "lifetime": "arg:timeval"
+      },
+      "nullable": false,
+      "mutable": true,
+      "note": "Out-parameter, never read: INT64_MIN is stored first, then the parsed microseconds on success (so failure leaves INT64_MIN). Must not be NULL. The Rust wrappers return the value only on success."
+     }
+    }
+   ]
+  },
+  {
+   "name": "av_parse_video_size",
+   "defined_in": "libavutil/parseutils.c",
+   "ptr_args": [
+    {
+     "name": "height_ptr",
+     "ptr": {
+      "scalar": {
+       "by_val": true
+      },
+      "array": null,
+      "string": false,
+      "owned": false,
+      "borrowed": {
+       "lifetime": "arg:height_ptr"
+      },
+      "nullable": false,
+      "mutable": true,
+      "note": "Out-parameter, written only on success with a positive height, never read. Must not be NULL."
+     }
+    },
+    {
+     "name": "str",
+     "ptr": {
+      "scalar": null,
+      "array": null,
+      "string": true,
+      "owned": false,
+      "borrowed": {
+       "lifetime": "arg:str"
+      },
+      "nullable": false,
+      "mutable": false,
+      "note": "Size string (an abbreviation from video_size_abbrs, or WxH read by two strtol calls with any one separator byte), read for the call only. Must not be NULL. strtol's long results narrow to int (implementation-defined, not UB): 4294967297x1 parses as 1x1."
+     }
+    },
+    {
+     "name": "width_ptr",
+     "ptr": {
+      "scalar": {
+       "by_val": true
+      },
+      "array": null,
+      "string": false,
+      "owned": false,
+      "borrowed": {
+       "lifetime": "arg:width_ptr"
+      },
+      "nullable": false,
+      "mutable": true,
+      "note": "Out-parameter, written only on success with a positive width, never read. Must not be NULL."
      }
     }
    ]
@@ -6166,6 +6314,74 @@
    "defined_in": "libavutil/common.h"
   },
   {
+   "name": "av_set_options_string",
+   "defined_in": "libavutil/opt.c",
+   "ptr_args": [
+    {
+     "name": "ctx",
+     "ptr": {
+      "scalar": {
+       "by_val": true
+      },
+      "array": null,
+      "string": false,
+      "owned": false,
+      "borrowed": {
+       "lifetime": "arg:ctx"
+      },
+      "nullable": true,
+      "mutable": true,
+      "note": "AVClass-enabled object (first member a const AVClass *), borrowed mutably for the call and not retained: av_opt_set(ctx, key, val, AV_OPT_SEARCH_CHILDREN) writes each option's field at its offset, releasing the field's previous value (av_freep for strings and binaries, av_dict_free, array frees) and storing fresh av_malloc-family values that ctx then owns (av_opt_free releases them). Children reached through the class's child_next are written likewise. Also the av_log context. NULL, or a NULL class, makes every key fail with AVERROR_OPTION_NOT_FOUND. Not touched when opts is NULL or empty. Reaches C UB through av_opt_set for a color option whose alpha is NaN (av_parse_color, parseutils.c:433), and for numeric options whose min/max lie outside the field type's range (write_number converts after the min/max check only). A failing AV_OPT_TYPE_IMAGE_SIZE value memcpy's set_string_image_size's uninitialised tmp[2] into the field (unspecified sizes left behind). The Rust wrapper is unsafe with these conditions in its contract."
+     }
+    },
+    {
+     "name": "key_val_sep",
+     "ptr": {
+      "scalar": null,
+      "array": null,
+      "string": true,
+      "owned": false,
+      "borrowed": {
+       "lifetime": "arg:key_val_sep"
+      },
+      "nullable": false,
+      "mutable": false,
+      "note": "Set of key/value separator bytes (strspn), read for the call only. Must not be NULL; empty makes every pair fail with EINVAL."
+     }
+    },
+    {
+     "name": "opts",
+     "ptr": {
+      "scalar": null,
+      "array": null,
+      "string": true,
+      "owned": false,
+      "borrowed": {
+       "lifetime": "arg:opts"
+      },
+      "nullable": true,
+      "mutable": false,
+      "note": "key/value list, read for the call only (av_get_token copies each key and value into av_realloc blocks freed before return). NULL returns 0 without reading anything else."
+     }
+    },
+    {
+     "name": "pairs_sep",
+     "ptr": {
+      "scalar": null,
+      "array": null,
+      "string": true,
+      "owned": false,
+      "borrowed": {
+       "lifetime": "arg:pairs_sep"
+      },
+      "nullable": false,
+      "mutable": false,
+      "note": "Set of pair separator bytes (strspn), read for the call only. Must not be NULL."
+     }
+    }
+   ]
+  },
+  {
    "name": "av_size_mult",
    "defined_in": "libavutil/mem.c",
    "ptr_args": [
@@ -6833,6 +7049,49 @@
       "nullable": false,
       "mutable": false,
       "note": "String tested, read in step with pfx until pfx's NUL or a mismatch (stops at str's NUL). Must not be NULL."
+     }
+    }
+   ]
+  },
+  {
+   "name": "av_strtod",
+   "defined_in": "libavutil/eval.c",
+   "ptr_args": [
+    {
+     "name": "numstr",
+     "ptr": {
+      "scalar": null,
+      "array": null,
+      "string": true,
+      "owned": false,
+      "borrowed": {
+       "lifetime": "arg:numstr"
+      },
+      "nullable": false,
+      "mutable": false,
+      "note": "Number string, read for the call only (strtod/strtoul, then at most two suffix bytes, each read only after a non-NUL predecessor). Must not be NULL."
+     }
+    },
+    {
+     "name": "tail",
+     "ptr": {
+      "scalar": {
+       "by_ref": {
+        "owned": false,
+        "borrowed": {
+         "lifetime": "arg:numstr"
+        }
+       }
+      },
+      "array": null,
+      "string": false,
+      "owned": false,
+      "borrowed": {
+       "lifetime": "arg:tail"
+      },
+      "nullable": true,
+      "mutable": true,
+      "note": "Optional out slot, never read: receives a pointer into numstr (its first unparsed byte, or numstr itself when nothing parsed), so *tail borrows numstr; char ** only for strtod compatibility, the string must not be written through it. NULL skips the store."
      }
     }
    ]

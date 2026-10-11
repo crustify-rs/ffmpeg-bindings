@@ -520,3 +520,16 @@ function av_dict_iterate
 function av_dict_count
 function av_dict_get_string
 var AV_DICT_.*
+
+# libavutil options wave 0, batch 4: parseutils.h's parsers, eval.h's
+# av_strtod (already above) and opt.h's av_set_options_string.
+function av_parse_color
+function av_parse_time
+function av_parse_video_size
+function av_set_options_string
+# libavutil/parseutils.h: enumerates the color table av_parse_color
+# matches, in its equivalence tests.
+function av_get_known_color_name
+# libavutil/dict.h: reads an AV_OPT_TYPE_DICT option's dictionary back in
+# av_set_options_string's equivalence tests.
+function av_dict_get
