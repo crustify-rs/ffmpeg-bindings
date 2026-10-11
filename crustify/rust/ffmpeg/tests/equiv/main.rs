@@ -1,5 +1,7 @@
 //! Functional equivalence tests of the public API against the C library.
 
+mod aes;
+mod aes_ctr;
 mod avstring;
 mod avutil;
 mod bprint;
