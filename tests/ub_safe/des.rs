@@ -96,3 +96,71 @@ fn copies_and_clones_outlive_their_sources() {
     inline.as_mut().set_triple_des(0);
     assert_eq!(copy.as_ref().triple_des(), 1);
 }
+
+#[test]
+fn crypt_foreign_writes_and_borrowed_inputs() {
+    let mut inline = Des::zeroed();
+    inline.as_mut().set_round_keys([[u64::MAX; 16]; 3]);
+    for flag in [i32::MIN, -1, 0, 1, i32::MAX] {
+        inline.as_mut().set_triple_des(flag);
+        let mut output = [0xFF; 8];
+        inline
+            .as_ref()
+            .crypt_in_place(&mut output, None, false)
+            .unwrap();
+        inline
+            .as_ref()
+            .crypt_in_place(&mut output, None, true)
+            .unwrap();
+        let _ = inline.as_ref().mac(&output).unwrap();
+    }
+    for key_len in [8, 24] {
+        let owner = Des::new_boxed(&vec![0x35; key_len], false).unwrap();
+        let shared = owner.as_ref();
+        let second = shared;
+        for blocks in [0, 1, 2, 17] {
+            let mut input = vec![0xAA; blocks * 8 + 1];
+            let mut output = vec![0; blocks * 8 + 1];
+            let mut iv = [0x25; 8];
+            shared
+                .crypt(&mut output[1..], &input[1..], Some(&mut iv), false)
+                .unwrap();
+            input.fill(0); // no retained foreign pointer across this Rust reborrow
+            drop(input);
+            second
+                .crypt_in_place(&mut output[1..], Some(&mut iv), true)
+                .unwrap();
+            second
+                .crypt_zeros(&mut output[1..], Some(&mut iv), false)
+                .unwrap();
+            let _ = shared.mac(&output[1..]).unwrap();
+            output.fill(7); // foreign writes ended before the next Rust borrow
+        }
+    }
+}
+
+#[test]
+fn independent_crypt_contexts_on_threads() {
+    let workers: Vec<_> = (0..4)
+        .map(|_| {
+            std::thread::spawn(|| {
+                let context = Des::new(&[3; 24], false).unwrap();
+                let mut data = [7; 80];
+                for _ in 0..16 {
+                    context
+                        .as_ref()
+                        .crypt_in_place(&mut data, None, false)
+                        .unwrap();
+                    context
+                        .as_ref()
+                        .crypt_in_place(&mut data, None, true)
+                        .unwrap();
+                    let _ = context.as_ref().mac(&data).unwrap();
+                }
+            })
+        })
+        .collect();
+    for worker in workers {
+        worker.join().unwrap();
+    }
+}

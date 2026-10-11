@@ -4360,6 +4360,80 @@
    }
   },
   {
+   "name": "av_des_crypt",
+   "defined_in": "libavutil/des.c",
+   "ptr_args": [
+    {
+     "name": "d",
+     "ptr": {
+      "scalar": {
+       "by_val": true
+      },
+      "array": null,
+      "string": false,
+      "owned": false,
+      "borrowed": {
+       "lifetime": "arg:d"
+      },
+      "nullable": false,
+      "mutable": false,
+      "note": "av_des_crypt_mac/des_encdec only read the flag and key schedules; safe shared context access is valid."
+     }
+    },
+    {
+     "name": "dst",
+     "ptr": {
+      "scalar": null,
+      "array": {
+       "by_val": true
+      },
+      "string": false,
+      "owned": false,
+      "borrowed": {
+       "lifetime": "arg:dst"
+      },
+      "nullable": false,
+      "mutable": true,
+      "note": "Call-scoped borrow; no caller pointer retained. Context storage and children remain C-owned; byte buffers have the scalar length/count or backend digest size."
+     }
+    },
+    {
+     "name": "iv",
+     "ptr": {
+      "scalar": null,
+      "array": {
+       "by_val": true
+      },
+      "string": false,
+      "owned": false,
+      "borrowed": {
+       "lifetime": "arg:iv"
+      },
+      "nullable": true,
+      "mutable": true,
+      "note": "Call-scoped borrow; no caller pointer retained. Context storage and children remain C-owned; byte buffers have the scalar length/count or backend digest size."
+     }
+    },
+    {
+     "name": "src",
+     "ptr": {
+      "scalar": null,
+      "array": {
+       "by_val": true
+      },
+      "string": false,
+      "owned": false,
+      "borrowed": {
+       "lifetime": "arg:src"
+      },
+      "nullable": true,
+      "mutable": false,
+      "note": "NULL is intended as zero blocks, but src += 8 makes later iterations invalid. Safe variants use real zero input, never NULL."
+     }
+    }
+   ]
+  },
+  {
    "name": "av_des_init",
    "defined_in": "libavutil/des.c",
    "lifetime": {
@@ -4405,6 +4479,63 @@
       "mutable": false,
       "nullable": true,
       "note": "Array of exactly 8 or 24 readable bytes for key_bits=64/192. Copied to round keys during the call, never retained. Ignored (and may be NULL) for invalid key_bits."
+     }
+    }
+   ]
+  },
+  {
+   "name": "av_des_mac",
+   "defined_in": "libavutil/des.c",
+   "ptr_args": [
+    {
+     "name": "d",
+     "ptr": {
+      "scalar": {
+       "by_val": true
+      },
+      "array": null,
+      "string": false,
+      "owned": false,
+      "borrowed": {
+       "lifetime": "arg:d"
+      },
+      "nullable": false,
+      "mutable": false,
+      "note": "av_des_crypt_mac/des_encdec only read the flag and key schedules; safe shared context access is valid."
+     }
+    },
+    {
+     "name": "dst",
+     "ptr": {
+      "scalar": null,
+      "array": {
+       "by_val": true
+      },
+      "string": false,
+      "owned": false,
+      "borrowed": {
+       "lifetime": "arg:dst"
+      },
+      "nullable": false,
+      "mutable": true,
+      "note": "Call-scoped borrow; no caller pointer retained. Context storage and children remain C-owned; byte buffers have the scalar length/count or backend digest size."
+     }
+    },
+    {
+     "name": "src",
+     "ptr": {
+      "scalar": null,
+      "array": {
+       "by_val": true
+      },
+      "string": false,
+      "owned": false,
+      "borrowed": {
+       "lifetime": "arg:src"
+      },
+      "nullable": true,
+      "mutable": false,
+      "note": "NULL is intended as zero blocks, but src += 8 makes later iterations invalid. Safe variants use real zero input, never NULL."
      }
     }
    ]
@@ -6607,6 +6738,166 @@
    }
   },
   {
+   "name": "av_hash_final",
+   "defined_in": "libavutil/hash.c",
+   "ptr_args": [
+    {
+     "name": "ctx",
+     "ptr": {
+      "scalar": {
+       "by_val": true
+      },
+      "array": null,
+      "string": false,
+      "owned": false,
+      "borrowed": {
+       "lifetime": "arg:ctx"
+      },
+      "nullable": false,
+      "mutable": true,
+      "note": "Call-scoped borrow; no caller pointer retained. Context storage and children remain C-owned; byte buffers have the scalar length/count or backend digest size."
+     }
+    },
+    {
+     "name": "dst",
+     "ptr": {
+      "scalar": null,
+      "array": {
+       "by_val": true
+      },
+      "string": false,
+      "owned": false,
+      "borrowed": {
+       "lifetime": "arg:dst"
+      },
+      "nullable": false,
+      "mutable": true,
+      "note": "Call-scoped borrow; no caller pointer retained. Context storage and children remain C-owned; byte buffers have the scalar length/count or backend digest size."
+     }
+    }
+   ]
+  },
+  {
+   "name": "av_hash_final_b64",
+   "defined_in": "libavutil/hash.c",
+   "ptr_args": [
+    {
+     "name": "ctx",
+     "ptr": {
+      "scalar": {
+       "by_val": true
+      },
+      "array": null,
+      "string": false,
+      "owned": false,
+      "borrowed": {
+       "lifetime": "arg:ctx"
+      },
+      "nullable": false,
+      "mutable": true,
+      "note": "Call-scoped borrow; no caller pointer retained. Context storage and children remain C-owned; byte buffers have the scalar length/count or backend digest size."
+     }
+    },
+    {
+     "name": "dst",
+     "ptr": {
+      "scalar": null,
+      "array": {
+       "by_val": true
+      },
+      "string": true,
+      "owned": false,
+      "borrowed": {
+       "lifetime": "arg:dst"
+      },
+      "nullable": false,
+      "mutable": true,
+      "note": "Writes NUL at dst[size-1] on truncation; size must be positive. Safe API rejects empty output before C."
+     }
+    }
+   ]
+  },
+  {
+   "name": "av_hash_final_bin",
+   "defined_in": "libavutil/hash.c",
+   "ptr_args": [
+    {
+     "name": "ctx",
+     "ptr": {
+      "scalar": {
+       "by_val": true
+      },
+      "array": null,
+      "string": false,
+      "owned": false,
+      "borrowed": {
+       "lifetime": "arg:ctx"
+      },
+      "nullable": false,
+      "mutable": true,
+      "note": "Call-scoped borrow; no caller pointer retained. Context storage and children remain C-owned; byte buffers have the scalar length/count or backend digest size."
+     }
+    },
+    {
+     "name": "dst",
+     "ptr": {
+      "scalar": null,
+      "array": {
+       "by_val": true
+      },
+      "string": false,
+      "owned": false,
+      "borrowed": {
+       "lifetime": "arg:dst"
+      },
+      "nullable": false,
+      "mutable": true,
+      "note": "Call-scoped borrow; no caller pointer retained. Context storage and children remain C-owned; byte buffers have the scalar length/count or backend digest size."
+     }
+    }
+   ]
+  },
+  {
+   "name": "av_hash_final_hex",
+   "defined_in": "libavutil/hash.c",
+   "ptr_args": [
+    {
+     "name": "ctx",
+     "ptr": {
+      "scalar": {
+       "by_val": true
+      },
+      "array": null,
+      "string": false,
+      "owned": false,
+      "borrowed": {
+       "lifetime": "arg:ctx"
+      },
+      "nullable": false,
+      "mutable": true,
+      "note": "Call-scoped borrow; no caller pointer retained. Context storage and children remain C-owned; byte buffers have the scalar length/count or backend digest size."
+     }
+    },
+    {
+     "name": "dst",
+     "ptr": {
+      "scalar": null,
+      "array": {
+       "by_val": true
+      },
+      "string": true,
+      "owned": false,
+      "borrowed": {
+       "lifetime": "arg:dst"
+      },
+      "nullable": false,
+      "mutable": true,
+      "note": "Writes snprintf output in pairs; capacities 0/1 leave dst untouched despite termination documentation. Safe API rejects capacities below 2."
+     }
+    }
+   ]
+  },
+  {
    "name": "av_hash_freep",
    "defined_in": "libavutil/hash.c",
    "lifetime": {
@@ -6753,6 +7044,46 @@
    }
   },
   {
+   "name": "av_hash_update",
+   "defined_in": "libavutil/hash.c",
+   "ptr_args": [
+    {
+     "name": "ctx",
+     "ptr": {
+      "scalar": {
+       "by_val": true
+      },
+      "array": null,
+      "string": false,
+      "owned": false,
+      "borrowed": {
+       "lifetime": "arg:ctx"
+      },
+      "nullable": false,
+      "mutable": true,
+      "note": "Call-scoped borrow; no caller pointer retained. Context storage and children remain C-owned; byte buffers have the scalar length/count or backend digest size."
+     }
+    },
+    {
+     "name": "src",
+     "ptr": {
+      "scalar": null,
+      "array": {
+       "by_val": true
+      },
+      "string": false,
+      "owned": false,
+      "borrowed": {
+       "lifetime": "arg:src"
+      },
+      "nullable": false,
+      "mutable": false,
+      "note": "Call-scoped borrow; no caller pointer retained. Context storage and children remain C-owned; byte buffers have the scalar length/count or backend digest size."
+     }
+    }
+   ]
+  },
+  {
    "name": "av_hmac_alloc",
    "defined_in": "libavutil/hmac.c",
    "lifetime": {
@@ -6779,6 +7110,120 @@
      "note": "Fresh sole-owned allocation; null on failure. DES is released by av_free, HMAC (including its hash) by av_hmac_free."
     }
    }
+  },
+  {
+   "name": "av_hmac_calc",
+   "defined_in": "libavutil/hmac.c",
+   "ptr_args": [
+    {
+     "name": "c",
+     "ptr": {
+      "scalar": {
+       "by_val": true
+      },
+      "array": null,
+      "string": false,
+      "owned": false,
+      "borrowed": {
+       "lifetime": "arg:c"
+      },
+      "nullable": false,
+      "mutable": true,
+      "note": "Call-scoped borrow; no caller pointer retained. Context storage and children remain C-owned; byte buffers have the scalar length/count or backend digest size."
+     }
+    },
+    {
+     "name": "data",
+     "ptr": {
+      "scalar": null,
+      "array": {
+       "by_val": true
+      },
+      "string": false,
+      "owned": false,
+      "borrowed": {
+       "lifetime": "arg:data"
+      },
+      "nullable": false,
+      "mutable": false,
+      "note": "Call-scoped borrow; no caller pointer retained. Context storage and children remain C-owned; byte buffers have the scalar length/count or backend digest size."
+     }
+    },
+    {
+     "name": "key",
+     "ptr": {
+      "scalar": null,
+      "array": {
+       "by_val": true
+      },
+      "string": false,
+      "owned": false,
+      "borrowed": {
+       "lifetime": "arg:key"
+      },
+      "nullable": false,
+      "mutable": false,
+      "note": "Call-scoped borrow; no caller pointer retained. Context storage and children remain C-owned; byte buffers have the scalar length/count or backend digest size."
+     }
+    },
+    {
+     "name": "out",
+     "ptr": {
+      "scalar": null,
+      "array": {
+       "by_val": true
+      },
+      "string": false,
+      "owned": false,
+      "borrowed": {
+       "lifetime": "arg:out"
+      },
+      "nullable": false,
+      "mutable": true,
+      "note": "Call-scoped borrow; no caller pointer retained. Context storage and children remain C-owned; byte buffers have the scalar length/count or backend digest size."
+     }
+    }
+   ]
+  },
+  {
+   "name": "av_hmac_final",
+   "defined_in": "libavutil/hmac.c",
+   "ptr_args": [
+    {
+     "name": "c",
+     "ptr": {
+      "scalar": {
+       "by_val": true
+      },
+      "array": null,
+      "string": false,
+      "owned": false,
+      "borrowed": {
+       "lifetime": "arg:c"
+      },
+      "nullable": false,
+      "mutable": true,
+      "note": "Call-scoped borrow; no caller pointer retained. Context storage and children remain C-owned; byte buffers have the scalar length/count or backend digest size."
+     }
+    },
+    {
+     "name": "out",
+     "ptr": {
+      "scalar": null,
+      "array": {
+       "by_val": true
+      },
+      "string": false,
+      "owned": false,
+      "borrowed": {
+       "lifetime": "arg:out"
+      },
+      "nullable": false,
+      "mutable": true,
+      "note": "Call-scoped borrow; no caller pointer retained. Context storage and children remain C-owned; byte buffers have the scalar length/count or backend digest size."
+     }
+    }
+   ]
   },
   {
    "name": "av_hmac_free",
@@ -6854,6 +7299,46 @@
       "mutable": false,
       "nullable": false,
       "note": "Key bytes copied or hashed during call only; no retention. DES reads 8 or 24; HMAC reads keylen. Live nonnull input is supplied for empty keys."
+     }
+    }
+   ]
+  },
+  {
+   "name": "av_hmac_update",
+   "defined_in": "libavutil/hmac.c",
+   "ptr_args": [
+    {
+     "name": "c",
+     "ptr": {
+      "scalar": {
+       "by_val": true
+      },
+      "array": null,
+      "string": false,
+      "owned": false,
+      "borrowed": {
+       "lifetime": "arg:c"
+      },
+      "nullable": false,
+      "mutable": true,
+      "note": "Call-scoped borrow; no caller pointer retained. Context storage and children remain C-owned; byte buffers have the scalar length/count or backend digest size."
+     }
+    },
+    {
+     "name": "data",
+     "ptr": {
+      "scalar": null,
+      "array": {
+       "by_val": true
+      },
+      "string": false,
+      "owned": false,
+      "borrowed": {
+       "lifetime": "arg:data"
+      },
+      "nullable": false,
+      "mutable": false,
+      "note": "Call-scoped borrow; no caller pointer retained. Context storage and children remain C-owned; byte buffers have the scalar length/count or backend digest size."
      }
     }
    ]

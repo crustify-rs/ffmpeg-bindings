@@ -1,6 +1,4 @@
-//! The safe constructor/reset and metadata agree with independently owned C
-//! inputs. Raw update/final calls observe initialization, not a safe hashing
-//! API (those symbols belong to a later batch).
+//! Safe hashing and lifecycle agree with independently owned C inputs.
 
 use core::ffi::CStr;
 use core::ptr;
@@ -56,19 +54,17 @@ fn allocation_initialization_metadata_and_reset_match() {
         assert_eq!(safe.as_ref().name(), expected_name);
         assert_eq!(safe.as_ref().size(), size);
         for bytes in [b"".as_slice(), b"abc", &[0; 257][..]] {
-            let mut actual = vec![0; size];
             let mut expected = vec![0; size];
             // SAFETY: both contexts are independent, initialized sole-owned
             // allocations with no outstanding handles. Input is read only for
             // its length and not retained. Each output has the digest's size.
             // Each context is finalized once and reset before its next use.
             unsafe {
-                ffi::av_hash_update(safe.as_c_ptr(), bytes.as_ptr(), bytes.len());
                 ffi::av_hash_update(reference.0, bytes.as_ptr(), bytes.len());
-                ffi::av_hash_final(safe.as_c_ptr(), actual.as_mut_ptr());
                 ffi::av_hash_final(reference.0, expected.as_mut_ptr());
             }
-            assert_eq!(actual, expected, "{name:?}");
+            safe.as_mut().update(bytes);
+            assert_eq!(safe.as_mut().finalize(), expected, "{name:?}");
             safe.as_mut().as_mut().init();
             // SAFETY: uniquely owned valid context, reset after finalization.
             unsafe { ffi::av_hash_init(reference.0) };
@@ -175,4 +171,60 @@ fn name_of(context: *const ffi::AVHashContext) -> &'static CStr {
     // SAFETY: context is a live allocated context with a valid algorithm; C
     // returns a NUL-terminated name in static storage.
     unsafe { CStr::from_ptr(ffi::av_hash_get_name(context)) }
+}
+
+#[test]
+fn all_algorithms_output_formats_and_capacities() {
+    for index in 0..15 {
+        let name = hash::name(index).unwrap();
+        let mut safe = HashContext::new(name).unwrap();
+        let raw = Reference::new(name);
+        let data: Vec<_> = (0..260).map(|i| (i * 31) as u8).collect();
+        for format in 0..4 {
+            for capacity in [0, 1, 2, 3, 4, 7, 16, 31, 32, 63, 64, 65, 89, 129, 140] {
+                if (format == 2 && capacity < 2) || (format == 3 && capacity == 0) {
+                    continue;
+                }
+                safe.as_mut().init();
+                // SAFETY: fixture owns an allocated context with a valid algorithm.
+                unsafe { ffi::av_hash_init(raw.0) };
+                for chunk in data[1..].chunks(17) {
+                    safe.as_mut().update(chunk);
+                    // SAFETY: valid initialized context and readable chunk; no retention.
+                    unsafe { ffi::av_hash_update(raw.0, chunk.as_ptr(), chunk.len()) };
+                }
+                let size = if format == 0 {
+                    safe.as_ref().size()
+                } else {
+                    capacity
+                };
+                let mut actual = vec![0xA5; size];
+                let mut expected = actual.clone();
+                let mut empty = 0;
+                let ptr = if size == 0 {
+                    &raw mut empty
+                } else {
+                    expected.as_mut_ptr()
+                };
+                // SAFETY: independently initialized context, output is digest-sized
+                // for final, int-sized for bin/hex/b64, and invalid text capacities
+                // are excluded. Empty binary output uses a live dummy byte.
+                unsafe {
+                    match format {
+                        0 => ffi::av_hash_final(raw.0, ptr),
+                        1 => ffi::av_hash_final_bin(raw.0, ptr, size as i32),
+                        2 => ffi::av_hash_final_hex(raw.0, ptr, size as i32),
+                        _ => ffi::av_hash_final_b64(raw.0, ptr, size as i32),
+                    }
+                }
+                match format {
+                    0 => actual = safe.as_mut().finalize(),
+                    1 => safe.as_mut().finalize_bin(&mut actual).unwrap(),
+                    2 => safe.as_mut().finalize_hex(&mut actual).unwrap(),
+                    _ => safe.as_mut().finalize_b64(&mut actual).unwrap(),
+                }
+                assert_eq!(actual, expected, "{name:?} format={format} capacity={size}");
+            }
+        }
+    }
 }

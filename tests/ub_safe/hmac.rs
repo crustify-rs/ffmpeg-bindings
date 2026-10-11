@@ -63,6 +63,13 @@ fn independent_contexts_on_threads() {
                 for _ in 0..16 {
                     let mut owner = Hmac::new(HmacType::SHA1, b"key").unwrap();
                     owner.as_mut().init(&[0; 129]).unwrap();
+                    owner.as_mut().update(b"thread-local data").unwrap();
+                    let mut output = [0; 20];
+                    owner.as_mut().finalize(&mut output).unwrap();
+                    owner
+                        .as_mut()
+                        .calculate(b"new", b"key", &mut output)
+                        .unwrap();
                 }
             })
         })
@@ -103,4 +110,38 @@ fn allocation_failures_clean_up() {
         .status()
         .unwrap();
     assert!(status.success());
+}
+
+#[test]
+fn hashing_foreign_writes_and_reborrows() {
+    for algorithm in [
+        HmacType::MD5,
+        HmacType::SHA1,
+        HmacType::SHA224,
+        HmacType::SHA256,
+        HmacType::SHA384,
+        HmacType::SHA512,
+    ] {
+        let mut owner = Hmac::new(algorithm, b"temporary key").unwrap();
+        let mut outer = owner.as_mut();
+        for len in [0, 1, 63, 64, 65, 127, 128, 129, 257] {
+            let mut input = vec![0xAB; len + 1];
+            outer.as_mut().update(&input[1..]).unwrap();
+            input.fill(0);
+            drop(input);
+            let mut output = [0xAA; 81];
+            outer.as_mut().finalize(&mut output[1..]).unwrap();
+            output.fill(0);
+            let mut key = vec![7; len + 1];
+            outer
+                .as_mut()
+                .calculate(b"", &key[1..], &mut output[1..])
+                .unwrap();
+            key.fill(0);
+            drop(key);
+            outer.update(b"post-final").unwrap();
+            outer.finalize(&mut output[1..]).unwrap();
+            outer.init(b"").unwrap();
+        }
+    }
 }

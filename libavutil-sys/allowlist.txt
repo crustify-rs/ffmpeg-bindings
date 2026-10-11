@@ -748,3 +748,9 @@ function ^av_aes_ctr_set_iv$
 function ^av_aes_ctr_set_random_iv$
 function ^av_blowfish_crypt$
 function ^av_cast5_crypt2$
+# Crypto wave 1 batch 1: remaining DES/hash/HMAC symbols.
+function ^av_des_mac$
+function ^av_hash_final_bin$
+function ^av_hash_final_hex$
+function ^av_hash_final_b64$
+function ^av_hmac_calc$

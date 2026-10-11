@@ -70,8 +70,7 @@ fn lifecycle_fields_and_multicall_state_agree() {
         let mut output_raw = Blocks([0; 16]);
         let mut output_safe = Blocks([0; 16]);
         for decrypt in [false, true, false] {
-            // C crypt is an unwrapped observer of this type run's initialized
-            // context. Both contexts are independently owned and keyed above.
+            // Both contexts are independently owned and keyed above.
             // SAFETY: both pointers are live contexts, buffers are aligned to
             // 8 bytes and hold two blocks, input/output do not alias, and C
             // retains no pointer. No Rust context handle is live during the calls.
@@ -84,15 +83,10 @@ fn lifecycle_fields_and_multicall_state_agree() {
                     core::ptr::null_mut(),
                     i32::from(decrypt),
                 );
-                ffi::av_des_crypt(
-                    safe.as_c_ptr(),
-                    output_safe.0.as_mut_ptr(),
-                    input.0.as_ptr(),
-                    2,
-                    core::ptr::null_mut(),
-                    i32::from(decrypt),
-                );
             }
+            safe.as_ref()
+                .crypt(&mut output_safe.0, &input.0, None, decrypt)
+                .unwrap();
             assert_eq!(output_safe.0, output_raw.0);
         }
     }
@@ -164,7 +158,12 @@ fn copies_and_clones_track_c_struct_copies() {
     };
     for decrypt in [0, 1] {
         let expected = crypt(raw_copy.0, decrypt);
-        assert_eq!(crypt(boxed.as_c_ptr(), decrypt), expected);
+        let mut actual = [0; 16];
+        boxed
+            .as_ref()
+            .crypt(&mut actual, b"fedcba9876543210", None, decrypt != 0)
+            .unwrap();
+        assert_eq!(actual, expected);
     }
     assert_eq!(boxed.as_ref().round_keys(), raw_copy.fields().1);
     assert_eq!(inline_copy.as_ref().round_keys(), raw_copy.fields().1);
@@ -172,4 +171,112 @@ fn copies_and_clones_track_c_struct_copies() {
     assert_eq!(inline.as_ref().round_keys()[0], raw.fields().1[0]);
     boxed.as_mut().set_triple_des(0);
     assert_eq!(inline_copy.as_ref().triple_des(), 1);
+}
+
+#[test]
+fn crypt_cbc_in_place_zero_input_and_mac_sequences() {
+    for key_len in [8, 24] {
+        let key = vec![0x91; key_len];
+        let safe = Des::new(&key, false).unwrap();
+        let raw = Reference::new();
+        // SAFETY: live context, exactly key_len initialized key bytes; no retention.
+        let result = unsafe { ffi::av_des_init(raw.0, key.as_ptr(), (key_len * 8) as i32, 0) };
+        assert_eq!(result, 0);
+        let input: Vec<u8> = (0..81).map(|i| (i * 47) as u8).collect();
+        for decrypt in [false, true] {
+            for cbc in [false, true] {
+                let mut iv_a = [0x35; 8];
+                let mut iv_b = iv_a;
+                for blocks in [0, 1, 2, 7, 3] {
+                    let src = &input[1..1 + blocks * 8];
+                    let mut expected = vec![0x99; blocks * 8];
+                    let mut actual = expected.clone();
+                    // SAFETY: live read-only context, disjoint initialized buffers
+                    // of blocks*8 bytes and an eight-byte IV when CBC is selected.
+                    unsafe {
+                        ffi::av_des_crypt(
+                            raw.0,
+                            expected.as_mut_ptr(),
+                            src.as_ptr(),
+                            blocks as i32,
+                            if cbc {
+                                iv_a.as_mut_ptr()
+                            } else {
+                                core::ptr::null_mut()
+                            },
+                            i32::from(decrypt),
+                        )
+                    };
+                    safe.as_ref()
+                        .crypt(&mut actual, src, cbc.then_some(&mut iv_b), decrypt)
+                        .unwrap();
+                    assert_eq!(actual, expected);
+                    assert_eq!(iv_a, iv_b);
+                    let mut in_place = src.to_vec();
+                    let mut ref_place = src.to_vec();
+                    let mut place_iv_a = [0x7B; 8];
+                    let mut place_iv_b = place_iv_a;
+                    // SAFETY: C supports exact aliasing; both pointers name the same
+                    // exclusively held buffer of whole blocks. Context is read-only.
+                    unsafe {
+                        ffi::av_des_crypt(
+                            raw.0,
+                            ref_place.as_mut_ptr(),
+                            ref_place.as_ptr(),
+                            blocks as i32,
+                            if cbc {
+                                place_iv_a.as_mut_ptr()
+                            } else {
+                                core::ptr::null_mut()
+                            },
+                            i32::from(decrypt),
+                        )
+                    };
+                    safe.as_ref()
+                        .crypt_in_place(&mut in_place, cbc.then_some(&mut place_iv_b), decrypt)
+                        .unwrap();
+                    assert_eq!(in_place, ref_place);
+                    assert_eq!(place_iv_a, place_iv_b);
+                }
+            }
+        }
+        for blocks in [0, 1, 2, 8] {
+            for decrypt in [false, true] {
+                let mut zeros = vec![0; blocks * 8];
+                let mut expected = zeros.clone();
+                let mut iv_a = [7; 8];
+                let mut iv_b = iv_a;
+                // SAFETY: real zero-filled input avoids C's NULL arithmetic defect.
+                // The disjoint buffers contain whole blocks; IV has eight bytes.
+                unsafe {
+                    ffi::av_des_crypt(
+                        raw.0,
+                        expected.as_mut_ptr(),
+                        zeros.as_ptr(),
+                        blocks as i32,
+                        iv_a.as_mut_ptr(),
+                        i32::from(decrypt),
+                    )
+                };
+                safe.as_ref()
+                    .crypt_zeros(&mut zeros, Some(&mut iv_b), decrypt)
+                    .unwrap();
+                assert_eq!(zeros, expected);
+                assert_eq!(iv_a, iv_b);
+            }
+            let src = &input[1..1 + blocks * 8];
+            let mut expected_mac = [0; 8];
+            // SAFETY: live context; count input blocks, eight-byte writable result.
+            // MAC leaves output unchanged for empty input, initialized above.
+            unsafe {
+                ffi::av_des_mac(
+                    raw.0,
+                    expected_mac.as_mut_ptr(),
+                    src.as_ptr(),
+                    blocks as i32,
+                )
+            };
+            assert_eq!(safe.as_ref().mac(src).unwrap(), expected_mac);
+        }
+    }
 }
