@@ -818,3 +818,273 @@ mod side_data_lookups {
         }
     }
 }
+
+/// `RegionOfInterest` against C's `AVRegionOfInterest` as C code builds and
+/// reads it: `new` encodes as the designated initializer `vf_addroi` writes,
+/// regions stored into `REGIONS_OF_INTEREST` side data from
+/// `av_frame_side_data_new` are counted and read back as C's readers do
+/// (payload size over the first `self_size`, stride `self_size`), setter
+/// sequences match direct field writes after every step, and equality agrees
+/// with `av_cmp_q` on the offsets (buffer-frame wave 1, batch 0).
+mod region_of_interest {
+    use core::mem::size_of;
+    use core::ptr;
+
+    use ffmpeg::libavutil::ffi;
+    use ffmpeg::libavutil::frame::{RegionOfInterest, RegionOfInterestRef};
+    use ffmpeg::libavutil::rational::Rational;
+
+    const EDGES: [i32; 7] = [i32::MIN, -100, -1, 0, 1, 1920, i32::MAX];
+
+    fn xorshift(x: &mut u64) -> u64 {
+        *x ^= *x << 13;
+        *x ^= *x >> 7;
+        *x ^= *x << 17;
+        *x
+    }
+
+    fn edge(x: &mut u64) -> i32 {
+        let r = xorshift(x);
+        if r.is_multiple_of(3) {
+            (r >> 32) as i32
+        } else {
+            EDGES[(r >> 8) as usize % EDGES.len()]
+        }
+    }
+
+    fn q(num: i32, den: i32) -> Rational {
+        Rational::from_raw(ffi::AVRational { num, den })
+    }
+
+    /// The struct's 28 bytes, which hold no padding.
+    fn bytes(r: &ffi::AVRegionOfInterest) -> [u8; 28] {
+        const { assert!(size_of::<ffi::AVRegionOfInterest>() == 28) };
+        // SAFETY: an `AVRegionOfInterest` is 28 bytes of integers with no
+        // padding, so every byte is initialised.
+        unsafe { ptr::from_ref(r).cast::<[u8; 28]>().read() }
+    }
+
+    /// Every field as the Rust getters read it, in C's declaration order.
+    fn rust_fields(r: RegionOfInterestRef<'_>) -> (u32, i32, i32, i32, i32, i32, i32) {
+        let o = r.qoffset();
+        (
+            r.self_size(),
+            r.top(),
+            r.bottom(),
+            r.left(),
+            r.right(),
+            o.num(),
+            o.den(),
+        )
+    }
+
+    fn c_fields(r: &ffi::AVRegionOfInterest) -> (u32, i32, i32, i32, i32, i32, i32) {
+        (
+            r.self_size,
+            r.top,
+            r.bottom,
+            r.left,
+            r.right,
+            r.qoffset.num,
+            r.qoffset.den,
+        )
+    }
+
+    #[test]
+    fn new_encodes_as_the_c_designated_initializer() {
+        let mut x = 0x5eed_u64;
+        for _ in 0..2000 {
+            let f: [i32; 6] = core::array::from_fn(|_| edge(&mut x));
+            let r = RegionOfInterest::new(f[0], f[1], f[2], f[3], q(f[4], f[5]));
+            // `vf_addroi`: `(AVRegionOfInterest){ .self_size = sizeof(*roi), ... }`.
+            let c = ffi::AVRegionOfInterest {
+                self_size: size_of::<ffi::AVRegionOfInterest>() as u32,
+                top: f[0],
+                bottom: f[1],
+                left: f[2],
+                right: f[3],
+                qoffset: ffi::AVRational {
+                    num: f[4],
+                    den: f[5],
+                },
+            };
+            assert_eq!(bytes(&r.into_raw()), bytes(&c));
+            assert_eq!(rust_fields(r.as_ref()), c_fields(&c));
+            assert_eq!(
+                rust_fields(RegionOfInterest::from_raw(c).as_ref()),
+                c_fields(&c)
+            );
+        }
+        let d = RegionOfInterest::default().into_raw();
+        assert_eq!(
+            c_fields(&d),
+            (RegionOfInterest::SELF_SIZE, 0, 0, 0, 0, 0, 1)
+        );
+    }
+
+    /// A side data array C built, freed with it.
+    struct Array {
+        sd: *mut *mut ffi::AVFrameSideData,
+        nb: core::ffi::c_int,
+    }
+
+    impl Drop for Array {
+        fn drop(&mut self) {
+            // SAFETY: frees the array and every entry, as C built them.
+            unsafe { ffi::av_frame_side_data_free(&raw mut self.sd, &raw mut self.nb) }
+        }
+    }
+
+    #[test]
+    fn side_data_arrays_count_and_read_as_c_readers_do() {
+        let mut x = 0xa11ce_u64;
+        for n in [1usize, 2, 7, 33] {
+            let mut array = Array {
+                sd: ptr::null_mut(),
+                nb: 0,
+            };
+            let size = n * RegionOfInterest::SELF_SIZE as usize;
+            // SAFETY: an empty array; C appends a fresh `size`-byte entry.
+            let entry = unsafe {
+                ffi::av_frame_side_data_new(
+                    &raw mut array.sd,
+                    &raw mut array.nb,
+                    ffi::AVFrameSideDataType::AV_FRAME_DATA_REGIONS_OF_INTEREST,
+                    size,
+                    0,
+                )
+            };
+            assert!(!entry.is_null());
+            let regions: Vec<RegionOfInterest> = (0..n)
+                .map(|_| {
+                    let f: [i32; 6] = core::array::from_fn(|_| edge(&mut x));
+                    RegionOfInterest::new(f[0], f[1], f[2], f[3], q(f[4], f[5]))
+                })
+                .collect();
+            // SAFETY: the entry's payload holds `size` bytes, room for `n`
+            // elements at stride `SELF_SIZE`, written unaligned as C's
+            // readers read them.
+            unsafe {
+                let data = (*entry).data;
+                assert_eq!((*entry).size, size);
+                for (i, r) in regions.iter().enumerate() {
+                    let at = data.add(i * RegionOfInterest::SELF_SIZE as usize);
+                    at.cast::<ffi::AVRegionOfInterest>()
+                        .write_unaligned(r.into_raw());
+                }
+                // What `libx264.c` and `vf_showinfo.c` compute.
+                let first = data.cast::<ffi::AVRegionOfInterest>().read_unaligned();
+                let stride = first.self_size as usize;
+                assert_eq!((*entry).size / stride, n);
+                for (i, r) in regions.iter().enumerate() {
+                    let c = data
+                        .add(i * stride)
+                        .cast::<ffi::AVRegionOfInterest>()
+                        .read_unaligned();
+                    assert_eq!(c_fields(&c), rust_fields(r.as_ref()));
+                    // C-written fields read back through the Rust getters.
+                    let mut c = c;
+                    c.top = c.top.wrapping_add(1);
+                    c.qoffset.den = c.qoffset.num.wrapping_neg();
+                    let back = RegionOfInterest::from_raw(c);
+                    assert_eq!(rust_fields(back.as_ref()), c_fields(&c));
+                }
+            }
+        }
+    }
+
+    #[test]
+    fn setter_sequences_match_c_field_writes() {
+        for seed in 1..=8u64 {
+            let mut x = seed * 0x9e37_79b9;
+            let mut rust = RegionOfInterest::default();
+            let mut c = rust.into_raw();
+            for step in 0..300 {
+                let (v, w) = (edge(&mut x), edge(&mut x));
+                let mut m = rust.as_mut();
+                match xorshift(&mut x) % 9 {
+                    0 => {
+                        m.set_self_size(v as u32);
+                        c.self_size = v as u32;
+                    }
+                    1 => {
+                        m.set_top(v);
+                        c.top = v;
+                    }
+                    2 => {
+                        m.set_bottom(v);
+                        c.bottom = v;
+                    }
+                    3 => {
+                        m.set_left(v);
+                        c.left = v;
+                    }
+                    4 => {
+                        m.set_right(v);
+                        c.right = v;
+                    }
+                    5 => {
+                        m.set_qoffset(q(v, w));
+                        c.qoffset = ffi::AVRational { num: v, den: w };
+                    }
+                    6 => {
+                        m.qoffset_mut().set_num(v);
+                        c.qoffset.num = v;
+                    }
+                    7 => {
+                        m.qoffset_mut().set_den(w);
+                        c.qoffset.den = w;
+                    }
+                    _ => {
+                        let r = RegionOfInterest::new(v, w, w, v, q(w, v));
+                        m.set(r);
+                        c = ffi::AVRegionOfInterest {
+                            self_size: 28,
+                            top: v,
+                            bottom: w,
+                            left: w,
+                            right: v,
+                            qoffset: ffi::AVRational { num: w, den: v },
+                        };
+                    }
+                }
+                assert_eq!(
+                    bytes(&rust.into_raw()),
+                    bytes(&c),
+                    "seed {seed} step {step}"
+                );
+                assert_eq!(
+                    rust_fields(rust.as_ref()),
+                    c_fields(&c),
+                    "seed {seed} step {step}"
+                );
+                assert_eq!(bytes(&rust.as_ref().get().into_raw()), bytes(&c));
+            }
+        }
+    }
+
+    #[test]
+    fn equality_agrees_with_av_cmp_q_on_offsets() {
+        let mut x = 0xe0_u64;
+        let small = |x: &mut u64| (xorshift(x) % 7) as i32 - 3;
+        for _ in 0..5000 {
+            let (a, b) = (
+                ffi::AVRational {
+                    num: small(&mut x),
+                    den: small(&mut x),
+                },
+                ffi::AVRational {
+                    num: small(&mut x),
+                    den: small(&mut x),
+                },
+            );
+            let edge_eq = !xorshift(&mut x).is_multiple_of(4);
+            let ra = RegionOfInterest::new(1, 2, 3, 4, Rational::from_raw(a));
+            let rb =
+                RegionOfInterest::new(1, 2, 3, if edge_eq { 4 } else { 5 }, Rational::from_raw(b));
+            // SAFETY: `av_cmp_q` takes any two rationals by value.
+            let c_eq = edge_eq && unsafe { ffi::av_cmp_q(a, b) } == 0;
+            assert_eq!(ra == rb, c_eq, "{a:?} {b:?} {edge_eq}");
+        }
+    }
+}

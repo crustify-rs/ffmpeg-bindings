@@ -1,19 +1,17 @@
 //! UB tests for `libavutil/buffer.h`'s unsafe `BufferPool::with_allocator`,
-//! each allocator within its `# Safety` contract: it returns NULL or a sole,
-//! writable reference whose buffer holds at least the pool's size, releasable
-//! on any thread, and neither it nor those buffers' free callbacks call into
-//! its own pool.
+//! each allocator within its `# Safety` contract: every buffer it returns
+//! holds at least the pool's size from its start, and neither it nor those
+//! buffers' releases call into its own pool.
 //!
 //! Buffers are requested through C's `av_buffer_pool_get` on the owner's raw
-//! seam until `AVBufferRef` has a safe owner.
+//! seam until the pool's `get` has a safe wrapper.
 
-use core::ffi::c_void;
 use core::ptr;
 use core::sync::atomic::{AtomicUsize, Ordering};
 use std::sync::{Arc, Barrier, Mutex};
 use std::thread;
 
-use ffmpeg::libavutil::buffer::{BufferPool, BufferPoolBox};
+use ffmpeg::libavutil::buffer::{BufferPool, BufferPoolBox, BufferReference, UninitBuffer};
 use ffmpeg::libavutil::ffi;
 
 /// Counts the drops of the allocator state it is moved into.
@@ -71,9 +69,8 @@ impl Drop for Owned {
 }
 
 /// The default allocator as a fn item: a zero-sized allocator state.
-fn default_alloc(size: usize) -> *mut ffi::AVBufferRef {
-    // SAFETY: no preconditions; NULL or a sole, writable `size`-byte buffer.
-    unsafe { ffi::av_buffer_alloc(size) }
+fn default_alloc(size: usize) -> Option<UninitBuffer> {
+    BufferReference::alloc(size)
 }
 
 /// Builds a counting pool over `av_buffer_alloc`, `extra` bytes larger than
@@ -85,14 +82,13 @@ fn counting_pool(
     drops: &Arc<AtomicUsize>,
 ) -> BufferPoolBox {
     let (calls, guard) = (calls.clone(), DropCount(drops.clone()));
-    // SAFETY: each call returns NULL or a fresh sole reference to
-    // `size + extra` writable av_malloc bytes, freeable on any thread, and
-    // never touches the pool.
+    // SAFETY: each buffer holds `size + extra` bytes from its start, and the
+    // allocator never touches the pool.
     unsafe {
         BufferPool::with_allocator(size, move |n| {
             let _ = &guard;
             calls.fetch_add(1, Ordering::SeqCst);
-            ffi::av_buffer_alloc(n + extra)
+            BufferReference::alloc(n + extra)
         })
     }
     .unwrap()
@@ -147,16 +143,16 @@ fn null_from_the_allocator_fails_only_that_request() {
     let drops = Arc::new(AtomicUsize::new(0));
     let guard = DropCount(drops.clone());
     let mut n = 0usize;
-    // SAFETY: every other call returns NULL, the rest a sole 32-byte
-    // av_malloc reference; the pool is never touched.
+    // SAFETY: every other call returns no buffer, the rest a 32-byte one;
+    // the pool is never touched.
     let pool = unsafe {
         BufferPool::with_allocator(32, move |size| {
             let _ = &guard;
             n += 1;
             if n % 2 == 1 {
-                ptr::null_mut()
+                None
             } else {
-                ffi::av_buffer_alloc(size)
+                BufferReference::alloc(size)
             }
         })
     }
@@ -174,7 +170,8 @@ fn null_from_the_allocator_fails_only_that_request() {
 
 #[test]
 fn zero_sized_allocator_state() {
-    // SAFETY: `default_alloc` returns NULL or a sole, writable 48-byte buffer.
+    // SAFETY: `default_alloc` returns 48-byte buffers and never touches the
+    // pool.
     let pool = unsafe { BufferPool::with_allocator(48, default_alloc) }.unwrap();
     let a = Owned::get(&pool).unwrap();
     let b = Owned::get(&pool).unwrap();
@@ -208,13 +205,13 @@ fn concurrent_requests_serialize_the_allocator() {
     };
     let calls = Arc::new(AtomicUsize::new(0));
     let seen = calls.clone();
-    // SAFETY: each call returns NULL or a sole, writable 40-byte av_malloc
-    // reference, freeable on any thread; the pool is never touched.
+    // SAFETY: each buffer holds 40 bytes from its start; the pool is never
+    // touched.
     let pool = unsafe {
         BufferPool::with_allocator(40, move |size| {
             log.sizes.push(size);
             seen.fetch_add(1, Ordering::Relaxed);
-            ffi::av_buffer_alloc(size)
+            BufferReference::alloc(size)
         })
     }
     .unwrap();
@@ -263,91 +260,95 @@ fn owner_and_last_buffer_released_on_other_threads() {
     assert_eq!(drops.load(Ordering::SeqCst), 1);
 }
 
-/// `av_buffer_create` frees, counted per opaque.
-unsafe extern "C" fn counted_free(opaque: *mut c_void, data: *mut u8) {
-    // SAFETY: `opaque` is the test's static `AtomicUsize`; `data` came from
-    // av_malloc in `custom_buffers_keep_their_opaque_and_free`.
-    unsafe {
-        (*opaque.cast::<AtomicUsize>()).fetch_add(1, Ordering::SeqCst);
-        ffi::av_free(data.cast());
+/// Bytes a buffer owns, counting their releases.
+struct Counted {
+    bytes: Vec<u8>,
+    frees: &'static AtomicUsize,
+}
+
+impl AsMut<[u8]> for Counted {
+    fn as_mut(&mut self) -> &mut [u8] {
+        &mut self.bytes
+    }
+}
+
+impl Drop for Counted {
+    fn drop(&mut self) {
+        self.frees.fetch_add(1, Ordering::SeqCst);
     }
 }
 
 #[test]
-fn custom_buffers_keep_their_opaque_and_free() {
-    // Only this test frees through `counted_free` with this counter.
+fn custom_buffers_keep_their_opaque_and_release() {
+    // Only this test releases a `Counted` with this counter.
     static FREES: AtomicUsize = AtomicUsize::new(0);
-    let frees = &FREES;
-    let opaque = ptr::from_ref(frees).cast_mut().cast::<c_void>() as usize;
-    // SAFETY: each call wraps `size` fresh av_malloc bytes in a sole,
-    // writable reference whose free (`counted_free`, thread-safe) releases
-    // them; the counter it reaches is 'static.
+    // SAFETY: each buffer owns exactly `size` bytes from its start, and its
+    // release (`Counted`'s drop) never touches the pool.
     let pool = unsafe {
-        BufferPool::with_allocator(24, move |size| {
-            let data = ffi::av_malloc(size).cast::<u8>();
-            if data.is_null() {
-                return ptr::null_mut();
-            }
-            let buf =
-                ffi::av_buffer_create(data, size, Some(counted_free), opaque as *mut c_void, 0);
-            if buf.is_null() {
-                ffi::av_free(data.cast());
-            }
-            buf
+        BufferPool::with_allocator(24, |size| {
+            let owner = Counted {
+                bytes: vec![0; size],
+                frees: &FREES,
+            };
+            UninitBuffer::try_from(BufferReference::from_owner(owner).ok()?).ok()
         })
     }
     .unwrap();
     let (a, b) = (Owned::get(&pool).unwrap(), Owned::get(&pool).unwrap());
-    for buf in [&a, &b] {
-        // SAFETY: a live reference from this pool.
-        let original = unsafe { ffi::av_buffer_pool_buffer_get_opaque(buf.0) };
-        assert_eq!(original as usize, opaque);
-        buf.fill(5);
-    }
+    // SAFETY: live references from this pool.
+    let opaques = unsafe {
+        [
+            ffi::av_buffer_pool_buffer_get_opaque(a.0),
+            ffi::av_buffer_pool_buffer_get_opaque(b.0),
+        ]
+    };
+    assert!(!opaques[0].is_null() && opaques[0] != opaques[1]);
+    a.fill(5);
+    b.fill(5);
     drop(a);
-    assert_eq!(frees.load(Ordering::SeqCst), 0);
+    assert_eq!(FREES.load(Ordering::SeqCst), 0);
     let recycled = Owned::get(&pool).unwrap();
     // SAFETY: as above.
     let original = unsafe { ffi::av_buffer_pool_buffer_get_opaque(recycled.0) };
-    assert_eq!(original as usize, opaque);
+    assert_eq!(original, opaques[0]);
     drop(pool);
     drop(recycled);
     drop(b);
-    // Both entries went back through their own free when the pool went.
-    assert_eq!(frees.load(Ordering::SeqCst), 2);
+    // Both entries went back through their own release when the pool went.
+    assert_eq!(FREES.load(Ordering::SeqCst), 2);
 }
 
-/// The buffer of another pool that `release_kept` returns, at most once.
+/// The buffer of another pool that `ReleasesKept` returns, at most once.
 static KEPT: Mutex<Option<Owned>> = Mutex::new(None);
 
-/// `av_buffer_create` frees that also return `KEPT` to its own pool.
-unsafe extern "C" fn release_kept(_opaque: *mut c_void, data: *mut u8) {
-    // SAFETY: `data` came from av_malloc in
-    // `free_callbacks_may_release_buffers_of_other_pools`, freed once here.
-    unsafe { ffi::av_free(data.cast()) };
-    drop(KEPT.lock().unwrap().take());
+/// Bytes whose release also returns `KEPT` to its own pool.
+struct ReleasesKept(Vec<u8>);
+
+impl AsMut<[u8]> for ReleasesKept {
+    fn as_mut(&mut self) -> &mut [u8] {
+        &mut self.0
+    }
 }
 
-/// The contract bars the free callbacks of the allocator's buffers from
+impl Drop for ReleasesKept {
+    fn drop(&mut self) {
+        drop(KEPT.lock().unwrap().take());
+    }
+}
+
+/// The contract bars the releases of the allocator's buffers from
 /// calling into their own pool, whose mutex C holds while dropping the owner
 /// flushes them; another pool's buffers are theirs to release.
 #[test]
 fn free_callbacks_may_release_buffers_of_other_pools() {
     let other = BufferPool::new(32).unwrap();
-    // SAFETY: each call wraps `size` fresh av_malloc bytes in a sole,
-    // writable reference whose free (`release_kept`) runs on any thread and
-    // calls into `other` only, never this pool.
+    // SAFETY: each buffer owns exactly `size` bytes from its start, and its
+    // release (`ReleasesKept`'s drop) calls into `other` only, never this
+    // pool.
     let pool = unsafe {
         BufferPool::with_allocator(16, |size| {
-            let data = ffi::av_malloc(size).cast::<u8>();
-            if data.is_null() {
-                return ptr::null_mut();
-            }
-            let buf = ffi::av_buffer_create(data, size, Some(release_kept), ptr::null_mut(), 0);
-            if buf.is_null() {
-                ffi::av_free(data.cast());
-            }
-            buf
+            let owner = ReleasesKept(vec![0; size]);
+            UninitBuffer::try_from(BufferReference::from_owner(owner).ok()?).ok()
         })
     }
     .unwrap();
@@ -360,11 +361,100 @@ fn free_callbacks_may_release_buffers_of_other_pools() {
     // to `other`, locking only that pool's mutex.
     thread::spawn(move || drop(pool)).join().unwrap();
     assert!(KEPT.lock().unwrap().is_none());
-    // The last buffer frees the pool and, through `release_kept`, its data.
+    // The last buffer frees the pool and, through `ReleasesKept`, its data.
     b.fill(4);
     drop(b);
     let again = Owned::get(&other).unwrap();
     again.fill(6);
     drop(other);
     drop(again);
+}
+
+/// Buffer-frame wave 1, batch 0: `UninitBuffer::assume_init`, each call
+/// after every byte was written: through `as_mut_slice` whole or in pieces,
+/// vacuously for an empty buffer, and by an earlier initialised owner the
+/// buffer was converted from; then the bytes read back exactly (ASan sees a
+/// read past them) and the result used as any reference.
+mod uninit_assume_init {
+    use core::ptr;
+    use std::thread;
+
+    use ffmpeg::libavutil::buffer::{BufferReference, UninitBuffer};
+
+    const SIZES: [usize; 5] = [0, 1, 15, 4096, 1 << 16];
+
+    #[test]
+    fn after_writing_the_whole_run() {
+        for size in SIZES {
+            let mut u = BufferReference::alloc(size).unwrap();
+            // A 256-byte cycle repeated by whole-slice copies.
+            let mut src = (0..=255u8).collect::<Vec<_>>().repeat(size.div_ceil(256));
+            src.truncate(size);
+            let dst = u.as_mut_slice();
+            assert_eq!(dst.len(), size);
+            // SAFETY: both runs are `size` bytes and distinct allocations; one
+            // copy (one BSan retag, not one per byte).
+            unsafe { ptr::copy_nonoverlapping(src.as_ptr(), dst.as_mut_ptr().cast(), size) };
+            // SAFETY: every byte was written just above.
+            let mut buf = unsafe { u.assume_init() };
+            assert!(buf.as_ref().data() == src.as_slice());
+            assert!(buf.as_mut().data_mut().is_some());
+            let copy = buf.clone();
+            thread::spawn(move || assert!(copy.as_ref().data() == src.as_slice()))
+                .join()
+                .unwrap();
+        }
+    }
+
+    #[test]
+    fn after_writing_in_pieces() {
+        for size in SIZES {
+            let mut u = BufferReference::alloc(size).unwrap();
+            let (a, b) = u.as_mut_slice().split_at_mut(size / 3);
+            let (b, c) = b.split_at_mut(b.len() / 2);
+            // SAFETY: each piece is written whole, one operation each (one
+            // BSan retag, not one per byte).
+            unsafe {
+                ptr::write_bytes(a.as_mut_ptr(), 0x11, a.len());
+                ptr::write_bytes(c.as_mut_ptr(), 0x33, c.len());
+                ptr::write_bytes(b.as_mut_ptr(), 0x22, b.len());
+            }
+            // SAFETY: the three pieces cover the whole run.
+            let buf = unsafe { u.assume_init() };
+            let data = buf.as_ref().data();
+            assert_eq!(data.len(), size);
+            let (x, y) = (size / 3, size / 3 + (size - size / 3) / 2);
+            assert!(data[..x] == vec![0x11; x][..]);
+            assert!(data[x..y] == vec![0x22; y - x][..]);
+            assert!(data[y..] == vec![0x33; size - y][..]);
+        }
+    }
+
+    #[test]
+    fn vacuously_for_an_empty_buffer() {
+        let u = BufferReference::alloc(0).unwrap();
+        assert!(u.is_empty());
+        // SAFETY: there is no byte to write.
+        let mut buf = unsafe { u.assume_init() };
+        assert!(buf.as_ref().data().is_empty());
+        assert_eq!(buf.as_mut().data_mut().map(|d| d.len()), Some(0));
+    }
+
+    #[test]
+    fn after_an_initialised_owner_wrote_them() {
+        for size in SIZES {
+            let bytes = vec![0x7e; size];
+            for buf in [
+                BufferReference::alloc_zeroed(size).unwrap(),
+                BufferReference::from_owner(bytes.clone()).unwrap(),
+            ] {
+                let want = buf.as_ref().data().to_vec();
+                let u = UninitBuffer::try_from(buf).unwrap();
+                // SAFETY: the owner it was converted from held initialised
+                // bytes, and nothing wrote them since.
+                let buf = unsafe { u.assume_init() };
+                assert!(buf.as_ref().data() == want.as_slice());
+            }
+        }
+    }
 }
