@@ -1,0 +1,10 @@
+error[E0515]: cannot return value referencing local variable `d`
+ --> tests/ub_safe/compile_fail/dict_iter_outlives_owner.rs
+  |
+  |     d.iter()
+  |     -^^^^^^^
+  |     |
+  |     returns a value referencing data owned by the current function
+  |     `d` is borrowed here
+  |
+  = help: use `.collect()` to allocate the iterator

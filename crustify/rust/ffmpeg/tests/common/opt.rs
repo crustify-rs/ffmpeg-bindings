@@ -532,3 +532,218 @@ impl Drop for Owned {
         }
     }
 }
+
+// Options wave 1, batch 0: an array of each option type `av_opt_get_array`
+// reads, for `ObjectRef::get_array`, besides `Obj`'s `int` and `string`
+// arrays. The binary array has no default: C parses a binary element into
+// a pointer and a length, which an array element has no room for.
+
+/// The object [`ARR_CLASS`] describes: each array is a pointer followed by
+/// its element count.
+#[repr(C)]
+pub struct ArrObj {
+    pub class: *const ffi::AVClass,
+    pub ints: *mut c_int,
+    pub ints_len: c_uint,
+    pub uints: *mut c_uint,
+    pub uints_len: c_uint,
+    pub i64s: *mut i64,
+    pub i64s_len: c_uint,
+    pub u64s: *mut u64,
+    pub u64s_len: c_uint,
+    pub dbls: *mut f64,
+    pub dbls_len: c_uint,
+    pub flts: *mut f32,
+    pub flts_len: c_uint,
+    pub strs: *mut *mut c_char,
+    pub strs_len: c_uint,
+    pub qs: *mut ffi::AVRational,
+    pub qs_len: c_uint,
+    pub rates: *mut ffi::AVRational,
+    pub rates_len: c_uint,
+    pub bools: *mut c_int,
+    pub bools_len: c_uint,
+    pub sizes: *mut [c_int; 2],
+    pub sizes_len: c_uint,
+    pub colors: *mut [u8; 4],
+    pub colors_len: c_uint,
+    pub durs: *mut i64,
+    pub durs_len: c_uint,
+    pub pixs: *mut c_int,
+    pub pixs_len: c_uint,
+    pub samples: *mut c_int,
+    pub samples_len: c_uint,
+    pub dicts: *mut *mut c_void,
+    pub dicts_len: c_uint,
+    pub layouts: *mut ffi::AVChannelLayout,
+    pub layouts_len: c_uint,
+    pub bins: *mut *mut u8,
+    pub bins_len: c_uint,
+}
+
+/// An array definition with default `def` and separator `sep`.
+const fn arr_def(def: *const c_char, sep: u8) -> ArrayDef {
+    ArrayDef(ffi::AVOptionArrayDef {
+        def,
+        size_min: 0,
+        size_max: 0,
+        sep: sep as c_char,
+    })
+}
+
+pub static INTS_DEF: ArrayDef = arr_def(c"1,-2,2147483647,-2147483648".as_ptr(), 0);
+pub static UINTS_DEF: ArrayDef = arr_def(c"0,4294967295,9".as_ptr(), 0);
+pub static I64S_DEF: ArrayDef = arr_def(c"-5000000000,123456789012".as_ptr(), 0);
+pub static U64S_DEF: ArrayDef = arr_def(c"42,7".as_ptr(), 0);
+pub static DBLS_DEF: ArrayDef = arr_def(c"1.5,-2,1e300,0.1".as_ptr(), 0);
+pub static FLTS_DEF: ArrayDef = arr_def(c"0.25,-3e38,1".as_ptr(), 0);
+pub static STRS_DEF: ArrayDef = arr_def(c"x,,y\\,z".as_ptr(), 0);
+pub static QS_DEF: ArrayDef = arr_def(c"1/3,5,-7/2".as_ptr(), 0);
+pub static RATES_DEF: ArrayDef = arr_def(c"25,30000/1001".as_ptr(), 0);
+pub static BOOLS_DEF: ArrayDef = arr_def(c"true,false,auto".as_ptr(), 0);
+pub static SIZES_DEF: ArrayDef = arr_def(c"640x480,hd720".as_ptr(), 0);
+pub static COLORS_DEF: ArrayDef = arr_def(c"red,0x00ff0080".as_ptr(), 0);
+pub static DURS_DEF: ArrayDef = arr_def(c"1.5,00:01:00".as_ptr(), 0);
+pub static PIXS_DEF: ArrayDef = arr_def(c"yuv420p,rgb24,none".as_ptr(), 0);
+pub static SAMPLES_DEF: ArrayDef = arr_def(c"s16,fltp".as_ptr(), 0);
+pub static DICTS_DEF: ArrayDef = arr_def(c"a=1:b=2:A=3,k=v".as_ptr(), 0);
+pub static LAYOUTS_DEF: ArrayDef = arr_def(c"stereo|5.1(side)|FL+FR".as_ptr(), b'|');
+
+/// An array option `name` of element type `ty` at `offset`, defaulting to
+/// `def`, within `[min, max]`.
+const fn arr(
+    name: *const c_char,
+    offset: usize,
+    ty: T,
+    def: Option<&'static ArrayDef>,
+    min: f64,
+    max: f64,
+) -> ffi::AVOption {
+    let def = match def {
+        Some(d) => &d.0 as *const ffi::AVOptionArrayDef,
+        None => null(),
+    };
+    opt(
+        name,
+        c"an array".as_ptr(),
+        offset,
+        T(ty.0 | T::AV_OPT_TYPE_FLAG_ARRAY.0),
+        ffi::AVOption__bindgen_ty_1 { arr: def },
+        min,
+        max,
+        null(),
+    )
+}
+
+/// The options of [`ARR_CLASS`], in `ArrObj` order, then the terminator.
+#[rustfmt::skip]
+pub static ARR_OPTIONS: Table<19> = Table([
+    arr(c"ints".as_ptr(), offset_of!(ArrObj, ints), T::AV_OPT_TYPE_INT, Some(&INTS_DEF), i32::MIN as f64, INT_MAX),
+    arr(c"uints".as_ptr(), offset_of!(ArrObj, uints), T::AV_OPT_TYPE_UINT, Some(&UINTS_DEF), 0.0, u32::MAX as f64),
+    arr(c"i64s".as_ptr(), offset_of!(ArrObj, i64s), T::AV_OPT_TYPE_INT64, Some(&I64S_DEF), -1e18, 1e18),
+    arr(c"u64s".as_ptr(), offset_of!(ArrObj, u64s), T::AV_OPT_TYPE_UINT64, Some(&U64S_DEF), 0.0, 1e18),
+    arr(c"dbls".as_ptr(), offset_of!(ArrObj, dbls), T::AV_OPT_TYPE_DOUBLE, Some(&DBLS_DEF), f64::MIN, f64::MAX),
+    arr(c"flts".as_ptr(), offset_of!(ArrObj, flts), T::AV_OPT_TYPE_FLOAT, Some(&FLTS_DEF), -f32::MAX as f64, f32::MAX as f64),
+    arr(c"strs".as_ptr(), offset_of!(ArrObj, strs), T::AV_OPT_TYPE_STRING, Some(&STRS_DEF), 0.0, 0.0),
+    arr(c"qs".as_ptr(), offset_of!(ArrObj, qs), T::AV_OPT_TYPE_RATIONAL, Some(&QS_DEF), -1e9, 1e9),
+    arr(c"rates".as_ptr(), offset_of!(ArrObj, rates), T::AV_OPT_TYPE_VIDEO_RATE, Some(&RATES_DEF), 0.0, INT_MAX),
+    arr(c"bools".as_ptr(), offset_of!(ArrObj, bools), T::AV_OPT_TYPE_BOOL, Some(&BOOLS_DEF), -1.0, 1.0),
+    arr(c"sizes".as_ptr(), offset_of!(ArrObj, sizes), T::AV_OPT_TYPE_IMAGE_SIZE, Some(&SIZES_DEF), 0.0, INT_MAX),
+    arr(c"colors".as_ptr(), offset_of!(ArrObj, colors), T::AV_OPT_TYPE_COLOR, Some(&COLORS_DEF), 0.0, 0.0),
+    arr(c"durs".as_ptr(), offset_of!(ArrObj, durs), T::AV_OPT_TYPE_DURATION, Some(&DURS_DEF), 0.0, 1e18),
+    arr(c"pixs".as_ptr(), offset_of!(ArrObj, pixs), T::AV_OPT_TYPE_PIXEL_FMT, Some(&PIXS_DEF), -1.0, INT_MAX),
+    arr(c"samples".as_ptr(), offset_of!(ArrObj, samples), T::AV_OPT_TYPE_SAMPLE_FMT, Some(&SAMPLES_DEF), -1.0, INT_MAX),
+    arr(c"dicts".as_ptr(), offset_of!(ArrObj, dicts), T::AV_OPT_TYPE_DICT, Some(&DICTS_DEF), 0.0, 0.0),
+    arr(c"layouts".as_ptr(), offset_of!(ArrObj, layouts), T::AV_OPT_TYPE_CHLAYOUT, Some(&LAYOUTS_DEF), 0.0, 0.0),
+    arr(c"bins".as_ptr(), offset_of!(ArrObj, bins), T::AV_OPT_TYPE_BINARY, None, 0.0, 0.0),
+    opt(null(), null(), 0, T(0), int(0), 0.0, 0.0, null()),
+]);
+
+/// The names of [`ARR_OPTIONS`], in order.
+pub const ARR_NAMES: [&core::ffi::CStr; 18] = [
+    c"ints", c"uints", c"i64s", c"u64s", c"dbls", c"flts", c"strs", c"qs", c"rates", c"bools",
+    c"sizes", c"colors", c"durs", c"pixs", c"samples", c"dicts", c"layouts", c"bins",
+];
+
+/// `child_class_iterate` of [`ARR_CLASS`]: [`OBJ_CLASS`], then
+/// [`ARR_CLASS`] itself, then nothing.
+///
+/// # Safety
+///
+/// `iter` must address a state this function alone advanced from NULL.
+pub unsafe extern "C" fn arr_child_class_iterate(iter: *mut *mut c_void) -> *const ffi::AVClass {
+    // SAFETY: C passes its writable state slot.
+    let state = unsafe { &mut *iter };
+    let i = *state as usize;
+    *state = (i + 1) as *mut c_void;
+    match i {
+        0 => &OBJ_CLASS.0,
+        1 => &ARR_CLASS.0,
+        _ => null(),
+    }
+}
+
+/// The class of [`ArrObj`], whose potential children are listed by
+/// [`arr_child_class_iterate`].
+pub static ARR_CLASS: Class = Class(ffi::AVClass {
+    class_name: c"crustify-opt-arrays".as_ptr(),
+    item_name: Some(ffi::av_default_item_name),
+    option: &ARR_OPTIONS.0[0],
+    version: 0,
+    log_level_offset_offset: 0,
+    parent_log_context_offset: 0,
+    category: ffi::AVClassCategory::AV_CLASS_CATEGORY_NA,
+    get_category: None,
+    query_ranges: None,
+    child_next: None,
+    child_class_iterate: Some(arr_child_class_iterate),
+    state_flags_offset: 0,
+});
+
+/// A heap [`ArrObj`] of [`ARR_CLASS`] with its defaults set by C, reached
+/// only through its raw pointer; dropping it frees its arrays, then it.
+pub struct ArrOwned(core::ptr::NonNull<ArrObj>);
+
+impl ArrOwned {
+    pub fn new() -> Self {
+        // SAFETY: every field of `ArrObj` is a raw pointer or an integer, for
+        // which all-zero is valid.
+        let obj: Box<ArrObj> = Box::new(unsafe { core::mem::zeroed() });
+        let p = Box::into_raw(obj);
+        // SAFETY: `p` is the fresh allocation above; C fills each array from
+        // its definition.
+        unsafe {
+            (*p).class = &ARR_CLASS.0;
+            ffi::av_opt_set_defaults(p.cast());
+        }
+        Self(core::ptr::NonNull::new(p).unwrap())
+    }
+
+    /// The object as the `void *` the `av_opt_*` routines take.
+    pub fn as_obj(&self) -> *mut c_void {
+        self.0.as_ptr().cast()
+    }
+
+    /// The object, for raw field access.
+    pub fn ptr(&self) -> *mut ArrObj {
+        self.0.as_ptr()
+    }
+}
+
+impl Default for ArrOwned {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
+impl Drop for ArrOwned {
+    fn drop(&mut self) {
+        let p = self.0.as_ptr();
+        // SAFETY: `p` is a live object this owner allocated, whose arrays
+        // `av_opt_free` releases with their elements.
+        unsafe {
+            ffi::av_opt_free(p.cast());
+            drop(Box::from_raw(p));
+        }
+    }
+}

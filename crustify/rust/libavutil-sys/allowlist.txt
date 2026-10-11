@@ -573,3 +573,16 @@ var AV_OPT_FLAG_.*
 var AV_OPT_ALLOW_NULL
 var AV_OPT_SERIALIZE_.*
 var ERANGE
+
+# libavutil options wave 1, batch 0: dict.h's remaining writers (av_dict_set
+# with AV_DICT_* flags is above), and opt.h's typed getters on an
+# AVClass-enabled object.
+function av_dict_parse_string
+function av_dict_set_int
+function av_opt_get_array
+function av_opt_get_chlayout
+function av_opt_get_dict_val
+function av_opt_get_pixel_fmt
+function av_opt_get_q
+function av_opt_get_sample_fmt
+function av_opt_get_video_rate

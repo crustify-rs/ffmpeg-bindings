@@ -2840,6 +2840,29 @@
    ]
   },
   {
+   "name": "av_dict_count",
+   "defined_in": "libavutil/dict.c",
+   "ptr_args": [
+    {
+     "name": "m",
+     "ptr": {
+      "scalar": {
+       "by_val": true
+      },
+      "array": null,
+      "string": false,
+      "owned": false,
+      "borrowed": {
+       "lifetime": "arg:m"
+      },
+      "nullable": true,
+      "mutable": false,
+      "note": "Dictionary whose count is read for the call; NULL counts 0. Never 0 for a non-NULL dictionary (av_dict_set frees it with its last entry)."
+     }
+    }
+   ]
+  },
+  {
    "name": "av_dict_free",
    "defined_in": "libavutil/dict.c",
    "lifetime": {
@@ -2869,6 +2892,77 @@
      }
     }
    ]
+  },
+  {
+   "name": "av_dict_get",
+   "defined_in": "libavutil/dict.c",
+   "ptr_args": [
+    {
+     "name": "key",
+     "ptr": {
+      "scalar": null,
+      "array": null,
+      "string": true,
+      "owned": false,
+      "borrowed": {
+       "lifetime": "arg:key"
+      },
+      "nullable": true,
+      "mutable": false,
+      "note": "Key compared for the call (case-insensitively unless AV_DICT_MATCH_CASE, as a prefix with AV_DICT_IGNORE_SUFFIX); NULL returns NULL."
+     }
+    },
+    {
+     "name": "m",
+     "ptr": {
+      "scalar": {
+       "by_val": true
+      },
+      "array": null,
+      "string": false,
+      "owned": false,
+      "borrowed": {
+       "lifetime": "arg:m"
+      },
+      "nullable": true,
+      "mutable": false,
+      "note": "Dictionary searched read-only; NULL matches nothing."
+     }
+    },
+    {
+     "name": "prev",
+     "ptr": {
+      "scalar": {
+       "by_val": true
+      },
+      "array": null,
+      "string": false,
+      "owned": false,
+      "borrowed": {
+       "lifetime": "arg:m"
+      },
+      "nullable": true,
+      "mutable": false,
+      "note": "NULL to search from the first entry, else an entry of m an earlier call returned, to search after it."
+     }
+    }
+   ],
+   "ptr_ret": {
+    "ptr": {
+     "scalar": {
+      "by_val": true
+     },
+     "array": null,
+     "string": false,
+     "owned": false,
+     "borrowed": {
+      "lifetime": "arg:m"
+     },
+     "nullable": true,
+     "mutable": true,
+     "note": "The first matching entry after prev, or NULL. Borrowed from m (non-const only for history: callers must not change it); any av_dict_set on m invalidates it."
+    }
+   }
   },
   {
    "name": "av_dict_get_string",
@@ -2919,6 +3013,143 @@
       "nullable": true,
       "mutable": false,
       "note": "Dictionary iterated read-only for the call (av_dict_count, av_dict_iterate); NULL counts as empty and yields \"\"."
+     }
+    }
+   ]
+  },
+  {
+   "name": "av_dict_iterate",
+   "defined_in": "libavutil/dict.c",
+   "ptr_args": [
+    {
+     "name": "m",
+     "ptr": {
+      "scalar": {
+       "by_val": true
+      },
+      "array": null,
+      "string": false,
+      "owned": false,
+      "borrowed": {
+       "lifetime": "arg:m"
+      },
+      "nullable": true,
+      "mutable": false,
+      "note": "Dictionary walked read-only; NULL yields no entry."
+     }
+    },
+    {
+     "name": "prev",
+     "ptr": {
+      "scalar": {
+       "by_val": true
+      },
+      "array": null,
+      "string": false,
+      "owned": false,
+      "borrowed": {
+       "lifetime": "arg:m"
+      },
+      "nullable": true,
+      "mutable": false,
+      "note": "NULL for the first entry, else an entry of m returned by an earlier call: C computes its index as prev - m->elems, so it must point into m's entry array."
+     }
+    }
+   ],
+   "ptr_ret": {
+    "ptr": {
+     "scalar": {
+      "by_val": true
+     },
+     "array": null,
+     "string": false,
+     "owned": false,
+     "borrowed": {
+      "lifetime": "arg:m"
+     },
+     "nullable": true,
+     "mutable": false,
+     "note": "The entry after prev, or NULL past the last (a NULL prev then restarts at the first). Borrowed from m: any av_dict_set on m moves or frees it."
+    }
+   }
+  },
+  {
+   "name": "av_dict_parse_string",
+   "defined_in": "libavutil/dict.c",
+   "lifetime": {
+    "for": "pm",
+    "is_dropper": false,
+    "is_disposer": false,
+    "is_cloner": null,
+    "is_constructor": {
+     "alloc": true,
+     "init": false
+    }
+   },
+   "ptr_args": [
+    {
+     "name": "key_val_sep",
+     "ptr": {
+      "scalar": null,
+      "array": null,
+      "string": true,
+      "owned": false,
+      "borrowed": {
+       "lifetime": "arg:key_val_sep"
+      },
+      "nullable": false,
+      "mutable": false,
+      "note": "Set of key/value separator bytes (strspn / av_get_token), read for the call."
+     }
+    },
+    {
+     "name": "pairs_sep",
+     "ptr": {
+      "scalar": null,
+      "array": null,
+      "string": true,
+      "owned": false,
+      "borrowed": {
+       "lifetime": "arg:pairs_sep"
+      },
+      "nullable": false,
+      "mutable": false,
+      "note": "Set of pair separator bytes, read for the call."
+     }
+    },
+    {
+     "name": "pm",
+     "ptr": {
+      "scalar": {
+       "by_ref": {
+        "owned": true,
+        "borrowed": null
+       }
+      },
+      "array": null,
+      "string": false,
+      "owned": false,
+      "borrowed": {
+       "lifetime": "arg:pm"
+      },
+      "nullable": false,
+      "mutable": true,
+      "note": "The caller's AVDictionary * slot (dereferenced unconditionally) and the dictionary it owns, NULL for the empty one. Every insertion goes through av_dict_set, which av_mallocz's the dictionary when *pm is NULL and frees it (NULLing *pm) when its count drops to 0; a failed pair leaves the pairs before it stored. Rust: Dict::with_slot hands it the slot."
+     }
+    },
+    {
+     "name": "str",
+     "ptr": {
+      "scalar": null,
+      "array": null,
+      "string": true,
+      "owned": false,
+      "borrowed": {
+       "lifetime": "arg:str"
+      },
+      "nullable": true,
+      "mutable": false,
+      "note": "Pairs read with av_get_token for the call; NULL is success with nothing stored."
      }
     }
    ]
@@ -2985,6 +3216,57 @@
       "nullable": true,
       "mutable": false,
       "note": "The value. Borrowed for the call and av_strdup'd by default; under AV_DICT_DONT_STRDUP_VAL ownership of an av_malloc'd value passes to the dictionary (stored or av_free'd). NULL deletes the matching entry instead of inserting."
+     }
+    }
+   ]
+  },
+  {
+   "name": "av_dict_set_int",
+   "defined_in": "libavutil/dict.c",
+   "lifetime": {
+    "for": "pm",
+    "is_dropper": false,
+    "is_disposer": false,
+    "is_cloner": null,
+    "is_constructor": {
+     "alloc": true,
+     "init": false
+    }
+   },
+   "ptr_args": [
+    {
+     "name": "key",
+     "ptr": {
+      "scalar": null,
+      "array": null,
+      "string": true,
+      "owned": false,
+      "borrowed": {
+       "lifetime": "arg:key"
+      },
+      "nullable": true,
+      "mutable": false,
+      "note": "Key passed to av_dict_set with the caller's flags (AV_DICT_DONT_STRDUP_VAL dropped, DONT_STRDUP_KEY kept: then ownership of an av_malloc'd key transfers as for av_dict_set). NULL fails with EINVAL."
+     }
+    },
+    {
+     "name": "pm",
+     "ptr": {
+      "scalar": {
+       "by_ref": {
+        "owned": true,
+        "borrowed": null
+       }
+      },
+      "array": null,
+      "string": false,
+      "owned": false,
+      "borrowed": {
+       "lifetime": "arg:pm"
+      },
+      "nullable": false,
+      "mutable": true,
+      "note": "The caller's AVDictionary * slot (dereferenced unconditionally) and the dictionary it owns, NULL for the empty one. Every insertion goes through av_dict_set, which av_mallocz's the dictionary when *pm is NULL and frees it (NULLing *pm) when its count drops to 0; a failed pair leaves the pairs before it stored. Rust: Dict::with_slot hands it the slot."
      }
     }
    ]
@@ -3290,6 +3572,143 @@
       "nullable": false,
       "mutable": false,
       "note": "String to escape, read up to its NUL by av_bprint_escape for the call only. Must not be NULL."
+     }
+    }
+   ]
+  },
+  {
+   "name": "av_expr_count_func",
+   "defined_in": "libavutil/eval.c",
+   "ptr_args": [
+    {
+     "name": "counter",
+     "ptr": {
+      "scalar": null,
+      "array": {
+       "by_val": true
+      },
+      "string": false,
+      "owned": false,
+      "borrowed": {
+       "lifetime": "arg:counter"
+      },
+      "nullable": true,
+      "mutable": true,
+      "note": "As av_expr_count_vars, indexed by the function's position in func1_names/func2_names."
+     }
+    },
+    {
+     "name": "e",
+     "ptr": {
+      "scalar": {
+       "by_val": true
+      },
+      "array": null,
+      "string": false,
+      "owned": false,
+      "borrowed": {
+       "lifetime": "arg:e"
+      },
+      "nullable": false,
+      "mutable": false,
+      "note": "Parsed tree walked read-only; the walk does not descend into a node of the counted type, so f(f(1)) counts once. NULL fails with EINVAL. arg indexes a 3-entry table: it must be 0, 1 or 2."
+     }
+    }
+   ]
+  },
+  {
+   "name": "av_expr_count_vars",
+   "defined_in": "libavutil/eval.c",
+   "ptr_args": [
+    {
+     "name": "counter",
+     "ptr": {
+      "scalar": null,
+      "array": {
+       "by_val": true
+      },
+      "string": false,
+      "owned": false,
+      "borrowed": {
+       "lifetime": "arg:counter"
+      },
+      "nullable": true,
+      "mutable": true,
+      "note": "size unsigned counters, incremented in place at each e_const node's const_index below size; never written past size. NULL or size 0 fails with EINVAL."
+     }
+    },
+    {
+     "name": "e",
+     "ptr": {
+      "scalar": {
+       "by_val": true
+      },
+      "array": null,
+      "string": false,
+      "owned": false,
+      "borrowed": {
+       "lifetime": "arg:e"
+      },
+      "nullable": false,
+      "mutable": false,
+      "note": "Parsed tree walked read-only (non-const in the signature only); NULL fails with EINVAL."
+     }
+    }
+   ]
+  },
+  {
+   "name": "av_expr_eval",
+   "defined_in": "libavutil/eval.c",
+   "ptr_args": [
+    {
+     "name": "const_values",
+     "ptr": {
+      "scalar": null,
+      "array": {
+       "by_val": true
+      },
+      "string": false,
+      "owned": false,
+      "borrowed": {
+       "lifetime": "arg:const_values"
+      },
+      "nullable": true,
+      "mutable": false,
+      "note": "Read at every const_index the tree uses (positions in the parse's const_names); AVExpr keeps no count, so the caller must keep it (Rust: Expression). May be NULL only if the tree reads no constant."
+     }
+    },
+    {
+     "name": "e",
+     "ptr": {
+      "scalar": {
+       "by_val": true
+      },
+      "array": null,
+      "string": false,
+      "owned": false,
+      "borrowed": {
+       "lifetime": "arg:e"
+      },
+      "nullable": false,
+      "mutable": true,
+      "note": "Root built by av_expr_parse (av_assert1(e->root)); evaluation writes its st()/ld() registers and random state, so it needs exclusive access. Unchecked double-to-int conversions in ld/st/random/randomi/taylor/print/gcd/bitand/bitor are UB for out-of-range values (Rust: Expression refuses those expressions at parse)."
+     }
+    },
+    {
+     "name": "opaque",
+     "ptr": {
+      "scalar": {
+       "by_val": true
+      },
+      "array": null,
+      "string": false,
+      "owned": false,
+      "borrowed": {
+       "lifetime": "arg:opaque"
+      },
+      "nullable": true,
+      "mutable": null,
+      "note": "Passed unchanged to every user function the tree calls; never dereferenced by C."
      }
     }
    ]
@@ -5415,6 +5834,67 @@
    "defined_in": "libavutil/rational.c"
   },
   {
+   "name": "av_opt_child_class_iterate",
+   "defined_in": "libavutil/opt.c",
+   "ptr_args": [
+    {
+     "name": "iter",
+     "ptr": {
+      "scalar": {
+       "by_ref": {
+        "owned": null,
+        "borrowed": {
+         "lifetime": "arg:parent"
+        }
+       }
+      },
+      "array": null,
+      "string": false,
+      "owned": false,
+      "borrowed": {
+       "lifetime": "arg:iter"
+      },
+      "nullable": false,
+      "mutable": true,
+      "note": "Opaque iteration state, NULL before the first call, advanced only by the parent's callback (FFmpeg's store an index); never freed."
+     }
+    },
+    {
+     "name": "parent",
+     "ptr": {
+      "scalar": {
+       "by_val": true
+      },
+      "array": null,
+      "string": false,
+      "owned": false,
+      "borrowed": {
+       "lifetime": "arg:parent"
+      },
+      "nullable": false,
+      "mutable": false,
+      "note": "Class whose child_class_iterate callback is called if set; must not be NULL."
+     }
+    }
+   ],
+   "ptr_ret": {
+    "ptr": {
+     "scalar": {
+      "by_val": true
+     },
+     "array": null,
+     "string": false,
+     "owned": false,
+     "borrowed": {
+      "lifetime": "static"
+     },
+     "nullable": true,
+     "mutable": false,
+     "note": "The next potential child class, NULL at the end (or without a callback); FFmpeg's callbacks return static const classes."
+    }
+   }
+  },
+  {
    "name": "av_opt_child_next",
    "defined_in": "libavutil/opt.c",
    "ptr_args": [
@@ -5693,6 +6173,61 @@
    ]
   },
   {
+   "name": "av_opt_get_array",
+   "defined_in": "libavutil/opt.c",
+   "ptr_args": [
+    {
+     "name": "name",
+     "ptr": {
+      "scalar": null,
+      "array": null,
+      "string": true,
+      "owned": false,
+      "borrowed": {
+       "lifetime": "arg:name"
+      },
+      "nullable": false,
+      "mutable": false,
+      "note": "Option name, compared with strcmp during the call only. Must not be NULL."
+     }
+    },
+    {
+     "name": "obj",
+     "ptr": {
+      "scalar": {
+       "by_val": true
+      },
+      "array": null,
+      "string": false,
+      "owned": false,
+      "borrowed": {
+       "lifetime": "arg:obj"
+      },
+      "nullable": false,
+      "mutable": false,
+      "note": "AVClass-bearing object read for the call: av_opt_find2 locates the option (with AV_OPT_SEARCH_CHILDREN, in a child through child_next) and C reads the field at its offset. Wrapped as opt::ObjectRef; AV_OPT_SEARCH_FAKE_OBJ is never passed. The range [start_elem, start_elem+nb_elems) must lie in the array (EINVAL otherwise, start_elem included even for nb_elems 0)."
+     }
+    },
+    {
+     "name": "out_val",
+     "ptr": {
+      "scalar": null,
+      "array": {
+       "by_val": true
+      },
+      "string": false,
+      "owned": false,
+      "borrowed": {
+       "lifetime": "arg:out_val"
+      },
+      "nullable": false,
+      "mutable": true,
+      "note": "nb_elems elements of out_type's C type (opt_type_desc size), which must be zeroed on entry: the copy path frees an existing string/dict/layout before writing, and the failure path frees every element. On success string, dict and channel layout elements are owned copies the caller frees. A BINARY array is unusable: C reads each element's length past it. INT64 out of a float/double/rational element converts unchecked (UB out of range)."
+     }
+    }
+   ]
+  },
+  {
    "name": "av_opt_get_array_size",
    "defined_in": "libavutil/opt.c",
    "ptr_args": [
@@ -5743,6 +6278,139 @@
       "nullable": false,
       "mutable": true,
       "note": "Out slot for the element count, written on success only. Must not be NULL."
+     }
+    }
+   ]
+  },
+  {
+   "name": "av_opt_get_chlayout",
+   "defined_in": "libavutil/opt.c",
+   "lifetime": {
+    "for": "cl",
+    "is_dropper": false,
+    "is_disposer": false,
+    "is_cloner": null,
+    "is_constructor": {
+     "alloc": false,
+     "init": true
+    }
+   },
+   "ptr_args": [
+    {
+     "name": "cl",
+     "ptr": {
+      "scalar": {
+       "by_val": true
+      },
+      "array": null,
+      "string": false,
+      "owned": false,
+      "borrowed": {
+       "lifetime": "arg:cl"
+      },
+      "nullable": false,
+      "mutable": true,
+      "note": "Initialised layout C overwrites with av_channel_layout_copy (which uninits it first), so it must be valid on entry; on success the caller owns the copy and disposes it with av_channel_layout_uninit."
+     }
+    },
+    {
+     "name": "name",
+     "ptr": {
+      "scalar": null,
+      "array": null,
+      "string": true,
+      "owned": false,
+      "borrowed": {
+       "lifetime": "arg:name"
+      },
+      "nullable": false,
+      "mutable": false,
+      "note": "Option name, compared with strcmp during the call only. Must not be NULL."
+     }
+    },
+    {
+     "name": "obj",
+     "ptr": {
+      "scalar": {
+       "by_val": true
+      },
+      "array": null,
+      "string": false,
+      "owned": false,
+      "borrowed": {
+       "lifetime": "arg:obj"
+      },
+      "nullable": false,
+      "mutable": false,
+      "note": "AVClass-bearing object read for the call: av_opt_find2 locates the option (with AV_OPT_SEARCH_CHILDREN, in a child through child_next) and C reads the field at its offset. Wrapped as opt::ObjectRef; AV_OPT_SEARCH_FAKE_OBJ is never passed."
+     }
+    }
+   ]
+  },
+  {
+   "name": "av_opt_get_dict_val",
+   "defined_in": "libavutil/opt.c",
+   "lifetime": {
+    "for": "out_val",
+    "is_dropper": false,
+    "is_disposer": false,
+    "is_cloner": null,
+    "is_constructor": {
+     "alloc": true,
+     "init": false
+    }
+   },
+   "ptr_args": [
+    {
+     "name": "name",
+     "ptr": {
+      "scalar": null,
+      "array": null,
+      "string": true,
+      "owned": false,
+      "borrowed": {
+       "lifetime": "arg:name"
+      },
+      "nullable": false,
+      "mutable": false,
+      "note": "Option name, compared with strcmp during the call only. Must not be NULL."
+     }
+    },
+    {
+     "name": "obj",
+     "ptr": {
+      "scalar": {
+       "by_val": true
+      },
+      "array": null,
+      "string": false,
+      "owned": false,
+      "borrowed": {
+       "lifetime": "arg:obj"
+      },
+      "nullable": false,
+      "mutable": false,
+      "note": "AVClass-bearing object read for the call: av_opt_find2 locates the option (with AV_OPT_SEARCH_CHILDREN, in a child through child_next) and C reads the field at its offset. Wrapped as opt::ObjectRef; AV_OPT_SEARCH_FAKE_OBJ is never passed."
+     }
+    },
+    {
+     "name": "out_val",
+     "ptr": {
+      "scalar": {
+       "by_ref": {
+        "owned": true,
+        "borrowed": null
+       }
+      },
+      "array": null,
+      "string": false,
+      "owned": false,
+      "borrowed": {
+       "lifetime": "arg:out_val"
+      },
+      "nullable": false,
+      "mutable": true,
+      "note": "Dictionary slot av_dict_copy(out_val, src, 0) inserts into (so an existing dictionary there is extended, and equal keys merge); the caller owns and frees it with av_dict_free, also after a failure, which can leave a partial copy."
      }
     }
    ]
@@ -6033,6 +6701,226 @@
       "nullable": false,
       "mutable": true,
       "note": "Out slot for the value: av_get_token's fresh av_realloc string, NUL-terminated, released by av_free; never NULL on success. Written only on success. Also a string constructor output (the schema's single `for` names rkey)."
+     }
+    }
+   ]
+  },
+  {
+   "name": "av_opt_get_pixel_fmt",
+   "defined_in": "libavutil/opt.c",
+   "ptr_args": [
+    {
+     "name": "name",
+     "ptr": {
+      "scalar": null,
+      "array": null,
+      "string": true,
+      "owned": false,
+      "borrowed": {
+       "lifetime": "arg:name"
+      },
+      "nullable": false,
+      "mutable": false,
+      "note": "Option name, compared with strcmp during the call only. Must not be NULL."
+     }
+    },
+    {
+     "name": "obj",
+     "ptr": {
+      "scalar": {
+       "by_val": true
+      },
+      "array": null,
+      "string": false,
+      "owned": false,
+      "borrowed": {
+       "lifetime": "arg:obj"
+      },
+      "nullable": false,
+      "mutable": false,
+      "note": "AVClass-bearing object read for the call: av_opt_find2 locates the option (with AV_OPT_SEARCH_CHILDREN, in a child through child_next) and C reads the field at its offset. Wrapped as opt::ObjectRef; AV_OPT_SEARCH_FAKE_OBJ is never passed."
+     }
+    },
+    {
+     "name": "out_fmt",
+     "ptr": {
+      "scalar": {
+       "by_val": true
+      },
+      "array": null,
+      "string": false,
+      "owned": false,
+      "borrowed": {
+       "lifetime": "arg:out_fmt"
+      },
+      "nullable": false,
+      "mutable": true,
+      "note": "Out slot for the enum AVPixelFormat, written on success only. Must not be NULL."
+     }
+    }
+   ]
+  },
+  {
+   "name": "av_opt_get_q",
+   "defined_in": "libavutil/opt.c",
+   "ptr_args": [
+    {
+     "name": "name",
+     "ptr": {
+      "scalar": null,
+      "array": null,
+      "string": true,
+      "owned": false,
+      "borrowed": {
+       "lifetime": "arg:name"
+      },
+      "nullable": false,
+      "mutable": false,
+      "note": "Option name, compared with strcmp during the call only. Must not be NULL."
+     }
+    },
+    {
+     "name": "obj",
+     "ptr": {
+      "scalar": {
+       "by_val": true
+      },
+      "array": null,
+      "string": false,
+      "owned": false,
+      "borrowed": {
+       "lifetime": "arg:obj"
+      },
+      "nullable": false,
+      "mutable": false,
+      "note": "AVClass-bearing object read for the call: av_opt_find2 locates the option (with AV_OPT_SEARCH_CHILDREN, in a child through child_next) and C reads the field at its offset. Wrapped as opt::ObjectRef; AV_OPT_SEARCH_FAKE_OBJ is never passed."
+     }
+    },
+    {
+     "name": "out_val",
+     "ptr": {
+      "scalar": {
+       "by_val": true
+      },
+      "array": null,
+      "string": false,
+      "owned": false,
+      "borrowed": {
+       "lifetime": "arg:out_val"
+      },
+      "nullable": false,
+      "mutable": true,
+      "note": "Out slot for the AVRational, written on success only. Must not be NULL."
+     }
+    }
+   ]
+  },
+  {
+   "name": "av_opt_get_sample_fmt",
+   "defined_in": "libavutil/opt.c",
+   "ptr_args": [
+    {
+     "name": "name",
+     "ptr": {
+      "scalar": null,
+      "array": null,
+      "string": true,
+      "owned": false,
+      "borrowed": {
+       "lifetime": "arg:name"
+      },
+      "nullable": false,
+      "mutable": false,
+      "note": "Option name, compared with strcmp during the call only. Must not be NULL."
+     }
+    },
+    {
+     "name": "obj",
+     "ptr": {
+      "scalar": {
+       "by_val": true
+      },
+      "array": null,
+      "string": false,
+      "owned": false,
+      "borrowed": {
+       "lifetime": "arg:obj"
+      },
+      "nullable": false,
+      "mutable": false,
+      "note": "AVClass-bearing object read for the call: av_opt_find2 locates the option (with AV_OPT_SEARCH_CHILDREN, in a child through child_next) and C reads the field at its offset. Wrapped as opt::ObjectRef; AV_OPT_SEARCH_FAKE_OBJ is never passed."
+     }
+    },
+    {
+     "name": "out_fmt",
+     "ptr": {
+      "scalar": {
+       "by_val": true
+      },
+      "array": null,
+      "string": false,
+      "owned": false,
+      "borrowed": {
+       "lifetime": "arg:out_fmt"
+      },
+      "nullable": false,
+      "mutable": true,
+      "note": "Out slot for the enum AVSampleFormat, written on success only. Must not be NULL."
+     }
+    }
+   ]
+  },
+  {
+   "name": "av_opt_get_video_rate",
+   "defined_in": "libavutil/opt.c",
+   "ptr_args": [
+    {
+     "name": "name",
+     "ptr": {
+      "scalar": null,
+      "array": null,
+      "string": true,
+      "owned": false,
+      "borrowed": {
+       "lifetime": "arg:name"
+      },
+      "nullable": false,
+      "mutable": false,
+      "note": "Option name, compared with strcmp during the call only. Must not be NULL."
+     }
+    },
+    {
+     "name": "obj",
+     "ptr": {
+      "scalar": {
+       "by_val": true
+      },
+      "array": null,
+      "string": false,
+      "owned": false,
+      "borrowed": {
+       "lifetime": "arg:obj"
+      },
+      "nullable": false,
+      "mutable": false,
+      "note": "AVClass-bearing object read for the call: av_opt_find2 locates the option (with AV_OPT_SEARCH_CHILDREN, in a child through child_next) and C reads the field at its offset. Wrapped as opt::ObjectRef; AV_OPT_SEARCH_FAKE_OBJ is never passed. av_opt_get_video_rate forwards to av_opt_get_q, whose read_number has no AV_OPT_TYPE_VIDEO_RATE case: it fails with EINVAL on a video rate option (Rust reads the field instead)."
+     }
+    },
+    {
+     "name": "out_val",
+     "ptr": {
+      "scalar": {
+       "by_val": true
+      },
+      "array": null,
+      "string": false,
+      "owned": false,
+      "borrowed": {
+       "lifetime": "arg:out_val"
+      },
+      "nullable": false,
+      "mutable": true,
+      "note": "Out slot for the AVRational, written on success only. Must not be NULL."
      }
     }
    ]

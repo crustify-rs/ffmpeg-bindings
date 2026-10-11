@@ -702,6 +702,184 @@ mod expr {
         let enomem = -(ffi::ENOMEM as c_int);
         assert!(outcomes.contains(&Err(enomem)) && outcomes.contains(&Ok(())));
     }
+
+    /// Options wave 1, batch 0: `Expression`, evaluated through its own
+    /// `eval` and `eval_with`, and the counters of a tree's handle, against
+    /// `av_expr_eval` and `av_expr_count_*` on a tree C parsed itself, step
+    /// by step: the registers `st()` writes and the state `random()` advances
+    /// carry from one evaluation to the next on both sides.
+    mod expression {
+        use super::*;
+        use ffmpeg::libavutil::eval::{Arity, Expression};
+
+        /// One evaluation of each side, with no opaque pointer or with
+        /// `token`'s address on both; the value bits and the user calls.
+        fn step(
+            c: &CExpr,
+            r: &mut Expression,
+            values: &[f64; 3],
+            token: Option<&mut u8>,
+        ) -> [(u64, Vec<Call>); 2] {
+            let opaque = token.map_or(ptr::null_mut(), ptr::from_mut);
+            CALLS.with(|c| c.borrow_mut().clear());
+            // SAFETY: a live root of the corpus' names, every constant of
+            // which `values` covers; callers pass expressions `Expression`
+            // accepts, which C evaluates without undefined behaviour.
+            let cv = unsafe { ffi::av_expr_eval(c.0, values.as_ptr(), opaque.cast()) };
+            let c_calls = CALLS.with(|c| c.take());
+            let rv = if opaque.is_null() {
+                r.eval(values)
+            } else {
+                // SAFETY: `opaque` is the caller's live `token`.
+                r.eval_with(values, unsafe { &mut *opaque })
+            };
+            [
+                (cv.to_bits(), c_calls),
+                (rv.to_bits(), CALLS.with(|c| c.take())),
+            ]
+        }
+
+        /// The counters of both trees, for `size` entries each, starting from
+        /// `start` (so that accumulation shows).
+        fn counts(
+            c: &CExpr,
+            r: &Expression,
+            size: usize,
+            start: c_uint,
+        ) -> [Vec<(c_int, Vec<c_uint>)>; 2] {
+            let mut sides = [Vec::new(), Vec::new()];
+            for which in 0..3 {
+                let mut cv = vec![start; size];
+                // SAFETY: a live tree and `size` writable counters, with `arg`
+                // 0, 1 or 2.
+                let ret = unsafe {
+                    if which == 0 {
+                        ffi::av_expr_count_vars(c.0, cv.as_mut_ptr(), size as c_int)
+                    } else {
+                        ffi::av_expr_count_func(c.0, cv.as_mut_ptr(), size as c_int, which)
+                    }
+                };
+                sides[0].push((ret, cv));
+                let mut rv = vec![start; size];
+                let t = r.as_ref();
+                let ret = match which {
+                    0 => t.count_constants(&mut rv),
+                    1 => t.count_functions(Arity::Unary, &mut rv),
+                    _ => t.count_functions(Arity::Binary, &mut rv),
+                };
+                sides[1].push((ret.err().unwrap_or(0), rv));
+            }
+            sides
+        }
+
+        /// Parses `s` both ways, then compares the counters and three
+        /// evaluations per input (the last with an opaque pointer), in one
+        /// sequence on the same two trees; `false` if either failed to parse,
+        /// which both do with C's code unless `Expression` refused `s`.
+        fn agree(s: &CStr) -> bool {
+            let r = Expression::parse(s, &CONSTS, &UNARY, &BINARY, QUIET);
+            let c = c_parse(s, &CONSTS, &UNARY, &BINARY, QUIET);
+            let (mut r, c) = match (r, c) {
+                (Ok(r), Ok(c)) => (r, c),
+                (Err(a), Err(b)) => {
+                    assert_eq!(a, b, "{s:?}");
+                    return false;
+                }
+                (Err(a), Ok(_)) => {
+                    assert_eq!(a, EINVAL, "{s:?} refused");
+                    return false;
+                }
+                (Ok(_), Err(b)) => panic!("{s:?}: C failed with {b}, Rust parsed"),
+            };
+            for size in [1, 2, 3, 5] {
+                for start in [0, 7] {
+                    let [a, b] = counts(&c, &r, size, start);
+                    assert_eq!(a, b, "{s:?} counted into {size}");
+                }
+            }
+            let mut token = 0u8;
+            for values in &INPUTS {
+                for i in 0..3 {
+                    let t = (i == 2).then_some(&mut token);
+                    let [a, b] = step(&c, &mut r, values, t);
+                    assert_eq!(a, b, "{s:?} with {values:?}, step {i}");
+                }
+            }
+            true
+        }
+
+        #[test]
+        fn listed_expressions_evaluate_alike_step_by_step() {
+            if under_bsan() {
+                return;
+            }
+            for s in [
+                c"1+2^3+5*5+sin(2/3)",
+                c"X*Y - XY",
+                c"f(X) + neg(Y) + f(f(XY))",
+                c"g(X, Y) * hyp(Y, XY) + g(g(1, 2), X)",
+                c"st(0, ld(0) + X); st(1, ld(1) * 2 + 1); ld(0) + ld(1)",
+                c"st(2, ld(2) + f(Y)); ld(2)",
+                c"random(0) + random(1)",
+                c"randomi(3, -5, 5)",
+                c"while(lt(ld(4), 3), st(4, ld(4) + 1))",
+                c"taylor(1, 2) + taylor(ld(0) * 0 + 1, 0.5, 3)",
+                c"root(ld(5) - 2, 4)",
+                c"time(0) * 0 + 1",
+                c"print(X, 56) * 0 + print(1, 99)",
+                c"gcd(12, 18) + bitand(6, 3) + bitor(4, 1)",
+                c"X + Y + XY + X",
+                c"PI",
+            ] {
+                assert!(agree(s), "{s:?} refused");
+            }
+        }
+
+        /// Expressions C would evaluate into undefined behaviour are refused
+        /// before C parses them; the rest of each family agrees.
+        #[test]
+        fn refused_expressions_never_reach_c() {
+            for s in [
+                c"ld(X)",
+                c"st(1e10, 1)",
+                c"st(0, 1); random(0)",
+                c"gcd(X, 2)",
+                c"print(1, 2147483648)",
+            ] {
+                assert_eq!(
+                    Expression::parse(s, &CONSTS, &UNARY, &BINARY, QUIET).err(),
+                    Some(EINVAL),
+                    "{s:?}"
+                );
+            }
+            // Malformed input fails in C, with C's code.
+            for s in [c"", c"1+", c"f(1, 2)", c"nope(1)", c"(1"] {
+                let rust = Expression::parse(s, &CONSTS, &UNARY, &BINARY, QUIET).err();
+                assert_eq!(
+                    rust,
+                    c_parse(s, &CONSTS, &UNARY, &BINARY, QUIET).err(),
+                    "{s:?}"
+                );
+            }
+        }
+
+        #[test]
+        fn random_expressions_evaluate_alike_step_by_step() {
+            if under_bsan() {
+                return;
+            }
+            let mut rng = Rng(0x0123_4567_89ab_cdef);
+            let mut agreed = 0;
+            for _ in 0..600 {
+                let mut s = String::new();
+                generate(&mut rng, 0, &mut s);
+                let s = CString::new(s).unwrap();
+                agreed += usize::from(agree(&s));
+            }
+            // Most generated expressions parse.
+            assert!(agreed > 300, "{agreed}");
+        }
+    }
 }
 
 /// Options wave 0, batch 3.

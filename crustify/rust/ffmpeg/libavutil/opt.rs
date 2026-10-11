@@ -37,6 +37,10 @@
 //! (setters: parsed or typed values, defaults, key-value strings, copies,
 //! freeing). The objects themselves are wrapped by later layers; until then
 //! a handle is adopted from a raw pointer under [`ObjectRef`]'s contract.
+//! The typed getters read a value as a [`Rational`], a [`PixelFormat`], a
+//! [`SampleFormat`], a copied [`ChannelLayoutVal`] or [`Dict`], and an array
+//! option's elements as any [`ArrayElement`]; [`ClassRef::potential_children`]
+//! lists the classes of the children an object of a class may have.
 //! Several C setters and getters reach undefined behaviour for some values
 //! (unchecked `double` to integer conversions, a scalar store over an array,
 //! an out-of-bounds type name lookup); the wrappers refuse those values
@@ -57,9 +61,14 @@ use std::ffi::CString;
 
 use ffibox::{CBox, CDrop, CSlice, CZeroable, define_ctype};
 
+use super::channel_layout::{ChannelLayout, ChannelLayoutVal};
+use super::dict::{Dict, DictionaryBox};
 use super::ffi;
 use super::log::{ClassRef, ItemNameFn};
 use super::mem::HeapString;
+use super::pixfmt::PixelFormat;
+use super::rational::Rational;
+use super::samplefmt::SampleFormat;
 use super::{avstring, channel_layout, eval, parseutils};
 
 define_ctype!(
@@ -2538,6 +2547,457 @@ pub fn parse_key_value<'s>(
     }
 }
 
+// Options wave 1, batch 0: the typed getters of `opt.h` and the iteration of
+// a class's potential children.
+
+/// The typed getters.
+impl ObjectRef<'_> {
+    /// Wraps: av_opt_get_q
+    ///
+    /// The value of numeric option `name` as a rational: a rational as
+    /// stored, an integer whose value fits an `int` over 1, anything else
+    /// (a float, a double, a wider integer) approximated within `int` parts
+    /// (`av_d2q`), which is `0/0` for NaN and `±1/0` beyond the `int` range.
+    ///
+    /// # Errors
+    ///
+    /// `AVERROR_OPTION_NOT_FOUND` for no such option, `AVERROR(EINVAL)` for an
+    /// array or an option of another type (a video rate included; see
+    /// [`get_video_rate`](Self::get_video_rate)).
+    pub fn get_rational(&self, name: &CStr, flags: SearchFlags) -> Result<Rational, i32> {
+        let mut out = ffi::AVRational { num: 0, den: 0 };
+        // SAFETY: the handle's contract covers C's reads of the object, its
+        // children and its class; `name` is a live C string and `out` a
+        // writable `AVRational`. C converts only through `double`s and
+        // `av_d2q`, which are defined for every value.
+        let ret = unsafe { ffi::av_opt_get_q(self.as_ptr(), name.as_ptr(), flags.0, &mut out) };
+        if ret < 0 {
+            Err(ret)
+        } else {
+            Ok(Rational::from(out))
+        }
+    }
+
+    /// Wraps: av_opt_get_video_rate
+    ///
+    /// The value of video rate option `name`, as stored; for any other
+    /// option, as [`get_rational`](Self::get_rational) reads it.
+    ///
+    /// Beyond C: `av_opt_get_video_rate` reads every option as `av_opt_get_q`
+    /// does, which fails with `AVERROR(EINVAL)` for a video rate option (its
+    /// numeric reader has no case for the type), so C can read a video rate
+    /// back from everything but a video rate option. This reads the stored
+    /// rate, as `av_opt_get` formats it.
+    ///
+    /// # Errors
+    ///
+    /// As [`get_rational`](Self::get_rational) for any other option.
+    pub fn get_video_rate(&self, name: &CStr, flags: SearchFlags) -> Result<Rational, i32> {
+        if let Some((o, target)) = self.find(name, None, flags.0)
+            && o.option_type() == OptionType::VIDEO_RATE
+        {
+            let offset = usize::try_from(o.offset()).map_err(|_| AVERROR_BUG)?;
+            // SAFETY: the handle's contract makes the option's offset address
+            // its `AVRational` value in `target`, the object or a child,
+            // which nothing writes during the borrow.
+            let rate = unsafe {
+                target
+                    .cast::<u8>()
+                    .add(offset)
+                    .cast::<ffi::AVRational>()
+                    .read()
+            };
+            return Ok(Rational::from(rate));
+        }
+        let (obj, mut out) = (self.as_ptr(), ffi::AVRational { num: 0, den: 0 });
+        // SAFETY: as for `get_rational`, which C forwards to.
+        let ret = unsafe { ffi::av_opt_get_video_rate(obj, name.as_ptr(), flags.0, &mut out) };
+        if ret < 0 {
+            Err(ret)
+        } else {
+            Ok(Rational::from(out))
+        }
+    }
+
+    /// Wraps: av_opt_get_pixel_fmt
+    ///
+    /// The value of pixel format option `name`, as stored.
+    ///
+    /// # Errors
+    ///
+    /// `AVERROR_OPTION_NOT_FOUND` for no such option, `AVERROR(EINVAL)`
+    /// (logged) for an option of another type, arrays included.
+    pub fn get_pixel_format(&self, name: &CStr, flags: SearchFlags) -> Result<PixelFormat, i32> {
+        let (obj, mut out) = (self.as_ptr(), ffi::AVPixelFormat(0));
+        // SAFETY: as for `get_rational`; `out` is a writable
+        // `enum AVPixelFormat`, whose every value the newtype holds.
+        let ret = unsafe { ffi::av_opt_get_pixel_fmt(obj, name.as_ptr(), flags.0, &mut out) };
+        if ret < 0 {
+            Err(ret)
+        } else {
+            Ok(PixelFormat::from_raw(out))
+        }
+    }
+
+    /// Wraps: av_opt_get_sample_fmt
+    ///
+    /// The value of sample format option `name`, as stored.
+    ///
+    /// # Errors
+    ///
+    /// As [`get_pixel_format`](Self::get_pixel_format).
+    pub fn get_sample_format(&self, name: &CStr, flags: SearchFlags) -> Result<SampleFormat, i32> {
+        let (obj, mut out) = (self.as_ptr(), ffi::AVSampleFormat(0));
+        // SAFETY: as for `get_pixel_format`, for an `enum AVSampleFormat`.
+        let ret = unsafe { ffi::av_opt_get_sample_fmt(obj, name.as_ptr(), flags.0, &mut out) };
+        if ret < 0 {
+            Err(ret)
+        } else {
+            Ok(SampleFormat::from_raw(out))
+        }
+    }
+
+    /// Wraps: av_opt_get_chlayout
+    ///
+    /// A copy of the value of channel layout option `name`
+    /// (`av_channel_layout_copy`): a custom map is duplicated.
+    ///
+    /// # Errors
+    ///
+    /// `AVERROR_OPTION_NOT_FOUND` for no such option, `AVERROR(EINVAL)`
+    /// (logged) for an option of another type, arrays included, and the
+    /// errors of [`ChannelLayoutRef::try_clone`](channel_layout::ChannelLayoutRef::try_clone).
+    pub fn get_channel_layout(
+        &self,
+        name: &CStr,
+        flags: SearchFlags,
+    ) -> Result<ChannelLayoutVal, i32> {
+        let mut out = ChannelLayout::unspecified(0);
+        let dst = out.as_mut().as_mut_ptr();
+        // SAFETY: as for `get_rational`; `dst` is a live, initialised
+        // (empty) layout C may uninit and overwrite with a copy the value
+        // then owns, and on failure leaves empty or disposable.
+        let ret = unsafe { ffi::av_opt_get_chlayout(self.as_ptr(), name.as_ptr(), flags.0, dst) };
+        if ret < 0 { Err(ret) } else { Ok(out) }
+    }
+
+    /// Wraps: av_opt_get_dict_val
+    ///
+    /// A copy of the value of dictionary option `name`, empty for an unset
+    /// one. As C copies it (`av_dict_copy` with no flags), entries whose
+    /// keys match an earlier one case-insensitively replace it.
+    ///
+    /// # Errors
+    ///
+    /// `AVERROR_OPTION_NOT_FOUND` for no such option, `AVERROR(EINVAL)` for an
+    /// option of another type, arrays included, `AVERROR(ENOMEM)`.
+    pub fn get_dict(&self, name: &CStr, flags: SearchFlags) -> Result<Dict, i32> {
+        let (obj, mut out) = (self.as_ptr(), ptr::null_mut());
+        // SAFETY: as for `get_rational`; `out` is a NULL dictionary slot, into
+        // which C copies the option's dictionary, entry by entry.
+        let ret = unsafe { ffi::av_opt_get_dict_val(obj, name.as_ptr(), flags.0, &mut out) };
+        // SAFETY: the slot holds NULL or the dictionary C built, every entry
+        // through `av_dict_set`, which nothing else references; a partial
+        // copy left on failure is released here.
+        let copy = Dict::from(unsafe { DictionaryBox::from_c(out) });
+        if ret < 0 { Err(ret) } else { Ok(copy) }
+    }
+
+    /// Wraps: av_opt_get_array
+    ///
+    /// Elements `start..start + count` of array option `name`, read as `T`,
+    /// as the scalar getter of `T`'s option type reads a value: as stored
+    /// when `T` is the array's own element type, formatted as `av_opt_get`
+    /// formats it for `Option<HeapString>` (`None` for an unset string),
+    /// and converted for `i64`, `f64` and [`Rational`] from a numeric array.
+    /// Strings, dictionaries and layouts are copies the result owns.
+    ///
+    /// # Errors
+    ///
+    /// `AVERROR_OPTION_NOT_FOUND` for no such option; `AVERROR(EINVAL)` for an
+    /// option that is not an array, or a range that does not lie in the array
+    /// (`start` must be an element, even for `count` 0); `AVERROR(ENOSYS)`
+    /// for a conversion C does not make (to `i32` from anything but an `int`
+    /// array, say); `AVERROR(ENOMEM)`; the error of an element that does not
+    /// format. Also, before C reads it, `AVERROR(EINVAL)` for an array of
+    /// binary buffers, whose elements C reads a length past (`opt.h` gives
+    /// such an array no layout), and `AVERROR(ERANGE)` for an `i64` read of a
+    /// float, double or rational element whose value is NaN or outside the
+    /// `i64` range, which C converts unchecked.
+    pub fn get_array<T: ArrayElement>(
+        &self,
+        name: &CStr,
+        flags: SearchFlags,
+        start: u32,
+        count: u32,
+    ) -> Result<Vec<T>, i32> {
+        // C's own checks, made first so that the output is sized for a range
+        // that exists: no such option, not an array, outside the array.
+        let size = self.get_array_size(name, flags)?;
+        let (start_at, count_at) = (start as usize, count as usize);
+        if start_at >= size || size - start_at < count_at {
+            return Err(EINVAL);
+        }
+        let (o, _) = self.find(name, None, flags.0).ok_or(AVERROR_BUG)?;
+        let base = o.option_type().base();
+        if base == OptionType::BINARY {
+            return Err(EINVAL);
+        }
+        if T::TYPE == OptionType::INT64
+            && matches!(
+                base,
+                OptionType::FLOAT | OptionType::DOUBLE | OptionType::RATIONAL
+            )
+        {
+            // C's `int64_t` result of these is `(int64_t)` of the `double`
+            // its `double` result is, so preview that.
+            let values = self.get_array::<f64>(name, flags, start, count)?;
+            if !values.into_iter().all(fits_i64) {
+                return Err(ERANGE);
+            }
+        }
+        let mut out: Vec<T::Raw> = (0..count).map(|_| T::zero()).collect();
+        // SAFETY: as for `get_rational`; the range lies in the array, which
+        // is no binary array; `out` holds `count` zeroed (empty) elements of
+        // the C type `T::TYPE` stores, as C requires of its output; and an
+        // `int64_t` conversion C makes was previewed in range above.
+        let ret = unsafe {
+            ffi::av_opt_get_array(
+                self.as_ptr(),
+                name.as_ptr(),
+                flags.0,
+                start,
+                count,
+                T::TYPE.into(),
+                out.as_mut_ptr().cast(),
+            )
+        };
+        if ret < 0 {
+            // C released every element, leaving each empty.
+            return Err(ret);
+        }
+        // C wrote each element as `T::TYPE` stores it, handing over what it
+        // allocated.
+        let adopt = |raw| {
+            // SAFETY: an element a successful call wrote, owned by nothing
+            // else, as `adopt` requires.
+            unsafe { T::adopt(raw) }
+        };
+        Ok(out.into_iter().map(adopt).collect())
+    }
+}
+
+/// An element type [`ObjectRef::get_array`] reads an array option's
+/// elements as, standing for an option type (`AV_OPT_TYPE_*`) whose C type
+/// it holds: `i32` (`INT`), `u32` (`UINT`), `i64` (`INT64`), `u64`
+/// (`UINT64`), `f32` (`FLOAT`), `f64` (`DOUBLE`), [`Rational`] (`RATIONAL`),
+/// `Option<HeapString>` (`STRING`), [`PixelFormat`] (`PIXEL_FMT`),
+/// [`SampleFormat`] (`SAMPLE_FMT`), [`Dict`] (`DICT`) and
+/// [`ChannelLayoutVal`] (`CHLAYOUT`).
+///
+/// Sealed: the crate implements it for the types whose C layout it checks.
+pub trait ArrayElement: element::Element {}
+
+mod element {
+    use super::OptionType;
+
+    /// The C side of an [`ArrayElement`](super::ArrayElement).
+    ///
+    /// # Safety
+    ///
+    /// `Raw` must have the size and alignment of the C type `opt.h` documents
+    /// for `TYPE`, every value `zero` returns must be the empty value C
+    /// expects of an output element (NULL, zero, or an empty layout), and
+    /// `adopt` must take over what `av_opt_get_array` writes there for `TYPE`.
+    pub unsafe trait Element: Sized {
+        /// The option type C converts the elements to.
+        const TYPE: OptionType;
+        /// The C type of one element of C's output.
+        type Raw;
+        /// An empty output element.
+        fn zero() -> Self::Raw;
+        /// The element C wrote.
+        ///
+        /// # Safety
+        ///
+        /// `raw` must be an element a successful `av_opt_get_array` wrote for
+        /// `TYPE`, owned by nothing else.
+        unsafe fn adopt(raw: Self::Raw) -> Self;
+    }
+}
+
+/// `ArrayElement` for a type that is its own C element, plain data with no
+/// resources: `$ty` for option type `$opt`, C type `$c`.
+macro_rules! plain_elements {
+    ($($ty:ty => $opt:ident, $c:ty);* $(;)?) => {$(
+        // SAFETY: `$ty` is `$c`, plain data with no resources, whose zero is
+        // a value; C writes a value of it.
+        unsafe impl element::Element for $ty {
+            const TYPE: OptionType = OptionType::$opt;
+            type Raw = $c;
+            fn zero() -> $c {
+                <$c>::default()
+            }
+            unsafe fn adopt(raw: $c) -> Self {
+                Self::from(raw)
+            }
+        }
+        impl ArrayElement for $ty {}
+    )*};
+}
+
+plain_elements! {
+    i32 => INT, c_int;
+    u32 => UINT, c_uint;
+    i64 => INT64, i64;
+    u64 => UINT64, u64;
+    f32 => FLOAT, f32;
+    f64 => DOUBLE, f64;
+}
+
+// SAFETY: `AVRational` is `opt.h`'s C type of a rational, plain data whose
+// zero (`0/0`) is a value.
+unsafe impl element::Element for Rational {
+    const TYPE: OptionType = OptionType::RATIONAL;
+    type Raw = ffi::AVRational;
+    fn zero() -> ffi::AVRational {
+        ffi::AVRational { num: 0, den: 0 }
+    }
+    unsafe fn adopt(raw: ffi::AVRational) -> Self {
+        Self::from(raw)
+    }
+}
+impl ArrayElement for Rational {}
+
+// SAFETY: a string element is a `char *`, NULL when empty, and C writes NULL
+// or a fresh `av_malloc`-family string the caller frees.
+unsafe impl element::Element for Option<HeapString> {
+    const TYPE: OptionType = OptionType::STRING;
+    type Raw = *mut c_char;
+    fn zero() -> *mut c_char {
+        ptr::null_mut()
+    }
+    unsafe fn adopt(raw: *mut c_char) -> Self {
+        // SAFETY: NULL or a fresh string the caller owns, per `adopt`'s
+        // contract.
+        unsafe { HeapString::from_raw(raw) }
+    }
+}
+impl ArrayElement for Option<HeapString> {}
+
+// SAFETY: `enum AVPixelFormat` is a C `int`, plain data whose every value
+// the newtype holds.
+unsafe impl element::Element for PixelFormat {
+    const TYPE: OptionType = OptionType::PIXEL_FORMAT;
+    type Raw = ffi::AVPixelFormat;
+    fn zero() -> ffi::AVPixelFormat {
+        ffi::AVPixelFormat(0)
+    }
+    unsafe fn adopt(raw: ffi::AVPixelFormat) -> Self {
+        Self::from_raw(raw)
+    }
+}
+impl ArrayElement for PixelFormat {}
+
+// SAFETY: as for `PixelFormat`, for `enum AVSampleFormat`.
+unsafe impl element::Element for SampleFormat {
+    const TYPE: OptionType = OptionType::SAMPLE_FORMAT;
+    type Raw = ffi::AVSampleFormat;
+    fn zero() -> ffi::AVSampleFormat {
+        ffi::AVSampleFormat(0)
+    }
+    unsafe fn adopt(raw: ffi::AVSampleFormat) -> Self {
+        Self::from_raw(raw)
+    }
+}
+impl ArrayElement for SampleFormat {}
+
+// SAFETY: a dictionary element is an `AVDictionary *`, NULL when empty, and
+// C writes NULL or a copy built by `av_dict_set` the caller frees.
+unsafe impl element::Element for Dict {
+    const TYPE: OptionType = OptionType::DICT;
+    type Raw = *mut ffi::AVDictionary;
+    fn zero() -> *mut ffi::AVDictionary {
+        ptr::null_mut()
+    }
+    unsafe fn adopt(raw: *mut ffi::AVDictionary) -> Self {
+        // SAFETY: NULL or a non-empty dictionary the caller owns, per
+        // `adopt`'s contract.
+        Self::from(unsafe { DictionaryBox::from_c(raw) })
+    }
+}
+impl ArrayElement for Dict {}
+
+const _: () = assert!(size_of::<ChannelLayoutVal>() == size_of::<ffi::AVChannelLayout>());
+const _: () = assert!(align_of::<ChannelLayoutVal>() == align_of::<ffi::AVChannelLayout>());
+
+// SAFETY: a `ChannelLayoutVal` is an `AVChannelLayout` (`#[repr(C)]`, the
+// value first, then a zero-sized policy; sizes asserted above), whose
+// all-zero value is the empty layout C's `av_channel_layout_copy` uninits
+// and overwrites with a copy the value then owns and disposes.
+unsafe impl element::Element for ChannelLayoutVal {
+    const TYPE: OptionType = OptionType::CHANNEL_LAYOUT;
+    type Raw = ChannelLayoutVal;
+    fn zero() -> ChannelLayoutVal {
+        ChannelLayout::unspecified(0)
+    }
+    unsafe fn adopt(raw: ChannelLayoutVal) -> Self {
+        raw
+    }
+}
+impl ArrayElement for ChannelLayoutVal {}
+
+impl<'a> ClassRef<'a> {
+    /// Wraps: av_opt_child_class_iterate
+    ///
+    /// The classes of the `AVOptions`-enabled children an object of this
+    /// class may have, which a search of its options with children
+    /// (`AV_OPT_SEARCH_CHILDREN` on a class, without an object) visits:
+    /// `av_opt_child_class_iterate`, driven from a NULL state until it
+    /// returns NULL. None for a class without a `child_class_iterate`
+    /// callback. The same classes as [`child_classes`](Self::child_classes),
+    /// through `opt.h`'s entry point.
+    pub fn potential_children(&self) -> PotentialChildren<'a> {
+        PotentialChildren {
+            parent: Some(*self),
+            state: ptr::null_mut(),
+        }
+    }
+}
+
+/// The classes of a class's potential children, from
+/// [`ClassRef::potential_children`].
+#[derive(Debug)]
+pub struct PotentialChildren<'a> {
+    /// The parent class; `None` once C has returned NULL.
+    parent: Option<ClassRef<'a>>,
+    /// C's iteration state, which only the parent's callback reads.
+    state: *mut c_void,
+}
+
+impl<'a> Iterator for PotentialChildren<'a> {
+    type Item = ClassRef<'a>;
+
+    fn next(&mut self) -> Option<ClassRef<'a>> {
+        let parent = self.parent?;
+        // SAFETY: the parent is a well-formed class, whose
+        // `child_class_iterate` (when it has one) takes the opaque state it
+        // alone advanced from NULL, which `state` is.
+        let child = unsafe { ffi::av_opt_child_class_iterate(parent.as_ptr(), &mut self.state) };
+        // SAFETY: the callback returns NULL or a well-formed class that lives
+        // as long as the parent class (`'a`): every FFmpeg iterator returns a
+        // `static const` class.
+        let child = unsafe { ClassRef::from_ptr(child.cast_mut()) };
+        if child.is_none() {
+            // C callers stop at the first NULL; so does the iterator.
+            self.parent = None;
+        }
+        child
+    }
+}
+
+impl core::iter::FusedIterator for PotentialChildren<'_> {}
+
 #[cfg(test)]
 #[path = "../tests/common/opt.rs"]
 pub(crate) mod fixture;
@@ -3913,5 +4373,363 @@ mod unit_tests {
 
         type ItemName = unsafe extern "C" fn(*mut c_void) -> *const c_char;
         type GetCategory = unsafe extern "C" fn(*mut c_void) -> ffi::AVClassCategory;
+    }
+
+    /// Options wave 1, batch 0: the typed getters on the fixture's objects,
+    /// the corrected video rate getter, the refusals `get_array` makes before
+    /// C runs, its element plumbing, and the potential children of a class.
+    mod getters {
+        use super::super::element::Element;
+        use super::*;
+        use crate::libavutil::channel_layout::ChannelOrder;
+        use fixture::{ARR_CLASS, ARR_NAMES, ArrOwned, OBJ_CLASS, Owned};
+
+        /// `AVERROR_OPTION_NOT_FOUND`.
+        const NOT_FOUND: i32 = -i32::from_le_bytes([0xF8, b'O', b'P', b'T']);
+        const ENOSYS: i32 = -38;
+
+        fn obj(o: *mut c_void) -> ObjectRef<'static> {
+            // SAFETY: the callers' fixture objects are well-formed and outlive
+            // every use of the handle in these tests, which only read them.
+            unsafe { ObjectRef::from_ptr(o) }.unwrap()
+        }
+
+        fn class(c: &'static fixture::Class) -> ClassRef<'static> {
+            // SAFETY: the fixture classes are well-formed statics.
+            unsafe { ClassRef::from_ptr((&raw const c.0).cast_mut()) }.unwrap()
+        }
+
+        fn strings(v: Vec<Option<HeapString>>) -> Vec<Option<String>> {
+            v.into_iter()
+                .map(|s| s.map(|s| s.to_str().unwrap().to_owned()))
+                .collect()
+        }
+
+        #[test]
+        fn the_fixture_arrays_hold_their_defaults() {
+            let o = ArrOwned::new();
+            let r = obj(o.as_obj());
+            let sizes: Vec<usize> = ARR_NAMES
+                .iter()
+                .map(|n| r.get_array_size(n, SearchFlags::NONE).unwrap())
+                .collect();
+            assert_eq!(
+                sizes,
+                [4, 3, 2, 2, 4, 3, 3, 3, 2, 3, 2, 2, 2, 3, 2, 2, 3, 0]
+            );
+        }
+
+        #[test]
+        fn arrays_read_as_their_own_type() {
+            let o = ArrOwned::new();
+            let r = obj(o.as_obj());
+            let n = SearchFlags::NONE;
+            assert_eq!(
+                r.get_array::<i32>(c"ints", n, 0, 4),
+                Ok(vec![1, -2, i32::MAX, i32::MIN])
+            );
+            assert_eq!(r.get_array::<u32>(c"uints", n, 1, 2), Ok(vec![u32::MAX, 9]));
+            assert_eq!(
+                r.get_array::<i64>(c"i64s", n, 0, 2),
+                Ok(vec![-5_000_000_000, 123_456_789_012])
+            );
+            assert_eq!(r.get_array::<u64>(c"u64s", n, 0, 2), Ok(vec![42, 7]));
+            assert_eq!(
+                r.get_array::<f64>(c"dbls", n, 0, 3),
+                Ok(vec![1.5, -2.0, 1e300])
+            );
+            assert_eq!(r.get_array::<f32>(c"flts", n, 0, 2), Ok(vec![0.25, -3e38]));
+            let q = r.get_array::<Rational>(c"qs", n, 0, 3).unwrap();
+            let q: Vec<(i32, i32)> = q
+                .iter()
+                .map(|q| (q.as_ref().num(), q.as_ref().den()))
+                .collect();
+            assert_eq!(q, [(1, 3), (5, 1), (-7, 2)]);
+            let s = r.get_array::<Option<HeapString>>(c"strs", n, 0, 3).unwrap();
+            assert_eq!(
+                strings(s),
+                [Some("x".into()), Some("".into()), Some("y,z".into())]
+            );
+            // An unset element, which C's parser never stores, reads as `None`.
+            // SAFETY: `strs` holds three owned strings; nothing else accesses
+            // the object during the write.
+            unsafe { ffi::av_freep((*o.ptr()).strs.add(1).cast()) };
+            let s = r.get_array::<Option<HeapString>>(c"strs", n, 1, 2).unwrap();
+            assert_eq!(strings(s), [None, Some("y,z".into())]);
+            let p = r.get_array::<PixelFormat>(c"pixs", n, 0, 3).unwrap();
+            assert_eq!(
+                p,
+                [PixelFormat::YUV420P, PixelFormat::RGB24, PixelFormat::NONE]
+            );
+            let f = r.get_array::<SampleFormat>(c"samples", n, 0, 2).unwrap();
+            assert_eq!(f, [SampleFormat::S16, SampleFormat::FLTP]);
+            // C copies a dictionary element without flags: `A` replaces `a`.
+            let d = r.get_array::<Dict>(c"dicts", n, 0, 2).unwrap();
+            let d: Vec<String> = d
+                .iter()
+                .map(|d| {
+                    d.serialize(b'=', b';')
+                        .unwrap()
+                        .to_str()
+                        .unwrap()
+                        .to_owned()
+                })
+                .collect();
+            assert_eq!(d, ["b=2;A=3", "k=v"]);
+            let l = r
+                .get_array::<ChannelLayoutVal>(c"layouts", n, 0, 3)
+                .unwrap();
+            let orders: Vec<_> = l
+                .iter()
+                .map(|l| (l.as_ref().order(), l.as_ref().channel_count()))
+                .collect();
+            assert_eq!(
+                orders,
+                [
+                    (ChannelOrder::NATIVE, 2),
+                    (ChannelOrder::NATIVE, 6),
+                    (ChannelOrder::NATIVE, 2)
+                ]
+            );
+        }
+
+        #[test]
+        fn arrays_convert_as_c_converts_them() {
+            let o = ArrOwned::new();
+            let r = obj(o.as_obj());
+            let n = SearchFlags::NONE;
+            assert_eq!(r.get_array::<i64>(c"dbls", n, 0, 2), Ok(vec![1, -2]));
+            assert_eq!(r.get_array::<i64>(c"qs", n, 0, 3), Ok(vec![0, 5, -3]));
+            assert_eq!(r.get_array::<f64>(c"ints", n, 0, 2), Ok(vec![1.0, -2.0]));
+            assert_eq!(r.get_array::<i64>(c"bools", n, 0, 3), Ok(vec![1, 0, -1]));
+            let s = r
+                .get_array::<Option<HeapString>>(c"sizes", n, 0, 2)
+                .unwrap();
+            assert_eq!(
+                strings(s),
+                [Some("640x480".into()), Some("1280x720".into())]
+            );
+            // C converts to `int` only from an `int` array.
+            assert_eq!(r.get_array::<i32>(c"dbls", n, 0, 1), Err(ENOSYS));
+            // A video rate has no numeric value in C's reader.
+            assert_eq!(r.get_array::<f64>(c"rates", n, 0, 1), Err(EINVAL));
+        }
+
+        #[test]
+        fn ranges_outside_the_array_and_missing_options_fail_before_any_output() {
+            let o = ArrOwned::new();
+            let r = obj(o.as_obj());
+            let n = SearchFlags::NONE;
+            assert_eq!(r.get_array::<i32>(c"ints", n, 4, 0), Err(EINVAL));
+            assert_eq!(r.get_array::<i32>(c"ints", n, 3, 2), Err(EINVAL));
+            assert_eq!(r.get_array::<i32>(c"ints", n, 0, u32::MAX), Err(EINVAL));
+            assert_eq!(r.get_array::<i32>(c"ints", n, u32::MAX, 1), Err(EINVAL));
+            assert_eq!(r.get_array::<i32>(c"ints", n, 3, 0), Ok(vec![]));
+            assert_eq!(r.get_array::<i32>(c"missing", n, 0, 0), Err(NOT_FOUND));
+            assert_eq!(r.get_array::<i32>(c"bins", n, 0, 0), Err(EINVAL));
+            let plain = Owned::new();
+            assert_eq!(
+                obj(plain.as_obj()).get_array::<i32>(c"int", n, 0, 1),
+                Err(EINVAL)
+            );
+        }
+
+        /// C's `int64_t` result of a double element out of range is
+        /// undefined, so it is refused with `ERANGE` after a `double`
+        /// preview, whose values C computes the same way.
+        #[test]
+        fn out_of_range_int64_conversions_are_refused() {
+            let o = ArrOwned::new();
+            let r = obj(o.as_obj());
+            let n = SearchFlags::NONE;
+            assert_eq!(r.get_array::<i64>(c"dbls", n, 0, 3), Err(ERANGE));
+            assert_eq!(r.get_array::<i64>(c"dbls", n, 2, 1), Err(ERANGE));
+            assert_eq!(r.get_array::<i64>(c"flts", n, 0, 2), Err(ERANGE));
+            assert_eq!(r.get_array::<i64>(c"flts", n, 0, 1), Ok(vec![0]));
+            // A rational of zero denominator is an infinity, or NaN for 0/0.
+            for (num, den) in [(1, 0), (0, 0), (-1, 0)] {
+                // SAFETY: `qs` holds three elements; nothing else accesses
+                // the object during the write.
+                unsafe { (*o.ptr()).qs.write(ffi::AVRational { num, den }) };
+                assert_eq!(r.get_array::<i64>(c"qs", n, 0, 1), Err(ERANGE));
+                assert_eq!(r.get_array::<i64>(c"qs", n, 1, 2), Ok(vec![5, -3]));
+                let v = r.get_array::<f64>(c"qs", n, 0, 1).unwrap()[0];
+                assert!(v.is_infinite() || v.is_nan());
+            }
+            // The extremes of the range.
+            // SAFETY: as above, for `dbls`, which holds four.
+            unsafe {
+                (*o.ptr()).dbls.write(-9_223_372_036_854_775_808.0);
+                (*o.ptr()).dbls.add(1).write(9_223_372_036_854_774_784.0);
+                (*o.ptr()).dbls.add(2).write(9_223_372_036_854_775_808.0);
+            }
+            assert_eq!(
+                r.get_array::<i64>(c"dbls", n, 0, 2),
+                Ok(vec![i64::MIN, 9_223_372_036_854_774_784])
+            );
+            assert_eq!(r.get_array::<i64>(c"dbls", n, 1, 2), Err(ERANGE));
+        }
+
+        /// C reads a binary element's length past it, out of the array for
+        /// the last one: refused before C runs.
+        #[test]
+        fn binary_arrays_are_refused_before_c() {
+            let o = ArrOwned::new();
+            // SAFETY: an `av_mallocz` array of two NULL buffers, which the
+            // object owns from here and `av_opt_free` releases.
+            unsafe {
+                let bins = ffi::av_mallocz(2 * size_of::<*mut u8>()).cast::<*mut u8>();
+                assert!(!bins.is_null());
+                (*o.ptr()).bins = bins;
+                (*o.ptr()).bins_len = 2;
+            }
+            let r = obj(o.as_obj());
+            assert_eq!(r.get_array_size(c"bins", SearchFlags::NONE), Ok(2));
+            let n = SearchFlags::NONE;
+            let read = |start, count| r.get_array::<Option<HeapString>>(c"bins", n, start, count);
+            assert_eq!(read(0, 2).err(), Some(EINVAL));
+            assert_eq!(read(1, 1).err(), Some(EINVAL));
+            assert_eq!(r.get_array::<i64>(c"bins", n, 0, 0), Err(EINVAL));
+        }
+
+        /// Runs the test `name` alone in a child process, where it may lower
+        /// the process-wide allocation limit; true in that child.
+        fn isolated(name: &str) -> bool {
+            const KEY: &str = "CRUSTIFY_UNIT_OPT_GETTERS_ISOLATED";
+            if std::env::var_os(KEY).is_some() {
+                return true;
+            }
+            let status = std::process::Command::new(std::env::current_exe().unwrap())
+                .args(["--exact", name, "--test-threads=1"])
+                .env(KEY, "1")
+                .status()
+                .unwrap();
+            assert!(status.success(), "isolated run failed: {status}");
+            false
+        }
+
+        /// C's allocation failures part-way through an array read, under an
+        /// `av_max_alloc` limit: C releases the elements it wrote (as
+        /// LeakSanitizer checks) and the read fails with `ENOMEM`.
+        #[test]
+        fn allocation_failures_release_the_elements_written() {
+            if !isolated("libavutil::opt::unit_tests::getters::allocation_failures_release_the_elements_written") {
+                return;
+            }
+            let o = ArrOwned::new();
+            let r = obj(o.as_obj());
+            let n = SearchFlags::NONE;
+            let enomem = Some(-(ffi::ENOMEM as i32));
+            // `x` and `` copy within 3 bytes; `y,z` does not.
+            crate::libavutil::mem::set_max_alloc(3);
+            let strings = r.get_array::<Option<HeapString>>(c"strs", n, 0, 3);
+            assert_eq!(strings.err(), enomem);
+            // A formatted number is copied out of C's stack buffer: `1` and
+            // `-2` fit, `2147483647` does not.
+            let formatted = r.get_array::<Option<HeapString>>(c"ints", n, 0, 3);
+            assert_eq!(formatted.err(), enomem);
+            // A dictionary formatted by `av_dict_get_string` (`b=2:A=3` takes
+            // 8 bytes), and copied (a dictionary takes 16).
+            crate::libavutil::mem::set_max_alloc(7);
+            let formatted = r.get_array::<Option<HeapString>>(c"dicts", n, 0, 2);
+            assert_eq!(formatted.err(), enomem);
+            assert_eq!(r.get_array::<Dict>(c"dicts", n, 0, 2).err(), enomem);
+            crate::libavutil::mem::set_max_alloc(i32::MAX as usize);
+            let strings = r.get_array::<Option<HeapString>>(c"strs", n, 0, 3).unwrap();
+            assert_eq!(strings.len(), 3);
+        }
+
+        #[test]
+        fn element_plumbing() {
+            assert_eq!(<i32 as Element>::zero(), 0);
+            assert!(<Option<HeapString> as Element>::zero().is_null());
+            assert!(<Dict as Element>::zero().is_null());
+            // SAFETY: NULL is the empty value of each.
+            assert!(unsafe { <Option<HeapString> as Element>::adopt(ptr::null_mut()) }.is_none());
+            // SAFETY: as above.
+            assert!(unsafe { <Dict as Element>::adopt(ptr::null_mut()) }.is_empty());
+            let l = <ChannelLayoutVal as Element>::zero();
+            assert_eq!(
+                (l.as_ref().order(), l.as_ref().channel_count()),
+                (ChannelOrder::UNSPEC, 0)
+            );
+            // SAFETY: the layout is all zero, as C leaves its output elements.
+            let zero = unsafe { core::mem::zeroed::<ffi::AVChannelLayout>() };
+            // SAFETY: both are `size_of::<AVChannelLayout>()` readable bytes.
+            let same = unsafe {
+                core::slice::from_raw_parts(
+                    ptr::from_ref(&l).cast::<u8>(),
+                    size_of::<ffi::AVChannelLayout>(),
+                ) == core::slice::from_raw_parts(
+                    ptr::from_ref(&zero).cast::<u8>(),
+                    size_of::<ffi::AVChannelLayout>(),
+                )
+            };
+            assert!(same);
+            assert_eq!(<Rational as Element>::TYPE, OptionType::RATIONAL);
+            assert_eq!(
+                <ChannelLayoutVal as Element>::TYPE,
+                OptionType::CHANNEL_LAYOUT
+            );
+        }
+
+        /// Options wave 1, batch 0: `av_opt_get_video_rate` forwards to
+        /// `av_opt_get_q`, which has no reader for a video rate option and
+        /// fails with `EINVAL`; the wrapper reads the stored rate instead.
+        #[test]
+        fn video_rates_read_back_where_c_fails() {
+            let o = Owned::new();
+            let r = obj(o.as_obj());
+            let mut c = ffi::AVRational { num: 0, den: 0 };
+            let rate = c"rate".as_ptr();
+            // SAFETY: a well-formed object, a live name and a writable rate.
+            let ret = unsafe { ffi::av_opt_get_video_rate(o.as_obj(), rate, 0, &mut c) };
+            assert_eq!(ret, EINVAL);
+            let rate = r.get_video_rate(c"rate", SearchFlags::NONE).unwrap();
+            assert_eq!((rate.as_ref().num(), rate.as_ref().den()), (25, 1));
+            assert_eq!(
+                r.get_rational(c"rate", SearchFlags::NONE).err(),
+                Some(EINVAL)
+            );
+            // Other options read as C reads them.
+            let q = r.get_video_rate(c"q", SearchFlags::NONE).unwrap();
+            assert_eq!((q.as_ref().num(), q.as_ref().den()), (1, 2));
+            assert_eq!(
+                r.get_video_rate(c"missing", SearchFlags::NONE).err(),
+                Some(NOT_FOUND)
+            );
+            assert_eq!(
+                r.get_video_rate(c"string", SearchFlags::NONE).err(),
+                Some(EINVAL)
+            );
+            // In a child, too.
+            let p = Owned::with_child();
+            // SAFETY: the child is live and well-formed; a rate is 8 bytes.
+            unsafe {
+                (*p.child()).rate = ffi::AVRational {
+                    num: 30000,
+                    den: 1001,
+                }
+            };
+            let r = obj(p.as_obj());
+            let rate = r.get_video_rate(c"rate", SearchFlags::CHILDREN).unwrap();
+            assert_eq!((rate.as_ref().num(), rate.as_ref().den()), (30000, 1001));
+        }
+
+        #[test]
+        fn potential_children_follow_the_class_callback() {
+            let arr = class(&ARR_CLASS);
+            let children: Vec<_> = arr.potential_children().collect();
+            assert_eq!(children.len(), 2);
+            assert!(children[0].ptr_eq(class(&OBJ_CLASS)));
+            assert!(children[1].ptr_eq(arr));
+            let via_field: Vec<_> = arr.child_classes().collect();
+            assert!(via_field.iter().zip(&children).all(|(a, b)| a.ptr_eq(*b)));
+            let mut it = arr.potential_children();
+            assert_eq!(it.by_ref().count(), 2);
+            // Fused: C would start again from the state's end.
+            assert!(it.next().is_none() && it.next().is_none());
+            assert_eq!(class(&OBJ_CLASS).potential_children().count(), 0);
+        }
     }
 }

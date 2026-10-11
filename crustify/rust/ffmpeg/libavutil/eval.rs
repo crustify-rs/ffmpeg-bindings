@@ -25,12 +25,19 @@
 //! C for an out-of-range value; the wrapper refuses, before C runs, the
 //! expressions that could reach such a conversion (see [`parse_and_eval`]).
 //!
+//! [`Expression`] is a parsed expression that evaluates safely: it keeps the
+//! constant count it was parsed with, which [`Expression::eval`] needs a value
+//! for each of, and refuses at parse time what [`parse_and_eval`] refuses. A
+//! tree's constants and user-function calls are counted through its handle
+//! ([`ExprRef::count_constants`], [`ExprRef::count_functions`]).
+//!
 //! A raw seam remains where the dependency has no safe handle: the opaque
 //! pointer a user function receives from the evaluator.
 
 use core::any::Any;
 use core::cell::Cell;
 use core::ffi::{CStr, c_char, c_int, c_void};
+use core::fmt;
 use core::ptr;
 use std::panic::{self, AssertUnwindSafe};
 
@@ -248,6 +255,207 @@ impl Expr {
         // `extern "C" fn`s above, so it meets `Expr`'s invariant. C stores
         // it before returning success, so NULL would be a bug.
         unsafe { ExprBox::from_c(expr) }.ok_or(AVERROR_BUG)
+    }
+}
+
+/// The user functions [`ExprRef::count_functions`] counts calls of: those of
+/// one argument (`funcs1`) or of two (`funcs2`).
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+pub enum Arity {
+    /// The one-argument functions, the `unary` list of [`Expr::parse`].
+    Unary = 1,
+    /// The two-argument functions, the `binary` list of [`Expr::parse`].
+    Binary = 2,
+}
+
+impl ExprRef<'_> {
+    /// Wraps: av_expr_count_vars
+    ///
+    /// Adds to `counts[i]`, for each `i`, the number of places the expression
+    /// reads the constant at position `i` of the names it was parsed with;
+    /// constants at positions past `counts` go uncounted.
+    ///
+    /// # Errors
+    ///
+    /// `AVERROR(EINVAL)` for an empty `counts`, as C.
+    pub fn count_constants(&self, counts: &mut [u32]) -> Result<(), i32> {
+        self.count(counts, None)
+    }
+
+    /// Wraps: av_expr_count_func
+    ///
+    /// Adds to `counts[i]`, for each `i`, the number of calls of the user
+    /// function of `arity` at position `i` of the functions the expression
+    /// was parsed with; functions at positions past `counts` go uncounted.
+    /// As C counts them, a call inside the arguments of a counted call of
+    /// the same arity is not counted: `f(f(1))` is one call of `f`.
+    ///
+    /// # Errors
+    ///
+    /// `AVERROR(EINVAL)` for an empty `counts`, as C.
+    pub fn count_functions(&self, arity: Arity, counts: &mut [u32]) -> Result<(), i32> {
+        self.count(counts, Some(arity))
+    }
+
+    /// `av_expr_count_vars` (`arity` `None`) or `av_expr_count_func` into
+    /// `counts`.
+    fn count(&self, counts: &mut [u32], arity: Option<Arity>) -> Result<(), i32> {
+        let e = self.as_ptr().cast_mut();
+        // C indexes `counts` only below `size`, so a longer slice is counted
+        // up to `INT_MAX` entries, which no constant position reaches.
+        let size = c_int::try_from(counts.len()).unwrap_or(c_int::MAX);
+        let counter = counts.as_mut_ptr();
+        let ret = match arity {
+            // SAFETY: `e` is a live tree C only reads (the shared borrow
+            // excludes evaluation), and `counter` holds `size` writable
+            // `unsigned`s C increments below `size`.
+            None => unsafe { ffi::av_expr_count_vars(e, counter, size) },
+            // SAFETY: as above, with `arg` 1 or 2, which index C's table of
+            // three node types.
+            Some(a) => unsafe { ffi::av_expr_count_func(e, counter, size, a as c_int) },
+        };
+        if ret < 0 { Err(ret) } else { Ok(()) }
+    }
+}
+
+/// A parsed expression that evaluates safely: its tree, and the number of
+/// constants it was parsed with, for each of which an evaluation needs a
+/// value.
+///
+/// Built by [`parse`](Self::parse), which refuses, besides what C refuses,
+/// the expressions whose evaluation could reach one of C's unchecked
+/// conversions (as [`parse_and_eval`] lists them), and evaluated by
+/// [`eval`](Self::eval) or [`eval_with`](Self::eval_with), which write the
+/// expression's `st()`/`ld()` registers and random state, kept from one
+/// evaluation to the next. Released by `av_expr_free` with its tree.
+///
+/// Not `Sync`, since evaluation writes the tree:
+///
+/// ```compile_fail,E0277
+/// use ffmpeg::libavutil::eval::Expression;
+/// fn share(e: &Expression) {
+///     std::thread::scope(|s| {
+///         s.spawn(|| e.constant_count());
+///     });
+/// }
+/// ```
+pub struct Expression {
+    tree: ExprBox,
+    constants: usize,
+}
+
+impl fmt::Debug for Expression {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.debug_struct("Expression")
+            .field("constants", &self.constants)
+            .finish_non_exhaustive()
+    }
+}
+
+impl Expression {
+    /// Wraps: av_expr_parse
+    ///
+    /// Parses `s` as [`Expr::parse`] does, for evaluation with a value for
+    /// each of `const_names`.
+    ///
+    /// # Errors
+    ///
+    /// As [`Expr::parse`]; also `AVERROR(EINVAL)`, before C runs, for an
+    /// expression [`parse_and_eval`] refuses: one that could reach an
+    /// unchecked `double` to integer conversion of the evaluator.
+    pub fn parse(
+        s: &CStr,
+        const_names: &[&CStr],
+        unary: &[(&CStr, UnaryFn)],
+        binary: &[(&CStr, BinaryFn)],
+        log_offset: i32,
+    ) -> Result<Self, i32> {
+        Self::parse_with_context(s, const_names, unary, binary, log_offset, None)
+    }
+
+    /// Wraps: av_expr_parse
+    ///
+    /// As [`parse`](Self::parse), logging a failure under the parent
+    /// context `log_ctx`, as [`Expr::parse_with_context`] does.
+    pub fn parse_with_context(
+        s: &CStr,
+        const_names: &[&CStr],
+        unary: &[(&CStr, UnaryFn)],
+        binary: &[(&CStr, BinaryFn)],
+        log_offset: i32,
+        log_ctx: Option<ObjectRef<'_>>,
+    ) -> Result<Self, i32> {
+        // An evaluation logs `print()` at its own level with no offset (its
+        // context is C's `Eval` parser, whose offset stays 0).
+        if refuses(s.to_bytes(), 0) {
+            return Err(EINVAL);
+        }
+        let tree = Expr::parse_with_context(s, const_names, unary, binary, log_offset, log_ctx)?;
+        Ok(Self {
+            tree,
+            constants: const_names.len(),
+        })
+    }
+
+    /// The number of constants the expression was parsed with: the fewest
+    /// values an evaluation takes.
+    pub fn constant_count(&self) -> usize {
+        self.constants
+    }
+
+    /// The parsed tree, for the counters.
+    pub fn as_ref(&self) -> ExprRef<'_> {
+        self.tree.as_ref()
+    }
+
+    /// The parsed tree, owned, giving up evaluation.
+    pub fn into_tree(self) -> ExprBox {
+        self.tree
+    }
+
+    /// Wraps: av_expr_eval
+    ///
+    /// The expression's value with `const_values[i]` for the constant at
+    /// position `i`; each user function it calls receives a NULL opaque
+    /// pointer. Evaluating changes the registers `st()` writes and the state
+    /// `random()` advances, which later evaluations then see.
+    ///
+    /// # Panics
+    ///
+    /// If `const_values` holds fewer values than
+    /// [`constant_count`](Self::constant_count).
+    pub fn eval(&mut self, const_values: &[f64]) -> f64 {
+        self.eval_raw(const_values, ptr::null_mut())
+    }
+
+    /// Wraps: av_expr_eval
+    ///
+    /// As [`eval`](Self::eval), passing each user function `opaque`, as a
+    /// pointer to the `T`, valid for the call; the functions run one at a
+    /// time on this thread.
+    ///
+    /// # Panics
+    ///
+    /// As [`eval`](Self::eval).
+    pub fn eval_with<T>(&mut self, const_values: &[f64], opaque: &mut T) -> f64 {
+        self.eval_raw(const_values, ptr::from_mut(opaque).cast())
+    }
+
+    fn eval_raw(&mut self, const_values: &[f64], opaque: *mut c_void) -> f64 {
+        assert!(
+            const_values.len() >= self.constants,
+            "{} constant values for an expression of {} constants",
+            const_values.len(),
+            self.constants
+        );
+        let e = self.tree.as_mut().as_mut_ptr();
+        // SAFETY: `e` is a root `av_expr_parse` built, borrowed exclusively
+        // for the registers C writes; it reads `const_values` at the
+        // positions of `const_names`, all below `constants`, which the slice
+        // covers; `parse` refused every expression that could reach C's
+        // unchecked conversions; and the user functions are safe
+        // `extern "C" fn`s that accept any `opaque`.
+        unsafe { ffi::av_expr_eval(e, const_values.as_ptr(), opaque) }
     }
 }
 
@@ -944,5 +1152,107 @@ mod unit_tests {
         assert!(unsafe { CALLS1[0](opaque, 1.0) }.is_nan());
         assert_eq!(calls.get(), 1);
         assert!(funcs.panic.take().is_some());
+    }
+
+    /// Options wave 1, batch 0: `Expression`'s refusals before C, the
+    /// constant count it checks, the opaque pointer of `eval_with`, and the
+    /// counters' arguments.
+    mod expression {
+        use super::*;
+        use std::panic::catch_unwind;
+
+        extern "C" fn bump(opaque: *mut c_void, x: f64) -> f64 {
+            // SAFETY: the only evaluation of this function passes a live
+            // `u32` through `eval_with`.
+            let n = unsafe { &mut *opaque.cast::<u32>() };
+            *n += 1;
+            x + f64::from(*n)
+        }
+
+        extern "C" fn is_null(opaque: *mut c_void, _: f64) -> f64 {
+            f64::from(u8::from(opaque.is_null()))
+        }
+
+        #[test]
+        fn undefined_conversions_are_refused_before_c() {
+            // C parses each of these (the first three, at least) and would
+            // reach an unchecked conversion evaluating it.
+            for e in [
+                c"ld(1e300)",
+                c"st(0,1);random(0)",
+                c"print(1,2147483648)",
+                c"gcd(X,1)",
+            ] {
+                assert_eq!(
+                    Expression::parse(e, &[], &[], &[], 0).unwrap_err(),
+                    EINVAL,
+                    "{e:?}"
+                );
+            }
+            assert_eq!(
+                Expression::parse(c"1", &[], &[], &[], c_int::MAX).unwrap_err(),
+                EINVAL
+            );
+        }
+
+        #[test]
+        fn evaluation_needs_a_value_per_constant() {
+            if under_bsan() {
+                return;
+            }
+            let mut e = Expression::parse(c"A+2*B", &[c"A", c"B", c"C"], &[], &[], 0).unwrap();
+            assert_eq!(e.constant_count(), 3);
+            assert_eq!(e.eval(&[1.0, 2.0, 0.0]), 5.0);
+            assert_eq!(e.eval(&[1.0, 2.0, 0.0, 9.0]), 5.0);
+            let mut e = AssertUnwindSafe(e);
+            assert!(catch_unwind(move || e.eval(&[1.0, 2.0])).is_err());
+            let mut none = Expression::parse(c"PI", &[], &[], &[], 0).unwrap();
+            assert_eq!(none.eval(&[]), core::f64::consts::PI);
+        }
+
+        #[test]
+        fn eval_with_hands_each_function_the_opaque_value() {
+            // BSan trips `av_strtod`'s end-pointer false positive here too
+            // (`eval.c:429`, the `next` glibc's `strtod` wrote).
+            if under_bsan() {
+                return;
+            }
+            let unary: [(&CStr, UnaryFn); 2] = [(c"bump", bump), (c"null", is_null)];
+            let mut e = Expression::parse(c"bump(0)+bump(10)", &[], &unary, &[], 0).unwrap();
+            let mut n = 0u32;
+            assert_eq!(e.eval_with(&[], &mut n), 1.0 + 12.0);
+            assert_eq!(n, 2);
+            let mut e = Expression::parse(c"null(0)", &[], &unary, &[], 0).unwrap();
+            assert_eq!(e.eval(&[]), 1.0);
+            assert_eq!(e.eval_with(&[], &mut n), 0.0);
+        }
+
+        #[test]
+        fn registers_persist_across_evaluations() {
+            if under_bsan() {
+                return;
+            }
+            let mut e = Expression::parse(c"st(0, ld(0) + 1)", &[], &[], &[], 0).unwrap();
+            assert_eq!([e.eval(&[]), e.eval(&[]), e.eval(&[])], [1.0, 2.0, 3.0]);
+            let tree = e.into_tree();
+            let mut counts = [0u32; 1];
+            assert_eq!(tree.as_ref().count_constants(&mut counts), Ok(()));
+            assert_eq!(counts, [0]);
+        }
+
+        #[test]
+        fn counters_reject_an_empty_slice_as_c() {
+            if under_bsan() {
+                return;
+            }
+            let e = Expression::parse(c"X", &[c"X"], &[], &[], 0).unwrap();
+            assert_eq!(e.as_ref().count_constants(&mut []), Err(AVERROR_EINVAL));
+            assert_eq!(
+                e.as_ref().count_functions(Arity::Unary, &mut []),
+                Err(AVERROR_EINVAL)
+            );
+            assert_eq!((Arity::Unary as c_int, Arity::Binary as c_int), (1, 2));
+            assert_eq!(format!("{e:?}"), "Expression { constants: 1, .. }");
+        }
     }
 }

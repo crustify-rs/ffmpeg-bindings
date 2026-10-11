@@ -2398,3 +2398,576 @@ mod objects {
         let _ = CString::new("").unwrap();
     }
 }
+
+/// Options wave 1, batch 0: the typed getters of `ObjectRef` against the raw
+/// `av_opt_get_q`, `av_opt_get_video_rate`, `av_opt_get_pixel_fmt`,
+/// `av_opt_get_sample_fmt`, `av_opt_get_chlayout`, `av_opt_get_dict_val` and
+/// `av_opt_get_array`, on two independently owned objects given the same
+/// writes, compared after every write; and `ClassRef::potential_children`
+/// against `av_opt_child_class_iterate`.
+mod getters {
+    use core::ffi::{CStr, c_char, c_int, c_void};
+    use core::mem::size_of;
+    use core::ptr;
+
+    use ffmpeg::libavutil::channel_layout::ChannelLayoutVal;
+    use ffmpeg::libavutil::dict::Dict;
+    use ffmpeg::libavutil::ffi;
+    use ffmpeg::libavutil::log::ClassRef;
+    use ffmpeg::libavutil::mem::HeapString;
+    use ffmpeg::libavutil::opt::{ArrayElement, ObjectRef, OptionType, SearchFlags};
+    use ffmpeg::libavutil::pixfmt::PixelFormat;
+    use ffmpeg::libavutil::rational::Rational;
+    use ffmpeg::libavutil::samplefmt::SampleFormat;
+
+    use super::fixture::{ARR_CLASS, ARR_NAMES, ArrOwned, OBJ_CLASS, OBJ_OPTIONS, Owned};
+
+    const CHILDREN: c_int = ffi::AV_OPT_SEARCH_CHILDREN as c_int;
+    const EINVAL: i32 = -22;
+    const ERANGE: i32 = -34;
+
+    /// Under BSan, C's number parses misreport (`av_strtod`'s end pointer):
+    /// the object suites return early, as the wave-0 ones do.
+    fn under_bsan() -> bool {
+        std::env::var("CRUSTIFY_FFMPEG_VARIANT").as_deref() == Ok("bsan")
+    }
+
+    fn obj(p: *mut c_void) -> ObjectRef<'static> {
+        // SAFETY: the fixture objects are well-formed and outlive every use
+        // of the handle, during which only C's getters read them.
+        unsafe { ObjectRef::from_ptr(p) }.unwrap()
+    }
+
+    /// Every option name of `OBJ_CLASS`, constants included, and one that
+    /// names nothing.
+    fn names() -> Vec<&'static CStr> {
+        let mut v: Vec<&'static CStr> = OBJ_OPTIONS.0[..OBJ_OPTIONS.0.len() - 1]
+            .iter()
+            // SAFETY: every name of the static table is a literal.
+            .map(|o| unsafe { CStr::from_ptr(o.name) })
+            .collect();
+        v.push(c"missing");
+        v
+    }
+
+    fn flags_of(children: bool) -> (c_int, SearchFlags) {
+        if children {
+            (CHILDREN, SearchFlags::CHILDREN)
+        } else {
+            (0, SearchFlags::NONE)
+        }
+    }
+
+    fn rational(q: ffi::AVRational) -> (i32, i32) {
+        (q.num, q.den)
+    }
+
+    fn code<T>(r: &Result<T, i32>) -> i32 {
+        r.as_ref().err().copied().unwrap_or(0)
+    }
+
+    /// `av_channel_layout_describe` of the layout at `l`.
+    fn describe(l: *const ffi::AVChannelLayout) -> Vec<u8> {
+        let mut buf = [0u8; 256];
+        // SAFETY: `l` is a live layout and `buf` a writable buffer of its
+        // length.
+        let n = unsafe { ffi::av_channel_layout_describe(l, buf.as_mut_ptr().cast(), buf.len()) };
+        assert!(n > 0 && (n as usize) < buf.len());
+        buf[..n as usize - 1].to_vec()
+    }
+
+    fn rust_layout(l: &ChannelLayoutVal) -> Vec<u8> {
+        const _: () = assert!(size_of::<ChannelLayoutVal>() == size_of::<ffi::AVChannelLayout>());
+        // A `ChannelLayoutVal` is its `AVChannelLayout`, then a zero-sized
+        // policy.
+        describe(ptr::from_ref(l).cast())
+    }
+
+    /// `av_dict_get_string(m, '=', ';')`, or `None` for NULL.
+    fn c_dict_string(m: *const ffi::AVDictionary) -> Option<Vec<u8>> {
+        if m.is_null() {
+            return None;
+        }
+        let mut buf: *mut c_char = ptr::null_mut();
+        let (kv, pairs) = (b'=' as c_char, b';' as c_char);
+        // SAFETY: a live dictionary and our slot.
+        let ret = unsafe { ffi::av_dict_get_string(m, &mut buf, kv, pairs) };
+        assert_eq!(ret, 0);
+        // SAFETY: a fresh string we own, read then freed once.
+        let s = unsafe { CStr::from_ptr(buf) }.to_bytes().to_vec();
+        // SAFETY: as above.
+        unsafe { ffi::av_free(buf.cast()) };
+        Some(s)
+    }
+
+    fn rust_dict_string(d: &Dict) -> Option<Vec<u8>> {
+        (!d.is_empty()).then(|| d.serialize(b'=', b';').unwrap().as_bytes().to_vec())
+    }
+
+    /// What each scalar getter reads of option `name` of `c` (raw C) and
+    /// `r` (the wrappers): one line per getter.
+    fn scalars(c: *mut c_void, r: ObjectRef<'_>, name: &CStr, children: bool) -> [Vec<String>; 2] {
+        let (cf, rf) = flags_of(children);
+        let n = name.as_ptr();
+        let mut cs = Vec::new();
+        let mut rs = Vec::new();
+
+        let mut q = ffi::AVRational { num: 0, den: 0 };
+        // SAFETY: a live well-formed object, a live name, a writable value.
+        let ret = unsafe { ffi::av_opt_get_q(c, n, cf, &mut q) };
+        cs.push(format!("q {ret} {:?}", (ret >= 0).then(|| rational(q))));
+        let v = r.get_rational(name, rf);
+        rs.push(format!(
+            "q {} {:?}",
+            code(&v),
+            v.ok().map(|q| rational(q.into()))
+        ));
+
+        let mut q = ffi::AVRational { num: 0, den: 0 };
+        // SAFETY: as above.
+        let ret = unsafe { ffi::av_opt_get_video_rate(c, n, cf, &mut q) };
+        let v = r.get_video_rate(name, rf);
+        let is_rate = r.find_type(name, rf) == Some(OptionType::VIDEO_RATE);
+        if is_rate {
+            // C's defect: no reader for a video rate. The wrapper reads the
+            // rate as `av_opt_get` formats it.
+            assert_eq!(ret, EINVAL);
+            let mut s = ptr::null_mut();
+            // SAFETY: as above, with a writable string slot.
+            assert_eq!(unsafe { ffi::av_opt_get(c, n, cf, &mut s) }, 0);
+            // SAFETY: a fresh string we own, read then freed once.
+            let text = unsafe { CStr::from_ptr(s.cast::<c_char>()) }
+                .to_str()
+                .unwrap()
+                .to_owned();
+            // SAFETY: as above.
+            unsafe { ffi::av_free(s.cast()) };
+            cs.push(format!("rate {text}"));
+            let q: ffi::AVRational = v.unwrap().into();
+            rs.push(format!("rate {}/{}", q.num, q.den));
+        } else {
+            cs.push(format!("rate {ret} {:?}", (ret >= 0).then(|| rational(q))));
+            rs.push(format!(
+                "rate {} {:?}",
+                code(&v),
+                v.ok().map(|q| rational(q.into()))
+            ));
+        }
+
+        let mut p = ffi::AVPixelFormat(0);
+        // SAFETY: as above.
+        let ret = unsafe { ffi::av_opt_get_pixel_fmt(c, n, cf, &mut p) };
+        cs.push(format!("pix {ret} {:?}", (ret >= 0).then_some(p.0)));
+        let v = r.get_pixel_format(name, rf);
+        rs.push(format!(
+            "pix {} {:?}",
+            code(&v),
+            v.ok().map(|p| ffi::AVPixelFormat::from(p).0)
+        ));
+
+        let mut f = ffi::AVSampleFormat(0);
+        // SAFETY: as above.
+        let ret = unsafe { ffi::av_opt_get_sample_fmt(c, n, cf, &mut f) };
+        cs.push(format!("sample {ret} {:?}", (ret >= 0).then_some(f.0)));
+        let v = r.get_sample_format(name, rf);
+        rs.push(format!(
+            "sample {} {:?}",
+            code(&v),
+            v.ok().map(|f| ffi::AVSampleFormat::from(f).0)
+        ));
+
+        // SAFETY: an all-zero layout is the empty one C takes as output.
+        let mut l: ffi::AVChannelLayout = unsafe { core::mem::zeroed() };
+        // SAFETY: as above, with an initialised layout C may overwrite.
+        let ret = unsafe { ffi::av_opt_get_chlayout(c, n, cf, &mut l) };
+        cs.push(format!(
+            "layout {ret} {:?}",
+            (ret >= 0).then(|| describe(&l))
+        ));
+        // SAFETY: the copy C made (or the empty layout), disposed once.
+        unsafe { ffi::av_channel_layout_uninit(&mut l) };
+        let v = r.get_channel_layout(name, rf);
+        rs.push(format!(
+            "layout {} {:?}",
+            code(&v),
+            v.as_ref().ok().map(rust_layout)
+        ));
+
+        let mut d = ptr::null_mut();
+        // SAFETY: as above, with a NULL dictionary slot.
+        let ret = unsafe { ffi::av_opt_get_dict_val(c, n, cf, &mut d) };
+        cs.push(format!(
+            "dict {ret} {:?}",
+            (ret >= 0).then(|| c_dict_string(d))
+        ));
+        // SAFETY: NULL or the copy C made, ours to free.
+        unsafe { ffi::av_dict_free(&mut d) };
+        let v = r.get_dict(name, rf);
+        rs.push(format!(
+            "dict {} {:?}",
+            code(&v),
+            v.as_ref().ok().map(rust_dict_string)
+        ));
+        [cs, rs]
+    }
+
+    /// The type of option `name`, as the wrappers find it.
+    trait FindType {
+        fn find_type(&self, name: &CStr, flags: SearchFlags) -> Option<OptionType>;
+    }
+
+    impl FindType for ObjectRef<'_> {
+        fn find_type(&self, name: &CStr, flags: SearchFlags) -> Option<OptionType> {
+            let me = *self;
+            let search = |o: ObjectRef<'_>| {
+                o.class()
+                    .options()
+                    .iter()
+                    .find(|d| d.name() == Some(name) && d.option_type() != OptionType::CONST)
+                    .map(|d| d.option_type())
+            };
+            if flags == SearchFlags::CHILDREN {
+                for child in me.children() {
+                    if let Some(t) = search(child) {
+                        return Some(t);
+                    }
+                }
+            }
+            search(me)
+        }
+    }
+
+    /// Writes applied to both objects, each followed by a comparison.
+    const WRITES: [(&CStr, &CStr); 12] = [
+        (c"q", c"3/7"),
+        (c"rate", c"30000/1001"),
+        (c"pix", c"rgb24"),
+        (c"sample", c"fltp"),
+        (c"layout", c"5.1(side)"),
+        (c"layout", c"FL@a+FR@b"),
+        (c"dict", c"a=1:A=2:b=3"),
+        (c"dict", c""),
+        (c"int", c"-5"),
+        (c"dbl", c"1e300"),
+        (c"dbl", c"-0.125"),
+        (c"flt", c"0.3"),
+    ];
+
+    #[test]
+    fn scalar_getters_agree_after_every_write() {
+        if under_bsan() {
+            return;
+        }
+        let (c, r) = (Owned::with_child(), Owned::with_child());
+        let ro = obj(r.as_obj());
+        let check = |step: &str| {
+            for name in names() {
+                for children in [false, true] {
+                    let [a, b] = scalars(c.as_obj(), ro, name, children);
+                    assert_eq!(a, b, "{name:?} children={children} after {step}");
+                }
+            }
+        };
+        check("defaults");
+        for (i, (name, value)) in WRITES.iter().enumerate() {
+            for (o, child) in [(&c, false), (&r, false), (&c, true), (&r, true)] {
+                let target = if child { o.child().cast() } else { o.as_obj() };
+                // SAFETY: a live object of the class (or its child), and
+                // values C parses without undefined behaviour.
+                let ret = unsafe { ffi::av_opt_set(target, name.as_ptr(), value.as_ptr(), 0) };
+                assert_eq!(ret, 0, "{name:?}={value:?}");
+            }
+            check(&format!("write {i}"));
+        }
+    }
+
+    /// One `av_opt_get_array` against `ObjectRef::get_array` for element type
+    /// `T`, C writing `size` bytes per element of output type `ty`, read back
+    /// by `c_show` (which releases what C allocated) and compared with
+    /// `r_show` of each Rust element.
+    #[allow(clippy::too_many_arguments)]
+    fn array_case<T: ArrayElement>(
+        c: *mut c_void,
+        r: ObjectRef<'_>,
+        name: &CStr,
+        (start, count): (u32, u32),
+        ty: ffi::AVOptionType,
+        size: usize,
+        c_show: impl Fn(*mut u8) -> String,
+        r_show: impl Fn(&T) -> String,
+    ) {
+        let rust = r.get_array::<T>(name, SearchFlags::NONE, start, count);
+        if code(&rust) == ERANGE {
+            // Refused: C's `int64_t` conversion of one of the elements would
+            // be undefined. Confirm with C's `double` read of them.
+            let doubles = r
+                .get_array::<f64>(name, SearchFlags::NONE, start, count)
+                .unwrap();
+            assert!(
+                doubles
+                    .iter()
+                    .any(|d| !(-9.223_372_036_854_776e18..9.223_372_036_854_776e18).contains(d)),
+                "{name:?} {start} {count}: {doubles:?}"
+            );
+            return;
+        }
+        // C writes only into a range that lies in the array, of at most four
+        // elements here; zeroed, as C requires.
+        let n = (count as usize).min(8);
+        let mut buf = vec![0u64; (n * size).div_ceil(8)];
+        let out = buf.as_mut_ptr().cast::<u8>();
+        let n = name.as_ptr();
+        // SAFETY: a live well-formed object, a live name, and a zeroed output
+        // of `count` elements of `ty` whenever C writes (a range within the
+        // array); the binary array is empty, so C reads no binary element.
+        let ret = unsafe { ffi::av_opt_get_array(c, n, 0, start, count, ty, out.cast()) };
+        let what = format!("{name:?} {start}+{count} as {}", ty.0);
+        assert_eq!(code(&rust), ret, "{what}");
+        if ret < 0 {
+            return;
+        }
+        let cs: Vec<String> = (0..count as usize)
+            .map(|i| {
+                // SAFETY: C wrote `count` elements, each read once.
+                c_show(unsafe { out.add(i * size) })
+            })
+            .collect();
+        let rs: Vec<String> = rust.unwrap().iter().map(r_show).collect();
+        assert_eq!(cs, rs, "{what}");
+    }
+
+    /// Every element type over every range of each array.
+    fn arrays_agree(c: *mut c_void, r: ObjectRef<'_>, names: &[&CStr]) {
+        use ffi::AVOptionType as T;
+        for &name in names {
+            let size = r.get_array_size(name, SearchFlags::NONE).unwrap_or(2) as u32;
+            let ranges = [
+                (0, 0),
+                (0, 1),
+                (0, size),
+                (1, size.saturating_sub(1)),
+                (size.saturating_sub(1), 1),
+                (size, 0),
+                (0, size + 1),
+                (u32::MAX, 1),
+            ];
+            for range in ranges {
+                macro_rules! plain {
+                    ($t:ty, $ty:ident) => {
+                        array_case::<$t>(
+                            c,
+                            r,
+                            name,
+                            range,
+                            T::$ty,
+                            size_of::<$t>(),
+                            // SAFETY: an element C wrote, of this type.
+                            |p| format!("{:?}", unsafe { p.cast::<$t>().read() }),
+                            |v| format!("{v:?}"),
+                        )
+                    };
+                }
+                plain!(i32, AV_OPT_TYPE_INT);
+                plain!(u32, AV_OPT_TYPE_UINT);
+                plain!(i64, AV_OPT_TYPE_INT64);
+                plain!(u64, AV_OPT_TYPE_UINT64);
+                array_case::<f32>(
+                    c,
+                    r,
+                    name,
+                    range,
+                    T::AV_OPT_TYPE_FLOAT,
+                    4,
+                    // SAFETY: an element C wrote, of this type.
+                    |p| format!("{:#x}", unsafe { p.cast::<f32>().read() }.to_bits()),
+                    |v| format!("{:#x}", v.to_bits()),
+                );
+                array_case::<f64>(
+                    c,
+                    r,
+                    name,
+                    range,
+                    T::AV_OPT_TYPE_DOUBLE,
+                    8,
+                    // SAFETY: as above.
+                    |p| format!("{:#x}", unsafe { p.cast::<f64>().read() }.to_bits()),
+                    |v| format!("{:#x}", v.to_bits()),
+                );
+                array_case::<Rational>(
+                    c,
+                    r,
+                    name,
+                    range,
+                    T::AV_OPT_TYPE_RATIONAL,
+                    8,
+                    |p| {
+                        // SAFETY: an element C wrote, of this type.
+                        let q = unsafe { p.cast::<ffi::AVRational>().read() };
+                        format!("{:?}", rational(q))
+                    },
+                    |v| format!("{:?}", rational((*v).into())),
+                );
+                array_case::<PixelFormat>(
+                    c,
+                    r,
+                    name,
+                    range,
+                    T::AV_OPT_TYPE_PIXEL_FMT,
+                    4,
+                    // SAFETY: as above.
+                    |p| format!("{}", unsafe { p.cast::<c_int>().read() }),
+                    |v| format!("{}", ffi::AVPixelFormat::from(*v).0),
+                );
+                array_case::<SampleFormat>(
+                    c,
+                    r,
+                    name,
+                    range,
+                    T::AV_OPT_TYPE_SAMPLE_FMT,
+                    4,
+                    // SAFETY: as above.
+                    |p| format!("{}", unsafe { p.cast::<c_int>().read() }),
+                    |v| format!("{}", ffi::AVSampleFormat::from(*v).0),
+                );
+                array_case::<Option<HeapString>>(
+                    c,
+                    r,
+                    name,
+                    range,
+                    T::AV_OPT_TYPE_STRING,
+                    8,
+                    |p| {
+                        // SAFETY: a string element C wrote: NULL or one we own.
+                        let s = unsafe { p.cast::<*mut c_char>().read() };
+                        let text = (!s.is_null()).then(|| {
+                            // SAFETY: as above, read then freed once.
+                            unsafe { CStr::from_ptr(s) }.to_bytes().to_vec()
+                        });
+                        // SAFETY: as above.
+                        unsafe { ffi::av_free(s.cast()) };
+                        format!("{text:?}")
+                    },
+                    |v| format!("{:?}", v.as_ref().map(|s| s.as_bytes().to_vec())),
+                );
+                array_case::<Dict>(
+                    c,
+                    r,
+                    name,
+                    range,
+                    T::AV_OPT_TYPE_DICT,
+                    8,
+                    |p| {
+                        let slot = p.cast::<*mut ffi::AVDictionary>();
+                        // SAFETY: a dictionary element C wrote, ours to free.
+                        let text = c_dict_string(unsafe { slot.read() });
+                        // SAFETY: as above.
+                        unsafe { ffi::av_dict_free(slot) };
+                        format!("{text:?}")
+                    },
+                    |v| format!("{:?}", rust_dict_string(v)),
+                );
+                array_case::<ChannelLayoutVal>(
+                    c,
+                    r,
+                    name,
+                    range,
+                    T::AV_OPT_TYPE_CHLAYOUT,
+                    size_of::<ffi::AVChannelLayout>(),
+                    |p| {
+                        let l = p.cast::<ffi::AVChannelLayout>();
+                        let text = describe(l);
+                        // SAFETY: a layout element C wrote, disposed once.
+                        unsafe { ffi::av_channel_layout_uninit(l) };
+                        format!("{text:?}")
+                    },
+                    |v| format!("{:?}", rust_layout(v)),
+                );
+            }
+        }
+    }
+
+    #[test]
+    fn array_reads_agree_for_every_type_and_range() {
+        if under_bsan() {
+            return;
+        }
+        let (c, r) = (ArrOwned::new(), ArrOwned::new());
+        let names: Vec<&CStr> = ARR_NAMES.iter().copied().chain([c"missing"]).collect();
+        arrays_agree(c.as_obj(), obj(r.as_obj()), &names);
+        // `Obj`'s arrays, and its scalars, which are no arrays.
+        let (c, r) = (Owned::new(), Owned::new());
+        arrays_agree(
+            c.as_obj(),
+            obj(r.as_obj()),
+            &[c"array", c"strings", c"empty", c"int", c"dict", c"layout"],
+        );
+    }
+
+    /// Arrays rewritten through C's own setter on both objects, one array at
+    /// a time, compared after each write.
+    #[test]
+    fn array_reads_agree_after_every_write() {
+        if under_bsan() {
+            return;
+        }
+        const WRITES: [(&CStr, &CStr); 10] = [
+            (c"dbls", c"-0.5,2.5,-9e18,9.2e18"),
+            (c"dbls", c""),
+            (c"qs", c"-1/3,7/2"),
+            (c"flts", c"1e-45,-2.5"),
+            (c"strs", c"a\\,b,,c"),
+            (c"dicts", c"x=1:X=2,,y=\\,"),
+            (c"layouts", c"mono|FL@a+FR@b|ambisonic 1"),
+            (c"pixs", c"nv12,gray"),
+            (c"durs", c"2.5,1:00:00"),
+            (c"i64s", c"-1,1,0"),
+        ];
+        let (c, r) = (ArrOwned::new(), ArrOwned::new());
+        for (name, value) in WRITES {
+            for o in [&c, &r] {
+                // SAFETY: a live object of the class; values C parses without
+                // undefined behaviour.
+                let ret = unsafe { ffi::av_opt_set(o.as_obj(), name.as_ptr(), value.as_ptr(), 0) };
+                assert_eq!(ret, 0, "{name:?}={value:?}");
+            }
+            arrays_agree(c.as_obj(), obj(r.as_obj()), &ARR_NAMES);
+        }
+    }
+
+    /// `av_opt_child_class_iterate` from a NULL state until NULL.
+    fn c_children(class: *const ffi::AVClass) -> Vec<*const ffi::AVClass> {
+        let mut state = ptr::null_mut();
+        let mut out = Vec::new();
+        loop {
+            // SAFETY: a live class and the state its callback alone advanced.
+            let c = unsafe { ffi::av_opt_child_class_iterate(class, &mut state) };
+            if c.is_null() {
+                return out;
+            }
+            out.push(c);
+        }
+    }
+
+    #[test]
+    fn potential_children_agree() {
+        let arr = ArrOwned::new();
+        let plain = Owned::zeroed();
+        for (o, raw) in [
+            (arr.as_obj(), &raw const ARR_CLASS.0),
+            (plain.as_obj(), &raw const OBJ_CLASS.0),
+        ] {
+            let c: Vec<&CStr> = c_children(raw)
+                .into_iter()
+                // SAFETY: each child is a live static class with a name.
+                .map(|k| unsafe { CStr::from_ptr((*k).class_name) })
+                .collect();
+            let class: ClassRef<'_> = obj(o).class();
+            let r: Vec<&CStr> = class
+                .potential_children()
+                .map(|k| k.name().unwrap())
+                .collect();
+            assert_eq!(c, r);
+        }
+        assert_eq!(c_children(&raw const ARR_CLASS.0).len(), 2);
+    }
+}

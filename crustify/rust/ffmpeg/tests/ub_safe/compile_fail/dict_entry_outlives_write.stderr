@@ -1,0 +1,9 @@
+error[E0502]: cannot borrow `d` as mutable because it is also borrowed as immutable
+ --> tests/ub_safe/compile_fail/dict_entry_outlives_write.rs
+  |
+  |     let e = d.get(c"a", Flags::NONE).unwrap();
+  |             - immutable borrow occurs here
+  |     d.set(c"a", c"2", Flags::NONE).unwrap();
+  |     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ mutable borrow occurs here
+  |     let _ = e.value();
+  |             - immutable borrow later used here

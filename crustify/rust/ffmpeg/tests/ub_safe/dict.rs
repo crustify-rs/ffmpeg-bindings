@@ -147,3 +147,209 @@ fn shared_dictionaries_copy_concurrently() {
         });
     });
 }
+
+/// Options wave 1, batch 0: the readers and writers through the safe API:
+/// every write path and flag on empty, small and large dictionaries, owned
+/// strings handed over on every path (LeakSanitizer sees any C leak or double
+/// free), entries and iterators read up to each write the borrow checker
+/// lets through, and readers sharing one dictionary across threads.
+mod readers_and_writers {
+    use core::ffi::CStr;
+    use std::ffi::CString;
+    use std::thread;
+
+    use ffmpeg::libavutil::dict::{Dict, DictionaryEntryRef, Flags, Iter, Matches};
+    use ffmpeg::libavutil::mem::{HeapString, string_from_c_str};
+
+    const ALL: [Flags; 6] = [
+        Flags::MATCH_CASE,
+        Flags::IGNORE_SUFFIX,
+        Flags::DONT_OVERWRITE,
+        Flags::APPEND,
+        Flags::MULTIKEY,
+        Flags::DEDUP,
+    ];
+
+    /// Every combination of the flags.
+    fn combinations() -> impl Iterator<Item = Flags> {
+        (0..1u32 << ALL.len()).map(|bits| {
+            ALL.iter()
+                .enumerate()
+                .filter(|(i, _)| bits & 1 << i != 0)
+                .fold(Flags::NONE, |f, (_, &g)| f | g)
+        })
+    }
+
+    fn heap(s: &CStr) -> HeapString {
+        string_from_c_str(s).unwrap()
+    }
+
+    /// Reads every entry, key and value, and the serialized string.
+    fn read_all(d: &Dict) -> usize {
+        let mut bytes = 0;
+        for e in d {
+            bytes += e.key().count_bytes() + e.value().count_bytes();
+        }
+        assert_eq!(d.iter().len(), d.len());
+        if let Ok(s) = d.serialize(b'=', b';') {
+            bytes += s.len();
+        }
+        bytes
+    }
+
+    #[test]
+    fn every_write_and_flag_on_every_size() {
+        let long = CString::new(vec![b'q'; 4096]).unwrap();
+        let keys = [c"", c"a", c"A", c"ab", long.as_c_str()];
+        for flags in combinations() {
+            let mut d = Dict::new();
+            for (i, &k) in keys.iter().enumerate() {
+                let v = if i % 2 == 0 { long.as_c_str() } else { c"v" };
+                d.set(k, v, flags).unwrap();
+                d.set_owned(heap(k), heap(v), flags).unwrap();
+                d.set_int(k, i64::MIN + i as i64, flags).unwrap();
+                read_all(&d);
+            }
+            let _ = d.parse_pairs(c"a=1:b='x:y':=bad", c"=", c":", flags);
+            let src = d.clone();
+            d.copy_from(src.as_ref(), flags).unwrap();
+            d.copy_from(None, flags).unwrap();
+            read_all(&d);
+            for &k in &keys {
+                d.remove(k, flags).unwrap();
+            }
+            read_all(&d);
+            // Remove everything that is left, case-insensitively by prefix.
+            while !d.is_empty() {
+                d.remove(c"", Flags::IGNORE_SUFFIX).unwrap();
+            }
+            assert!(d.as_ref().is_none());
+        }
+    }
+
+    #[test]
+    fn large_dictionaries_grow_and_shrink() {
+        let mut d = Dict::new();
+        for i in 0..3000 {
+            let k = CString::new(format!("key{i}")).unwrap();
+            d.set_int(&k, i, Flags::NONE).unwrap();
+        }
+        assert_eq!(d.len(), 3000);
+        for i in (0..3000).step_by(2) {
+            let k = CString::new(format!("KEY{i}")).unwrap();
+            d.remove(&k, Flags::NONE).unwrap();
+        }
+        assert_eq!(d.len(), 1500);
+        assert_eq!(d.get_all(c"key1", Flags::IGNORE_SUFFIX).count(), 556);
+        read_all(&d);
+        let copy = d.clone();
+        d.copy_from(copy.as_ref(), Flags::MULTIKEY).unwrap();
+        assert_eq!(d.len(), 3000);
+        drop(copy);
+        read_all(&d);
+    }
+
+    #[test]
+    fn malformed_and_separator_heavy_strings_parse_without_overreading() {
+        for s in [
+            c"",
+            c"=",
+            c"==",
+            c":",
+            c"a",
+            c"a=",
+            c"=b",
+            c"a=b:",
+            c"a=b::c=d",
+            c"'",
+            c"a='",
+            c"\\",
+            c"a=\\",
+            c"a=b\\",
+            c"'a'='b':'c",
+            c"  a  =  b  ",
+            c"a=b;c=d",
+        ] {
+            for (kv, pairs) in [(c"=", c":"), (c"", c""), (c"=:", c":="), (c"'", c"\\")] {
+                let mut d = Dict::new();
+                let _ = d.parse_pairs(s, kv, pairs, Flags::NONE);
+                read_all(&d);
+            }
+        }
+        for kv in [0u8, b'\\', b'=', b';', b'\'', 0xff] {
+            for pairs in [0u8, b'\\', b'=', b';', b'\'', 0xff] {
+                let d = Dict::from_entries([(c"a=;\\'", c" x "), (c"", c"")]).unwrap();
+                let _ = d.serialize(kv, pairs);
+                let _ = Dict::new().serialize(kv, pairs);
+            }
+        }
+    }
+
+    #[test]
+    fn entries_and_iterators_live_until_the_next_write() {
+        let mut d = Dict::from_entries([(c"a", c"1"), (c"b", c"2"), (c"A", c"3")]).unwrap();
+        let held: Vec<DictionaryEntryRef<'_>> = d.get_all(c"a", Flags::NONE).collect();
+        let mut it = d.iter();
+        let first = it.next().unwrap();
+        let r = d.as_ref().unwrap();
+        let from_ref = r.get(c"b", Flags::NONE).unwrap();
+        // Every borrow is read after the others were taken.
+        assert_eq!(held.len(), 2);
+        assert_eq!(first.key(), c"a");
+        assert_eq!(from_ref.value(), c"2");
+        assert_eq!(it.count(), 2);
+        assert!(held.iter().all(|e| !e.value().is_empty()));
+        // Then a write, after which new borrows read the new entries.
+        d.set(c"b", c"22", Flags::NONE).unwrap();
+        assert_eq!(d.get(c"B", Flags::NONE).unwrap().value(), c"22");
+        let taken = d.take().unwrap();
+        let r = taken.as_ref();
+        let e = r.get(c"a", Flags::MATCH_CASE).unwrap();
+        drop(d);
+        assert_eq!(e.value(), c"1");
+    }
+
+    #[test]
+    fn readers_share_one_dictionary_across_threads() {
+        fn send_sync<T: Send + Sync>() {}
+        send_sync::<Flags>();
+        send_sync::<Iter<'_>>();
+        send_sync::<Matches<'_, '_>>();
+        let pairs: Vec<(CString, CString)> = (0..200)
+            .map(|i| {
+                let k = CString::new(format!("k{}", i % 37)).unwrap();
+                (k, CString::new(format!("value {i}")).unwrap())
+            })
+            .collect();
+        let d = Dict::from_entries(pairs.iter().map(|(k, v)| (k, v))).unwrap();
+        thread::scope(|s| {
+            for t in 0..8 {
+                let d = &d;
+                s.spawn(move || {
+                    for _ in 0..20 {
+                        read_all(d);
+                        let k = CString::new(format!("K{}", t)).unwrap();
+                        let n = d.get_all(&k, Flags::NONE).count();
+                        assert!(n > 0);
+                        assert!(d.get(&k, Flags::MATCH_CASE).is_none());
+                    }
+                });
+            }
+            // Iterators and entries move to other threads with the borrow.
+            let it = d.iter();
+            let m = d.get_all(c"k1", Flags::IGNORE_SUFFIX);
+            let e = d.get(c"k2", Flags::NONE).unwrap();
+            s.spawn(move || (it.count(), m.count(), e.value().count_bytes()));
+        });
+        // Owners with every entry written on another thread drop here.
+        let mut moved = thread::spawn(move || {
+            let mut d = d;
+            d.set(c"late", c"x", Flags::MULTIKEY).unwrap();
+            d
+        })
+        .join()
+        .unwrap();
+        moved.remove(c"late", Flags::NONE).unwrap();
+        read_all(&moved);
+    }
+}
