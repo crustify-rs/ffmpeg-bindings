@@ -2912,15 +2912,18 @@ mod frame_type {
                 let x = r.as_mut().alloc_extended_data();
                 let (ext, _, separate) = c.extended();
                 // SAFETY: the frame's layout and `extended_data`, which takes
-                // a fresh block copying `data`.
+                // a fresh block copying `data` when `buf[0]` is set.
                 let y = unsafe {
                     let n = (*f).ch_layout.nb_channels;
                     if n <= 0 {
                         Err(-(ffi::EINVAL as c_int))
                     } else {
                         let block = ffi::av_calloc(n as usize, size_of_ptr()).cast::<*mut u8>();
+                        let counted = !(*f).buf[0].is_null();
                         for i in 0..(n as usize).min(NUM_DATA_POINTERS) {
-                            *block.add(i) = (*f).data[i];
+                            if counted {
+                                *block.add(i) = (*f).data[i];
+                            }
                         }
                         if separate {
                             ffi::av_free(ext.cast());
@@ -3251,6 +3254,78 @@ mod frame_type {
             let rest = &plane[h as usize * line..];
             assert_eq!(rest, &vec![0; rest.len()][..]);
             drop((r, c));
+        }
+    }
+
+    /// Planar audio whose channels are external memory, lent in `data` (up
+    /// to [`NUM_DATA_POINTERS`] channels) or in an `extended_data` array of
+    /// its own: both clones copy every channel into buffers of their own,
+    /// alike. (With more channels and no array of its own, C reads plane
+    /// pointers past `data`, and the Rust clone is refused: see
+    /// `ub_unsafe/frame.rs::frame_type::clones_refuse_channels_past_data`.)
+    #[test]
+    fn clones_copy_external_channels_alike() {
+        use ffmpeg::libavutil::samplefmt::SampleFormat;
+        for channels in [1usize, 2, NUM_DATA_POINTERS, NUM_DATA_POINTERS + 1, 13] {
+            for samples in [1usize, 47] {
+                let mut mems: Vec<Vec<u8>> = (0..channels)
+                    .map(|c| pattern(samples, c as u8 * 3 + 1))
+                    .collect();
+                let separate = channels > NUM_DATA_POINTERS;
+                let mut r = Frame::new().unwrap();
+                let c = CFrame::new();
+                let mut m = r.as_mut();
+                m.set_sample_format(SampleFormat::U8P);
+                m.set_sample_count(samples as c_int);
+                m.set_linesize(0, samples as c_int);
+                m.set_channel_layout(ChannelLayout::unspecified(channels as c_int))
+                    .unwrap();
+                if separate {
+                    m.alloc_extended_data().unwrap();
+                }
+                for (i, mem) in mems.iter_mut().enumerate() {
+                    // SAFETY: the frame holds no buffer; `mem` holds the
+                    // channel's samples and outlives both frames; nothing
+                    // writes it.
+                    unsafe { m.set_extended_data_ptr(i, mem.as_mut_ptr()) };
+                }
+                // SAFETY: the same fields of the C frame; its separate array
+                // is C's to free, as `get_audio_buffer` allocates one.
+                unsafe {
+                    let f = c.0;
+                    (*f).format = ffi::AVSampleFormat::AV_SAMPLE_FMT_U8P.0;
+                    (*f).nb_samples = samples as c_int;
+                    (*f).linesize[0] = samples as c_int;
+                    (*f).ch_layout.nb_channels = channels as c_int;
+                    if separate {
+                        (*f).extended_data = ffi::av_calloc(channels, size_of_ptr()).cast();
+                        assert!(!(*f).extended_data.is_null());
+                    }
+                    for (i, mem) in mems.iter_mut().enumerate() {
+                        *(*f).extended_data.add(i) = mem.as_mut_ptr();
+                    }
+                }
+                let what = format!("{channels} channels of {samples}");
+                assert_eq!(rust_seen(&r), c.seen(), "{what}");
+                let rc = r.as_ref().try_clone().expect("C copies the channels");
+                // SAFETY: a live frame, read only.
+                let cc = CFrame(unsafe { ffi::av_frame_clone(c.0) });
+                assert!(!cc.0.is_null(), "{what}");
+                assert_eq!(shape(rust_seen(&rc)), shape(cc.seen()), "{what}");
+                for (i, mem) in mems.iter().enumerate() {
+                    let plane = rc.as_ref().extended_plane(i).unwrap();
+                    // SAFETY: channel `i` of the C copy, `samples` bytes C
+                    // wrote.
+                    let c_plane = unsafe {
+                        std::slice::from_raw_parts(*(*cc.0).extended_data.add(i), samples)
+                    };
+                    assert_eq!(&plane[..samples], &mem[..], "{what} ({i})");
+                    assert_eq!(c_plane, &mem[..], "{what} ({i})");
+                    let rest = &plane[samples..];
+                    assert_eq!(rest, &vec![0; rest.len()][..], "{what} ({i})");
+                }
+                drop((r, c));
+            }
         }
     }
 }
