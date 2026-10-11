@@ -396,3 +396,280 @@ mod expr {
         drop(parse(&long).unwrap());
     }
 }
+
+/// Options wave 0, batch 3.
+///
+/// UB tests of `libavutil/eval.h`'s safe evaluator: expressions that reach
+/// C's unchecked integer conversions (refused before C runs), constants and
+/// Rust functions called through C, re-entrant and panicking functions, and
+/// log contexts.
+mod expressions {
+    use core::cell::Cell;
+    use core::ffi::CStr;
+    use std::ffi::CString;
+
+    use ffmpeg::libavutil::eval::{Func1, Func2, MAX_FUNCS, parse_and_eval};
+    use ffmpeg::libavutil::log::{Class, ClassCategory};
+    use ffmpeg::libavutil::opt::BareObject;
+
+    const EINVAL: i32 = -22;
+
+    fn under_bsan() -> bool {
+        std::env::var("CRUSTIFY_FFMPEG_VARIANT").as_deref() == Ok("bsan")
+    }
+
+    fn eval(e: &str) -> Result<f64, i32> {
+        parse_and_eval(&CString::new(e).unwrap(), &[], &[], &[], 0, None)
+    }
+
+    /// Each reaches one of C's unchecked `double` to integer conversions (UBSan
+    /// `float-cast-overflow` in `eval.c`) or an `int` overflow of its log level.
+    #[test]
+    fn conversions_c_leaves_undefined_are_refused() {
+        for e in [
+            "ld(1e300)",
+            "ld(nan)",
+            "ld(-1/0)",
+            "st(1e10,1)",
+            "random(1e300)",
+            "randomi(-1e300,0,1)",
+            "taylor(1,1,1e300)",
+            "print(1,1e300)",
+            "gcd(1e300,2)",
+            "gcd(2,-1e19)",
+            "bitand(1e300,1)",
+            "bitor(1,-1e300)",
+            "ld+(1e300)",
+            "1+ld(2*1e300)",
+            "st(0,-1);random(0)",
+            "st(0,1e300);randomi(0,0,1)",
+            "root(random(0),1)",
+        ] {
+            assert_eq!(eval(e), Err(EINVAL), "{e}");
+        }
+        assert_eq!(
+            parse_and_eval(c"print(1,2147483600)", &[], &[], &[], 100, None),
+            Err(EINVAL)
+        );
+        assert_eq!(
+            parse_and_eval(c"1", &[], &[], &[], i32::MAX, None),
+            Err(EINVAL)
+        );
+    }
+
+    #[test]
+    fn builtins_with_literal_arguments_evaluate() {
+        for (e, v) in [
+            ("ld(0)", 0.0),
+            ("st(3,1e300);ld(3)", 1e300),
+            ("gcd(12,18)", 6.0),
+            ("bitand(12,10)", 8.0),
+            (
+                "bitor(-9223372036854775808,1)",
+                -9_223_372_036_854_775_807.0,
+            ),
+            ("taylor(1,1)", core::f64::consts::E),
+            ("print(2.5,-8)", 2.5),
+            ("1+2^3+5*5", 34.0),
+        ] {
+            let got = eval(e).unwrap();
+            assert!((got - v).abs() <= v.abs() * 1e-12, "{e}: {got}");
+        }
+        assert!((0.0..1.0).contains(&eval("random(0)").unwrap()));
+        // Unparsable or NaN expressions fail in C.
+        for e in ["", "1+", "nosuch", "ld(", "0/0", "sqrt(-1)", "(1"] {
+            assert!(eval(e).is_err(), "{e}");
+        }
+        // An endless loop is C's to stop: this one ends.
+        assert!(eval("st(0,0);while(lt(ld(0),5),st(0,ld(0)+1))").is_ok());
+    }
+
+    #[test]
+    fn constants_and_functions_reach_their_own_values() {
+        let calls = Cell::new(0);
+        let square = |x: f64| {
+            calls.set(calls.get() + 1);
+            x * x
+        };
+        let neg = |x: f64| -x;
+        let hyp = |x: f64, y: f64| x.hypot(y);
+        let funcs1: [Func1<'_>; 2] = [(c"square", &square), (c"neg", &neg)];
+        let funcs2: [Func2<'_>; 1] = [(c"hyp", &hyp)];
+        let consts = [(c"A", 3.0), (c"B", 4.0), (c"C", f64::NAN)];
+        let v = parse_and_eval(
+            c"square(A)+neg(B)+hyp(A,B)",
+            &consts,
+            &funcs1,
+            &funcs2,
+            0,
+            None,
+        );
+        assert_eq!(v, Ok(10.0));
+        assert_eq!(calls.get(), 1);
+        // A NaN result is C's error.
+        assert_eq!(
+            parse_and_eval(c"C", &consts, &[], &[], 0, None),
+            Err(EINVAL)
+        );
+        // A built-in name shadows a function of the same name.
+        let funcs1: [Func1<'_>; 1] = [(c"sqrt", &neg)];
+        assert_eq!(
+            parse_and_eval(c"sqrt(4)", &[], &funcs1, &[], 0, None),
+            Ok(2.0)
+        );
+        // Every trampoline, of both arities.
+        let id = |x: f64| x;
+        let add = |x: f64, y: f64| x + y;
+        let names: Vec<CString> = (0..MAX_FUNCS)
+            .map(|i| CString::new(format!("f{i}")).unwrap())
+            .collect();
+        let funcs1: Vec<Func1<'_>> = names
+            .iter()
+            .map(|n| (n.as_c_str(), &id as &dyn Fn(f64) -> f64))
+            .collect();
+        let funcs2: Vec<Func2<'_>> = names
+            .iter()
+            .map(|n| (n.as_c_str(), &add as &dyn Fn(f64, f64) -> f64))
+            .collect();
+        for (i, n) in names.iter().enumerate() {
+            let n = n.to_str().unwrap();
+            let e = CString::new(format!("{n}({i})")).unwrap();
+            assert_eq!(parse_and_eval(&e, &[], &funcs1, &[], 0, None), Ok(i as f64));
+            let e = CString::new(format!("{n}({i},1)")).unwrap();
+            assert_eq!(
+                parse_and_eval(&e, &[], &[], &funcs2, 0, None),
+                Ok(i as f64 + 1.0)
+            );
+        }
+        // C takes a name from `funcs1` first, and fails a two-argument call of it.
+        assert_eq!(
+            parse_and_eval(c"f3(1,2)", &[], &funcs1, &funcs2, 0, None),
+            Err(EINVAL)
+        );
+        // One function too many of either arity is refused.
+        let mut too_many = funcs1.clone();
+        too_many.push((c"x", &id));
+        assert_eq!(
+            parse_and_eval(c"1", &[], &too_many, &[], 0, None),
+            Err(EINVAL)
+        );
+        let mut too_many = funcs2.clone();
+        too_many.push((c"x", &add));
+        assert_eq!(
+            parse_and_eval(c"1", &[], &[], &too_many, 0, None),
+            Err(EINVAL)
+        );
+    }
+
+    #[test]
+    fn functions_may_evaluate_again() {
+        let inner = |x: f64| parse_and_eval(c"X*2", &[(c"X", x)], &[], &[], 0, None).unwrap();
+        let funcs1: [Func1<'_>; 1] = [(c"twice", &inner)];
+        let v = parse_and_eval(c"twice(twice(3))", &[], &funcs1, &[], 0, None);
+        assert_eq!(v, Ok(12.0));
+    }
+
+    #[test]
+    fn a_panicking_function_unwinds_after_c_returns() {
+        let calls = Cell::new(0);
+        let boom = |_: f64| -> f64 {
+            calls.set(calls.get() + 1);
+            panic!("boom")
+        };
+        let funcs1: [Func1<'_>; 1] = [(c"boom", &boom)];
+        let r = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+            parse_and_eval(c"boom(1)+boom(2)", &[], &funcs1, &[], 0, None)
+        }));
+        assert!(r.is_err());
+        assert_eq!(calls.get(), 1);
+    }
+
+    #[test]
+    fn log_contexts_and_offsets() {
+        static CLASS: Class = Class::new(c"crustify-eval-ub", ClassCategory::NA);
+        let ctx = BareObject::new(CLASS.as_ref()).unwrap();
+        for (e, offset) in [
+            (c"nosuch(1)", 0),
+            (c"1+", -1000),
+            (c"print(1)", 64),
+            (c"print(1,57)", i32::MAX - 56 - 57),
+        ] {
+            let _ = parse_and_eval(e, &[], &[], &[], offset, Some(ctx.as_object()));
+        }
+    }
+
+    #[test]
+    fn expressions_from_many_threads() {
+        std::thread::scope(|s| {
+            for t in 0..4 {
+                s.spawn(move || {
+                    for i in 0..200 {
+                        let e = CString::new(format!("st({},{});ld({})*2", t, i, t)).unwrap();
+                        assert_eq!(
+                            parse_and_eval(&e, &[], &[], &[], 0, None),
+                            Ok(2.0 * f64::from(i))
+                        );
+                    }
+                });
+            }
+        });
+    }
+
+    /// Random expressions built from tokens near the refusal rules: each is
+    /// refused, fails in C, or evaluates without a sanitizer report.
+    #[test]
+    fn random_expressions() {
+        // BSan reports C's reads through the end pointers glibc's uninstrumented
+        // `strtod` / `strtol` / `strtoul` store (`eval.c:120`, `parseutils.c:391`)
+        // as accesses of freed or foreign allocations, depending on earlier
+        // frames (the shared recipes' stale-shadow class); the parses here are
+        // C's own, so BSan covers these paths in the typed-setter tests instead.
+        if under_bsan() {
+            return;
+        }
+        const TOKENS: [&str; 24] = [
+            "ld(",
+            "st(",
+            "random(",
+            "randomi(",
+            "taylor(",
+            "print(",
+            "gcd(",
+            "bitand(",
+            "bitor(",
+            "root(",
+            "1e300",
+            "-1",
+            "0",
+            "2147483648",
+            "nan",
+            "inf",
+            ",",
+            ")",
+            "(",
+            "+",
+            "*",
+            "x",
+            ";",
+            "5",
+        ];
+        let mut state = 0x9e37_79b9_7f4a_7c15u64;
+        let mut next = || {
+            state ^= state << 13;
+            state ^= state >> 7;
+            state ^= state << 17;
+            state
+        };
+        let x = |v: f64| v;
+        let funcs1: [Func1<'_>; 1] = [(c"x", &x)];
+        for _ in 0..20_000 {
+            let n = 1 + next() % 8;
+            let e: String = (0..n)
+                .map(|_| TOKENS[(next() % TOKENS.len() as u64) as usize])
+                .collect();
+            let e = CString::new(e).unwrap();
+            // Quietly: most of these fail to parse.
+            let _ = parse_and_eval(&e, &[(c"x" as &CStr, 1e300)], &funcs1, &[], 64, None);
+        }
+    }
+}

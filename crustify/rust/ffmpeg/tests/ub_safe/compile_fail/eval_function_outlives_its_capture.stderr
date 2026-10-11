@@ -1,0 +1,26 @@
+error[E0597]: `scale` does not live long enough
+ --> tests/ub_safe/compile_fail/eval_function_outlives_its_capture.rs
+  |
+  |         let scale = 2.0;
+  |             ----- binding `scale` declared here
+  |         let f = |x: f64| x * scale;
+  |                 --------     ^^^^^ borrowed value does not live long enough
+  |                 |
+  |                 value captured here
+  |         funcs = [(c"f", &f)];
+  |     }
+  |     - `scale` dropped here while still borrowed
+  |     let _ = parse_and_eval(c"f(1)", &[], &funcs, &[], 0, None);
+  |                                          ------ borrow later used here
+
+error[E0597]: `f` does not live long enough
+ --> tests/ub_safe/compile_fail/eval_function_outlives_its_capture.rs
+  |
+  |         let f = |x: f64| x * scale;
+  |             - binding `f` declared here
+  |         funcs = [(c"f", &f)];
+  |                         ^^ borrowed value does not live long enough
+  |     }
+  |     - `f` dropped here while still borrowed
+  |     let _ = parse_and_eval(c"f(1)", &[], &funcs, &[], 0, None);
+  |                                          ------ borrow later used here

@@ -1,0 +1,11 @@
+error[E0597]: `opts` does not live long enough
+ --> tests/ub_safe/compile_fail/opt_key_value_rest_outlives_options.rs
+  |
+  |         let opts = std::ffi::CString::new("a=1:b=2").unwrap();
+  |             ---- binding `opts` declared here
+  |         rest = parse_key_value(&opts, c"=", c":", false).unwrap().rest;
+  |                                ^^^^^ borrowed value does not live long enough
+  |     }
+  |     - `opts` dropped here while still borrowed
+  |     println!("{rest:?}");
+  |                ---- borrow later used here

@@ -542,3 +542,34 @@ function av_expr_free
 function av_expr_eval
 function av_expr_count_vars
 function av_expr_count_func
+
+# libavutil/opt.h, eval.h, parseutils.h: the option getters and setters on an
+# AVClass-enabled object, its lifecycle helpers, the key-value parsers and
+# serializer, and the option-string helpers of eval.h and parseutils.h (options
+# wave 0, batch 3). av_opt_find2 and av_opt_next locate an option and its
+# target as the setters do, so the wrappers can refuse values C would turn into
+# undefined behaviour; AV_OPT_FLAG_* and the ERANGE code are what they test.
+function av_expr_parse_and_eval
+function av_find_info_tag
+function av_opt_copy
+function av_opt_find2
+function av_opt_flag_is_set
+function av_opt_get
+function av_opt_get_array_size
+function av_opt_get_double
+function av_opt_get_image_size
+function av_opt_get_int
+function av_opt_get_key_value
+function av_opt_is_set_to_default_by_name
+function av_opt_serialize
+function av_opt_set
+function av_opt_set_bin
+function av_opt_set_defaults
+function av_opt_set_double
+function av_opt_set_from_string
+function av_opt_set_image_size
+function av_opt_show2
+var AV_OPT_FLAG_.*
+var AV_OPT_ALLOW_NULL
+var AV_OPT_SERIALIZE_.*
+var ERANGE

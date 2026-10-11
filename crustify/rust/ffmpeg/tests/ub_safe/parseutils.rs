@@ -252,3 +252,100 @@ fn many_threads() {
         }
     });
 }
+
+/// Options wave 0, batch 3.
+///
+/// UB tests of `libavutil/parseutils.h`'s safe helpers: URL tag lookup into
+/// buffers of every small size (C always writes a terminator), long tags and
+/// values, and the named color table read past its end.
+mod info_tags_and_colors {
+    use std::ffi::CString;
+
+    use ffmpeg::libavutil::parseutils::{find_info_tag, known_color_name};
+
+    /// Looks `tag` up in `info` into exactly sized heap buffers of 0 to 8 bytes,
+    /// so that ASan sees a write past any of them.
+    fn every_size(tag: &str, info: &str) {
+        let (tag, info) = (CString::new(tag).unwrap(), CString::new(info).unwrap());
+        for len in 0..=8 {
+            let mut buf = vec![0xAAu8; len].into_boxed_slice();
+            if let Some(v) = find_info_tag(&mut buf, &tag, &info) {
+                assert!(v.to_bytes().len() < len.max(1));
+            }
+        }
+    }
+
+    #[test]
+    fn buffers_of_every_small_size() {
+        every_size("a", "?a=1234567890");
+        every_size("b", "?a=1&b=x+y+z&c");
+        every_size("c", "?a=1&b=2&c");
+        every_size("", "?=v");
+        every_size("z", "");
+        every_size("a", "a=1&&&a=2");
+        every_size("a", "?a");
+    }
+
+    #[test]
+    fn long_tags_and_values() {
+        let long_tag = "t".repeat(300);
+        let info = format!("?{long_tag}={}&x=1", "v".repeat(5000));
+        every_size(&long_tag, &info);
+        // C compares the first 127 bytes of a tag only.
+        let mut buf = vec![0u8; 64];
+        assert!(
+            find_info_tag(
+                &mut buf,
+                &CString::new(&long_tag[..127]).unwrap(),
+                &CString::new(info.clone()).unwrap()
+            )
+            .is_some()
+        );
+        let mut big = vec![0u8; 8192];
+        let v = find_info_tag(
+            &mut big,
+            &CString::new("x").unwrap(),
+            &CString::new(info).unwrap(),
+        )
+        .unwrap();
+        assert_eq!(v.to_bytes(), b"1");
+    }
+
+    #[test]
+    fn the_color_table_ends() {
+        let mut n = 0;
+        while let Some((name, rgb)) = known_color_name(n) {
+            assert!(!name.to_bytes().is_empty());
+            let _ = rgb;
+            n += 1;
+        }
+        assert!(n > 100);
+        for i in [
+            n,
+            n + 1,
+            i32::MAX as usize,
+            i32::MAX as usize + 1,
+            usize::MAX,
+        ] {
+            assert!(known_color_name(i).is_none());
+        }
+    }
+
+    #[test]
+    fn lookups_from_many_threads() {
+        std::thread::scope(|s| {
+            for t in 0..4 {
+                s.spawn(move || {
+                    for i in 0..500 {
+                        let mut buf = [0u8; 16];
+                        let info = CString::new(format!("?k{t}={i}")).unwrap();
+                        let tag = CString::new(format!("k{t}")).unwrap();
+                        let v = find_info_tag(&mut buf, &tag, &info).unwrap();
+                        assert_eq!(v.to_str().unwrap(), i.to_string());
+                        let _ = known_color_name(i);
+                    }
+                });
+            }
+        });
+    }
+}

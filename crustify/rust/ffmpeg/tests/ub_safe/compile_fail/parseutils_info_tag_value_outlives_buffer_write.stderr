@@ -1,0 +1,9 @@
+error[E0499]: cannot borrow `buf` as mutable more than once at a time
+ --> tests/ub_safe/compile_fail/parseutils_info_tag_value_outlives_buffer_write.rs
+  |
+  |     let value = find_info_tag(&mut buf, c"a", c"?a=1").unwrap();
+  |                               -------- first mutable borrow occurs here
+  |     buf.fill(b'x');
+  |     ^^^ second mutable borrow occurs here
+  |     println!("{value:?}");
+  |                ----- first borrow later used here

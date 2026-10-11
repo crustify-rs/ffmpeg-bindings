@@ -592,3 +592,88 @@ fn current_dates_agree() {
         }
     }
 }
+
+/// Options wave 0, batch 3.
+///
+/// Equivalence of `libavutil/parseutils.h`'s URL tag lookup and named color
+/// enumeration with the raw C functions, on independently owned buffers.
+mod info_tags_and_colors {
+    use core::ffi::{CStr, c_char, c_int};
+    use core::ptr;
+    use std::ffi::CString;
+
+    use ffmpeg::libavutil::ffi;
+    use ffmpeg::libavutil::parseutils::{find_info_tag, known_color_name};
+
+    /// C's result and buffer for `tag` in `info` with a buffer of `len` bytes
+    /// (at least 1), every byte `0xAA` before the call.
+    fn c_lookup(len: usize, tag: &CStr, info: &CStr) -> (bool, Vec<u8>) {
+        let mut buf = vec![0xAAu8; len];
+        // SAFETY: `buf` holds `len >= 1` writable bytes; the strings are live.
+        let ret = unsafe {
+            ffi::av_find_info_tag(
+                buf.as_mut_ptr().cast::<c_char>(),
+                len as c_int,
+                tag.as_ptr(),
+                info.as_ptr(),
+            )
+        };
+        (ret != 0, buf)
+    }
+
+    #[test]
+    fn tags_are_found_and_written_as_in_c() {
+        let long = format!("?{}={}&b=2", "t".repeat(200), "v".repeat(300));
+        let infos = [
+            "?a=1&b=x+y&c",
+            "a=1&b=2",
+            "?b=&b=3",
+            "?c",
+            "",
+            "?=v&a",
+            "&&a=1",
+            long.as_str(),
+        ];
+        let tags = ["a", "b", "c", "", "z", &"t".repeat(127), &"t".repeat(128)];
+        for info in infos {
+            let info = CString::new(info).unwrap();
+            for tag in tags {
+                let tag = CString::new(tag).unwrap();
+                for len in [1, 2, 3, 5, 16, 400] {
+                    let (found, c_buf) = c_lookup(len, &tag, &info);
+                    let mut buf = vec![0xAAu8; len];
+                    let value = find_info_tag(&mut buf, &tag, &info).map(CStr::to_owned);
+                    assert_eq!(value.is_some(), found, "{tag:?} in {info:?}, {len}");
+                    assert_eq!(buf, c_buf, "{tag:?} in {info:?}, {len}");
+                    if let Some(v) = value {
+                        assert_eq!(v.as_bytes_with_nul(), &c_buf[..v.as_bytes_with_nul().len()]);
+                    }
+                }
+                // An empty buffer finds what a one-byte one does.
+                let (found, _) = c_lookup(1, &tag, &info);
+                assert_eq!(find_info_tag(&mut [], &tag, &info).is_some(), found);
+            }
+        }
+    }
+
+    #[test]
+    fn the_color_table_reads_as_in_c() {
+        for i in (0..=200).chain([i32::MAX as usize]) {
+            let mut rgb = ptr::null();
+            // SAFETY: `rgb` is a writable slot.
+            let name = unsafe { ffi::av_get_known_color_name(i as c_int, &mut rgb) };
+            match known_color_name(i) {
+                None => assert!(name.is_null(), "{i}"),
+                Some((n, c)) => {
+                    assert_eq!(n.as_ptr(), name, "{i}");
+                    // SAFETY: C's non-NULL result points at a 3-byte entry.
+                    assert_eq!(c, unsafe { rgb.cast::<[u8; 3]>().read() }, "{i}");
+                }
+            }
+        }
+        // C bounds-checks the index as unsigned.
+        let mut rgb = ptr::null();
+        // SAFETY: as above.
+        assert!(unsafe { ffi::av_get_known_color_name(-1, &mut rgb) }.is_null());
+    }
+}
