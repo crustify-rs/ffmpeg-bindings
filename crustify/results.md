@@ -9,8 +9,8 @@ Copy this template into the campaign checkout, then fill it as work lands.
 - **campaign objective** — `wrap`
 - **`impl_files`** — `3181 files: the built TUs and reachable private headers of the 7 libraries (crustify/wavefront/configs/wavefront-config.json)`
 - **`api_headers`** — `122 installed headers, excluding the platform/vendor hwcontext_*.h backends, libavcodec/{d3d11va,dxva2,jni,mediacodec,qsv,vdpau,videotoolbox}.h and the generated avconfig.h/ffversion.h`
-- **agent backend** — `claude`
-- **model** — `openrouter/anthropic/claude-opus-5.5`
+- **agent backend** — `claude`; `codex` for `libavutil/crypto`
+- **model** — `openrouter/anthropic/claude-opus-5.5`; `openrouter/openai/gpt-6.1-sol` for `libavutil/crypto`
 - **`--billing`** — `api`
 - **`--max-types`** — `2`
 - **`--max-syms`** — `25`
@@ -34,8 +34,8 @@ Thin batches with `"objective": "review"`, LLM-as-a-Judge over each landed wave.
 - **`--max-loc`** — `500` (wave 0); unbounded from wave 1
 - **`--min-fields`** — `20`
 - **orchestrator parallelism** — up to `16` concurrent batch processes from `libavutil/options`; `10` before
-- **branch** — `crustify/reviews/20261005/libavutil/options/wave-2`, tip `be8e0f1a23`
-- **agents** — `34` (one stopped by the provider), over `13` wave(s)
+- **branch** — `crustify/reviews/20261005/libavutil/crypto/wave-1`, tip `b7201f7c3f`
+- **agents** — `37` (one stopped by the provider), over `15` wave(s)
 
 `rv`-prefixed columns below carry the review pass; the unprefixed ones remain
 the campaign's.
@@ -136,7 +136,7 @@ in Notes.
 - **wrapped types** — `<n>`
 - **wrapped symbols** — `<n>`
 
-Implementation `openrouter/anthropic/claude-opus-5.5` via `claude`; review
+Implementation `openrouter/anthropic/claude-opus-5.5` via `claude` (`openrouter/openai/gpt-6.1-sol` via `codex` for `libavutil/crypto`); review
 `openrouter/anthropic/claude-opus-5.5` via `claude`.
 
 | sub-campaign | nr types | nr symbols | sub-campaign wall | batch | review | total | $/type | $/sym |
@@ -146,6 +146,7 @@ Implementation `openrouter/anthropic/claude-opus-5.5` via `claude`; review
 | `libavutil/core` | `21` | `159` | `47h12m32s` | `$214.04` | `$207.73` | `$421.77` | `$7.10` | `$1.72` |
 | `libavutil/formats` | `19` | `100` | `21h42m45s` | `$142.10` | `$336.68` | `$478.78` | `$11.31` | `$2.64` |
 | `libavutil/options` | `6` | `78` | `6h15m34s` | `$122.01` | `$63.52` | `$185.53` | `$6.15` | `$1.91` |
+| `libavutil/crypto` | `19` | `103` | `4h26m50s` | `$46.14` | `$38.22` | `$84.36` | `$2.48` | `$0.36` |
 | `<link-unit>/<subsystem>` | `<n>` | `<n>` | `<n>h<n>m<n>s` | `$<n>` | `$<n>` | `$<n>` | `$<n>` | `$<n>` |
 | orchestrator | `<n>` | `<n>` | — | — | — | `$<n>`+ | — | — |
 | **Σ recorded agents** | **`<n>`** | **`<n>`** | **`<n>h<n>m`** | **`$<n>`** | **`$<n>`** | **`$<n>`** | **`$<n>`** | **`$<n>`** |
@@ -385,7 +386,11 @@ Implementation `openrouter/anthropic/claude-opus-5.5` via `claude`; review
 |`libavutil/options`|`1`|`1`| wrap | `13` | `3012` |`+3012/-16`| `47.89`% / `97.60`% | `0` | `+3` | `$21.33` | `49m00s` | `$1.64` | `$0.007` |
 |`libavutil/options`|`2`|`0`| wrap | `14` | `1543` |`+1543/-185`| `47.98`% / `97.87`% | `-2` | `-2` | `$13.57` | `40m30s` | `$0.97` | `$0.009` |
 |`libavutil/crypto`|`0`|`10`| wrap | `24` | `1215` |`+1215/-0`| `58.73`% / `97.86`% | `0` | `0` | `$4.39` | `33m01s` | `$0.18` | `$0.004` |
-| **Σ** |  |  |  | **`361`** | **`40028`** | **`+40028/-510`** | **`58.73`% / `97.86`%** | **`+25`** | **`+36`** | **`$335.38`** | — | **`$0.93`** | **`$0.008`** |
+|`libavutil/crypto`|`1`|`0`| wrap | `25` | `1329` |`+1329/-65`| `64.83`% / `97.98`% | `0` | `0` | `$2.22` | `16m31s` | `$0.09` | `$0.002` |
+|`libavutil/crypto`|`1`|`1`| wrap | `25` | `633` |`+633/-22`| `65.09`% / `98.05`% | `0` | `0` | `$2.75` | `26m25s` | `$0.11` | `$0.004` |
+|`libavutil/crypto`|`1`|`2`| wrap | `25` | `788` |`+788/-80`| `64.83`% / `98.02`% | `0` | `0` | `$2.67` | `20m42s` | `$0.11` | `$0.003` |
+|`libavutil/crypto`|`1`|`3`| wrap | `4` | `427` |`+427/-8`| `63.96`% / `97.93`% | `0` | `0` | `$1.05` | `7m33s` | `$0.26` | `$0.002` |
+| **Σ** |  |  |  | **`440`** | **`43205`** | **`+43205/-685`** | **`65.09`% / `98.05`%** | **`+25`** | **`+36`** | **`$344.07`** | — | **`$0.78`** | **`$0.008`** |
 
 ### Batches: tests
 
@@ -415,7 +420,11 @@ Implementation `openrouter/anthropic/claude-opus-5.5` via `claude`; review
 |`libavutil/options`|`1`|`1`|`+10` (`+0.74`/`-0.77` pp)|`+5` (`+2.09`/`+5.39` pp)|`+11` (`+1.61`/`+0.05` pp)|`+14` (`+1.09`/`-0.81` pp)|
 |`libavutil/options`|`2`|`0`|`+2` (`+0.36`/`+1.44` pp)|`+3` (`+0.06`/`+1.93` pp)|`+4` (`+0.06`/`+0.41` pp)|`+8` (`+0.22`/`+0.16` pp)|
 |`libavutil/crypto`|`0`|`10`|`+21` (`+2.07`/`+0.29` pp)|`+0` (`-0.02`/`-0.43` pp)|`+19` (`+1.80`/`+0.23` pp)|`+5` (`+0.06`/`-0.96` pp)|
-| **Σ** |  |  | **`+285` (`+32.88`/`+16.26` pp)** | **`+69` (`+21.55`/`+16.99` pp)** | **`+324` (`+34.77`/`+24.61` pp)** | **`+337` (`+21.07`/`-8.15` pp)** |
+|`libavutil/crypto`|`1`|`0`|`+8` (`+2.25`/`+0.41` pp)|`+0` (`+0.00`/`-0.71` pp)|`+6` (`+0.55`/`+0.36` pp)|`+9` (`+1.21`/`-0.62` pp)|
+|`libavutil/crypto`|`1`|`1`|`+6` (`+1.06`/`+0.22` pp)|`+0` (`+0.00`/`-0.37` pp)|`+3` (`+0.26`/`+0.20` pp)|`+3` (`+0.39`/`-0.13` pp)|
+|`libavutil/crypto`|`1`|`2`|`+9` (`+2.00`/`+0.36` pp)|`+0` (`+0.00`/`-0.40` pp)|`+3` (`+0.00`/`+0.22` pp)|`+6` (`+0.09`/`-0.65` pp)|
+|`libavutil/crypto`|`1`|`3`|`+3` (`+0.99`/`+0.06` pp)|`+0` (`+0.00`/`-0.20` pp)|`+1` (`-0.01`/`+0.04` pp)|`+2` (`+0.00`/`-0.39` pp)|
+| **Σ** |  |  | **`+311` (`+39.18`/`+17.31` pp)** | **`+69` (`+21.55`/`+15.31` pp)** | **`+337` (`+35.57`/`+25.43` pp)** | **`+357` (`+22.76`/`-9.94` pp)** |
 
 ### Batches — review
 
@@ -439,7 +448,8 @@ Implementation `openrouter/anthropic/claude-opus-5.5` via `claude`; review
 |`libavutil/options`|`1`|`0`| `35` |`+240/-2`| `47.89`% / `97.81`% | `0` | `0` | `+338/-9` | `$13.35` | `26m24s` | `$0.38` |
 |`libavutil/options`|`2`|`0`| `14` |`+251/-1`| `47.99`% / `97.87`% | `0` | `0` | `+335/-10` | `$15.34` | `81m25s` | `$1.10` |
 |`libavutil/crypto`|`0`|`1`| `24` |`+199/-89`| `63.94`% / `97.91`% | `0` | `0` | `+295/-146` | `$5.82` | `26m34s` | `$0.24` |
-| **Σ** |  |  | **`361`** | **`+3502/-501`** | **`63.94`% / `97.91`%** | **`-2`** | **`-2`** | **`+4603/-809`** | **`$360.07`** | — | **`$1.00`** |
+|`libavutil/crypto`|`1`|`0`| `79` |`+439/-218`| `65.09`% / `98.05`% | `0` | `0` | `+551/-263` | `$18.39` | `131m00s` | `$0.23` |
+| **Σ** |  |  | **`440`** | **`+3941/-719`** | **`65.09`% / `98.05`%** | **`-2`** | **`-2`** | **`+5154/-1072`** | **`$378.46`** | — | **`$0.86`** |
 
 ### Batches — review: tests
 
@@ -463,7 +473,8 @@ Implementation `openrouter/anthropic/claude-opus-5.5` via `claude`; review
 |`libavutil/options`|`1`|`0`|`+0` (`+0.00`/`-0.04` pp)|`+1` (`+0.26`/`+1.15` pp)|`+1` (`-0.01`/`+0.03` pp)|`+1` (`+0.06`/`+0.23` pp)|
 |`libavutil/options`|`2`|`0`|`+1` (`+0.00`/`+0.02` pp)|`+1` (`+0.00`/`+0.03` pp)|`+2` (`+0.02`/`+0.03` pp)|`+1` (`+0.00`/`+0.01` pp)|
 |`libavutil/crypto`|`0`|`1`|`+0` (`+0.00`/`+0.02` pp)|`+0` (`+0.00`/`-0.14` pp)|`+2` (`+0.00`/`+0.06` pp)|`+2` (`+0.00`/`-0.00` pp)|
-| **Σ** |  |  | **`+4` (`+0.00`/`+0.04` pp)** | **`+7` (`+0.39`/`+2.28` pp)** | **`+14` (`+0.74`/`+1.27` pp)** | **`+19` (`+0.63`/`+0.86` pp)** |
+|`libavutil/crypto`|`1`|`0`|`+0` (`+0.00`/`+0.08` pp)|`+0` (`+0.00`/`+0.01` pp)|`+2` (`+0.00`/`+0.07` pp)|`+1` (`+0.00`/`+0.11` pp)|
+| **Σ** |  |  | **`+4` (`+0.00`/`+0.12` pp)** | **`+7` (`+0.39`/`+2.29` pp)** | **`+16` (`+0.74`/`+1.34` pp)** | **`+20` (`+0.63`/`+0.97` pp)** |
 
 ### Batches — review: PoC + reports
 
@@ -487,7 +498,8 @@ Implementation `openrouter/anthropic/claude-opus-5.5` via `claude`; review
 | `libavutil/options` | `1` | `0` | — | `+0` | `+0` | `+1` | `+0` | `+0` | `+0` | `+1` | `2` | `0` |
 | `libavutil/options` | `2` | `0` | — | `+0` | `+1` | `+0` | `+0` | `+0` | `+0` | `+1` | `2` | `0` |
 | `libavutil/crypto` | `0` | `1` | — | `+0` | `+0` | `+0` | `+1` | `+0` | `+3` | `+0` | `4` | `0` |
-| **Σ** |  |  | — | **`+3`** | **`+3`** | **`+4`** | **`+3`** | **`+0`** | **`+7`** | **`+12`** | **`32`** | **`0`** |
+| `libavutil/crypto` | `1` | `0` | — | `+0` | `+0` | `+0` | `+1` | `+1` | `+2` | `+2` | `6` | `0` |
+| **Σ** |  |  | — | **`+3`** | **`+3`** | **`+4`** | **`+4`** | **`+1`** | **`+9`** | **`+14`** | **`38`** | **`0`** |
 
 ## Safety audit
 
@@ -1649,3 +1661,114 @@ bytes instead of four under BSan. The reviewed tip was promoted; wave wall time 
   `ObjectRef`/`ObjectMut::from_ptr` adoption seams and private C sides of the array traits.
   The union run covers 47.99% of libavutil's C and 97.87% of the authored Rust, with 678
   unit, 559 `ub_safe`, 107 `ub_unsafe` and 544 equivalence tests.
+
+### `libavutil/crypto` wave 0
+
+`crypto` is based on `7f98285377`: the campaign tip `34ffd7ee48` plus 22 header modules. At the
+user's direction (2026-10-11) its translators ran on `openrouter/openai/gpt-6.1-sol` via
+`codex` (api billing); reviews stayed on `openrouter/anthropic/claude-opus-5.5`.
+
+Wave 0 is 10 type batches (19 types: the cipher, hash and checksum contexts, `AVCRCId` and
+`AVHMACType`) and one batch of 24 symbols (checksums, base64, CRC tables, LZO, MD5 sum, UUIDs,
+hash names and the nine context-size globals). It launched at 07:53Z on 2026-10-11, and all 11
+batches landed between 08:03Z and 08:48Z, ending at `7935c403e0`. All 43 scheduled items carry
+their anchors there. Translation cost `$37.44` for 135.4M tokens and 5h41m of agent wall time:
+`$3.40` per batch, against `$14.12` per batch in `options` wave 0 on Opus 5.5.
+
+- Most contexts are opaque C layouts owned through ffibox owners released by their `av_free`
+  family (`DesBox`, `Md5Box`, ...), and `AVCRCId`/`AVHMACType` are open newtypes. The symbol
+  batch kept base64, LZO and UUID buffers in checked slices.
+- The translators committed their own notes (26 files: `validation.md`, coverage and scan
+  dumps, `findings/*.json`) into the orchestrator's batch record dirs, two of them at its
+  `scan-unsafe.json` path. They were moved to `batch-<k>/translator-notes/` when the wave was
+  recorded. Wave 1's translators then followed that layout, plus one stray
+  `wave-1/batch-2-validation.md`, moved the same way.
+- Codex echoes its shell commands into `spawn.out`, where the orchestrator's watcher took any
+  line starting with `exit ` as the agent's exit. It handled batches 1, 3 and 8 early and
+  scanned batch 8 at a pre-landing commit; nothing was purged before landing, and those
+  batches were purged and rescanned at their landing commits.
+- Smells went from 35 to 36 `unsafe fn` and from 65 to 66 raw pointers.
+
+### `libavutil/crypto` review wave 0
+
+Two `openrouter/anthropic/claude-opus-5.5` reviewers: batch 0 took the 19 types and batch 1
+the 24 symbols. Together they cost `$19.83` for 58.2M tokens and 1h09m.
+
+- **Types reviewer** (42m30s, `$14.00`): landed `60394391f0` (reports) and `e1da21ef9f`
+  (fixes). `lifecycle/avdes`: `AVDES` had no clone strategy; `Des` is now `Clone`/`Copy` and
+  `DesBox` clones through `av_memdup`. `unsafe/opaque-contexts-offer-rust-sized-allocation`:
+  the SHA, SHA-512, Camellia, TEA and Twofish owners used the `Heap` policy over a zero-sized
+  forward-declared layout, which exposed a safe Rust-sized `new_uninit()`; they now use
+  storage-only release policies, pinned by `compile_fail` doctests.
+  `unsafe/hash-context-free-raw-adapter`: `HashContextFree` implements `CDrop` directly.
+  Two `conventions` reports (a wrapped `SAFETY` block, `clippy --all-targets` failures in the
+  SHA equivalence tests), one `wavefront` correction (`av_hash_alloc` as the constructor) and
+  three `misc` reports (two drifted trybuild snapshots, the translator notes above).
+- **Symbols reviewer** (26m34s, `$5.82`): landed `e9dc8e3abf` (reports and reproducer) and
+  `776e95e556` (fix). `equiv/base64-rejects-outputs-beyond-int-max`: `base64::encode` and
+  `decode` refused any output buffer longer than `INT_MAX` bytes with `EINVAL`, where C, given
+  `INT_MAX`, succeeds. Rerun by the orchestrator, the reproducer exits 1 on `7935c403e0`
+  (`Rust Err(-22): DIFFER` for both) and 0 on `e1da21ef9f`, so it is accepted. Three
+  `conventions` reports (wrappers placed after the `unit_tests` module, which fails
+  `clippy::items_after_test_module`; UUID `copy`/`equal`/`nil` anchored `Wraps` though they
+  never call C; equivalence-test `SAFETY` comments) and one `wavefront` correction.
+- No UB was found. The reviewed tip `e1da21ef9f` was promoted. Wave wall time, from the first
+  launch (07:53Z) to the last review landing (09:33Z), was 1h40m33s.
+
+### `libavutil/crypto` wave 1
+
+Wave 1, the sub-campaign's last, is 4 symbol batches (25, 25, 25 and 4 symbols: block
+processing, CTR IVs, streaming hashes, HMAC and the cipher `crypt` routines), based on
+`c55b9c574c`. It launched at 09:39Z, and all 4 batches landed between 09:47Z and 10:02Z, ending
+at `e71508dc3c`. All 79 items carry their anchors there. Translation cost `$8.70` for 35.9M
+tokens and 1h11m of agent wall time (7–26 minutes per agent). Neither smell moved, and no
+`ub_unsafe` test was added: the wave adds no public unsafe API.
+
+### `libavutil/crypto` review wave 1
+
+One `openrouter/anthropic/claude-opus-5.5` reviewer for the 79 symbols (2h11m00s, `$18.39`,
+50.0M tokens) landed `7e64818be7` (reports and reproducer) and `b7201f7c3f` (fixes).
+
+- `equiv/hash-and-hmac-reject-outputs-beyond-c-ranges`: the hash `finalize_bin`/`hex`/`b64`
+  wrappers refused outputs over `INT_MAX` and HMAC `finalize`/`calculate` over `UINT_MAX`,
+  where C succeeds, the same shape as wave 0's base64 finding. Rerun by the orchestrator, the
+  reproducer exits 1 on `e71508dc3c` (5 cases `DIFFER`) and 0 on `b7201f7c3f` (all agree), so
+  it is accepted.
+- `internal/xtea-in-place-source-pointer-taken-before-exclusive-retag`: XTEA's in-place path
+  derived C's source pointer from a shared reborrow before the exclusive one. That is UB under
+  Stacked Borrows (shown on a standalone Miri model), accepted under Tree Borrows, and clean
+  under BSan. The path now derives one pointer and passes it twice, as the wave's other
+  in-place wrappers do. There is no reproducer against the crate to rerun.
+- Two `conventions` reports: DES, TEA, Twofish, XTEA and RC4 now share `aes::Direction` and
+  `aes::CryptError` instead of `bool`/`-22` and duplicate types, and CAST5's ECB `SAFETY`
+  comments described CBC. One `wavefront` correction (six output-size records).
+
+As the sub-campaign's last wave, this reviewer ran the workspace BSan gate covering all of
+`crypto`, skipping the 48 known `strto*` false positives from `options`. On the wave tip `lib`
+(752), `ub_safe` (642), `ub_unsafe` (95) and the seven `-sys` binaries passed; `equiv` stopped
+at a true positive in test code: the raw C references reused one IV pointer across a
+reborrow (`misc/bsan-gate-equiv-iv-pointer-reused-across-reborrow`). Fixed in the AES,
+Blowfish, Camellia and CAST5 equivalence tests, after which every binary passed on the landed
+tree (`equiv` 591, `ub_safe` 642, `lib` 753, `ub_unsafe` 95). The reviewed tip was promoted;
+wave wall time (09:39Z to 12:18Z) was 2h38m56s.
+
+### `libavutil/crypto` sub-campaign totals
+
+- The Overview row counts 19 types and 103 symbols over 2 waves. `$/type` and `$/sym` divide
+  each kind's translation and review cost by its units: types `$47.05` over 19, symbols
+  `$37.30` over 103.
+- Translation on `gpt-6.1-sol` cost `$46.14` for 122 items (`$0.38` per item); `options` on
+  Opus 5.5 cost `$122.01` for 84 (`$1.45`). Review cost 0.83× translation (`$38.22`).
+- The reviewers found no UB in the translated wrappers. They found two behavioural
+  divergences of one shape (base64 and hash/HMAC refusing output buffers C accepts), one
+  lifecycle gap (`AVDES` clone), one Rust-sized allocator over zero-sized layouts, one
+  aliasing-model hazard (XTEA), and more convention defects than earlier waves:
+  `clippy --all-targets` failures, wrappers after the test module, divergent error and
+  direction vocabularies, and notes committed into the orchestrator's record dirs.
+- `sub-campaign wall` runs from the scaffold (07:52Z on 2026-10-11) to the last review landing
+  (12:18Z), with no pauses. Agent wall time sums to 10h12m: 6h52m translating and 3h20m
+  reviewing.
+- At the end the unseeded scan reads 35 `unsafe fn` and 65 raw-pointer smells, the same as at
+  `options`' end, with an unsafe-LoC ratio of 0.150 (0.129 at `options`' end). The union run
+  covers 65.09% of libavutil's C and 98.05% of the authored Rust, with 763 unit, 650
+  `ub_safe`, 107 `ub_unsafe` and 610 equivalence tests.

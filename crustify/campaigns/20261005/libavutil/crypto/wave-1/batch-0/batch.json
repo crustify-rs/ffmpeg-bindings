@@ -1,0 +1,180 @@
+{
+  "objective": "wrap",
+  "items": [
+    {
+      "name": "av_aes_alloc",
+      "defined_in": "libavutil/aes.c",
+      "kind": "symbol",
+      "field_anchors": [],
+      "home": "crustify/rust/ffmpeg/libavutil/aes.rs"
+    },
+    {
+      "name": "av_aes_crypt",
+      "defined_in": "libavutil/aes.c",
+      "kind": "symbol",
+      "field_anchors": [],
+      "home": "crustify/rust/ffmpeg/libavutil/aes.rs"
+    },
+    {
+      "name": "av_aes_ctr_alloc",
+      "defined_in": "libavutil/aes_ctr.c",
+      "kind": "symbol",
+      "field_anchors": [],
+      "home": "crustify/rust/ffmpeg/libavutil/aes_ctr.rs"
+    },
+    {
+      "name": "av_aes_ctr_crypt",
+      "defined_in": "libavutil/aes_ctr.c",
+      "kind": "symbol",
+      "field_anchors": [],
+      "home": "crustify/rust/ffmpeg/libavutil/aes_ctr.rs"
+    },
+    {
+      "name": "av_aes_ctr_free",
+      "defined_in": "libavutil/aes_ctr.c",
+      "kind": "symbol",
+      "field_anchors": [],
+      "home": "crustify/rust/ffmpeg/libavutil/aes_ctr.rs"
+    },
+    {
+      "name": "av_aes_ctr_get_iv",
+      "defined_in": "libavutil/aes_ctr.c",
+      "kind": "symbol",
+      "field_anchors": [],
+      "home": "crustify/rust/ffmpeg/libavutil/aes_ctr.rs"
+    },
+    {
+      "name": "av_aes_ctr_increment_iv",
+      "defined_in": "libavutil/aes_ctr.c",
+      "kind": "symbol",
+      "field_anchors": [],
+      "home": "crustify/rust/ffmpeg/libavutil/aes_ctr.rs"
+    },
+    {
+      "name": "av_aes_ctr_init",
+      "defined_in": "libavutil/aes_ctr.c",
+      "kind": "symbol",
+      "field_anchors": [],
+      "home": "crustify/rust/ffmpeg/libavutil/aes_ctr.rs"
+    },
+    {
+      "name": "av_aes_ctr_set_full_iv",
+      "defined_in": "libavutil/aes_ctr.c",
+      "kind": "symbol",
+      "field_anchors": [],
+      "home": "crustify/rust/ffmpeg/libavutil/aes_ctr.rs"
+    },
+    {
+      "name": "av_aes_ctr_set_iv",
+      "defined_in": "libavutil/aes_ctr.c",
+      "kind": "symbol",
+      "field_anchors": [],
+      "home": "crustify/rust/ffmpeg/libavutil/aes_ctr.rs"
+    },
+    {
+      "name": "av_aes_ctr_set_random_iv",
+      "defined_in": "libavutil/aes_ctr.c",
+      "kind": "symbol",
+      "field_anchors": [],
+      "home": "crustify/rust/ffmpeg/libavutil/aes_ctr.rs"
+    },
+    {
+      "name": "av_aes_init",
+      "defined_in": "libavutil/aes.c",
+      "kind": "symbol",
+      "field_anchors": [],
+      "home": "crustify/rust/ffmpeg/libavutil/aes.rs"
+    },
+    {
+      "name": "av_blowfish_alloc",
+      "defined_in": "libavutil/blowfish.c",
+      "kind": "symbol",
+      "field_anchors": [],
+      "home": "crustify/rust/ffmpeg/libavutil/blowfish.rs"
+    },
+    {
+      "name": "av_blowfish_crypt",
+      "defined_in": "libavutil/blowfish.c",
+      "kind": "symbol",
+      "field_anchors": [],
+      "home": "crustify/rust/ffmpeg/libavutil/blowfish.rs"
+    },
+    {
+      "name": "av_blowfish_crypt_ecb",
+      "defined_in": "libavutil/blowfish.c",
+      "kind": "symbol",
+      "field_anchors": [],
+      "home": "crustify/rust/ffmpeg/libavutil/blowfish.rs"
+    },
+    {
+      "name": "av_blowfish_init",
+      "defined_in": "libavutil/blowfish.c",
+      "kind": "symbol",
+      "field_anchors": [],
+      "home": "crustify/rust/ffmpeg/libavutil/blowfish.rs"
+    },
+    {
+      "name": "av_camellia_alloc",
+      "defined_in": "libavutil/camellia.c",
+      "kind": "symbol",
+      "field_anchors": [],
+      "home": "crustify/rust/ffmpeg/libavutil/camellia.rs"
+    },
+    {
+      "name": "av_camellia_crypt",
+      "defined_in": "libavutil/camellia.c",
+      "kind": "symbol",
+      "field_anchors": [],
+      "home": "crustify/rust/ffmpeg/libavutil/camellia.rs"
+    },
+    {
+      "name": "av_camellia_init",
+      "defined_in": "libavutil/camellia.c",
+      "kind": "symbol",
+      "field_anchors": [],
+      "home": "crustify/rust/ffmpeg/libavutil/camellia.rs"
+    },
+    {
+      "name": "av_cast5_alloc",
+      "defined_in": "libavutil/cast5.c",
+      "kind": "symbol",
+      "field_anchors": [],
+      "home": "crustify/rust/ffmpeg/libavutil/cast5.rs"
+    },
+    {
+      "name": "av_cast5_crypt",
+      "defined_in": "libavutil/cast5.c",
+      "kind": "symbol",
+      "field_anchors": [],
+      "home": "crustify/rust/ffmpeg/libavutil/cast5.rs"
+    },
+    {
+      "name": "av_cast5_crypt2",
+      "defined_in": "libavutil/cast5.c",
+      "kind": "symbol",
+      "field_anchors": [],
+      "home": "crustify/rust/ffmpeg/libavutil/cast5.rs"
+    },
+    {
+      "name": "av_cast5_init",
+      "defined_in": "libavutil/cast5.c",
+      "kind": "symbol",
+      "field_anchors": [],
+      "home": "crustify/rust/ffmpeg/libavutil/cast5.rs"
+    },
+    {
+      "name": "av_crc_get_table",
+      "defined_in": "libavutil/crc.c",
+      "kind": "symbol",
+      "field_anchors": [],
+      "home": "crustify/rust/ffmpeg/libavutil/crc.rs"
+    },
+    {
+      "name": "av_des_alloc",
+      "defined_in": "libavutil/des.c",
+      "kind": "symbol",
+      "field_anchors": [],
+      "home": "crustify/rust/ffmpeg/libavutil/des.rs"
+    }
+  ]
+}

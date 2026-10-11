@@ -1,0 +1,558 @@
+{
+  "objective": "review",
+  "items": [
+    {
+      "name": "av_aes_alloc",
+      "defined_in": "libavutil/aes.c",
+      "kind": "symbol",
+      "field_anchors": [],
+      "home": "crustify/rust/ffmpeg/libavutil/aes.rs"
+    },
+    {
+      "name": "av_aes_crypt",
+      "defined_in": "libavutil/aes.c",
+      "kind": "symbol",
+      "field_anchors": [],
+      "home": "crustify/rust/ffmpeg/libavutil/aes.rs"
+    },
+    {
+      "name": "av_aes_ctr_alloc",
+      "defined_in": "libavutil/aes_ctr.c",
+      "kind": "symbol",
+      "field_anchors": [],
+      "home": "crustify/rust/ffmpeg/libavutil/aes_ctr.rs"
+    },
+    {
+      "name": "av_aes_ctr_crypt",
+      "defined_in": "libavutil/aes_ctr.c",
+      "kind": "symbol",
+      "field_anchors": [],
+      "home": "crustify/rust/ffmpeg/libavutil/aes_ctr.rs"
+    },
+    {
+      "name": "av_aes_ctr_free",
+      "defined_in": "libavutil/aes_ctr.c",
+      "kind": "symbol",
+      "field_anchors": [],
+      "home": "crustify/rust/ffmpeg/libavutil/aes_ctr.rs"
+    },
+    {
+      "name": "av_aes_ctr_get_iv",
+      "defined_in": "libavutil/aes_ctr.c",
+      "kind": "symbol",
+      "field_anchors": [],
+      "home": "crustify/rust/ffmpeg/libavutil/aes_ctr.rs"
+    },
+    {
+      "name": "av_aes_ctr_increment_iv",
+      "defined_in": "libavutil/aes_ctr.c",
+      "kind": "symbol",
+      "field_anchors": [],
+      "home": "crustify/rust/ffmpeg/libavutil/aes_ctr.rs"
+    },
+    {
+      "name": "av_aes_ctr_init",
+      "defined_in": "libavutil/aes_ctr.c",
+      "kind": "symbol",
+      "field_anchors": [],
+      "home": "crustify/rust/ffmpeg/libavutil/aes_ctr.rs"
+    },
+    {
+      "name": "av_aes_ctr_set_full_iv",
+      "defined_in": "libavutil/aes_ctr.c",
+      "kind": "symbol",
+      "field_anchors": [],
+      "home": "crustify/rust/ffmpeg/libavutil/aes_ctr.rs"
+    },
+    {
+      "name": "av_aes_ctr_set_iv",
+      "defined_in": "libavutil/aes_ctr.c",
+      "kind": "symbol",
+      "field_anchors": [],
+      "home": "crustify/rust/ffmpeg/libavutil/aes_ctr.rs"
+    },
+    {
+      "name": "av_aes_ctr_set_random_iv",
+      "defined_in": "libavutil/aes_ctr.c",
+      "kind": "symbol",
+      "field_anchors": [],
+      "home": "crustify/rust/ffmpeg/libavutil/aes_ctr.rs"
+    },
+    {
+      "name": "av_aes_init",
+      "defined_in": "libavutil/aes.c",
+      "kind": "symbol",
+      "field_anchors": [],
+      "home": "crustify/rust/ffmpeg/libavutil/aes.rs"
+    },
+    {
+      "name": "av_blowfish_alloc",
+      "defined_in": "libavutil/blowfish.c",
+      "kind": "symbol",
+      "field_anchors": [],
+      "home": "crustify/rust/ffmpeg/libavutil/blowfish.rs"
+    },
+    {
+      "name": "av_blowfish_crypt",
+      "defined_in": "libavutil/blowfish.c",
+      "kind": "symbol",
+      "field_anchors": [],
+      "home": "crustify/rust/ffmpeg/libavutil/blowfish.rs"
+    },
+    {
+      "name": "av_blowfish_crypt_ecb",
+      "defined_in": "libavutil/blowfish.c",
+      "kind": "symbol",
+      "field_anchors": [],
+      "home": "crustify/rust/ffmpeg/libavutil/blowfish.rs"
+    },
+    {
+      "name": "av_blowfish_init",
+      "defined_in": "libavutil/blowfish.c",
+      "kind": "symbol",
+      "field_anchors": [],
+      "home": "crustify/rust/ffmpeg/libavutil/blowfish.rs"
+    },
+    {
+      "name": "av_camellia_alloc",
+      "defined_in": "libavutil/camellia.c",
+      "kind": "symbol",
+      "field_anchors": [],
+      "home": "crustify/rust/ffmpeg/libavutil/camellia.rs"
+    },
+    {
+      "name": "av_camellia_crypt",
+      "defined_in": "libavutil/camellia.c",
+      "kind": "symbol",
+      "field_anchors": [],
+      "home": "crustify/rust/ffmpeg/libavutil/camellia.rs"
+    },
+    {
+      "name": "av_camellia_init",
+      "defined_in": "libavutil/camellia.c",
+      "kind": "symbol",
+      "field_anchors": [],
+      "home": "crustify/rust/ffmpeg/libavutil/camellia.rs"
+    },
+    {
+      "name": "av_cast5_alloc",
+      "defined_in": "libavutil/cast5.c",
+      "kind": "symbol",
+      "field_anchors": [],
+      "home": "crustify/rust/ffmpeg/libavutil/cast5.rs"
+    },
+    {
+      "name": "av_cast5_crypt",
+      "defined_in": "libavutil/cast5.c",
+      "kind": "symbol",
+      "field_anchors": [],
+      "home": "crustify/rust/ffmpeg/libavutil/cast5.rs"
+    },
+    {
+      "name": "av_cast5_crypt2",
+      "defined_in": "libavutil/cast5.c",
+      "kind": "symbol",
+      "field_anchors": [],
+      "home": "crustify/rust/ffmpeg/libavutil/cast5.rs"
+    },
+    {
+      "name": "av_cast5_init",
+      "defined_in": "libavutil/cast5.c",
+      "kind": "symbol",
+      "field_anchors": [],
+      "home": "crustify/rust/ffmpeg/libavutil/cast5.rs"
+    },
+    {
+      "name": "av_crc_get_table",
+      "defined_in": "libavutil/crc.c",
+      "kind": "symbol",
+      "field_anchors": [],
+      "home": "crustify/rust/ffmpeg/libavutil/crc.rs"
+    },
+    {
+      "name": "av_des_alloc",
+      "defined_in": "libavutil/des.c",
+      "kind": "symbol",
+      "field_anchors": [],
+      "home": "crustify/rust/ffmpeg/libavutil/des.rs"
+    },
+    {
+      "name": "av_des_crypt",
+      "defined_in": "libavutil/des.c",
+      "kind": "symbol",
+      "field_anchors": [],
+      "home": "crustify/rust/ffmpeg/libavutil/des.rs"
+    },
+    {
+      "name": "av_des_init",
+      "defined_in": "libavutil/des.c",
+      "kind": "symbol",
+      "field_anchors": [],
+      "home": "crustify/rust/ffmpeg/libavutil/des.rs"
+    },
+    {
+      "name": "av_des_mac",
+      "defined_in": "libavutil/des.c",
+      "kind": "symbol",
+      "field_anchors": [],
+      "home": "crustify/rust/ffmpeg/libavutil/des.rs"
+    },
+    {
+      "name": "av_hash_alloc",
+      "defined_in": "libavutil/hash.c",
+      "kind": "symbol",
+      "field_anchors": [],
+      "home": "crustify/rust/ffmpeg/libavutil/hash.rs"
+    },
+    {
+      "name": "av_hash_final",
+      "defined_in": "libavutil/hash.c",
+      "kind": "symbol",
+      "field_anchors": [],
+      "home": "crustify/rust/ffmpeg/libavutil/hash.rs"
+    },
+    {
+      "name": "av_hash_final_b64",
+      "defined_in": "libavutil/hash.c",
+      "kind": "symbol",
+      "field_anchors": [],
+      "home": "crustify/rust/ffmpeg/libavutil/hash.rs"
+    },
+    {
+      "name": "av_hash_final_bin",
+      "defined_in": "libavutil/hash.c",
+      "kind": "symbol",
+      "field_anchors": [],
+      "home": "crustify/rust/ffmpeg/libavutil/hash.rs"
+    },
+    {
+      "name": "av_hash_final_hex",
+      "defined_in": "libavutil/hash.c",
+      "kind": "symbol",
+      "field_anchors": [],
+      "home": "crustify/rust/ffmpeg/libavutil/hash.rs"
+    },
+    {
+      "name": "av_hash_freep",
+      "defined_in": "libavutil/hash.c",
+      "kind": "symbol",
+      "field_anchors": [],
+      "home": "crustify/rust/ffmpeg/libavutil/hash.rs"
+    },
+    {
+      "name": "av_hash_get_name",
+      "defined_in": "libavutil/hash.c",
+      "kind": "symbol",
+      "field_anchors": [],
+      "home": "crustify/rust/ffmpeg/libavutil/hash.rs"
+    },
+    {
+      "name": "av_hash_get_size",
+      "defined_in": "libavutil/hash.c",
+      "kind": "symbol",
+      "field_anchors": [],
+      "home": "crustify/rust/ffmpeg/libavutil/hash.rs"
+    },
+    {
+      "name": "av_hash_init",
+      "defined_in": "libavutil/hash.c",
+      "kind": "symbol",
+      "field_anchors": [],
+      "home": "crustify/rust/ffmpeg/libavutil/hash.rs"
+    },
+    {
+      "name": "av_hash_update",
+      "defined_in": "libavutil/hash.c",
+      "kind": "symbol",
+      "field_anchors": [],
+      "home": "crustify/rust/ffmpeg/libavutil/hash.rs"
+    },
+    {
+      "name": "av_hmac_alloc",
+      "defined_in": "libavutil/hmac.c",
+      "kind": "symbol",
+      "field_anchors": [],
+      "home": "crustify/rust/ffmpeg/libavutil/hmac.rs"
+    },
+    {
+      "name": "av_hmac_calc",
+      "defined_in": "libavutil/hmac.c",
+      "kind": "symbol",
+      "field_anchors": [],
+      "home": "crustify/rust/ffmpeg/libavutil/hmac.rs"
+    },
+    {
+      "name": "av_hmac_final",
+      "defined_in": "libavutil/hmac.c",
+      "kind": "symbol",
+      "field_anchors": [],
+      "home": "crustify/rust/ffmpeg/libavutil/hmac.rs"
+    },
+    {
+      "name": "av_hmac_free",
+      "defined_in": "libavutil/hmac.c",
+      "kind": "symbol",
+      "field_anchors": [],
+      "home": "crustify/rust/ffmpeg/libavutil/hmac.rs"
+    },
+    {
+      "name": "av_hmac_init",
+      "defined_in": "libavutil/hmac.c",
+      "kind": "symbol",
+      "field_anchors": [],
+      "home": "crustify/rust/ffmpeg/libavutil/hmac.rs"
+    },
+    {
+      "name": "av_hmac_update",
+      "defined_in": "libavutil/hmac.c",
+      "kind": "symbol",
+      "field_anchors": [],
+      "home": "crustify/rust/ffmpeg/libavutil/hmac.rs"
+    },
+    {
+      "name": "av_md5_alloc",
+      "defined_in": "libavutil/md5.c",
+      "kind": "symbol",
+      "field_anchors": [],
+      "home": "crustify/rust/ffmpeg/libavutil/md5.rs"
+    },
+    {
+      "name": "av_md5_final",
+      "defined_in": "libavutil/md5.c",
+      "kind": "symbol",
+      "field_anchors": [],
+      "home": "crustify/rust/ffmpeg/libavutil/md5.rs"
+    },
+    {
+      "name": "av_md5_init",
+      "defined_in": "libavutil/md5.c",
+      "kind": "symbol",
+      "field_anchors": [],
+      "home": "crustify/rust/ffmpeg/libavutil/md5.rs"
+    },
+    {
+      "name": "av_md5_update",
+      "defined_in": "libavutil/md5.c",
+      "kind": "symbol",
+      "field_anchors": [],
+      "home": "crustify/rust/ffmpeg/libavutil/md5.rs"
+    },
+    {
+      "name": "av_murmur3_alloc",
+      "defined_in": "libavutil/murmur3.c",
+      "kind": "symbol",
+      "field_anchors": [],
+      "home": "crustify/rust/ffmpeg/libavutil/murmur3.rs"
+    },
+    {
+      "name": "av_murmur3_final",
+      "defined_in": "libavutil/murmur3.c",
+      "kind": "symbol",
+      "field_anchors": [],
+      "home": "crustify/rust/ffmpeg/libavutil/murmur3.rs"
+    },
+    {
+      "name": "av_murmur3_init",
+      "defined_in": "libavutil/murmur3.c",
+      "kind": "symbol",
+      "field_anchors": [],
+      "home": "crustify/rust/ffmpeg/libavutil/murmur3.rs"
+    },
+    {
+      "name": "av_murmur3_init_seeded",
+      "defined_in": "libavutil/murmur3.c",
+      "kind": "symbol",
+      "field_anchors": [],
+      "home": "crustify/rust/ffmpeg/libavutil/murmur3.rs"
+    },
+    {
+      "name": "av_murmur3_update",
+      "defined_in": "libavutil/murmur3.c",
+      "kind": "symbol",
+      "field_anchors": [],
+      "home": "crustify/rust/ffmpeg/libavutil/murmur3.rs"
+    },
+    {
+      "name": "av_rc4_alloc",
+      "defined_in": "libavutil/rc4.c",
+      "kind": "symbol",
+      "field_anchors": [],
+      "home": "crustify/rust/ffmpeg/libavutil/rc4.rs"
+    },
+    {
+      "name": "av_rc4_crypt",
+      "defined_in": "libavutil/rc4.c",
+      "kind": "symbol",
+      "field_anchors": [],
+      "home": "crustify/rust/ffmpeg/libavutil/rc4.rs"
+    },
+    {
+      "name": "av_rc4_init",
+      "defined_in": "libavutil/rc4.c",
+      "kind": "symbol",
+      "field_anchors": [],
+      "home": "crustify/rust/ffmpeg/libavutil/rc4.rs"
+    },
+    {
+      "name": "av_ripemd_alloc",
+      "defined_in": "libavutil/ripemd.c",
+      "kind": "symbol",
+      "field_anchors": [],
+      "home": "crustify/rust/ffmpeg/libavutil/ripemd.rs"
+    },
+    {
+      "name": "av_ripemd_final",
+      "defined_in": "libavutil/ripemd.c",
+      "kind": "symbol",
+      "field_anchors": [],
+      "home": "crustify/rust/ffmpeg/libavutil/ripemd.rs"
+    },
+    {
+      "name": "av_ripemd_init",
+      "defined_in": "libavutil/ripemd.c",
+      "kind": "symbol",
+      "field_anchors": [],
+      "home": "crustify/rust/ffmpeg/libavutil/ripemd.rs"
+    },
+    {
+      "name": "av_ripemd_update",
+      "defined_in": "libavutil/ripemd.c",
+      "kind": "symbol",
+      "field_anchors": [],
+      "home": "crustify/rust/ffmpeg/libavutil/ripemd.rs"
+    },
+    {
+      "name": "av_sha512_alloc",
+      "defined_in": "libavutil/sha512.c",
+      "kind": "symbol",
+      "field_anchors": [],
+      "home": "crustify/rust/ffmpeg/libavutil/sha512.rs"
+    },
+    {
+      "name": "av_sha512_final",
+      "defined_in": "libavutil/sha512.c",
+      "kind": "symbol",
+      "field_anchors": [],
+      "home": "crustify/rust/ffmpeg/libavutil/sha512.rs"
+    },
+    {
+      "name": "av_sha512_init",
+      "defined_in": "libavutil/sha512.c",
+      "kind": "symbol",
+      "field_anchors": [],
+      "home": "crustify/rust/ffmpeg/libavutil/sha512.rs"
+    },
+    {
+      "name": "av_sha512_update",
+      "defined_in": "libavutil/sha512.c",
+      "kind": "symbol",
+      "field_anchors": [],
+      "home": "crustify/rust/ffmpeg/libavutil/sha512.rs"
+    },
+    {
+      "name": "av_sha_alloc",
+      "defined_in": "libavutil/sha.c",
+      "kind": "symbol",
+      "field_anchors": [],
+      "home": "crustify/rust/ffmpeg/libavutil/sha.rs"
+    },
+    {
+      "name": "av_sha_final",
+      "defined_in": "libavutil/sha.c",
+      "kind": "symbol",
+      "field_anchors": [],
+      "home": "crustify/rust/ffmpeg/libavutil/sha.rs"
+    },
+    {
+      "name": "av_sha_init",
+      "defined_in": "libavutil/sha.c",
+      "kind": "symbol",
+      "field_anchors": [],
+      "home": "crustify/rust/ffmpeg/libavutil/sha.rs"
+    },
+    {
+      "name": "av_sha_update",
+      "defined_in": "libavutil/sha.c",
+      "kind": "symbol",
+      "field_anchors": [],
+      "home": "crustify/rust/ffmpeg/libavutil/sha.rs"
+    },
+    {
+      "name": "av_tea_alloc",
+      "defined_in": "libavutil/tea.c",
+      "kind": "symbol",
+      "field_anchors": [],
+      "home": "crustify/rust/ffmpeg/libavutil/tea.rs"
+    },
+    {
+      "name": "av_tea_crypt",
+      "defined_in": "libavutil/tea.c",
+      "kind": "symbol",
+      "field_anchors": [],
+      "home": "crustify/rust/ffmpeg/libavutil/tea.rs"
+    },
+    {
+      "name": "av_tea_init",
+      "defined_in": "libavutil/tea.c",
+      "kind": "symbol",
+      "field_anchors": [],
+      "home": "crustify/rust/ffmpeg/libavutil/tea.rs"
+    },
+    {
+      "name": "av_twofish_alloc",
+      "defined_in": "libavutil/twofish.c",
+      "kind": "symbol",
+      "field_anchors": [],
+      "home": "crustify/rust/ffmpeg/libavutil/twofish.rs"
+    },
+    {
+      "name": "av_twofish_crypt",
+      "defined_in": "libavutil/twofish.c",
+      "kind": "symbol",
+      "field_anchors": [],
+      "home": "crustify/rust/ffmpeg/libavutil/twofish.rs"
+    },
+    {
+      "name": "av_twofish_init",
+      "defined_in": "libavutil/twofish.c",
+      "kind": "symbol",
+      "field_anchors": [],
+      "home": "crustify/rust/ffmpeg/libavutil/twofish.rs"
+    },
+    {
+      "name": "av_xtea_alloc",
+      "defined_in": "libavutil/xtea.c",
+      "kind": "symbol",
+      "field_anchors": [],
+      "home": "crustify/rust/ffmpeg/libavutil/xtea.rs"
+    },
+    {
+      "name": "av_xtea_crypt",
+      "defined_in": "libavutil/xtea.c",
+      "kind": "symbol",
+      "field_anchors": [],
+      "home": "crustify/rust/ffmpeg/libavutil/xtea.rs"
+    },
+    {
+      "name": "av_xtea_init",
+      "defined_in": "libavutil/xtea.c",
+      "kind": "symbol",
+      "field_anchors": [],
+      "home": "crustify/rust/ffmpeg/libavutil/xtea.rs"
+    },
+    {
+      "name": "av_xtea_le_crypt",
+      "defined_in": "libavutil/xtea.c",
+      "kind": "symbol",
+      "field_anchors": [],
+      "home": "crustify/rust/ffmpeg/libavutil/xtea.rs"
+    },
+    {
+      "name": "av_xtea_le_init",
+      "defined_in": "libavutil/xtea.c",
+      "kind": "symbol",
+      "field_anchors": [],
+      "home": "crustify/rust/ffmpeg/libavutil/xtea.rs"
+    }
+  ]
+}

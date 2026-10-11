@@ -1,0 +1,433 @@
+{
+  "crate_path": "/target/crustify/.worktrees/orchestrator/core-wave-0-gate/crustify/rust",
+  "counts": {
+    "unsafe_blocks": 1150,
+    "unsafe_block_stmts": 11,
+    "unsafe_block_lines": 1860,
+    "unsafe_block_code_lines": 1823,
+    "unsafe_blocks_wrapper_impl": 637,
+    "unsafe_blocks_ffi_export": 2,
+    "unsafe_fns": 205,
+    "unsafe_fns_seam": 170,
+    "unsafe_fns_pub_smell": 14,
+    "unsafe_fns_priv_smell": 21,
+    "unsafe_impls": 303,
+    "unsafe_traits": 1,
+    "ffi_calls": 452,
+    "wrapper_newtypes": 45,
+    "wrapper_newtypes_declared": 45,
+    "wrapper_declared_nonconformant": 0,
+    "wrapper_newtypes_undeclared": 0,
+    "raw_ptr_args": 174,
+    "raw_ptr_rets": 211,
+    "raw_ptr_seam": 329,
+    "raw_ptr_wrapped": 8,
+    "raw_ptr_pub_smell": 18,
+    "raw_ptr_priv_smell": 47,
+    "ref_to_type_wrapper_sanctioned": 175,
+    "ref_to_type_wrapper_smell": 1,
+    "ref_to_type_wrapper_body_smell": 0,
+    "deref_impl_on_wrapper": 0,
+    "raw_ptr_fields": 9,
+    "field_ref_wrapped": 0,
+    "field_proj_wrapped": 221,
+    "field_proj_outside_impl": 0,
+    "void_ptr_seam": 143,
+    "void_ptr_pub_smell": 18,
+    "void_ptr_priv_smell": 8,
+    "raw_ptr_derefs": 226,
+    "raw_ptr_derefs_outside_impl": 0,
+    "total_stmts": 2580,
+    "code_lines": 12836
+  },
+  "counts_unavailable": null,
+  "sites": {
+    "unsafe_fns_pub_smell": [
+      {
+        "file": "ffmpeg/libavutil/bprint.rs",
+        "count": 1,
+        "lines": [
+          296
+        ]
+      },
+      {
+        "file": "ffmpeg/libavutil/cpu.rs",
+        "count": 1,
+        "lines": [
+          90
+        ]
+      },
+      {
+        "file": "ffmpeg/libavutil/file.rs",
+        "count": 1,
+        "lines": [
+          63
+        ]
+      },
+      {
+        "file": "ffmpeg/libavutil/imgutils.rs",
+        "count": 2,
+        "lines": [
+          75,
+          586
+        ]
+      },
+      {
+        "file": "ffmpeg/libavutil/log.rs",
+        "count": 9,
+        "lines": [
+          649,
+          680,
+          714,
+          758,
+          1072,
+          1104,
+          1142,
+          1461,
+          1489
+        ]
+      }
+    ],
+    "unsafe_fns_priv_smell": [
+      {
+        "file": "ffmpeg/libavutil/bprint.rs",
+        "count": 3,
+        "lines": [
+          404,
+          453,
+          504
+        ]
+      },
+      {
+        "file": "ffmpeg/libavutil/file.rs",
+        "count": 1,
+        "lines": [
+          26
+        ]
+      },
+      {
+        "file": "ffmpeg/libavutil/mem.rs",
+        "count": 3,
+        "lines": [
+          97,
+          109,
+          781
+        ]
+      },
+      {
+        "file": "ffmpeg/libavutil/opt.rs",
+        "count": 13,
+        "lines": [
+          124,
+          2891,
+          2908,
+          2922,
+          2938,
+          2951,
+          2965,
+          2986
+        ]
+      },
+      {
+        "file": "ffmpeg/libavutil/pixdesc.rs",
+        "count": 1,
+        "lines": [
+          950
+        ]
+      }
+    ],
+    "raw_ptr_pub_smell": [
+      {
+        "file": "ffmpeg/libavutil/channel_layout.rs",
+        "count": 4,
+        "lines": [
+          755,
+          841,
+          1880,
+          1914
+        ]
+      },
+      {
+        "file": "ffmpeg/libavutil/file.rs",
+        "count": 1,
+        "lines": [
+          63
+        ]
+      },
+      {
+        "file": "ffmpeg/libavutil/imgutils.rs",
+        "count": 2,
+        "lines": [
+          75,
+          586
+        ]
+      },
+      {
+        "file": "ffmpeg/libavutil/log.rs",
+        "count": 11,
+        "lines": [
+          649,
+          680,
+          714,
+          758,
+          1072,
+          1104,
+          1142,
+          1249,
+          1461,
+          1489
+        ]
+      }
+    ],
+    "raw_ptr_priv_smell": [
+      {
+        "file": "ffmpeg/libavutil/avstring.rs",
+        "count": 3,
+        "lines": [
+          394,
+          396,
+          930
+        ]
+      },
+      {
+        "file": "ffmpeg/libavutil/bprint.rs",
+        "count": 4,
+        "lines": [
+          404,
+          453,
+          570,
+          640
+        ]
+      },
+      {
+        "file": "ffmpeg/libavutil/channel_layout.rs",
+        "count": 3,
+        "lines": [
+          959,
+          1442,
+          1811
+        ]
+      },
+      {
+        "file": "ffmpeg/libavutil/dict.rs",
+        "count": 1,
+        "lines": [
+          590
+        ]
+      },
+      {
+        "file": "ffmpeg/libavutil/eval.rs",
+        "count": 1,
+        "lines": [
+          444
+        ]
+      },
+      {
+        "file": "ffmpeg/libavutil/file.rs",
+        "count": 1,
+        "lines": [
+          26
+        ]
+      },
+      {
+        "file": "ffmpeg/libavutil/imgutils.rs",
+        "count": 5,
+        "lines": [
+          1252,
+          1265,
+          1295,
+          1538
+        ]
+      },
+      {
+        "file": "ffmpeg/libavutil/log.rs",
+        "count": 5,
+        "lines": [
+          770,
+          1232,
+          1234,
+          1235,
+          1386
+        ]
+      },
+      {
+        "file": "ffmpeg/libavutil/mem.rs",
+        "count": 9,
+        "lines": [
+          97,
+          109,
+          356,
+          387,
+          393,
+          593
+        ]
+      },
+      {
+        "file": "ffmpeg/libavutil/opt.rs",
+        "count": 10,
+        "lines": [
+          124,
+          877,
+          2919,
+          2922,
+          2962,
+          2965,
+          3017,
+          3633,
+          3686,
+          3709
+        ]
+      },
+      {
+        "file": "ffmpeg/libavutil/pixdesc.rs",
+        "count": 1,
+        "lines": [
+          950
+        ]
+      },
+      {
+        "file": "ffmpeg/libavutil/samplefmt.rs",
+        "count": 4,
+        "lines": [
+          359,
+          377,
+          854,
+          938
+        ]
+      }
+    ],
+    "void_ptr_pub_smell": [
+      {
+        "file": "ffmpeg/libavutil/channel_layout.rs",
+        "count": 4,
+        "lines": [
+          755,
+          841,
+          1880,
+          1914
+        ]
+      },
+      {
+        "file": "ffmpeg/libavutil/file.rs",
+        "count": 1,
+        "lines": [
+          63
+        ]
+      },
+      {
+        "file": "ffmpeg/libavutil/imgutils.rs",
+        "count": 2,
+        "lines": [
+          75,
+          586
+        ]
+      },
+      {
+        "file": "ffmpeg/libavutil/log.rs",
+        "count": 11,
+        "lines": [
+          649,
+          680,
+          714,
+          758,
+          1072,
+          1104,
+          1142,
+          1249,
+          1461,
+          1489
+        ]
+      }
+    ],
+    "void_ptr_priv_smell": [
+      {
+        "file": "ffmpeg/libavutil/avstring.rs",
+        "count": 1,
+        "lines": [
+          930
+        ]
+      },
+      {
+        "file": "ffmpeg/libavutil/channel_layout.rs",
+        "count": 1,
+        "lines": [
+          1442
+        ]
+      },
+      {
+        "file": "ffmpeg/libavutil/eval.rs",
+        "count": 1,
+        "lines": [
+          444
+        ]
+      },
+      {
+        "file": "ffmpeg/libavutil/log.rs",
+        "count": 2,
+        "lines": [
+          770,
+          1232
+        ]
+      },
+      {
+        "file": "ffmpeg/libavutil/mem.rs",
+        "count": 2,
+        "lines": [
+          387,
+          393
+        ]
+      },
+      {
+        "file": "ffmpeg/libavutil/opt.rs",
+        "count": 1,
+        "lines": [
+          3017
+        ]
+      }
+    ],
+    "ref_to_type_wrapper_smell": [
+      {
+        "file": "ffmpeg/libavutil/log.rs",
+        "count": 1,
+        "lines": [
+          472
+        ]
+      }
+    ],
+    "ref_to_type_wrapper_body_smell": [],
+    "deref_impl_on_wrapper": [],
+    "field_ref_wrapped": []
+  },
+  "undocumented_unsafe": {
+    "sites": 2627,
+    "documented": 2605,
+    "undocumented": 22,
+    "per_file": {
+      "ffmpeg/libavutil/opt.rs": 4,
+      "ffmpeg/libavutil/avstring.rs": 2,
+      "ffmpeg/tests/equiv/mem.rs": 2,
+      "ffmpeg/libavutil/bprint.rs": 1,
+      "ffmpeg/libavutil/file.rs": 1,
+      "ffmpeg/libavutil/mem.rs": 1,
+      "ffmpeg/libavutil/pixdesc.rs": 1,
+      "ffmpeg/libavutil/pixelutils.rs": 1,
+      "ffmpeg/libavutil/rational.rs": 1,
+      "ffmpeg/libavutil/samplefmt.rs": 1,
+      "ffmpeg/tests/common/opt.rs": 1,
+      "ffmpeg/tests/equiv/avstring.rs": 1,
+      "ffmpeg/tests/equiv/file.rs": 1,
+      "ffmpeg/tests/equiv/log.rs": 1,
+      "ffmpeg/tests/equiv/opt.rs": 1,
+      "ffmpeg/tests/equiv/pixelutils.rs": 1,
+      "ffmpeg/tests/equiv/random_seed.rs": 1
+    }
+  },
+  "derived": {
+    "unsafe_fn_pub_ratio": 0.0683,
+    "unsafe_fn_smell": 35,
+    "raw_ptr_smell": 65,
+    "raw_ptr_seam_ratio": 0.835,
+    "unsafe_loc_ratio": 0.142,
+    "loc_per_unsafe_block": 11.2
+  }
+}
