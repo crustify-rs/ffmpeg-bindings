@@ -738,6 +738,60 @@
    ]
   },
   {
+   "name": "AVFrameSideData",
+   "defined_in": "libavutil/frame.h",
+   "_comment_agent": "One entry of an AVFrameSideData * array (AVFrame.side_data, AVCodecContext.decoded_side_data, or a standalone sd/nb_sd pair). Entries are av_mallocz'd only by side_data.c's static add_side_data_from_buf_ext and freed only by its static free_side_data_entry (av_buffer_unref(&buf), av_dict_free(&metadata), av_freep(entry)), reached publicly through av_frame_side_data_new/add/clone (construct into the array), av_frame_side_data_remove/remove_by_props and av_frame_side_data_free (destroy with the array); no public routine allocates, frees or copies a lone entry, and sizeof(AVFrameSideData) is outside the ABI, so an entry is always borrowed from the array that owns it. Each array slot owns its entry exclusively (clone makes a new entry sharing buf's buffer and deep-copying metadata). type is a plain enum C compares by equality and maps through av_frame_side_data_desc.",
+   "fields": [
+    {
+     "name": "buf",
+     "ptr": {
+      "scalar": {
+       "by_val": true
+      },
+      "array": null,
+      "string": false,
+      "owned": true,
+      "borrowed": null,
+      "nullable": false,
+      "mutable": false,
+      "note": "One counted AVBufferRef the entry owns: released by free_side_data_entry's av_buffer_unref, replaced by replace_side_data_from_buf (unref old, store the caller's) and av_buffer_replace in av_frame_side_data_clone, shared by av_buffer_ref in clone and frame_copy_props. Never NULL for an entry C built: ff_frame_side_data_add_from_buf refuses a NULL buf, and av_frame_side_data_clone/av_frame_ref would crash on one (av_buffer_ref(NULL)). The AVBufferRef struct itself is not written through this pointer; the slot is replaced."
+     }
+    },
+    {
+     "name": "data",
+     "ptr": {
+      "scalar": null,
+      "array": {
+       "by_val": true
+      },
+      "string": false,
+      "owned": false,
+      "borrowed": {
+       "lifetime": "field:buf"
+      },
+      "nullable": true,
+      "mutable": true,
+      "note": "size bytes of the payload. Every C writer sets data = buf->data and size = buf->size together (ff_frame_side_data_add_from_buf, replace_side_data_from_buf) or copies both from a source entry whose buf it references (av_frame_side_data_clone), so the bytes lie in the buffer buf counts and live as long as that reference; never freed through data. NULL only with size 0 (a NULL-data buffer). av_frame_side_data_new's payload comes from av_buffer_alloc and is uninitialised until the caller fills it; callers write it in place (mpeg12dec, hevc refs, af_aresample, tests/side_data_array.c). The bytes are shared with every other reference to buf's buffer (clone, av_frame_ref), so they are writable only while av_buffer_is_writable(buf)."
+     }
+    },
+    {
+     "name": "metadata",
+     "ptr": {
+      "scalar": {
+       "by_val": true
+      },
+      "array": null,
+      "string": false,
+      "owned": true,
+      "borrowed": null,
+      "nullable": true,
+      "mutable": true,
+      "note": "The entry's own dictionary, NULL when empty: freed by free_side_data_entry and replace_side_data_from_buf (av_dict_free), deep-copied by av_frame_side_data_clone (av_dict_copy into the new entry) and frame_copy_props; users insert through av_dict_set(&sd->metadata, ...), which may allocate or free it, so writers need the slot."
+     }
+    }
+   ]
+  },
+  {
    "name": "AVFrameSideDataType",
    "defined_in": "libavutil/frame.h",
    "_comment_agent": "Plain C enum (AV_FRAME_DATA_PANSCAN=0 .. AV_FRAME_DATA_DOWNMIX_MATRIX=37, contiguous, no count sentinel, no deprecated enumerators). No fields, no pointers, no lifecycle. Every enumerator is non-negative, so the underlying type is unsigned (ffi::AVFrameSideDataType is a c_uint newtype). Passed by value to the av_frame_side_data_* and av_frame_{new,get,remove}_side_data family and stored in the public, user-writable field AVFrameSideData.type (also libavcodec's internal SideDataMap.frame). Every C reader accepts any value: av_frame_side_data_desc/_name bounds-check `(unsigned)type < FF_ARRAY_ELEMS(sd_props)` and a NULL name (returning NULL otherwise), av_frame_side_data_get/remove compare for equality, and the add/clone paths treat a NULL descriptor as 'no props'. A Rust view of AVFrameSideData.type may therefore meet any unsigned value: the wrapper must be an open, layout-compatible newtype accepting every value (not a Rust enum), plain data (CPlainElem), Send+Sync as an integer. PANSCAN is the zeroed value; no value means 'no side data', so the wrapper has no Default.",
