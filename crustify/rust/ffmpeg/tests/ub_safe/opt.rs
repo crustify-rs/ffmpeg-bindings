@@ -763,3 +763,99 @@ mod lookups {
         }
     }
 }
+
+/// Flags values longer than C's 255-byte token buffer, evaluated in C's
+/// `cpuflags` class: C parses each cut piece as an expression of its own, so
+/// a piece that starts inside what the whole value reads as one number
+/// (`0...0ld(1e300)`) must be refused on its own (options wave-2 review,
+/// `ub_safe/eval-flags-token-split-hides-evaluator-call`).
+mod flag_token_split {
+    use std::cell::{Cell, RefCell};
+    use std::ffi::CString;
+
+    use ffmpeg::libavutil::cpu;
+    use ffmpeg::libavutil::log::{self, Callback, ClassRef, Record};
+    use ffmpeg::libavutil::opt::SearchFlags;
+
+    use crate::log::{LogState, isolated};
+
+    const EINVAL: i32 = -22;
+    /// `AV_CPU_FLAG_MMX` and `AV_CPU_FLAG_SSE2`.
+    const MMX: i32 = 0x1;
+    const SSE2: i32 = 0x10;
+
+    /// An optional `+`, then `0*` and 253 zeros (one 255-byte token that
+    /// evaluates to 0), then `tail`, which C evaluates as the next token.
+    fn split(cmd: bool, tail: &str) -> CString {
+        let mut v = if cmd { b"+0*".to_vec() } else { b"0*".to_vec() };
+        v.extend([b'0'; 253]);
+        v.extend(tail.as_bytes());
+        CString::new(v).unwrap()
+    }
+
+    /// Each value's result and flags, from `MMX`.
+    type Seen = Vec<(Result<(), i32>, i32)>;
+
+    thread_local! {
+        static ARMED: Cell<bool> = const { Cell::new(false) };
+        static SEEN: RefCell<Seen> = const { RefCell::new(Vec::new()) };
+    }
+
+    /// Evaluates the values in the class of the first `cpuflags` message an
+    /// armed thread logs.
+    struct Probe;
+
+    impl Callback for Probe {
+        fn log(record: Record<'_>) {
+            if !ARMED.with(Cell::get) {
+                return;
+            }
+            let Some(class) = record.class() else { return };
+            if class.name() != Some(c"cpuflags") {
+                return;
+            }
+            ARMED.with(|a| a.set(false));
+            let seen = probe(class);
+            SEEN.with(|s| *s.borrow_mut() = seen);
+        }
+    }
+
+    fn probe(class: ClassRef<'_>) -> Seen {
+        let flags = class.find(c"flags", None, 0, SearchFlags::NONE).unwrap();
+        [
+            split(false, "ld(1e300)"),
+            split(true, "ld(1e300)"),
+            split(false, "print(1,1e300)"),
+            split(false, "1"),
+            split(false, "ld(1)"),
+            split(true, "+sse2"),
+        ]
+        .iter()
+        .map(|v| {
+            let mut f = MMX;
+            (flags.eval_flags(class, v, &mut f), f)
+        })
+        .collect()
+    }
+
+    #[test]
+    fn cut_tokens_are_refused_on_their_own() {
+        if !isolated("opt::flag_token_split::cut_tokens_are_refused_on_their_own") {
+            return;
+        }
+        let _s = LogState::lock();
+        ARMED.with(|a| a.set(true));
+        log::set_callback::<Probe>();
+        let mut f = 0;
+        assert!(cpu::parse_cpu_caps(&mut f, c"no-such-flag").is_err());
+        log::set_default_callback();
+        ARMED.with(|a| a.set(false));
+        let seen = SEEN.with(RefCell::take);
+        // Refused before C runs: the flags are untouched.
+        let refused = (Err(EINVAL), MMX);
+        // The second token replaces what the first wrote, or adds to it.
+        let accepted = [(Ok(()), 1), (Ok(()), 0), (Ok(()), MMX | SSE2)];
+        assert_eq!(seen[..3], [refused; 3]);
+        assert_eq!(seen[3..], accepted);
+    }
+}
