@@ -1,0 +1,20 @@
+error[E0502]: cannot borrow `m` as mutable because it is also borrowed as immutable
+ --> tests/ub_safe/compile_fail/opt_range_label_read_across_take.rs
+  |
+  | fn peek_then_take<'a>(mut m: OptionRangeMut<'a>) -> Option<&'a CStr> {
+  |                   -- lifetime `'a` defined here
+  |     let label = m.as_ref().label();
+  |                 - immutable borrow occurs here
+  |     drop(m.take_label());
+  |          ^^^^^^^^^^^^^^ mutable borrow occurs here
+  |     label
+  |     ----- returning this value requires that `m` is borrowed for `'a`
+
+error[E0515]: cannot return value referencing function parameter `m`
+ --> tests/ub_safe/compile_fail/opt_range_label_read_across_take.rs
+  |
+  |     let label = m.as_ref().label();
+  |                 - `m` is borrowed here
+  |     drop(m.take_label());
+  |     label
+  |     ^^^^^ returns a value referencing data owned by the current function

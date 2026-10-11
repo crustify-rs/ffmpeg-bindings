@@ -1,9 +1,7 @@
 // A view of a range list cannot outlive the owner of its elements.
-use ffibox::CSlice;
-use ffmpeg::libavutil::ffi;
-use ffmpeg::libavutil::opt::OptionRangesBox;
+use ffmpeg::libavutil::opt::{OptionRangesBox, RangeIter};
 
-fn view(b: OptionRangesBox) -> CSlice<'static, *const ffi::AVOptionRange> {
+fn view(b: OptionRangesBox) -> RangeIter<'static> {
     b.as_ref().ranges()
 }
 

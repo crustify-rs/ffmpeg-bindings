@@ -1,0 +1,9 @@
+error[E0499]: cannot borrow `m` as mutable more than once at a time
+ --> tests/ub_safe/compile_fail/opt_range_mut_aliases.rs
+  |
+  |     let first = m.get_mut(0, 0);
+  |                 - first mutable borrow occurs here
+  |     let second = m.get_mut(1, 0);
+  |                  ^ second mutable borrow occurs here
+  |     drop((first, second));
+  |           ----- first borrow later used here

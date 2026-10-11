@@ -1577,7 +1577,7 @@ fn default_callback_output_is_identical() {
 
 /// The `log_with_context` route to a raw class's `ClassRef`.
 #[path = "../common/class.rs"]
-mod class_fixture;
+pub(crate) mod class_fixture;
 
 /// Equivalence of `AVClass`'s getters and callable handles with C's readers
 /// of the same classes: `av_default_item_name`, `av_default_get_category`,

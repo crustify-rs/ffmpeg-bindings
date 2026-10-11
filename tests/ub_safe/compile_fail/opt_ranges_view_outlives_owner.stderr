@@ -6,3 +6,5 @@ error[E0515]: cannot return value referencing function parameter `b`
   |     |
   |     returns a value referencing data owned by the current function
   |     `b` is borrowed here
+  |
+  = help: use `.collect()` to allocate the iterator

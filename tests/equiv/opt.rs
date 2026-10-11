@@ -1,12 +1,14 @@
-//! Equivalence of `libavutil/opt.h`'s owned range lists with the raw C
-//! queries, on independently owned lists of the shared test class.
+//! Equivalence of `libavutil/opt.h`'s owned range lists and their ranges
+//! with the raw C queries and C's writes of the same fields, on
+//! independently owned lists of the shared test class; and of option types
+//! with the values C stores and reads.
 
 use core::ffi::{CStr, c_int, c_void};
 use core::mem::size_of;
 use std::ffi::CString;
 
 use ffmpeg::libavutil::ffi;
-use ffmpeg::libavutil::opt::{OptionRanges, OptionRangesBox, OptionRangesRef};
+use ffmpeg::libavutil::opt::{OptionRangeRef, OptionRanges, OptionRangesBox, OptionRangesRef};
 
 #[path = "../common/opt.rs"]
 pub(crate) mod fixture;
@@ -42,7 +44,7 @@ struct List {
     ranges: Vec<Option<Range>>,
 }
 
-/// Reads the range at `p`, NULL included.
+/// Reads the range at `p` through its raw fields, NULL included.
 fn range(p: *const ffi::AVOptionRange) -> Option<Range> {
     if p.is_null() {
         return None;
@@ -74,13 +76,32 @@ fn c_list(p: *const ffi::AVOptionRanges) -> List {
     }
 }
 
+/// The range behind `e`, read through the safe getters. `is_range` reads as
+/// a `bool`, so a list C built with another non-zero flag compares unequal.
+fn rust_range(e: OptionRangeRef<'_>) -> Range {
+    Range {
+        str_: e.label().map(CStr::to_owned),
+        value: (e.value_min(), e.value_max()),
+        component: (e.component_min(), e.component_max()),
+        is_range: c_int::from(e.is_range()),
+    }
+}
+
 /// The Rust list behind `r`, read through the safe getters.
 fn rust_list(r: OptionRangesRef<'_>) -> List {
-    List {
+    let list = List {
         nb_ranges: r.range_count(),
         nb_components: r.component_count(),
-        ranges: r.ranges().elems().map(range).collect(),
+        ranges: r.ranges().map(|e| e.map(rust_range)).collect(),
+    };
+    // Indexing reads the same ranges as iterating.
+    for c in 0..list.nb_components {
+        for i in 0..list.nb_ranges {
+            let e = r.get(i, c).map(rust_range);
+            assert_eq!(e.as_ref(), list.ranges[c * list.nb_ranges + i].as_ref());
+        }
     }
+    list
 }
 
 /// A C-owned list, freed with `av_opt_freep_ranges` on drop.
@@ -326,5 +347,272 @@ fn query_sequences_keep_lists_independent() {
         drop(c);
         check(&live);
         drop(rust);
+    }
+}
+
+/// One write to a range, applied by Rust through `OptionRangeMut` and by C
+/// as C code writes the fields.
+#[derive(Clone, Copy, Debug)]
+enum Write {
+    Label(Option<&'static CStr>),
+    Take,
+    ValueMin(f64),
+    ValueMax(f64),
+    ComponentMin(f64),
+    ComponentMax(f64),
+    IsRange(bool),
+}
+
+/// Applies `w` to range `(i, comp)` of the C list `c` as C code would: a
+/// string is replaced by `av_freep` then `av_strdup`, and taken by moving
+/// it out and NULLing the field. Returns the taken string, if any.
+fn c_write(c: &CList, i: usize, comp: usize, w: Write) -> Option<Option<CString>> {
+    // SAFETY: `c.0` is a live list C returned, owned by `c`.
+    let l = unsafe { c.0.read() };
+    let slot = comp * l.nb_ranges as usize + i;
+    // SAFETY: `slot` is within the list's `nb_ranges * nb_components`
+    // elements, per each caller.
+    let r = unsafe { *l.range.add(slot) };
+    assert!(!r.is_null());
+    // SAFETY: `r` is a live range the list owns; its `str` is NULL or an
+    // `av_malloc`-family string, freed and replaced as `av_opt_freep_ranges`
+    // expects.
+    unsafe {
+        match w {
+            Write::Label(s) => {
+                let mut old = (*r).str_.cast_mut().cast::<c_void>();
+                ffi::av_freep((&raw mut old).cast());
+                (*r).str_ = s.map_or(core::ptr::null(), |s| {
+                    ffi::av_strdup(s.as_ptr()).cast_const()
+                });
+            }
+            Write::Take => {
+                let old = core::mem::replace(&mut (*r).str_, core::ptr::null());
+                let taken = (!old.is_null()).then(|| CStr::from_ptr(old).to_owned());
+                ffi::av_free(old.cast_mut().cast());
+                return Some(taken);
+            }
+            Write::ValueMin(v) => (*r).value_min = v,
+            Write::ValueMax(v) => (*r).value_max = v,
+            Write::ComponentMin(v) => (*r).component_min = v,
+            Write::ComponentMax(v) => (*r).component_max = v,
+            Write::IsRange(b) => (*r).is_range = c_int::from(b),
+        }
+    }
+    None
+}
+
+/// Applies `w` to range `(i, comp)` of the Rust list `b` through the safe
+/// setters. Returns the taken string, if any.
+fn rust_write(b: &mut OptionRangesBox, i: usize, comp: usize, w: Write) -> Option<Option<CString>> {
+    let mut m = b.as_mut();
+    let mut e = m.get_mut(i, comp).unwrap();
+    match w {
+        Write::Label(s) => {
+            e.set_label(s.map(|s| ffmpeg::libavutil::mem::string_from_c_str(s).unwrap()))
+        }
+        Write::Take => return Some(e.take_label().map(|s| s.as_c_str().to_owned())),
+        Write::ValueMin(v) => e.set_value_min(v),
+        Write::ValueMax(v) => e.set_value_max(v),
+        Write::ComponentMin(v) => e.set_component_min(v),
+        Write::ComponentMax(v) => e.set_component_max(v),
+        Write::IsRange(v) => e.set_is_range(v),
+    }
+    None
+}
+
+/// The writes of [`writes_agree_after_every_step`], cycled over the
+/// elements.
+const WRITES: [Write; 14] = [
+    Write::Label(Some(c"a")),
+    Write::ValueMin(-3.5),
+    Write::Label(Some(c"replaced")),
+    Write::IsRange(false),
+    Write::ComponentMax(f64::MAX),
+    Write::Take,
+    Write::Take,
+    Write::Label(None),
+    Write::Label(Some(c"")),
+    Write::ValueMax(f64::INFINITY),
+    Write::ComponentMin(-0.0),
+    Write::IsRange(true),
+    Write::Label(None),
+    Write::Label(Some(c"last")),
+];
+
+/// The same writes to a C list and a Rust list of the same query leave both
+/// equal after every step, including the strings each `take` hands back;
+/// the drops then release each side's strings once (LeakSanitizer, ASan).
+#[test]
+fn writes_agree_after_every_step() {
+    let cases: [(&fixture::FakeObj, &CStr, c_int); 4] = [
+        (&CB_FAKE, c"size", FAKE_OBJ | MULTI),
+        (&CB_FAKE, c"sparse", FAKE_OBJ),
+        (&FAKE, c"string", FAKE_OBJ),
+        (&FAKE, c"size", FAKE_OBJ | MULTI),
+    ];
+    for (obj, key, flags) in cases {
+        let (mut c, rust) = both(Via::Callback, obj.as_obj(), key, flags);
+        let mut rust = rust.unwrap();
+        let shape = c_list(c.0);
+        let live: Vec<(usize, usize)> = (0..shape.nb_components)
+            .flat_map(|comp| (0..shape.nb_ranges).map(move |i| (i, comp)))
+            .filter(|&(i, comp)| shape.ranges[comp * shape.nb_ranges + i].is_some())
+            .collect();
+        for (step, w) in WRITES.iter().cycle().take(3 * WRITES.len()).enumerate() {
+            let (i, comp) = live[step % live.len()];
+            let ctx = format!("{key:?} step {step} {w:?} at ({i}, {comp})");
+            let taken = (c_write(&c, i, comp, *w), rust_write(&mut rust, i, comp, *w));
+            assert_eq!(taken.0, taken.1, "{ctx}");
+            assert_eq!(rust_list(rust.as_ref()), c_list(c.0), "{ctx}");
+        }
+        // NULL elements have no exclusive handle and stay NULL.
+        for (k, e) in shape.ranges.iter().enumerate() {
+            if e.is_none() {
+                let (i, comp) = (k % shape.nb_ranges, k / shape.nb_ranges);
+                assert!(rust.as_mut().get_mut(i, comp).is_none());
+            }
+        }
+        drop(rust);
+        drop(core::mem::replace(&mut c, CList(core::ptr::null_mut())));
+    }
+}
+
+/// Option types as C stores and reads them: through every class's option
+/// table, and through `av_opt_get_array_size`, which accepts an option
+/// exactly when its type carries the array flag.
+mod option_type {
+    use core::ffi::{CStr, c_int, c_uint, c_void};
+    use core::ptr;
+    use std::ffi::CString;
+
+    use ffmpeg::libavutil::ffi;
+    use ffmpeg::libavutil::log::ClassRef;
+    use ffmpeg::libavutil::opt::OptionType;
+
+    use super::fixture::{CLASS, Ctx, FAKE, OPTIONS};
+    use crate::log::LogState;
+    use crate::log::class_fixture::with_class;
+
+    /// `AVERROR(EINVAL)`.
+    const EINVAL: c_int = -22;
+
+    /// The type C stores for each option `av_opt_next` walks for `obj`.
+    fn c_types(obj: *mut c_void) -> Vec<(*const core::ffi::c_char, ffi::AVOptionType)> {
+        let mut out = Vec::new();
+        let mut prev = ptr::null();
+        loop {
+            // SAFETY: `obj` is a `const AVClass *` slot to a well-formed
+            // class; `prev` is NULL or an entry of its table.
+            prev = unsafe { ffi::av_opt_next(obj, prev) };
+            if prev.is_null() {
+                return out;
+            }
+            // SAFETY: a live table entry, read by value.
+            let o = unsafe { prev.read() };
+            out.push((o.name, o.type_));
+        }
+    }
+
+    /// Asserts each option of `c` has the type, base and array flag C
+    /// stores, in `av_opt_next` order; returns the types read.
+    fn compare(c: ClassRef<'_>, obj: *mut c_void) -> Vec<OptionType> {
+        let rust: Vec<_> = c
+            .options()
+            .iter()
+            .map(|o| (o.name().map_or(ptr::null(), CStr::as_ptr), o.option_type()))
+            .collect();
+        let c_side = c_types(obj);
+        assert_eq!(rust.len(), c_side.len());
+        for ((name, ty), (c_name, raw)) in rust.iter().zip(&c_side) {
+            assert_eq!(name, c_name);
+            assert_eq!(ty.value(), raw.0);
+            assert_eq!(ffi::AVOptionType::from(*ty), *raw);
+            // libavutil's `TYPE_BASE` and its array test.
+            let flag = ffi::AVOptionType::AV_OPT_TYPE_FLAG_ARRAY.0;
+            assert_eq!(ty.base().value(), raw.0 & !flag);
+            assert_eq!(ty.is_array(), raw.0 & flag != 0);
+        }
+        rust.into_iter().map(|(_, ty)| ty).collect()
+    }
+
+    /// A `const AVClass *` slot: the fake object C's option readers take.
+    struct Fake(*const ffi::AVClass);
+
+    impl Fake {
+        fn obj(&mut self) -> *mut c_void {
+            (&raw mut self.0).cast()
+        }
+    }
+
+    #[test]
+    fn fixture_types_read_as_c_stores_them() {
+        let _s = LogState::lock();
+        let mut fake = Fake(FAKE.0);
+        let obj = fake.obj();
+        // SAFETY: `obj` is a context whose class is the static fixture class.
+        let types = unsafe { with_class(obj, |c| compare(c.unwrap(), obj)) };
+        assert_eq!(types.len(), OPTIONS.0.len() - 1);
+        assert!(types.contains(&OptionType::INT.array()));
+        assert!(types.contains(&OptionType::from_value(99)));
+    }
+
+    #[test]
+    fn iamf_types_read_as_c_stores_them() {
+        let _s = LogState::lock();
+        let getters: [unsafe extern "C" fn() -> *const ffi::AVClass; 3] = [
+            ffi::av_iamf_audio_element_get_class,
+            ffi::av_iamf_mix_presentation_get_class,
+            ffi::av_iamf_param_definition_get_class,
+        ];
+        let mut seen = Vec::new();
+        for get in getters {
+            // SAFETY: each returns a pointer to a static class.
+            let mut fake = Fake(unsafe { get() });
+            let obj = fake.obj();
+            // SAFETY: `obj` is a context whose class is a static FFmpeg
+            // class with no offsets.
+            seen.extend(unsafe { with_class(obj, |c| compare(c.unwrap(), obj)) });
+        }
+        // FFmpeg's own tables name only known base types.
+        assert!(!seen.is_empty());
+        assert!(seen.iter().all(|t| t.name().is_some() && !t.is_array()));
+    }
+
+    /// `av_opt_get_array_size` succeeds for exactly the options whose type
+    /// `is_array`, and rejects the others with `AVERROR(EINVAL)`.
+    #[test]
+    fn array_flag_agrees_with_av_opt_get_array_size() {
+        let _s = LogState::lock();
+        let mut ctx = Ctx::new(&CLASS);
+        let obj = ctx.as_obj();
+        // SAFETY: `obj` is a zeroed object of the well-formed `CLASS`; its
+        // array options stay NULL with a zero count.
+        let types: Vec<(CString, OptionType)> = unsafe {
+            with_class(obj, |c| {
+                let options = c.unwrap().options();
+                let named = options
+                    .iter()
+                    .map(|o| (o.name().unwrap().to_owned(), o.option_type()));
+                named.collect()
+            })
+        };
+        let mut arrays = 0;
+        for (name, ty) in types {
+            if ty == OptionType::CONST {
+                continue;
+            }
+            let mut n: c_uint = 7;
+            // SAFETY: `obj` is the live object, `name` a live string and `n`
+            // a writable count.
+            let ret = unsafe { ffi::av_opt_get_array_size(obj, name.as_ptr(), 0, &mut n) };
+            if ty.is_array() {
+                assert_eq!((ret, n), (0, 0), "{name:?} {ty:?}");
+                arrays += 1;
+            } else {
+                assert_eq!((ret, n), (EINVAL, 7), "{name:?} {ty:?}");
+            }
+        }
+        assert_eq!(arrays, 2);
     }
 }
