@@ -2,7 +2,6 @@
 
 mod bprint;
 mod cpu;
-mod eval;
 mod file;
 mod imgutils;
 mod log;

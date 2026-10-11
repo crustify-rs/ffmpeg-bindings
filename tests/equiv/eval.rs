@@ -864,3 +864,166 @@ mod expressions {
         }
     }
 }
+
+/// Equivalence of `Expr::parse_with_context` with `av_expr_parse` given the
+/// same parent log context: the outcome, and every message C logs, with its
+/// level, class and formatted line (context addresses masked: C's own `Eval`
+/// context lives on its stack). The C reference also runs with a parent led
+/// by a NULL class, which C treats as no parent, as the wrapper's `None`.
+mod parse_with_context {
+    use core::cell::RefCell;
+    use core::ffi::{CStr, c_int, c_void};
+    use core::ptr;
+
+    use ffmpeg::libavutil::eval::Expr;
+    use ffmpeg::libavutil::ffi;
+    use ffmpeg::libavutil::log::{self, Callback, Record};
+    use ffmpeg::libavutil::opt::ObjectRef;
+
+    use crate::log::LogState;
+
+    type Line = (c_int, Option<String>, String);
+
+    thread_local! {
+        static LINES: RefCell<Option<Vec<Line>>> = const { RefCell::new(None) };
+    }
+
+    /// `line` with every context address (` @ 0x...`) masked.
+    fn mask_addresses(line: &str) -> String {
+        let mut out = String::new();
+        let mut rest = line;
+        while let Some(at) = rest.find(" @ 0x") {
+            out.push_str(&rest[..at]);
+            out.push_str(" @ ADDR");
+            rest = rest[at + 5..].trim_start_matches(|c: char| c.is_ascii_hexdigit());
+        }
+        out.push_str(rest);
+        out
+    }
+
+    /// Captures this thread's messages while [`captured`] runs.
+    struct Capture;
+
+    impl Callback for Capture {
+        fn log(record: Record<'_>) {
+            LINES.with(|l| {
+                if let Some(lines) = l.borrow_mut().as_mut() {
+                    let mut prefix = true;
+                    let line = record.to_line(&mut prefix).unwrap().into_string().unwrap();
+                    let class = record
+                        .class()
+                        .and_then(|c| c.name())
+                        .map(|n| n.to_string_lossy().into_owned());
+                    lines.push((record.level().raw(), class, mask_addresses(&line)));
+                }
+            });
+        }
+    }
+
+    /// The result and the lines `f` logs on this thread. The caller holds
+    /// the [`LogState`] lock.
+    fn captured(f: impl FnOnce() -> Result<(), c_int>) -> (Result<(), c_int>, Vec<Line>) {
+        LINES.with(|l| *l.borrow_mut() = Some(Vec::new()));
+        log::set_callback::<Capture>();
+        let r = f();
+        log::set_default_callback();
+        (r, LINES.with(|l| l.borrow_mut().take().unwrap()))
+    }
+
+    /// Runs the test `name` alone in a child process, so that no other test
+    /// logs through the callback it installs; true in that child.
+    fn isolated(name: &str) -> bool {
+        const KEY: &str = "CRUSTIFY_EQUIV_EVAL_PARSE_WITH_CONTEXT_ISOLATED";
+        if std::env::var_os(KEY).is_some() {
+            return true;
+        }
+        let status = std::process::Command::new(std::env::current_exe().unwrap())
+            .args(["--exact", name, "--test-threads=1"])
+            .env(KEY, "1")
+            .status()
+            .unwrap();
+        assert!(status.success(), "isolated run failed: {status}");
+        false
+    }
+
+    /// A logging context: its class first, as every C context has.
+    #[repr(C)]
+    struct Ctx {
+        class: *const ffi::AVClass,
+    }
+
+    /// `av_expr_parse` of `s` with no names, `log_offset` and the parent
+    /// `ctx`; the tree it builds is freed.
+    fn c_parse(s: &CStr, log_offset: c_int, ctx: *mut c_void) -> Result<(), c_int> {
+        let mut e = ptr::null_mut();
+        // SAFETY: a writable slot, a literal, no names, and NULL or a live
+        // context led by NULL or a valid class.
+        let ret = unsafe {
+            ffi::av_expr_parse(
+                &mut e,
+                s.as_ptr(),
+                ptr::null(),
+                ptr::null(),
+                ptr::null(),
+                ptr::null(),
+                ptr::null(),
+                log_offset,
+                ctx,
+            )
+        };
+        // SAFETY: NULL or the tree C just built, released once.
+        unsafe { ffi::av_expr_free(e) };
+        if ret < 0 { Err(ret) } else { Ok(()) }
+    }
+
+    #[test]
+    fn parses_log_as_c_under_each_parent() {
+        if super::under_bsan()
+            || !isolated("eval::parse_with_context::parses_log_as_c_under_each_parent")
+        {
+            return;
+        }
+        let _state = LogState::lock();
+        let class = ffi::AVClass {
+            class_name: c"equiv-eval-parent".as_ptr(),
+            item_name: Some(ffi::av_default_item_name),
+            version: (ffi::LIBAVUTIL_VERSION_MAJOR << 16
+                | ffi::LIBAVUTIL_VERSION_MINOR << 8
+                | ffi::LIBAVUTIL_VERSION_MICRO) as c_int,
+            ..Default::default()
+        };
+        let mut parent = Ctx { class: &class };
+        let parent: *mut c_void = (&raw mut parent).cast();
+        let mut classless = Ctx { class: ptr::null() };
+        let classless: *mut c_void = (&raw mut classless).cast();
+        // SAFETY: a live context led by a valid class with no options, which
+        // nothing writes during the test.
+        let handle = unsafe { ObjectRef::from_ptr(parent) }.unwrap();
+        // SAFETY: as above; a NULL class makes no handle.
+        assert!(unsafe { ObjectRef::from_ptr(classless) }.is_none());
+        for (c_ctx, rust_ctx) in [
+            (ptr::null_mut(), None),
+            (classless, None),
+            (parent, Some(handle)),
+        ] {
+            for offset in [c_int::MIN, -16, -8, 0, 8, 16, 40] {
+                for s in [c"2*3", c"2*", c"Y", c"nosuch(1)", c"1 )", c"(1", c"1+"] {
+                    let c = captured(|| c_parse(s, offset, c_ctx));
+                    let rust = captured(|| {
+                        Expr::parse_with_context(s, &[], &[], &[], offset, rust_ctx).map(drop)
+                    });
+                    assert_eq!(rust, c, "{s:?} at {offset}");
+                    // Errors at or below the default level reach the callback,
+                    // prefixed by the parent when there is one.
+                    if c.0.is_err() && offset <= 16 {
+                        assert!(!c.1.is_empty(), "{s:?} at {offset}: nothing logged");
+                        let named =
+                            c.1.iter()
+                                .all(|l| l.2.contains("[equiv-eval-parent @ ADDR]"));
+                        assert_eq!(named, rust_ctx.is_some(), "{:?}", c.1);
+                    }
+                }
+            }
+        }
+    }
+}

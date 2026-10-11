@@ -673,3 +673,105 @@ mod expressions {
         }
     }
 }
+
+/// `Expr::parse_with_context`: no parent context, a parent led by a class,
+/// one dropped right after the parse (the tree keeps no pointer to it), and
+/// parents parsing on several threads at once over one class, at level
+/// offsets up to the overflow bound, on valid and invalid expressions.
+mod parse_with_context {
+    use core::ffi::{CStr, c_int, c_void};
+    use std::thread;
+
+    use ffmpeg::libavutil::eval::{Expr, UnaryFn};
+    use ffmpeg::libavutil::ffi;
+    use ffmpeg::libavutil::log::{Class, ClassCategory};
+    use ffmpeg::libavutil::opt::{BareObject, ObjectRef};
+
+    /// `AVERROR(EINVAL)`.
+    const EINVAL: c_int = -22;
+
+    /// The class every parent context here has.
+    static CLASS: Class = Class::new(c"ub-eval-parent", ClassCategory::NA);
+
+    /// Whether this run is under BSan, which misreports C's parser (see
+    /// `expr::under_bsan`). The tests that parse return early under it.
+    fn under_bsan() -> bool {
+        std::env::var("CRUSTIFY_FFMPEG_VARIANT").as_deref() == Ok("bsan")
+    }
+
+    extern "C" fn twice(_: *mut c_void, x: f64) -> f64 {
+        2.0 * x
+    }
+
+    /// The parses every context runs: valid and invalid expressions, at the
+    /// offsets around the overflow bound. Offsets that keep the error level
+    /// at or below the default log level make C log through the context.
+    fn parses(ctx: Option<ObjectRef<'_>>) {
+        let unary: [(&CStr, UnaryFn); 1] = [(c"f", twice)];
+        let max = c_int::MAX - ffi::AV_LOG_ERROR as c_int;
+        for offset in [c_int::MIN, -8, 0, 8, 40, max] {
+            let e = Expr::parse_with_context(c"f(X) + 1", &[c"X"], &unary, &[], offset, ctx);
+            drop(e.unwrap());
+            for s in [c"f(", c"Y", c"nosuch(1)", c"1 )"] {
+                let r = Expr::parse_with_context(s, &[c"X"], &unary, &[], offset, ctx);
+                assert_eq!(r.err(), Some(EINVAL), "{s:?} at {offset}");
+            }
+        }
+        // Rejected before C runs.
+        for offset in [max + 1, c_int::MAX] {
+            let r = Expr::parse_with_context(c"1", &[], &[], &[], offset, ctx);
+            assert_eq!(r.err(), Some(EINVAL));
+            let r = Expr::parse_with_context(c"1+", &[], &[], &[], offset, ctx);
+            assert_eq!(r.err(), Some(EINVAL));
+        }
+    }
+
+    #[test]
+    fn no_context() {
+        if under_bsan() {
+            return;
+        }
+        parses(None);
+    }
+
+    #[test]
+    fn context_with_a_class() {
+        if under_bsan() {
+            return;
+        }
+        let ctx = BareObject::new(CLASS.as_ref()).unwrap();
+        parses(Some(ctx.as_object()));
+    }
+
+    #[test]
+    fn context_dropped_right_after_the_parse() {
+        if under_bsan() {
+            return;
+        }
+        let tree = {
+            let ctx = Box::new(BareObject::new(CLASS.as_ref()).unwrap());
+            let tree = Expr::parse_with_context(c"2*3", &[], &[], &[], 0, Some(ctx.as_object()));
+            // This parse fails and logs through `ctx`.
+            let failed = Expr::parse_with_context(c"2*", &[], &[], &[], 0, Some(ctx.as_object()));
+            assert_eq!(failed.err(), Some(EINVAL));
+            tree.unwrap()
+        };
+        // The tree outlives the context.
+        drop(tree);
+    }
+
+    #[test]
+    fn contexts_on_many_threads() {
+        if under_bsan() {
+            return;
+        }
+        thread::scope(|s| {
+            for _ in 0..4 {
+                s.spawn(|| {
+                    let ctx = BareObject::new(CLASS.as_ref()).unwrap();
+                    parses(Some(ctx.as_object()));
+                });
+            }
+        });
+    }
+}
