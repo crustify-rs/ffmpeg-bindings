@@ -1,0 +1,121 @@
+{
+  "method": {
+    "rust": "RUSTFLAGS=-C instrument-coverage; cargo +nightly test -p ffmpeg --lib --tests -- --skip compile_fail refstruct frame buffer; nightly llvm-profdata merge + llvm-cov export -summary-only over the lib, equiv, ub_safe and ub_unsafe binaries, reported for the three homes (whole files, so the wave-0 and wave-1 type items in them are included)",
+    "c": "the same run with CRUSTIFY_FFMPEG_VARIANT=coverage and GCOV_PREFIX; gcov 13 -b -c -f over refstruct.c, side_data.c and buffer.c (gcc 14 build; gcov warns about the version, and its line percentages can exceed 100 for functions with inlined bodies, as refstruct_pool_get_ext), reported for the workset functions and the static helpers they run",
+    "note": "measured on the landed tree (wave tip 1a9271f931 plus this review). C: every line of the workset functions runs except av_refstruct_pool_alloc_ext_c:382-383, the ff_mutex_init failure branch, which glibc never takes. Rust: refstruct.rs misses line 395 (the pool up-ref refusal on a narrow count, unreachable on the 64-bit host), 898 (release_with when CSliceMut::into_mut(0) of a one-element slice is None) and 1244/1274/1297 (the pool trampolines on a NULL opaque), none reachable from C. frame.rs lines are all covered; buffer.rs misses (695, 1118-1120) are wave-1 type batch 0 (UninitBuffer conversion refusal, a unit-test closure), outside this workset; BufferPoolUninit runs. The review adds tests/ub_safe/refstruct.rs::pool_teardown_in_callbacks (callbacks tearing their own pool down), which adds no line coverage but runs C paths no earlier test took: refstruct_pool_uninit and its free_entry flush nested in reset_cb, and pool_return_entry after uninit reached from inside a free_entry_cb."
+  },
+  "rust": {
+    "libavutil/buffer.rs": {
+      "regions": {
+        "count": 689,
+        "percent": 98.84
+      },
+      "functions": {
+        "count": 70,
+        "percent": 98.57
+      },
+      "lines": {
+        "count": 534,
+        "percent": 98.69
+      }
+    },
+    "libavutil/frame.rs": {
+      "regions": {
+        "count": 1049,
+        "percent": 99.52
+      },
+      "functions": {
+        "count": 116,
+        "percent": 100
+      },
+      "lines": {
+        "count": 754,
+        "percent": 100
+      }
+    },
+    "libavutil/refstruct.rs": {
+      "regions": {
+        "count": 773,
+        "percent": 98.45
+      },
+      "functions": {
+        "count": 90,
+        "percent": 98.89
+      },
+      "lines": {
+        "count": 619,
+        "percent": 98.55
+      }
+    }
+  },
+  "c": {
+    "av_refstruct_pool_alloc_ext_c": {
+      "lines_percent": 83.33,
+      "lines": 30
+    },
+    "av_refstruct_pool_alloc": {
+      "lines_percent": 100.0,
+      "lines": 4
+    },
+    "refstruct_pool_uninit": {
+      "lines_percent": 100.0,
+      "lines": 14
+    },
+    "pool_unref": {
+      "lines_percent": 100.0,
+      "lines": 7
+    },
+    "av_refstruct_pool_get": {
+      "lines_percent": 100.0,
+      "lines": 4
+    },
+    "refstruct_pool_get_ext": {
+      "lines_percent": 108.11,
+      "lines": 37
+    },
+    "pool_reset_entry": {
+      "lines_percent": 100.0,
+      "lines": 4
+    },
+    "pool_return_entry": {
+      "lines_percent": 100.0,
+      "lines": 14
+    },
+    "pool_free_entry": {
+      "lines_percent": 100.0,
+      "lines": 5
+    },
+    "pool_free": {
+      "lines_percent": 100.0,
+      "lines": 6
+    },
+    "av_refstruct_unref": {
+      "lines_percent": 100.0,
+      "lines": 11
+    },
+    "av_refstruct_alloc_ext_c": {
+      "lines_percent": 100.0,
+      "lines": 14
+    },
+    "av_frame_side_data_name": {
+      "lines_percent": 100.0,
+      "lines": 3
+    },
+    "av_frame_side_data_desc": {
+      "lines_percent": 100.0,
+      "lines": 4
+    },
+    "av_buffer_pool_uninit": {
+      "lines_percent": 100.0,
+      "lines": 10
+    },
+    "buffer_pool_free": {
+      "lines_percent": 100.0,
+      "lines": 7
+    },
+    "buffer_pool_flush": {
+      "lines_percent": 100.0,
+      "lines": 7
+    }
+  }
+}

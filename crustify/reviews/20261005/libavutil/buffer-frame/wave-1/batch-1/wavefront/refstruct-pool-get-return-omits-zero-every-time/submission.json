@@ -1,0 +1,44 @@
+{
+  "ptr_args": {
+    "0": {
+      "ptr": {
+        "scalar": {
+          "by_val": true
+        },
+        "array": null,
+        "string": false,
+        "owned": false,
+        "borrowed": {
+          "lifetime": "arg:pool"
+        },
+        "nullable": false,
+        "mutable": true,
+        "note": "A live pool the caller holds a reference to (UB after av_refstruct_pool_uninit drops the last one); C locks pool->mutex around the free list, bumps pool->refcount atomically and may call init_cb. Not retained by the caller's pointer: the returned entry keeps its own pointer to the pool (ref->opaque) and a count in pool->refcount, so the entry outlives the caller's reference."
+      }
+    }
+  },
+  "ptr_ret": {
+    "ptr": {
+      "scalar": {
+        "by_val": true
+      },
+      "array": null,
+      "string": false,
+      "owned": true,
+      "borrowed": null,
+      "nullable": true,
+      "mutable": true,
+      "note": "NULL on ENOMEM or init_cb failure; otherwise an entry (a RefStruct object of pool->size bytes with refcount 1) the caller owns, released by av_refstruct_unref, which runs reset_cb and returns it to the pool (or frees it after uninit). Its bytes depend on the pool's flags: under AV_REFSTRUCT_POOL_FLAG_ZERO_EVERY_TIME every entry, new or reused, is memset to zero right before it is returned, after init_cb or the last reset_cb (refstruct.c refstruct_pool_get_ext; new entries are then allocated with NO_ZEROING, so init_cb sees uninitialised bytes); otherwise a reused entry holds what its last user and reset_cb left, and a new one is zeroed before init_cb unless NO_ZEROING (then uninitialised apart from what init_cb wrote). Rust: TypedRefStructPool<T>::get -> Option<RefStructBox<T>> (NO_ZEROING stripped; init_with zeroes a new entry first under ZERO_EVERY_TIME)."
+    }
+  },
+  "lifetime": {
+    "for": "return",
+    "is_dropper": false,
+    "is_disposer": false,
+    "is_cloner": null,
+    "is_constructor": {
+      "alloc": true,
+      "init": false
+    }
+  }
+}
