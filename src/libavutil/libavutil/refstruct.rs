@@ -45,6 +45,12 @@
 //! cross threads on `Arc`'s terms: a `RefStructArc<T>` is `Send` and `Sync`
 //! when `T` is both.
 //!
+//! C never checks its count for overflow, and safe Rust can leak references
+//! (`mem::forget` of a clone) until a count narrower than 64 bits wraps. On
+//! such targets nothing adds a reference: cloning a RefStruct reference,
+//! [`to_const`] and [`replace`] do not compile, and a pool reference's
+//! `try_clone` returns `None`.
+//!
 //! An object `av_refstruct_allocz` allocates has no release callback: the
 //! last `av_refstruct_unref` frees the block and nothing else, so whatever a
 //! payload's fields come to own (a C allocation a setter stored) leaks, as it
@@ -360,11 +366,18 @@ unsafe impl CDrop<RefStructPool> for RefStructPoolUnref {
 /// still reach the pool (see [`RefStructPool`]).
 // SAFETY: `av_refstruct_ref` atomically increments the counted references of
 // the RefStruct object at `ptr`, which a pool is, and returns `ptr`: one more
-// `av_refstruct_pool_uninit` is owed, which the clone's policy settles. The
-// `uintptr_t` count cannot overflow while every reference is a live owner.
+// `av_refstruct_pool_uninit` is owed, which the clone's policy settles. It
+// refuses, and adds nothing, where leaked references could wrap the count
+// (see `COUNT_IS_WIDE`).
 unsafe impl CRefClone<RefStructPool> for RefStructPoolUnref {
     #[inline]
     unsafe fn c_up_ref(&self, ptr: NonNull<RefStructPool>) -> bool {
+        // A non-generic impl, so a `const` assertion would reject the whole
+        // crate on such targets: refuse at run time, which `try_clone` reports
+        // as `None` and `clone` aborts on.
+        if !COUNT_IS_WIDE {
+            return false;
+        }
         // SAFETY: the caller holds a counted reference to the live pool at
         // `ptr`, so its RefStruct header precedes it; C only bumps the count.
         unsafe { ffi::av_refstruct_ref(ptr.as_ptr().cast()) };
@@ -453,6 +466,18 @@ impl BitOrAssign for PoolFlags {
 /// starts `REFCOUNT_OFFSET` bytes in, a multiple of
 /// `FFMAX(ALIGN_64, _Alignof(max_align_t))`; both are at least 16.
 const ALIGN: usize = 16;
+
+/// Whether leaked references cannot wrap C's reference count.
+///
+/// C increments its `uintptr_t` count unchecked, reasoning that it can hold
+/// the address of every reference. Safe Rust can leak a reference without
+/// keeping it anywhere (`mem::forget(arc.clone())`), so the count is bounded
+/// only by how many increments a process can make. 2^32 of them wrap a
+/// 32-bit count within seconds, and the next release then frees an object
+/// other references still reach; 2^64 take centuries. Every path that adds a
+/// counted reference refuses to compile, or (the non-generic pool policy)
+/// refuses at run time, where this is `false`.
+const COUNT_IS_WIDE: bool = usize::BITS >= 64;
 
 /// `av_refstruct_unref` and `av_refstruct_ref`, as the policy of a reference
 /// to a RefStruct object through which the holder may write once it is the
@@ -551,14 +576,15 @@ unsafe impl<T: CCell> CDrop<T> for RefStructUnref {
 ///
 /// A generic policy over every payload type, so no `impl_crefclone!`.
 // SAFETY: `av_refstruct_ref` increments the count of the live object and
-// cannot fail; a `uintptr_t` count cannot overflow, since every reference
-// would need its own address. `av_refstruct_exclusive` acquire-loads the
+// cannot fail; it is used only where leaked references cannot wrap the
+// count (`COUNT_IS_WIDE`). `av_refstruct_exclusive` acquire-loads the
 // count, which every reference contributes to: C's `av_refstruct_unref`
 // decrements with acq_rel ordering, so a release on another thread happens
 // before a `true`, and no weak reference exists.
 unsafe impl<T: CCell> CRefClone<T> for RefStructUnref {
     #[inline]
     unsafe fn c_up_ref(&self, ptr: NonNull<T>) -> bool {
+        const { assert!(COUNT_IS_WIDE, "a RefStruct count can wrap here") };
         // SAFETY: the caller holds a reference that keeps the object live; C
         // writes only its header's count and returns the same pointer.
         unsafe { ffi::av_refstruct_ref(ptr.as_ptr().cast()) };
@@ -627,10 +653,12 @@ unsafe impl<T: CCell> CDrop<T> for ConstRefStructUnref {
 /// keeps `c_is_sole_owner`'s default `false`: a `const` reference never
 /// writes, so it never hands out the exclusive handle.
 // SAFETY: as for `CRefClone for RefStructUnref`: `av_refstruct_ref_c`
-// increments the count of the live object and cannot fail.
+// increments the count of the live object and cannot fail, only where the
+// count cannot wrap.
 unsafe impl<T: CCell> CRefClone<T> for ConstRefStructUnref {
     #[inline]
     unsafe fn c_up_ref(&self, ptr: NonNull<T>) -> bool {
+        const { assert!(COUNT_IS_WIDE, "a RefStruct count can wrap here") };
         // SAFETY: the caller holds a reference that keeps the object live; C
         // writes only its header's count, casting `const` away for it alone.
         unsafe { ffi::av_refstruct_ref_c(ptr.as_ptr().cast_const().cast()) };
@@ -642,6 +670,7 @@ unsafe impl<T: CCell> CRefClone<T> for ConstRefStructUnref {
 ///
 /// A new `const` reference to `obj`'s object.
 pub fn to_const<T: CCell>(obj: &RefStructArc<T>) -> ConstRefStructArc<T> {
+    const { assert!(COUNT_IS_WIDE, "a RefStruct count can wrap here") };
     // SAFETY: `obj`'s reference keeps the object live; C increments its count
     // and returns the same pointer.
     let ptr = unsafe { ffi::av_refstruct_ref_c(obj.as_ptr().cast_const().cast()) };
@@ -679,6 +708,7 @@ pub fn replace<T: CCell, D: RefStructPolicy + CDrop<T>>(
     dst: &mut Option<CArc<T, D>>,
     src: Option<&CArc<T, D>>,
 ) {
+    const { assert!(COUNT_IS_WIDE, "a RefStruct count can wrap here") };
     let mut slot: *mut c_void = dst.take().map_or(ptr::null_mut(), |a| a.into_raw().cast());
     let src = src.map_or(ptr::null(), |a| a.as_ptr().cast_const().cast());
     // SAFETY: `slot` holds NULL or the counted reference `dst` gave up, and
