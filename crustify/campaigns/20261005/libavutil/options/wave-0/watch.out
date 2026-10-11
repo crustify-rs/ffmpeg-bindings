@@ -1,0 +1,17 @@
+batch-2 exit 0 at 01:53
+purged crustify/.worktrees/crustify/batches/20261005/libavutil/options/wave-0/batch-2
+created /target/crustify/.worktrees/orchestrator/core-wave-0-gate
+batch-2 scan-unsafe.json 
+batch-0 exit 0 at 01:58
+purged crustify/.worktrees/crustify/batches/20261005/libavutil/options/wave-0/batch-0
+batch-0 scan-unsafe.json 
+batch-4 exit 0 at 02:07
+purged crustify/.worktrees/crustify/batches/20261005/libavutil/options/wave-0/batch-4
+batch-4 scan-unsafe.json 
+batch-1 exit 0 at 02:36
+purged crustify/.worktrees/crustify/batches/20261005/libavutil/options/wave-0/batch-1
+batch-1 scan-unsafe.json 
+batch-3 exit 0 at 03:03
+purged crustify/.worktrees/crustify/batches/20261005/libavutil/options/wave-0/batch-3
+batch-3 scan-unsafe.json 
+all 5 batches exited

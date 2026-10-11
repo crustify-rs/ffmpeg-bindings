@@ -1,0 +1,22 @@
+{
+  "objective": "wrap",
+  "items": [
+    {
+      "name": "AVDictionary",
+      "defined_in": "libavutil/dict.c",
+      "kind": "type",
+      "field_anchors": [],
+      "home": "crustify/rust/ffmpeg/libavutil/dict.rs"
+    },
+    {
+      "name": "AVDictionaryEntry",
+      "defined_in": "libavutil/dict.h",
+      "kind": "type",
+      "field_anchors": [
+        "value",
+        "key"
+      ],
+      "home": "crustify/rust/ffmpeg/libavutil/dict.rs"
+    }
+  ]
+}
