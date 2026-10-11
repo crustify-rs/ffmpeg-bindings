@@ -1,0 +1,84 @@
+add_clone: Err(-12)
+
+=================================================================
+==1943984==ERROR: LeakSanitizer: detected memory leaks
+
+Direct leak of 16 byte(s) in 1 object(s) allocated from:
+    #0 0x57f1eb8f1c67 in posix_memalign (/tmp/w3b1/repro-asan/x86_64-unknown-linux-gnu/debug/side-data-clone-replace-leaks-partial-metadata+0x203c67) (BuildId: 64d01f1c6d8d117ef9f3f0b85b7da362908df877)
+    #1 0x74a1e9409774 in av_malloc /target/crustify/builds/asan-ubsan/src/libavutil/mem.c:107:9
+    #2 0x74a1e9409774 in av_mallocz /target/crustify/builds/asan-ubsan/src/libavutil/mem.c:258:17
+    #3 0x74a1e938002a in av_dict_set /target/crustify/builds/asan-ubsan/src/libavutil/dict.c:122:19
+    #4 0x74a1e938186a in av_dict_copy /target/crustify/builds/asan-ubsan/src/libavutil/dict.c:252:19
+    #5 0x74a1e94da353 in av_frame_side_data_clone /target/crustify/builds/asan-ubsan/src/libavutil/side_data.c:275:15
+    #6 0x57f1eb92776d in <ffmpeg::libavutil::frame::SideDataArrayMut>::add_clone crustify/rust/ffmpeg/libavutil/frame.rs:2289:13
+    #7 0x57f1eb924111 in side_data_clone_replace_leaks_partial_metadata::main crustify/reviews/20261005/libavutil/buffer-frame/wave-3/batch-1/ub_safe/side-data-clone-replace-leaks-partial-metadata/src/main.rs:42:10
+    #8 0x57f1eb924d4a in <fn() as core::ops::function::FnOnce<()>>::call_once /root/.rustup/toolchains/nightly-x86_64-unknown-linux-gnu/lib/rustlib/src/rust/library/core/src/ops/function.rs:250:5
+    #9 0x57f1eba981ca in std::panic::catch_unwind::<&dyn core::ops::function::Fn<(), Output = i32> + core::panic::unwind_safe::RefUnwindSafe + core::marker::Sync, i32> /root/.rustup/toolchains/nightly-x86_64-unknown-linux-gnu/lib/rustlib/src/rust/library/std/src/panic.rs:359:14
+    #10 0x57f1eb9709be in std::panicking::catch_unwind::do_call::<std::rt::lang_start_internal::{closure#0}, isize> /root/.rustup/toolchains/nightly-x86_64-unknown-linux-gnu/lib/rustlib/src/rust/library/std/src/panicking.rs:573:43
+    #11 0x57f1eb97caba in __rust_try std.4ab26c9dab9163a9-cgu.02
+    #12 0x57f1eba9813b in std::panic::catch_unwind::<std::rt::lang_start_internal::{closure#0}, isize> /root/.rustup/toolchains/nightly-x86_64-unknown-linux-gnu/lib/rustlib/src/rust/library/std/src/panic.rs:359:14
+    #13 0x57f1eb941bd2 in std::rt::lang_start_internal /root/.rustup/toolchains/nightly-x86_64-unknown-linux-gnu/lib/rustlib/src/rust/library/std/src/rt.rs:171:5
+    #14 0x57f1eb92505f in std::rt::lang_start::<()> /root/.rustup/toolchains/nightly-x86_64-unknown-linux-gnu/lib/rustlib/src/rust/library/std/src/rt.rs:205:5
+    #15 0x57f1eb9244ed in main (/tmp/w3b1/repro-asan/x86_64-unknown-linux-gnu/debug/side-data-clone-replace-leaks-partial-metadata+0x2364ed) (BuildId: 64d01f1c6d8d117ef9f3f0b85b7da362908df877)
+    #16 0x74a1e8e5728a in __libc_start_main csu/../csu/libc-start.c:360:3
+    #17 0x57f1eb859ee4 in _start (/tmp/w3b1/repro-asan/x86_64-unknown-linux-gnu/debug/side-data-clone-replace-leaks-partial-metadata+0x16bee4) (BuildId: 64d01f1c6d8d117ef9f3f0b85b7da362908df877)
+
+Indirect leak of 16 byte(s) in 1 object(s) allocated from:
+    #0 0x57f1eb8f15a1 in realloc (/tmp/w3b1/repro-asan/x86_64-unknown-linux-gnu/debug/side-data-clone-replace-leaks-partial-metadata+0x2035a1) (BuildId: 64d01f1c6d8d117ef9f3f0b85b7da362908df877)
+    #1 0x74a1e9380201 in av_dict_set /target/crustify/builds/asan-ubsan/src/libavutil/dict.c:147:34
+    #2 0x74a1e938186a in av_dict_copy /target/crustify/builds/asan-ubsan/src/libavutil/dict.c:252:19
+    #3 0x74a1e94da353 in av_frame_side_data_clone /target/crustify/builds/asan-ubsan/src/libavutil/side_data.c:275:15
+    #4 0x57f1eb92776d in <ffmpeg::libavutil::frame::SideDataArrayMut>::add_clone crustify/rust/ffmpeg/libavutil/frame.rs:2289:13
+    #5 0x57f1eb924111 in side_data_clone_replace_leaks_partial_metadata::main crustify/reviews/20261005/libavutil/buffer-frame/wave-3/batch-1/ub_safe/side-data-clone-replace-leaks-partial-metadata/src/main.rs:42:10
+    #6 0x57f1eb924d4a in <fn() as core::ops::function::FnOnce<()>>::call_once /root/.rustup/toolchains/nightly-x86_64-unknown-linux-gnu/lib/rustlib/src/rust/library/core/src/ops/function.rs:250:5
+    #7 0x57f1eba981ca in std::panic::catch_unwind::<&dyn core::ops::function::Fn<(), Output = i32> + core::panic::unwind_safe::RefUnwindSafe + core::marker::Sync, i32> /root/.rustup/toolchains/nightly-x86_64-unknown-linux-gnu/lib/rustlib/src/rust/library/std/src/panic.rs:359:14
+    #8 0x57f1eb9709be in std::panicking::catch_unwind::do_call::<std::rt::lang_start_internal::{closure#0}, isize> /root/.rustup/toolchains/nightly-x86_64-unknown-linux-gnu/lib/rustlib/src/rust/library/std/src/panicking.rs:573:43
+    #9 0x57f1eb97caba in __rust_try std.4ab26c9dab9163a9-cgu.02
+    #10 0x57f1eba9813b in std::panic::catch_unwind::<std::rt::lang_start_internal::{closure#0}, isize> /root/.rustup/toolchains/nightly-x86_64-unknown-linux-gnu/lib/rustlib/src/rust/library/std/src/panic.rs:359:14
+    #11 0x57f1eb941bd2 in std::rt::lang_start_internal /root/.rustup/toolchains/nightly-x86_64-unknown-linux-gnu/lib/rustlib/src/rust/library/std/src/rt.rs:171:5
+    #12 0x57f1eb92505f in std::rt::lang_start::<()> /root/.rustup/toolchains/nightly-x86_64-unknown-linux-gnu/lib/rustlib/src/rust/library/std/src/rt.rs:205:5
+    #13 0x57f1eb9244ed in main (/tmp/w3b1/repro-asan/x86_64-unknown-linux-gnu/debug/side-data-clone-replace-leaks-partial-metadata+0x2364ed) (BuildId: 64d01f1c6d8d117ef9f3f0b85b7da362908df877)
+    #14 0x74a1e8e5728a in __libc_start_main csu/../csu/libc-start.c:360:3
+    #15 0x57f1eb859ee4 in _start (/tmp/w3b1/repro-asan/x86_64-unknown-linux-gnu/debug/side-data-clone-replace-leaks-partial-metadata+0x16bee4) (BuildId: 64d01f1c6d8d117ef9f3f0b85b7da362908df877)
+
+Indirect leak of 2 byte(s) in 1 object(s) allocated from:
+    #0 0x57f1eb8f1194 in malloc (/tmp/w3b1/repro-asan/x86_64-unknown-linux-gnu/debug/side-data-clone-replace-leaks-partial-metadata+0x203194) (BuildId: 64d01f1c6d8d117ef9f3f0b85b7da362908df877)
+    #1 0x74a1e9409b4d in av_realloc /target/crustify/builds/asan-ubsan/src/libavutil/mem.c:164:11
+    #2 0x74a1e9409b4d in av_strdup /target/crustify/builds/asan-ubsan/src/libavutil/mem.c:277:15
+    #3 0x74a1e937fd45 in av_dict_set /target/crustify/builds/asan-ubsan/src/libavutil/dict.c:105:20
+    #4 0x74a1e938186a in av_dict_copy /target/crustify/builds/asan-ubsan/src/libavutil/dict.c:252:19
+    #5 0x74a1e94da353 in av_frame_side_data_clone /target/crustify/builds/asan-ubsan/src/libavutil/side_data.c:275:15
+    #6 0x57f1eb92776d in <ffmpeg::libavutil::frame::SideDataArrayMut>::add_clone crustify/rust/ffmpeg/libavutil/frame.rs:2289:13
+    #7 0x57f1eb924111 in side_data_clone_replace_leaks_partial_metadata::main crustify/reviews/20261005/libavutil/buffer-frame/wave-3/batch-1/ub_safe/side-data-clone-replace-leaks-partial-metadata/src/main.rs:42:10
+    #8 0x57f1eb924d4a in <fn() as core::ops::function::FnOnce<()>>::call_once /root/.rustup/toolchains/nightly-x86_64-unknown-linux-gnu/lib/rustlib/src/rust/library/core/src/ops/function.rs:250:5
+    #9 0x57f1eba981ca in std::panic::catch_unwind::<&dyn core::ops::function::Fn<(), Output = i32> + core::panic::unwind_safe::RefUnwindSafe + core::marker::Sync, i32> /root/.rustup/toolchains/nightly-x86_64-unknown-linux-gnu/lib/rustlib/src/rust/library/std/src/panic.rs:359:14
+    #10 0x57f1eb9709be in std::panicking::catch_unwind::do_call::<std::rt::lang_start_internal::{closure#0}, isize> /root/.rustup/toolchains/nightly-x86_64-unknown-linux-gnu/lib/rustlib/src/rust/library/std/src/panicking.rs:573:43
+    #11 0x57f1eb97caba in __rust_try std.4ab26c9dab9163a9-cgu.02
+    #12 0x57f1eba9813b in std::panic::catch_unwind::<std::rt::lang_start_internal::{closure#0}, isize> /root/.rustup/toolchains/nightly-x86_64-unknown-linux-gnu/lib/rustlib/src/rust/library/std/src/panic.rs:359:14
+    #13 0x57f1eb941bd2 in std::rt::lang_start_internal /root/.rustup/toolchains/nightly-x86_64-unknown-linux-gnu/lib/rustlib/src/rust/library/std/src/rt.rs:171:5
+    #14 0x57f1eb92505f in std::rt::lang_start::<()> /root/.rustup/toolchains/nightly-x86_64-unknown-linux-gnu/lib/rustlib/src/rust/library/std/src/rt.rs:205:5
+    #15 0x57f1eb9244ed in main (/tmp/w3b1/repro-asan/x86_64-unknown-linux-gnu/debug/side-data-clone-replace-leaks-partial-metadata+0x2364ed) (BuildId: 64d01f1c6d8d117ef9f3f0b85b7da362908df877)
+    #16 0x74a1e8e5728a in __libc_start_main csu/../csu/libc-start.c:360:3
+    #17 0x57f1eb859ee4 in _start (/tmp/w3b1/repro-asan/x86_64-unknown-linux-gnu/debug/side-data-clone-replace-leaks-partial-metadata+0x16bee4) (BuildId: 64d01f1c6d8d117ef9f3f0b85b7da362908df877)
+
+Indirect leak of 2 byte(s) in 1 object(s) allocated from:
+    #0 0x57f1eb8f1194 in malloc (/tmp/w3b1/repro-asan/x86_64-unknown-linux-gnu/debug/side-data-clone-replace-leaks-partial-metadata+0x203194) (BuildId: 64d01f1c6d8d117ef9f3f0b85b7da362908df877)
+    #1 0x74a1e9409b4d in av_realloc /target/crustify/builds/asan-ubsan/src/libavutil/mem.c:164:11
+    #2 0x74a1e9409b4d in av_strdup /target/crustify/builds/asan-ubsan/src/libavutil/mem.c:277:15
+    #3 0x74a1e937fd0b in av_dict_set /target/crustify/builds/asan-ubsan/src/libavutil/dict.c:97:22
+    #4 0x74a1e938186a in av_dict_copy /target/crustify/builds/asan-ubsan/src/libavutil/dict.c:252:19
+    #5 0x74a1e94da353 in av_frame_side_data_clone /target/crustify/builds/asan-ubsan/src/libavutil/side_data.c:275:15
+    #6 0x57f1eb92776d in <ffmpeg::libavutil::frame::SideDataArrayMut>::add_clone crustify/rust/ffmpeg/libavutil/frame.rs:2289:13
+    #7 0x57f1eb924111 in side_data_clone_replace_leaks_partial_metadata::main crustify/reviews/20261005/libavutil/buffer-frame/wave-3/batch-1/ub_safe/side-data-clone-replace-leaks-partial-metadata/src/main.rs:42:10
+    #8 0x57f1eb924d4a in <fn() as core::ops::function::FnOnce<()>>::call_once /root/.rustup/toolchains/nightly-x86_64-unknown-linux-gnu/lib/rustlib/src/rust/library/core/src/ops/function.rs:250:5
+    #9 0x57f1eba981ca in std::panic::catch_unwind::<&dyn core::ops::function::Fn<(), Output = i32> + core::panic::unwind_safe::RefUnwindSafe + core::marker::Sync, i32> /root/.rustup/toolchains/nightly-x86_64-unknown-linux-gnu/lib/rustlib/src/rust/library/std/src/panic.rs:359:14
+    #10 0x57f1eb9709be in std::panicking::catch_unwind::do_call::<std::rt::lang_start_internal::{closure#0}, isize> /root/.rustup/toolchains/nightly-x86_64-unknown-linux-gnu/lib/rustlib/src/rust/library/std/src/panicking.rs:573:43
+    #11 0x57f1eb97caba in __rust_try std.4ab26c9dab9163a9-cgu.02
+    #12 0x57f1eba9813b in std::panic::catch_unwind::<std::rt::lang_start_internal::{closure#0}, isize> /root/.rustup/toolchains/nightly-x86_64-unknown-linux-gnu/lib/rustlib/src/rust/library/std/src/panic.rs:359:14
+    #13 0x57f1eb941bd2 in std::rt::lang_start_internal /root/.rustup/toolchains/nightly-x86_64-unknown-linux-gnu/lib/rustlib/src/rust/library/std/src/rt.rs:171:5
+    #14 0x57f1eb92505f in std::rt::lang_start::<()> /root/.rustup/toolchains/nightly-x86_64-unknown-linux-gnu/lib/rustlib/src/rust/library/std/src/rt.rs:205:5
+    #15 0x57f1eb9244ed in main (/tmp/w3b1/repro-asan/x86_64-unknown-linux-gnu/debug/side-data-clone-replace-leaks-partial-metadata+0x2364ed) (BuildId: 64d01f1c6d8d117ef9f3f0b85b7da362908df877)
+    #16 0x74a1e8e5728a in __libc_start_main csu/../csu/libc-start.c:360:3
+    #17 0x57f1eb859ee4 in _start (/tmp/w3b1/repro-asan/x86_64-unknown-linux-gnu/debug/side-data-clone-replace-leaks-partial-metadata+0x16bee4) (BuildId: 64d01f1c6d8d117ef9f3f0b85b7da362908df877)
+
+SUMMARY: AddressSanitizer: 36 byte(s) leaked in 4 allocation(s).

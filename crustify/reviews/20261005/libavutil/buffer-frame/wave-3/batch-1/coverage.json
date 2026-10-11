@@ -1,0 +1,31 @@
+{
+  "method": {
+    "rust": "RUSTFLAGS=-C instrument-coverage; cargo +nightly test -p ffmpeg --lib --tests -- side_data --skip compile_fail (with CRUSTIFY_FFMPEG_VARIANT=coverage); nightly llvm-profdata merge + llvm-cov show/export over the lib, equiv, ub_safe and ub_unsafe binaries, read for libavutil/frame.rs lines 1988-2560 (SideDataFlags through SideDataArray's twins: every workset wrapper, the new replaces_in_place/assign_clone and the into_added helper)",
+    "c": "the same run, GCOV_PREFIX into a private dir; gcov 13 -b -c -f over libavutil/side_data.c (gcc 14 build; gcov 13 reads lines but prints no per-function branch data)",
+    "note": "measured on the fixed tree. Rust: 232 of 232 instrumented lines of the workset region run, including both failure returns of assign_clone (metadata copy 268 times, av_buffer_replace 163 times). C: every line of av_frame_side_data_new, _clone, _get_c, _remove, _remove_by_props, _free and their helpers runs except two that are unreachable through the wrappers: av_frame_side_data_add:250 (the NEW_REF unref, a flag the safe API does not offer) and remove_side_data_by_entry:97 (the 'continue', since its only caller, _clone, removes the entry it just appended, always the last). _clone's in-place lines 270-289 now run only from the equivalence tests' C reference calls, as add_clone takes that path in Rust."
+  },
+  "rust": {
+    "libavutil/frame.rs:1988-2560": {
+      "lines": {"count": 232, "percent": 100.0}
+    }
+  },
+  "c": {
+    "libavutil/side_data.c": {
+      "lines": {"count": 140, "percent": 98.57},
+      "functions": {
+        "av_frame_side_data_get_c": 100.0,
+        "av_frame_side_data_clone": 100.0,
+        "av_frame_side_data_add": 93.33,
+        "av_frame_side_data_new": 100.0,
+        "av_frame_side_data_remove": 100.0,
+        "av_frame_side_data_remove_by_props": 100.0,
+        "av_frame_side_data_free": 100.0,
+        "replace_side_data_from_buf": 100.0,
+        "add_side_data_from_buf_ext": 100.0,
+        "ff_frame_side_data_add_from_buf": 100.0,
+        "remove_side_data_by_entry": 88.89,
+        "free_side_data_entry": 100.0
+      }
+    }
+  }
+}
