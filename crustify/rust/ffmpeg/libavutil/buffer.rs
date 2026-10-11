@@ -1365,6 +1365,68 @@ mod unit_tests {
         assert_eq!(uninit.copy_from_slice(&[9; 4]).as_ref().data(), &[9; 4]);
     }
 
+    /// `AVBuffer`'s private layout (`buffer_internal.h`), through which a
+    /// test sets a count no number of live clones could reach.
+    #[repr(C)]
+    struct BufferBody {
+        data: *mut u8,
+        size: usize,
+        refcount: c_uint,
+        free: Option<ReleaseFn>,
+        opaque: *mut c_void,
+        flags: c_int,
+        flags_internal: c_int,
+    }
+
+    /// The count of `buf`'s buffer, as C reads it and through the mirror.
+    fn counts(buf: &BufferReferenceBox) -> (c_int, c_uint) {
+        let body = buf.as_ref().buffer().as_ptr().cast::<BufferBody>();
+        // SAFETY: a live reference; C atomically loads its buffer's count.
+        let c = unsafe { ffi::av_buffer_get_ref_count(buf.as_c_ptr()) };
+        // SAFETY: `body` is the live 48-byte body `buf` counts, which this
+        // single-threaded test alone references.
+        (c, unsafe { addr_of!((*body).refcount).read() })
+    }
+
+    /// Sets the count of `buf`'s buffer behind C's back.
+    fn set_count(buf: &BufferReferenceBox, count: c_uint) {
+        let body = buf.as_ref().buffer().as_ptr().cast_mut();
+        let body = body.cast::<BufferBody>();
+        // SAFETY: as in `counts`; no other thread reaches the body, and the
+        // caller restores the true count before any reference is released.
+        unsafe { addr_of_mut!((*body).refcount).write(count) }
+    }
+
+    /// The copy refuses at `MAX_REFERENCES` without calling `av_buffer_ref`,
+    /// through the handle and the box alike, and leaves the count.
+    #[test]
+    #[cfg_attr(miri, ignore)]
+    fn copies_stop_at_the_reference_limit() {
+        assert_eq!(size_of::<BufferBody>(), 48);
+        let mut buf = BufferReference::alloc_zeroed(8).unwrap();
+        assert_eq!(counts(&buf), (1, 1));
+        let copy = buf.clone();
+        assert_eq!(counts(&buf), (2, 2));
+        drop(copy);
+        set_count(&buf, MAX_REFERENCES - 1);
+        let last = buf.as_ref().try_clone().expect("one below the limit");
+        assert_eq!(counts(&buf).1, MAX_REFERENCES);
+        assert!(buf.as_ref().try_clone().is_none());
+        assert!(last.try_clone().is_none());
+        assert!(buf.as_mut().data_mut().is_none());
+        assert_eq!(counts(&buf).1, MAX_REFERENCES);
+        // Counts past `INT_MAX` reach Rust as negative `int`s.
+        for count in [MAX_REFERENCES + 1, c_uint::MAX] {
+            set_count(&buf, count);
+            assert_eq!(counts(&buf).0, count as c_int);
+            assert!(buf.as_ref().try_clone().is_none());
+        }
+        set_count(&buf, 2);
+        drop(last);
+        assert_eq!(counts(&buf), (1, 1));
+        assert!(buf.as_mut().data_mut().is_some());
+    }
+
     /// The constructors' and the copy's failure paths: inputs come back
     /// untouched and unreleased, counts are unchanged.
     #[test]
