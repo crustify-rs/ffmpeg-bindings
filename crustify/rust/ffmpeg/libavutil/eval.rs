@@ -7,8 +7,9 @@
 //! `eval.c`: a tree of `av_malloc` nodes whose root also owns the
 //! expression's `st()`/`ld()` registers and random-number state. It is owned
 //! as an [`ExprBox`], built by [`Expr::parse`] (or
-//! [`Expr::parse_with_context`]) and released with its whole tree by
-//! `av_expr_free`. C has no copy routine, so the box is not `Clone`.
+//! [`Expr::parse_with_context`], which logs a failure under a parent context)
+//! and released with its whole tree by `av_expr_free`. C has no copy routine,
+//! so the box is not `Clone`.
 //!
 //! Parsing reads the constant and function names only during the call: a
 //! node records the *position* of the constant it names, and a copy of the
@@ -24,9 +25,8 @@
 //! C for an out-of-range value; the wrapper refuses, before C runs, the
 //! expressions that could reach such a conversion (see [`parse_and_eval`]).
 //!
-//! Raw seams remain where the dependency has no safe handle: the parent log
-//! context of [`Expr::parse_with_context`], and the opaque pointer a user
-//! function receives from the evaluator.
+//! A raw seam remains where the dependency has no safe handle: the opaque
+//! pointer a user function receives from the evaluator.
 
 use core::any::Any;
 use core::cell::Cell;
@@ -93,15 +93,16 @@ define_ctype!(
     ffi::AVExpr
 );
 
-// SAFETY: a parsed tree is `av_malloc` nodes plus the root's `var` and
-// `prng_state` blocks, all released by `av_expr_free` through `av_free`,
-// which any thread may call; `av_expr_parse` hands the whole tree over to its
-// caller and keeps no pointer to it. A node holds only scalars, child
-// pointers of the same tree and function pointers: libm builtins, or user
-// functions that, per `Expr`'s invariant, any thread may call. Nothing in it
-// is tied to a thread, so the sole owner, or an exclusive handle, moves
-// between threads as a `Box` of a tree does. Not `Sync`: evaluation writes
-// the root's registers.
+// A parsed tree is `av_malloc` nodes plus the root's `var` and `prng_state`
+// blocks, all released by `av_expr_free` through `av_free`, which any thread
+// may call; `av_expr_parse` hands the whole tree over to its caller and keeps
+// no pointer to it. Not `Sync`: evaluation writes the root's registers.
+//
+// SAFETY: a node holds only scalars, child pointers of the same tree and
+// function pointers: libm builtins, or user functions that, per `Expr`'s
+// invariant, any thread may call. Nothing in it is tied to a thread, so the
+// sole owner, or an exclusive handle, moves between threads as a `Box` of a
+// tree does.
 unsafe impl Send for Expr {}
 // SAFETY: as for `Expr`: an exclusive handle is the only access to the tree
 // while it lives.
@@ -190,34 +191,22 @@ impl Expr {
         binary: &[(&CStr, BinaryFn)],
         log_offset: i32,
     ) -> Result<ExprBox, i32> {
-        // SAFETY: a NULL log context is "no parent context".
-        unsafe {
-            Self::parse_with_context(s, const_names, unary, binary, log_offset, ptr::null_mut())
-        }
+        Self::parse_with_context(s, const_names, unary, binary, log_offset, None)
     }
 
     /// Wraps: av_expr_parse
     ///
-    /// As [`parse`](Self::parse), logging a failure with `log_ctx` as the
-    /// parent log context.
-    ///
-    /// `log_ctx` stays a raw seam while logging contexts have no safe handle:
-    /// pass NULL for no parent context. The expression keeps no pointer to
-    /// it.
-    ///
-    /// # Safety
-    ///
-    /// `log_ctx` must be NULL or point to a live struct whose first member is
-    /// a `const AVClass *` (NULL, or a valid class) that `av_log` and the
-    /// installed log callback may read during the call, as
-    /// `parent_log_context_offset` contexts require.
-    pub unsafe fn parse_with_context(
+    /// As [`parse`](Self::parse), logging a failure as a message of C's
+    /// `Eval` context whose parent is `log_ctx`, which names it in the
+    /// message's prefix; `None` is no parent. The expression keeps no pointer
+    /// to `log_ctx`.
+    pub fn parse_with_context(
         s: &CStr,
         const_names: &[&CStr],
         unary: &[(&CStr, UnaryFn)],
         binary: &[(&CStr, BinaryFn)],
         log_offset: i32,
-        log_ctx: *mut c_void,
+        log_ctx: Option<ObjectRef<'_>>,
     ) -> Result<ExprBox, i32> {
         if log_offset > c_int::MAX - ffi::AV_LOG_ERROR as c_int {
             return Err(AVERROR_EINVAL);
@@ -229,12 +218,14 @@ impl Expr {
         let unary_fns = terminated(unary.iter().map(|&(_, f)| Some(f as _)), None);
         let binary_names = terminated(binary.iter().map(|(n, _)| n.as_ptr()), ptr::null());
         let binary_fns = terminated(binary.iter().map(|&(_, f)| Some(f as _)), None);
+        let log_ctx = log_ctx.map_or(ptr::null_mut(), |o| o.as_ptr());
         let mut expr = ptr::null_mut();
         // Everything below lives for the call, which is as long as C reads it.
         // SAFETY: `expr` is a writable slot; `s` and every name are live
         // NUL-terminated strings in NULL-terminated arrays, each function
-        // array has an entry per name, the caller vouches for `log_ctx`, and
-        // `log_offset` cannot overflow the error level C adds it to.
+        // array has an entry per name, `log_ctx` is NULL or a live object led
+        // by a well-formed class (`ObjectRef`'s contract), and `log_offset`
+        // cannot overflow the error level C adds it to.
         let ret = unsafe {
             ffi::av_expr_parse(
                 &mut expr,
