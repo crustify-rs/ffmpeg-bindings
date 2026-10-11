@@ -1,0 +1,16 @@
+{
+  "crustify/rust/ffmpeg/libavutil/tea.rs": {
+    "hit": 11,
+    "total": 11,
+    "uncovered": []
+  },
+  "crustify/rust/ffmpeg/libavutil/twofish.rs": {
+    "hit": 36,
+    "total": 36,
+    "uncovered": []
+  },
+  "C_logs": {
+    "tea": "File 'src/libavutil/tea.c'\nLines executed:100.00% of 52\nBranches executed:100.00% of 22\nTaken at least once:100.00% of 22\nCalls executed:100.00% of 4\nCreating 'tea.c.gcov'\n\nFile '/usr/include/x86_64-linux-gnu/bits/string_fortified.h'\nLines executed:100.00% of 2\nNo branches\nNo calls\nCreating 'string_fortified.h.gcov'\n\nFile 'src/libavutil/bswap.h'\nLines executed:100.00% of 2\nBranches executed:100.00% of 2\nTaken at least once:100.00% of 2\nNo calls\nCreating 'bswap.h.gcov'\n\nLines executed:100.00% of 56\n",
+    "twofish": "File 'src/libavutil/twofish.c'\nLines executed:100.00% of 164\nBranches executed:100.00% of 226\nTaken at least once:100.00% of 226\nCalls executed:100.00% of 8\nCreating 'twofish.c.gcov'\n\nFile '/usr/include/x86_64-linux-gnu/bits/string_fortified.h'\nLines executed:100.00% of 4\nBranches executed:100.00% of 2\nTaken at least once:100.00% of 2\nNo calls\nCreating 'string_fortified.h.gcov'\n\nLines executed:100.00% of 168\n"
+  }
+}

@@ -854,6 +854,18 @@
    "fields": []
   },
   {
+   "name": "AVTEA",
+   "defined_in": "libavutil/tea.c",
+   "_comment_agent": "AVTEA is opaque in its public header; all fields are inline integers/arrays, no pointer fields, resources, clone routine, retain or transfer. av_tea_alloc uses av_mallocz, the caller owns it and av_free/av_freep releases it. Init copies key bytes and retains no argument pointer. Crypt reads the initialized schedule only. C remains layout/storage owner; no public fields and no field accessors.",
+   "fields": []
+  },
+  {
+   "name": "AVTWOFISH",
+   "defined_in": "libavutil/twofish.c",
+   "_comment_agent": "AVTWOFISH is opaque in its public header; all fields are inline integers/arrays, no pointer fields, resources, clone routine, retain or transfer. av_twofish_alloc uses av_mallocz, the caller owns it and av_free/av_freep releases it. Init copies key bytes and retains no argument pointer. Crypt reads the initialized schedule only. C remains layout/storage owner; no public fields and no field accessors.",
+   "fields": []
+  },
+  {
    "name": "AVXTEA",
    "defined_in": "libavutil/xtea.h",
    "_comment_agent": "AVXTEA is sixteen inline uint32_t words, no pointer fields, casts, locks, refcounts or field resources. av_xtea_alloc calls av_mallocz(sizeof(AVXTEA)); callers pair it with av_free. rtmpcrypt.c uses an automatic context. Both init routines copy a 16-byte key into ONLY words 0..4, preserving words 4..16; their key argument is omitted by extraction because it is an array parameter. All cipher readers index only 0..4, never modify or retain the context, and support zero words. Plain word copies are independent; no dedicated C clone/disposer. Safe inline values and Heap-owned CBox storage retain ABI; borrow handles exclude concurrent modification. No Send/Sync opt-in.",
@@ -12156,6 +12168,67 @@
    "defined_in": "libavutil/rational.c"
   },
   {
+   "name": "av_tea_alloc",
+   "defined_in": "libavutil/tea.c",
+   "lifetime": {
+    "for": "return",
+    "is_dropper": false,
+    "is_disposer": false,
+    "is_cloner": null,
+    "is_constructor": {
+     "alloc": true,
+     "init": false
+    }
+   },
+   "ptr_ret": {
+    "ptr": {
+     "scalar": {
+      "by_val": true
+     },
+     "array": null,
+     "string": false,
+     "owned": true,
+     "borrowed": null,
+     "nullable": true,
+     "mutable": true,
+     "note": "Fresh zeroed av_mallocz allocation; sole ownership transfers to caller, av_free releases it; init is still required before cipher use."
+    }
+   }
+  },
+  {
+   "name": "av_tea_init",
+   "defined_in": "libavutil/tea.c",
+   "lifetime": {
+    "for": "ctx",
+    "is_dropper": false,
+    "is_disposer": false,
+    "is_cloner": null,
+    "is_constructor": {
+     "alloc": false,
+     "init": true
+    }
+   },
+   "ptr_args": [
+    {
+     "name": "ctx",
+     "ptr": {
+      "scalar": {
+       "by_val": true
+      },
+      "array": null,
+      "string": false,
+      "owned": false,
+      "borrowed": {
+       "lifetime": "call"
+      },
+      "nullable": false,
+      "mutable": true,
+      "note": "Exclusive borrowed context/storage, initialized in place. No pointer is retained, transferred, cloned or freed. Key argument is a 16-byte array omitted from the oracle pointer slots; C reads all 16 bytes during the call and stores four copied u32 words. Rounds stored unchanged."
+     }
+    }
+   ]
+  },
+  {
    "name": "av_tea_size",
    "defined_in": "libavutil/tea.c",
    "locked_by": null
@@ -12324,6 +12397,84 @@
      "note": "buf itself, holding the NUL-terminated text."
     }
    }
+  },
+  {
+   "name": "av_twofish_alloc",
+   "defined_in": "libavutil/twofish.c",
+   "lifetime": {
+    "for": "return",
+    "is_dropper": false,
+    "is_disposer": false,
+    "is_cloner": null,
+    "is_constructor": {
+     "alloc": true,
+     "init": false
+    }
+   },
+   "ptr_ret": {
+    "ptr": {
+     "scalar": {
+      "by_val": true
+     },
+     "array": null,
+     "string": false,
+     "owned": true,
+     "borrowed": null,
+     "nullable": true,
+     "mutable": true,
+     "note": "Fresh zeroed av_mallocz allocation; sole ownership transfers to caller, av_free releases it; init is still required before cipher use."
+    }
+   }
+  },
+  {
+   "name": "av_twofish_init",
+   "defined_in": "libavutil/twofish.c",
+   "lifetime": {
+    "for": "cs",
+    "is_dropper": false,
+    "is_disposer": false,
+    "is_cloner": null,
+    "is_constructor": {
+     "alloc": false,
+     "init": true
+    }
+   },
+   "ptr_args": [
+    {
+     "name": "cs",
+     "ptr": {
+      "scalar": {
+       "by_val": true
+      },
+      "array": null,
+      "string": false,
+      "owned": false,
+      "borrowed": {
+       "lifetime": "call"
+      },
+      "nullable": false,
+      "mutable": true,
+      "note": "Exclusive borrowed context/storage, initialized in place. No pointer is retained, transferred, cloned or freed."
+     }
+    },
+    {
+     "name": "key",
+     "ptr": {
+      "scalar": null,
+      "array": {
+       "by_val": true
+      },
+      "string": false,
+      "owned": false,
+      "borrowed": {
+       "lifetime": "call"
+      },
+      "nullable": false,
+      "mutable": false,
+      "note": "Nonnegative bits read exactly min(key_bits,256)>>3 bytes (partial byte ignored); zero reads use a nonnull pointer. Negative bits return EINVAL before reading. Key copied locally then into inline schedule, not retained."
+     }
+    }
+   ]
   },
   {
    "name": "av_twofish_size",

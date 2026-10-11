@@ -1,0 +1,3 @@
+{
+  "_comment_agent": "AVTEA is opaque in its public header; all fields are inline integers/arrays, no pointer fields, resources, clone routine, retain or transfer. av_tea_alloc uses av_mallocz, the caller owns it and av_free/av_freep releases it. Init copies key bytes and retains no argument pointer. Crypt reads the initialized schedule only. C remains layout/storage owner; no public fields and no field accessors."
+}
