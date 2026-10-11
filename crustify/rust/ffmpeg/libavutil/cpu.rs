@@ -13,9 +13,9 @@
 //! [`parse_cpu_caps`] updates a set of `AV_CPU_FLAG_*` bits from a flags
 //! string such as `"sse2+avx-mmx"`.
 
-use core::ffi::{CStr, c_char, c_int, c_uint};
-use core::ptr;
+use core::ffi::{CStr, c_int, c_uint};
 
+use super::eval;
 use super::ffi;
 
 /// Wraps: av_cpu_count
@@ -220,16 +220,11 @@ fn combine_flags(flags: u32, op: u8, token: &[u8]) -> Result<u32, i32> {
 /// constants the option evaluator and the expression evaluator define.
 /// `None` for anything else, which C resolves as a CPU-flag name or rejects,
 /// and for a NaN, which C rejects.
-///
-/// `av_strtod` is called raw until `libavutil/eval.h` is wrapped.
 fn expression_value(token: &[u8]) -> Option<f64> {
     let buf = c_token(token);
-    let mut tail: *mut c_char = ptr::null_mut();
-    // SAFETY: `buf` holds the token NUL-terminated, which C only reads, and
-    // `tail` is a live, writable local, in which C stores the address of
-    // the first byte of `buf` it did not read.
-    let d = unsafe { ffi::av_strtod(buf.as_ptr().cast(), &mut tail) };
-    if !token.is_empty() && tail as usize - buf.as_ptr() as usize == token.len() {
+    let buf = CStr::from_bytes_until_nul(&buf).expect("a valid token leaves a NUL");
+    let (d, rest) = eval::parse_number(buf);
+    if !token.is_empty() && rest.is_empty() {
         return (!d.is_nan()).then_some(d);
     }
     match token {

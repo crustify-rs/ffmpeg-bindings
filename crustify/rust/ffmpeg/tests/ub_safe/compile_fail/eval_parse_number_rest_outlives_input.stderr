@@ -1,0 +1,11 @@
+error[E0597]: `s` does not live long enough
+ --> tests/ub_safe/compile_fail/eval_parse_number_rest_outlives_input.rs
+  |
+  |         let s = CString::new("12k rest").unwrap();
+  |             - binding `s` declared here
+  |         rest = parse_number(&s).1;
+  |                             ^^ borrowed value does not live long enough
+  |     }
+  |     - `s` dropped here while still borrowed
+  |     println!("{rest:?}");
+  |                ---- borrow later used here

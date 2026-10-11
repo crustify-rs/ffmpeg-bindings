@@ -891,6 +891,66 @@ impl fmt::Debug for RangeIter<'_> {
 
 impl core::iter::FusedIterator for RangeIter<'_> {}
 
+/// Wraps: av_set_options_string
+///
+/// Sets options of `ctx` from the list `opts`: `key` and `value` pairs, each
+/// key followed by one byte of `key_val_sep` and its value, the pairs
+/// separated by one byte of `pairs_sep`. Keys and values are tokens as
+/// `av_get_token` reads them: surrounding whitespace dropped, `\` escaping
+/// one byte and `'...'` quoting a run. Each pair is set as
+/// `av_opt_set(ctx, key, value, AV_OPT_SEARCH_CHILDREN)` does, in order.
+///
+/// Returns how many pairs were set. Fails at the first pair that does not
+/// parse (an empty key, or a key without a separator after it) with
+/// `AVERROR(EINVAL)`, or that `av_opt_set` rejects, with its error
+/// (`AVERROR_OPTION_NOT_FOUND` for an unknown key, after logging it); the
+/// pairs before it stay set. A failing image-size value is not undone
+/// either: C copies its uninitialised result into the field, which then
+/// holds unspecified sizes. An empty `opts` sets nothing.
+///
+/// `ctx` stays a raw seam while `AVClass`-enabled objects have no safe
+/// handle.
+///
+/// # Safety
+///
+/// - `ctx` must be NULL (every key is then not found), or point to a live
+///   `AVClass`-enabled object: a struct whose first member is a
+///   `const AVClass *`, NULL (likewise) or a valid class whose option table
+///   is terminated and describes fields of `ctx` (each offset and type
+///   naming a field of that type), and whose `child_next`, if any, yields
+///   objects that meet this contract too.
+/// - Every field an option of `ctx` or its children names must hold a value
+///   C may release when it replaces it: NULL or an `av_malloc`-family block
+///   for strings, binaries (with their length field) and arrays (with their
+///   count), and NULL or a dictionary C owns for dictionaries. The values C
+///   stores are `ctx`'s to release (`av_opt_free`).
+/// - Each value must be one `av_opt_set` stores without undefined
+///   behaviour. C converts a numeric value to the option's type after
+///   checking it against the option's `min` and `max` only, so those must
+///   lie within the range of the type (an `int` for `int`, `bool`, `flags`
+///   and rational options, an `f32` for `float` ones; C itself maps a value
+///   of exactly 2^63 or 2^64 to `INT64_MAX` or `UINT64_MAX`); and C converts
+///   a `color` option's opacity to a byte without rejecting NaN, so no
+///   `color` value may end in an `@` specifier `strtod` reads as NaN
+///   (`red@nan`).
+/// - Nothing else may access `ctx`, its children or their option fields
+///   during the call, and `ctx`'s class callbacks must be valid for `av_log`
+///   to call on `ctx`.
+pub unsafe fn set_options_string(
+    ctx: *mut c_void,
+    opts: &CStr,
+    key_val_sep: &CStr,
+    pairs_sep: &CStr,
+) -> Result<usize, i32> {
+    // SAFETY: `opts`, `key_val_sep` and `pairs_sep` are live NUL-terminated
+    // strings C only reads, and the caller vouches for `ctx`, its fields and
+    // the values `opts` sets.
+    let ret = unsafe {
+        ffi::av_set_options_string(ctx, opts.as_ptr(), key_val_sep.as_ptr(), pairs_sep.as_ptr())
+    };
+    if ret < 0 { Err(ret) } else { Ok(ret as usize) }
+}
+
 #[cfg(test)]
 #[path = "../tests/common/opt.rs"]
 pub(crate) mod fixture;

@@ -425,3 +425,256 @@ mod range_handles {
         std::thread::spawn(move || drop(b)).join().unwrap();
     }
 }
+
+/// `set_options_string`, called within its `# Safety` contract: objects of
+/// the test class (and a parent reaching one as its child), NULL and
+/// classless objects, every option type, owned values replaced again and
+/// again, and lists at the edges of the token syntax.
+mod set_options_string {
+    use core::ffi::{CStr, c_void};
+    use core::ptr::{null, null_mut};
+    use std::ffi::CString;
+
+    use ffmpeg::libavutil::ffi;
+    use ffmpeg::libavutil::opt::set_options_string;
+
+    use super::fixture::{CLASS, Class, Ctx, Table, class};
+
+    /// `AVERROR_OPTION_NOT_FOUND`: `FFERRTAG(0xF8, 'O', 'P', 'T')`.
+    const NOT_FOUND: i32 = -i32::from_le_bytes([0xF8, b'O', b'P', b'T']);
+    const EINVAL: i32 = -22;
+
+    /// An object of the test class that frees its option values on drop.
+    struct Owned(Ctx);
+
+    impl Owned {
+        fn new() -> Self {
+            Self(Ctx::new(&CLASS))
+        }
+
+        /// `set_options_string` with `=` and `:`.
+        fn set(&mut self, opts: &CStr) -> Result<usize, i32> {
+            // SAFETY: `self` is a live object of the well-formed test class,
+            // whose bounds lie within each option type's range, its owned
+            // fields hold NULL or values C stored, nothing else accesses it,
+            // and no list here sets a NaN opacity.
+            unsafe { set_options_string(self.0.as_obj(), opts, c"=", c":") }
+        }
+    }
+
+    impl Drop for Owned {
+        fn drop(&mut self) {
+            // SAFETY: the object's owned fields hold NULL or values C stored.
+            unsafe { ffi::av_opt_free(self.0.as_obj()) }
+        }
+    }
+
+    /// The string field's value.
+    fn string(c: &Ctx) -> Option<&CStr> {
+        // SAFETY: the field is NULL or a live string C stored.
+        (!c.string.is_null()).then(|| unsafe { CStr::from_ptr(c.string) })
+    }
+
+    #[test]
+    fn every_option_type() {
+        let mut o = Owned::new();
+        let all = c"int=5:int64=-3:uint64=18446744073709551615:dbl=-1e9:flt=1:string=s:q=7/2:\
+            boolean=true:flags=bit:size=1x1:rate=pal:color=0xff00ff80:duration=0.000001:\
+            binary=00ff:dict=k=v:array=0,10:empty_array=:bare=1:nostr=n";
+        assert_eq!(o.set(all), Ok(19));
+        let c = &o.0;
+        assert_eq!((c.int, c.int64, c.uint64), (5, -3, u64::MAX));
+        assert_eq!((c.dbl, c.flt), (-1e9, 1.0));
+        assert_eq!(string(c), Some(c"s"));
+        assert_eq!((c.q.num, c.q.den, c.boolean, c.flags), (7, 2, 1, 2));
+        assert_eq!((c.size, c.rate.num, c.rate.den), ([1, 1], 25, 1));
+        assert_eq!((c.color, c.duration), ([255, 0, 255, 128], 1));
+        assert_eq!(c.binary_len, 2);
+        assert!(!c.dict.is_null());
+        assert_eq!(c.array_len, 2);
+        // An empty array value stores no block.
+        assert_eq!((c.empty_array_len, c.bare), (0, 1));
+        assert!(!c.nostr.is_null());
+    }
+
+    /// Owned values replaced many times, with values of growing size, and
+    /// cleared: ASan sees every block C frees and allocates, LSan any left.
+    #[test]
+    fn owned_values_replaced_and_cleared() {
+        let mut o = Owned::new();
+        for round in 0..64usize {
+            let s = "x".repeat(round * 7);
+            let hex = "ab".repeat(round);
+            let arr = vec!["3"; round % 11].join(",");
+            let opts = format!("string={s}:binary={hex}:dict=k{round}=v{s}:array={arr}:nostr={s}");
+            let opts = CString::new(opts).unwrap();
+            assert_eq!(o.set(&opts), Ok(5));
+            assert_eq!(string(&o.0).unwrap().count_bytes(), round * 7);
+            assert_eq!(o.0.binary_len as usize, round);
+            assert_eq!(o.0.array_len as usize, round % 11);
+        }
+        assert_eq!(o.set(c"string=:binary=:array="), Ok(3));
+        assert_eq!(string(&o.0), Some(c""));
+        assert!(o.0.binary.is_null() && o.0.array.is_null());
+    }
+
+    /// Lists in exactly sized heap strings, so ASan sees any read past
+    /// their NUL; the separators likewise.
+    #[test]
+    fn exactly_sized_lists() {
+        let lists: [&[u8]; 14] = [
+            b"",
+            b"i",
+            b"=",
+            b":",
+            b"int=",
+            b"int=1:",
+            b"int=1::",
+            b"int='1",
+            b"int=1\\",
+            b"int\\",
+            b"'int'=1",
+            b"  int  =  2  ",
+            b"string='a'b'c':int=3",
+            b"string=\\'",
+        ];
+        for list in lists {
+            let opts = CString::new(list).unwrap().into_boxed_c_str();
+            let kv = CString::new("=").unwrap().into_boxed_c_str();
+            let pairs = CString::new(":").unwrap().into_boxed_c_str();
+            let mut o = Owned::new();
+            // SAFETY: as in `Owned::set`.
+            let ret = unsafe { set_options_string(o.0.as_obj(), &opts, &kv, &pairs) };
+            assert!(
+                ret.is_ok() || ret == Err(EINVAL) || ret == Err(NOT_FOUND) || ret == Err(-34),
+                "{ret:?}"
+            );
+        }
+        let long = CString::new(format!("string={}", "y".repeat(1 << 16)))
+            .unwrap()
+            .into_boxed_c_str();
+        let mut o = Owned::new();
+        assert_eq!(o.set(&long), Ok(1));
+        assert_eq!(string(&o.0).unwrap().count_bytes(), 1 << 16);
+    }
+
+    #[test]
+    fn failures_leave_earlier_pairs_set() {
+        let mut o = Owned::new();
+        assert_eq!(o.set(c"int=8:string=kept:missing=1:int=9"), Err(NOT_FOUND));
+        assert_eq!((o.0.int, string(&o.0)), (8, Some(c"kept")));
+        assert_eq!(o.set(c"string=again:int"), Err(EINVAL));
+        assert_eq!(string(&o.0), Some(c"again"));
+        assert_eq!(o.set(c"int=101"), Err(-34));
+        assert_eq!(o.0.int, 8);
+    }
+
+    #[test]
+    fn null_and_classless_objects() {
+        for opts in [c"", c"int=1", c"a=b:c=d"] {
+            // SAFETY: a NULL object is within the contract.
+            let ret = unsafe { set_options_string(null_mut(), opts, c"=", c":") };
+            assert_eq!(
+                ret,
+                if opts.is_empty() {
+                    Ok(0)
+                } else {
+                    Err(NOT_FOUND)
+                }
+            );
+            let mut ctx = Ctx::new(&CLASS);
+            ctx.class = null();
+            // SAFETY: an object with a NULL class is within the contract.
+            let ret = unsafe { set_options_string(ctx.as_obj(), opts, c"=", c":") };
+            assert_eq!(
+                ret,
+                if opts.is_empty() {
+                    Ok(0)
+                } else {
+                    Err(NOT_FOUND)
+                }
+            );
+            assert_eq!(ctx.int, 0);
+        }
+    }
+
+    /// A parent with no options of its own, reaching a test-class object as
+    /// its only child.
+    #[repr(C)]
+    struct Parent {
+        class: *const ffi::AVClass,
+        child: Ctx,
+    }
+
+    static PARENT_OPTIONS: Table<1> = Table([ffi::AVOption {
+        name: null(),
+        help: null(),
+        offset: 0,
+        type_: ffi::AVOptionType(0),
+        default_val: ffi::AVOption__bindgen_ty_1 { i64_: 0 },
+        min: 0.0,
+        max: 0.0,
+        flags: 0,
+        unit: null(),
+    }]);
+
+    /// The parent's `child_next`: its embedded child, once.
+    unsafe extern "C" fn child_next(obj: *mut c_void, prev: *mut c_void) -> *mut c_void {
+        if prev.is_null() {
+            // SAFETY: C passes the live parent the class belongs to.
+            unsafe { (&raw mut (*obj.cast::<Parent>()).child).cast() }
+        } else {
+            null_mut()
+        }
+    }
+
+    static PARENT_CLASS: Class = Class(ffi::AVClass {
+        class_name: c"crustify-opt-parent".as_ptr(),
+        option: &PARENT_OPTIONS.0[0],
+        child_next: Some(child_next),
+        ..class(None)
+    });
+
+    #[test]
+    fn children_are_searched() {
+        let p = Box::into_raw(Box::new(Parent {
+            class: &PARENT_CLASS.0,
+            child: Ctx::new(&CLASS),
+        }));
+        // SAFETY: `p` is a live parent of a well-formed class whose child
+        // meets the contract; the list is in range.
+        let ret = unsafe { set_options_string(p.cast(), c"int=4:string=child", c"=", c":") };
+        assert_eq!(ret, Ok(2));
+        // SAFETY: `p` is live; C has returned.
+        let child = unsafe { &raw mut (*p).child };
+        // SAFETY: as above.
+        assert_eq!(unsafe { (*child).int }, 4);
+        // SAFETY: as above.
+        assert_eq!(string(unsafe { &*child }), Some(c"child"));
+        // SAFETY: the child's owned fields hold values C stored; `p` came
+        // from `Box::into_raw` and nothing else holds it.
+        unsafe {
+            ffi::av_opt_free(child.cast());
+            drop(Box::from_raw(p));
+        }
+    }
+
+    /// Distinct objects set from many threads at once.
+    #[test]
+    fn distinct_objects_on_many_threads() {
+        std::thread::scope(|s| {
+            for t in 0..8 {
+                s.spawn(move || {
+                    let mut o = Owned::new();
+                    for i in 0..50 {
+                        let opts =
+                            CString::new(format!("int={}:string=t{t}i{i}:dict=a={i}", i % 100))
+                                .unwrap();
+                        assert_eq!(o.set(&opts), Ok(3));
+                    }
+                    assert_eq!(o.0.int, 49);
+                });
+            }
+        });
+    }
+}
