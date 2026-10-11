@@ -1,0 +1,44 @@
+{
+ "ptr_args": {
+  "1": {
+   "ptr": {
+    "scalar": {
+     "by_val": true
+    },
+    "array": null,
+    "string": false,
+    "owned": false,
+    "borrowed": {
+     "lifetime": "static"
+    },
+    "nullable": true,
+    "mutable": false,
+    "note": "Allocator stored in pool->alloc (NULL selects av_buffer_alloc) and called later by av_buffer_pool_get, under the pool mutex, from any thread, until the pool is freed (possibly after av_buffer_pool_uninit). Each result must be NULL or a sole, writable reference whose AVBuffer data holds at least size bytes. pool_alloc_buffer copies the result's data/opaque/free into the BufferPoolEntry but leaves its AVBuffer flags_internal, so a result that is BUFFER_FLAG_REALLOCATABLE (av_buffer_realloc of an empty slot, or a buffer av_buffer_realloc's copy path made) hands out a first pool buffer that av_buffer_realloc resizes IN PLACE: av_realloc frees or shrinks the block the entry still records, which the pool later recycles (use after free) and frees again at flush (double free). The C contract does not forbid such a result. Rust: BufferPool::new passes NULL; custom allocators go through av_buffer_pool_init2 (BufferPool::with_allocator)."
+   }
+  }
+ },
+ "ptr_ret": {
+  "ptr": {
+   "scalar": {
+    "by_val": true
+   },
+   "array": null,
+   "string": false,
+   "owned": true,
+   "borrowed": null,
+   "nullable": true,
+   "mutable": true,
+   "note": "A fresh av_mallocz'd pool with an initialised mutex and refcount 1, the caller's reference, released by av_buffer_pool_uninit; NULL on allocation or mutex-init failure. Rust: adopted into BufferPoolBox = CBox<BufferPool, BufferPoolUninit>."
+  }
+ },
+ "lifetime": {
+  "for": "return",
+  "is_dropper": false,
+  "is_disposer": false,
+  "is_cloner": null,
+  "is_constructor": {
+   "alloc": true,
+   "init": false
+  }
+ }
+}

@@ -1,0 +1,35 @@
+{
+ "ptr_args": {
+  "0": {
+   "ptr": {
+    "scalar": {
+     "by_ref": {
+      "owned": true,
+      "borrowed": {
+       "lifetime": "arg:pbuf"
+      }
+     }
+    },
+    "array": null,
+    "string": false,
+    "owned": false,
+    "borrowed": {
+     "lifetime": "arg:pbuf"
+    },
+    "nullable": false,
+    "mutable": true,
+    "note": "The caller's AVBufferRef * slot (never NULL). *pbuf NULL: av_realloc(NULL, size) + av_buffer_create, flagged REALLOCATABLE, written to the slot and owned by the caller (bytes uninitialised). *pbuf live: an equal size is a no-op; a sole, writable, REALLOCATABLE reference whose window starts at its buffer's data is av_realloc'ed in place (buffer and window data/size updated), even when it is a pool buffer: only av_buffer_realloc of an empty slot sets the flag, but pool_alloc_buffer keeps it on an allocator's result while taking over its opaque/free, so the in-place av_realloc frees or shrinks the block its BufferPoolEntry still records (recycled later: use after free; freed again at flush: double free); otherwise a new reallocatable buffer gets min(size, old) window bytes and replaces the reference in place via buffer_replace (slot pointer unchanged, old count dropped). Bytes past the old window are uninitialised. ENOMEM leaves *pbuf untouched. Rust: BufferReference::alloc_resizable (NULL slot), BufferReferenceMut::resize (fills the new tail), UninitBuffer::resize. A NULL window (size 0, from av_buffer_create(NULL, 0)) reaching the copy path makes C call memcpy(dst, NULL, 0), UB (UBSan nonnull-attribute, buffer.c:176/218); the Rust wrappers take that one case without C's memcpy. They run C's copy path themselves (alloc_resizable + copy + swap into the same struct, BufferReferenceMut::realloc_by_copy) for a NULL window and for any buffer with an opaque (pool buffers: the opaque is their entry; reallocatable buffers C made have none), so a pool buffer is never resized in place."
+   }
+  }
+ },
+ "lifetime": {
+  "for": "pbuf",
+  "is_dropper": false,
+  "is_disposer": false,
+  "is_cloner": null,
+  "is_constructor": {
+   "alloc": true,
+   "init": false
+  }
+ }
+}

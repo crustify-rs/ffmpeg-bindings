@@ -1,0 +1,18 @@
+recycled buffer of 16 bytes; filling it
+error: Undefined Behavior: trying to access an allocation that has been freed.
+    --> <wt>/crustify/rust/ffmpeg/libavutil/buffer.rs:1188:18
+     |
+    = note: the above line calls library code, where the error was detected:
+   --> <rust>/library/core/src/ptr/mod.rs:736:9
+    |
+736 | crate::intrinsics::write_bytes(dst, val, count)
+
+stack backtrace:
+0: core::ptr::write_bytes::<core::mem::maybe_uninit::MaybeUninit<u8>>
+      at <rust>/library/core/src/ptr/mod.rs:736:9
+1: <ffmpeg::libavutil::buffer::UninitBuffer>::fill
+      at <wt>/crustify/rust/ffmpeg/libavutil/buffer.rs:1188:18
+2: pool_buffer_resized_in_place_under_its_entry::scenario
+      at <wt>/crustify/reviews/20261005/libavutil/buffer-frame/wave-2/batch-1/ub_unsafe/pool-buffer-resized-in-place-under-its-entry/src/main.rs:41:16
+
+note: stack trace was truncated after 3 frames; set stacktrace_max_len (e.g. BSAN_OPTIONS=stacktrace_max_len=32) to capture more.
