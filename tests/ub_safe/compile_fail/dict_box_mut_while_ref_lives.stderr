@@ -1,0 +1,9 @@
+error[E0502]: cannot borrow `b` as mutable because it is also borrowed as immutable
+ --> tests/ub_safe/compile_fail/dict_box_mut_while_ref_lives.rs
+  |
+  |     let r = b.as_ref();
+  |             - immutable borrow occurs here
+  |     let _m = b.as_mut();
+  |              ^^^^^^^^^^ mutable borrow occurs here
+  |     let _ = r;
+  |             - immutable borrow later used here
