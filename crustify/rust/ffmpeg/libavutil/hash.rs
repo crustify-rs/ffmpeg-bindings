@@ -134,6 +134,95 @@ impl HashContextMut<'_> {
     }
 }
 
+fn output_len(len: usize) -> Result<i32, i32> {
+    i32::try_from(len).map_err(|_| -22)
+}
+
+impl HashContextMut<'_> {
+    /// Wraps: av_hash_update
+    ///
+    /// Append borrowed bytes. Empty input is a no-op; no pointer is retained.
+    pub fn update(&mut self, data: &[u8]) {
+        if data.is_empty() {
+            return;
+        }
+        // SAFETY: exclusive initialized context and a nonempty readable slice
+        // of its stated length. Each backend reads but never retains the input.
+        unsafe { ffi::av_hash_update(self.as_mut_ptr(), data.as_ptr(), data.len()) };
+    }
+
+    /// Wraps: av_hash_final
+    ///
+    /// Finalize into a digest-sized owned buffer. Reset with [`Self::init`]
+    /// before a new message. The current C backends remain memory-safe after
+    /// finalization, but subsequent updates/finals need not hash a new message.
+    pub fn finalize(&mut self) -> Vec<u8> {
+        let mut output = vec![0; self.as_ref().size()];
+        // SAFETY: exclusive initialized context and the runtime digest size's
+        // writable buffer. C writes exactly this size and retains no pointer.
+        unsafe { ffi::av_hash_final(self.as_mut_ptr(), output.as_mut_ptr()) };
+        output
+    }
+
+    /// Wraps: av_hash_final_bin
+    ///
+    /// Finalize with truncation or zero-padding to the output length. Returns
+    /// -22 before touching the context if the length exceeds C's `int` range.
+    /// An empty output still finalizes the context.
+    pub fn finalize_bin(&mut self, output: &mut [u8]) -> Result<(), i32> {
+        let len = output_len(output.len())?;
+        let mut empty = 0u8;
+        let ptr = if output.is_empty() {
+            &raw mut empty
+        } else {
+            output.as_mut_ptr()
+        };
+        // SAFETY: exclusive initialized context and len writable bytes. A live
+        // byte stands in for empty output so C's zero-byte memcpy receives a
+        // valid pointer. C truncates/pads within len and retains neither pointer.
+        unsafe { ffi::av_hash_final_bin(self.as_mut_ptr(), ptr, len) };
+        Ok(())
+    }
+
+    /// Wraps: av_hash_final_hex
+    ///
+    /// Finalize into C's NUL-terminated lowercase hex representation. The
+    /// buffer must contain at least two bytes; C writes nothing at smaller
+    /// sizes, contrary to its documented termination guarantee. Returns -22
+    /// without modifying the context or output for smaller/oversized buffers.
+    /// Truncation, including odd-sized buffers, matches C; bytes beyond the
+    /// terminating NUL are left unchanged.
+    pub fn finalize_hex(&mut self, output: &mut [u8]) -> Result<(), i32> {
+        let len = output_len(output.len())?;
+        if len < 2 {
+            return Err(-22);
+        }
+        // SAFETY: exclusive initialized context, at least two writable bytes,
+        // and int-representable capacity. C's snprintf loop stays within len,
+        // writes a terminator, and retains neither context nor output pointer.
+        unsafe { ffi::av_hash_final_hex(self.as_mut_ptr(), output.as_mut_ptr(), len) };
+        Ok(())
+    }
+
+    /// Wraps: av_hash_final_b64
+    ///
+    /// Finalize into NUL-terminated Base64, truncating to the output capacity.
+    /// Returns -22 before any mutation for empty or int-unrepresentable output.
+    /// Empty output would make C write at `dst[-1]`, so it is never passed to C.
+    /// Bytes beyond the terminating NUL are left unchanged.
+    pub fn finalize_b64(&mut self, output: &mut [u8]) -> Result<(), i32> {
+        let len = output_len(output.len())?;
+        if len == 0 {
+            return Err(-22);
+        }
+        // SAFETY: exclusive initialized context and positive int-representable
+        // output capacity. C copies at most len bytes and, on truncation,
+        // terminates at len-1, which is in bounds. No pointer is retained.
+        unsafe { ffi::av_hash_final_b64(self.as_mut_ptr(), output.as_mut_ptr(), len) };
+        Ok(())
+    }
+}
+
 /// Wraps: av_hash_names
 ///
 /// Name at a C hash registry index, or `None` for an invalid index.
@@ -153,6 +242,21 @@ pub fn name(index: i32) -> Option<&'static CStr> {
 #[cfg(test)]
 mod unit_tests {
     use super::*;
+
+    #[test]
+    fn output_lengths_and_rejected_text_capacities() {
+        assert_eq!(output_len(0), Ok(0));
+        assert_eq!(output_len(i32::MAX as usize), Ok(i32::MAX));
+        assert_eq!(output_len(i32::MAX as usize + 1), Err(-22));
+        let mut owner = HashContext::new(c"MD5").unwrap();
+        owner.as_mut().update(b"abc");
+        let mut output = [0xA5];
+        assert_eq!(owner.as_mut().finalize_hex(&mut []), Err(-22));
+        assert_eq!(owner.as_mut().finalize_hex(&mut output), Err(-22));
+        assert_eq!(owner.as_mut().finalize_b64(&mut []), Err(-22));
+        assert_eq!(output, [0xA5]);
+        assert_eq!(owner.as_mut().finalize(), super::super::md5::sum(b"abc"));
+    }
 
     #[test]
     fn unknown_names_are_errors() {

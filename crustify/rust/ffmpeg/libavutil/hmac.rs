@@ -144,9 +144,106 @@ impl HmacMut<'_> {
     }
 }
 
+impl HmacMut<'_> {
+    /// Wraps: av_hmac_update
+    ///
+    /// Append bytes, or return -22 without changing state if the input exceeds
+    /// C's unsigned-int range. C reads input only during this call.
+    pub fn update(&mut self, data: &[u8]) -> Result<(), i32> {
+        let len = key_len(data.len())?;
+        if len == 0 {
+            return Ok(());
+        }
+        // SAFETY: exclusive keyed context and len readable input bytes; C
+        // forwards to its valid hash callback and never retains the input.
+        unsafe { ffi::av_hmac_update(self.as_mut_ptr(), data.as_ptr(), len) };
+        Ok(())
+    }
+
+    /// Wraps: av_hmac_final
+    ///
+    /// Finalize into the output, returning the digest length or C's error.
+    /// Too-small output returns -22 without changing state or output; trailing
+    /// bytes are unchanged. Re-key with [`Self::init`] before a new message.
+    pub fn finalize(&mut self, output: &mut [u8]) -> Result<usize, i32> {
+        let len = key_len(output.len())?;
+        // SAFETY: exclusive keyed context and len writable bytes. C checks
+        // capacity against its digest size before any access, including when
+        // output is empty. The callbacks stay within that size, keep no pointer,
+        // and every initialized/post-final hash state is memory-safe.
+        let result = unsafe { ffi::av_hmac_final(self.as_mut_ptr(), output.as_mut_ptr(), len) };
+        if result < 0 {
+            Err(result)
+        } else {
+            Ok(result as usize)
+        }
+    }
+
+    /// Wraps: av_hmac_calc
+    ///
+    /// Re-key, hash the complete input, and finalize into `output`. Lengths
+    /// outside C's unsigned-int range return -22 before mutation. As in C,
+    /// too-small output leaves the context re-keyed and updated, ready for a
+    /// later finalization into a sufficiently large buffer.
+    pub fn calculate(&mut self, data: &[u8], key: &[u8], output: &mut [u8]) -> Result<usize, i32> {
+        let data_len = key_len(data.len())?;
+        let key_size = key_len(key.len())?;
+        let output_len = key_len(output.len())?;
+        let empty = 0u8;
+        let data_ptr = if data.is_empty() {
+            &raw const empty
+        } else {
+            data.as_ptr()
+        };
+        let key_ptr = if key.is_empty() {
+            &raw const empty
+        } else {
+            key.as_ptr()
+        };
+        // SAFETY: exclusive context with valid algorithm callbacks; data/key
+        // supply the checked lengths and live pointers even at length zero.
+        // C copies/hashes the key, reads input, checks output capacity before
+        // writing, and keeps only its own key/hash state, not caller pointers.
+        let result = unsafe {
+            ffi::av_hmac_calc(
+                self.as_mut_ptr(),
+                data_ptr,
+                data_len,
+                key_ptr,
+                key_size,
+                output.as_mut_ptr(),
+                output_len,
+            )
+        };
+        if result < 0 {
+            Err(result)
+        } else {
+            Ok(result as usize)
+        }
+    }
+}
+
 #[cfg(test)]
 mod unit_tests {
     use super::*;
+
+    #[test]
+    fn short_final_preserves_state_and_output() {
+        let mut owner = Hmac::new(HmacType::MD5, b"key").unwrap();
+        owner.as_mut().update(b"message").unwrap();
+        assert_eq!(owner.as_mut().finalize(&mut []), Err(-22));
+        let mut short = [0xA5; 15];
+        assert_eq!(owner.as_mut().finalize(&mut short), Err(-22));
+        assert_eq!(short, [0xA5; 15]);
+        let mut digest = [0; 16];
+        owner.as_mut().finalize(&mut digest).unwrap();
+        let mut expected = [0; 16];
+        owner
+            .as_mut()
+            .calculate(b"message", b"key", &mut expected)
+            .unwrap();
+        assert_eq!(digest, expected);
+    }
 
     #[test]
     fn representations_and_conversions() {

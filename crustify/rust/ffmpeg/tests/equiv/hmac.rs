@@ -82,8 +82,7 @@ fn keyed_construction_and_reinitialization_agree() {
             // them immediately and retains no input pointer.
             unsafe { ffi::av_hmac_init(raw.0, source, len as u32) };
             drop(key);
-            // The non-lifecycle symbols are unwrapped C observers of the
-            // initialization state. No context handles live across a call.
+            // The independent C context receives the same update sequence.
             for chunk in [b"first".as_slice(), b"", b"second chunk"] {
                 let empty = 0u8;
                 let source = if chunk.is_empty() {
@@ -95,8 +94,10 @@ fn keyed_construction_and_reinitialization_agree() {
                 // readable for chunk.len() bytes, and update keeps no pointer.
                 unsafe {
                     ffi::av_hmac_update(raw.0, source, chunk.len() as u32);
-                    ffi::av_hmac_update(safe.as_c_ptr(), source, chunk.len() as u32);
                 }
+            }
+            for chunk in [b"first".as_slice(), b"", b"second chunk"] {
+                safe.as_mut().update(chunk).unwrap();
             }
             let mut a = [0xCC; 80];
             let mut b = [0xCC; 80];
@@ -108,24 +109,83 @@ fn keyed_construction_and_reinitialization_agree() {
                     ffi::av_hmac_final(raw.0, a.as_mut_ptr(), digest_len - 1),
                     -22
                 );
-                assert_eq!(
-                    ffi::av_hmac_final(safe.as_c_ptr(), b.as_mut_ptr(), digest_len - 1),
-                    -22
-                );
+
                 assert_eq!(
                     ffi::av_hmac_final(raw.0, a.as_mut_ptr(), 80),
                     digest_len as i32
                 );
-                assert_eq!(
-                    ffi::av_hmac_final(safe.as_c_ptr(), b.as_mut_ptr(), 80),
-                    digest_len as i32
-                );
             }
+            assert_eq!(
+                safe.as_mut().finalize(&mut b[..digest_len as usize - 1]),
+                Err(-22)
+            );
+            assert_eq!(safe.as_mut().finalize(&mut b), Ok(digest_len as usize));
             assert_eq!(a, b);
             assert_eq!(
                 &b[digest_len as usize..],
                 &[0xCC; 80][digest_len as usize..]
             );
+        }
+    }
+}
+
+#[test]
+fn calculate_and_failed_output_preserve_c_state() {
+    for algorithm in [
+        HmacType::MD5,
+        HmacType::SHA1,
+        HmacType::SHA224,
+        HmacType::SHA256,
+        HmacType::SHA384,
+        HmacType::SHA512,
+    ] {
+        let mut safe = Hmac::new(algorithm, b"initial").unwrap();
+        let raw = Reference::new(algorithm.into_raw());
+        for key_size in [0, 1, 64, 65, 128, 129, 256] {
+            let key = vec![0xC3; key_size + 1];
+            let data: Vec<_> = (0..258).map(|i| i as u8).collect();
+            for len in [0, 1, 63, 64, 65, 257] {
+                for capacity in [0, 1, 15, 16, 20, 28, 32, 48, 64, 80] {
+                    let mut actual = vec![0x5A; capacity];
+                    let mut expected = actual.clone();
+                    let src = &data[1..1 + len];
+                    let key = &key[1..];
+                    // SAFETY: live valid context; source/key slices are backed by
+                    // real allocations even when empty, checked small lengths;
+                    // C validates output capacity before accessing its buffer.
+                    let result = unsafe {
+                        ffi::av_hmac_calc(
+                            raw.0,
+                            src.as_ptr(),
+                            len as u32,
+                            key.as_ptr(),
+                            key.len() as u32,
+                            expected.as_mut_ptr(),
+                            capacity as u32,
+                        )
+                    };
+                    let result = if result < 0 {
+                        Err(result)
+                    } else {
+                        Ok(result as usize)
+                    };
+                    assert_eq!(safe.as_mut().calculate(src, key, &mut actual), result);
+                    assert_eq!(actual, expected);
+                    // A failing calc still keys and updates. A successful calc
+                    // leaves the identical memory-safe post-final state.
+                    let mut a = [0xA5; 80];
+                    let mut b = a;
+                    safe.as_mut().update(b"suffix").unwrap();
+                    // SAFETY: live initialized/post-final context; six readable
+                    // suffix bytes, 80 writable bytes, no retained pointers.
+                    let written = unsafe {
+                        ffi::av_hmac_update(raw.0, b"suffix".as_ptr(), 6);
+                        ffi::av_hmac_final(raw.0, b.as_mut_ptr(), 80)
+                    };
+                    assert_eq!(safe.as_mut().finalize(&mut a), Ok(written as usize));
+                    assert_eq!(a, b);
+                }
+            }
         }
     }
 }

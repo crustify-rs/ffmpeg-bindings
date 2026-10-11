@@ -107,6 +107,134 @@ impl DesRef<'_> {
     }
 }
 
+fn block_count(len: usize) -> Result<i32, i32> {
+    if !len.is_multiple_of(8) {
+        return Err(-22);
+    }
+    i32::try_from(len / 8).map_err(|_| -22)
+}
+
+impl DesRef<'_> {
+    /// Wraps: av_des_crypt
+    ///
+    /// Encrypt or decrypt whole 8-byte blocks. `None` selects ECB; an IV
+    /// selects CBC and is updated for the next call. Returns -22 without
+    /// changing output or IV for unequal lengths, partial blocks, or a block
+    /// count exceeding C's `int`. Unaligned byte buffers are supported by
+    /// C's actual AV_RB64/AV_WB64 implementation despite the header wording.
+    ///
+    /// Partially overlapping input/output cannot be passed through safe Rust:
+    /// ```compile_fail,E0502
+    /// use ffmpeg::libavutil::des::Des;
+    /// let context = Des::new(&[0; 8], false).unwrap();
+    /// let mut bytes = [0; 24];
+    /// context.as_ref().crypt(&mut bytes[8..], &bytes[..16], None, false).unwrap();
+    /// ```
+    pub fn crypt(
+        &self,
+        dst: &mut [u8],
+        src: &[u8],
+        iv: Option<&mut [u8; 8]>,
+        decrypt: bool,
+    ) -> Result<(), i32> {
+        let count = block_count(src.len())?;
+        if dst.len() != src.len() {
+            return Err(-22);
+        }
+        if count == 0 {
+            return Ok(());
+        }
+        let iv = iv.map_or(core::ptr::null_mut(), |iv| iv.as_mut_ptr());
+        // SAFETY: the live context is only read by des_encdec and its callers,
+        // even though C lacks const. Distinct slices supply count whole blocks;
+        // the optional IV has eight exclusively borrowed bytes. C performs
+        // unaligned reads/writes and retains no pointer or buffer reference.
+        unsafe {
+            ffi::av_des_crypt(
+                self.as_ptr().cast_mut(),
+                dst.as_mut_ptr(),
+                src.as_ptr(),
+                count,
+                iv,
+                i32::from(decrypt),
+            );
+        }
+        Ok(())
+    }
+
+    /// Wraps: av_des_crypt
+    ///
+    /// The exact in-place variant of [`Self::crypt`], with the same validation.
+    pub fn crypt_in_place(
+        &self,
+        data: &mut [u8],
+        iv: Option<&mut [u8; 8]>,
+        decrypt: bool,
+    ) -> Result<(), i32> {
+        let count = block_count(data.len())?;
+        if count == 0 {
+            return Ok(());
+        }
+        let iv = iv.map_or(core::ptr::null_mut(), |iv| iv.as_mut_ptr());
+        let ptr = data.as_mut_ptr();
+        // SAFETY: C reads each eight-byte block before overwriting it and
+        // supports exact src/dst aliasing, including CBC decryption. The
+        // context is read-only, data exclusively borrowed, IV disjoint and
+        // exactly eight bytes. All lengths were checked; no pointer is kept.
+        unsafe {
+            ffi::av_des_crypt(
+                self.as_ptr().cast_mut(),
+                ptr,
+                ptr,
+                count,
+                iv,
+                i32::from(decrypt),
+            );
+        }
+        Ok(())
+    }
+
+    /// Wraps: av_des_crypt
+    ///
+    /// Encrypt/decrypt zero blocks into `dst`. Uses real zero-filled input:
+    /// C's advertised NULL input is defective for multiple blocks because
+    /// it increments NULL and subsequently dereferences the resulting pointer.
+    pub fn crypt_zeros(
+        &self,
+        dst: &mut [u8],
+        iv: Option<&mut [u8; 8]>,
+        decrypt: bool,
+    ) -> Result<(), i32> {
+        block_count(dst.len())?;
+        dst.fill(0);
+        self.crypt_in_place(dst, iv, decrypt)
+    }
+
+    /// Wraps: av_des_mac
+    ///
+    /// CBC-MAC of whole blocks. Empty input returns the initial all-zero MAC.
+    /// The context is borrowed read-only; no input or result pointer is retained.
+    pub fn mac(&self, src: &[u8]) -> Result<[u8; 8], i32> {
+        let count = block_count(src.len())?;
+        let mut mac = [0; 8];
+        if count != 0 {
+            // SAFETY: C reads the context without changing it, reads count
+            // whole unaligned-safe blocks, and overwrites the same eight-byte
+            // output on each iteration. The buffers cannot overlap and C
+            // retains neither. Empty input bypasses C's pointer arithmetic.
+            unsafe {
+                ffi::av_des_mac(
+                    self.as_ptr().cast_mut(),
+                    mac.as_mut_ptr(),
+                    src.as_ptr(),
+                    count,
+                )
+            };
+        }
+        Ok(mac)
+    }
+}
+
 impl DesMut<'_> {
     /// Wraps: av_des_init
     ///
@@ -160,6 +288,42 @@ impl DesMut<'_> {
 #[cfg(test)]
 mod unit_tests {
     use super::*;
+
+    #[test]
+    fn crypt_validation_and_unchanged_buffers() {
+        let context = Des::zeroed();
+        let view = context.as_ref();
+        let mut dst = [0xA5; 16];
+        let mut iv = [0x35; 8];
+        assert_eq!(
+            view.crypt(&mut dst, &[0; 8], Some(&mut iv), false),
+            Err(-22)
+        );
+        assert_eq!(
+            view.crypt(&mut dst[..7], &[0; 7], Some(&mut iv), true),
+            Err(-22)
+        );
+        assert_eq!(
+            view.crypt_in_place(&mut dst[..15], Some(&mut iv), false),
+            Err(-22)
+        );
+        assert_eq!(
+            view.crypt_zeros(&mut dst[..15], Some(&mut iv), false),
+            Err(-22)
+        );
+        assert_eq!(view.mac(&[0; 7]), Err(-22));
+        assert_eq!(dst, [0xA5; 16]);
+        assert_eq!(iv, [0x35; 8]);
+        assert_eq!(view.crypt(&mut [], &[], Some(&mut iv), true), Ok(()));
+        assert_eq!(view.crypt_in_place(&mut [], Some(&mut iv), false), Ok(()));
+        assert_eq!(view.mac(&[]), Ok([0; 8]));
+        assert_eq!(block_count(0), Ok(0));
+        assert_eq!(block_count(7), Err(-22));
+        if let Some(max_len) = (i32::MAX as usize).checked_mul(8) {
+            assert_eq!(block_count(max_len), Ok(i32::MAX));
+            assert_eq!(block_count(max_len + 8), Err(-22));
+        }
+    }
 
     #[test]
     fn invalid_lengths_leave_state_unchanged() {
