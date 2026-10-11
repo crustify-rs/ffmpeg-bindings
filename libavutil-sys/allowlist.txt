@@ -641,3 +641,16 @@ function av_cast5_alloc
 function av_cast5_init
 function av_cast5_crypt
 function av_crc_get_table
+# Crypto wave 0, batch 4: opaque AVHashContext lifecycle and metadata;
+# update/final are the C observers for constructor/reset equivalence tests.
+type AVHashContext
+function av_hash_alloc
+function av_hash_freep
+function av_hash_init
+function av_hash_get_name
+function av_hash_get_size
+function av_hash_update
+function av_hash_final
+# C's consumer of AVHMACType in its enum equivalence tests.
+function av_hmac_alloc
+function av_hmac_free
