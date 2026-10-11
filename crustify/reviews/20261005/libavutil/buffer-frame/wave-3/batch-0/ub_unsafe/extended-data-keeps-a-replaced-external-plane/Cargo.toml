@@ -1,0 +1,10 @@
+[package]
+name = "extended-data-keeps-a-replaced-external-plane"
+version = "0.0.0"
+edition = "2024"
+publish = false
+
+[workspace]
+
+[dependencies]
+ffmpeg = { path = "../../../../../../../../rust/ffmpeg", default-features = false, features = ["libavutil"] }

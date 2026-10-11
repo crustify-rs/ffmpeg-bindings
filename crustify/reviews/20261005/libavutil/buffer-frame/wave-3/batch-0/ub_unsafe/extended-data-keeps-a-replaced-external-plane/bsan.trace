@@ -1,0 +1,10 @@
+cloning after replacing plane 0 and freeing its old block
+error: Undefined Behavior: trying to access an allocation that has been freed.
+   --> /target/crustify/builds/bsan/src/libavutil/samplefmt.c:237:13
+    |
+237 | memcpy(dst[i] + dst_offset, src[i] + src_offset, data_size);
+    | ^
+
+stack backtrace:
+0: av_samples_copy
+      at /target/crustify/builds/bsan/src/libavutil/samplefmt.c:237:13

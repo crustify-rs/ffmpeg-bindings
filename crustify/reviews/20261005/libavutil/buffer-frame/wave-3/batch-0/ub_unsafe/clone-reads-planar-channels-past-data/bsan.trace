@@ -1,0 +1,15 @@
+cloning a 9-channel planar frame whose extended_data is data
+BorrowSanitizer:DEADLYSIGNAL
+==2000502==ERROR: BorrowSanitizer: SEGV on unknown address 0x000000000040 (pc 0x7ffff7a377cd bp 0x000000000000 sp 0x7fffffffbb68 T2000502)
+==2000502==The signal is caused by a READ memory access.
+==2000502==HINT: address points to the zero page.
+    #0 0x7ffff7a377cd in __memcpy_avx_unaligned_erms_rtm string/../sysdeps/x86_64/multiarch/memmove-vec-unaligned-erms.S:265
+
+==2000502==Register values:
+rax = 0x0000708000000480  rbx = 0x0000000000000040  rcx = 0x0000000000009e40  rdx = 0x0000000000000040  
+rdi = 0x0000708000000480  rsi = 0x0000000000000040  rbp = 0x0000000000000000  rsp = 0x00007fffffffbb68  
+ r8 = 0x0000000000000100   r9 = 0x0000610000021f68  r10 = 0x0000000000000000  r11 = 0x0000000000000001  
+r12 = 0x0000000000000010  r13 = 0x0000000000000040  r14 = 0x0000000000000040  r15 = 0x0000708000000480  
+BorrowSanitizer can not provide additional info.
+SUMMARY: BorrowSanitizer: SEGV string/../sysdeps/x86_64/multiarch/memmove-vec-unaligned-erms.S:265 in __memcpy_avx_unaligned_erms_rtm
+==2000502==ABORTING

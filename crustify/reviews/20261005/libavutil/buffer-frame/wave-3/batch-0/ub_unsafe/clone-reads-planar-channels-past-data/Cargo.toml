@@ -1,0 +1,10 @@
+[package]
+name = "clone-reads-planar-channels-past-data"
+version = "0.0.0"
+edition = "2024"
+publish = false
+
+[workspace]
+
+[dependencies]
+ffmpeg = { path = "../../../../../../../../rust/ffmpeg", default-features = false, features = ["libavutil"] }
