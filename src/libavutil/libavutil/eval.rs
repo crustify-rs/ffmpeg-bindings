@@ -17,17 +17,27 @@
 //! (`AVExpr` keeps no count), so a caller that evaluates must keep the
 //! constant count it parsed with.
 //!
+//! [`parse_and_eval`] evaluates an arithmetic expression such as
+//! `"1+2^3+5*5+sin(2/3)"` in one step, with named constants and Rust
+//! functions the expression may call by name. The evaluator converts some
+//! values to integers without a range check, which is undefined behaviour in
+//! C for an out-of-range value; the wrapper refuses, before C runs, the
+//! expressions that could reach such a conversion (see [`parse_and_eval`]).
+//!
 //! Raw seams remain where the dependency has no safe handle: the parent log
 //! context of [`Expr::parse_with_context`], and the opaque pointer a user
 //! function receives from the evaluator.
 
+use core::any::Any;
+use core::cell::Cell;
 use core::ffi::{CStr, c_char, c_int, c_void};
 use core::ptr;
+use std::panic::{self, AssertUnwindSafe};
 
 use ffibox::{CBox, define_ctype, impl_cdrop};
 
 use super::ffi;
-use super::opt::AVERROR_BUG;
+use super::opt::{AVERROR_BUG, ObjectRef};
 
 /// Wraps: av_strtod
 ///
@@ -250,6 +260,343 @@ impl Expr {
     }
 }
 
+/// `AVERROR(EINVAL)`: C's code for an expression it cannot parse, and the
+/// wrapper's for one it refuses.
+const EINVAL: i32 = -(ffi::EINVAL as i32);
+
+/// `AV_LOG_TRACE`, the highest level C logs a parse error at plus the
+/// offset of a quiet evaluation.
+const LOG_TRACE: c_int = ffi::AV_LOG_TRACE as c_int;
+
+/// `AV_LOG_FATAL`: C adds a context's level offset only to messages at or
+/// above it.
+const LOG_FATAL: c_int = ffi::AV_LOG_FATAL as c_int;
+
+/// The most functions of each arity one evaluation takes: each needs its own
+/// C trampoline, since C passes a function only the shared `opaque`.
+pub const MAX_FUNCS: usize = 16;
+
+/// A named function of one argument an expression may call: the name it is
+/// called by and the function.
+pub type Func1<'f> = (&'f CStr, &'f dyn Fn(f64) -> f64);
+
+/// A named function of two arguments an expression may call: the name it is
+/// called by and the function.
+pub type Func2<'f> = (&'f CStr, &'f dyn Fn(f64, f64) -> f64);
+
+/// Wraps: av_expr_parse_and_eval
+///
+/// The value of `expr`, an arithmetic expression in FFmpeg's syntax, such as
+/// `"1+2^3+5*5+sin(2/3)"`. Whitespace is ignored. The expression may name
+/// each of `consts` for its value, call each of `funcs1` and `funcs2` by
+/// name, and use the evaluator's own constants (`PI`, `E`, ...) and
+/// functions (`sin`, `max`, `st`, `ld`, ...); a built-in function's name
+/// shadows a function of the same name in `funcs1` or `funcs2`. Parse errors
+/// are logged with `log_offset` added to their level, as messages of an
+/// `"Eval"` context whose parent is `log_ctx`.
+///
+/// # Errors
+///
+/// C's negative `AVERROR` code: `AVERROR(EINVAL)` for an expression it
+/// cannot parse or whose value is NaN, `AVERROR(ENOMEM)` when memory runs
+/// out.
+///
+/// Also `AVERROR(EINVAL)`, before C runs, for more than [`MAX_FUNCS`]
+/// functions of either arity, and for an expression that could reach one of
+/// the evaluator's unchecked `double` to integer conversions, which are
+/// undefined behaviour for a NaN or out-of-range value (`ld(1e300)`):
+///
+/// - an index argument of `ld`, `st`, `random`, `randomi` or `taylor`, the
+///   level argument of `print`, or an argument of `gcd`, `bitand` or
+///   `bitor` that is not a plain decimal number (`5`, `-2.5`) in range: the
+///   `int` range for an index or level, the `int64_t` range for the others;
+/// - a `print` level at or above `AV_LOG_FATAL` that overflows an `int` once
+///   `log_offset` is added, or a `log_offset` that does so for C's own
+///   messages (above `INT_MAX - AV_LOG_TRACE`);
+/// - `random` or `randomi` together with `st` or `root`, which store
+///   arbitrary values in the variables `random` seeds itself from.
+///
+/// A function in `funcs1` or `funcs2` that panics makes the evaluation
+/// return NaN to C without calling Rust again, and the panic resumes once C
+/// has returned.
+pub fn parse_and_eval(
+    expr: &CStr,
+    consts: &[(&CStr, f64)],
+    funcs1: &[Func1<'_>],
+    funcs2: &[Func2<'_>],
+    log_offset: i32,
+    log_ctx: Option<ObjectRef<'_>>,
+) -> Result<f64, i32> {
+    if funcs1.len() > MAX_FUNCS || funcs2.len() > MAX_FUNCS || refuses(expr.to_bytes(), log_offset)
+    {
+        return Err(EINVAL);
+    }
+    let names = |n: &mut dyn Iterator<Item = &CStr>| {
+        n.map(CStr::as_ptr)
+            .chain([ptr::null()])
+            .collect::<Vec<*const c_char>>()
+    };
+    let const_names = names(&mut consts.iter().map(|c| c.0));
+    let const_values: Vec<f64> = consts.iter().map(|c| c.1).chain([0.0]).collect();
+    let func1_names = names(&mut funcs1.iter().map(|f| f.0));
+    let func2_names = names(&mut funcs2.iter().map(|f| f.0));
+    let calls1: Vec<Option<Call1>> = CALLS1[..funcs1.len()]
+        .iter()
+        .copied()
+        .map(Some)
+        .chain([None])
+        .collect();
+    let calls2: Vec<Option<Call2>> = CALLS2[..funcs2.len()]
+        .iter()
+        .copied()
+        .map(Some)
+        .chain([None])
+        .collect();
+    let funcs = Funcs {
+        funcs1,
+        funcs2,
+        panic: Cell::new(None),
+    };
+    let log_ctx = log_ctx.map_or(ptr::null_mut(), |o| o.as_ptr());
+    let mut value = f64::NAN;
+    // SAFETY: every array is NULL-terminated, or as long as the names that
+    // index it; the names and `expr` are live C strings; trampoline `i`
+    // reads `funcs1[i]` / `funcs2[i]` through `opaque`, a `Funcs` that
+    // outlives the call; `log_ctx` is NULL or a live object whose class is
+    // well-formed, as `ObjectRef` guarantees; and `refuses` rejected every
+    // expression that could reach C's unchecked conversions.
+    let ret = unsafe {
+        ffi::av_expr_parse_and_eval(
+            &mut value,
+            expr.as_ptr(),
+            const_names.as_ptr(),
+            const_values.as_ptr(),
+            func1_names.as_ptr(),
+            calls1.as_ptr(),
+            func2_names.as_ptr(),
+            calls2.as_ptr(),
+            (&raw const funcs).cast_mut().cast(),
+            log_offset,
+            log_ctx,
+        )
+    };
+    if let Some(payload) = funcs.panic.take() {
+        panic::resume_unwind(payload);
+    }
+    if ret < 0 { Err(ret) } else { Ok(value) }
+}
+
+/// The C type of a one-argument function of an expression.
+type Call1 = unsafe extern "C" fn(*mut c_void, f64) -> f64;
+
+/// The C type of a two-argument function of an expression.
+type Call2 = unsafe extern "C" fn(*mut c_void, f64, f64) -> f64;
+
+/// The Rust functions of one evaluation, which the trampolines reach through
+/// C's `opaque`, and the first panic one of them raised.
+struct Funcs<'f> {
+    funcs1: &'f [Func1<'f>],
+    funcs2: &'f [Func2<'f>],
+    panic: Cell<Option<Box<dyn Any + Send>>>,
+}
+
+impl Funcs<'_> {
+    /// `f()`, or NaN once a function has panicked; a panic is caught and
+    /// kept, so that it does not unwind through C.
+    fn call(&self, f: impl FnOnce() -> f64) -> f64 {
+        let pending = self.panic.take();
+        if pending.is_some() {
+            self.panic.set(pending);
+            return f64::NAN;
+        }
+        panic::catch_unwind(AssertUnwindSafe(f)).unwrap_or_else(|payload| {
+            self.panic.set(Some(payload));
+            f64::NAN
+        })
+    }
+}
+
+/// The C functions of an evaluation's Rust functions, one per index.
+impl Funcs<'_> {
+    /// The C function of `funcs1[I]`.
+    ///
+    /// # Safety
+    ///
+    /// `opaque` must address a live [`Funcs`] whose `funcs1` has more than
+    /// `I` entries.
+    unsafe extern "C" fn call1<const I: usize>(opaque: *mut c_void, x: f64) -> f64 {
+        // SAFETY: `parse_and_eval` passes its live `Funcs` as `opaque` and
+        // hands C trampoline `I` only when `funcs1` has an entry `I`; C calls
+        // it on the evaluating thread, during the call.
+        let funcs = unsafe { &*opaque.cast::<Funcs<'_>>() };
+        funcs.call(|| (funcs.funcs1[I].1)(x))
+    }
+
+    /// The C function of `funcs2[I]`.
+    ///
+    /// # Safety
+    ///
+    /// As [`call1`](Self::call1), for `funcs2`.
+    unsafe extern "C" fn call2<const I: usize>(opaque: *mut c_void, x: f64, y: f64) -> f64 {
+        // SAFETY: as `call1`, for `funcs2`.
+        let funcs = unsafe { &*opaque.cast::<Funcs<'_>>() };
+        funcs.call(|| (funcs.funcs2[I].1)(x, y))
+    }
+}
+
+macro_rules! trampolines {
+    ($call:ident, $ty:ty; $($i:literal)*) => {
+        [$(Funcs::$call::<$i> as $ty),*]
+    };
+}
+
+const CALLS1: [Call1; MAX_FUNCS] =
+    trampolines!(call1, Call1; 0 1 2 3 4 5 6 7 8 9 10 11 12 13 14 15);
+const CALLS2: [Call2; MAX_FUNCS] =
+    trampolines!(call2, Call2; 0 1 2 3 4 5 6 7 8 9 10 11 12 13 14 15);
+
+/// How a built-in function converts one of its arguments to an integer.
+#[derive(Clone, Copy)]
+enum Conversion {
+    /// To `int`, through `av_clip(x, ...)`: an index or a clip bound.
+    Int,
+    /// To `int`, as `print`'s log level, which C then offsets.
+    Level,
+    /// To `int64_t` or `long`.
+    Int64,
+}
+
+/// Whether C's evaluator could reach undefined behaviour evaluating `expr`
+/// with `log_offset`, by the rules [`parse_and_eval`] lists: an unchecked
+/// `double` to integer conversion of a non-literal or out-of-range argument,
+/// a log level overflowing `int` once offset, or `random` seeding itself
+/// from a variable `st` or `root` may have set to anything.
+///
+/// The check is syntactic and conservative: it reads every place C could
+/// parse a built-in call, and lets through only arguments whose value it
+/// knows.
+pub(crate) fn refuses(expr: &[u8], log_offset: i32) -> bool {
+    if log_offset > c_int::MAX - LOG_TRACE {
+        return true;
+    }
+    // C drops every `av_isspace` byte before parsing.
+    let s: Vec<u8> = expr
+        .iter()
+        .copied()
+        .filter(|c| !matches!(c, b' ' | b'\t' | b'\n' | 0x0b | 0x0c | b'\r'))
+        .collect();
+    let identifier = |c: u8| c.is_ascii_alphanumeric() || c == b'_';
+    let (mut seeds, mut stores) = (false, false);
+    let mut i = 0;
+    while i < s.len() {
+        if !identifier(s[i]) {
+            i += 1;
+            continue;
+        }
+        // C parses a name only where an identifier starts; one starting with
+        // a digit is a number.
+        let start = i;
+        while i < s.len() && identifier(s[i]) {
+            i += 1;
+        }
+        if s[start].is_ascii_digit() {
+            continue;
+        }
+        use Conversion::*;
+        let converted: &[(usize, Conversion)] = match &s[start..i] {
+            b"ld" => &[(0, Int)],
+            b"st" => {
+                stores = true;
+                &[(0, Int)]
+            }
+            b"root" => {
+                stores = true;
+                &[]
+            }
+            b"random" | b"randomi" => {
+                seeds = true;
+                &[(0, Int)]
+            }
+            b"taylor" => &[(2, Int)],
+            b"print" => &[(1, Level)],
+            b"gcd" | b"bitand" | b"bitor" => &[(0, Int64), (1, Int64)],
+            _ => continue,
+        };
+        // C takes the arguments after the first `(` that follows the name,
+        // wherever it is; with none, it fails to parse.
+        let Some(open) = s[i..].iter().position(|&c| c == b'(') else {
+            continue;
+        };
+        let args = arguments(&s[i + open + 1..]);
+        for &(index, conversion) in converted {
+            let Some(arg) = args.get(index) else {
+                // `taylor` and `print` read their last argument only when
+                // present; a missing required one fails to parse.
+                continue;
+            };
+            if !in_range(arg, conversion, log_offset) {
+                return true;
+            }
+        }
+    }
+    seeds && stores
+}
+
+/// The top-level, comma-separated arguments of a call, from just after its
+/// `(` to its matching `)` or the end of the expression.
+fn arguments(s: &[u8]) -> Vec<&[u8]> {
+    let mut args = Vec::new();
+    let (mut depth, mut start) = (0usize, 0);
+    for (i, &c) in s.iter().enumerate() {
+        match c {
+            b'(' => depth += 1,
+            b')' if depth == 0 => {
+                args.push(&s[start..i]);
+                return args;
+            }
+            b')' => depth -= 1,
+            b',' if depth == 0 => {
+                args.push(&s[start..i]);
+                start = i + 1;
+            }
+            _ => {}
+        }
+    }
+    args.push(&s[start..]);
+    args
+}
+
+/// Whether `arg` is a plain decimal number whose `conversion` C performs
+/// without undefined behaviour.
+fn in_range(arg: &[u8], conversion: Conversion, log_offset: i32) -> bool {
+    let digits = arg
+        .strip_prefix(b"+")
+        .or_else(|| arg.strip_prefix(b"-"))
+        .unwrap_or(arg);
+    let plain = digits.iter().any(u8::is_ascii_digit)
+        && digits.iter().all(|&c| c.is_ascii_digit() || c == b'.')
+        && digits.iter().filter(|&&c| c == b'.').count() <= 1;
+    let Some(v) = plain
+        .then(|| core::str::from_utf8(arg).ok()?.parse::<f64>().ok())
+        .flatten()
+    else {
+        return false;
+    };
+    match conversion {
+        Conversion::Int => v > -2_147_483_649.0 && v < 2_147_483_648.0,
+        Conversion::Int64 => {
+            (-9_223_372_036_854_775_808.0..9_223_372_036_854_775_808.0).contains(&v)
+        }
+        Conversion::Level => {
+            let fits = v > -2_147_483_649.0 && v < 2_147_483_648.0;
+            // `as` truncates toward zero, as C's conversion does.
+            let level = v as i64;
+            fits && (level < i64::from(LOG_FATAL)
+                || level + i64::from(log_offset) <= i64::from(c_int::MAX))
+        }
+    }
+}
+
 #[cfg(test)]
 mod unit_tests {
     use super::*;
@@ -453,5 +800,118 @@ mod unit_tests {
         send::<ExprMut<'_>>();
         assert_eq!(size_of::<ExprBox>(), size_of::<*mut ffi::AVExpr>());
         assert_eq!(size_of::<Option<ExprBox>>(), size_of::<*mut ffi::AVExpr>());
+    }
+
+    #[test]
+    fn refuses_non_literal_or_out_of_range_conversions() {
+        for e in [
+            "ld(1e300)",
+            "ld(1+1)",
+            "ld(x)",
+            "st(nan,1)",
+            "st(2147483648,1)",
+            "random(-2147483649)",
+            "randomi(0.5e10,0,1)",
+            "taylor(1,2,1e10)",
+            "print(1,inf)",
+            "gcd(1e19,2)",
+            "gcd(2,9223372036854775808)",
+            "bitand(1,0x10)",
+            "bitor(1e300,1)",
+            "1+ld(1e300)",
+            "ld+(1e300)",
+            "ld ( 1 e 3 0 0 )",
+            "(gcd(1,2), ld(ld(0)))",
+            "st(0,-1);random(0)",
+            "root(random(0)-1,1)",
+        ] {
+            assert!(refuses(e.as_bytes(), 0), "{e}");
+        }
+    }
+
+    #[test]
+    fn accepts_literal_in_range_conversions_and_other_names() {
+        for e in [
+            "1+2^3+5*5+sin(2/3)",
+            "ld(0)",
+            "st(9, 1e300)+ld(-5)",
+            "random(0)",
+            "randomi(1,0,10)",
+            "taylor(1,2)",
+            "taylor(1,2,3.5)",
+            "print(1)",
+            "print(1,-8)",
+            "gcd(12,18)",
+            "bitand(-9223372036854775808,1)",
+            "bitor(5.,.5)",
+            "xld(1e300)",
+            "ld_(1e300)",
+            "2ld(1e300)",
+            "ld",
+            "st(0,1);root(ld(0)-1,2)",
+        ] {
+            assert!(!refuses(e.as_bytes(), 0), "{e}");
+        }
+    }
+
+    #[test]
+    fn print_levels_and_offsets_must_not_overflow() {
+        assert!(!refuses(b"print(1,2147483647)", 0));
+        assert!(refuses(b"print(1,2147483647)", 1));
+        assert!(!refuses(b"print(1,7)", c_int::MAX - LOG_TRACE));
+        assert!(!refuses(b"print(1,56)", c_int::MAX - LOG_TRACE));
+        assert!(refuses(b"print(1,57)", c_int::MAX - LOG_TRACE));
+        assert!(!refuses(b"print(1,2147483647)", c_int::MIN));
+        assert!(refuses(b"1", c_int::MAX - LOG_TRACE + 1));
+        assert!(!refuses(b"1", c_int::MAX - LOG_TRACE));
+    }
+
+    #[test]
+    fn arguments_split_at_top_level_commas() {
+        assert_eq!(
+            arguments(b"1,(2,3),f(4))+5"),
+            [&b"1"[..], b"(2,3)", b"f(4)"]
+        );
+        assert_eq!(arguments(b"1,2"), [&b"1"[..], b"2"]);
+        assert_eq!(arguments(b")"), [&b""[..]]);
+    }
+
+    #[test]
+    fn trampolines_reach_their_own_entry() {
+        let double = |x: f64| x * 2.0;
+        let funcs1: Vec<Func1<'_>> = vec![(c"f", &double); MAX_FUNCS];
+        let funcs = Funcs {
+            funcs1: &funcs1,
+            funcs2: &[],
+            panic: Cell::new(None),
+        };
+        let opaque = (&raw const funcs).cast_mut().cast();
+        for (i, call) in CALLS1.iter().enumerate() {
+            // SAFETY: `opaque` addresses `funcs`, which has `MAX_FUNCS`
+            // one-argument entries.
+            assert_eq!(unsafe { call(opaque, i as f64) }, 2.0 * i as f64);
+        }
+    }
+
+    #[test]
+    fn a_panic_is_kept_and_later_calls_return_nan() {
+        let calls = Cell::new(0);
+        let boom = |_: f64| -> f64 {
+            calls.set(calls.get() + 1);
+            panic!("boom")
+        };
+        let funcs1: [Func1<'_>; 1] = [(c"boom", &boom)];
+        let funcs = Funcs {
+            funcs1: &funcs1,
+            funcs2: &[],
+            panic: Cell::new(None),
+        };
+        let opaque = (&raw const funcs).cast_mut().cast();
+        // SAFETY: `opaque` addresses `funcs`, which has one entry.
+        assert!(unsafe { CALLS1[0](opaque, 1.0) }.is_nan());
+        // SAFETY: as above.
+        assert!(unsafe { CALLS1[0](opaque, 1.0) }.is_nan());
+        assert_eq!(calls.get(), 1);
+        assert!(funcs.panic.take().is_some());
     }
 }

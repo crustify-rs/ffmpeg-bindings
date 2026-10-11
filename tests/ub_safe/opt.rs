@@ -182,3 +182,150 @@ mod array_def {
         assert_eq!(moved.as_ref().size_min(), 2);
     }
 }
+
+/// Options wave 0, batch 3.
+///
+/// UB tests of `libavutil/opt.h`'s safe object API on the one object built
+/// without `unsafe`, a [`BareObject`] (a class with no options, children or
+/// offsets): every getter and setter finds nothing and touches nothing past
+/// the class pointer. The option paths themselves need an object adopted
+/// from a raw pointer and are exercised in `ub_unsafe`. Also the key-value
+/// parser, over strings with and without keys and separators.
+mod objects {
+    use core::ffi::CStr;
+    use std::ffi::CString;
+
+    use ffmpeg::libavutil::log::{Class, ClassCategory};
+    use ffmpeg::libavutil::opt::{BareObject, SearchFlags, SerializeFlags, parse_key_value};
+
+    static CLASS: Class = Class::new(c"crustify-opt-ub", ClassCategory::NA);
+
+    const NOT_FOUND: i32 = -i32::from_le_bytes([0xF8, b'O', b'P', b'T']);
+    const EINVAL: i32 = -22;
+
+    #[test]
+    fn a_bare_object_has_no_options() {
+        let mut a = BareObject::new(CLASS.as_ref()).unwrap();
+        let b = a;
+        for flags in [SearchFlags::NONE, SearchFlags::CHILDREN] {
+            let r = a.as_object();
+            assert_eq!(r.get(c"x", flags).unwrap_err(), NOT_FOUND);
+            assert_eq!(r.get_nullable(c"x", flags).unwrap_err(), NOT_FOUND);
+            assert_eq!(r.get_int(c"x", flags), Err(NOT_FOUND));
+            assert_eq!(r.get_double(c"x", flags), Err(NOT_FOUND));
+            assert_eq!(r.get_image_size(c"x", flags), Err(NOT_FOUND));
+            assert_eq!(r.get_array_size(c"x", flags), Err(NOT_FOUND));
+            assert_eq!(r.is_set_to_default(c"x", flags), Err(NOT_FOUND));
+            assert!(!r.flag_is_set(c"x", c"y"));
+            assert_eq!(r.children().count(), 0);
+            let mut m = a.as_object_mut();
+            assert_eq!(m.set(c"x", c"ld(1e300)", flags), Err(NOT_FOUND));
+            assert_eq!(m.set_int(c"x", 1, flags), Err(NOT_FOUND));
+            assert_eq!(m.set_double(c"x", f64::NAN, flags), Err(NOT_FOUND));
+            assert_eq!(m.set_bin(c"x", &[1, 2], flags), Err(NOT_FOUND));
+            assert_eq!(m.set_image_size(c"x", 1, 2, flags), Err(NOT_FOUND));
+            assert!(m.children_mut().next_child().is_none());
+        }
+        let mut m = a.as_object_mut();
+        m.set_defaults();
+        m.set_defaults_masked(0, 0);
+        m.free_options();
+        m.free_options();
+        m.copy_from(b.as_object()).unwrap();
+        assert_eq!(m.set_from_string(c"", &[], c"=", c":"), Ok(0));
+        assert_eq!(
+            m.set_from_string(c"x=1", &[c"x"], c"=", c":"),
+            Err(NOT_FOUND)
+        );
+        assert_eq!(m.set_from_string(c"1", &[], c"=", c":"), Err(EINVAL));
+        let r = m.as_ref();
+        assert_eq!(
+            r.serialize(0, SerializeFlags::NONE, b'=', b':')
+                .unwrap()
+                .as_bytes(),
+            b""
+        );
+        let all = SerializeFlags::SKIP_DEFAULTS
+            | SerializeFlags::OPT_FLAGS_EXACT
+            | SerializeFlags::SEARCH_CHILDREN;
+        assert_eq!(r.serialize(-1, all, b'=', b':').unwrap().as_bytes(), b"");
+        for (k, p) in [(b'=', b'='), (0, b':'), (b'\\', b':'), (b'=', 0)] {
+            assert_eq!(
+                r.serialize(0, SerializeFlags::NONE, k, p).unwrap_err(),
+                EINVAL
+            );
+        }
+        r.show(None, 0, 0);
+        r.show(Some(b.as_object()), -1, 0);
+        assert!(format!("{r:?}").contains("crustify-opt-ub"));
+        assert!(format!("{a:?}").contains("crustify-opt-ub"));
+    }
+
+    #[test]
+    fn bare_objects_on_many_threads() {
+        std::thread::scope(|s| {
+            for _ in 0..4 {
+                s.spawn(|| {
+                    let mut o = BareObject::new(CLASS.as_ref()).unwrap();
+                    for _ in 0..200 {
+                        o.as_object_mut().set_defaults();
+                        let _ = o.as_object().serialize(0, SerializeFlags::NONE, b'=', b':');
+                    }
+                });
+            }
+        });
+    }
+
+    /// Walks `opts` pair by pair as `av_opt_set_from_string` does, over exactly
+    /// sized heap strings; returns the pairs read.
+    fn walk(opts: &str, kv: &CStr, pairs: &CStr, implicit: bool) -> usize {
+        let opts = CString::new(opts).unwrap();
+        let mut rest: &CStr = &opts;
+        let mut n = 0;
+        while !rest.is_empty() {
+            let Ok(p) = parse_key_value(rest, kv, pairs, implicit) else {
+                break;
+            };
+            assert!(p.key.is_some() || implicit);
+            let _ = p.value.as_bytes();
+            assert!(p.rest.to_bytes().len() <= rest.to_bytes().len());
+            rest = match p.rest.to_bytes_with_nul() {
+                [0] => p.rest,
+                [_, tail @ ..] => CStr::from_bytes_with_nul(tail).unwrap(),
+                [] => unreachable!(),
+            };
+            n += 1;
+        }
+        n
+    }
+
+    #[test]
+    fn key_values_with_and_without_keys() {
+        for implicit in [false, true] {
+            for (opts, kv, pairs) in [
+                ("a=1:b=2", c"=", c":"),
+                ("a=1,b=\\,2", c"=", c","),
+                ("  a = 'x:y' : b=", c"=", c":"),
+                ("noval", c"=", c":"),
+                ("=v", c"=", c":"),
+                ("", c"=", c":"),
+                (":::", c"=", c":"),
+                ("a=1", c"", c""),
+                ("k#v;k2#v2", c"#", c";"),
+                ("a=\\", c"=", c":"),
+                ("é=1", c"=", c":"),
+            ] {
+                walk(opts, kv, pairs, implicit);
+            }
+        }
+        let long = format!("{}={}", "k".repeat(4096), "v".repeat(4096));
+        assert_eq!(walk(&long, c"=", c":", false), 1);
+        assert_eq!(
+            parse_key_value(c"1", c"=", c":", false).unwrap_err(),
+            EINVAL
+        );
+        let p = parse_key_value(c"1", c"=", c":", true).unwrap();
+        assert!(p.key.is_none());
+        assert_eq!(p.value.as_bytes(), b"1");
+    }
+}

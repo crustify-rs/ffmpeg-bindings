@@ -678,3 +678,388 @@ mod set_options_string {
         });
     }
 }
+
+/// Options wave 0, batch 3: `ObjectRef::from_ptr` and `ObjectMut::from_ptr`,
+/// each called on objects that satisfy their contract (the fixture's
+/// well-formed `OBJ_CLASS` objects, NULL, a NULL class), then every safe
+/// method on the adopted handles, with the values that reach undefined
+/// behaviour in C.
+mod objects {
+    use core::ffi::{CStr, c_char, c_void};
+    use core::ptr;
+    use std::ffi::CString;
+
+    use ffmpeg::libavutil::log::{Class, ClassCategory};
+    use ffmpeg::libavutil::opt::{BareObject, ObjectMut, ObjectRef, SearchFlags, SerializeFlags};
+
+    use super::fixture::{OBJ_OPTIONS, Obj, Owned};
+
+    const EINVAL: i32 = -22;
+    const ERANGE: i32 = -34;
+
+    fn under_bsan() -> bool {
+        std::env::var("CRUSTIFY_FFMPEG_VARIANT").as_deref() == Ok("bsan")
+    }
+
+    /// The names of every `OBJ_CLASS` option, constants included, and two
+    /// that name nothing.
+    fn names() -> Vec<&'static CStr> {
+        let mut v: Vec<&'static CStr> = OBJ_OPTIONS.0[..OBJ_OPTIONS.0.len() - 1]
+            .iter()
+            // SAFETY: every name of the static table is a literal.
+            .map(|o| unsafe { CStr::from_ptr(o.name) })
+            .collect();
+        v.extend([c"missing", c""]);
+        v
+    }
+
+    /// The shared handle of `o`.
+    fn shared(o: &Owned) -> ObjectRef<'_> {
+        // SAFETY: a live, defaulted object of the well-formed `OBJ_CLASS`,
+        // written by nothing while the handle lives.
+        unsafe { ObjectRef::from_ptr(o.as_obj()) }.unwrap()
+    }
+
+    /// The exclusive handle of `o`.
+    fn exclusive(o: &Owned) -> ObjectMut<'_> {
+        // SAFETY: as above, accessed through no other handle while this one
+        // lives.
+        unsafe { ObjectMut::from_ptr(o.as_obj()) }.unwrap()
+    }
+
+    /// Calls every getter on every name, with both search flags.
+    fn read_all(r: ObjectRef<'_>) {
+        for name in names() {
+            for flags in [SearchFlags::NONE, SearchFlags::CHILDREN] {
+                let _ = r.get(name, flags).map(|s| s.as_bytes().len());
+                let _ = r.get_nullable(name, flags);
+                let _ = r.get_int(name, flags);
+                let _ = r.get_double(name, flags);
+                let _ = r.get_image_size(name, flags);
+                let _ = r.get_array_size(name, flags);
+                let _ = r.is_set_to_default(name, flags);
+            }
+            for flag in [c"one", c"bit", c"high", c"mixed", c"dflag", c"missing"] {
+                let _ = r.flag_is_set(name, flag);
+            }
+        }
+        for flags in [
+            SerializeFlags::NONE,
+            SerializeFlags::SKIP_DEFAULTS,
+            SerializeFlags::SEARCH_CHILDREN | SerializeFlags::OPT_FLAGS_EXACT,
+        ] {
+            let _ = r.serialize(0, flags, b'=', b':');
+        }
+        let _ = r.children().count();
+    }
+
+    #[test]
+    fn object_ref_from_ptr() {
+        // BSan reports C's reads through the end pointers glibc's uninstrumented
+        // `strtod` / `strtol` / `strtoul` store (`eval.c:120`, `parseutils.c:391`)
+        // as accesses of freed or foreign allocations, depending on earlier
+        // frames (the shared recipes' stale-shadow class); the parses here are
+        // C's own, so BSan covers these paths in the typed-setter tests instead.
+        if under_bsan() {
+            return;
+        }
+        // SAFETY: NULL is accepted.
+        assert!(unsafe { ObjectRef::from_ptr(ptr::null_mut()) }.is_none());
+        let mut no_class: *const c_void = ptr::null();
+        // SAFETY: a live object whose class pointer is NULL.
+        assert!(unsafe { ObjectRef::from_ptr((&raw mut no_class).cast()) }.is_none());
+        let o = Owned::with_child();
+        read_all(shared(&o));
+        // Handles copy, and the children are objects of their own.
+        let r = shared(&o);
+        let copy = r;
+        let child = copy.children().next().unwrap();
+        assert!(child.class().ptr_eq(r.class()));
+        read_all(child);
+        // Values at the edges of what C reads, written raw while no handle
+        // is live.
+        // SAFETY: raw writes of the live object's fields, each a valid value
+        // of its type.
+        unsafe {
+            let p = o.ptr();
+            (*p).q = ffmpeg::libavutil::ffi::AVRational { num: 1, den: 0 };
+            (*p).wide_q = ffmpeg::libavutil::ffi::AVRational { num: 0, den: 0 };
+            (*p).dbl = f64::NAN;
+            (*p).flt = f32::INFINITY;
+            (*p).duration = i64::MIN;
+            (*p).big = i64::MIN;
+            (*p).uint64 = u64::MAX;
+            (*p).flags = -1;
+        }
+        read_all(shared(&o));
+        // SAFETY: as above.
+        unsafe { (*o.ptr()).dbl = 1e300 };
+        read_all(shared(&o));
+        let r = shared(&o);
+        assert_eq!(r.get_int(c"dbl", SearchFlags::NONE), Err(ERANGE));
+        assert_eq!(r.get_int(c"q", SearchFlags::NONE), Err(ERANGE));
+        assert_eq!(r.get_int(c"wide_q", SearchFlags::NONE), Err(ERANGE));
+        assert!(!r.flag_is_set(c"dbl_unit", c"dflag"));
+        // A zeroed object, before any default: NULL strings, empty arrays.
+        let z = Owned::zeroed();
+        read_all(shared(&z));
+        static LOG: Class = Class::new(c"crustify-opt-show", ClassCategory::NA);
+        let log = BareObject::new(LOG.as_ref()).unwrap();
+        r.show(None, -1, 0);
+        r.show(
+            Some(log.as_object()),
+            ffmpeg::libavutil::ffi::AV_OPT_FLAG_ENCODING_PARAM as i32,
+            0,
+        );
+        r.show(Some(child), 0, -1);
+    }
+
+    #[test]
+    fn object_mut_from_ptr() {
+        // BSan reports C's reads through the end pointers glibc's uninstrumented
+        // `strtod` / `strtol` / `strtoul` store (`eval.c:120`, `parseutils.c:391`)
+        // as accesses of freed or foreign allocations, depending on earlier
+        // frames (the shared recipes' stale-shadow class); the parses here are
+        // C's own, so BSan covers these paths in the typed-setter tests instead.
+        if under_bsan() {
+            return;
+        }
+        // SAFETY: NULL is accepted.
+        assert!(unsafe { ObjectMut::from_ptr(ptr::null_mut()) }.is_none());
+        let mut no_class: *const c_void = ptr::null();
+        // SAFETY: a live object whose class pointer is NULL.
+        assert!(unsafe { ObjectMut::from_ptr((&raw mut no_class).cast()) }.is_none());
+
+        let o = Owned::with_child();
+        let mut m = exclusive(&o);
+        let none = SearchFlags::NONE;
+        // Each of these reaches undefined behaviour in C (UBSan
+        // float-cast-overflow in opt.c or eval.c or parseutils.c, a scalar
+        // store over an array pointer, an out-of-bounds type name read) and
+        // is refused.
+        for (name, val, err) in [
+            (c"flags", c"+1e30", ERANGE),
+            (c"flags", c"-huge", ERANGE),
+            (c"int", c"ld(1e300)", EINVAL),
+            (c"rate", c"ld(1e300)", EINVAL),
+            (c"wide_q", c"1e10", ERANGE),
+            (c"color", c"red@nan", EINVAL),
+            (c"layout", c"ambisonic 2147483647", EINVAL),
+            (c"array", c"1,gcd(1e300,1)", EINVAL),
+        ] {
+            assert_eq!(m.set(name, val, none), Err(err), "{name:?} = {val:?}");
+            assert_eq!(
+                m.set(name, val, SearchFlags::CHILDREN),
+                Err(err),
+                "{name:?} = {val:?}"
+            );
+        }
+        assert_eq!(m.set_double(c"wide_q", f64::NAN, none), Err(ERANGE));
+        assert_eq!(m.set_double(c"wide_q", 1e10, none), Err(ERANGE));
+        assert_eq!(m.set_int(c"wide_q", 1 << 40, none), Err(ERANGE));
+        assert_eq!(m.set_int(c"array", 5, none), Err(EINVAL));
+        assert_eq!(m.set_double(c"strings", 5.0, none), Err(EINVAL));
+        assert_eq!(m.set_bin(c"array", &[1], none), Err(EINVAL));
+        assert_eq!(m.set_image_size(c"strings", 1, 1, none), Err(EINVAL));
+        assert_eq!(
+            m.set_from_string(c"int=1:color=red@nan", &[], c"=", c":"),
+            Err(EINVAL)
+        );
+
+        // Everything else, on every option.
+        let values: [&CStr; 14] = [
+            c"1",
+            c"-1",
+            c"0x10",
+            c"1k",
+            c"max",
+            c"+one-bit",
+            c"auto",
+            c"none",
+            c"stereo",
+            c"10x20",
+            c"0a0B",
+            c"k=v:x=y",
+            c"1|2\\|3",
+            c"",
+        ];
+        for name in names() {
+            for val in values {
+                let _ = m.set(name, val, none);
+            }
+            let _ = m.set_int(name, i64::MAX, none);
+            let _ = m.set_int(name, i64::MIN, none);
+            let _ = m.set_double(name, f64::INFINITY, none);
+            let _ = m.set_double(name, -0.5, none);
+            let _ = m.set_bin(name, &[0xAB; 7], none);
+            let _ = m.set_bin(name, &[], none);
+            let _ = m.set_image_size(name, 3, 4, none);
+            let _ = m.set_image_size(name, -3, 4, none);
+        }
+        read_all(m.as_ref());
+        // C's own `av_opt_free` leaves a stale binary length behind; the
+        // readers that follow would dereference the NULL buffer.
+        m.set_bin(c"binary", &[1, 2, 3], none).unwrap();
+        m.free_options();
+        read_all(m.as_ref());
+        m.free_options();
+        m.set_defaults();
+        m.set_defaults_masked(ffmpeg::libavutil::ffi::AV_OPT_FLAG_ENCODING_PARAM as i32, 0);
+        assert_eq!(
+            m.set_from_string(c"7:+eight", &[c"int", c"flags"], c"=", c":"),
+            Ok(2)
+        );
+        assert!(m.set_from_string(c"x", &[], c"=", c":").is_err());
+
+        // Children, each in turn, and through the parent.
+        {
+            let mut cursor = m.children_mut();
+            let mut child = cursor.next_child().unwrap();
+            child.set(c"string", c"child", none).unwrap();
+            child.as_mut().free_options();
+            assert!(cursor.next_child().is_none());
+            assert!(cursor.next_child().is_none());
+        }
+        m.set(c"int", c"9", SearchFlags::CHILDREN).unwrap();
+        // SAFETY: a raw read of the live child, while only `m` is live.
+        assert_eq!(unsafe { (*o.child()).int }, 9);
+
+        // Copies between objects of the class, both ways, and into a
+        // zeroed one.
+        let other = Owned::new();
+        exclusive(&other).set(c"string", c"other", none).unwrap();
+        m.copy_from(shared(&other)).unwrap();
+        exclusive(&other).copy_from(m.as_ref()).unwrap();
+        let z = Owned::zeroed();
+        exclusive(&z).copy_from(m.as_ref()).unwrap();
+        static BARE: Class = Class::new(c"crustify-opt-bare", ClassCategory::NA);
+        let bare = BareObject::new(BARE.as_ref()).unwrap();
+        assert_eq!(m.copy_from(bare.as_object()), Err(EINVAL));
+        read_all(shared(&z));
+    }
+
+    /// Random values from tokens near every refusal rule, set on every
+    /// option: each is refused, fails in C, or sets a value, without a
+    /// sanitizer report; the object stays readable and freeable.
+    #[test]
+    fn random_values() {
+        // BSan reports C's reads through the end pointers glibc's uninstrumented
+        // `strtod` / `strtol` / `strtoul` store (`eval.c:120`, `parseutils.c:391`)
+        // as accesses of freed or foreign allocations, depending on earlier
+        // frames (the shared recipes' stale-shadow class); the parses here are
+        // C's own, so BSan covers these paths in the typed-setter tests instead.
+        if under_bsan() {
+            return;
+        }
+        const TOKENS: [&str; 30] = [
+            "+",
+            "-",
+            "1e30",
+            "1e300",
+            "nan",
+            "inf",
+            "huge",
+            "one",
+            "max",
+            "min",
+            "default",
+            "all",
+            "ld(",
+            "gcd(",
+            ")",
+            ",",
+            "1",
+            "0x7fffffff",
+            "2147483648",
+            "@",
+            "red",
+            "ambisonic ",
+            "2147483647",
+            "/",
+            ":",
+            "|",
+            "\\",
+            "=",
+            "x",
+            "-9223372036854775809",
+        ];
+        let mut state = 0x2545_f491_4f6c_dd1du64;
+        let mut next = || {
+            state ^= state << 13;
+            state ^= state >> 7;
+            state ^= state << 17;
+            state
+        };
+        let o = Owned::with_child();
+        let names = names();
+        let mut m = exclusive(&o);
+        for i in 0..20_000 {
+            let n = 1 + next() % 5;
+            let v: String = (0..n)
+                .map(|_| TOKENS[(next() % TOKENS.len() as u64) as usize])
+                .collect();
+            let v = CString::new(v).unwrap();
+            let name = names[(next() % names.len() as u64) as usize];
+            let flags = if i % 2 == 0 {
+                SearchFlags::NONE
+            } else {
+                SearchFlags::CHILDREN
+            };
+            let _ = m.set(name, &v, flags);
+            if i % 997 == 0 {
+                read_all(m.as_ref());
+            }
+        }
+        m.free_options();
+    }
+
+    /// The paths that need no C string parse, on zeroed objects (no
+    /// defaults, which C parses): typed setters, failed color lookups and
+    /// their restore, frees with the length reset, copies, children and
+    /// formatted reads, each through a fresh reborrow of the handle. The
+    /// object tests BSan runs.
+    #[test]
+    fn typed_paths_across_reborrows() {
+        let o = Owned::zeroed_with_child();
+        let other = Owned::zeroed();
+        let none = SearchFlags::NONE;
+        let mut m = exclusive(&o);
+        for round in 0..3 {
+            let mut r = m.as_mut();
+            r.set_int(c"int", 5 + round, none).unwrap();
+            r.set_double(c"dbl", 0.5, none).unwrap();
+            r.set_bin(c"binary", &[1, 2, 3], none).unwrap();
+            r.set_image_size(c"size", 4, 6, SearchFlags::CHILDREN)
+                .unwrap();
+            assert!(r.set(c"color", c"nocolor", none).is_err());
+            assert_eq!(r.set_int(c"array", 1, none), Err(EINVAL));
+            assert_eq!(r.set_bin(c"strings", &[1], none), Err(EINVAL));
+            if let Some(mut child) = r.children_mut().next_child() {
+                child.set_int(c"int", 9, none).unwrap();
+                child.free_options();
+            }
+            let s = r.as_ref();
+            assert_eq!(s.get(c"binary", none).unwrap().as_bytes(), b"010203");
+            assert_eq!(s.get_int(c"int", none), Ok(5 + round));
+            assert_eq!(s.get_image_size(c"size", SearchFlags::CHILDREN), Ok((4, 6)));
+            assert_eq!(s.children().count(), 1);
+            exclusive(&other).copy_from(s).unwrap();
+            r.free_options();
+            assert_eq!(r.as_ref().get(c"binary", none).unwrap().as_bytes(), b"");
+        }
+        m.copy_from(shared(&other)).unwrap();
+        // SAFETY: a raw read of the live object, while only `m` is live.
+        assert_eq!(unsafe { (*o.ptr()).binary_len }, 3);
+    }
+
+    /// The fixture's `Obj` layout is what the table's offsets describe.
+    #[test]
+    fn fixture_strings_are_c_strings() {
+        let o = Owned::new();
+        // SAFETY: a raw read of the defaulted object's string.
+        let s = unsafe { (*o.ptr()).string };
+        // SAFETY: a defaulted string option is an owned C string.
+        assert_eq!(unsafe { CStr::from_ptr(s.cast::<c_char>()) }, c"hello");
+        let _: *mut Obj = o.ptr();
+    }
+}

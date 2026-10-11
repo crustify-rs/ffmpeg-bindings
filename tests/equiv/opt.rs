@@ -1122,3 +1122,969 @@ mod array_def {
         assert!(new.is_empty());
     }
 }
+
+/// Options wave 0, batch 3: the object API against the raw `av_opt_*` calls,
+/// on two independently owned objects of the fixture's `OBJ_CLASS` (each
+/// with a child), one driven through C and one through `ObjectMut`, compared
+/// after every step of fixed and random sequences. Values the wrappers refuse
+/// (C's undefined behaviour) are not in the corpus; their refusal is checked
+/// in `ub_unsafe` and the unit tests.
+mod objects {
+    use core::cell::RefCell;
+    use core::ffi::{CStr, c_char, c_int, c_uint, c_void};
+    use core::ptr;
+    use std::ffi::CString;
+
+    use ffmpeg::libavutil::ffi;
+    use ffmpeg::libavutil::log::{self, Callback, Record};
+    use ffmpeg::libavutil::opt::{
+        ObjectMut, ObjectRef, SearchFlags, SerializeFlags, parse_key_value,
+    };
+
+    use super::fixture::{OBJ_OPTIONS, Owned};
+    use crate::log::LogState;
+
+    const ALLOW_NULL: c_int = ffi::AV_OPT_ALLOW_NULL as c_int;
+    const CHILDREN: c_int = ffi::AV_OPT_SEARCH_CHILDREN as c_int;
+    const ERANGE: i32 = -34;
+
+    fn under_bsan() -> bool {
+        std::env::var("CRUSTIFY_FFMPEG_VARIANT").as_deref() == Ok("bsan")
+    }
+
+    /// Every option name of `OBJ_CLASS`, constants included, and one that
+    /// names nothing.
+    fn names() -> Vec<&'static CStr> {
+        let mut v: Vec<&'static CStr> = OBJ_OPTIONS.0[..OBJ_OPTIONS.0.len() - 1]
+            .iter()
+            // SAFETY: every name of the static table is a literal.
+            .map(|o| unsafe { CStr::from_ptr(o.name) })
+            .collect();
+        v.push(c"missing");
+        v
+    }
+
+    fn flags_of(children: bool) -> (c_int, SearchFlags) {
+        if children {
+            (CHILDREN, SearchFlags::CHILDREN)
+        } else {
+            (0, SearchFlags::NONE)
+        }
+    }
+
+    /// `av_opt_get(obj, name, flags)`: its code and string.
+    fn c_get(obj: *mut c_void, name: &CStr, flags: c_int) -> (i32, Option<Vec<u8>>) {
+        let mut out = ptr::null_mut();
+        // SAFETY: a live well-formed object, a live name, a writable slot;
+        // callers pass `AV_OPT_ALLOW_NULL` or keep binary lengths consistent.
+        let ret = unsafe { ffi::av_opt_get(obj, name.as_ptr(), flags, &mut out) };
+        let s = (!out.is_null()).then(|| {
+            // SAFETY: a returned string is an owned C string, freed here.
+            let s = unsafe { CStr::from_ptr(out.cast::<c_char>()) }
+                .to_bytes()
+                .to_vec();
+            // SAFETY: as above.
+            unsafe { ffi::av_free(out.cast()) };
+            s
+        });
+        (ret, s)
+    }
+
+    /// What C reads of an object and its child: every option formatted.
+    fn observe(o: &Owned) -> Vec<(i32, Option<Vec<u8>>)> {
+        let mut objs = vec![o.as_obj()];
+        if !o.child().is_null() {
+            objs.push(o.child().cast());
+        }
+        objs.into_iter()
+            .flat_map(|obj| names().into_iter().map(move |n| c_get(obj, n, ALLOW_NULL)))
+            .collect()
+    }
+
+    /// One step of a sequence.
+    #[derive(Clone, Debug)]
+    enum Op {
+        Set(&'static CStr, &'static CStr, bool),
+        Int(&'static CStr, i64, bool),
+        Double(&'static CStr, f64, bool),
+        Bin(&'static CStr, &'static [u8], bool),
+        Size(&'static CStr, i32, i32, bool),
+        Defaults,
+        Masked(i32, i32),
+        FromString(&'static CStr, &'static [&'static CStr]),
+        Free,
+        CopyFrom,
+    }
+
+    /// Values C sets or rejects without undefined behaviour.
+    const SETS: [(&CStr, &CStr); 60] = [
+        (c"int", c"5"),
+        (c"int", c"seven"),
+        (c"int", c"max"),
+        (c"int", c"1000"),
+        (c"int", c"x"),
+        (c"int", c"2*default+min"),
+        (c"int64", c"-1e18"),
+        (c"int64", c"1k"),
+        (c"uint64", c"18446744073709551615"),
+        (c"uint64", c"-1"),
+        (c"uint", c"4294967295"),
+        (c"dbl", c"1e300"),
+        (c"dbl", c"-0.0"),
+        (c"dbl", c"PI"),
+        (c"flt", c"0.75"),
+        (c"flt", c"2"),
+        (c"string", c"text"),
+        (c"string", c""),
+        (c"q", c"3/2"),
+        (c"q", c"30000:1001"),
+        (c"q", c"0.333"),
+        (c"q", c"1:0"),
+        (c"wide_q", c"1e9"),
+        (c"wide_q", c"-7/3"),
+        (c"boolean", c"auto"),
+        (c"boolean", c"off"),
+        (c"boolean", c"2"),
+        (c"flags", c"one+eight"),
+        (c"flags", c"+bit"),
+        (c"flags", c"-one"),
+        (c"flags", c"0x10"),
+        (c"flags", c"+nosuch"),
+        (c"big", c"high"),
+        (c"big", c"low"),
+        (c"size", c"hd720"),
+        (c"size", c"10x20"),
+        (c"size", c"bad"),
+        (c"rate", c"ntsc"),
+        (c"rate", c"24000/1001"),
+        (c"rate", c"-1"),
+        (c"color", c"blue@0.5"),
+        (c"color", c"#ff00ff80"),
+        (c"color", c"nocolor"),
+        (c"duration", c"1:02.5"),
+        (c"duration", c"-3ms"),
+        (c"binary", c"deadBEEF"),
+        (c"binary", c"abc"),
+        (c"dict", c"a=1:b=2"),
+        (c"dict", c"bad"),
+        (c"array", c"1,2,3"),
+        (c"array", c"11"),
+        (c"array", c""),
+        (c"strings", c"x|y\\|z"),
+        (c"strings", c"1|2|3|4|5"),
+        (c"layout", c"5.1"),
+        (c"layout", c"bogus"),
+        (c"pix", c"yuv420p"),
+        (c"sample", c"fltp"),
+        (c"ro", c"1"),
+        (c"missing", c"1"),
+    ];
+
+    const SHORTHAND: [&CStr; 2] = [c"int", c"flags"];
+
+    /// A random step.
+    fn random_op(next: &mut impl FnMut() -> u64) -> Op {
+        let names = names();
+        let name = names[(next() % names.len() as u64) as usize];
+        let children = next().is_multiple_of(3);
+        match next() % 12 {
+            0..=4 => {
+                let (n, v) = SETS[(next() % SETS.len() as u64) as usize];
+                Op::Set(n, v, children)
+            }
+            5 => Op::Int(
+                name,
+                [0, 1, -1, 7, i64::MAX, i64::MIN, 1 << 40][(next() % 7) as usize],
+                children,
+            ),
+            6 => Op::Double(
+                name,
+                [0.5, -2.0, 1e300, f64::INFINITY, 3.0, -1e10][(next() % 6) as usize],
+                children,
+            ),
+            7 => Op::Bin(
+                name,
+                [&[][..], &[1, 2, 3], &[0xFF; 9]][(next() % 3) as usize],
+                children,
+            ),
+            8 => Op::Size(name, (next() % 5) as i32 - 1, 2, children),
+            9 => [
+                Op::Defaults,
+                Op::Masked(ffi::AV_OPT_FLAG_ENCODING_PARAM as i32, 0),
+                Op::Free,
+            ][(next() % 3) as usize]
+                .clone(),
+            10 => Op::FromString(
+                [
+                    c"int=3:flags=+eight",
+                    c"9:one",
+                    c"string=a\\:b:size=1x2",
+                    c"bad",
+                    c"int=x",
+                ][(next() % 5) as usize],
+                &SHORTHAND,
+            ),
+            _ => Op::CopyFrom,
+        }
+    }
+
+    /// `av_opt_free`, with the binary length reset the wrapper adds (C keeps
+    /// it, after which its readers dereference the NULL buffer).
+    fn c_free(obj: *mut super::fixture::Obj) {
+        // SAFETY: a live object whose options own what C frees.
+        unsafe {
+            ffi::av_opt_free(obj.cast());
+            (*obj).binary_len = 0;
+        }
+    }
+
+    /// The code the wrapper refuses `op` with, where C's call would be
+    /// undefined behaviour: a scalar store over an array, a type name read
+    /// out of bounds, an unchecked `int` conversion of a wide rational.
+    fn refused(op: &Op) -> Option<i32> {
+        let array = |n: &CStr| [c"array", c"strings", c"empty"].contains(&n);
+        let fits_int = |d: f64| d > -2_147_483_649.0 && d < 2_147_483_648.0;
+        match *op {
+            Op::Int(n, _, _) | Op::Double(n, _, _) | Op::Bin(n, _, _) | Op::Size(n, _, _, _)
+                if array(n) =>
+            {
+                Some(-22)
+            }
+            Op::Int(n, v, _) if n == c"wide_q" && !fits_int(v as f64) => Some(ERANGE),
+            Op::Double(n, v, _)
+                if n == c"wide_q" && (-1e300..=1e300).contains(&v) && !fits_int(v) =>
+            {
+                Some(ERANGE)
+            }
+            _ => None,
+        }
+    }
+
+    /// The color or image size `name` (of the object or, with `children`,
+    /// its child) as raw bytes, for the reference to put back after a failed
+    /// parse as the wrapper does (C stores its uninitialised parse buffer).
+    fn c_clobbered(o: &Owned, name: &CStr, children: bool) -> Option<(*mut u8, [u8; 8])> {
+        let p = if children { o.child() } else { o.ptr() };
+        // SAFETY: field projections of the live object.
+        let field = unsafe {
+            match name.to_bytes() {
+                b"color" => (&raw mut (*p).color).cast::<u8>(),
+                b"size" => (&raw mut (*p).size).cast::<u8>(),
+                _ => return None,
+            }
+        };
+        let mut bytes = [0; 8];
+        // SAFETY: the field holds at least 4 bytes; `size` holds 8.
+        unsafe {
+            ptr::copy_nonoverlapping(
+                field,
+                bytes.as_mut_ptr(),
+                if name == c"color" { 4 } else { 8 },
+            )
+        };
+        Some((field, bytes))
+    }
+
+    fn c_apply(o: &Owned, src: &Owned, op: &Op) -> i32 {
+        if let Op::Set(n, v, c) = *op {
+            let kept = c_clobbered(o, n, c && !o.child().is_null());
+            // SAFETY: a live, well-formed object; corpus values only.
+            let ret = unsafe { ffi::av_opt_set(o.as_obj(), n.as_ptr(), v.as_ptr(), flags_of(c).0) };
+            if let (true, Some((field, bytes))) = (ret < 0, kept) {
+                // SAFETY: as in `c_clobbered`.
+                unsafe {
+                    ptr::copy_nonoverlapping(
+                        bytes.as_ptr(),
+                        field,
+                        if n == c"color" { 4 } else { 8 },
+                    )
+                };
+            }
+            return ret;
+        }
+        let obj = o.as_obj();
+        // SAFETY: each call gets a live, well-formed object and live strings
+        // and buffers; the corpus holds only values C handles without
+        // undefined behaviour.
+        unsafe {
+            match *op {
+                Op::Set(n, v, c) => ffi::av_opt_set(obj, n.as_ptr(), v.as_ptr(), flags_of(c).0),
+                Op::Int(n, v, c) => ffi::av_opt_set_int(obj, n.as_ptr(), v, flags_of(c).0),
+                Op::Double(n, v, c) => ffi::av_opt_set_double(obj, n.as_ptr(), v, flags_of(c).0),
+                Op::Bin(n, v, c) => ffi::av_opt_set_bin(
+                    obj,
+                    n.as_ptr(),
+                    v.as_ptr(),
+                    v.len() as c_int,
+                    flags_of(c).0,
+                ),
+                Op::Size(n, w, h, c) => {
+                    ffi::av_opt_set_image_size(obj, n.as_ptr(), w, h, flags_of(c).0)
+                }
+                Op::Defaults => {
+                    ffi::av_opt_set_defaults(obj);
+                    0
+                }
+                Op::Masked(m, f) => {
+                    ffi::av_opt_set_defaults2(obj, m, f);
+                    0
+                }
+                Op::FromString(s, sh) => {
+                    let sh: Vec<*const c_char> =
+                        sh.iter().map(|s| s.as_ptr()).chain([ptr::null()]).collect();
+                    ffi::av_opt_set_from_string(
+                        obj,
+                        s.as_ptr(),
+                        sh.as_ptr(),
+                        c"=".as_ptr(),
+                        c":".as_ptr(),
+                    )
+                }
+                Op::Free => {
+                    c_free(o.ptr());
+                    if !o.child().is_null() {
+                        c_free(o.child());
+                    }
+                    0
+                }
+                Op::CopyFrom => ffi::av_opt_copy(obj, src.as_obj()),
+            }
+        }
+    }
+
+    fn rust_apply(o: &Owned, src: &Owned, op: &Op) -> i32 {
+        // SAFETY: a live, well-formed object, accessed through this handle
+        // only while it lives.
+        let mut m = unsafe { ObjectMut::from_ptr(o.as_obj()) }.unwrap();
+        let code = |r: Result<(), i32>| r.err().unwrap_or(0);
+        match *op {
+            Op::Set(n, v, c) => code(m.set(n, v, flags_of(c).1)),
+            Op::Int(n, v, c) => code(m.set_int(n, v, flags_of(c).1)),
+            Op::Double(n, v, c) => code(m.set_double(n, v, flags_of(c).1)),
+            Op::Bin(n, v, c) => code(m.set_bin(n, v, flags_of(c).1)),
+            Op::Size(n, w, h, c) => code(m.set_image_size(n, w, h, flags_of(c).1)),
+            Op::Defaults => {
+                m.set_defaults();
+                0
+            }
+            Op::Masked(mask, f) => {
+                m.set_defaults_masked(mask, f);
+                0
+            }
+            Op::FromString(s, sh) => match m.set_from_string(s, sh, c"=", c":") {
+                Ok(n) => n as i32,
+                Err(e) => e,
+            },
+            Op::Free => {
+                m.free_options();
+                if let Some(mut child) = m.children_mut().next_child() {
+                    child.free_options();
+                }
+                0
+            }
+            Op::CopyFrom => {
+                // SAFETY: the source is a live, well-formed object nothing
+                // writes during the call.
+                let src = unsafe { ObjectRef::from_ptr(src.as_obj()) }.unwrap();
+                code(m.copy_from(src))
+            }
+        }
+    }
+
+    /// Whether C's `av_opt_get_int` of `name` is defined: the wrapper refuses
+    /// the conversions it is not.
+    fn c_int_defined(obj: *mut c_void, name: &CStr, flags: c_int) -> bool {
+        // Only floats, doubles and rationals convert; the other types read
+        // their integer as is.
+        if ![c"dbl", c"flt", c"q", c"wide_q", c"dbl_unit"].contains(&name) {
+            return true;
+        }
+        let mut d = 0.0;
+        // SAFETY: a live object and name, a writable double.
+        let ret = unsafe { ffi::av_opt_get_double(obj, name.as_ptr(), flags, &mut d) };
+        ret < 0 || (-9_223_372_036_854_775_808.0..9_223_372_036_854_775_808.0).contains(&d)
+    }
+
+    /// Compares every getter of both objects, after a step.
+    #[track_caller]
+    fn compare_getters(c: &Owned, r: &Owned, step: &str) {
+        // SAFETY: a live, well-formed object nothing writes while it lives.
+        let h = unsafe { ObjectRef::from_ptr(r.as_obj()) }.unwrap();
+        let obj = c.as_obj();
+        for name in names() {
+            for children in [false, true] {
+                let (cf, rf) = flags_of(children);
+                let at = format!("{step}: {name:?} {children}");
+                let (ret, s) = c_get(obj, name, cf);
+                let got = h.get(name, rf);
+                assert_eq!(got.as_ref().err().copied().unwrap_or(0), ret, "get {at}");
+                assert_eq!(got.ok().map(|s| s.as_bytes().to_vec()), s, "get {at}");
+                let (ret, s) = c_get(obj, name, cf | ALLOW_NULL);
+                let got = h.get_nullable(name, rf);
+                assert_eq!(
+                    got.as_ref().err().copied().unwrap_or(0),
+                    ret,
+                    "get_nullable {at}"
+                );
+                assert_eq!(
+                    got.ok().flatten().map(|s| s.as_bytes().to_vec()),
+                    s,
+                    "get_nullable {at}"
+                );
+
+                let mut i = 0;
+                if c_int_defined(obj, name, cf) {
+                    // SAFETY: the conversion is defined, as checked.
+                    let ret = unsafe { ffi::av_opt_get_int(obj, name.as_ptr(), cf, &mut i) };
+                    assert_eq!(
+                        h.get_int(name, rf),
+                        if ret < 0 { Err(ret) } else { Ok(i) },
+                        "get_int {at}"
+                    );
+                } else {
+                    assert_eq!(h.get_int(name, rf), Err(ERANGE), "get_int {at}");
+                }
+                let mut d = 0.0;
+                // SAFETY: a live object and name, writable outputs.
+                let ret = unsafe { ffi::av_opt_get_double(obj, name.as_ptr(), cf, &mut d) };
+                let got = h.get_double(name, rf);
+                assert_eq!(got.err().unwrap_or(0), ret, "get_double {at}");
+                if let Ok(v) = got {
+                    assert!(
+                        v.to_bits() == d.to_bits() || (v.is_nan() && d.is_nan()),
+                        "get_double {at}"
+                    );
+                }
+                let (mut w, mut hh) = (0, 0);
+                let n = name.as_ptr();
+                // SAFETY: as above.
+                let ret = unsafe { ffi::av_opt_get_image_size(obj, n, cf, &mut w, &mut hh) };
+                assert_eq!(
+                    h.get_image_size(name, rf),
+                    if ret < 0 { Err(ret) } else { Ok((w, hh)) },
+                    "size {at}"
+                );
+                let mut n: c_uint = 0;
+                // SAFETY: as above.
+                let ret = unsafe { ffi::av_opt_get_array_size(obj, name.as_ptr(), cf, &mut n) };
+                assert_eq!(
+                    h.get_array_size(name, rf),
+                    if ret < 0 { Err(ret) } else { Ok(n as usize) },
+                    "array size {at}"
+                );
+                // SAFETY: as above.
+                let ret = unsafe { ffi::av_opt_is_set_to_default_by_name(obj, name.as_ptr(), cf) };
+                assert_eq!(
+                    h.is_set_to_default(name, rf),
+                    if ret < 0 { Err(ret) } else { Ok(ret > 0) },
+                    "default {at}"
+                );
+            }
+            for flag in [
+                c"one", c"bit", c"eight", c"low", c"dflag", c"seven", c"missing",
+            ] {
+                if !c_int_defined(obj, name, 0) {
+                    continue;
+                }
+                // SAFETY: as above; the field's integer read is defined.
+                let ret = unsafe { ffi::av_opt_flag_is_set(obj, name.as_ptr(), flag.as_ptr()) };
+                assert_eq!(
+                    h.flag_is_set(name, flag),
+                    ret != 0,
+                    "{step}: flag {name:?} {flag:?}"
+                );
+            }
+        }
+        for (opt_flags, flags) in [
+            (0, SerializeFlags::NONE),
+            (0, SerializeFlags::SKIP_DEFAULTS),
+            (
+                ffi::AV_OPT_FLAG_ENCODING_PARAM as i32,
+                SerializeFlags::OPT_FLAGS_EXACT,
+            ),
+            (
+                0,
+                SerializeFlags::SEARCH_CHILDREN | SerializeFlags::SKIP_DEFAULTS,
+            ),
+        ] {
+            for (kv, pairs) in [(b'=', b':'), (b'#', b';'), (b':', b':')] {
+                let mut out = ptr::null_mut();
+                // SAFETY: a live object, a writable slot.
+                let ret = unsafe {
+                    ffi::av_opt_serialize(
+                        obj,
+                        opt_flags,
+                        flags.bits(),
+                        &mut out,
+                        kv as c_char,
+                        pairs as c_char,
+                    )
+                };
+                let c_str = (!out.is_null()).then(|| {
+                    // SAFETY: an owned C string, freed here.
+                    let s = unsafe { CStr::from_ptr(out) }.to_bytes().to_vec();
+                    // SAFETY: as above.
+                    unsafe { ffi::av_free(out.cast()) };
+                    s
+                });
+                let got = h.serialize(opt_flags, flags, kv, pairs);
+                assert_eq!(
+                    got.as_ref().err().copied().unwrap_or(0),
+                    ret.min(0),
+                    "{step}: serialize"
+                );
+                assert_eq!(
+                    got.ok().map(|s| s.as_bytes().to_vec()),
+                    c_str,
+                    "{step}: serialize"
+                );
+            }
+        }
+        let (cc, rc) = (c.child().is_null(), h.children().count());
+        assert_eq!(rc, usize::from(!cc));
+    }
+
+    /// Runs `ops` on a C-driven and a Rust-driven object, comparing codes,
+    /// states and getters after every step.
+    fn run(ops: &[Op], getters_every: usize) {
+        let (c, r) = (Owned::with_child(), Owned::with_child());
+        let (c_src, r_src) = (Owned::new(), Owned::new());
+        for src in [&c_src, &r_src] {
+            // SAFETY: live objects and strings, values C handles.
+            unsafe {
+                ffi::av_opt_set(src.as_obj(), c"string".as_ptr(), c"copied".as_ptr(), 0);
+                ffi::av_opt_set(src.as_obj(), c"strings".as_ptr(), c"p|q".as_ptr(), 0);
+                ffi::av_opt_set_bin(src.as_obj(), c"binary".as_ptr(), [9u8, 8].as_ptr(), 2, 0);
+            }
+        }
+        assert_eq!(observe(&c), observe(&r));
+        for (i, op) in ops.iter().enumerate() {
+            let step = format!("step {i}: {op:?}");
+            if let Some(err) = refused(op) {
+                assert_eq!(rust_apply(&r, &r_src, op), err, "{step}");
+                continue;
+            }
+            assert_eq!(
+                c_apply(&c, &c_src, op),
+                rust_apply(&r, &r_src, op),
+                "{step}"
+            );
+            assert_eq!(observe(&c), observe(&r), "{step}");
+            // SAFETY: raw reads of the live objects' binary lengths.
+            unsafe { assert_eq!((*c.ptr()).binary_len, (*r.ptr()).binary_len, "{step}") };
+            if i % getters_every == 0 {
+                compare_getters(&c, &r, &step);
+            }
+        }
+        compare_getters(&c, &r, "end");
+    }
+
+    #[test]
+    fn every_corpus_value_sets_as_in_c() {
+        // BSan reports C's reads through the end pointers glibc's uninstrumented
+        // `strtod` / `strtol` / `strtoul` store (`eval.c:120`, `parseutils.c:391`)
+        // as accesses of freed or foreign allocations, depending on earlier
+        // frames (the shared recipes' stale-shadow class); the parses here are
+        // C's own, so BSan covers these paths in the typed-setter tests instead.
+        if under_bsan() {
+            return;
+        }
+        let mut ops: Vec<Op> = SETS.iter().map(|&(n, v)| Op::Set(n, v, false)).collect();
+        ops.extend(SETS.iter().map(|&(n, v)| Op::Set(n, v, true)));
+        run(&ops, 7);
+    }
+
+    #[test]
+    fn typed_setters_defaults_free_and_copies_agree() {
+        // BSan reports C's reads through the end pointers glibc's uninstrumented
+        // `strtod` / `strtol` / `strtoul` store (`eval.c:120`, `parseutils.c:391`)
+        // as accesses of freed or foreign allocations, depending on earlier
+        // frames (the shared recipes' stale-shadow class); the parses here are
+        // C's own, so BSan covers these paths in the typed-setter tests instead.
+        if under_bsan() {
+            return;
+        }
+        let mut ops = Vec::new();
+        for name in names() {
+            for children in [false, true] {
+                ops.extend([
+                    Op::Int(name, 3, children),
+                    Op::Int(name, i64::MIN, children),
+                    Op::Double(name, 0.5, children),
+                    Op::Double(name, f64::INFINITY, children),
+                    Op::Bin(name, &[1, 2, 3], children),
+                    Op::Bin(name, &[], children),
+                    Op::Size(name, 4, 5, children),
+                    Op::Size(name, -4, 5, children),
+                ]);
+            }
+        }
+        ops.extend([
+            Op::Free,
+            Op::Free,
+            Op::Masked(ffi::AV_OPT_FLAG_ENCODING_PARAM as i32, 0),
+            Op::Defaults,
+            Op::CopyFrom,
+            Op::FromString(c"int=3:flags=+eight", &SHORTHAND),
+            Op::FromString(c"9:one:string=s", &SHORTHAND),
+            Op::FromString(c"9:string=s:one", &SHORTHAND),
+            Op::FromString(c"", &SHORTHAND),
+            Op::Free,
+            Op::CopyFrom,
+        ]);
+        run(&ops, 5);
+    }
+
+    #[test]
+    fn random_sequences_agree() {
+        // BSan reports C's reads through the end pointers glibc's uninstrumented
+        // `strtod` / `strtol` / `strtoul` store (`eval.c:120`, `parseutils.c:391`)
+        // as accesses of freed or foreign allocations, depending on earlier
+        // frames (the shared recipes' stale-shadow class); the parses here are
+        // C's own, so BSan covers these paths in the typed-setter tests instead.
+        if under_bsan() {
+            return;
+        }
+        let mut state = 0xdead_beef_cafe_f00du64;
+        let mut next = move || {
+            state ^= state << 13;
+            state ^= state >> 7;
+            state ^= state << 17;
+            state
+        };
+        for _ in 0..4 {
+            let ops: Vec<Op> = (0..300).map(|_| random_op(&mut next)).collect();
+            run(&ops, 50);
+        }
+    }
+
+    #[test]
+    fn children_are_listed_as_c_lists_them() {
+        let o = Owned::with_child();
+        // SAFETY: a live object and a NULL cursor.
+        let first = unsafe { ffi::av_opt_child_next(o.as_obj(), ptr::null_mut()) };
+        // SAFETY: as above, with C's last child as the cursor.
+        let second = unsafe { ffi::av_opt_child_next(o.as_obj(), first) };
+        // SAFETY: a live, well-formed object nothing writes.
+        let h = unsafe { ObjectRef::from_ptr(o.as_obj()) }.unwrap();
+        let children: Vec<_> = h.children().collect();
+        assert_eq!(children.len(), 1);
+        assert!(second.is_null());
+        assert_eq!(first, o.child().cast());
+        assert!(children[0].class().ptr_eq(h.class()));
+        // The child's own options are what C reads at the child.
+        assert_eq!(
+            children[0]
+                .get(c"int", SearchFlags::NONE)
+                .unwrap()
+                .as_bytes(),
+            c_get(first, c"int", 0).1.unwrap()
+        );
+        let lone = Owned::new();
+        // SAFETY: as above.
+        let h = unsafe { ObjectRef::from_ptr(lone.as_obj()) }.unwrap();
+        assert_eq!(h.children().count(), 0);
+    }
+
+    #[test]
+    fn key_values_parse_as_in_c() {
+        for opts in [
+            c"a=1:b=2",
+            c" k = v ",
+            c"k='quoted:value':x",
+            c"k=a\\:b",
+            c"novalue",
+            c"=v",
+            c"",
+            c":x=1",
+            c"k#v;q",
+            c"key.with/odd-chars_=1",
+        ] {
+            for (kv, pairs) in [(c"=", c":"), (c"=#", c":;"), (c"", c"")] {
+                for implicit in [false, true] {
+                    let (mut rest, mut key, mut val) =
+                        (opts.as_ptr(), ptr::null_mut(), ptr::null_mut());
+                    let flags = if implicit {
+                        ffi::AV_OPT_FLAG_IMPLICIT_KEY.0
+                    } else {
+                        0
+                    };
+                    // SAFETY: writable slots and live strings.
+                    let ret = unsafe {
+                        ffi::av_opt_get_key_value(
+                            &mut rest,
+                            kv.as_ptr(),
+                            pairs.as_ptr(),
+                            flags,
+                            &mut key,
+                            &mut val,
+                        )
+                    };
+                    let take = |p: *mut c_char| {
+                        (!p.is_null()).then(|| {
+                            // SAFETY: an owned C string, freed here.
+                            let s = unsafe { CStr::from_ptr(p) }.to_owned();
+                            // SAFETY: as above.
+                            unsafe { ffi::av_free(p.cast()) };
+                            s
+                        })
+                    };
+                    let (key, val) = (take(key), take(val));
+                    let at = format!("{opts:?} {kv:?} {pairs:?} {implicit}");
+                    match parse_key_value(opts, kv, pairs, implicit) {
+                        Ok(p) => {
+                            assert_eq!(ret, 0, "{at}");
+                            assert_eq!(p.key.map(|k| k.as_c_str().to_owned()), key, "{at}");
+                            assert_eq!(Some(p.value.as_c_str().to_owned()), val, "{at}");
+                            assert_eq!(p.rest.as_ptr(), rest, "{at}");
+                        }
+                        Err(e) => assert_eq!(e, ret, "{at}"),
+                    }
+                }
+            }
+        }
+    }
+
+    type Line = (c_int, Option<String>, String);
+
+    thread_local! {
+        static LINES: RefCell<Option<Vec<Line>>> = const { RefCell::new(None) };
+    }
+
+    /// `line` with every context address (` @ 0x...`) masked.
+    fn mask_addresses(line: &str) -> String {
+        let mut out = String::new();
+        let mut rest = line;
+        while let Some(at) = rest.find(" @ 0x") {
+            out.push_str(&rest[..at]);
+            out.push_str(" @ ADDR");
+            rest = rest[at + 5..].trim_start_matches(|c: char| c.is_ascii_hexdigit());
+        }
+        out.push_str(rest);
+        out
+    }
+
+    /// Captures this thread's messages while [`captured`] runs.
+    struct Capture;
+
+    impl Callback for Capture {
+        fn log(record: Record<'_>) {
+            LINES.with(|l| {
+                if let Some(lines) = l.borrow_mut().as_mut() {
+                    let mut prefix = true;
+                    let line = record.to_line(&mut prefix).unwrap().into_string().unwrap();
+                    let class = record
+                        .class()
+                        .and_then(|c| c.name())
+                        .map(|n| n.to_string_lossy().into_owned());
+                    lines.push((record.level().raw(), class, mask_addresses(&line)));
+                }
+            });
+        }
+    }
+
+    /// The lines `f` logs on this thread. The caller holds the [`LogState`]
+    /// lock.
+    fn captured(f: impl FnOnce()) -> Vec<Line> {
+        LINES.with(|l| *l.borrow_mut() = Some(Vec::new()));
+        log::set_callback::<Capture>();
+        f();
+        log::set_default_callback();
+        LINES.with(|l| l.borrow_mut().take().unwrap())
+    }
+
+    /// Whether this is the isolated run of test `name` (a child process with
+    /// one thread, which installs the process-wide log callback alone); the
+    /// parent spawns it and checks its status.
+    fn isolated(name: &str) -> bool {
+        const KEY: &str = "CRUSTIFY_EQUIV_OPT_OBJECTS_ISOLATED";
+        if std::env::var_os(KEY).is_some() {
+            return true;
+        }
+        let status = std::process::Command::new(std::env::current_exe().unwrap())
+            .args(["--exact", name, "--test-threads=1"])
+            .env(KEY, "1")
+            .status()
+            .unwrap();
+        assert!(status.success(), "isolated run failed: {status}");
+        false
+    }
+
+    /// Every allocating step at small `av_max_alloc` limits. Not the
+    /// defaults: when C's evaluator cannot allocate, `av_parse_video_rate`
+    /// fails after `sscanf` stored only the numerator of its uninitialised
+    /// result, which `av_opt_set_defaults` stores whole (documented on
+    /// `ObjectMut::set_defaults`).
+    #[test]
+    fn allocation_failures_agree() {
+        // BSan reports C's reads through the end pointers glibc's uninstrumented
+        // `strtod` / `strtol` / `strtoul` store (`eval.c:120`, `parseutils.c:391`)
+        // as accesses of freed or foreign allocations, depending on earlier
+        // frames (the shared recipes' stale-shadow class); the parses here are
+        // C's own, so BSan covers these paths in the typed-setter tests instead.
+        if under_bsan() {
+            return;
+        }
+        if !isolated("opt::objects::allocation_failures_agree") {
+            return;
+        }
+        let set_limit = |limit: usize| {
+            // SAFETY: `av_max_alloc` takes a size by value; nothing else runs
+            // in this process.
+            unsafe { ffi::av_max_alloc(limit) }
+        };
+        for limit in [0, 1, 2, 4, 6, 8, 16, 64] {
+            let (c, r) = (Owned::with_child(), Owned::with_child());
+            let (c_src, r_src) = (Owned::new(), Owned::new());
+            set_limit(limit);
+            for op in [
+                Op::CopyFrom,
+                Op::FromString(c"string=abcdefgh:int=1", &[]),
+                Op::FromString(c"abcdefgh", &SHORTHAND),
+                Op::Set(c"string", c"abcdefghijkl", false),
+                Op::Set(c"dict", c"key=value", false),
+                Op::Bin(c"binary", &[1; 9], false),
+            ] {
+                assert_eq!(
+                    c_apply(&c, &c_src, &op),
+                    rust_apply(&r, &r_src, &op),
+                    "{op:?} at {limit}"
+                );
+                set_limit(i32::MAX as usize);
+                assert_eq!(observe(&c), observe(&r), "{op:?} at {limit}");
+                set_limit(limit);
+            }
+            let h = r.as_obj();
+            // SAFETY: a live, well-formed object nothing writes.
+            let h = unsafe { ObjectRef::from_ptr(h) }.unwrap();
+            for name in [c"string", c"binary", c"dict", c"int", c"array"] {
+                let (ret, s) = c_get(c.as_obj(), name, 0);
+                let got = h.get(name, SearchFlags::NONE);
+                assert_eq!(
+                    got.as_ref().err().copied().unwrap_or(0),
+                    ret,
+                    "{name:?} at {limit}"
+                );
+                assert_eq!(
+                    got.ok().map(|s| s.as_bytes().to_vec()),
+                    s,
+                    "{name:?} at {limit}"
+                );
+            }
+            let mut out = ptr::null_mut();
+            // SAFETY: a live object, a writable slot.
+            let ret = unsafe {
+                ffi::av_opt_serialize(c.as_obj(), 0, 0, &mut out, b'=' as c_char, b':' as c_char)
+            };
+            if !out.is_null() {
+                // SAFETY: an owned C string.
+                unsafe { ffi::av_free(out.cast()) };
+            }
+            assert_eq!(
+                h.serialize(0, SerializeFlags::NONE, b'=', b':')
+                    .err()
+                    .unwrap_or(0),
+                ret.min(0)
+            );
+            for opts in [c"key=value", c"k=v"] {
+                let (mut rest, mut key, mut val) =
+                    (opts.as_ptr(), ptr::null_mut(), ptr::null_mut());
+                // SAFETY: writable slots and live strings.
+                let ret = unsafe {
+                    ffi::av_opt_get_key_value(
+                        &mut rest,
+                        c"=".as_ptr(),
+                        c":".as_ptr(),
+                        0,
+                        &mut key,
+                        &mut val,
+                    )
+                };
+                // SAFETY: NULL or owned strings.
+                unsafe {
+                    ffi::av_free(key.cast());
+                    ffi::av_free(val.cast());
+                }
+                assert_eq!(
+                    parse_key_value(opts, c"=", c":", false).err().unwrap_or(0),
+                    ret,
+                    "{opts:?} at {limit}"
+                );
+            }
+            set_limit(i32::MAX as usize);
+        }
+    }
+
+    #[test]
+    fn listings_and_errors_log_as_c() {
+        // BSan reports C's reads through the end pointers glibc's uninstrumented
+        // `strtod` / `strtol` / `strtoul` store (`eval.c:120`, `parseutils.c:391`)
+        // as accesses of freed or foreign allocations, depending on earlier
+        // frames (the shared recipes' stale-shadow class); the parses here are
+        // C's own, so BSan covers these paths in the typed-setter tests instead.
+        if under_bsan() {
+            return;
+        }
+        if !isolated("opt::objects::listings_and_errors_log_as_c") {
+            return;
+        }
+        let _state = LogState::lock();
+        let (c, r) = (Owned::with_child(), Owned::with_child());
+        for (req, rej) in [
+            (0, 0),
+            (-1, 0),
+            (ffi::AV_OPT_FLAG_ENCODING_PARAM as i32, 0),
+            (-1, ffi::AV_OPT_FLAG_READONLY as i32),
+        ] {
+            for log_ctx in [None, Some(true)] {
+                let c_lines = captured(|| {
+                    let ctx = log_ctx.map_or(ptr::null_mut(), |_| c.child().cast());
+                    // SAFETY: live objects.
+                    unsafe { ffi::av_opt_show2(c.as_obj(), ctx, req, rej) };
+                });
+                let r_lines = captured(|| {
+                    // SAFETY: a live, well-formed object nothing writes.
+                    let h = unsafe { ObjectRef::from_ptr(r.as_obj()) }.unwrap();
+                    let ctx = log_ctx.map(|_| h.children().next().unwrap());
+                    h.show(ctx, req, rej);
+                });
+                assert!(!c_lines.is_empty());
+                assert_eq!(c_lines, r_lines);
+            }
+        }
+        for op in [
+            Op::Set(c"int", c"1000", false),
+            Op::Set(c"int", c"x", false),
+            Op::Set(c"size", c"bad", false),
+            Op::Set(c"ro", c"1", false),
+            Op::Bin(c"int", &[1], false),
+            Op::Size(c"size", -1, 1, false),
+            Op::Double(c"int", 1e300, false),
+            Op::FromString(c"x", &[]),
+            Op::FromString(c"missing=1", &[]),
+            Op::Set(c"old", c"1", false),
+        ] {
+            let (c_src, r_src) = (Owned::new(), Owned::new());
+            let c_lines = captured(|| {
+                c_apply(&c, &c_src, &op);
+            });
+            let r_lines = captured(|| {
+                rust_apply(&r, &r_src, &op);
+            });
+            assert_eq!(c_lines, r_lines, "{op:?}");
+        }
+        let c_lines = captured(|| {
+            let mut out = ptr::null_mut();
+            // SAFETY: a live object, a writable slot; invalid separators are
+            // rejected before C reads further.
+            unsafe { ffi::av_opt_serialize(c.as_obj(), 0, 0, &mut out, 0, b':' as c_char) };
+        });
+        // SAFETY: as above.
+        let h = unsafe { ObjectRef::from_ptr(r.as_obj()) }.unwrap();
+        let r_lines = captured(|| {
+            let _ = h.serialize(0, SerializeFlags::NONE, 0, b':');
+        });
+        assert_eq!(c_lines, r_lines);
+        let _ = CString::new("").unwrap();
+    }
+}

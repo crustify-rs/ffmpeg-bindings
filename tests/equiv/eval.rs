@@ -703,3 +703,164 @@ mod expr {
         assert!(outcomes.contains(&Err(enomem)) && outcomes.contains(&Ok(())));
     }
 }
+
+/// Options wave 0, batch 3.
+///
+/// Equivalence of `libavutil/eval.h`'s `parse_and_eval` with the raw C
+/// evaluator: values and error codes over expressions with constants and
+/// functions, the Rust closures against equivalent C functions.
+mod expressions {
+    use core::ffi::{CStr, c_char, c_void};
+    use core::ptr;
+    use std::ffi::CString;
+
+    use ffmpeg::libavutil::eval::{Func1, Func2, parse_and_eval};
+    use ffmpeg::libavutil::ffi;
+
+    unsafe extern "C" fn c_square(_: *mut c_void, x: f64) -> f64 {
+        x * x
+    }
+
+    unsafe extern "C" fn c_half(_: *mut c_void, x: f64) -> f64 {
+        x / 2.0
+    }
+
+    unsafe extern "C" fn c_hyp(_: *mut c_void, x: f64, y: f64) -> f64 {
+        x.hypot(y)
+    }
+
+    fn under_bsan() -> bool {
+        std::env::var("CRUSTIFY_FFMPEG_VARIANT").as_deref() == Ok("bsan")
+    }
+
+    const CONSTS: [(&CStr, f64); 3] = [(c"A", 3.0), (c"B", -0.5), (c"W", 1920.0)];
+
+    /// The raw C evaluation of `e` with [`CONSTS`], `square`, `half` and `hyp`.
+    fn c_eval(e: &CStr, log_offset: i32) -> (i32, f64) {
+        let names: Vec<*const c_char> = CONSTS
+            .iter()
+            .map(|c| c.0.as_ptr())
+            .chain([ptr::null()])
+            .collect();
+        let values: Vec<f64> = CONSTS.iter().map(|c| c.1).collect();
+        let f1_names = [c"square".as_ptr(), c"half".as_ptr(), ptr::null()];
+        let f1: [Option<unsafe extern "C" fn(*mut c_void, f64) -> f64>; 3] =
+            [Some(c_square), Some(c_half), None];
+        let f2_names = [c"hyp".as_ptr(), ptr::null()];
+        let f2: [Option<unsafe extern "C" fn(*mut c_void, f64, f64) -> f64>; 2] =
+            [Some(c_hyp), None];
+        let mut d = 0.0;
+        // SAFETY: NULL-terminated name arrays with matching value and function
+        // arrays, live strings; callers pass only expressions free of C's
+        // unchecked conversions.
+        let ret = unsafe {
+            ffi::av_expr_parse_and_eval(
+                &mut d,
+                e.as_ptr(),
+                names.as_ptr(),
+                values.as_ptr(),
+                f1_names.as_ptr(),
+                f1.as_ptr(),
+                f2_names.as_ptr(),
+                f2.as_ptr(),
+                ptr::null_mut(),
+                log_offset,
+                ptr::null_mut(),
+            )
+        };
+        (ret, d)
+    }
+
+    /// The same evaluation through the safe API.
+    fn rust_eval(e: &CStr, log_offset: i32) -> (i32, f64) {
+        let square = |x: f64| x * x;
+        let half = |x: f64| x / 2.0;
+        let hyp = |x: f64, y: f64| x.hypot(y);
+        let funcs1: [Func1<'_>; 2] = [(c"square", &square), (c"half", &half)];
+        let funcs2: [Func2<'_>; 1] = [(c"hyp", &hyp)];
+        match parse_and_eval(e, &CONSTS, &funcs1, &funcs2, log_offset, None) {
+            Ok(v) => (0, v),
+            Err(err) => (err, f64::NAN),
+        }
+    }
+
+    #[track_caller]
+    fn assert_same(e: &CStr, log_offset: i32) {
+        let (c, r) = (c_eval(e, log_offset), rust_eval(e, log_offset));
+        assert_eq!(c.0, r.0, "{e:?}");
+        assert!(
+            c.1.to_bits() == r.1.to_bits() || (c.1.is_nan() && r.1.is_nan()),
+            "{e:?}: {c:?} {r:?}"
+        );
+    }
+
+    #[test]
+    fn expressions_evaluate_as_in_c() {
+        for e in [
+            c"1+2^3+5*5+sin(2/3)",
+            c"A*W+B",
+            c"square(A)+half(W)+hyp(A,4)",
+            c"square(half(hyp(3,4)))",
+            c" 1 k + 2Mi + 3dB - -4 ",
+            c"-3dB",
+            c"0x1F+010",
+            c"PI*E*PHI+QP2LAMBDA",
+            c"st(0,A);st(1,ld(0)*2);ld(1)",
+            c"gcd(12,18)+bitand(12,10)+bitor(1,2)",
+            c"random(0)+random(0)+randomi(1,0,100)",
+            c"taylor(ld(0)+1,1,2)",
+            c"root(ld(0)^2-W,100)",
+            c"if(lt(A,B),1,2)+ifnot(0,3)+between(A,0,4)+clip(9,0,4)",
+            c"mod(7,3)+max(A,B)+min(A,B)+trunc(-2.5)+round(2.5)+floor(-1.5)+ceil(1.2)",
+            c"lerp(0,10,0.25)+sgn(-3)+not(0)+isnan(0)+isinf(1/0)+squish(1)+gauss(0)",
+            c"atan2(1,1)+hypot(3,4)+sqrt(16)+abs(-1)+log(E)+exp(0)",
+            c"1/0",
+            c"-1/0",
+            c"0/0",
+            c"sqrt(-1)",
+            c"",
+            c"1+",
+            c"nosuch",
+            c"square(1,2)",
+            c"hyp(1)",
+            c"(((1)))",
+            c"1;2;3",
+            c"print(A)",
+            c"print(A,-8)",
+        ] {
+            assert_same(e, 0);
+            assert_same(e, 64);
+            assert_same(e, -100);
+        }
+    }
+
+    #[test]
+    fn random_arithmetic_evaluates_as_in_c() {
+        // BSan reports C's reads through the end pointers glibc's uninstrumented
+        // `strtod` / `strtol` / `strtoul` store (`eval.c:120`, `parseutils.c:391`)
+        // as accesses of freed or foreign allocations, depending on earlier
+        // frames (the shared recipes' stale-shadow class); the parses here are
+        // C's own, so BSan covers these paths in the typed-setter tests instead.
+        if under_bsan() {
+            return;
+        }
+        const TOKENS: [&str; 20] = [
+            "A", "B", "W", "1", "2.5", "0", "+", "-", "*", "/", "^", "(", ")", "square(", "half(",
+            "hyp(", ",", "max(", "1e300", "PI",
+        ];
+        let mut state = 0x1234_5678_9abc_def1u64;
+        let mut next = || {
+            state ^= state << 13;
+            state ^= state >> 7;
+            state ^= state << 17;
+            state
+        };
+        for _ in 0..5_000 {
+            let n = 1 + next() % 10;
+            let e: String = (0..n)
+                .map(|_| TOKENS[(next() % TOKENS.len() as u64) as usize])
+                .collect();
+            assert_same(&CString::new(e).unwrap(), 64);
+        }
+    }
+}

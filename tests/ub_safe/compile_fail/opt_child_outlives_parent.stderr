@@ -1,0 +1,11 @@
+error[E0597]: `parent` does not live long enough
+ --> tests/ub_safe/compile_fail/opt_child_outlives_parent.rs
+  |
+  |         let parent = BareObject::new(CLASS.as_ref()).unwrap();
+  |             ------ binding `parent` declared here
+  |         child = parent.as_object().children().next();
+  |                 ^^^^^^ borrowed value does not live long enough
+  |     }
+  |     - `parent` dropped here while still borrowed
+  |     println!("{child:?}");
+  |                ----- borrow later used here

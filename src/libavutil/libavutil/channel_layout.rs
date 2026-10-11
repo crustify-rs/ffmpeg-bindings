@@ -1408,7 +1408,7 @@ fn c_strtol(s: &[u8]) -> (i64, usize) {
 /// the one before is in range and ends at a `+`; a segment of any other form
 /// (a standard name, a channel list, a mask, a count) ends the chain without
 /// reading another order.
-fn ambisonic_order_overflows(description: &[u8]) -> bool {
+pub(crate) fn ambisonic_order_overflows(description: &[u8]) -> bool {
     let mut segment = description;
     loop {
         let Some(text) = segment.strip_prefix(b"ambisonic ") else {

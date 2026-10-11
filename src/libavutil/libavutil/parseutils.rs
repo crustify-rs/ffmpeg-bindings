@@ -6,8 +6,12 @@
 //! [`parse_video_size`] a frame size (`av_parse_video_size`), and
 //! [`parse_date`] and [`parse_duration`] the two modes of `av_parse_time`.
 //! None of them keeps a borrow of its input.
+//!
+//! [`find_info_tag`] reads one tag of a URL query string into a caller's
+//! buffer; [`known_color_name`] enumerates the named colors the color parser
+//! recognizes.
 
-use core::ffi::{CStr, c_int, c_void};
+use core::ffi::{CStr, c_char, c_int, c_void};
 use core::ptr;
 
 use super::ffi;
@@ -233,6 +237,72 @@ pub fn parse_date(date: &CStr) -> Result<i64, i32> {
 /// `AVERROR(ERANGE)` when it overflows an `i64` of microseconds.
 pub fn parse_duration(duration: &CStr) -> Result<i64, i32> {
     parse_time(duration, true)
+}
+
+/// Wraps: av_find_info_tag
+///
+/// The value of tag `tag` in `info`, a URL query string of the form
+/// `?tag1=val1&tag2=val2...` (the leading `?` is optional), written into
+/// `buf` as C writes it: `+` decoded to a space, truncated to `buf.len() - 1`
+/// bytes and NUL-terminated; a tag with no `=` has the empty value. Tag names
+/// are compared on their first 127 bytes. `None` when no tag matches, with
+/// `buf` holding whatever C wrote for the last tag it read.
+///
+/// An empty `buf` cannot hold the terminator C always writes: the tag is then
+/// looked up into a one-byte scratch buffer, and a match yields the empty
+/// value.
+pub fn find_info_tag<'b>(buf: &'b mut [u8], tag: &CStr, info: &CStr) -> Option<&'b CStr> {
+    if buf.is_empty() {
+        let mut scratch = [0u8; 1];
+        return find_info_tag(&mut scratch, tag, info).map(|_| c"");
+    }
+    // C writes at most `arg_size` bytes; a longer buffer is used in part.
+    let size = c_int::try_from(buf.len()).unwrap_or(c_int::MAX);
+    // SAFETY: `buf` holds at least `size >= 1` writable bytes, all C writes
+    // (`arg_size - 1` value bytes and the terminator); `tag` and `info` are
+    // live C strings C only reads during the call.
+    let found = unsafe {
+        ffi::av_find_info_tag(
+            buf.as_mut_ptr().cast::<c_char>(),
+            size,
+            tag.as_ptr(),
+            info.as_ptr(),
+        )
+    };
+    if found == 0 {
+        return None;
+    }
+    // C NUL-terminated its value within the first `size` bytes.
+    CStr::from_bytes_until_nul(buf).ok()
+}
+
+/// Wraps: av_get_known_color_name
+///
+/// Entry `index` of the table of named colors `av_parse_color` recognizes,
+/// in its order (alphabetical, `"AliceBlue"` first): the color's name and
+/// its red, green and blue components. `None` past the end of the table.
+pub fn known_color_name(index: usize) -> Option<(&'static CStr, [u8; 3])> {
+    let index = c_int::try_from(index).ok()?;
+    let mut rgb = core::ptr::null();
+    // SAFETY: `rgb` is a writable slot; C bounds-checks `index` and returns
+    // NULL past the table, else stores a pointer into it.
+    let name = unsafe { ffi::av_get_known_color_name(index, &mut rgb) };
+    if name.is_null() || rgb.is_null() {
+        return None;
+    }
+    // SAFETY: a non-NULL result is an entry of the `static const` color
+    // table: `name` a string literal, `rgb` its 3-byte `rgb_color` member,
+    // both immutable for the program's lifetime.
+    unsafe { Some((CStr::from_ptr(name), rgb.cast::<[u8; 3]>().read())) }
+}
+
+/// Whether `av_parse_color(color)` (the whole string, `slen` of -1) reaches
+/// an alpha specifier `strtod` reads as NaN (`"red@nan"`): C then stores the
+/// NaN in a `uint8_t`, undefined behaviour (`parseutils.c:433`). As
+/// [`checked_slen`] decides it for [`parse_color`], for an option value
+/// `av_opt_set` hands C whole.
+pub(crate) fn color_alpha_is_nan(color: &[u8]) -> bool {
+    alpha_suffix(color, COLOR_SLEN_CAP as c_int).is_some_and(is_nan_spelling)
 }
 
 #[cfg(test)]
@@ -461,5 +531,43 @@ mod unit_tests {
             parse_time(c"1970-01-01T00:00:01Z", true),
             Err(AVERROR_EINVAL)
         );
+    }
+
+    #[test]
+    fn nan_alphas_are_found_where_c_reads_them() {
+        for c in [
+            "red@nan",
+            "red@NaN",
+            "#ff0000@ -nan",
+            "0xff0000@+NAN(1)",
+            "red@\tnan",
+        ] {
+            assert!(color_alpha_is_nan(c.as_bytes()), "{c}");
+        }
+        for c in [
+            "red",
+            "red@0.5",
+            "red@0xnan",
+            "red@inf",
+            "nan",
+            "red@na",
+            "@",
+            "red@nanx",
+        ] {
+            assert!(!color_alpha_is_nan(c.as_bytes()), "{c}");
+        }
+        // C reads only the first 127 bytes after the prefix.
+        let mut long = vec![b'a'; 124];
+        long.extend_from_slice(b"@nan");
+        assert!(!color_alpha_is_nan(&long));
+        long.remove(0);
+        assert!(color_alpha_is_nan(&long));
+    }
+
+    #[test]
+    fn an_empty_buffer_reports_a_match_with_the_empty_value() {
+        let mut empty = [0u8; 0];
+        assert_eq!(find_info_tag(&mut empty, c"a", c"?a=1"), Some(c""));
+        assert_eq!(find_info_tag(&mut empty, c"b", c"?a=1"), None);
     }
 }

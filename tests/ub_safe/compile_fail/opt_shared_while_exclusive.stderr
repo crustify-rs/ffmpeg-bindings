@@ -1,0 +1,9 @@
+error[E0502]: cannot borrow `obj` as immutable because it is also borrowed as mutable
+ --> tests/ub_safe/compile_fail/opt_shared_while_exclusive.rs
+  |
+  |     let mut exclusive = obj.as_object_mut();
+  |                         --- mutable borrow occurs here
+  |     let shared = obj.as_object();
+  |                  ^^^ immutable borrow occurs here
+  |     exclusive.set_defaults();
+  |     --------- mutable borrow later used here

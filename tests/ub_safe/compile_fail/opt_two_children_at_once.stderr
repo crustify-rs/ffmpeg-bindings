@@ -1,0 +1,9 @@
+error[E0499]: cannot borrow `cursor` as mutable more than once at a time
+ --> tests/ub_safe/compile_fail/opt_two_children_at_once.rs
+  |
+  |     let first = cursor.next_child();
+  |                 ------ first mutable borrow occurs here
+  |     let second = cursor.next_child();
+  |                  ^^^^^^ second mutable borrow occurs here
+  |     drop((first, second));
+  |           ----- first borrow later used here
