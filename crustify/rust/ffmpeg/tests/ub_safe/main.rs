@@ -8,6 +8,7 @@ mod avutil;
 mod blowfish;
 mod bprint;
 mod bswap;
+mod buffer;
 mod cast5;
 mod crc;
 mod channel_layout;

@@ -72,6 +72,169 @@
    "fields": []
   },
   {
+   "name": "AVBuffer",
+   "defined_in": "libavutil/buffer_internal.h",
+   "_comment_agent": "Opaque in the public API (buffer.h forward-declares it; the body is in buffer_internal.h): callers only hold AVBuffer through AVBufferRef.buffer, and may compare two of those pointers to tell whether two references share one data buffer (buffer.h's own guidance; av_buffer_replace does it). No public routine takes an AVBuffer: it is created with one reference by av_buffer_create (av_mallocz'd body, or via av_buffer_alloc/allocz/realloc) or by av_buffer_pool_get (pool_alloc_buffer re-targets the allocator's AVBuffer at pool_release_buffer; a recycled entry reuses the AVBuffer embedded in its BufferPoolEntry with BUFFER_FLAG_NO_FREE), gains references with av_buffer_ref/replace (relaxed atomic add) and is released by buffer_replace when av_buffer_unref/make_writable/realloc/replace drops the last reference (acq_rel atomic sub): free(opaque, data), then av_free of the body unless NO_FREE. No clone of the body (av_buffer_make_writable copies the data into a new buffer). Shared state is race-free for concurrent readers: refcount is atomic; data/size/free/opaque/flags are written only before the first reference is published (buffer_create, pool_alloc_buffer, av_buffer_pool_get under the pool lock) or by av_buffer_realloc on a writable reference, i.e. the only one. Rust (buffer-frame wave 0 batch 1): define_ctype!(Buffer) with no field accessors and no owner (AVBufferRef's wrapper owns references); Buffer is Sync (handles are shareable), Send withheld until the constructors that install data release callbacks prove them thread-agnostic.",
+   "fields": [
+    {
+     "name": "data",
+     "ptr": {
+      "scalar": null,
+      "array": {
+       "by_val": true
+      },
+      "string": false,
+      "owned": true,
+      "borrowed": null,
+      "nullable": true,
+      "mutable": true,
+      "note": "The size-byte data array, released by the buffer's own free(opaque, data) callback when the last reference goes (av_buffer_default_free = av_free for av_buffer_alloc/allocz/realloc storage; any caller routine for av_buffer_create). NULL is accepted by av_buffer_create (only free and the copies in make_writable/realloc with size bytes ever touch it). Written by buffer_create and by av_buffer_realloc's in-place av_realloc (REALLOCATABLE buffers, writable reference only, which also rewrites AVBufferRef.data). For pool buffers the pool keeps its own copy in BufferPoolEntry.data and frees it at flush through the allocator's original free. AVBufferRef.data may point anywhere inside it."
+     }
+    },
+    {
+     "name": "free",
+     "ptr": {
+      "scalar": {
+       "by_val": true
+      },
+      "array": null,
+      "string": false,
+      "owned": false,
+      "borrowed": {
+       "lifetime": "static"
+      },
+      "nullable": false,
+      "mutable": false,
+      "note": "Data release callback, never NULL (buffer_create substitutes av_buffer_default_free); called once by buffer_replace on the thread that drops the last reference, before av_free of the body. pool_alloc_buffer swaps it for pool_release_buffer (the original moves into the BufferPoolEntry)."
+     }
+    },
+    {
+     "name": "opaque",
+     "ptr": {
+      "scalar": {
+       "by_val": true
+      },
+      "array": null,
+      "string": false,
+      "owned": false,
+      "borrowed": {
+       "lifetime": "other"
+      },
+      "nullable": true,
+      "mutable": null,
+      "note": "Type-erased cookie handed back to free(opaque, data) and returned by av_buffer_get_opaque; buffer.c never dereferences it, so its release is whatever free does. pool_alloc_buffer replaces it with the BufferPoolEntry (which outlives the AVBuffer and keeps the allocator's original opaque, read back by av_buffer_pool_buffer_get_opaque); av_buffer_pool_get sets it to the entry for recycled buffers."
+     }
+    },
+    {
+     "name": "refcount",
+     "refcount": true
+    }
+   ]
+  },
+  {
+   "name": "AVBufferPool",
+   "defined_in": "libavutil/buffer_internal.h",
+   "_comment_agent": "Opaque in the public API. Constructed by av_buffer_pool_init(size, alloc) and av_buffer_pool_init2(size, opaque, alloc2, pool_free) (av_mallocz + ff_mutex_init, refcount 1 = the caller's reference; NULL on failure, in which case init2 never calls pool_free). The caller's reference is released by av_buffer_pool_uninit(&pool) (flushes free entries under the mutex, NULLs the slot, acq_rel decrement); every outstanding buffer from av_buffer_pool_get holds one more reference (relaxed increment), returned by pool_release_buffer, so the pool body, the mutex and the user opaque outlive the caller's handle until the last buffer comes back, then buffer_pool_free flushes, destroys the mutex, calls pool_free(opaque) and frees the body. There is no public up-ref or clone, so the caller's handle is a sole owner. Thread-safe by construction: the free-entry list is touched only under the mutex, refcount is atomic, size/alloc/alloc2/opaque/pool_free are written only by init before the pool is published; alloc/alloc2 run under the mutex (serialized, any thread), pool_free on whichever thread releases last. Rust (buffer-frame wave 0 batch 1): define_ctype!(BufferPool), Send + Sync, BufferPoolBox = CBox<BufferPool, BufferPoolUninit> (av_buffer_pool_uninit on a local slot), BufferPool::new = av_buffer_pool_init(size, NULL), unsafe BufferPool::with_allocator = av_buffer_pool_init2 with a boxed Rust FnMut + Send state as opaque and its drop as pool_free.",
+   "fields": [
+    {
+     "name": "alloc",
+     "ptr": {
+      "scalar": {
+       "by_val": true
+      },
+      "array": null,
+      "string": false,
+      "owned": false,
+      "borrowed": {
+       "lifetime": "static"
+      },
+      "nullable": false,
+      "mutable": false,
+      "note": "av_buffer_pool_init's allocator, or av_buffer_alloc when NULL; init2 stores av_buffer_alloc as the fallback. Called by pool_alloc_buffer under the pool mutex with pool->size when alloc2 is NULL; its result must be a sole, writable reference whose AVBuffer data holds at least size bytes (recycled references reuse buffer->data with pool->size)."
+     }
+    },
+    {
+     "name": "alloc2",
+     "ptr": {
+      "scalar": {
+       "by_val": true
+      },
+      "array": null,
+      "string": false,
+      "owned": false,
+      "borrowed": {
+       "lifetime": "static"
+      },
+      "nullable": true,
+      "mutable": false,
+      "note": "av_buffer_pool_init2's allocator (NULL selects alloc = av_buffer_alloc); takes precedence over alloc. Called by pool_alloc_buffer under the pool mutex with (opaque, pool->size), with the same result contract as alloc."
+     }
+    },
+    {
+     "name": "opaque",
+     "ptr": {
+      "scalar": {
+       "by_val": true
+      },
+      "array": null,
+      "string": false,
+      "owned": true,
+      "borrowed": {
+       "lifetime": "other"
+      },
+      "nullable": true,
+      "mutable": null,
+      "note": "init2's user state, passed to every alloc2 call and released by pool_free(opaque) in buffer_pool_free when pool_free is non-NULL (owned); with no pool_free the caller keeps it alive at least until the pool is freed, which may be after av_buffer_pool_uninit returns (borrowed, other). NULL for av_buffer_pool_init pools. Never dereferenced by buffer.c."
+     }
+    },
+    {
+     "name": "pool",
+     "ptr": {
+      "scalar": {
+       "by_val": true
+      },
+      "array": null,
+      "string": false,
+      "owned": true,
+      "borrowed": null,
+      "nullable": true,
+      "mutable": true,
+      "note": "Head of the singly linked list (via BufferPoolEntry.next) of free entries, each av_mallocz'd by pool_alloc_buffer and pushed back by pool_release_buffer when its buffer's last reference goes. Popped by av_buffer_pool_get (entry reused with its embedded AVBuffer), and freed by buffer_pool_flush (entry->free(entry->opaque, entry->data), then av_freep(entry)) from av_buffer_pool_uninit and buffer_pool_free. Entries handed out are owned by their AVBuffer's references until returned. NULL when no free entry exists."
+     },
+     "locked_by": {
+      "lock": "mutex",
+      "lock_op": [
+       "ff_mutex_lock"
+      ],
+      "unlock_op": [
+       "ff_mutex_unlock"
+      ]
+     }
+    },
+    {
+     "name": "pool_free",
+     "ptr": {
+      "scalar": {
+       "by_val": true
+      },
+      "array": null,
+      "string": false,
+      "owned": false,
+      "borrowed": {
+       "lifetime": "static"
+      },
+      "nullable": true,
+      "mutable": false,
+      "note": "init2's opaque releaser, called once by buffer_pool_free after the flush and mutex destruction, just before the pool body is freed; never called when init2 fails. NULL for av_buffer_pool_init pools."
+     }
+    },
+    {
+     "name": "refcount",
+     "refcount": true
+    }
+   ]
+  },
+  {
    "name": "AVCAMELLIA",
    "defined_in": "libavutil/camellia.c",
    "_comment_agent": "Opaque in public header; concrete body has only Kw[4], Ke[6], K[24] u64 arrays and key_bits int. av_camellia_alloc allocates full av_mallocz storage, freed by av_free, no nested allocations/copy/dispose primitives. init reads exactly 16/24/32 key bytes, stores schedule not pointer. computeSP unconditionally rewrites static SP on every init; all safe init and future crypt operations must share a Rust global lock, even on distinct contexts. Raw C accesses must exclude races.",
@@ -2757,6 +2920,165 @@
   {
    "name": "av_bswap64",
    "defined_in": "libavutil/bswap.h"
+  },
+  {
+   "name": "av_buffer_pool_init",
+   "defined_in": "libavutil/buffer.c",
+   "lifetime": {
+    "for": "return",
+    "is_dropper": false,
+    "is_disposer": false,
+    "is_cloner": null,
+    "is_constructor": {
+     "alloc": true,
+     "init": false
+    }
+   },
+   "ptr_args": [
+    {
+     "name": "alloc",
+     "ptr": {
+      "scalar": {
+       "by_val": true
+      },
+      "array": null,
+      "string": false,
+      "owned": false,
+      "borrowed": {
+       "lifetime": "static"
+      },
+      "nullable": true,
+      "mutable": false,
+      "note": "Allocator stored in pool->alloc (NULL selects av_buffer_alloc) and called later by av_buffer_pool_get, under the pool mutex, from any thread, until the pool is freed (possibly after av_buffer_pool_uninit). Each result must be NULL or a sole, writable reference whose AVBuffer data holds at least size bytes. Rust: BufferPool::new passes NULL; custom allocators go through av_buffer_pool_init2 (BufferPool::with_allocator)."
+     }
+    }
+   ],
+   "ptr_ret": {
+    "ptr": {
+     "scalar": {
+      "by_val": true
+     },
+     "array": null,
+     "string": false,
+     "owned": true,
+     "borrowed": null,
+     "nullable": true,
+     "mutable": true,
+     "note": "A fresh av_mallocz'd pool with an initialised mutex and refcount 1, the caller's reference, released by av_buffer_pool_uninit; NULL on allocation or mutex-init failure. Rust: adopted into BufferPoolBox = CBox<BufferPool, BufferPoolUninit>."
+    }
+   }
+  },
+  {
+   "name": "av_buffer_pool_init2",
+   "defined_in": "libavutil/buffer.c",
+   "lifetime": {
+    "for": "return",
+    "is_dropper": false,
+    "is_disposer": false,
+    "is_cloner": null,
+    "is_constructor": {
+     "alloc": true,
+     "init": false
+    }
+   },
+   "ptr_args": [
+    {
+     "name": "alloc",
+     "ptr": {
+      "scalar": {
+       "by_val": true
+      },
+      "array": null,
+      "string": false,
+      "owned": false,
+      "borrowed": {
+       "lifetime": "static"
+      },
+      "nullable": true,
+      "mutable": false,
+      "note": "Allocator alloc2(opaque, size), called by av_buffer_pool_get under the pool mutex (serialized, any thread) whenever no free entry exists; NULL selects av_buffer_alloc. Results must be NULL or a sole, writable reference whose AVBuffer data holds at least size bytes, releasable by its own free callback on any thread."
+     }
+    },
+    {
+     "name": "opaque",
+     "ptr": {
+      "scalar": {
+       "by_val": true
+      },
+      "array": null,
+      "string": false,
+      "owned": true,
+      "borrowed": {
+       "lifetime": "other"
+      },
+      "nullable": true,
+      "mutable": null,
+      "note": "User state stored in pool->opaque, passed to every alloc call and to pool_free(opaque) once the pool is actually freed (after av_buffer_pool_uninit and the return of every outstanding buffer). Ownership moves to the pool when pool_free is non-NULL and the call succeeds; on a NULL return pool_free is never called and the caller keeps it. Never dereferenced by C. Rust: a Box<F> leaked into the pool and dropped by the pool_free trampoline, or here when init2 fails."
+     }
+    },
+    {
+     "name": "pool_free",
+     "ptr": {
+      "scalar": {
+       "by_val": true
+      },
+      "array": null,
+      "string": false,
+      "owned": false,
+      "borrowed": {
+       "lifetime": "static"
+      },
+      "nullable": true,
+      "mutable": false,
+      "note": "Opaque releaser, called exactly once by buffer_pool_free on the thread releasing the pool's last reference, after every entry was flushed; never called on a failed init. May be NULL."
+     }
+    }
+   ],
+   "ptr_ret": {
+    "ptr": {
+     "scalar": {
+      "by_val": true
+     },
+     "array": null,
+     "string": false,
+     "owned": true,
+     "borrowed": null,
+     "nullable": true,
+     "mutable": true,
+     "note": "As av_buffer_pool_init: a fresh pool, refcount 1, released by av_buffer_pool_uninit; NULL on failure. Rust: BufferPoolBox."
+    }
+   }
+  },
+  {
+   "name": "av_buffer_pool_uninit",
+   "defined_in": "libavutil/buffer.c",
+   "lifetime": {
+    "for": "ppool",
+    "is_dropper": true,
+    "is_disposer": false,
+    "is_cloner": null,
+    "is_constructor": null
+   },
+   "ptr_args": [
+    {
+     "name": "ppool",
+     "ptr": {
+      "scalar": {
+       "by_ref": {
+        "owned": true,
+        "borrowed": null
+       }
+      },
+      "array": null,
+      "string": false,
+      "owned": true,
+      "borrowed": null,
+      "nullable": true,
+      "mutable": true,
+      "note": "The caller's AVBufferPool * slot (NULL slot and NULL pool are no-ops). Takes the caller's reference: NULLs the slot, flushes the free entries under the mutex, and drops one atomic reference; the pool body is freed (with pool_free(opaque)) now, or later by the last outstanding buffer's return. Rust: BufferPoolUninit's CDrop for BufferPoolBox passes a local slot holding the box's pointer."
+     }
+    }
+   ]
   },
   {
    "name": "av_calloc",
