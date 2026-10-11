@@ -945,6 +945,162 @@
    ]
   },
   {
+   "name": "AVRefStructOpaque",
+   "defined_in": "libavutil/refstruct.h",
+   "_comment_agent": "C `union { void *nc; const void *c; }` (wavefront records it as kind=struct, the known union defect): one user pointer, passed BY VALUE to av_refstruct_alloc_ext_c / av_refstruct_pool_alloc_ext_c, stored in RefCount.opaque / AVRefStructPool.opaque and handed back unchanged to the user's free_cb/init_cb/reset_cb/free_entry_cb. libavutil never dereferences a user's opaque; refstruct.c reuses RefCount.opaque.nc internally as the pool back-pointer of an entry in use and as the free-list `next` link of an available entry (pool_return_entry, refstruct_pool_get_ext, refstruct_pool_uninit), and pool_reset_entry reads opaque.nc as the AVRefStructPool. Both members span the same 8 bytes and every bit pattern is valid for both, so either member reads what the other wrote; `_c` vs plain API pairs only differ in which member the caller fills. No lifecycle routine: the union owns nothing, is never allocated, copied or freed on its own; Rust wraps it as a Copy value type (RefStructOpaque) with getters/setters for both members.",
+   "fields": [
+    {
+     "name": "c",
+     "ptr": {
+      "scalar": {
+       "by_val": true
+      },
+      "array": null,
+      "string": false,
+      "owned": false,
+      "borrowed": {
+       "lifetime": "other"
+      },
+      "nullable": true,
+      "mutable": false,
+      "note": "The const view of the same pointer (`_c` constructors let the user pass a const opaque without casting). Same bytes as `nc`; never freed or dereferenced by libavutil; const-qualified, so never written through."
+     }
+    },
+    {
+     "name": "nc",
+     "ptr": {
+      "scalar": {
+       "by_val": true
+      },
+      "array": null,
+      "string": false,
+      "owned": false,
+      "borrowed": {
+       "lifetime": "other"
+      },
+      "nullable": true,
+      "mutable": null,
+      "note": "User cookie (av_refstruct_alloc_ext / pool_alloc_ext fill `.nc`): never freed by FFmpeg and never dereferenced by libavutil; the user keeps the referent alive for as long as the object/pool may call back. Its pointee type is erased and chosen by the user (libavcodec passes contexts, e.g. decode.c's progress pool, mpegpicture.c's pic pool; container_fifo.c its callbacks); whether it is written through is up to the user's callbacks, so `mutable` is undeterminable. Internally refstruct.c stores the owning AVRefStructPool* (entry in use) or the next RefCount* (free list, under pool->mutex) in RefCount.opaque.nc."
+     }
+    }
+   ]
+  },
+  {
+   "name": "AVRefStructPool",
+   "defined_in": "libavutil/refstruct.c",
+   "_comment_agent": "Opaque in the public API (body private to refstruct.c; libavcodec headers only forward-declare it). The pool is itself a RefStruct object: av_refstruct_pool_alloc(_ext_c) allocates it with av_refstruct_alloc_ext(sizeof pool, 0, NULL, refstruct_pool_uninit) and sets its RefCount.free to pool_unref, so its PUBLIC reference count is the RefCount header in front of it (av_refstruct_ref/unref/replace/exclusive act on it; libavcodec shares pools across frame threads with av_refstruct_replace, pthread_frame.c:397, vp9.c:1911). The struct's own `refcount` field is NOT that count: it counts outstanding entries plus one for the header's references, and only the pool's last reference or last returned entry frees the struct (pool_unref / pool_return_entry -> pool_free). Lifecycle: constructed by av_refstruct_pool_alloc / av_refstruct_pool_alloc_ext_c (refcount 1); up-ref av_refstruct_ref / av_refstruct_ref_c / av_refstruct_replace; down-ref av_refstruct_pool_uninit (static inline = av_refstruct_unref(poolp)), whose last call runs refstruct_pool_uninit (marks uninited, frees the free list) and pool_unref. av_refstruct_exclusive(pool) is NOT a sole-owner proof: entries handed out by av_refstruct_pool_get keep a back-pointer to the pool (RefCount.opaque.nc) and touch its mutex/free list/uninited/refcount when returned, from any thread, without being counted in the header. Thread-safety: size/opaque/callbacks/flags are written once at construction; available_entries and uninited only under `mutex`; refcount atomically; so the pool is Send+Sync whenever its callbacks are thread-safe (the header's note).",
+   "fields": [
+    {
+     "name": "available_entries",
+     "ptr": {
+      "scalar": {
+       "by_val": true
+      },
+      "array": null,
+      "string": false,
+      "owned": true,
+      "borrowed": null,
+      "nullable": true,
+      "mutable": true,
+      "note": "Head of an intrusive singly linked free list of returned entries (RefCount headers, linked through RefCount.opaque.nc). Owned: refstruct_pool_uninit detaches the list and frees every entry with pool_free_entry (free_entry_cb + av_free); refstruct_pool_get_ext pops the head for reuse. Read and written only under `mutex`."
+     },
+     "locked_by": {
+      "lock": "mutex",
+      "lock_op": [
+       "ff_mutex_lock"
+      ],
+      "unlock_op": [
+       "ff_mutex_unlock"
+      ]
+     }
+    },
+    {
+     "name": "free_cb",
+     "ptr": {
+      "scalar": {
+       "by_val": true
+      },
+      "array": null,
+      "string": false,
+      "owned": false,
+      "borrowed": {
+       "lifetime": "static"
+      },
+      "nullable": true,
+      "mutable": false,
+      "note": "User function pointer set once at construction; called once by pool_free when the pool struct itself is freed (last pool reference and last outstanding entry gone)."
+     },
+     "locked_by": null
+    },
+    {
+     "name": "free_entry_cb",
+     "ptr": {
+      "scalar": {
+       "by_val": true
+      },
+      "array": null,
+      "string": false,
+      "owned": false,
+      "borrowed": {
+       "lifetime": "static"
+      },
+      "nullable": true,
+      "mutable": false,
+      "note": "User function pointer set once at construction; called by pool_free_entry when an entry is freed after the pool was uninited, and on init failure with FREE_ON_INIT_ERROR."
+     },
+     "locked_by": null
+    },
+    {
+     "name": "init_cb",
+     "ptr": {
+      "scalar": {
+       "by_val": true
+      },
+      "array": null,
+      "string": false,
+      "owned": false,
+      "borrowed": {
+       "lifetime": "static"
+      },
+      "nullable": true,
+      "mutable": false,
+      "note": "User function pointer set once by av_refstruct_pool_alloc_ext_c (NULL from av_refstruct_pool_alloc); called by refstruct_pool_get_ext on a fresh entry outside the mutex, possibly concurrently from several threads."
+     },
+     "locked_by": null
+    },
+    {
+     "name": "reset_cb",
+     "ptr": {
+      "scalar": {
+       "by_val": true
+      },
+      "array": null,
+      "string": false,
+      "owned": false,
+      "borrowed": {
+       "lifetime": "static"
+      },
+      "nullable": true,
+      "mutable": false,
+      "note": "User function pointer set once at construction; called through pool_reset_entry (the entry's free_cb) when an entry's last reference drops, on the unref'ing thread, and on init failure with RESET_ON_INIT_ERROR."
+     },
+     "locked_by": null
+    },
+    {
+     "name": "uninited",
+     "locked_by": {
+      "lock": "mutex",
+      "lock_op": [
+       "ff_mutex_lock"
+      ],
+      "unlock_op": [
+       "ff_mutex_unlock"
+      ]
+     }
+    }
+   ]
+  },
+  {
    "name": "AVRounding",
    "defined_in": "libavutil/mathematics.h",
    "_comment_agent": "By-value only: AVRounding is never stored in a field, returned, or passed to a callback; it flows Rust->C as the `rnd` argument of av_rescale_rnd / av_rescale_q_rnd (and libswscale's static ops helper). av_rescale_rnd accepts a method in {0,1,2,3,5}, alone or ORed with AV_ROUND_PASS_MINMAX (8192); any other value returns INT64_MIN (av_assert2 is compiled out: ASSERT_LEVEL is undefined in every campaign build). Wrapped as the validity-preserving newtype `mathematics::Rounding` (repr(transparent), private field, TryFrom rejects the rest). No lifecycle.",
@@ -12532,6 +12688,65 @@
       "nullable": false,
       "mutable": true,
       "note": "Out-parameter, written once, never read. Must not be NULL. C overflows (UB) negating a result term of INT_MIN, reachable with max > INT_MAX or negative, and FFABS(INT64_MIN) of num/den."
+     }
+    }
+   ]
+  },
+  {
+   "name": "av_refstruct_pool_alloc",
+   "defined_in": "libavutil/refstruct.c",
+   "lifetime": {
+    "for": "return",
+    "is_dropper": false,
+    "is_disposer": false,
+    "is_cloner": null,
+    "is_constructor": {
+     "alloc": true,
+     "init": false
+    }
+   },
+   "ptr_ret": {
+    "ptr": {
+     "scalar": {
+      "by_val": true
+     },
+     "array": null,
+     "string": false,
+     "owned": true,
+     "borrowed": null,
+     "nullable": true,
+     "mutable": true,
+     "note": "A new pool holding one RefStruct reference (header refcount 1), released by av_refstruct_pool_uninit (av_refstruct_unref) and shareable with av_refstruct_ref. NULL on allocation or mutex-init failure. No callbacks: equivalent to av_refstruct_pool_alloc_ext(size, flags, NULL, NULL, NULL, NULL, NULL), so RESET/FREE_ON_INIT_ERROR are filtered out and only NO_ZEROING / ZERO_EVERY_TIME take effect."
+    }
+   }
+  },
+  {
+   "name": "av_refstruct_pool_uninit",
+   "defined_in": "libavutil/refstruct.h",
+   "lifetime": {
+    "for": "poolp",
+    "is_dropper": true,
+    "is_disposer": false,
+    "is_cloner": null,
+    "is_constructor": null
+   },
+   "ptr_args": [
+    {
+     "name": "poolp",
+     "ptr": {
+      "scalar": {
+       "by_ref": {
+        "owned": true,
+        "borrowed": null
+       }
+      },
+      "array": null,
+      "string": false,
+      "owned": true,
+      "borrowed": null,
+      "nullable": false,
+      "mutable": true,
+      "note": "`*poolp` is NULL (no-op) or one counted reference to a pool, which the call releases and NULLs. Static inline over av_refstruct_unref(poolp): the last reference runs refstruct_pool_uninit (marks the pool uninited, frees the free list's entries through free_entry_cb) and pool_unref; the struct itself is freed only once every outstanding entry has also been returned (pool_return_entry), so entries may outlive the last pool reference."
      }
     }
    ]
