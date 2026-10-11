@@ -714,8 +714,10 @@ unsafe extern "C" fn release_owner<T>(opaque: *mut c_void, _data: *mut u8) {
 
 impl<'a> BufferReferenceRef<'a> {
     /// The `data` and `size` fields, an empty window as a dangling pointer
-    /// and 0, so that every pair addresses a valid run.
-    fn parts(&self) -> (NonNull<u8>, usize) {
+    /// and 0, so that every pair addresses a valid run. A non-empty window's
+    /// pointer is C's own, which writes may go through where the buffer is
+    /// writable.
+    pub(crate) fn parts(&self) -> (NonNull<u8>, usize) {
         // SAFETY: reads of two fields projected through the shared handle's
         // pointer to a live, initialised `AVBufferRef`.
         let (data, len) = unsafe {

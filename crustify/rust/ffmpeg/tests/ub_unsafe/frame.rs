@@ -410,3 +410,195 @@ mod side_data_array_from_raw_parts {
         .unwrap();
     }
 }
+
+/// `FrameMut::set_data_ptr`, `set_extended_data_ptr` and
+/// `replace_hw_frames_context` (buffer-frame wave 3, batch 0): planes of
+/// frames that are not reference counted over exactly sized Rust memory
+/// that outlives them (so that a read past a plane is an ASan report),
+/// read by C through `try_clone`'s copy; pointers into a frame's own
+/// buffers; NULL; the planes a later buffer at index 0 clears; and the
+/// hardware frames context seam, whose only value this build can produce
+/// (it has no hardware device type) is none.
+mod frame_type {
+    use core::ptr;
+    use std::thread;
+
+    use ffmpeg::libavutil::buffer::BufferReference;
+    use ffmpeg::libavutil::channel_layout::ChannelLayout;
+    use ffmpeg::libavutil::frame::{Frame, FrameBox, NUM_DATA_POINTERS};
+    use ffmpeg::libavutil::pixfmt::PixelFormat;
+    use ffmpeg::libavutil::samplefmt::SampleFormat;
+
+    /// `len` bytes, each its index times 5, plus 2.
+    fn pattern(len: usize) -> Vec<u8> {
+        (0..len).map(|i| (i * 5 + 2) as u8).collect()
+    }
+
+    /// A gray `w`x`h` frame whose one plane is `mem`, `w` bytes a line.
+    ///
+    /// # Safety
+    ///
+    /// `mem` must hold `w * h` bytes and outlive every use of the frame.
+    unsafe fn gray(mem: &mut [u8], w: i32, h: i32) -> FrameBox {
+        assert!(mem.len() >= (w * h) as usize);
+        let mut f = Frame::new().unwrap();
+        let mut m = f.as_mut();
+        m.set_pixel_format(PixelFormat::GRAY8);
+        m.set_width(w);
+        m.set_height(h);
+        m.set_linesize(0, w);
+        // SAFETY: the frame holds no buffer; `mem` covers the one plane of
+        // a `w`x`h` GRAY8 image at stride `w`, and outlives the frame by the
+        // caller's contract; nothing else writes it meanwhile.
+        unsafe { m.set_data_ptr(0, mem.as_mut_ptr()) };
+        f
+    }
+
+    #[test]
+    fn set_data_ptr_lends_external_planes_that_clones_copy() {
+        for (w, h) in [(1, 1), (3, 5), (64, 2), (17, 17)] {
+            let mut mem = pattern((w * h) as usize);
+            // SAFETY: `mem` is exactly the plane and outlives `f`.
+            let f = unsafe { gray(&mut mem, w, h) };
+            // Rust reads no plane it cannot bound.
+            assert!(f.as_ref().plane(0).is_none());
+            let copy = f.as_ref().try_clone().expect("C copies the plane");
+            let line = copy.as_ref().linesizes()[0] as usize;
+            let plane = copy.as_ref().plane(0).unwrap();
+            for y in 0..h as usize {
+                let row = &plane[y * line..y * line + w as usize];
+                assert_eq!(row, &mem[y * w as usize..(y + 1) * w as usize]);
+            }
+            drop(f);
+            drop(mem);
+            // The copy holds its own buffers.
+            assert!(copy.as_ref().buffer(0).unwrap().ref_count() == 1);
+        }
+    }
+
+    #[test]
+    fn set_data_ptr_takes_null_and_pointers_into_own_buffers() {
+        let mut f = Frame::new().unwrap();
+        let mut m = f.as_mut();
+        m.set_buffer(0, Some(BufferReference::alloc_zeroed(32).unwrap()));
+        let start = m.as_ref().buffer(0).unwrap().data().as_ptr();
+        // SAFETY: NULL is always allowed.
+        unsafe { m.set_data_ptr(7, ptr::null_mut()) };
+        // SAFETY: inside the frame's buffer at index 0, 31 bytes in; the
+        // pointer is only ever written through by C's own buffer rules,
+        // which `plane_mut` follows.
+        unsafe { m.set_data_ptr(1, start.wrapping_add(31).cast_mut()) };
+        assert_eq!(f.as_ref().plane(1).unwrap(), [0]);
+        assert!(f.as_ref().plane(7).is_none());
+        f.as_mut().plane_mut(1).unwrap()[0] = 4;
+        assert_eq!(f.as_ref().buffer(0).unwrap().data()[31], 4);
+    }
+
+    #[test]
+    fn a_buffer_at_index_0_clears_external_planes() {
+        let mut mem = pattern(16);
+        // SAFETY: `mem` is exactly the plane and outlives `f`.
+        let mut f = unsafe { gray(&mut mem, 4, 4) };
+        f.as_mut()
+            .set_buffer(0, Some(BufferReference::alloc_zeroed(16).unwrap()));
+        assert!(f.as_ref().plane(0).is_none());
+        // The external memory is no plane any more: a clone shares the
+        // buffer without reading it.
+        let copy = f.as_ref().try_clone().unwrap();
+        drop(mem);
+        assert!(copy.as_ref().plane(0).is_none());
+        assert_eq!(copy.as_ref().buffer(0).unwrap().ref_count(), 2);
+    }
+
+    #[test]
+    #[should_panic(expected = "plane 8 out of range")]
+    fn set_data_ptr_panics_past_the_planes() {
+        let mut f = Frame::new().unwrap();
+        // SAFETY: NULL is always allowed; the index panics first.
+        unsafe { f.as_mut().set_data_ptr(NUM_DATA_POINTERS, ptr::null_mut()) };
+    }
+
+    /// Planar audio of `channels` channels of `samples` U8 samples, each
+    /// channel's plane one of `mems`.
+    ///
+    /// # Safety
+    ///
+    /// Every `mems` entry must hold `samples` bytes and outlive the frame.
+    unsafe fn planar_audio(mems: &mut [Vec<u8>], samples: i32) -> FrameBox {
+        let channels = mems.len();
+        let mut f = Frame::new().unwrap();
+        let mut m = f.as_mut();
+        m.set_sample_format(SampleFormat::U8P);
+        m.set_sample_count(samples);
+        m.set_linesize(0, samples);
+        m.set_channel_layout(ChannelLayout::unspecified(channels as i32))
+            .unwrap();
+        if channels > NUM_DATA_POINTERS {
+            m.alloc_extended_data().unwrap();
+        }
+        for (i, mem) in mems.iter_mut().enumerate() {
+            assert!(mem.len() >= samples as usize);
+            // SAFETY: the frame holds no buffer; `mem` covers channel `i`'s
+            // plane of `samples` U8 samples and outlives the frame by the
+            // caller's contract.
+            unsafe { m.set_extended_data_ptr(i, mem.as_mut_ptr()) };
+        }
+        f
+    }
+
+    #[test]
+    fn set_extended_data_ptr_lends_channels_that_clones_copy() {
+        for channels in [1usize, 2, 8, 9, 20] {
+            for samples in [1, 33] {
+                let mut mems: Vec<Vec<u8>> = (0..channels)
+                    .map(|c| pattern(samples as usize + c)[c..].to_vec())
+                    .collect();
+                // SAFETY: each entry holds `samples` bytes and outlives `f`.
+                let f = unsafe { planar_audio(&mut mems, samples) };
+                assert!(f.as_ref().extended_plane(0).is_none());
+                let copy = f.as_ref().try_clone().expect("C copies the planes");
+                drop(f);
+                let r = copy.as_ref();
+                let expect = if channels > NUM_DATA_POINTERS {
+                    channels
+                } else {
+                    NUM_DATA_POINTERS
+                };
+                assert_eq!(r.extended_plane_count(), expect);
+                for (c, mem) in mems.iter().enumerate() {
+                    let plane = r.extended_plane(c).unwrap();
+                    assert_eq!(&plane[..samples as usize], &mem[..samples as usize]);
+                }
+            }
+        }
+    }
+
+    #[test]
+    #[should_panic(expected = "extended plane 3 out of range")]
+    fn set_extended_data_ptr_panics_past_the_channels() {
+        let mut f = Frame::new().unwrap();
+        f.as_mut()
+            .set_channel_layout(ChannelLayout::unspecified(3))
+            .unwrap();
+        f.as_mut().alloc_extended_data().unwrap();
+        // SAFETY: NULL is always allowed; the index panics first.
+        unsafe { f.as_mut().set_extended_data_ptr(3, ptr::null_mut()) };
+    }
+
+    #[test]
+    fn hw_frames_context_round_trips_none() {
+        let mut f = Frame::new().unwrap();
+        // SAFETY: `None` is always allowed.
+        let old = unsafe { f.as_mut().replace_hw_frames_context(None) };
+        assert!(old.is_none() && f.as_ref().hw_frames_context().is_none());
+        assert!(f.as_mut().take_hw_frames_context().is_none());
+        // The frame and the empty seam cross threads.
+        thread::spawn(move || {
+            // SAFETY: as above.
+            let old = unsafe { f.as_mut().replace_hw_frames_context(None) };
+            assert!(old.is_none());
+        })
+        .join()
+        .unwrap();
+    }
+}

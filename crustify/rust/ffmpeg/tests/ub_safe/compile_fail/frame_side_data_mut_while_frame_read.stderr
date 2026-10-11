@@ -1,0 +1,10 @@
+error[E0502]: cannot borrow `frame` as immutable because it is also borrowed as mutable
+ --> tests/ub_safe/compile_fail/frame_side_data_mut_while_frame_read.rs
+  |
+  |     let mut m = frame.as_mut();
+  |                 ----- mutable borrow occurs here
+  |     let entries = m.side_data_mut();
+  |     let pts = frame.as_ref().pts();
+  |               ^^^^^ immutable borrow occurs here
+  |     drop(entries);
+  |          ------- mutable borrow later used here

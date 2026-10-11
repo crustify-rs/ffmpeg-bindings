@@ -857,3 +857,22 @@ var ^AV_FRAME_SIDE_DATA_FLAG_.*
 # _new, _clone and _remove_by_props are in earlier blocks).
 function ^av_frame_side_data_remove$
 function ^av_frame_side_data_get$
+
+# Buffer-frame wave 3, batch 0: AVFrame's lifecycle beyond av_frame_alloc and
+# av_frame_free (formats wave 0's block): its copy (av_frame_clone) and its
+# reset (av_frame_unref); the AV_FRAME_FLAG_* and FF_DECODE_ERROR_* bits of
+# its flags and decode_error_flags and its plane count; and the C readers of
+# its buffers and planes (av_frame_ref, av_frame_is_writable,
+# av_frame_get_plane_buffer) that frame.rs's Frame equivalence tests compare
+# against. av_frame_get_buffer and av_frame_copy rebuild, over zeroed bytes,
+# the copy av_frame_clone makes of data that is not reference counted.
+function ^av_frame_clone$
+function ^av_frame_unref$
+function ^av_frame_get_buffer$
+function ^av_frame_copy$
+function ^av_frame_ref$
+function ^av_frame_is_writable$
+function ^av_frame_get_plane_buffer$
+var ^AV_FRAME_FLAG_.*
+var ^FF_DECODE_ERROR_.*
+var ^AV_NUM_DATA_POINTERS$

@@ -1400,3 +1400,529 @@ mod side_data_array_routines {
         assert!(a.as_mut().iter_mut().all(|mut e| e.data_mut().is_some()));
     }
 }
+
+/// [`Frame`] (buffer-frame wave 3, batch 0): every getter and setter of a
+/// new frame and of one built through the safe API; planes over exactly
+/// sized buffers, so that a read or write past a view is an ASan report;
+/// writes through sole, shared and read-only buffers; buffer, extra buffer,
+/// `extended_data`, side data, metadata, user data and channel layout
+/// changes with the old owners outliving the frame; clones outliving their
+/// source; and frames read, cloned, written and dropped across threads.
+///
+/// [`Frame`]: ffmpeg::libavutil::frame::Frame
+mod frame_type {
+    use std::sync::{Arc, Barrier};
+    use std::thread;
+
+    use ffmpeg::libavutil::avutil::PictureType;
+    use ffmpeg::libavutil::buffer::{BufferReference, BufferReferenceBox};
+    use ffmpeg::libavutil::channel_layout::ChannelLayout;
+    use ffmpeg::libavutil::dict::Dict;
+    use ffmpeg::libavutil::frame::{
+        DecodeErrorFlags, Frame, FrameBox, FrameFlags, NUM_DATA_POINTERS, PlaneError,
+        SideDataFlags, SideDataType,
+    };
+    use ffmpeg::libavutil::pixfmt::{
+        AlphaMode, ChromaLocation, ColorPrimaries, ColorRange, ColorSpace, ColorTransfer,
+        PixelFormat,
+    };
+    use ffmpeg::libavutil::rational::Rational;
+    use ffmpeg::libavutil::samplefmt::SampleFormat;
+
+    const NOPTS: i64 = i64::MIN;
+
+    /// A buffer of exactly `len` bytes, each its index times 3, plus 1.
+    fn bytes(len: usize) -> BufferReferenceBox {
+        let data: Vec<u8> = (0..len).map(|i| (i * 3 + 1) as u8).collect();
+        BufferReference::alloc(len).unwrap().copy_from_slice(&data)
+    }
+
+    /// A video-shaped frame: one buffer of `len` bytes at index 0, planes
+    /// 0..3 at a quarter of it each.
+    fn planar(len: usize) -> FrameBox {
+        let mut f = Frame::new().unwrap();
+        let mut m = f.as_mut();
+        m.set_buffer(0, Some(bytes(len)));
+        for i in 0..3 {
+            m.set_plane(i, 0, i * len / 4).unwrap();
+            m.set_linesize(i, (len / 4) as i32);
+        }
+        m.set_pixel_format(PixelFormat::YUV444P);
+        m.set_width(1);
+        m.set_height(1);
+        f
+    }
+
+    #[test]
+    fn new_frames_read_cs_defaults_everywhere() {
+        let f = Frame::new().unwrap();
+        let r = f.as_ref();
+        for i in 0..=NUM_DATA_POINTERS {
+            assert!(r.plane(i).is_none() && r.buffer(i).is_none());
+            assert!(r.extended_plane(i).is_none());
+        }
+        assert!(r.plane(usize::MAX).is_none() && r.buffer(usize::MAX).is_none());
+        assert_eq!(r.linesizes(), [0; NUM_DATA_POINTERS]);
+        assert_eq!(r.extended_plane_count(), NUM_DATA_POINTERS);
+        assert!(!r.has_extended_data());
+        assert_eq!((r.width(), r.height(), r.sample_count()), (0, 0, 0));
+        assert_eq!(r.format(), -1);
+        assert_eq!(r.pixel_format(), PixelFormat::NONE);
+        assert_eq!(r.sample_format(), SampleFormat::NONE);
+        assert_eq!(r.picture_type(), PictureType::NONE);
+        assert_eq!(r.sample_aspect_ratio().get().into_raw().num, 0);
+        assert_eq!(r.sample_aspect_ratio().get().into_raw().den, 1);
+        assert_eq!(r.time_base().get().into_raw().den, 1);
+        assert_eq!(
+            (r.pts(), r.packet_dts(), r.best_effort_timestamp()),
+            (NOPTS, NOPTS, NOPTS)
+        );
+        assert_eq!((r.quality(), r.repeat_pict(), r.sample_rate()), (0, 0, 0));
+        assert!(r.opaque().is_null());
+        assert_eq!(r.extended_buffer_count(), 0);
+        assert!(r.extended_buffer(0).is_none());
+        assert!(r.side_data().is_empty());
+        assert!(r.flags().is_empty() && r.decode_error_flags().is_empty());
+        assert_eq!(r.color_range(), ColorRange::UNSPECIFIED);
+        assert_eq!(r.color_primaries(), ColorPrimaries::UNSPECIFIED);
+        assert_eq!(r.color_transfer(), ColorTransfer::UNSPECIFIED);
+        assert_eq!(r.color_space(), ColorSpace::UNSPECIFIED);
+        assert_eq!(r.chroma_location(), ChromaLocation::UNSPECIFIED);
+        assert_eq!(r.alpha_mode(), AlphaMode::UNSPECIFIED);
+        assert!(r.metadata().is_none() && r.hw_frames_context().is_none());
+        assert!(r.opaque_ref().is_none() && !r.has_private_ref());
+        assert_eq!(
+            (r.crop_top(), r.crop_bottom(), r.crop_left(), r.crop_right()),
+            (0, 0, 0, 0)
+        );
+        assert_eq!(r.channel_layout().channel_count(), 0);
+        assert_eq!(r.duration(), 0);
+        assert!(!format!("{r:?}").is_empty());
+    }
+
+    #[test]
+    fn scalar_setters_round_trip_their_edges() {
+        let mut f = Frame::new().unwrap();
+        for v in [i32::MIN, -1, 0, 1, i32::MAX] {
+            let mut m = f.as_mut();
+            m.set_width(v);
+            m.set_height(v);
+            m.set_sample_count(v);
+            m.set_format(v);
+            m.set_quality(v);
+            m.set_repeat_pict(v);
+            m.set_sample_rate(v);
+            for i in 0..NUM_DATA_POINTERS {
+                m.set_linesize(i, v.wrapping_add(i as i32));
+            }
+            m.set_flags(FrameFlags::from_bits_retain(v));
+            m.set_decode_error_flags(DecodeErrorFlags::from_bits_retain(v));
+            let r = f.as_ref();
+            assert_eq!(
+                [r.width(), r.height(), r.sample_count(), r.format()],
+                [v; 4]
+            );
+            assert_eq!([r.quality(), r.repeat_pict(), r.sample_rate()], [v; 3]);
+            assert_eq!(r.linesizes()[7], v.wrapping_add(7));
+            assert_eq!(r.flags().bits(), v);
+            assert_eq!(r.decode_error_flags().bits(), v);
+            assert_eq!(r.pixel_format().into_raw().0, v);
+            assert_eq!(r.sample_format().into_raw().0, v);
+        }
+        for v in [i64::MIN, -1, 0, i64::MAX] {
+            let mut m = f.as_mut();
+            m.set_pts(v);
+            m.set_packet_dts(v);
+            m.set_best_effort_timestamp(v);
+            m.set_duration(v);
+            let r = f.as_ref();
+            assert_eq!(
+                [
+                    r.pts(),
+                    r.packet_dts(),
+                    r.best_effort_timestamp(),
+                    r.duration()
+                ],
+                [v; 4]
+            );
+        }
+        for v in [0, 1, usize::MAX] {
+            let mut m = f.as_mut();
+            m.set_crop_top(v);
+            m.set_crop_bottom(v);
+            m.set_crop_left(v);
+            m.set_crop_right(v);
+            let r = f.as_ref();
+            assert_eq!(
+                [r.crop_top(), r.crop_bottom(), r.crop_left(), r.crop_right()],
+                [v; 4]
+            );
+        }
+        let mut m = f.as_mut();
+        m.set_linesizes([3; NUM_DATA_POINTERS]);
+        m.set_pixel_format(PixelFormat::RGB24);
+        m.set_picture_type(PictureType::B);
+        m.set_sample_aspect_ratio(Rational::new(16, 9));
+        m.set_time_base(Rational::new(1, 90000));
+        m.time_base_mut().set_den(48000);
+        m.sample_aspect_ratio_mut().set_num(4);
+        m.set_color_range(ColorRange::JPEG);
+        m.set_color_primaries(ColorPrimaries::BT709);
+        m.set_color_transfer(ColorTransfer::SMPTE2084);
+        m.set_color_space(ColorSpace::BT2020_NCL);
+        m.set_chroma_location(ChromaLocation::TOPLEFT);
+        m.set_alpha_mode(AlphaMode::PREMULTIPLIED);
+        let mut local = 7u8;
+        m.set_opaque((&raw mut local).cast());
+        let r = f.as_ref();
+        assert_eq!(r.linesizes(), [3; NUM_DATA_POINTERS]);
+        assert_eq!(r.pixel_format(), PixelFormat::RGB24);
+        assert_eq!(r.picture_type(), PictureType::B);
+        assert_eq!(r.sample_aspect_ratio().get().into_raw().num, 4);
+        assert_eq!(r.time_base().get().into_raw().den, 48000);
+        assert_eq!(r.color_range(), ColorRange::JPEG);
+        assert_eq!(r.color_primaries(), ColorPrimaries::BT709);
+        assert_eq!(r.color_transfer(), ColorTransfer::SMPTE2084);
+        assert_eq!(r.color_space(), ColorSpace::BT2020_NCL);
+        assert_eq!(r.chroma_location(), ChromaLocation::TOPLEFT);
+        assert_eq!(r.alpha_mode(), AlphaMode::PREMULTIPLIED);
+        assert_eq!(r.opaque(), (&raw mut local).cast());
+        f.as_mut().set_sample_format(SampleFormat::FLTP);
+        assert_eq!(f.as_ref().sample_format(), SampleFormat::FLTP);
+        f.as_mut().set_opaque(core::ptr::null_mut());
+        drop(f);
+        assert_eq!(local, 7);
+    }
+
+    #[test]
+    fn planes_read_exactly_to_their_buffers_end() {
+        for len in [1usize, 4, 7, 64, 4096] {
+            let mut f = Frame::new().unwrap();
+            let mut m = f.as_mut();
+            m.set_buffer(0, Some(bytes(len)));
+            m.set_plane(0, 0, 0).unwrap();
+            m.set_plane(1, 0, len - 1).unwrap();
+            assert_eq!(m.set_plane(2, 0, len), Err(PlaneError::OutOfBounds));
+            assert_eq!(m.set_plane(2, 0, usize::MAX), Err(PlaneError::OutOfBounds));
+            assert_eq!(
+                m.set_plane(NUM_DATA_POINTERS, 0, 0),
+                Err(PlaneError::NoPlane)
+            );
+            assert_eq!(m.set_plane(2, 1, 0), Err(PlaneError::NoBuffer));
+            assert_eq!(
+                m.set_plane(2, NUM_DATA_POINTERS, 0),
+                Err(PlaneError::NoBuffer)
+            );
+            let r = f.as_ref();
+            let whole = r.plane(0).unwrap();
+            assert_eq!(whole.len(), len);
+            assert_eq!(whole, r.buffer(0).unwrap().data());
+            assert_eq!(whole[len - 1], ((len - 1) * 3 + 1) as u8);
+            assert_eq!(r.plane(1).unwrap(), &whole[len - 1..]);
+            assert_eq!(r.extended_plane(1).unwrap(), &whole[len - 1..]);
+            assert!(r.plane(2).is_none());
+            f.as_mut().clear_plane(1);
+            f.as_mut().clear_plane(NUM_DATA_POINTERS);
+            assert!(f.as_ref().plane(1).is_none());
+        }
+    }
+
+    #[test]
+    fn sole_planes_are_written_in_full() {
+        let mut f = planar(64);
+        let mut m = f.as_mut();
+        for i in 0..3 {
+            let p = m.plane_mut(i).expect("a sole buffer");
+            assert_eq!(p.len(), 64 - i * 16);
+            p.fill(i as u8 + 1);
+        }
+        let all = f.as_ref().plane(0).unwrap();
+        assert_eq!(&all[..16], &[1; 16][..]);
+        assert_eq!(&all[16..32], &[2; 16][..]);
+        assert_eq!(&all[32..], &[3; 32][..]);
+        assert!(f.as_mut().plane_mut(3).is_none());
+        assert!(f.as_mut().plane_mut(NUM_DATA_POINTERS).is_none());
+        assert!(f.as_mut().extended_plane_mut(0).is_some());
+        assert!(f.as_mut().extended_plane_mut(NUM_DATA_POINTERS).is_none());
+    }
+
+    #[test]
+    fn shared_and_read_only_buffers_refuse_writes() {
+        let mut f = planar(32);
+        let copy = f.as_ref().buffer(0).unwrap().try_clone().unwrap();
+        assert!(f.as_mut().plane_mut(0).is_none());
+        drop(copy);
+        assert!(f.as_mut().plane_mut(0).is_some());
+        let clone = f.as_ref().try_clone().unwrap();
+        assert!(f.as_mut().plane_mut(1).is_none());
+        assert_eq!(clone.as_ref().plane(1), f.as_ref().plane(1));
+        drop(clone);
+        assert!(f.as_mut().plane_mut(1).is_some());
+        let ro = BufferReference::from_read_only(vec![5u8; 12]).unwrap();
+        f.as_mut().set_buffer(0, Some(ro));
+        f.as_mut().set_plane(0, 0, 2).unwrap();
+        assert_eq!(f.as_ref().plane(0).unwrap(), &[5u8; 10][..]);
+        assert!(f.as_mut().plane_mut(0).is_none());
+    }
+
+    #[test]
+    fn removed_buffers_outlive_the_frame_and_take_their_planes() {
+        let mut f = planar(48);
+        let old = f.as_mut().replace_buffer(0, Some(bytes(8))).unwrap();
+        for i in 0..3 {
+            assert!(f.as_ref().plane(i).is_none());
+        }
+        f.as_mut().set_plane(0, 0, 7).unwrap();
+        let taken = f.as_mut().take_buffer(0).unwrap();
+        assert!(f.as_ref().plane(0).is_none() && f.as_ref().buffer(0).is_none());
+        assert_eq!(f.as_mut().set_plane(0, 0, 0), Err(PlaneError::NoBuffer));
+        assert!(f.as_mut().take_buffer(0).is_none());
+        drop(f);
+        assert_eq!(old.as_ref().len(), 48);
+        assert_eq!(taken.as_ref().data()[7], 22);
+    }
+
+    #[test]
+    fn extra_buffers_back_planes_of_many_channels() {
+        let mut f = Frame::new().unwrap();
+        let mut m = f.as_mut();
+        m.set_sample_format(SampleFormat::U8P);
+        m.set_sample_count(4);
+        m.set_channel_layout(ChannelLayout::unspecified(12))
+            .unwrap();
+        for i in 0..NUM_DATA_POINTERS {
+            m.set_buffer(i, Some(bytes(4 + i)));
+        }
+        for i in 0..4 {
+            m.push_extended_buffer(bytes(20 + i)).unwrap();
+        }
+        m.alloc_extended_data().unwrap();
+        for i in 0..12 {
+            m.set_extended_plane(i, i, 0).unwrap();
+        }
+        assert_eq!(m.set_extended_plane(12, 0, 0), Err(PlaneError::NoPlane));
+        assert_eq!(m.set_extended_plane(0, 12, 0), Err(PlaneError::NoBuffer));
+        assert_eq!(m.set_extended_plane(0, 8, 20), Err(PlaneError::OutOfBounds));
+        let r = f.as_ref();
+        assert!(r.has_extended_data());
+        assert_eq!(
+            (r.extended_plane_count(), r.extended_buffer_count()),
+            (12, 4)
+        );
+        for i in 0..12 {
+            let expect = if i < 8 { 4 + i } else { 20 + i - 8 };
+            assert_eq!(r.extended_plane(i).unwrap().len(), expect);
+        }
+        assert!(r.extended_plane(12).is_none() && r.extended_buffer(4).is_none());
+        let mut m = f.as_mut();
+        for i in 0..12 {
+            m.extended_plane_mut(i).unwrap().fill(i as u8);
+        }
+        assert_eq!(f.as_ref().extended_plane(11).unwrap(), &[11u8; 23][..]);
+        let clone = f.as_ref().try_clone().unwrap();
+        assert_eq!(
+            clone.as_ref().extended_plane(11),
+            f.as_ref().extended_plane(11)
+        );
+        assert_eq!(clone.as_ref().extended_buffer_count(), 4);
+        // More channels would overrun the separate array: refused, layout
+        // kept; fewer are fine.
+        assert!(f.as_mut().channel_layout_mut().is_none());
+        let back = f
+            .as_mut()
+            .set_channel_layout(ChannelLayout::unspecified(13))
+            .unwrap_err();
+        assert_eq!(back.as_ref().channel_count(), 13);
+        assert_eq!(f.as_ref().channel_layout().channel_count(), 12);
+        f.as_mut()
+            .set_channel_layout(ChannelLayout::unspecified(9))
+            .unwrap();
+        assert_eq!(f.as_ref().extended_plane_count(), 9);
+        let popped = f.as_mut().pop_extended_buffer().unwrap();
+        assert!(f.as_ref().extended_plane(11).is_none());
+        let old = f.as_mut().replace_extended_buffer(0, popped).unwrap();
+        assert!(f.as_ref().extended_plane(8).is_none());
+        f.as_mut().clear_extended_plane(0);
+        f.as_mut().clear_extended_plane(99);
+        assert!(f.as_ref().extended_plane(0).is_none());
+        f.as_mut().reset_extended_data();
+        assert!(f.as_mut().channel_layout_mut().is_some());
+        drop(f);
+        assert_eq!(old.as_ref().len(), 20);
+        assert_eq!(clone.as_ref().extended_plane(9).unwrap(), &[9u8; 21][..]);
+    }
+
+    #[test]
+    fn side_data_metadata_and_user_data_outlive_the_frame() {
+        let mut f = planar(16);
+        let mut m = f.as_mut();
+        let mut entries = m.side_data_mut();
+        entries
+            .add(SideDataType::AFD, bytes(1), SideDataFlags::NONE)
+            .unwrap()
+            .set_metadata(Dict::from_entries([(c"a", c"b")]).unwrap());
+        entries
+            .add(
+                SideDataType::SEI_UNREGISTERED,
+                bytes(4096),
+                SideDataFlags::NONE,
+            )
+            .unwrap();
+        m.set_metadata(Dict::from_entries([(c"k", c"v"), (c"k2", c"v2")]).unwrap());
+        m.set_opaque_ref(Some(bytes(3)));
+        let r = f.as_ref();
+        assert_eq!(r.side_data().len(), 2);
+        assert_eq!(r.side_data().get(1).unwrap().data().len(), 4096);
+        assert_eq!(r.metadata().unwrap().len(), 2);
+        assert_eq!(r.opaque_ref().unwrap().data(), [1, 4, 7]);
+        let clone = r.try_clone().unwrap();
+        let sd = clone
+            .as_ref()
+            .side_data()
+            .get(1)
+            .unwrap()
+            .buffer()
+            .try_clone()
+            .unwrap();
+        let meta = f.as_mut().take_metadata();
+        assert!(f.as_ref().metadata().is_none());
+        let user = f.as_mut().replace_opaque_ref(None).unwrap();
+        let replaced = f.as_mut().replace_metadata(Dict::new());
+        assert!(replaced.as_ref().is_none());
+        assert!(f.as_mut().take_hw_frames_context().is_none());
+        drop(f);
+        assert_eq!(meta.as_ref().unwrap().len(), 2);
+        assert_eq!(user.as_ref().data(), [1, 4, 7]);
+        assert_eq!(clone.as_ref().metadata().unwrap().len(), 2);
+        assert_eq!(clone.as_ref().opaque_ref().unwrap().data(), [1, 4, 7]);
+        drop(clone);
+        assert_eq!(sd.as_ref().len(), 4096);
+    }
+
+    #[test]
+    fn channel_layouts_change_in_place_and_by_value() {
+        let mut f = Frame::new().unwrap();
+        f.as_mut()
+            .channel_layout_mut()
+            .unwrap()
+            .copy_from(ChannelLayout::default_for(6).as_ref())
+            .unwrap();
+        assert_eq!(f.as_ref().channel_layout().channel_count(), 6);
+        let old = f
+            .as_mut()
+            .replace_channel_layout(ChannelLayout::custom(3).unwrap())
+            .unwrap();
+        assert_eq!(old.as_ref().channel_count(), 6);
+        let clone = f.as_ref().try_clone();
+        assert!(clone.is_none(), "no planes to copy");
+        f.as_mut()
+            .set_channel_layout(ChannelLayout::unspecified(0))
+            .unwrap();
+        drop(f);
+        assert_eq!(old.as_ref().channel_count(), 6);
+    }
+
+    #[test]
+    fn clones_of_counted_frames_outlive_their_source() {
+        let mut f = planar(64);
+        f.as_mut().set_pts(11);
+        f.as_mut().set_flags(FrameFlags::KEY);
+        let clone = f.as_ref().try_clone().unwrap();
+        let again = clone.as_ref().try_clone().unwrap();
+        drop(f);
+        for c in [&clone, &again] {
+            let r = c.as_ref();
+            assert_eq!(r.pts(), 11);
+            assert_eq!(r.flags(), FrameFlags::KEY);
+            assert_eq!(r.plane(2).unwrap().len(), 32);
+            assert_eq!(r.buffer(0).unwrap().ref_count(), 2);
+        }
+        drop(clone);
+        let mut again = again;
+        assert!(again.as_mut().plane_mut(0).is_some());
+    }
+
+    #[test]
+    fn frames_without_planes_do_not_clone() {
+        let f = Frame::new().unwrap();
+        assert!(f.as_ref().try_clone().is_none());
+        let mut f = Frame::new().unwrap();
+        f.as_mut().set_pixel_format(PixelFormat::GRAY8);
+        f.as_mut().set_width(16);
+        f.as_mut().set_height(16);
+        assert!(f.as_ref().try_clone().is_none());
+        f.as_mut().set_pixel_format(PixelFormat::from_raw(
+            ffmpeg::libavutil::ffi::AVPixelFormat(-77),
+        ));
+        assert!(f.as_ref().try_clone().is_none());
+        f.as_mut().set_sample_format(SampleFormat::S16);
+        f.as_mut().set_width(0);
+        f.as_mut().set_sample_count(1024);
+        f.as_mut()
+            .set_channel_layout(ChannelLayout::default_for(2))
+            .unwrap();
+        assert!(f.as_ref().try_clone().is_none());
+        // A buffer past index 0 alone keeps the frame uncounted.
+        f.as_mut().set_buffer(1, Some(bytes(8)));
+        assert!(f.as_ref().try_clone().is_none());
+    }
+
+    #[test]
+    fn reset_releases_everything_and_restores_defaults() {
+        let mut f = planar(16);
+        f.as_mut()
+            .set_metadata(Dict::from_entries([(c"x", c"y")]).unwrap());
+        f.as_mut().push_extended_buffer(bytes(2)).unwrap();
+        let keep = f.as_ref().buffer(0).unwrap().try_clone().unwrap();
+        f.as_mut().reset();
+        let r = f.as_ref();
+        assert!(r.buffer(0).is_none() && r.plane(0).is_none());
+        assert_eq!((r.format(), r.width(), r.pts()), (-1, 0, NOPTS));
+        assert_eq!(r.extended_buffer_count(), 0);
+        assert_eq!(keep.as_ref().ref_count(), 1);
+        f.as_mut().reset();
+        drop(f);
+        assert_eq!(keep.as_ref().len(), 16);
+    }
+
+    #[test]
+    fn frames_cross_threads() {
+        let f = Arc::new(planar(256));
+        let barrier = Arc::new(Barrier::new(4));
+        let handles: Vec<_> = (0..4)
+            .map(|i| {
+                let f = Arc::clone(&f);
+                let barrier = Arc::clone(&barrier);
+                thread::spawn(move || {
+                    barrier.wait();
+                    let mut copies = Vec::new();
+                    for _ in 0..16 {
+                        let r = FrameBox::as_ref(&f);
+                        let c = r.try_clone().unwrap();
+                        assert_eq!(c.as_ref().plane(i % 3).unwrap(), r.plane(i % 3).unwrap());
+                        copies.push(c);
+                    }
+                    copies
+                })
+            })
+            .collect();
+        let copies: Vec<FrameBox> = handles
+            .into_iter()
+            .flat_map(|h| h.join().unwrap())
+            .collect();
+        assert_eq!(FrameBox::as_ref(&f).buffer(0).unwrap().ref_count(), 65);
+        thread::scope(|s| {
+            for c in copies {
+                s.spawn(move || drop(c));
+            }
+        });
+        let mut f = Arc::into_inner(f).unwrap();
+        let writer = thread::spawn(move || {
+            f.as_mut().plane_mut(0).unwrap().fill(9);
+            f
+        });
+        let f = writer.join().unwrap();
+        assert_eq!(f.as_ref().plane(0).unwrap(), &[9u8; 256][..]);
+        thread::spawn(move || drop(f)).join().unwrap();
+    }
+}
