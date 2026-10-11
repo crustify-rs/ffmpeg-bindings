@@ -142,13 +142,22 @@ fn buffer_sequences_match_c() {
                         .as_ref()
                         .crypt_in_place(&mut a[1..1 + len], cbc.then_some(&mut ia), direction)
                         .unwrap();
+                    // The assertions above reborrowed `r` and `ir`, retiring the
+                    // pointers of the first call: take fresh ones, and a single
+                    // pointer for both exactly aliased buffers.
+                    let iv = if cbc {
+                        ir.as_mut_ptr()
+                    } else {
+                        core::ptr::null_mut()
+                    };
+                    let place = r.as_mut_ptr();
                     // SAFETY: same initialized reference, exact-alias buffers
                     // explicitly supported by C, with len full blocks and separate IV.
                     unsafe {
                         ffi::av_camellia_crypt(
                             reference.as_c_ptr(),
-                            r.as_mut_ptr().add(1),
-                            r.as_mut_ptr().add(1),
+                            place.add(1),
+                            place.add(1),
                             blocks as i32,
                             iv,
                             i32::from(direction == Direction::Decrypt),

@@ -3,8 +3,9 @@
 
 use core::ptr::addr_of_mut;
 
+use ffmpeg::libavutil::aes::Direction;
 use ffmpeg::libavutil::ffi;
-use ffmpeg::libavutil::xtea::{Direction, Xtea, XteaBox, XteaRef};
+use ffmpeg::libavutil::xtea::{Xtea, XteaBox, XteaRef};
 
 const KEYS: [[u8; 16]; 4] = [
     [0; 16],
@@ -173,7 +174,9 @@ fn reference_call(
     let count = i32::try_from(dst.len() / 8).unwrap();
     assert!(dst.len().is_multiple_of(8));
     assert!(src.is_none_or(|src| src.len() == dst.len()));
-    let src = src.map_or_else(|| dst.as_ptr(), |src| src.as_ptr());
+    // One exclusive reborrow for both pointers when in place, as the wrapper.
+    let dst_ptr = dst.as_mut_ptr();
+    let src = src.map_or(dst_ptr.cast_const(), |src| src.as_ptr());
     let iv = iv.map_or(core::ptr::null_mut(), |iv| iv.as_mut_ptr());
     let crypt = if le {
         ffi::av_xtea_le_crypt
@@ -186,7 +189,7 @@ fn reference_call(
     unsafe {
         crypt(
             ctx.as_c_ptr(),
-            dst.as_mut_ptr(),
+            dst_ptr,
             src,
             count,
             iv,

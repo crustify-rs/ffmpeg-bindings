@@ -1,4 +1,5 @@
 use ffibox::CZeroable;
+use ffmpeg::libavutil::aes::Direction::{Decrypt, Encrypt};
 use ffmpeg::libavutil::des::{Des, DesBox};
 
 #[test]
@@ -106,11 +107,11 @@ fn crypt_foreign_writes_and_borrowed_inputs() {
         let mut output = [0xFF; 8];
         inline
             .as_ref()
-            .crypt_in_place(&mut output, None, false)
+            .crypt_in_place(&mut output, None, Encrypt)
             .unwrap();
         inline
             .as_ref()
-            .crypt_in_place(&mut output, None, true)
+            .crypt_in_place(&mut output, None, Decrypt)
             .unwrap();
         let _ = inline.as_ref().mac(&output).unwrap();
     }
@@ -123,15 +124,15 @@ fn crypt_foreign_writes_and_borrowed_inputs() {
             let mut output = vec![0; blocks * 8 + 1];
             let mut iv = [0x25; 8];
             shared
-                .crypt(&mut output[1..], &input[1..], Some(&mut iv), false)
+                .crypt(&mut output[1..], &input[1..], Some(&mut iv), Encrypt)
                 .unwrap();
             input.fill(0); // no retained foreign pointer across this Rust reborrow
             drop(input);
             second
-                .crypt_in_place(&mut output[1..], Some(&mut iv), true)
+                .crypt_in_place(&mut output[1..], Some(&mut iv), Decrypt)
                 .unwrap();
             second
-                .crypt_zeros(&mut output[1..], Some(&mut iv), false)
+                .crypt_zeros(&mut output[1..], Some(&mut iv), Encrypt)
                 .unwrap();
             let _ = shared.mac(&output[1..]).unwrap();
             output.fill(7); // foreign writes ended before the next Rust borrow
@@ -149,11 +150,11 @@ fn independent_crypt_contexts_on_threads() {
                 for _ in 0..16 {
                     context
                         .as_ref()
-                        .crypt_in_place(&mut data, None, false)
+                        .crypt_in_place(&mut data, None, Encrypt)
                         .unwrap();
                     context
                         .as_ref()
-                        .crypt_in_place(&mut data, None, true)
+                        .crypt_in_place(&mut data, None, Decrypt)
                         .unwrap();
                     let _ = context.as_ref().mac(&data).unwrap();
                 }

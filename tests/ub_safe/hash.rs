@@ -82,7 +82,7 @@ fn hashing_foreign_writes_and_reborrows() {
             drop(input);
             let mut out = [0x99; 143];
             let mut inner = outer.as_mut();
-            inner.finalize_bin(&mut out[1..]).unwrap();
+            inner.finalize_bin(&mut out[1..]);
             out.fill(0);
             inner.update(&[]);
             let _ = inner.finalize(); // current C post-final states are memory-safe
@@ -93,7 +93,7 @@ fn hashing_foreign_writes_and_reborrows() {
         }
         for size in 0..=140 {
             let mut out = vec![0xA5; size + 1];
-            outer.finalize_bin(&mut out[1..]).unwrap();
+            outer.finalize_bin(&mut out[1..]);
             outer.init();
             if size >= 2 {
                 outer.finalize_hex(&mut out[1..]).unwrap();

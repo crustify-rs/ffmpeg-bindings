@@ -189,3 +189,69 @@ fn calculate_and_failed_output_preserve_c_state() {
         }
     }
 }
+
+/// Outputs longer than C's `unsigned int` size parameter, which C callers
+/// offer as `UINT_MAX` bytes (crypto wave-1 review,
+/// `equiv/hash-and-hmac-reject-outputs-beyond-c-ranges`).
+mod beyond_uint_max {
+    use super::Reference;
+    use ffmpeg::libavutil::{
+        ffi,
+        hmac::{Hmac, HmacType},
+    };
+
+    const LEN: usize = u32::MAX as usize + 1;
+    const HEAD: usize = 80;
+
+    /// BSan cost grows with a 4 GiB allocation's history (see the campaign's
+    /// test recipes); the plain and other sanitized runs cover these.
+    fn under_bsan() -> bool {
+        std::env::var("CRUSTIFY_FFMPEG_VARIANT").as_deref() == Ok("bsan")
+    }
+
+    /// A zeroed allocation, so only the pages written are ever mapped.
+    fn buffer() -> Vec<u8> {
+        let mut buffer = vec![0u8; LEN];
+        buffer[..HEAD].fill(0xAA);
+        buffer
+    }
+
+    #[test]
+    fn finals_and_calculations_into_outputs_beyond_uint_max_follow_c() {
+        if under_bsan() {
+            return;
+        }
+        let key = b"key";
+        for (safe_type, raw_type) in [
+            (HmacType::MD5, ffi::AVHMACType::AV_HMAC_MD5),
+            (HmacType::SHA512, ffi::AVHMACType::AV_HMAC_SHA512),
+        ] {
+            for calculate in [false, true] {
+                let raw = Reference::new(raw_type);
+                let mut expected = buffer();
+                // SAFETY: a live context, readable key and data, and an
+                // output writable for `UINT_MAX` bytes; C writes the digest.
+                let ret = unsafe {
+                    ffi::av_hmac_init(raw.0, key.as_ptr(), 3);
+                    if calculate {
+                        let (data, out) = (b"crustify".as_ptr(), expected.as_mut_ptr());
+                        ffi::av_hmac_calc(raw.0, data, 8, key.as_ptr(), 3, out, u32::MAX)
+                    } else {
+                        ffi::av_hmac_update(raw.0, b"crustify".as_ptr(), 8);
+                        ffi::av_hmac_final(raw.0, expected.as_mut_ptr(), u32::MAX)
+                    }
+                };
+                let expected = (Ok(ret as usize), expected[..HEAD].to_vec());
+                let mut safe = Hmac::new(safe_type, key).unwrap();
+                let mut actual = buffer();
+                let result = if calculate {
+                    safe.as_mut().calculate(b"crustify", key, &mut actual)
+                } else {
+                    safe.as_mut().update(b"crustify").unwrap();
+                    safe.as_mut().finalize(&mut actual)
+                };
+                assert_eq!((result, actual[..HEAD].to_vec()), expected, "{safe_type:?}");
+            }
+        }
+    }
+}

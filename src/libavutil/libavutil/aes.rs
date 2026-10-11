@@ -9,7 +9,8 @@ use ffibox::{CAlloc, CBox, CDrop, define_ctype};
 
 use super::{ffi, mem::Heap};
 
-/// The key schedule to install in an AES context.
+/// Whether a cipher encrypts or decrypts, shared by the crypto block-cipher
+/// wrappers. For AES it selects the key schedule to install in a context.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum Direction {
     Encrypt,
@@ -22,7 +23,8 @@ impl Direction {
     }
 }
 
-/// Buffer validation failure. Rejected calls leave context, output and IV unchanged.
+/// Buffer validation failure, shared by the crypto cipher wrappers. Rejected
+/// calls leave context, output and IV unchanged.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum CryptError {
     LengthMismatch,

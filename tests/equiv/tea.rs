@@ -10,8 +10,18 @@ fn batch10_size_is_the_c_global() {
     }
 }
 
+use ffmpeg::libavutil::aes::Direction;
 use ffmpeg::libavutil::tea::Tea;
 use libavutil_sys as ffi;
+
+/// The safe direction for C's `decrypt` flag.
+fn direction(decrypt: bool) -> Direction {
+    if decrypt {
+        Direction::Decrypt
+    } else {
+        Direction::Encrypt
+    }
+}
 
 #[test]
 fn lifecycle_and_rekey_match_c() {
@@ -47,7 +57,7 @@ fn lifecycle_and_rekey_match_c() {
                         &mut output,
                         &input,
                         if cbc { Some(&mut iv) } else { None },
-                        decrypt != 0,
+                        direction(decrypt != 0),
                     )
                     .unwrap();
                 // SAFETY: reference uniquely owns a live initialized context; buffers
@@ -76,7 +86,7 @@ fn lifecycle_and_rekey_match_c() {
                         &mut constructed_output,
                         &input,
                         if cbc { Some(&mut constructed_iv) } else { None },
-                        decrypt != 0,
+                        direction(decrypt != 0),
                     )
                     .unwrap();
                 assert_eq!(constructed_output, expected);
@@ -108,7 +118,7 @@ fn batch2_in_place_multi_call_buffers_and_iv_match_c() {
                     .crypt_in_place(
                         &mut data[1..],
                         if cbc { Some(&mut iv) } else { None },
-                        decrypt,
+                        direction(decrypt),
                     )
                     .unwrap();
                 // SAFETY: reference uniquely owns an initialized independent C
@@ -139,7 +149,7 @@ fn batch2_in_place_multi_call_buffers_and_iv_match_c() {
                         &mut output[1..],
                         &data[1..],
                         if cbc { Some(&mut iv) } else { None },
-                        decrypt,
+                        direction(decrypt),
                     )
                     .unwrap();
                 // SAFETY: independent initialized context and disjoint input,

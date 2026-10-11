@@ -1,5 +1,14 @@
 use core::ptr::{addr_of, addr_of_mut};
-use ffmpeg::libavutil::{des::Des, ffi};
+use ffmpeg::libavutil::{aes::Direction, des::Des, ffi};
+
+/// The safe direction for C's `decrypt` flag.
+fn direction(decrypt: bool) -> Direction {
+    if decrypt {
+        Direction::Decrypt
+    } else {
+        Direction::Encrypt
+    }
+}
 
 struct Reference(*mut ffi::AVDES);
 impl Reference {
@@ -85,7 +94,7 @@ fn lifecycle_fields_and_multicall_state_agree() {
                 );
             }
             safe.as_ref()
-                .crypt(&mut output_safe.0, &input.0, None, decrypt)
+                .crypt(&mut output_safe.0, &input.0, None, direction(decrypt))
                 .unwrap();
             assert_eq!(output_safe.0, output_raw.0);
         }
@@ -161,7 +170,12 @@ fn copies_and_clones_track_c_struct_copies() {
         let mut actual = [0; 16];
         boxed
             .as_ref()
-            .crypt(&mut actual, b"fedcba9876543210", None, decrypt != 0)
+            .crypt(
+                &mut actual,
+                b"fedcba9876543210",
+                None,
+                direction(decrypt != 0),
+            )
             .unwrap();
         assert_eq!(actual, expected);
     }
@@ -208,7 +222,12 @@ fn crypt_cbc_in_place_zero_input_and_mac_sequences() {
                         )
                     };
                     safe.as_ref()
-                        .crypt(&mut actual, src, cbc.then_some(&mut iv_b), decrypt)
+                        .crypt(
+                            &mut actual,
+                            src,
+                            cbc.then_some(&mut iv_b),
+                            direction(decrypt),
+                        )
                         .unwrap();
                     assert_eq!(actual, expected);
                     assert_eq!(iv_a, iv_b);
@@ -216,13 +235,14 @@ fn crypt_cbc_in_place_zero_input_and_mac_sequences() {
                     let mut ref_place = src.to_vec();
                     let mut place_iv_a = [0x7B; 8];
                     let mut place_iv_b = place_iv_a;
+                    let place = ref_place.as_mut_ptr();
                     // SAFETY: C supports exact aliasing; both pointers name the same
                     // exclusively held buffer of whole blocks. Context is read-only.
                     unsafe {
                         ffi::av_des_crypt(
                             raw.0,
-                            ref_place.as_mut_ptr(),
-                            ref_place.as_ptr(),
+                            place,
+                            place,
                             blocks as i32,
                             if cbc {
                                 place_iv_a.as_mut_ptr()
@@ -233,7 +253,11 @@ fn crypt_cbc_in_place_zero_input_and_mac_sequences() {
                         )
                     };
                     safe.as_ref()
-                        .crypt_in_place(&mut in_place, cbc.then_some(&mut place_iv_b), decrypt)
+                        .crypt_in_place(
+                            &mut in_place,
+                            cbc.then_some(&mut place_iv_b),
+                            direction(decrypt),
+                        )
                         .unwrap();
                     assert_eq!(in_place, ref_place);
                     assert_eq!(place_iv_a, place_iv_b);
@@ -259,7 +283,7 @@ fn crypt_cbc_in_place_zero_input_and_mac_sequences() {
                     )
                 };
                 safe.as_ref()
-                    .crypt_zeros(&mut zeros, Some(&mut iv_b), decrypt)
+                    .crypt_zeros(&mut zeros, Some(&mut iv_b), direction(decrypt))
                     .unwrap();
                 assert_eq!(zeros, expected);
                 assert_eq!(iv_a, iv_b);
