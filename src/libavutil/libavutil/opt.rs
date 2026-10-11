@@ -1144,6 +1144,9 @@ const EINVAL: i32 = -(ffi::EINVAL as i32);
 /// `AVERROR(ERANGE)`.
 const ERANGE: i32 = -(ffi::ERANGE as i32);
 
+/// `AVERROR(ENOMEM)`.
+const ENOMEM: i32 = -(ffi::ENOMEM as i32);
+
 /// `AV_LOG_MAX_OFFSET`: the level offset of C's quiet parses
 /// (`av_parse_ratio_quiet`), which lifts every message above `AV_LOG_TRACE`.
 const LOG_MAX_OFFSET: c_int = (ffi::AV_LOG_TRACE as c_int) - ffi::AV_LOG_QUIET;
@@ -3230,11 +3233,19 @@ impl ObjectMut<'_> {
     /// (`start` equal to the array's size appends), shifting the elements
     /// from `start` on. Each value is converted as the scalar setter of its
     /// type would: a string is parsed as by [`set`](Self::set) (a string
-    /// array stores a copy of it), an integer, float or rational converted
-    /// as by [`set_int`](Self::set_int), [`set_double`](Self::set_double) or
-    /// [`set_rational`](Self::set_rational), and a value of the array's own
-    /// element type copied (dictionaries and channel layouts deeply). The
-    /// array is left as it was when any value fails.
+    /// array stores a copy of it), an integer or float converted as by
+    /// [`set_int`](Self::set_int) or [`set_double`](Self::set_double), and a
+    /// value of the array's own element type copied (dictionaries and
+    /// channel layouts deeply). The array is left as it was when any value
+    /// fails.
+    ///
+    /// A rational converts as C's `av_opt_set_array` converts it, which is
+    /// not as [`set_rational`](Self::set_rational) does: C passes its
+    /// numerator as the integer factor of `1 / den`, so a rational or video
+    /// rate element stores it as is and a float or double element gets its
+    /// quotient, but an integer, flags, boolean, duration or format element
+    /// gets `llrint(1 / den) * num` (`0` for `3/2`, where `set_rational`
+    /// stores `2`).
     ///
     /// # Errors
     ///
@@ -3290,7 +3301,15 @@ impl ObjectMut<'_> {
     /// `AVERROR_OPTION_NOT_FOUND` for no such option, `AVERROR(EINVAL)` for
     /// a read-only option, one that is not an array, a range past the
     /// array's end or a resulting size below the definition's minimum,
-    /// `AVERROR(ENOMEM)`.
+    /// `AVERROR(ENOMEM)` when C cannot shrink the array's block (under an
+    /// [`av_max_alloc`](super::mem::set_max_alloc) limit below the new
+    /// size), after which the elements are removed all the same.
+    ///
+    /// Beyond C: C releases and shifts the elements before it shrinks the
+    /// block, and on that failure keeps the old count, so the array's last
+    /// elements repeat or address released values, which a later read or
+    /// `av_opt_free` uses again (a double free); the count is set to the new
+    /// size here.
     pub fn remove_array(
         &mut self,
         name: &CStr,
@@ -3300,6 +3319,10 @@ impl ObjectMut<'_> {
     ) -> Result<(), i32> {
         let start = c_uint::try_from(start).map_err(|_| EINVAL)?;
         let count = c_uint::try_from(count).map_err(|_| EINVAL)?;
+        let size = self.as_ref().array_count_field(name, flags.0);
+        // SAFETY: the count of an array of the object or a child, which the
+        // exclusive borrow keeps unwritten by anything else.
+        let old = size.map(|p| unsafe { p.read() });
         let obj = self.as_mut_ptr();
         let ty = ffi::AVOptionType::AV_OPT_TYPE_INT;
         // SAFETY: as for `set`; with a NULL `val` C only releases and shifts
@@ -3308,6 +3331,14 @@ impl ObjectMut<'_> {
         let ret = unsafe {
             ffi::av_opt_set_array(obj, name.as_ptr(), flags.0, start, count, ty, ptr::null())
         };
+        // A removal fails with `ENOMEM` only once C has released the range
+        // and shifted the rest down, when shrinking the block fails.
+        if let (ENOMEM, Some(p), Some(old)) = (ret, size, old) {
+            // SAFETY: as above, writable through the exclusive borrow; the
+            // first `old - count` elements are the array's remaining ones,
+            // and the block C kept is larger than they need.
+            unsafe { p.write(old.saturating_sub(count)) };
+        }
         if ret < 0 { Err(ret) } else { Ok(()) }
     }
 
@@ -3447,6 +3478,22 @@ impl ObjectRef<'_> {
             }
         }
         Ok(None)
+    }
+
+    /// The address of the element count of option `name` when it is an
+    /// array, for [`ObjectMut::remove_array`] to repair after a failed
+    /// shrink.
+    fn array_count_field(&self, name: &CStr, search_flags: c_int) -> Option<NonNull<c_uint>> {
+        let (o, target) = self.find(name, None, search_flags)?;
+        if !o.option_type().is_array() {
+            return None;
+        }
+        // C stores an array as its elements' pointer, then their `unsigned`
+        // count (`opt_array_pcount`).
+        let offset = usize::try_from(o.offset()).ok()? + size_of::<*mut c_void>();
+        // SAFETY: the contract makes the option's offset address its
+        // `{ T *, unsigned }` array field in `target`, the object or a child.
+        Some(unsafe { target.cast::<u8>().add(offset) }.cast())
     }
 
     /// The address of option `name`'s value when it is a channel layout,
@@ -3606,7 +3653,7 @@ numeric_elements! {
     i64 => i64, INT64, |v| (1.0, 1, v), v;
     f32 => f32, FLOAT, |v| (f64::from(v), 1, 1), v;
     f64 => f64, DOUBLE, |v| (v, 1, 1), v;
-    Rational => ffi::AVRational, RATIONAL, |v| (f64::from(v.as_ref().num()), v.as_ref().den(), 1), v.into_raw();
+    Rational => ffi::AVRational, RATIONAL, |v| (1.0, v.as_ref().den(), i64::from(v.as_ref().num())), v.into_raw();
 }
 
 impl array_input::Sealed for Option<&CStr> {
@@ -5785,6 +5832,54 @@ mod unit_tests {
             }
             let got = obj.as_ref().get(c"layout", SearchFlags::CHILDREN).unwrap();
             assert_eq!(got.as_bytes(), b"0 channels");
+        }
+
+        /// The corrected behaviour (options wave 1 review): when C cannot
+        /// shrink an array's block after a removal, it has released the
+        /// range and shifted the rest down but keeps the old count; the
+        /// wrapper writes the new count back. Runs alone in a child: the
+        /// allocation limit is process-wide.
+        #[test]
+        fn failed_shrinks_store_the_new_count() {
+            const KEY: &str = "CRUSTIFY_OPT_UNIT_SHRINK_ENOMEM";
+            if std::env::var_os(KEY).is_none() {
+                let name =
+                    "libavutil::opt::unit_tests::typed_setters::failed_shrinks_store_the_new_count";
+                let status = std::process::Command::new(std::env::current_exe().unwrap())
+                    .args(["--exact", name, "--test-threads=1"])
+                    .env(KEY, "1")
+                    .status()
+                    .unwrap();
+                assert!(status.success(), "isolated run failed: {status}");
+                return;
+            }
+            let o = OwnedArrays::zeroed_with_child();
+            let mut obj = arrays(&o);
+            for f in [SearchFlags::NONE, SearchFlags::CHILDREN] {
+                obj.insert_array(c"ints", 0, &[1, 2, 3, 4], f).unwrap();
+                crate::libavutil::mem::set_max_alloc(1);
+                let ret = obj.remove_array(c"ints", 1, 2, f);
+                crate::libavutil::mem::set_max_alloc(i32::MAX as usize);
+                assert_eq!(ret, Err(ENOMEM));
+                let p = if f == SearchFlags::NONE {
+                    o.ptr()
+                } else {
+                    o.child()
+                };
+                // SAFETY: raw reads of the live object's `ints` array, whose
+                // count elements are initialised.
+                let ints = unsafe {
+                    let a = &raw const (*p).ints;
+                    core::slice::from_raw_parts((*a).elems, (*a).len as usize).to_vec()
+                };
+                assert_eq!(ints, [1, 4]);
+                // Removals that succeed still shrink the array normally.
+                obj.remove_array(c"ints", 0, 2, f).unwrap();
+                assert_eq!(obj.as_ref().get_array_size(c"ints", f), Ok(0));
+            }
+            // No count to repair: no such option, or not an array.
+            assert!(obj.as_ref().array_count_field(c"nosuch", 0).is_none());
+            assert!(obj.as_ref().array_count_field(c"scalar", 0).is_none());
         }
 
         #[test]

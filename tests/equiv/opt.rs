@@ -2988,7 +2988,7 @@ mod typed_setters {
     use ffmpeg::libavutil::rational::Rational;
     use ffmpeg::libavutil::samplefmt::SampleFormat;
 
-    use super::fixture::{ARRAYS_NAMES, OBJ_OPTIONS, Owned, OwnedArrays};
+    use super::fixture::{ARRAYS_NAMES, Arrays, OBJ_OPTIONS, Owned, OwnedArrays};
     use ffi::AVOptionType as T;
 
     const ALLOW_NULL: c_int = ffi::AV_OPT_ALLOW_NULL as c_int;
@@ -2996,6 +2996,7 @@ mod typed_setters {
     const REPLACE: c_int = ffi::AV_OPT_ARRAY_REPLACE as c_int;
     const EINVAL: i32 = -22;
     const ERANGE: i32 = -34;
+    const ENOMEM: i32 = -12;
 
     fn under_bsan() -> bool {
         std::env::var("CRUSTIFY_FFMPEG_VARIANT").as_deref() == Ok("bsan")
@@ -3763,7 +3764,10 @@ mod typed_setters {
 
     /// Allocation failures: C's own errors agree, and the array or option is
     /// left as C leaves it, except for the channel layout C leaves without a
-    /// map (corrected; see the unit tests), which is compared once reset.
+    /// map (corrected; see the unit tests), which is compared once reset, and
+    /// the array whose shrink failed, whose stale count C keeps (corrected;
+    /// see `ub_unsafe/opt.rs::remove_array_shrink_failure`), which is
+    /// compared once its count is repaired as the wrapper repairs it.
     #[test]
     fn allocation_failures_agree() {
         const KEY: &str = "CRUSTIFY_EQUIV_OPT_TYPED_ISOLATED";
@@ -3808,6 +3812,12 @@ mod typed_setters {
                 let rr = rust_apply(ro[0], op, &mut rl);
                 set_limit(i32::MAX as usize);
                 assert_eq!(cr, rr, "{op:?} at {limit}");
+                if let (Op::Remove(name, _, count, false), ENOMEM) = (op, cr) {
+                    assert_eq!(name, c"ints");
+                    // SAFETY: the live object's `ints` array, whose first
+                    // `len - count` elements C left as the remaining ones.
+                    unsafe { (*co[0].cast::<Arrays>()).ints.len -= count };
+                }
                 assert_eq!(
                     observe(&co, &names),
                     observe(&ro, &names),
@@ -3893,5 +3903,95 @@ mod typed_setters {
                 "at {limit}"
             );
         }
+    }
+}
+
+/// Options wave 1 review: a rational stored by `ObjectMut::insert_array`
+/// converts as `av_opt_set_array` converts it, `llrint(1 / den) * num` into
+/// an integer element, unlike `set_rational`'s rounded quotient into an
+/// integer option: both pinned against C on independently owned objects.
+mod rational_array_conversion {
+    use core::ffi::{CStr, c_int, c_void};
+
+    use ffmpeg::libavutil::ffi;
+    use ffmpeg::libavutil::opt::{ObjectMut, SearchFlags};
+    use ffmpeg::libavutil::rational::Rational;
+
+    use super::fixture::OwnedArrays;
+
+    const QS: [(i32, i32); 5] = [(3, 2), (7, 2), (-9, 4), (5, 1), (6, 1)];
+
+    fn c_ints(obj: *mut c_void, name: &CStr) -> (i32, Vec<i64>) {
+        let mut n = 0;
+        // SAFETY: a live fixture object; `n` is a writable `unsigned`.
+        let ret = unsafe { ffi::av_opt_get_array_size(obj, name.as_ptr(), 0, &mut n) };
+        let mut out = vec![0i64; n as usize];
+        let ty = ffi::AVOptionType::AV_OPT_TYPE_INT64;
+        // SAFETY: `out` holds `n` zeroed `int64_t`s, the range lies in the
+        // array, and integer elements convert to `int64_t` without UB.
+        let got = unsafe {
+            ffi::av_opt_get_array(obj, name.as_ptr(), 0, 0, n, ty, out.as_mut_ptr().cast())
+        };
+        (ret.min(got), out)
+    }
+
+    #[test]
+    fn rationals_into_integer_arrays_and_options_convert_as_c() {
+        let (c, r) = (
+            OwnedArrays::zeroed_with_child(),
+            OwnedArrays::zeroed_with_child(),
+        );
+        let raw: Vec<ffi::AVRational> = QS
+            .iter()
+            .map(|&(num, den)| ffi::AVRational { num, den })
+            .collect();
+        let qs: Vec<Rational> = QS
+            .iter()
+            .map(|&(num, den)| Rational::new(num, den))
+            .collect();
+        // SAFETY: a live fixture object reached through this handle only.
+        let mut m = unsafe { ObjectMut::from_ptr(r.as_obj()) }.unwrap();
+        for name in [c"ints", c"i64s"] {
+            let ty = ffi::AVOptionType::AV_OPT_TYPE_RATIONAL;
+            // SAFETY: a live fixture object and `QS.len()` `AVRational`s.
+            let cret = unsafe {
+                ffi::av_opt_set_array(
+                    c.as_obj(),
+                    name.as_ptr(),
+                    0,
+                    0,
+                    QS.len() as u32,
+                    ty,
+                    raw.as_ptr().cast(),
+                )
+            };
+            let rret = m.insert_array(name, 0, &qs, SearchFlags::NONE);
+            assert_eq!((cret, rret), (0, Ok(())), "{name:?}");
+            let cv = c_ints(c.as_obj(), name);
+            let rv = m
+                .as_ref()
+                .get_array::<i64>(name, SearchFlags::NONE, 0, QS.len() as u32);
+            assert_eq!(cv, (0, rv.clone().unwrap()), "{name:?}");
+            // `llrint(1 / den) * num`: 1/2 and 1/4 round to 0.
+            assert_eq!(rv, Ok(vec![0, 0, 0, 5, 6]), "{name:?}");
+        }
+        // The scalar setter rounds the quotient.
+        for (k, &(num, den)) in QS.iter().enumerate() {
+            let q = ffi::AVRational { num, den };
+            // SAFETY: a live fixture object and a scalar `int` option.
+            let cret = unsafe { ffi::av_opt_set_q(c.as_obj(), c"scalar".as_ptr(), q, 0) };
+            let rret = m.set_rational(c"scalar", qs[k], SearchFlags::NONE);
+            assert_eq!(rret.err().unwrap_or(0), cret, "{num}/{den}");
+            let mut cv = 0i64;
+            // SAFETY: as above; `cv` is writable.
+            let got = unsafe { ffi::av_opt_get_int(c.as_obj(), c"scalar".as_ptr(), 0, &mut cv) };
+            assert_eq!(got, 0 as c_int);
+            assert_eq!(
+                m.as_ref().get_int(c"scalar", SearchFlags::NONE),
+                Ok(cv),
+                "{num}/{den}"
+            );
+        }
+        assert_eq!(m.as_ref().get_int(c"scalar", SearchFlags::NONE), Ok(6));
     }
 }
