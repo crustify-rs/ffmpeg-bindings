@@ -58,9 +58,9 @@ use std::ffi::CString;
 use ffibox::{CBox, CDrop, CSlice, CZeroable, define_ctype};
 
 use super::ffi;
-use super::log::ClassRef;
+use super::log::{ClassRef, ItemNameFn};
 use super::mem::HeapString;
-use super::{channel_layout, eval, parseutils};
+use super::{avstring, channel_layout, eval, parseutils};
 
 define_ctype!(
     /// Wraps: AVOption
@@ -1127,66 +1127,6 @@ impl fmt::Debug for RangeIter<'_> {
 
 impl core::iter::FusedIterator for RangeIter<'_> {}
 
-/// Wraps: av_set_options_string
-///
-/// Sets options of `ctx` from the list `opts`: `key` and `value` pairs, each
-/// key followed by one byte of `key_val_sep` and its value, the pairs
-/// separated by one byte of `pairs_sep`. Keys and values are tokens as
-/// `av_get_token` reads them: surrounding whitespace dropped, `\` escaping
-/// one byte and `'...'` quoting a run. Each pair is set as
-/// `av_opt_set(ctx, key, value, AV_OPT_SEARCH_CHILDREN)` does, in order.
-///
-/// Returns how many pairs were set. Fails at the first pair that does not
-/// parse (an empty key, or a key without a separator after it) with
-/// `AVERROR(EINVAL)`, or that `av_opt_set` rejects, with its error
-/// (`AVERROR_OPTION_NOT_FOUND` for an unknown key, after logging it); the
-/// pairs before it stay set. A failing image-size value is not undone
-/// either: C copies its uninitialised result into the field, which then
-/// holds unspecified sizes. An empty `opts` sets nothing.
-///
-/// `ctx` stays a raw seam while `AVClass`-enabled objects have no safe
-/// handle.
-///
-/// # Safety
-///
-/// - `ctx` must be NULL (every key is then not found), or point to a live
-///   `AVClass`-enabled object: a struct whose first member is a
-///   `const AVClass *`, NULL (likewise) or a valid class whose option table
-///   is terminated and describes fields of `ctx` (each offset and type
-///   naming a field of that type), and whose `child_next`, if any, yields
-///   objects that meet this contract too.
-/// - Every field an option of `ctx` or its children names must hold a value
-///   C may release when it replaces it: NULL or an `av_malloc`-family block
-///   for strings, binaries (with their length field) and arrays (with their
-///   count), and NULL or a dictionary C owns for dictionaries. The values C
-///   stores are `ctx`'s to release (`av_opt_free`).
-/// - Each value must be one `av_opt_set` stores without undefined
-///   behaviour. C converts a numeric value to the option's type after
-///   checking it against the option's `min` and `max` only, so those must
-///   lie within the range of the type (an `int` for `int`, `bool`, `flags`
-///   and rational options, an `f32` for `float` ones; C itself maps a value
-///   of exactly 2^63 or 2^64 to `INT64_MAX` or `UINT64_MAX`); and C converts
-///   a `color` option's opacity to a byte without rejecting NaN, so no
-///   `color` value may end in an `@` specifier `strtod` reads as NaN
-///   (`red@nan`).
-/// - Nothing else may access `ctx`, its children or their option fields
-///   during the call, and `ctx`'s class callbacks must be valid for `av_log`
-///   to call on `ctx`.
-pub unsafe fn set_options_string(
-    ctx: *mut c_void,
-    opts: &CStr,
-    key_val_sep: &CStr,
-    pairs_sep: &CStr,
-) -> Result<usize, i32> {
-    // SAFETY: `opts`, `key_val_sep` and `pairs_sep` are live NUL-terminated
-    // strings C only reads, and the caller vouches for `ctx`, its fields and
-    // the values `opts` sets.
-    let ret = unsafe {
-        ffi::av_set_options_string(ctx, opts.as_ptr(), key_val_sep.as_ptr(), pairs_sep.as_ptr())
-    };
-    if ret < 0 { Err(ret) } else { Ok(ret as usize) }
-}
-
 /// `AVERROR(EINVAL)`.
 const EINVAL: i32 = -(ffi::EINVAL as i32);
 
@@ -1978,6 +1918,56 @@ impl<'a> ObjectMut<'a> {
         if ret < 0 { Err(ret) } else { Ok(ret as usize) }
     }
 
+    /// Wraps: av_set_options_string
+    ///
+    /// Sets options of the object or its children from the list `opts`:
+    /// `key` and `value` pairs, each key followed by one byte of
+    /// `key_val_sep` and its value, the pairs separated by one byte of
+    /// `pairs_sep`. Keys and values are tokens as `av_get_token` reads them:
+    /// surrounding whitespace dropped, `\` escaping one byte and `'...'`
+    /// quoting a run. Each pair is set as [`set`](Self::set) with
+    /// [`SearchFlags::CHILDREN`] sets it, in order. Returns how many pairs
+    /// were set; an empty `opts` sets nothing.
+    ///
+    /// # Errors
+    ///
+    /// Fails at the first pair that does not parse (an empty key, or a key
+    /// without a separator after it) with `AVERROR(EINVAL)`, or that C's
+    /// `av_opt_set` rejects, with its error (`AVERROR_OPTION_NOT_FOUND` for
+    /// an unknown key, after logging it); the pairs before it stay set.
+    /// Also, before C runs, the error of [`set`](Self::set)'s refusal of any
+    /// pair's value, with no pair set.
+    ///
+    /// A color or image size pair that does not parse leaves C's
+    /// uninitialised parse buffer in its option, as C does: the pair C
+    /// stopped at is not known here, so [`set`](Self::set)'s restore does
+    /// not apply.
+    pub fn set_options_string(
+        &mut self,
+        opts: &CStr,
+        key_val_sep: &CStr,
+        pairs_sep: &CStr,
+    ) -> Result<usize, i32> {
+        if let Some(err) = self
+            .as_ref()
+            .options_refusal(opts, key_val_sep, pairs_sep)?
+        {
+            return Err(err);
+        }
+        // SAFETY: as for `set`, for each pair (C sets them with
+        // `AV_OPT_SEARCH_CHILDREN`); the strings are live and NUL-terminated,
+        // and C only reads them.
+        let ret = unsafe {
+            ffi::av_set_options_string(
+                self.as_mut_ptr(),
+                opts.as_ptr(),
+                key_val_sep.as_ptr(),
+                pairs_sep.as_ptr(),
+            )
+        };
+        if ret < 0 { Err(ret) } else { Ok(ret as usize) }
+    }
+
     /// Wraps: av_opt_free
     ///
     /// Frees every value the object's options own (strings, binary buffers,
@@ -2059,11 +2049,16 @@ impl<'c> BareObject<'c> {
     /// An object of `class`; `None` when the class has an option, a
     /// `child_next` callback or a log level, parent context or state flags
     /// offset, which C would read in an object larger than a class pointer,
-    /// or no name, which C would print.
+    /// an `item_name` other than `av_default_item_name` or a `get_category`
+    /// callback, which logging calls on the object and which a class's own
+    /// callbacks may read as one of its full-sized objects, or no name,
+    /// which C would print.
     pub fn new(class: ClassRef<'c>) -> Option<Self> {
         let bare = class.name().is_some()
             && class.options().is_empty()
             && class.child_next().is_none()
+            && class.item_name().is_none_or(ItemNameFn::is_default)
+            && class.get_category().is_none()
             && class.log_level_offset_offset().is_none()
             && class.parent_log_context_offset().is_none()
             && class.state_flags_offset().is_none();
@@ -2212,6 +2207,45 @@ impl ObjectRef<'_> {
         refused.then_some(EINVAL)
     }
 
+    /// The error [`ObjectMut::set_options_string`] refuses `opts` with: the
+    /// first of [`value_refusal`](Self::value_refusal)'s for a pair, read as
+    /// C's `parse_key_value_pair` reads them; `Err` as there.
+    fn options_refusal(
+        &self,
+        opts: &CStr,
+        key_val_sep: &CStr,
+        pairs_sep: &CStr,
+    ) -> Result<Option<i32>, i32> {
+        let children = ffi::AV_OPT_SEARCH_CHILDREN as c_int;
+        let mut rest = opts;
+        while !rest.is_empty() {
+            // C stops at a pair it cannot allocate or parse: an empty key,
+            // or one not followed by a byte of `key_val_sep`.
+            let Some(key) = avstring::get_token(&mut rest, key_val_sep) else {
+                return Ok(None);
+            };
+            let separated = rest
+                .to_bytes()
+                .first()
+                .is_some_and(|c| key_val_sep.to_bytes().contains(c));
+            if key.as_bytes().is_empty() || !separated {
+                return Ok(None);
+            }
+            rest = skip_byte(rest)?;
+            let Some(value) = avstring::get_token(&mut rest, pairs_sep) else {
+                return Ok(None);
+            };
+            if let Some(err) = self.value_refusal(key.as_c_str(), value.as_bytes(), children)? {
+                return Ok(Some(err));
+            }
+            // C steps over the separator that ended the value.
+            if !rest.is_empty() {
+                rest = skip_byte(rest)?;
+            }
+        }
+        Ok(None)
+    }
+
     /// The error [`ObjectMut::set_from_string`] refuses `opts` with: the
     /// first of [`value_refusal`](Self::value_refusal)'s for a pair, read as
     /// C reads them.
@@ -2234,8 +2268,7 @@ impl ObjectRef<'_> {
             // C steps over the separator that ended the value.
             rest = pair.rest;
             if !rest.is_empty() {
-                let tail = &rest.to_bytes_with_nul()[1..];
-                rest = CStr::from_bytes_with_nul(tail).map_err(|_| AVERROR_BUG)?;
+                rest = skip_byte(rest)?;
             }
             let key = match &pair.key {
                 Some(key) => {
@@ -2250,6 +2283,11 @@ impl ObjectRef<'_> {
         }
         Ok(None)
     }
+}
+
+/// `s` without its first byte, which is not its NUL.
+fn skip_byte(s: &CStr) -> Result<&CStr, i32> {
+    CStr::from_bytes_with_nul(&s.to_bytes_with_nul()[1..]).map_err(|_| AVERROR_BUG)
 }
 
 /// The error a value of option `o` of `target`, of scalar type `ty`, is
@@ -2344,7 +2382,8 @@ fn flags_refusal(
 /// the unit's constants and `default`, `max`, `min`, `none` and `all`,
 /// evaluated quietly (`AV_LOG_MAX_OFFSET`, no log context). `None` when C
 /// fails to evaluate it; `Err(AVERROR(EINVAL))` for a token the quiet
-/// evaluation must refuse.
+/// evaluation must refuse, or that calls `time()`, whose value C's own
+/// evaluation of the token, later, need not share.
 fn number_value(
     target: NonNull<c_void>,
     o: OptionDefRef<'_>,
@@ -2393,7 +2432,7 @@ fn number_value(
     values.extend([default_number(o), o.max(), o.min(), 0.0, -1.0]);
     names.push(ptr::null());
     values.push(0.0);
-    if eval::refuses(token.to_bytes(), LOG_MAX_OFFSET) {
+    if eval::refuses(token.to_bytes(), LOG_MAX_OFFSET) || eval::reads_clock(token.to_bytes()) {
         return Err(EINVAL);
     }
     let mut d = 0.0;
@@ -2419,11 +2458,16 @@ fn number_value(
 }
 
 /// `DEFAULT_NUMVAL(o)` for the options C evaluates it on (flags, rationals,
-/// named constants): `default_val.i64` or `default_val.dbl`, as a double.
+/// arrays of them, named constants): `default_val.i64` or `default_val.dbl`,
+/// as a double. C selects the member by comparing the whole type with the
+/// integer types, which an array type never equals, so for an array option
+/// it reads the definition's address as `default_val.dbl`: a non-zero
+/// (subnormal) value whenever the option has a definition.
 fn default_number(o: OptionDefRef<'_>) -> f64 {
     match o.default_value() {
         OptionDefault::Int(i) => i as f64,
         OptionDefault::Double(d) => d,
+        OptionDefault::Array(def) => f64::from_bits(def.map_or(0, |d| d.as_ptr().addr() as u64)),
         _ => 0.0,
     }
 }
@@ -3733,6 +3777,14 @@ mod unit_tests {
             assert_eq!(number_value(target, opt, b"c1"), Ok(Some(1.0)));
             assert_eq!(number_value(target, opt, b"1+1"), Ok(None));
             assert_eq!(refusal(&o, c"flags", c"+1e30"), None);
+            // C itself fails the same way (`AVERROR_PATCHWELCOME`), leaving
+            // the value as it was.
+            let patch_welcome = -i32::from_le_bytes(*b"PAWE");
+            assert_eq!(
+                object(&o).set(c"flags", c"1+1", SearchFlags::NONE),
+                Err(patch_welcome)
+            );
+            assert_eq!(object(&o).set(c"flags", c"c2", SearchFlags::NONE), Ok(()));
             // SAFETY: as above, restoring the static class.
             unsafe { (*o.ptr()).class = &OBJ_CLASS.0 };
         }
@@ -3755,6 +3807,73 @@ mod unit_tests {
             );
         }
 
+        /// Options wave 0, batch-1 review: `time()` makes C's own evaluation
+        /// of a previewed operand differ from the preview.
+        #[test]
+        fn quiet_evaluation_refuses_the_clock() {
+            let o = Owned::new();
+            let obj = object(&o);
+            let (flags, target) = obj.as_ref().find(c"flags", None, 0).unwrap();
+            for token in [
+                &b"time(0)"[..],
+                b"ti me (0)",
+                b"1+time(1)*0",
+                b"if(time(0),1,2)",
+            ] {
+                assert_eq!(number_value(target, flags, token), Err(EINVAL));
+            }
+            // Other names that merely contain it evaluate (or fail) as before.
+            assert_eq!(number_value(target, flags, b"timer"), Ok(None));
+            assert_eq!(number_value(target, flags, b"1"), Ok(Some(1.0)));
+            let previewed = |name: &CStr, val: &[u8]| obj.as_ref().value_refusal(name, val, 0);
+            assert_eq!(previewed(c"flags", b"+time(0)"), Err(EINVAL));
+            assert_eq!(previewed(c"wide_q", b"time(0)"), Err(EINVAL));
+            // No preview, no refusal: C's range check precedes the
+            // conversion of an `int`-bounded rational.
+            assert_eq!(previewed(c"q", b"time(0)"), Ok(None));
+            assert_eq!(previewed(c"flags", b"time(0)"), Ok(None));
+        }
+
+        /// Options wave 0, batch-1 review: C reads an array option's
+        /// `default_val.dbl`, the bits of its definition's address, as
+        /// `default`; none reads as 0.
+        #[test]
+        fn array_defaults_read_the_definition_address() {
+            let o = Owned::new();
+            let obj = object(&o);
+            let (array, _) = obj.as_ref().find(c"array", None, 0).unwrap();
+            let address = (&raw const fixture::ARRAY_DEF.0).addr() as u64;
+            let d = default_number(array);
+            assert_eq!(d.to_bits(), address);
+            assert!(d != 0.0 && d.is_subnormal());
+            let (empty, _) = obj.as_ref().find(c"empty", None, 0).unwrap();
+            assert_eq!(default_number(empty).to_bits(), 0);
+            let (int, _) = obj.as_ref().find(c"int", None, 0).unwrap();
+            assert_eq!(default_number(int), 7.0);
+        }
+
+        /// Options wave 0, batch-1 review: the pairs of
+        /// `set_options_string` are read as C's `parse_key_value_pair` reads
+        /// them, in the object and its children.
+        #[test]
+        fn option_lists_are_refused_pair_by_pair() {
+            let o = Owned::with_child();
+            let obj = object(&o);
+            let refusal = |opts: &CStr, kv: &CStr, pairs: &CStr| {
+                obj.as_ref().options_refusal(opts, kv, pairs).unwrap()
+            };
+            assert_eq!(refusal(c"int=1:flags=+1e30", c"=", c":"), Some(ERANGE));
+            assert_eq!(refusal(c"fl\\ags = '+1e30'", c"=", c":"), Some(ERANGE));
+            assert_eq!(refusal(c"int;flags@+1e30", c"@", c";"), None);
+            assert_eq!(refusal(c"int@1;flags@+1e30", c"@", c";"), Some(ERANGE));
+            assert_eq!(refusal(c"color=red@nan", c"=", c":"), Some(EINVAL));
+            // C stops at a pair it cannot parse, before a later refusal.
+            assert_eq!(refusal(c"int:flags=+1e30", c"=", c":"), None);
+            assert_eq!(refusal(c"=1:flags=+1e30", c"=", c":"), None);
+            assert_eq!(refusal(c"int=1:flags=+1", c"=", c":"), None);
+            assert_eq!(refusal(c"", c"=", c":"), None);
+        }
+
         #[test]
         fn bare_objects_need_a_class_without_options() {
             static BARE: Class = Class::new(c"bare", crate::libavutil::log::ClassCategory::NA);
@@ -3767,6 +3886,32 @@ mod unit_tests {
             // SAFETY: `OBJ_CLASS` is a live static class.
             let with_options = unsafe { ClassRef::from_ptr(class) }.unwrap();
             assert!(BareObject::new(with_options).is_none());
+            // Options wave 0, batch-1 review: logging calls `item_name` and
+            // `get_category` on the object, so only callbacks that read no
+            // more than the class pointer are allowed.
+            unsafe extern "C" fn name(_: *mut c_void) -> *const c_char {
+                c"other".as_ptr()
+            }
+            unsafe extern "C" fn category(_: *mut c_void) -> ffi::AVClassCategory {
+                ffi::AVClassCategory::AV_CLASS_CATEGORY_NA
+            }
+            // SAFETY: a copy of the live static class.
+            let mut c = unsafe { BARE.as_ref().as_ptr().read() };
+            for (item_name, get_category, bare) in [
+                (Some(ffi::av_default_item_name as ItemName), None, true),
+                (None, None, true),
+                (Some(name as ItemName), None, false),
+                (None, Some(category as GetCategory), false),
+            ] {
+                c.item_name = item_name;
+                c.get_category = get_category;
+                // SAFETY: `c` is a live local class with no options.
+                let class = unsafe { ClassRef::from_ptr(&raw mut c) }.unwrap();
+                assert_eq!(BareObject::new(class).is_some(), bare);
+            }
         }
+
+        type ItemName = unsafe extern "C" fn(*mut c_void) -> *const c_char;
+        type GetCategory = unsafe extern "C" fn(*mut c_void) -> ffi::AVClassCategory;
     }
 }

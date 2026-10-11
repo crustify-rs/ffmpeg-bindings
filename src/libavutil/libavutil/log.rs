@@ -653,6 +653,13 @@ impl ItemNameFn {
         // guarantees alive and unwritten for `'o`.
         (!name.is_null()).then(|| unsafe { CStr::from_ptr(name) })
     }
+
+    /// Whether the callback is `av_default_item_name`, which reads only the
+    /// object's class pointer.
+    pub(crate) fn is_default(self) -> bool {
+        let default: unsafe extern "C" fn(*mut c_void) -> *const c_char = ffi::av_default_item_name;
+        core::ptr::fn_addr_eq(self.0, default)
+    }
 }
 
 /// A class's `get_category` callback, from [`ClassRef::get_category`].

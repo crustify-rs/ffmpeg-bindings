@@ -106,6 +106,50 @@ fn long_colors() {
     }
 }
 
+/// Options wave 0, batch-1 review: `parse_color_with_context`, safe since
+/// its log context became an `ObjectRef`. Every color, whole and at every
+/// prefix, with no context and with bare objects on the stack and the heap
+/// (freed after the calls), which C logs failures through.
+#[test]
+fn colors_with_log_contexts() {
+    use ffmpeg::libavutil::log::{Class, ClassCategory};
+    use ffmpeg::libavutil::opt::BareObject;
+    use ffmpeg::libavutil::parseutils::parse_color_with_context;
+
+    static CLASS: Class = Class::new(c"crustify-color-ctx", ClassCategory::NA);
+    let local = BareObject::new(CLASS.as_ref()).unwrap();
+    let boxed = Box::new(local);
+    for color in COLORS {
+        let s = exact(color);
+        let lens = (0..=color.len() + 2).map(Some).chain([
+            None,
+            Some(i32::MAX as usize),
+            Some(usize::MAX),
+        ]);
+        for len in lens {
+            let expected = match len {
+                Some(len) => parse_color_prefix(&s, len),
+                None => parse_color(&s),
+            };
+            for log_ctx in [None, Some(local.as_object()), Some(boxed.as_object())] {
+                let got = parse_color_with_context(&s, len, log_ctx);
+                // A random color differs from call to call.
+                let random = [&b"random"[..], b"bikeshed"]
+                    .iter()
+                    .any(|r| color.to_ascii_lowercase().starts_with(r));
+                if !random {
+                    assert_eq!(got, expected, "{s:?} {len:?}");
+                }
+            }
+        }
+    }
+    drop(boxed);
+    assert_eq!(
+        parse_color_with_context(&exact(b"red@nan"), None, Some(local.as_object())),
+        Err(EINVAL)
+    );
+}
+
 const SIZES: [&[u8]; 22] = [
     b"vga",
     b"hd1080",

@@ -533,6 +533,21 @@ pub(crate) fn refuses(expr: &[u8], log_offset: i32) -> bool {
     seeds && stores
 }
 
+/// Whether `expr` may call the evaluator's `time()`, whose value changes
+/// from one evaluation to the next: an identifier `time`, once C has dropped
+/// the white space. A caller that previews a value before C evaluates the
+/// same expression must refuse such an expression, since C's own evaluation
+/// may then produce another value than the preview checked.
+pub(crate) fn reads_clock(expr: &[u8]) -> bool {
+    let s: Vec<u8> = expr
+        .iter()
+        .copied()
+        .filter(|c| !matches!(c, b' ' | b'\t' | b'\n' | 0x0b | 0x0c | b'\r'))
+        .collect();
+    s.split(|&c| !(c.is_ascii_alphanumeric() || c == b'_'))
+        .any(|name| name == b"time")
+}
+
 /// The top-level, comma-separated arguments of a call, from just after its
 /// `(` to its matching `)` or the end of the expression.
 fn arguments(s: &[u8]) -> Vec<&[u8]> {
@@ -591,6 +606,31 @@ fn in_range(arg: &[u8], conversion: Conversion, log_offset: i32) -> bool {
 #[cfg(test)]
 mod unit_tests {
     use super::*;
+
+    /// Options wave 0, batch-1 review: whether an expression may call
+    /// `time()`, after C drops the white space.
+    #[test]
+    fn clock_readers_are_found_by_name() {
+        for e in [
+            &b"time(0)"[..],
+            b"1+time(1)",
+            b"t i m e(0)",
+            b"if(x,time(0))",
+            b"time",
+        ] {
+            assert!(reads_clock(e), "{}", e.escape_ascii());
+        }
+        for e in [
+            &b""[..],
+            b"timer(0)",
+            b"atime(0)",
+            b"time_(0)",
+            b"1e5",
+            b"st(0,1)",
+        ] {
+            assert!(!reads_clock(e), "{}", e.escape_ascii());
+        }
+    }
 
     #[test]
     fn suffixes_scale_the_value() {

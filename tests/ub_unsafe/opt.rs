@@ -426,103 +426,125 @@ mod range_handles {
     }
 }
 
-/// `set_options_string`, called within its `# Safety` contract: objects of
-/// the test class (and a parent reaching one as its child), NULL and
-/// classless objects, every option type, owned values replaced again and
-/// again, and lists at the edges of the token syntax.
+/// `ObjectMut::set_options_string` on handles `ObjectMut::from_ptr` adopts
+/// within its contract (the options wave-0 batch-1 review made the former
+/// free `unsafe fn set_options_string(ctx: *mut c_void, ..)` this safe
+/// method): objects of the well-formed `OBJ_CLASS` (and a parent reaching
+/// one as its child), every option type, owned values replaced again and
+/// again, lists at the edges of the token syntax, and the refusals of
+/// values whose parse is undefined in C.
 mod set_options_string {
-    use core::ffi::{CStr, c_void};
+    use core::ffi::{CStr, c_char, c_void};
     use core::ptr::{null, null_mut};
     use std::ffi::CString;
 
     use ffmpeg::libavutil::ffi;
-    use ffmpeg::libavutil::opt::set_options_string;
+    use ffmpeg::libavutil::log::{Class, ClassCategory};
+    use ffmpeg::libavutil::opt::{BareObject, ObjectMut};
 
-    use super::fixture::{CLASS, Class, Ctx, Table, class};
+    use super::fixture::{OBJ_CLASS, Obj, Owned, Table};
 
     /// `AVERROR_OPTION_NOT_FOUND`: `FFERRTAG(0xF8, 'O', 'P', 'T')`.
     const NOT_FOUND: i32 = -i32::from_le_bytes([0xF8, b'O', b'P', b'T']);
     const EINVAL: i32 = -22;
+    const ERANGE: i32 = -34;
 
-    /// An object of the test class that frees its option values on drop.
-    struct Owned(Ctx);
-
-    impl Owned {
-        fn new() -> Self {
-            Self(Ctx::new(&CLASS))
-        }
-
-        /// `set_options_string` with `=` and `:`.
-        fn set(&mut self, opts: &CStr) -> Result<usize, i32> {
-            // SAFETY: `self` is a live object of the well-formed test class,
-            // whose bounds lie within each option type's range, its owned
-            // fields hold NULL or values C stored, nothing else accesses it,
-            // and no list here sets a NaN opacity.
-            unsafe { set_options_string(self.0.as_obj(), opts, c"=", c":") }
-        }
+    fn under_bsan() -> bool {
+        std::env::var("CRUSTIFY_FFMPEG_VARIANT").as_deref() == Ok("bsan")
     }
 
-    impl Drop for Owned {
-        fn drop(&mut self) {
-            // SAFETY: the object's owned fields hold NULL or values C stored.
-            unsafe { ffi::av_opt_free(self.0.as_obj()) }
-        }
+    /// The exclusive handle of `o`.
+    fn exclusive(o: &Owned) -> ObjectMut<'_> {
+        // SAFETY: a live object of the well-formed `OBJ_CLASS`, accessed
+        // through no other handle while this one lives.
+        unsafe { ObjectMut::from_ptr(o.as_obj()) }.unwrap()
+    }
+
+    /// `set_options_string` with `=` and `:`.
+    fn set(o: &Owned, opts: &CStr) -> Result<usize, i32> {
+        exclusive(o).set_options_string(opts, c"=", c":")
+    }
+
+    /// The object's fields, read raw while no handle is live.
+    fn obj(o: &Owned) -> &Obj {
+        // SAFETY: the live object, which nothing writes while the borrow
+        // lasts (each caller drops it before the next call).
+        unsafe { &*o.ptr() }
     }
 
     /// The string field's value.
-    fn string(c: &Ctx) -> Option<&CStr> {
+    fn string(c: &Obj) -> Option<&CStr> {
         // SAFETY: the field is NULL or a live string C stored.
         (!c.string.is_null()).then(|| unsafe { CStr::from_ptr(c.string) })
     }
 
     #[test]
     fn every_option_type() {
-        let mut o = Owned::new();
-        let all = c"int=5:int64=-3:uint64=18446744073709551615:dbl=-1e9:flt=1:string=s:q=7/2:\
-            boolean=true:flags=bit:size=1x1:rate=pal:color=0xff00ff80:duration=0.000001:\
-            binary=00ff:dict=k=v:array=0,10:empty_array=:bare=1:nostr=n";
-        assert_eq!(o.set(all), Ok(19));
-        let c = &o.0;
-        assert_eq!((c.int, c.int64, c.uint64), (5, -3, u64::MAX));
+        if under_bsan() {
+            return;
+        }
+        let o = Owned::new();
+        let all = c"int=5:int64=-3:uint64=18446744073709551615:uint=4:dbl=-1e9:flt=1:\
+            string=s:q=7/2:wide_q=-2:boolean=true:flags=bit:big=high:size=1x1:rate=pal:\
+            color=0xff00ff80:duration=0.000001:binary=00ff:dict=k=v:array=0,10:strings=x|y:\
+            empty=:layout=mono:pix=gray:sample=s16:nostr=n";
+        assert_eq!(set(&o, all), Ok(25));
+        let c = obj(&o);
+        assert_eq!((c.int, c.int64, c.uint64, c.uint), (5, -3, u64::MAX, 4));
         assert_eq!((c.dbl, c.flt), (-1e9, 1.0));
         assert_eq!(string(c), Some(c"s"));
-        assert_eq!((c.q.num, c.q.den, c.boolean, c.flags), (7, 2, 1, 2));
+        assert_eq!(
+            (c.q.num, c.q.den, c.wide_q.num, c.wide_q.den),
+            (7, 2, -2, 1)
+        );
+        assert_eq!((c.boolean, c.flags, c.big), (1, 2, 1 << 40));
         assert_eq!((c.size, c.rate.num, c.rate.den), ([1, 1], 25, 1));
         assert_eq!((c.color, c.duration), ([255, 0, 255, 128], 1));
         assert_eq!(c.binary_len, 2);
         assert!(!c.dict.is_null());
-        assert_eq!(c.array_len, 2);
+        assert_eq!((c.array_len, c.strings_len), (2, 2));
         // An empty array value stores no block.
-        assert_eq!((c.empty_array_len, c.bare), (0, 1));
-        assert!(!c.nostr.is_null());
+        assert_eq!(c.empty_len, 0);
+        assert!(c.empty.is_null() && !c.nostr.is_null());
+        assert_eq!(c.layout.nb_channels, 1);
     }
 
     /// Owned values replaced many times, with values of growing size, and
     /// cleared: ASan sees every block C frees and allocates, LSan any left.
     #[test]
     fn owned_values_replaced_and_cleared() {
-        let mut o = Owned::new();
+        if under_bsan() {
+            return;
+        }
+        let o = Owned::new();
         for round in 0..64usize {
             let s = "x".repeat(round * 7);
             let hex = "ab".repeat(round);
             let arr = vec!["3"; round % 11].join(",");
-            let opts = format!("string={s}:binary={hex}:dict=k{round}=v{s}:array={arr}:nostr={s}");
+            let opts = format!(
+                "string={s}:binary={hex}:dict=k{round}=v{s}:array={arr}:nostr={s}:strings={s}|{s}"
+            );
             let opts = CString::new(opts).unwrap();
-            assert_eq!(o.set(&opts), Ok(5));
-            assert_eq!(string(&o.0).unwrap().count_bytes(), round * 7);
-            assert_eq!(o.0.binary_len as usize, round);
-            assert_eq!(o.0.array_len as usize, round % 11);
+            assert_eq!(set(&o, &opts), Ok(6));
+            let c = obj(&o);
+            assert_eq!(string(c).unwrap().count_bytes(), round * 7);
+            assert_eq!(c.binary_len as usize, round);
+            assert_eq!(c.array_len as usize, round % 11);
         }
-        assert_eq!(o.set(c"string=:binary=:array="), Ok(3));
-        assert_eq!(string(&o.0), Some(c""));
-        assert!(o.0.binary.is_null() && o.0.array.is_null());
+        assert_eq!(set(&o, c"string=:binary=:array=:strings="), Ok(4));
+        let c = obj(&o);
+        assert_eq!(string(c), Some(c""));
+        assert!(c.binary.is_null() && c.array.is_null() && c.strings.is_null());
     }
 
     /// Lists in exactly sized heap strings, so ASan sees any read past
     /// their NUL; the separators likewise.
     #[test]
     fn exactly_sized_lists() {
-        let lists: [&[u8]; 14] = [
+        if under_bsan() {
+            return;
+        }
+        let lists: [&[u8]; 16] = [
             b"",
             b"i",
             b"=",
@@ -537,73 +559,100 @@ mod set_options_string {
             b"  int  =  2  ",
             b"string='a'b'c':int=3",
             b"string=\\'",
+            b"flags=+1e30",
+            b"color=red@nan",
         ];
         for list in lists {
             let opts = CString::new(list).unwrap().into_boxed_c_str();
             let kv = CString::new("=").unwrap().into_boxed_c_str();
             let pairs = CString::new(":").unwrap().into_boxed_c_str();
-            let mut o = Owned::new();
-            // SAFETY: as in `Owned::set`.
-            let ret = unsafe { set_options_string(o.0.as_obj(), &opts, &kv, &pairs) };
+            let o = Owned::new();
+            let ret = exclusive(&o).set_options_string(&opts, &kv, &pairs);
             assert!(
-                ret.is_ok() || ret == Err(EINVAL) || ret == Err(NOT_FOUND) || ret == Err(-34),
+                ret.is_ok() || [EINVAL, NOT_FOUND, ERANGE].contains(&ret.unwrap_err()),
                 "{ret:?}"
             );
         }
         let long = CString::new(format!("string={}", "y".repeat(1 << 16)))
             .unwrap()
             .into_boxed_c_str();
-        let mut o = Owned::new();
-        assert_eq!(o.set(&long), Ok(1));
-        assert_eq!(string(&o.0).unwrap().count_bytes(), 1 << 16);
+        let o = Owned::new();
+        assert_eq!(set(&o, &long), Ok(1));
+        assert_eq!(string(obj(&o)).unwrap().count_bytes(), 1 << 16);
     }
 
     #[test]
     fn failures_leave_earlier_pairs_set() {
-        let mut o = Owned::new();
-        assert_eq!(o.set(c"int=8:string=kept:missing=1:int=9"), Err(NOT_FOUND));
-        assert_eq!((o.0.int, string(&o.0)), (8, Some(c"kept")));
-        assert_eq!(o.set(c"string=again:int"), Err(EINVAL));
-        assert_eq!(string(&o.0), Some(c"again"));
-        assert_eq!(o.set(c"int=101"), Err(-34));
-        assert_eq!(o.0.int, 8);
+        if under_bsan() {
+            return;
+        }
+        let o = Owned::new();
+        assert_eq!(
+            set(&o, c"int=8:string=kept:missing=1:int=9"),
+            Err(NOT_FOUND)
+        );
+        assert_eq!((obj(&o).int, string(obj(&o))), (8, Some(c"kept")));
+        assert_eq!(set(&o, c"string=again:int"), Err(EINVAL));
+        assert_eq!(string(obj(&o)), Some(c"again"));
+        assert_eq!(set(&o, c"int=101"), Err(ERANGE));
+        assert_eq!(obj(&o).int, 8);
     }
 
+    /// Each of these reaches undefined behaviour in C (an unchecked
+    /// conversion of a flag operand or rational, a NaN opacity, an ambisonic
+    /// order C overflows on, an evaluator index out of range) and is refused
+    /// before C runs, with no pair set, wherever it sits in the list and
+    /// whichever object of the tree it names.
     #[test]
-    fn null_and_classless_objects() {
-        for opts in [c"", c"int=1", c"a=b:c=d"] {
-            // SAFETY: a NULL object is within the contract.
-            let ret = unsafe { set_options_string(null_mut(), opts, c"=", c":") };
-            assert_eq!(
-                ret,
-                if opts.is_empty() {
-                    Ok(0)
-                } else {
-                    Err(NOT_FOUND)
-                }
-            );
-            let mut ctx = Ctx::new(&CLASS);
-            ctx.class = null();
-            // SAFETY: an object with a NULL class is within the contract.
-            let ret = unsafe { set_options_string(ctx.as_obj(), opts, c"=", c":") };
-            assert_eq!(
-                ret,
-                if opts.is_empty() {
-                    Ok(0)
-                } else {
-                    Err(NOT_FOUND)
-                }
-            );
-            assert_eq!(ctx.int, 0);
+    fn refused_values_set_nothing() {
+        if under_bsan() {
+            return;
+        }
+        let o = Owned::with_child();
+        for (list, err) in [
+            (c"flags=+1e30", ERANGE),
+            (c"int=3:flags=-huge", ERANGE),
+            (c"wide_q=1e10:int=3", ERANGE),
+            (c"int=3:color=red@nan", EINVAL),
+            (c"layout=ambisonic 2147483647", EINVAL),
+            (c"int=ld(1e300)", EINVAL),
+            (c"array=1,gcd(1e300,1)", EINVAL),
+            (c"flags=+time(0)", EINVAL),
+            (c"wide_q=time(0)*1e10", EINVAL),
+            // C stops at the unknown key, but the refusal comes first.
+            (c"missing=1:flags=+1e30", ERANGE),
+        ] {
+            assert_eq!(set(&o, list), Err(err), "{list:?}");
+            let c = obj(&o);
+            assert_eq!((c.int, c.flags, c.wide_q.num), (7, 3, 1), "{list:?}");
+            // SAFETY: a raw read of the live child, while no handle is live.
+            assert_eq!(unsafe { (*o.child()).int }, 7, "{list:?}");
         }
     }
 
-    /// A parent with no options of its own, reaching a test-class object as
-    /// its only child.
+    /// A bare object has no options: every key is not found, and an empty
+    /// list sets nothing.
+    #[test]
+    fn bare_objects_find_no_key() {
+        static CLASS: Class = Class::new(c"crustify-opt-bare-list", ClassCategory::NA);
+        let mut bare = BareObject::new(CLASS.as_ref()).unwrap();
+        for (opts, expected) in [
+            (c"", Ok(0)),
+            (c"int=1", Err(NOT_FOUND)),
+            (c"a=b:c=d", Err(NOT_FOUND)),
+            (c"int", Err(EINVAL)),
+        ] {
+            let got = bare.as_object_mut().set_options_string(opts, c"=", c":");
+            assert_eq!(got, expected, "{opts:?}");
+        }
+    }
+
+    /// A parent with no options of its own, reaching an `OBJ_CLASS` object
+    /// as its only child.
     #[repr(C)]
     struct Parent {
         class: *const ffi::AVClass,
-        child: Ctx,
+        child: *mut Obj,
     }
 
     static PARENT_OPTIONS: Table<1> = Table([ffi::AVOption {
@@ -618,64 +667,85 @@ mod set_options_string {
         unit: null(),
     }]);
 
-    /// The parent's `child_next`: its embedded child, once.
+    /// The parent's `child_next`: its child, once.
     unsafe extern "C" fn child_next(obj: *mut c_void, prev: *mut c_void) -> *mut c_void {
         if prev.is_null() {
             // SAFETY: C passes the live parent the class belongs to.
-            unsafe { (&raw mut (*obj.cast::<Parent>()).child).cast() }
+            unsafe { (*obj.cast::<Parent>()).child.cast() }
         } else {
             null_mut()
         }
     }
 
-    static PARENT_CLASS: Class = Class(ffi::AVClass {
+    static PARENT_CLASS: super::fixture::Class = super::fixture::Class(ffi::AVClass {
         class_name: c"crustify-opt-parent".as_ptr(),
+        item_name: Some(ffi::av_default_item_name),
         option: &PARENT_OPTIONS.0[0],
+        version: 0,
+        log_level_offset_offset: 0,
+        parent_log_context_offset: 0,
+        category: ffi::AVClassCategory::AV_CLASS_CATEGORY_NA,
+        get_category: None,
+        query_ranges: None,
         child_next: Some(child_next),
-        ..class(None)
+        child_class_iterate: None,
+        state_flags_offset: 0,
     });
 
     #[test]
     fn children_are_searched() {
-        let p = Box::into_raw(Box::new(Parent {
-            class: &PARENT_CLASS.0,
-            child: Ctx::new(&CLASS),
-        }));
-        // SAFETY: `p` is a live parent of a well-formed class whose child
-        // meets the contract; the list is in range.
-        let ret = unsafe { set_options_string(p.cast(), c"int=4:string=child", c"=", c":") };
-        assert_eq!(ret, Ok(2));
-        // SAFETY: `p` is live; C has returned.
-        let child = unsafe { &raw mut (*p).child };
-        // SAFETY: as above.
-        assert_eq!(unsafe { (*child).int }, 4);
-        // SAFETY: as above.
-        assert_eq!(string(unsafe { &*child }), Some(c"child"));
-        // SAFETY: the child's owned fields hold values C stored; `p` came
-        // from `Box::into_raw` and nothing else holds it.
-        unsafe {
-            ffi::av_opt_free(child.cast());
-            drop(Box::from_raw(p));
+        if under_bsan() {
+            return;
         }
+        let child = Owned::new();
+        let mut parent = Parent {
+            class: &PARENT_CLASS.0,
+            child: child.ptr(),
+        };
+        // SAFETY: a live parent of a well-formed class whose only child is a
+        // live `OBJ_CLASS` object it reaches; nothing else accesses either
+        // while the handle lives.
+        let mut m = unsafe { ObjectMut::from_ptr((&raw mut parent).cast()) }.unwrap();
+        assert_eq!(
+            m.set_options_string(c"int=4:string=child", c"=", c":"),
+            Ok(2)
+        );
+        assert_eq!(
+            m.set_options_string(c"int=4:flags=+1e30", c"=", c":"),
+            Err(ERANGE)
+        );
+        let c = obj(&child);
+        assert_eq!((c.int, string(c)), (4, Some(c"child")));
+        let s: *const c_char = c.string;
+        assert!(!s.is_null());
     }
 
     /// Distinct objects set from many threads at once.
     #[test]
     fn distinct_objects_on_many_threads() {
+        if under_bsan() {
+            return;
+        }
         std::thread::scope(|s| {
             for t in 0..8 {
                 s.spawn(move || {
-                    let mut o = Owned::new();
+                    let o = Owned::new();
                     for i in 0..50 {
                         let opts =
                             CString::new(format!("int={}:string=t{t}i{i}:dict=a={i}", i % 100))
                                 .unwrap();
-                        assert_eq!(o.set(&opts), Ok(3));
+                        assert_eq!(set(&o, &opts), Ok(3));
                     }
-                    assert_eq!(o.0.int, 49);
+                    assert_eq!(obj(&o).int, 49);
                 });
             }
         });
+    }
+
+    #[test]
+    fn class_is_the_fixture_class() {
+        let o = Owned::new();
+        assert!(core::ptr::eq(obj(&o).class, &OBJ_CLASS.0));
     }
 }
 
@@ -1061,5 +1131,399 @@ mod objects {
         // SAFETY: a defaulted string option is an owned C string.
         assert_eq!(unsafe { CStr::from_ptr(s.cast::<c_char>()) }, c"hello");
         let _: *mut Obj = o.ptr();
+    }
+}
+
+/// Options wave 0, batch-1 review: `ObjectRef::from_ptr` adopting logging
+/// contexts (structs whose first member is their class pointer) for the safe
+/// API that logs through one: `parse_color_with_context`, whose raw
+/// `*mut c_void` context the review replaced with an `ObjectRef`,
+/// `ObjectRef::show` and `eval::parse_and_eval`. A class whose `item_name`
+/// reads its object's payload is valid for such a context, but not for a
+/// `BareObject`, which has no payload.
+mod log_contexts {
+    use core::ffi::{CStr, c_char, c_void};
+    use core::ptr::{null, null_mut};
+    use std::ffi::CString;
+
+    use ffmpeg::libavutil::eval::parse_and_eval;
+    use ffmpeg::libavutil::ffi;
+    use ffmpeg::libavutil::opt::{BareObject, ObjectRef};
+    use ffmpeg::libavutil::parseutils::parse_color_with_context;
+
+    use super::fixture::Class;
+
+    const EINVAL: i32 = -22;
+
+    fn under_bsan() -> bool {
+        std::env::var("CRUSTIFY_FFMPEG_VARIANT").as_deref() == Ok("bsan")
+    }
+
+    /// A logging context: its class pointer, then a payload its class's
+    /// callbacks read.
+    #[repr(C)]
+    struct Ctx {
+        class: *const ffi::AVClass,
+        payload: [u64; 2],
+    }
+
+    impl Ctx {
+        fn new(class: &'static Class) -> Self {
+            Self {
+                class: &class.0,
+                payload: [1, 2],
+            }
+        }
+    }
+
+    unsafe extern "C" fn item_name(ctx: *mut c_void) -> *const c_char {
+        // SAFETY: C passes the live context the class belongs to.
+        let payload = unsafe { (*ctx.cast::<Ctx>()).payload };
+        assert_eq!(payload, [1, 2]);
+        c"crustify-log-ctx".as_ptr()
+    }
+
+    unsafe extern "C" fn get_category(ctx: *mut c_void) -> ffi::AVClassCategory {
+        // SAFETY: as for `item_name`.
+        let payload = unsafe { (*ctx.cast::<Ctx>()).payload };
+        assert_eq!(payload, [1, 2]);
+        ffi::AVClassCategory::AV_CLASS_CATEGORY_FILTER
+    }
+
+    /// A class without options, children or offsets, with `item_name` and
+    /// `get_category` as given.
+    const fn class(
+        item_name: Option<unsafe extern "C" fn(*mut c_void) -> *const c_char>,
+        get_category: Option<unsafe extern "C" fn(*mut c_void) -> ffi::AVClassCategory>,
+    ) -> Class {
+        Class(ffi::AVClass {
+            class_name: c"crustify-log".as_ptr(),
+            item_name,
+            option: null(),
+            version: ((ffi::LIBAVUTIL_VERSION_MAJOR << 16)
+                | (ffi::LIBAVUTIL_VERSION_MINOR << 8)
+                | ffi::LIBAVUTIL_VERSION_MICRO) as i32,
+            log_level_offset_offset: 0,
+            parent_log_context_offset: 0,
+            category: ffi::AVClassCategory::AV_CLASS_CATEGORY_NA,
+            get_category,
+            query_ranges: None,
+            child_next: None,
+            child_class_iterate: None,
+            state_flags_offset: 0,
+        })
+    }
+
+    static READS_NAME: Class = class(Some(item_name), None);
+    static READS_CATEGORY: Class = class(Some(ffi::av_default_item_name), Some(get_category));
+    static DEFAULT_NAME: Class = class(Some(ffi::av_default_item_name), None);
+    static NO_NAME: Class = class(None, None);
+
+    /// The handle of `ctx`.
+    fn adopt(ctx: &mut Ctx) -> ObjectRef<'_> {
+        // SAFETY: a live context of a well-formed class without options,
+        // whose callbacks accept it, written by nothing while the handle
+        // lives.
+        unsafe { ObjectRef::from_ptr((&raw mut *ctx).cast()) }.unwrap()
+    }
+
+    const COLORS: [&CStr; 14] = [
+        c"red",
+        c"AliceBlue@0.5",
+        c"#ff000080",
+        c"0x00ff00@0x40",
+        c"random",
+        c"bikeshed@1",
+        c"nosuchcolor",
+        c"#12345",
+        c"red@2",
+        c"red@nan",
+        c"#",
+        c"0x",
+        c"",
+        c"@",
+    ];
+
+    /// Every color, whole and at every prefix length (plus a few past it),
+    /// logging failures through `log_ctx`.
+    fn sweep(log_ctx: Option<ObjectRef<'_>>) {
+        for color in COLORS {
+            let exact = CString::from(color).into_boxed_c_str();
+            let lens = (0..=color.count_bytes() + 2)
+                .map(Some)
+                .chain([None, Some(usize::MAX)]);
+            for len in lens {
+                if let Err(e) = parse_color_with_context(&exact, len, log_ctx) {
+                    assert_eq!(e, EINVAL, "{color:?} {len:?}");
+                }
+            }
+        }
+    }
+
+    #[test]
+    fn null_and_classless_contexts_are_no_context() {
+        // SAFETY: NULL is accepted.
+        assert!(unsafe { ObjectRef::from_ptr(null_mut()) }.is_none());
+        let mut classless = Ctx::new(&READS_NAME);
+        classless.class = null();
+        // SAFETY: a live object whose class pointer is NULL.
+        assert!(unsafe { ObjectRef::from_ptr((&raw mut classless).cast()) }.is_none());
+        sweep(None);
+    }
+
+    #[test]
+    fn classed_contexts() {
+        for class in [&READS_NAME, &READS_CATEGORY, &DEFAULT_NAME, &NO_NAME] {
+            let mut local = Ctx::new(class);
+            sweep(Some(adopt(&mut local)));
+            let r = adopt(&mut local);
+            r.show(Some(r), -1, 0);
+            // A boxed context, freed after the calls.
+            let mut boxed = Box::new(Ctx::new(class));
+            sweep(Some(adopt(&mut boxed)));
+            if !under_bsan() {
+                // The parse error is logged by an "Eval" context whose
+                // parent is the log context.
+                let r = adopt(&mut boxed);
+                assert_eq!(
+                    parse_and_eval(c"nosuch", &[], &[], &[], 0, Some(r)),
+                    Err(EINVAL)
+                );
+            }
+            drop(boxed);
+        }
+    }
+
+    /// Long colors: C copies at most 127 bytes after the marker, so the
+    /// alpha specifier is cut off or missed, never read past.
+    #[test]
+    fn long_colors() {
+        let mut ctx = Ctx::new(&READS_NAME);
+        for n in [120, 126, 127, 128, 129, 1000] {
+            for (prefix, suffix) in [("", "@nan"), ("#", "@0.5"), ("0x", "@0x80"), ("red", "")] {
+                let s = format!("{prefix}{}{suffix}", "f".repeat(n));
+                let s = CString::new(s).unwrap().into_boxed_c_str();
+                for len in [None, Some(n), Some(n + 3), Some(usize::MAX)] {
+                    let ret = parse_color_with_context(&s, len, Some(adopt(&mut ctx)));
+                    assert_eq!(ret, Err(EINVAL), "{n} {prefix:?} {suffix:?} {len:?}");
+                }
+            }
+        }
+    }
+
+    /// Logging calls a class's `item_name` and `get_category` on the object
+    /// it logs with; a bare object is only a class pointer, so its class
+    /// must not have callbacks that read more (options wave 0, batch-1
+    /// review: `BareObject::new` accepted them, and logging read past the
+    /// object).
+    #[test]
+    fn bare_objects_refuse_classes_whose_callbacks_read_the_object() {
+        for (class, bare) in [
+            (&READS_NAME, false),
+            (&READS_CATEGORY, false),
+            (&DEFAULT_NAME, true),
+            (&NO_NAME, true),
+        ] {
+            let mut ctx = Ctx::new(class);
+            let r = adopt(&mut ctx);
+            let object = BareObject::new(r.class());
+            assert_eq!(object.is_some(), bare);
+            if let Some(object) = object {
+                r.show(Some(object.as_object()), -1, 0);
+                object.as_object().show(Some(object.as_object()), -1, 0);
+            }
+        }
+    }
+}
+
+/// Options wave 0, batch-1 review: values `ObjectMut::set` previews before
+/// C evaluates them again, for C's unchecked `(int64_t)` conversion of a
+/// `+` / `-` flag operand (`opt.c:508`) and `(int)` conversion of a wide
+/// rational (`opt.c:343`). The preview must see the value C will: an operand
+/// that reads the clock may change between the two evaluations, and an
+/// array option's `default` is the bits of its definition's address in C.
+/// Each reproducer in `crustify/reviews/20261005/libavutil/options/wave-0/
+/// batch-1/ub_unsafe/` is one of these scenarios.
+mod previewed_values {
+    use core::ffi::{c_int, c_uint, c_void};
+    use core::mem::offset_of;
+    use core::ptr::{null, null_mut};
+    use std::ffi::CString;
+    use std::time::{SystemTime, UNIX_EPOCH};
+
+    use ffmpeg::libavutil::ffi;
+    use ffmpeg::libavutil::opt::{ObjectMut, SearchFlags};
+
+    use super::fixture::{ArrayDef, Class, Owned, Table};
+
+    const EINVAL: i32 = -22;
+    const ERANGE: i32 = -34;
+
+    fn under_bsan() -> bool {
+        std::env::var("CRUSTIFY_FFMPEG_VARIANT").as_deref() == Ok("bsan")
+    }
+
+    /// An object with a flags array and a wide rational array, both with a
+    /// definition (no default, `,` separator).
+    #[repr(C)]
+    struct Arrays {
+        class: *const ffi::AVClass,
+        flags: *mut c_uint,
+        nb_flags: c_uint,
+        q: *mut ffi::AVRational,
+        nb_q: c_uint,
+    }
+
+    static DEF: ArrayDef = ArrayDef(ffi::AVOptionArrayDef {
+        def: null(),
+        size_min: 0,
+        size_max: 0,
+        sep: 0,
+    });
+
+    const fn array(
+        name: &'static core::ffi::CStr,
+        offset: usize,
+        base: ffi::AVOptionType,
+        min: f64,
+        max: f64,
+    ) -> ffi::AVOption {
+        ffi::AVOption {
+            name: name.as_ptr(),
+            help: null(),
+            offset: offset as c_int,
+            type_: ffi::AVOptionType(base.0 | ffi::AVOptionType::AV_OPT_TYPE_FLAG_ARRAY.0),
+            default_val: ffi::AVOption__bindgen_ty_1 { arr: &DEF.0 },
+            min,
+            max,
+            flags: 0,
+            unit: null(),
+        }
+    }
+
+    static OPTIONS: Table<3> = Table([
+        array(
+            c"flags",
+            offset_of!(Arrays, flags),
+            ffi::AVOptionType::AV_OPT_TYPE_FLAGS,
+            0.0,
+            u32::MAX as f64,
+        ),
+        array(
+            c"q",
+            offset_of!(Arrays, q),
+            ffi::AVOptionType::AV_OPT_TYPE_RATIONAL,
+            -1e300,
+            1e300,
+        ),
+        ffi::AVOption {
+            name: null(),
+            help: null(),
+            offset: 0,
+            type_: ffi::AVOptionType(0),
+            default_val: ffi::AVOption__bindgen_ty_1 { i64_: 0 },
+            min: 0.0,
+            max: 0.0,
+            flags: 0,
+            unit: null(),
+        },
+    ]);
+
+    static CLASS: Class = Class(ffi::AVClass {
+        class_name: c"crustify-opt-arrays".as_ptr(),
+        item_name: Some(ffi::av_default_item_name),
+        option: &OPTIONS.0[0],
+        version: 0,
+        log_level_offset_offset: 0,
+        parent_log_context_offset: 0,
+        category: ffi::AVClassCategory::AV_CLASS_CATEGORY_NA,
+        get_category: None,
+        query_ranges: None,
+        child_next: None,
+        child_class_iterate: None,
+        state_flags_offset: 0,
+    });
+
+    /// `DEFAULT_NUMVAL` of an array option is its definition's address,
+    /// non-zero: `not(not(default))` is 1 in C, and the preview agrees.
+    #[test]
+    fn array_defaults_preview_as_c_evaluates_them() {
+        if under_bsan() {
+            return;
+        }
+        let o = Box::into_raw(Box::new(Arrays {
+            class: &CLASS.0,
+            flags: null_mut(),
+            nb_flags: 0,
+            q: null_mut(),
+            nb_q: 0,
+        }));
+        {
+            // SAFETY: a live object of the well-formed class above (two
+            // empty arrays of the types their options store), reached
+            // through this handle only.
+            let mut m = unsafe { ObjectMut::from_ptr(o.cast::<c_void>()) }.unwrap();
+            let none = SearchFlags::NONE;
+            assert_eq!(
+                m.set(c"flags", c"+1e30*not(not(default))", none),
+                Err(ERANGE)
+            );
+            assert_eq!(
+                m.set(c"flags", c"1,-1e30*not(not(default))", none),
+                Err(ERANGE)
+            );
+            assert_eq!(m.set(c"q", c"1e10*not(not(default))", none), Err(ERANGE));
+            // In range, C stores what the preview saw.
+            m.set(c"flags", c"+not(not(default))+4,8", none).unwrap();
+            m.set(c"q", c"not(not(default))*7,1/3", none).unwrap();
+            assert_eq!(
+                m.as_ref().get(c"flags", none).unwrap().as_bytes(),
+                b"0x00000005,0x00000008"
+            );
+            assert_eq!(m.as_ref().get(c"q", none).unwrap().as_bytes(), b"7/1,1/3");
+            m.free_options();
+        }
+        // SAFETY: `o` came from `Box::into_raw`, no handle is live, and
+        // `free_options` released both arrays.
+        drop(unsafe { Box::from_raw(o) });
+    }
+
+    /// Operands that read the clock are refused, whatever its reading; the
+    /// loop straddles the check and C's evaluation as the reproducer does,
+    /// and must leave no sanitizer report (UBSan recovers: the suite's log
+    /// is grepped for `runtime error:`).
+    #[test]
+    fn clock_reading_operands_are_refused() {
+        if under_bsan() {
+            return;
+        }
+        let o = Owned::new();
+        // SAFETY: a live, defaulted object of the well-formed `OBJ_CLASS`,
+        // reached through this handle only.
+        let mut m = unsafe { ObjectMut::from_ptr(o.as_obj()) }.unwrap();
+        let none = SearchFlags::NONE;
+        for (name, val) in [
+            (c"flags", c"+time(0)"),
+            (c"flags", c"-ti me ( 0 )"),
+            (c"flags", c"one+if(gt(time(0),0),1e30,1)"),
+            (c"cflags", c"+time(0)*0"),
+            (c"wide_q", c"time(0)*1e10"),
+            (c"wide_q", c"if(lt(time(0),0),1,1e10)"),
+        ] {
+            assert_eq!(m.set(name, val, none), Err(EINVAL), "{name:?} = {val:?}");
+        }
+        // A rational of `int` bounds and a scalar number need no preview:
+        // C's range check comes first, and the conversions are defined.
+        m.set(c"q", c"time(0)*0+1", none).unwrap();
+        m.set(c"dbl", c"time(0)", none).unwrap();
+        for attempt in 0..2_000u32 {
+            let now = SystemTime::now()
+                .duration_since(UNIX_EPOCH)
+                .unwrap()
+                .as_secs_f64();
+            let t = now + f64::from(attempt % 500) * 1e-6;
+            let val = CString::new(format!("+if(gte(time(0),{t:.6}),1e30,1)")).unwrap();
+            assert_eq!(m.set(c"flags", &val, none), Err(EINVAL));
+        }
     }
 }

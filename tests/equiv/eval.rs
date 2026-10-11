@@ -810,6 +810,9 @@ mod expressions {
             c"random(0)+random(0)+randomi(1,0,100)",
             c"taylor(ld(0)+1,1,2)",
             c"root(ld(0)^2-W,100)",
+            // No sign change in [0, 1]: `root` then widens around its best
+            // point (the second search phase).
+            c"root(1.5-ld(0),1)",
             c"if(lt(A,B),1,2)+ifnot(0,3)+between(A,0,4)+clip(9,0,4)",
             c"mod(7,3)+max(A,B)+min(A,B)+trunc(-2.5)+round(2.5)+floor(-1.5)+ceil(1.2)",
             c"lerp(0,10,0.25)+sgn(-3)+not(0)+isnan(0)+isinf(1/0)+squish(1)+gauss(0)",
