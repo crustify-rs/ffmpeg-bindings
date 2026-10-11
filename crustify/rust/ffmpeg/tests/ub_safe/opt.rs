@@ -581,3 +581,185 @@ mod typed_setters {
         });
     }
 }
+
+/// Options wave 2, batch 0: lookups, the option walk and range queries on
+/// the object and class built without `unsafe` (a [`BareObject`] of a
+/// [`Class::new`] class), which find nothing and fail every query without a
+/// list; and on `cpuflags`, the C class `av_parse_cpu_caps` evaluates flags
+/// against, which a log callback reaches through `Record::class` while C's
+/// failed parse logs in that class's context: its lookups, range queries
+/// and evaluators run inside the callback, which their own failures
+/// re-enter, and the flags agree with `cpu::parse_cpu_caps`.
+///
+/// [`BareObject`]: ffmpeg::libavutil::opt::BareObject
+/// [`Class::new`]: ffmpeg::libavutil::log::Class::new
+mod lookups {
+    use core::ffi::CStr;
+    use std::cell::{Cell, RefCell};
+
+    use ffmpeg::libavutil::cpu;
+    use ffmpeg::libavutil::log::{self, Callback, Class, ClassCategory, ClassRef, Record};
+    use ffmpeg::libavutil::opt::{BareObject, EvalContext, RangeFlags, SearchFlags};
+
+    use crate::log::{LogState, isolated};
+
+    static CLASS: Class = Class::new(c"crustify-opt-lookups", ClassCategory::NA);
+
+    const EINVAL: i32 = -22;
+    const ENOMEM: i32 = -12;
+    const ENOSYS: i32 = -38;
+
+    fn range_flags() -> [RangeFlags; 4] {
+        [
+            RangeFlags::NONE,
+            RangeFlags::CHILDREN,
+            RangeFlags::MULTI_COMPONENT,
+            RangeFlags::CHILDREN | RangeFlags::MULTI_COMPONENT,
+        ]
+    }
+
+    #[test]
+    fn bare_objects_and_classes_find_nothing() {
+        let bare = BareObject::new(CLASS.as_ref()).unwrap();
+        let obj = bare.as_object();
+        let class = CLASS.as_ref();
+        for name in [c"", c"x", c"flags", c"crustify-opt-lookups"] {
+            for unit in [None, Some(c"flags"), Some(c"")] {
+                for opt_flags in [0, 1, -1] {
+                    for flags in [SearchFlags::NONE, SearchFlags::CHILDREN] {
+                        assert!(obj.find(name, unit, opt_flags, flags).is_none());
+                        assert!(obj.find_with_target(name, unit, opt_flags, flags).is_none());
+                        assert!(class.find(name, unit, opt_flags, flags).is_none());
+                    }
+                }
+            }
+            for flags in range_flags() {
+                assert_eq!(obj.option_ranges(name, flags).err(), Some(ENOMEM));
+                assert_eq!(obj.default_option_ranges(name, flags).err(), Some(ENOMEM));
+                assert_eq!(class.option_ranges(name, flags).err(), Some(ENOMEM));
+                assert_eq!(class.default_option_ranges(name, flags).err(), Some(ENOMEM));
+            }
+        }
+        assert_eq!(obj.options().count(), 0);
+        let mut walk = obj.options();
+        assert!(walk.next().is_none() && walk.next().is_none());
+        assert!(format!("{walk:?}").contains("crustify-opt-lookups"));
+    }
+
+    /// Flag strings for the `cpuflags` class: constants, signs, numbers,
+    /// errors, and operands outside the `int64_t` range, which both sides
+    /// refuse.
+    const TOKENS: [&CStr; 14] = [
+        c"sse2",
+        c"+sse2+avx",
+        c"-sse2",
+        c"mmx-mmx",
+        c"nosuch",
+        c"+1e300",
+        c"0x10",
+        c"",
+        c"all",
+        c"none",
+        c"+max",
+        c"sse2+",
+        c"-min",
+        c"pentium2-cmov",
+    ];
+
+    /// What the probe saw in the `cpuflags` class: its lookups, ranges and
+    /// each token's evaluation from 0.
+    #[derive(Debug, Default)]
+    struct Seen {
+        found: Vec<bool>,
+        ranges: Vec<Option<i32>>,
+        flags: Vec<(Option<i32>, i32)>,
+        others: Vec<Option<i32>>,
+    }
+
+    thread_local! {
+        /// Set while this thread probes the next `cpuflags` message.
+        static ARMED: Cell<bool> = const { Cell::new(false) };
+        static SEEN: RefCell<Option<Seen>> = const { RefCell::new(None) };
+    }
+
+    /// Probes the class of the first `cpuflags` message an armed thread
+    /// logs; the messages its own evaluations log re-enter it disarmed.
+    struct Probe;
+
+    impl Callback for Probe {
+        fn log(record: Record<'_>) {
+            if !ARMED.with(Cell::get) {
+                return;
+            }
+            let Some(class) = record.class() else { return };
+            if class.name() != Some(c"cpuflags") {
+                return;
+            }
+            ARMED.with(|a| a.set(false));
+            let seen = probe(class);
+            SEEN.with(|s| *s.borrow_mut() = Some(seen));
+        }
+    }
+
+    fn probe(class: ClassRef<'_>) -> Seen {
+        let mut seen = Seen::default();
+        let flags = class.find(c"flags", None, 0, SearchFlags::NONE).unwrap();
+        for (name, unit) in [
+            (c"sse2", Some(c"flags")),
+            (c"sse2", None),
+            (c"flags", None),
+            (c"flags", Some(c"flags")),
+            (c"nosuch", Some(c"flags")),
+        ] {
+            for search in [SearchFlags::NONE, SearchFlags::CHILDREN] {
+                seen.found.push(class.find(name, unit, 0, search).is_some());
+            }
+        }
+        for key in [c"flags", c"sse2", c"nosuch"] {
+            seen.ranges
+                .push(class.option_ranges(key, RangeFlags::MULTI_COMPONENT).err());
+            seen.ranges
+                .push(class.default_option_ranges(key, RangeFlags::NONE).err());
+        }
+        let ctx = EvalContext::from(class);
+        for token in TOKENS {
+            let mut f = 0;
+            let r = flags.eval_flags(ctx, token, &mut f).err();
+            seen.flags.push((r, f));
+            seen.others.push(flags.eval_int(ctx, token).err());
+            seen.others.push(flags.eval_rational(ctx, token).err());
+        }
+        seen
+    }
+
+    #[test]
+    fn cpuflags_class_lookups_and_evaluations_agree_with_parse_cpu_caps() {
+        if !isolated(
+            "opt::lookups::cpuflags_class_lookups_and_evaluations_agree_with_parse_cpu_caps",
+        ) {
+            return;
+        }
+        let _s = LogState::lock();
+        ARMED.with(|a| a.set(true));
+        log::set_callback::<Probe>();
+        let mut f = 0;
+        assert!(cpu::parse_cpu_caps(&mut f, c"no-such-flag").is_err());
+        log::set_default_callback();
+        ARMED.with(|a| a.set(false));
+        let seen = SEEN.with(|s| s.borrow_mut().take()).expect("the probe ran");
+        let found = [
+            true, true, false, false, true, true, false, false, false, false,
+        ];
+        assert_eq!(seen.found, found);
+        // A flags option and a constant have no ranges; an unknown key is
+        // C's `AVERROR(ENOMEM)`.
+        let ranges = [ENOSYS, ENOSYS, ENOMEM, ENOMEM, ENOMEM, ENOMEM];
+        assert_eq!(seen.ranges, ranges.map(Some));
+        assert!(seen.others.iter().all(|&r| r == Some(EINVAL)));
+        for (token, (r, flags)) in TOKENS.iter().zip(seen.flags) {
+            let mut caps = 0u32;
+            let c = cpu::parse_cpu_caps(&mut caps, token).err();
+            assert_eq!((r, flags as u32), (c, caps), "{token:?}");
+        }
+    }
+}

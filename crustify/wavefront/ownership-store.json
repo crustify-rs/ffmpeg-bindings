@@ -5991,6 +5991,670 @@
    ]
   },
   {
+   "name": "av_opt_eval_double",
+   "defined_in": "libavutil/opt.c",
+   "ptr_args": [
+    {
+     "name": "double_out",
+     "ptr": {
+      "scalar": {
+       "by_val": true
+      },
+      "array": null,
+      "string": false,
+      "owned": false,
+      "borrowed": {
+       "lifetime": "arg:double_out"
+      },
+      "nullable": false,
+      "mutable": true,
+      "note": "Caller's double slot. Written once, on success only; untouched on failure. Never retained; wrapped as a Rust out value."
+     }
+    },
+    {
+     "name": "o",
+     "ptr": {
+      "scalar": {
+       "by_val": true
+      },
+      "array": null,
+      "string": false,
+      "owned": false,
+      "borrowed": {
+       "lifetime": "arg:o"
+      },
+      "nullable": true,
+      "mutable": false,
+      "note": "Option entry of a static class table; NULL or a type other than exactly AV_OPT_TYPE_DOUBLE (arrays included) or AV_OPT_FLAG_READONLY returns AVERROR(EINVAL). Reads type, flags, unit, default_val, min, max, name; need not belong to obj's class. Wrapped as the OptionDefRef receiver."
+     }
+    },
+    {
+     "name": "obj",
+     "ptr": {
+      "scalar": {
+       "by_val": true
+      },
+      "array": null,
+      "string": false,
+      "owned": false,
+      "borrowed": {
+       "lifetime": "arg:obj"
+      },
+      "nullable": true,
+      "mutable": false,
+      "note": "AVClass-enabled object (first member a non-NULL const AVClass *), or a pointer to a const AVClass * alone (cpu.c and fftools pass &pclass); only read for the call. set_string_number looks the value up as a named constant of o->unit in it (av_opt_find, with AV_OPT_SEARCH_CHILDREN through child_next when o has AV_OPT_FLAG_CHILD_CONSTS), lists the unit's constants with av_opt_next, and logs in its context (item_name, log offsets read). NULL: no constants, no context. Wrapped as opt::EvalContext (an ObjectRef, or a ClassRef C sees through a local class pointer)."
+     }
+    },
+    {
+     "name": "val",
+     "ptr": {
+      "scalar": null,
+      "array": null,
+      "string": true,
+      "owned": false,
+      "borrowed": {
+       "lifetime": "arg:val"
+      },
+      "nullable": false,
+      "mutable": false,
+      "note": "Value string, parsed during the call only (sscanf num/den for rationals, av_expr_parse_and_eval otherwise). Must not be NULL."
+     }
+    }
+   ]
+  },
+  {
+   "name": "av_opt_eval_flags",
+   "defined_in": "libavutil/opt.c",
+   "ptr_args": [
+    {
+     "name": "flags_out",
+     "ptr": {
+      "scalar": {
+       "by_val": true
+      },
+      "array": null,
+      "string": false,
+      "owned": false,
+      "borrowed": {
+       "lifetime": "arg:flags_out"
+      },
+      "nullable": false,
+      "mutable": true,
+      "note": "Caller's int slot. Read first: a '+'/'-' token ORs into / clears from its current value; each token's result is written as it is evaluated, so a failing later token leaves earlier writes. Never retained; wrapped as a Rust out value."
+     }
+    },
+    {
+     "name": "o",
+     "ptr": {
+      "scalar": {
+       "by_val": true
+      },
+      "array": null,
+      "string": false,
+      "owned": false,
+      "borrowed": {
+       "lifetime": "arg:o"
+      },
+      "nullable": true,
+      "mutable": false,
+      "note": "Option entry of a static class table; NULL or a type other than exactly AV_OPT_TYPE_FLAGS (arrays included) or AV_OPT_FLAG_READONLY returns AVERROR(EINVAL). Reads type, flags, unit, default_val, min, max, name; need not belong to obj's class. Wrapped as the OptionDefRef receiver."
+     }
+    },
+    {
+     "name": "obj",
+     "ptr": {
+      "scalar": {
+       "by_val": true
+      },
+      "array": null,
+      "string": false,
+      "owned": false,
+      "borrowed": {
+       "lifetime": "arg:obj"
+      },
+      "nullable": true,
+      "mutable": false,
+      "note": "AVClass-enabled object (first member a non-NULL const AVClass *), or a pointer to a const AVClass * alone (cpu.c and fftools pass &pclass); only read for the call. set_string_number looks the value up as a named constant of o->unit in it (av_opt_find, with AV_OPT_SEARCH_CHILDREN through child_next when o has AV_OPT_FLAG_CHILD_CONSTS), lists the unit's constants with av_opt_next, and logs in its context (item_name, log offsets read). NULL: no constants, no context. Wrapped as opt::EvalContext (an ObjectRef, or a ClassRef C sees through a local class pointer)."
+     }
+    },
+    {
+     "name": "val",
+     "ptr": {
+      "scalar": null,
+      "array": null,
+      "string": true,
+      "owned": false,
+      "borrowed": {
+       "lifetime": "arg:val"
+      },
+      "nullable": false,
+      "mutable": false,
+      "note": "Value string, parsed during the call only (sscanf num/den for rationals, av_expr_parse_and_eval otherwise). Must not be NULL."
+     }
+    }
+   ]
+  },
+  {
+   "name": "av_opt_eval_float",
+   "defined_in": "libavutil/opt.c",
+   "ptr_args": [
+    {
+     "name": "float_out",
+     "ptr": {
+      "scalar": {
+       "by_val": true
+      },
+      "array": null,
+      "string": false,
+      "owned": false,
+      "borrowed": {
+       "lifetime": "arg:float_out"
+      },
+      "nullable": false,
+      "mutable": true,
+      "note": "Caller's float slot. Written once, on success only; untouched on failure. Never retained; wrapped as a Rust out value."
+     }
+    },
+    {
+     "name": "o",
+     "ptr": {
+      "scalar": {
+       "by_val": true
+      },
+      "array": null,
+      "string": false,
+      "owned": false,
+      "borrowed": {
+       "lifetime": "arg:o"
+      },
+      "nullable": true,
+      "mutable": false,
+      "note": "Option entry of a static class table; NULL or a type other than exactly AV_OPT_TYPE_FLOAT (arrays included) or AV_OPT_FLAG_READONLY returns AVERROR(EINVAL). Reads type, flags, unit, default_val, min, max, name; need not belong to obj's class. Wrapped as the OptionDefRef receiver."
+     }
+    },
+    {
+     "name": "obj",
+     "ptr": {
+      "scalar": {
+       "by_val": true
+      },
+      "array": null,
+      "string": false,
+      "owned": false,
+      "borrowed": {
+       "lifetime": "arg:obj"
+      },
+      "nullable": true,
+      "mutable": false,
+      "note": "AVClass-enabled object (first member a non-NULL const AVClass *), or a pointer to a const AVClass * alone (cpu.c and fftools pass &pclass); only read for the call. set_string_number looks the value up as a named constant of o->unit in it (av_opt_find, with AV_OPT_SEARCH_CHILDREN through child_next when o has AV_OPT_FLAG_CHILD_CONSTS), lists the unit's constants with av_opt_next, and logs in its context (item_name, log offsets read). NULL: no constants, no context. Wrapped as opt::EvalContext (an ObjectRef, or a ClassRef C sees through a local class pointer)."
+     }
+    },
+    {
+     "name": "val",
+     "ptr": {
+      "scalar": null,
+      "array": null,
+      "string": true,
+      "owned": false,
+      "borrowed": {
+       "lifetime": "arg:val"
+      },
+      "nullable": false,
+      "mutable": false,
+      "note": "Value string, parsed during the call only (sscanf num/den for rationals, av_expr_parse_and_eval otherwise). Must not be NULL."
+     }
+    }
+   ]
+  },
+  {
+   "name": "av_opt_eval_int",
+   "defined_in": "libavutil/opt.c",
+   "ptr_args": [
+    {
+     "name": "int_out",
+     "ptr": {
+      "scalar": {
+       "by_val": true
+      },
+      "array": null,
+      "string": false,
+      "owned": false,
+      "borrowed": {
+       "lifetime": "arg:int_out"
+      },
+      "nullable": false,
+      "mutable": true,
+      "note": "Caller's int slot. Written once, on success only; untouched on failure. Never retained; wrapped as a Rust out value."
+     }
+    },
+    {
+     "name": "o",
+     "ptr": {
+      "scalar": {
+       "by_val": true
+      },
+      "array": null,
+      "string": false,
+      "owned": false,
+      "borrowed": {
+       "lifetime": "arg:o"
+      },
+      "nullable": true,
+      "mutable": false,
+      "note": "Option entry of a static class table; NULL or a type other than exactly AV_OPT_TYPE_INT (arrays included) or AV_OPT_FLAG_READONLY returns AVERROR(EINVAL). Reads type, flags, unit, default_val, min, max, name; need not belong to obj's class. Wrapped as the OptionDefRef receiver."
+     }
+    },
+    {
+     "name": "obj",
+     "ptr": {
+      "scalar": {
+       "by_val": true
+      },
+      "array": null,
+      "string": false,
+      "owned": false,
+      "borrowed": {
+       "lifetime": "arg:obj"
+      },
+      "nullable": true,
+      "mutable": false,
+      "note": "AVClass-enabled object (first member a non-NULL const AVClass *), or a pointer to a const AVClass * alone (cpu.c and fftools pass &pclass); only read for the call. set_string_number looks the value up as a named constant of o->unit in it (av_opt_find, with AV_OPT_SEARCH_CHILDREN through child_next when o has AV_OPT_FLAG_CHILD_CONSTS), lists the unit's constants with av_opt_next, and logs in its context (item_name, log offsets read). NULL: no constants, no context. Wrapped as opt::EvalContext (an ObjectRef, or a ClassRef C sees through a local class pointer)."
+     }
+    },
+    {
+     "name": "val",
+     "ptr": {
+      "scalar": null,
+      "array": null,
+      "string": true,
+      "owned": false,
+      "borrowed": {
+       "lifetime": "arg:val"
+      },
+      "nullable": false,
+      "mutable": false,
+      "note": "Value string, parsed during the call only (sscanf num/den for rationals, av_expr_parse_and_eval otherwise). Must not be NULL."
+     }
+    }
+   ]
+  },
+  {
+   "name": "av_opt_eval_int64",
+   "defined_in": "libavutil/opt.c",
+   "ptr_args": [
+    {
+     "name": "int64_out",
+     "ptr": {
+      "scalar": {
+       "by_val": true
+      },
+      "array": null,
+      "string": false,
+      "owned": false,
+      "borrowed": {
+       "lifetime": "arg:int64_out"
+      },
+      "nullable": false,
+      "mutable": true,
+      "note": "Caller's int64_t slot. Written once, on success only; untouched on failure. Never retained; wrapped as a Rust out value."
+     }
+    },
+    {
+     "name": "o",
+     "ptr": {
+      "scalar": {
+       "by_val": true
+      },
+      "array": null,
+      "string": false,
+      "owned": false,
+      "borrowed": {
+       "lifetime": "arg:o"
+      },
+      "nullable": true,
+      "mutable": false,
+      "note": "Option entry of a static class table; NULL or a type other than exactly AV_OPT_TYPE_INT64 (arrays included) or AV_OPT_FLAG_READONLY returns AVERROR(EINVAL). Reads type, flags, unit, default_val, min, max, name; need not belong to obj's class. Wrapped as the OptionDefRef receiver."
+     }
+    },
+    {
+     "name": "obj",
+     "ptr": {
+      "scalar": {
+       "by_val": true
+      },
+      "array": null,
+      "string": false,
+      "owned": false,
+      "borrowed": {
+       "lifetime": "arg:obj"
+      },
+      "nullable": true,
+      "mutable": false,
+      "note": "AVClass-enabled object (first member a non-NULL const AVClass *), or a pointer to a const AVClass * alone (cpu.c and fftools pass &pclass); only read for the call. set_string_number looks the value up as a named constant of o->unit in it (av_opt_find, with AV_OPT_SEARCH_CHILDREN through child_next when o has AV_OPT_FLAG_CHILD_CONSTS), lists the unit's constants with av_opt_next, and logs in its context (item_name, log offsets read). NULL: no constants, no context. Wrapped as opt::EvalContext (an ObjectRef, or a ClassRef C sees through a local class pointer)."
+     }
+    },
+    {
+     "name": "val",
+     "ptr": {
+      "scalar": null,
+      "array": null,
+      "string": true,
+      "owned": false,
+      "borrowed": {
+       "lifetime": "arg:val"
+      },
+      "nullable": false,
+      "mutable": false,
+      "note": "Value string, parsed during the call only (sscanf num/den for rationals, av_expr_parse_and_eval otherwise). Must not be NULL."
+     }
+    }
+   ]
+  },
+  {
+   "name": "av_opt_eval_q",
+   "defined_in": "libavutil/opt.c",
+   "ptr_args": [
+    {
+     "name": "o",
+     "ptr": {
+      "scalar": {
+       "by_val": true
+      },
+      "array": null,
+      "string": false,
+      "owned": false,
+      "borrowed": {
+       "lifetime": "arg:o"
+      },
+      "nullable": true,
+      "mutable": false,
+      "note": "Option entry of a static class table; NULL or a type other than exactly AV_OPT_TYPE_RATIONAL (arrays included) or AV_OPT_FLAG_READONLY returns AVERROR(EINVAL). Reads type, flags, unit, default_val, min, max, name; need not belong to obj's class. Wrapped as the OptionDefRef receiver."
+     }
+    },
+    {
+     "name": "obj",
+     "ptr": {
+      "scalar": {
+       "by_val": true
+      },
+      "array": null,
+      "string": false,
+      "owned": false,
+      "borrowed": {
+       "lifetime": "arg:obj"
+      },
+      "nullable": true,
+      "mutable": false,
+      "note": "AVClass-enabled object (first member a non-NULL const AVClass *), or a pointer to a const AVClass * alone (cpu.c and fftools pass &pclass); only read for the call. set_string_number looks the value up as a named constant of o->unit in it (av_opt_find, with AV_OPT_SEARCH_CHILDREN through child_next when o has AV_OPT_FLAG_CHILD_CONSTS), lists the unit's constants with av_opt_next, and logs in its context (item_name, log offsets read). NULL: no constants, no context. Wrapped as opt::EvalContext (an ObjectRef, or a ClassRef C sees through a local class pointer)."
+     }
+    },
+    {
+     "name": "q_out",
+     "ptr": {
+      "scalar": {
+       "by_val": true
+      },
+      "array": null,
+      "string": false,
+      "owned": false,
+      "borrowed": {
+       "lifetime": "arg:q_out"
+      },
+      "nullable": false,
+      "mutable": true,
+      "note": "Caller's AVRational slot. Written once, on success only; untouched on failure. Never retained; wrapped as a Rust out value."
+     }
+    },
+    {
+     "name": "val",
+     "ptr": {
+      "scalar": null,
+      "array": null,
+      "string": true,
+      "owned": false,
+      "borrowed": {
+       "lifetime": "arg:val"
+      },
+      "nullable": false,
+      "mutable": false,
+      "note": "Value string, parsed during the call only (sscanf num/den for rationals, av_expr_parse_and_eval otherwise). Must not be NULL."
+     }
+    }
+   ]
+  },
+  {
+   "name": "av_opt_eval_uint",
+   "defined_in": "libavutil/opt.c",
+   "ptr_args": [
+    {
+     "name": "o",
+     "ptr": {
+      "scalar": {
+       "by_val": true
+      },
+      "array": null,
+      "string": false,
+      "owned": false,
+      "borrowed": {
+       "lifetime": "arg:o"
+      },
+      "nullable": true,
+      "mutable": false,
+      "note": "Option entry of a static class table; NULL or a type other than exactly AV_OPT_TYPE_UINT (arrays included) or AV_OPT_FLAG_READONLY returns AVERROR(EINVAL). Reads type, flags, unit, default_val, min, max, name; need not belong to obj's class. Wrapped as the OptionDefRef receiver."
+     }
+    },
+    {
+     "name": "obj",
+     "ptr": {
+      "scalar": {
+       "by_val": true
+      },
+      "array": null,
+      "string": false,
+      "owned": false,
+      "borrowed": {
+       "lifetime": "arg:obj"
+      },
+      "nullable": true,
+      "mutable": false,
+      "note": "AVClass-enabled object (first member a non-NULL const AVClass *), or a pointer to a const AVClass * alone (cpu.c and fftools pass &pclass); only read for the call. set_string_number looks the value up as a named constant of o->unit in it (av_opt_find, with AV_OPT_SEARCH_CHILDREN through child_next when o has AV_OPT_FLAG_CHILD_CONSTS), lists the unit's constants with av_opt_next, and logs in its context (item_name, log offsets read). NULL: no constants, no context. Wrapped as opt::EvalContext (an ObjectRef, or a ClassRef C sees through a local class pointer)."
+     }
+    },
+    {
+     "name": "uint_out",
+     "ptr": {
+      "scalar": {
+       "by_val": true
+      },
+      "array": null,
+      "string": false,
+      "owned": false,
+      "borrowed": {
+       "lifetime": "arg:uint_out"
+      },
+      "nullable": false,
+      "mutable": true,
+      "note": "Caller's unsigned slot. Written once, on success only; untouched on failure. Never retained; wrapped as a Rust out value."
+     }
+    },
+    {
+     "name": "val",
+     "ptr": {
+      "scalar": null,
+      "array": null,
+      "string": true,
+      "owned": false,
+      "borrowed": {
+       "lifetime": "arg:val"
+      },
+      "nullable": false,
+      "mutable": false,
+      "note": "Value string, parsed during the call only (sscanf num/den for rationals, av_expr_parse_and_eval otherwise). Must not be NULL."
+     }
+    }
+   ]
+  },
+  {
+   "name": "av_opt_find",
+   "defined_in": "libavutil/opt.c",
+   "ptr_args": [
+    {
+     "name": "name",
+     "ptr": {
+      "scalar": null,
+      "array": null,
+      "string": true,
+      "owned": false,
+      "borrowed": {
+       "lifetime": "arg:name"
+      },
+      "nullable": false,
+      "mutable": false,
+      "note": "Option name, strcmp'd during the call only. Must not be NULL."
+     }
+    },
+    {
+     "name": "obj",
+     "ptr": {
+      "scalar": {
+       "by_val": true
+      },
+      "array": null,
+      "string": false,
+      "owned": false,
+      "borrowed": {
+       "lifetime": "arg:obj"
+      },
+      "nullable": true,
+      "mutable": false,
+      "note": "AVClass-enabled object, or with AV_OPT_SEARCH_FAKE_OBJ a pointer to a const AVClass *; NULL or a NULL class returns NULL. Read for the call: av_opt_next over its class's table, and with AV_OPT_SEARCH_CHILDREN its children (child_next) or, with FAKE_OBJ, its child classes (child_class_iterate). Wrapped as opt::ObjectRef, and as log::ClassRef (FAKE_OBJ set internally)."
+     }
+    },
+    {
+     "name": "unit",
+     "ptr": {
+      "scalar": null,
+      "array": null,
+      "string": true,
+      "owned": false,
+      "borrowed": {
+       "lifetime": "arg:unit"
+      },
+      "nullable": true,
+      "mutable": false,
+      "note": "NULL: find a non-CONST option; else find a CONST option of this unit. strcmp'd during the call only."
+     }
+    }
+   ],
+   "ptr_ret": {
+    "ptr": {
+     "scalar": {
+      "by_val": true
+     },
+     "array": null,
+     "string": false,
+     "owned": false,
+     "borrowed": {
+      "lifetime": "arg:obj"
+     },
+     "nullable": true,
+     "mutable": false,
+     "note": "Entry of the static option table of obj's class or a child's (class); never freed, lives as long as that class. NULL when not found. Wrapped as OptionDefRef<'a> borrowing the class lifetime."
+    }
+   }
+  },
+  {
+   "name": "av_opt_find2",
+   "defined_in": "libavutil/opt.c",
+   "ptr_args": [
+    {
+     "name": "name",
+     "ptr": {
+      "scalar": null,
+      "array": null,
+      "string": true,
+      "owned": false,
+      "borrowed": {
+       "lifetime": "arg:name"
+      },
+      "nullable": false,
+      "mutable": false,
+      "note": "Option name, strcmp'd during the call only. Must not be NULL."
+     }
+    },
+    {
+     "name": "obj",
+     "ptr": {
+      "scalar": {
+       "by_val": true
+      },
+      "array": null,
+      "string": false,
+      "owned": false,
+      "borrowed": {
+       "lifetime": "arg:obj"
+      },
+      "nullable": true,
+      "mutable": false,
+      "note": "AVClass-enabled object, or with AV_OPT_SEARCH_FAKE_OBJ a pointer to a const AVClass *; NULL or a NULL class returns NULL. Read for the call: av_opt_next over its class's table, and with AV_OPT_SEARCH_CHILDREN its children (child_next) or, with FAKE_OBJ, its child classes (child_class_iterate). Wrapped as opt::ObjectRef, and as log::ClassRef (FAKE_OBJ set internally)."
+     }
+    },
+    {
+     "name": "target_obj",
+     "ptr": {
+      "scalar": {
+       "by_ref": {
+        "owned": null,
+        "borrowed": {
+         "lifetime": "arg:obj"
+        }
+       }
+      },
+      "array": null,
+      "string": false,
+      "owned": false,
+      "borrowed": {
+       "lifetime": "arg:target_obj"
+      },
+      "nullable": true,
+      "mutable": true,
+      "note": "Optional out slot (NULL: not written). On a match receives the object or child holding the option (owned by obj, live while obj is), or NULL with AV_OPT_SEARCH_FAKE_OBJ; untouched when nothing matches. Wrapped as the ObjectRef<'a> half of find_with_target's result."
+     }
+    },
+    {
+     "name": "unit",
+     "ptr": {
+      "scalar": null,
+      "array": null,
+      "string": true,
+      "owned": false,
+      "borrowed": {
+       "lifetime": "arg:unit"
+      },
+      "nullable": true,
+      "mutable": false,
+      "note": "NULL: find a non-CONST option; else find a CONST option of this unit. strcmp'd during the call only."
+     }
+    }
+   ],
+   "ptr_ret": {
+    "ptr": {
+     "scalar": {
+      "by_val": true
+     },
+     "array": null,
+     "string": false,
+     "owned": false,
+     "borrowed": {
+      "lifetime": "arg:obj"
+     },
+     "nullable": true,
+     "mutable": false,
+     "note": "Entry of the static option table of obj's class or a child's (class); never freed, lives as long as that class. NULL when not found. Wrapped as OptionDefRef<'a> borrowing the class lifetime."
+    }
+   }
+  },
+  {
    "name": "av_opt_flag_is_set",
    "defined_in": "libavutil/opt.c",
    "ptr_args": [
@@ -6926,6 +7590,46 @@
    ]
   },
   {
+   "name": "av_opt_is_set_to_default",
+   "defined_in": "libavutil/opt.c",
+   "ptr_args": [
+    {
+     "name": "o",
+     "ptr": {
+      "scalar": {
+       "by_val": true
+      },
+      "array": null,
+      "string": false,
+      "owned": false,
+      "borrowed": {
+       "lifetime": "arg:o"
+      },
+      "nullable": true,
+      "mutable": false,
+      "note": "Option of obj's class (its offset indexes obj; a foreign option reads out of bounds). NULL returns AVERROR(EINVAL); a CONST option returns 1 without reading obj."
+     }
+    },
+    {
+     "name": "obj",
+     "ptr": {
+      "scalar": {
+       "by_val": true
+      },
+      "array": null,
+      "string": false,
+      "owned": false,
+      "borrowed": {
+       "lifetime": "arg:obj"
+      },
+      "nullable": true,
+      "mutable": false,
+      "note": "AVClass-enabled object holding o's value at o->offset (NULL returns AVERROR(EINVAL)); read for the call: the field, plus temporaries C parses o's default string into and frees (channel layout, dictionary, binary, array string). Logs in its context for an unsupported type. Wrapped as opt::ObjectRef, which checks that o is an entry of its own class's table."
+     }
+    }
+   ]
+  },
+  {
    "name": "av_opt_is_set_to_default_by_name",
    "defined_in": "libavutil/opt.c",
    "ptr_args": [
@@ -6962,6 +7666,62 @@
      }
     }
    ]
+  },
+  {
+   "name": "av_opt_next",
+   "defined_in": "libavutil/opt.c",
+   "ptr_args": [
+    {
+     "name": "last",
+     "ptr": {
+      "scalar": {
+       "by_val": true
+      },
+      "array": null,
+      "string": false,
+      "owned": false,
+      "borrowed": {
+       "lifetime": "arg:obj"
+      },
+      "nullable": true,
+      "mutable": false,
+      "note": "NULL to start, else the entry the previous call returned; C returns last + 1 unless its name is NULL (the terminator)."
+     }
+    },
+    {
+     "name": "obj",
+     "ptr": {
+      "scalar": {
+       "by_val": true
+      },
+      "array": null,
+      "string": false,
+      "owned": false,
+      "borrowed": {
+       "lifetime": "arg:obj"
+      },
+      "nullable": true,
+      "mutable": false,
+      "note": "AVClass-enabled object or a pointer to a const AVClass *; only *(AVClass **)obj is read. NULL, or a NULL class, ends the walk. Wrapped as opt::ObjectRef (Options iterator)."
+     }
+    }
+   ],
+   "ptr_ret": {
+    "ptr": {
+     "scalar": {
+      "by_val": true
+     },
+     "array": null,
+     "string": false,
+     "owned": false,
+     "borrowed": {
+      "lifetime": "arg:obj"
+     },
+     "nullable": true,
+     "mutable": false,
+     "note": "Next entry of the class's static option table (CONST options included), NULL after the last; never freed."
+    }
+   }
   },
   {
    "name": "av_opt_query_ranges",
