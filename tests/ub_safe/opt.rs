@@ -442,3 +442,142 @@ mod getters {
         );
     }
 }
+
+/// Options wave 1, batch 1: the typed setters, array editors and dictionary
+/// appliers on a [`BareObject`], where every name is unknown: every value
+/// type, refused values included, borrowed only for the call, and the
+/// dictionary handed back whole, in order, duplicates included.
+mod typed_setters {
+    use ffmpeg::libavutil::channel_layout::ChannelLayout;
+    use ffmpeg::libavutil::dict::Dict;
+    use ffmpeg::libavutil::log::{Class, ClassCategory};
+    use ffmpeg::libavutil::opt::{BareObject, SearchFlags};
+    use ffmpeg::libavutil::pixfmt::PixelFormat;
+    use ffmpeg::libavutil::rational::Rational;
+    use ffmpeg::libavutil::samplefmt::SampleFormat;
+
+    static CLASS: Class = Class::new(c"crustify-opt-typed-ub", ClassCategory::NA);
+
+    const NOT_FOUND: i32 = -i32::from_le_bytes([0xF8, b'O', b'P', b'T']);
+
+    #[test]
+    fn a_bare_object_finds_no_option_for_any_value() {
+        let mut o = BareObject::new(CLASS.as_ref()).unwrap();
+        let layout = ChannelLayout::parse(c"FL@a+FR@b").unwrap();
+        let dict = Dict::from_entries([(c"k", c"v")]).unwrap();
+        for flags in [SearchFlags::NONE, SearchFlags::CHILDREN] {
+            let mut m = o.as_object_mut();
+            assert_eq!(
+                m.set_rational(c"x", Rational::new(1, 0), flags),
+                Err(NOT_FOUND)
+            );
+            assert_eq!(
+                m.set_video_rate(c"x", Rational::new(0, 0), flags),
+                Err(NOT_FOUND)
+            );
+            assert_eq!(
+                m.set_pixel_format(c"x", PixelFormat::NONE, flags),
+                Err(NOT_FOUND)
+            );
+            assert_eq!(
+                m.set_sample_format(c"x", SampleFormat::NONE, flags),
+                Err(NOT_FOUND)
+            );
+            assert_eq!(
+                m.set_channel_layout(c"x", layout.as_ref(), flags),
+                Err(NOT_FOUND)
+            );
+            assert_eq!(m.set_dictionary(c"x", dict.as_ref(), flags), Err(NOT_FOUND));
+            assert_eq!(m.set_dictionary(c"x", None, flags), Err(NOT_FOUND));
+            assert_eq!(
+                m.insert_array(c"x", 0, &[c"ld(1e300)"], flags),
+                Err(NOT_FOUND)
+            );
+            assert_eq!(
+                m.insert_array(c"x", 7, &[None::<&core::ffi::CStr>], flags),
+                Err(NOT_FOUND)
+            );
+            assert_eq!(m.replace_array(c"x", 0, &[f64::NAN], flags), Err(NOT_FOUND));
+            assert_eq!(
+                m.replace_array(c"x", 0, &[i64::MAX, i64::MIN], flags),
+                Err(NOT_FOUND)
+            );
+            assert_eq!(
+                m.insert_array(c"x", 0, &[f32::INFINITY], flags),
+                Err(NOT_FOUND)
+            );
+            assert_eq!(m.insert_array(c"x", 0, &[1i32, 2], flags), Err(NOT_FOUND));
+            assert_eq!(m.insert_array(c"x", 0, &[u32::MAX], flags), Err(NOT_FOUND));
+            assert_eq!(m.insert_array(c"x", 0, &[u64::MAX], flags), Err(NOT_FOUND));
+            assert_eq!(
+                m.insert_array(c"x", 0, &[Rational::new(1, 0)], flags),
+                Err(NOT_FOUND)
+            );
+            assert_eq!(
+                m.insert_array(c"x", 0, &[PixelFormat::NONE], flags),
+                Err(NOT_FOUND)
+            );
+            assert_eq!(
+                m.insert_array(c"x", 0, &[SampleFormat::NONE], flags),
+                Err(NOT_FOUND)
+            );
+            assert_eq!(
+                m.insert_array(c"x", 0, &[(-1, i32::MAX)], flags),
+                Err(NOT_FOUND)
+            );
+            assert_eq!(m.insert_array(c"x", 0, &[[0u8; 4]], flags), Err(NOT_FOUND));
+            assert_eq!(
+                m.insert_array(c"x", 0, &[layout.as_ref()], flags),
+                Err(NOT_FOUND)
+            );
+            assert_eq!(
+                m.insert_array(c"x", 0, &[dict.as_ref(), None], flags),
+                Err(NOT_FOUND)
+            );
+            assert_eq!(m.insert_array::<i32>(c"x", 0, &[], flags), Err(NOT_FOUND));
+            assert_eq!(m.remove_array(c"x", 0, 1, flags), Err(NOT_FOUND));
+            assert!(m.remove_array(c"x", usize::MAX, usize::MAX, flags).is_err());
+        }
+        // The values were only borrowed.
+        assert_eq!(layout.as_ref().channel_count(), 2);
+        assert!(dict.as_ref().is_some());
+    }
+
+    #[test]
+    fn unknown_entries_come_back_in_order() {
+        let mut o = BareObject::new(CLASS.as_ref()).unwrap();
+        let pairs = [(c"b", c"2"), (c"a", c"1"), (c"b", c"3"), (c"long key", c"")];
+        let mut d = Dict::from_entries(pairs).unwrap();
+        o.as_object_mut().set_from_dict(&mut d).unwrap();
+        o.as_object_mut()
+            .set_from_dict_with(&mut d, SearchFlags::CHILDREN)
+            .unwrap();
+        // Through a deep copy, compared by C-observable content.
+        let copy = d.try_clone().unwrap();
+        drop(d);
+        let mut again = copy;
+        o.as_object_mut().set_from_dict(&mut again).unwrap();
+        let mut empty = Dict::new();
+        o.as_object_mut().set_from_dict(&mut empty).unwrap();
+        assert!(empty.as_ref().is_none());
+        assert!(again.as_ref().is_some());
+    }
+
+    #[test]
+    fn distinct_objects_on_many_threads() {
+        std::thread::scope(|s| {
+            for _ in 0..4 {
+                s.spawn(|| {
+                    let mut o = BareObject::new(CLASS.as_ref()).unwrap();
+                    let layout = ChannelLayout::parse(c"5.1").unwrap();
+                    for i in 0..100 {
+                        let mut m = o.as_object_mut();
+                        let _ = m.insert_array(c"x", i, &[layout.as_ref()], SearchFlags::CHILDREN);
+                        let mut d = Dict::from_entries([(c"k", c"v")]).unwrap();
+                        m.set_from_dict(&mut d).unwrap();
+                    }
+                });
+            }
+        });
+    }
+}

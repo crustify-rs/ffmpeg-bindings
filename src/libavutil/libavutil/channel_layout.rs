@@ -2413,7 +2413,7 @@ impl<'a> ChannelLayoutRef<'a> {
     /// per-channel readers cannot [walk](Self::walkable), an ambisonic count
     /// C cannot [compute an order of](Self::ambisonic_computable), or a
     /// map name with no NUL, which C prints with `%s`.
-    fn describable(&self) -> Result<(), i32> {
+    pub(crate) fn describable(&self) -> Result<(), i32> {
         if self.walkable() && self.ambisonic_computable() && self.names_terminated() {
             Ok(())
         } else {

@@ -1,0 +1,11 @@
+error[E0505]: cannot move out of `layout` because it is borrowed
+ --> tests/ub_safe/compile_fail/opt_array_layout_dropped_while_listed.rs
+  |
+  |     let layout = ChannelLayout::parse(c"stereo").unwrap();
+  |         ------ binding `layout` declared here
+  |     let refs = [layout.as_ref()];
+  |                 ------ borrow of `layout` occurs here
+  |     drop(layout);
+  |          ^^^^^^ move out of `layout` occurs here
+  |     let _ = o.as_object_mut().insert_array(c"x", 0, &refs, SearchFlags::NONE);
+  |                                                     ----- borrow later used here

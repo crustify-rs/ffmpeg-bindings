@@ -7206,6 +7206,61 @@
    ]
   },
   {
+   "name": "av_opt_set_array",
+   "defined_in": "libavutil/opt.c",
+   "ptr_args": [
+    {
+     "name": "name",
+     "ptr": {
+      "scalar": null,
+      "array": null,
+      "string": true,
+      "owned": false,
+      "borrowed": {
+       "lifetime": "arg:name"
+      },
+      "nullable": false,
+      "mutable": false,
+      "note": "Option name, compared with strcmp during the call only. Must not be NULL."
+     }
+    },
+    {
+     "name": "obj",
+     "ptr": {
+      "scalar": {
+       "by_val": true
+      },
+      "array": null,
+      "string": false,
+      "owned": false,
+      "borrowed": {
+       "lifetime": "arg:obj"
+      },
+      "nullable": false,
+      "mutable": true,
+      "note": "AVClass-bearing object (first member a non-NULL const AVClass *), written for the call: the option's field at its offset (or a child's, with AV_OPT_SEARCH_CHILDREN) is replaced, releasing the owned value it held. Wrapped as opt::ObjectMut (exclusive borrow). The array field ({T *elems; unsigned count}) is grown, shrunk or replaced through av_realloc_array / av_calloc, releasing removed or replaced elements with opt_free_elem. BINARY arrays overrun: opt_type_desc gives elements pointer size, but opt_copy_elem/set_string_binary write the int length after the pointer (ASan heap-buffer-overflow, opt.c:373), so inserts into them are refused."
+     }
+    },
+    {
+     "name": "val",
+     "ptr": {
+      "scalar": null,
+      "array": {
+       "by_val": true
+      },
+      "string": false,
+      "owned": false,
+      "borrowed": {
+       "lifetime": "arg:val"
+      },
+      "nullable": true,
+      "mutable": false,
+      "note": "nb_elems elements of the C type val_type names (type-erased): copied (opt_copy_elem: strings av_strdup'd, dicts and chlayouts deep-copied) when val_type is the array's element type, parsed as av_opt_set when STRING, converted with write_number for INT/INT64/FLOAT/DOUBLE/RATIONAL, else ENOSYS. Read for the call only; the caller keeps ownership. NULL removes nb_elems elements from start_elem. Wrapped generically over the sealed opt::ArrayElement trait (T::C, T::TYPE): insert_array, replace_array (AV_OPT_ARRAY_REPLACE), remove_array (NULL)."
+     }
+    }
+   ]
+  },
+  {
    "name": "av_opt_set_bin",
    "defined_in": "libavutil/opt.c",
    "ptr_args": [
@@ -7256,6 +7311,61 @@
       "nullable": true,
       "mutable": false,
       "note": "len bytes copied into a fresh av_malloc buffer the object then owns; not read when len is 0."
+     }
+    }
+   ]
+  },
+  {
+   "name": "av_opt_set_chlayout",
+   "defined_in": "libavutil/opt.c",
+   "ptr_args": [
+    {
+     "name": "channel_layout",
+     "ptr": {
+      "scalar": {
+       "by_val": true
+      },
+      "array": null,
+      "string": false,
+      "owned": false,
+      "borrowed": {
+       "lifetime": "arg:channel_layout"
+      },
+      "nullable": false,
+      "mutable": false,
+      "note": "Source layout, read for the call only and deep-copied (a custom map is av_malloc'd anew); the caller keeps ownership. It must be readable by the option's later describers (custom map names NUL-terminated, computable ambisonic order): the wrapper refuses others with ChannelLayoutRef::describable. Wrapped as ChannelLayoutRef."
+     }
+    },
+    {
+     "name": "name",
+     "ptr": {
+      "scalar": null,
+      "array": null,
+      "string": true,
+      "owned": false,
+      "borrowed": {
+       "lifetime": "arg:name"
+      },
+      "nullable": false,
+      "mutable": false,
+      "note": "Option name, compared with strcmp during the call only. Must not be NULL."
+     }
+    },
+    {
+     "name": "obj",
+     "ptr": {
+      "scalar": {
+       "by_val": true
+      },
+      "array": null,
+      "string": false,
+      "owned": false,
+      "borrowed": {
+       "lifetime": "arg:obj"
+      },
+      "nullable": false,
+      "mutable": true,
+      "note": "AVClass-bearing object (first member a non-NULL const AVClass *), written for the call: the option's field at its offset (or a child's, with AV_OPT_SEARCH_CHILDREN) is replaced, releasing the owned value it held. Wrapped as opt::ObjectMut (exclusive borrow). The CHLAYOUT field is uninitialised then overwritten by av_channel_layout_copy; on ENOMEM C leaves it AV_CHANNEL_ORDER_CUSTOM with a NULL map and a positive count, which its readers dereference: ObjectMut::set_channel_layout resets it to the zeroed layout."
      }
     }
    ]
@@ -7322,6 +7432,143 @@
       "nullable": false,
       "mutable": true,
       "note": "AVClass-bearing object; every (masked) non-readonly option is set to its table default, freeing the owned value it held. Must not be NULL with a non-empty table."
+     }
+    }
+   ]
+  },
+  {
+   "name": "av_opt_set_dict",
+   "defined_in": "libavutil/opt.c",
+   "ptr_args": [
+    {
+     "name": "obj",
+     "ptr": {
+      "scalar": {
+       "by_val": true
+      },
+      "array": null,
+      "string": false,
+      "owned": false,
+      "borrowed": {
+       "lifetime": "arg:obj"
+      },
+      "nullable": false,
+      "mutable": true,
+      "note": "AVClass-bearing object (first member a non-NULL const AVClass *), written for the call: the option's field at its offset (or a child's, with AV_OPT_SEARCH_CHILDREN) is replaced, releasing the owned value it held. Wrapped as opt::ObjectMut (exclusive borrow). Each entry is set as av_opt_set(obj, key, value, 0) sets it, so every value whose parse reaches C UB for av_opt_set is refused before the call."
+     }
+    },
+    {
+     "name": "options",
+     "ptr": {
+      "scalar": {
+       "by_ref": {
+        "owned": true,
+        "borrowed": null
+       }
+      },
+      "array": null,
+      "string": false,
+      "owned": true,
+      "borrowed": null,
+      "nullable": true,
+      "mutable": true,
+      "note": "The caller's dictionary slot (NULL slot: nothing done). Its entries are iterated and set with av_opt_set; on success C av_dict_free's the dictionary and stores a fresh one (AV_DICT_MULTIKEY, NULL when empty) of the entries whose keys no option names, which the caller owns; on failure the slot is unchanged. Wrapped as &mut Dict, handed over with CBox::into_c and taken back with from_c."
+     }
+    }
+   ]
+  },
+  {
+   "name": "av_opt_set_dict2",
+   "defined_in": "libavutil/opt.c",
+   "ptr_args": [
+    {
+     "name": "obj",
+     "ptr": {
+      "scalar": {
+       "by_val": true
+      },
+      "array": null,
+      "string": false,
+      "owned": false,
+      "borrowed": {
+       "lifetime": "arg:obj"
+      },
+      "nullable": false,
+      "mutable": true,
+      "note": "AVClass-bearing object (first member a non-NULL const AVClass *), written for the call: the option's field at its offset (or a child's, with AV_OPT_SEARCH_CHILDREN) is replaced, releasing the owned value it held. Wrapped as opt::ObjectMut (exclusive borrow). Each entry is set as av_opt_set(obj, key, value, search_flags) sets it, so every value whose parse reaches C UB for av_opt_set is refused before the call."
+     }
+    },
+    {
+     "name": "options",
+     "ptr": {
+      "scalar": {
+       "by_ref": {
+        "owned": true,
+        "borrowed": null
+       }
+      },
+      "array": null,
+      "string": false,
+      "owned": true,
+      "borrowed": null,
+      "nullable": true,
+      "mutable": true,
+      "note": "The caller's dictionary slot (NULL slot: nothing done). Its entries are iterated and set with av_opt_set; on success C av_dict_free's the dictionary and stores a fresh one (AV_DICT_MULTIKEY, NULL when empty) of the entries whose keys no option names, which the caller owns; on failure the slot is unchanged. Wrapped as &mut Dict, handed over with CBox::into_c and taken back with from_c."
+     }
+    }
+   ]
+  },
+  {
+   "name": "av_opt_set_dict_val",
+   "defined_in": "libavutil/opt.c",
+   "ptr_args": [
+    {
+     "name": "name",
+     "ptr": {
+      "scalar": null,
+      "array": null,
+      "string": true,
+      "owned": false,
+      "borrowed": {
+       "lifetime": "arg:name"
+      },
+      "nullable": false,
+      "mutable": false,
+      "note": "Option name, compared with strcmp during the call only. Must not be NULL."
+     }
+    },
+    {
+     "name": "obj",
+     "ptr": {
+      "scalar": {
+       "by_val": true
+      },
+      "array": null,
+      "string": false,
+      "owned": false,
+      "borrowed": {
+       "lifetime": "arg:obj"
+      },
+      "nullable": false,
+      "mutable": true,
+      "note": "AVClass-bearing object (first member a non-NULL const AVClass *), written for the call: the option's field at its offset (or a child's, with AV_OPT_SEARCH_CHILDREN) is replaced, releasing the owned value it held. Wrapped as opt::ObjectMut (exclusive borrow). The DICT field's dictionary is av_dict_free'd, then av_dict_copy(dst, val, 0) fills it: on ENOMEM the partial copy stays in the field."
+     }
+    },
+    {
+     "name": "val",
+     "ptr": {
+      "scalar": {
+       "by_val": true
+      },
+      "array": null,
+      "string": false,
+      "owned": false,
+      "borrowed": {
+       "lifetime": "arg:val"
+      },
+      "nullable": true,
+      "mutable": false,
+      "note": "Source dictionary, iterated read-only for the call and copied with flags 0 (a key equal to an earlier one, case-insensitively, overwrites it); NULL copies nothing. The caller keeps ownership; must not be the object's own dictionary. Wrapped as Option<DictionaryRef>."
      }
     }
    ]
@@ -7526,6 +7773,158 @@
    ]
   },
   {
+   "name": "av_opt_set_pixel_fmt",
+   "defined_in": "libavutil/opt.c",
+   "ptr_args": [
+    {
+     "name": "name",
+     "ptr": {
+      "scalar": null,
+      "array": null,
+      "string": true,
+      "owned": false,
+      "borrowed": {
+       "lifetime": "arg:name"
+      },
+      "nullable": false,
+      "mutable": false,
+      "note": "Option name, compared with strcmp during the call only. Must not be NULL."
+     }
+    },
+    {
+     "name": "obj",
+     "ptr": {
+      "scalar": {
+       "by_val": true
+      },
+      "array": null,
+      "string": false,
+      "owned": false,
+      "borrowed": {
+       "lifetime": "arg:obj"
+      },
+      "nullable": false,
+      "mutable": true,
+      "note": "AVClass-bearing object (first member a non-NULL const AVClass *), written for the call: the option's field at its offset (or a child's, with AV_OPT_SEARCH_CHILDREN) is replaced, releasing the owned value it held. Wrapped as opt::ObjectMut (exclusive borrow). opt_set_init requires AV_OPT_TYPE_PIXEL_FMT; on a mismatching array option its error log reads opt_type_desc[o->type] out of bounds, so the wrapper refuses array options of another type (type_refusal). set_format converts the option's double bounds to int (object contract keeps them in range)."
+     }
+    }
+   ]
+  },
+  {
+   "name": "av_opt_set_q",
+   "defined_in": "libavutil/opt.c",
+   "ptr_args": [
+    {
+     "name": "name",
+     "ptr": {
+      "scalar": null,
+      "array": null,
+      "string": true,
+      "owned": false,
+      "borrowed": {
+       "lifetime": "arg:name"
+      },
+      "nullable": false,
+      "mutable": false,
+      "note": "Option name, compared with strcmp during the call only. Must not be NULL."
+     }
+    },
+    {
+     "name": "obj",
+     "ptr": {
+      "scalar": {
+       "by_val": true
+      },
+      "array": null,
+      "string": false,
+      "owned": false,
+      "borrowed": {
+       "lifetime": "arg:obj"
+      },
+      "nullable": false,
+      "mutable": true,
+      "note": "AVClass-bearing object (first member a non-NULL const AVClass *), written for the call: the option's field at its offset (or a child's, with AV_OPT_SEARCH_CHILDREN) is replaced, releasing the owned value it held. Wrapped as opt::ObjectMut (exclusive borrow). On an array option C's write_number stores the scalar over the array pointer (invalid free later): ObjectMut::set_rational refuses arrays with AVERROR(EINVAL). An int pair converts without UB into every scalar type."
+     }
+    }
+   ]
+  },
+  {
+   "name": "av_opt_set_sample_fmt",
+   "defined_in": "libavutil/opt.c",
+   "ptr_args": [
+    {
+     "name": "name",
+     "ptr": {
+      "scalar": null,
+      "array": null,
+      "string": true,
+      "owned": false,
+      "borrowed": {
+       "lifetime": "arg:name"
+      },
+      "nullable": false,
+      "mutable": false,
+      "note": "Option name, compared with strcmp during the call only. Must not be NULL."
+     }
+    },
+    {
+     "name": "obj",
+     "ptr": {
+      "scalar": {
+       "by_val": true
+      },
+      "array": null,
+      "string": false,
+      "owned": false,
+      "borrowed": {
+       "lifetime": "arg:obj"
+      },
+      "nullable": false,
+      "mutable": true,
+      "note": "AVClass-bearing object (first member a non-NULL const AVClass *), written for the call: the option's field at its offset (or a child's, with AV_OPT_SEARCH_CHILDREN) is replaced, releasing the owned value it held. Wrapped as opt::ObjectMut (exclusive borrow). opt_set_init requires AV_OPT_TYPE_SAMPLE_FMT; on a mismatching array option its error log reads opt_type_desc[o->type] out of bounds, so the wrapper refuses array options of another type (type_refusal). set_format converts the option's double bounds to int (object contract keeps them in range)."
+     }
+    }
+   ]
+  },
+  {
+   "name": "av_opt_set_video_rate",
+   "defined_in": "libavutil/opt.c",
+   "ptr_args": [
+    {
+     "name": "name",
+     "ptr": {
+      "scalar": null,
+      "array": null,
+      "string": true,
+      "owned": false,
+      "borrowed": {
+       "lifetime": "arg:name"
+      },
+      "nullable": false,
+      "mutable": false,
+      "note": "Option name, compared with strcmp during the call only. Must not be NULL."
+     }
+    },
+    {
+     "name": "obj",
+     "ptr": {
+      "scalar": {
+       "by_val": true
+      },
+      "array": null,
+      "string": false,
+      "owned": false,
+      "borrowed": {
+       "lifetime": "arg:obj"
+      },
+      "nullable": false,
+      "mutable": true,
+      "note": "AVClass-bearing object (first member a non-NULL const AVClass *), written for the call: the option's field at its offset (or a child's, with AV_OPT_SEARCH_CHILDREN) is replaced, releasing the owned value it held. Wrapped as opt::ObjectMut (exclusive borrow). opt_set_init requires AV_OPT_TYPE_VIDEO_RATE; on a mismatching array option its error log reads opt_type_desc[o->type] out of bounds, so the wrapper refuses array options of another type (type_refusal). set_format converts the option's double bounds to int (object contract keeps them in range)."
+     }
+    }
+   ]
+  },
+  {
    "name": "av_opt_show2",
    "defined_in": "libavutil/opt.c",
    "ptr_args": [
@@ -7663,6 +8062,61 @@
    ]
   },
   {
+   "name": "av_parse_ratio",
+   "defined_in": "libavutil/parseutils.c",
+   "ptr_args": [
+    {
+     "name": "log_ctx",
+     "ptr": {
+      "scalar": {
+       "by_val": true
+      },
+      "array": null,
+      "string": false,
+      "owned": false,
+      "borrowed": {
+       "lifetime": "arg:log_ctx"
+      },
+      "nullable": true,
+      "mutable": false,
+      "note": "Parent logging context of the evaluator's Eval context, used for the call only; NULL for none. Wrapped as Option<opt::ObjectRef>."
+     }
+    },
+    {
+     "name": "q",
+     "ptr": {
+      "scalar": {
+       "by_val": true
+      },
+      "array": null,
+      "string": false,
+      "owned": false,
+      "borrowed": {
+       "lifetime": "arg:q"
+      },
+      "nullable": false,
+      "mutable": true,
+      "note": "Out-parameter, written (sscanf stores the parts it reads even on failure) and never read as input; returned by value as Rational on success."
+     }
+    },
+    {
+     "name": "str",
+     "ptr": {
+      "scalar": null,
+      "array": null,
+      "string": true,
+      "owned": false,
+      "borrowed": {
+       "lifetime": "arg:str"
+      },
+      "nullable": false,
+      "mutable": false,
+      "note": "Ratio string read for the call: num:den via sscanf %d:%d%c, else evaluated with av_expr_parse_and_eval (the evaluator's UB-prone builtins are refused with eval::refuses). A negative max makes av_reduce/av_d2q overflow: refused."
+     }
+    }
+   ]
+  },
+  {
    "name": "av_parse_time",
    "defined_in": "libavutil/parseutils.c",
    "ptr_args": [
@@ -7696,6 +8150,44 @@
       "nullable": false,
       "mutable": true,
       "note": "Out-parameter, never read: INT64_MIN is stored first, then the parsed microseconds on success (so failure leaves INT64_MIN). Must not be NULL. The Rust wrappers return the value only on success."
+     }
+    }
+   ]
+  },
+  {
+   "name": "av_parse_video_rate",
+   "defined_in": "libavutil/parseutils.c",
+   "ptr_args": [
+    {
+     "name": "arg",
+     "ptr": {
+      "scalar": null,
+      "array": null,
+      "string": true,
+      "owned": false,
+      "borrowed": {
+       "lifetime": "arg:arg"
+      },
+      "nullable": false,
+      "mutable": false,
+      "note": "Rate string read for the call: an abbreviation, or av_parse_ratio_quiet (AV_LOG_MAX_OFFSET, no context), whose expression is screened with eval::refuses."
+     }
+    },
+    {
+     "name": "rate",
+     "ptr": {
+      "scalar": {
+       "by_val": true
+      },
+      "array": null,
+      "string": false,
+      "owned": false,
+      "borrowed": {
+       "lifetime": "arg:rate"
+      },
+      "nullable": false,
+      "mutable": true,
+      "note": "Out-parameter, written on success (and partially by sscanf on failure); returned by value as Rational."
      }
     }
    ]
@@ -8720,6 +9212,73 @@
    ]
   },
   {
+   "name": "av_small_strptime",
+   "defined_in": "libavutil/parseutils.c",
+   "ptr_args": [
+    {
+     "name": "dt",
+     "ptr": {
+      "scalar": {
+       "by_val": true
+      },
+      "array": null,
+      "string": false,
+      "owned": false,
+      "borrowed": {
+       "lifetime": "arg:dt"
+      },
+      "nullable": false,
+      "mutable": true,
+      "note": "struct tm whose integer fields named by the format are written (also before a later mismatch); tm_zone untouched. Wrapped as bprint::TmMut."
+     }
+    },
+    {
+     "name": "fmt",
+     "ptr": {
+      "scalar": null,
+      "array": null,
+      "string": true,
+      "owned": false,
+      "borrowed": {
+       "lifetime": "arg:fmt"
+      },
+      "nullable": false,
+      "mutable": false,
+      "note": "Format string, read for the call; a trailing % reads the NUL and fails before reading further."
+     }
+    },
+    {
+     "name": "p",
+     "ptr": {
+      "scalar": null,
+      "array": null,
+      "string": true,
+      "owned": false,
+      "borrowed": {
+       "lifetime": "arg:p"
+      },
+      "nullable": false,
+      "mutable": false,
+      "note": "Input string, read up to its NUL at most; the returned pointer points into it."
+     }
+    }
+   ],
+   "ptr_ret": {
+    "ptr": {
+     "scalar": null,
+     "array": null,
+     "string": true,
+     "owned": false,
+     "borrowed": {
+      "lifetime": "arg:p"
+     },
+     "nullable": true,
+     "mutable": false,
+     "note": "NULL on mismatch, else a suffix of p (first unread byte or its NUL), borrowed from p: Option<&'s CStr>."
+    }
+   }
+  },
+  {
    "name": "av_sscanf",
    "defined_in": "libavutil/avsscanf.c",
    "ptr_args": [
@@ -9490,6 +10049,29 @@
   {
    "name": "av_sub_q",
    "defined_in": "libavutil/rational.c"
+  },
+  {
+   "name": "av_timegm",
+   "defined_in": "libavutil/parseutils.c",
+   "ptr_args": [
+    {
+     "name": "tm",
+     "ptr": {
+      "scalar": {
+       "by_val": true
+      },
+      "array": null,
+      "string": false,
+      "owned": false,
+      "borrowed": {
+       "lifetime": "arg:tm"
+      },
+      "nullable": false,
+      "mutable": false,
+      "note": "Read only (despite the non-const parameter): year, month, day, hour, minute, second, combined in unchecked int arithmetic that overflows for |year| beyond ~5.8M or large time fields (UBSan parseutils.c:577/585/587); the wrapper mirrors it with checked ops and returns None. Wrapped as bprint::TmRef."
+     }
+    }
+   ]
   },
   {
    "name": "av_tolower",

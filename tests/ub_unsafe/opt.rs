@@ -1527,3 +1527,370 @@ mod previewed_values {
         }
     }
 }
+
+/// Options wave 1, batch 1: the typed setters, array editors and dictionary
+/// appliers on objects adopted with `ObjectMut::from_ptr` within its
+/// contract (a live object of a well-formed class, accessed through the one
+/// handle): the unsafe adoption is the only way to an object with options,
+/// so these paths of its contract are exercised here, as wave 0's setters
+/// are. Every setter on every option of both fixture classes, values of
+/// every element type at every array position, the values C would turn into
+/// undefined behaviour, Rust-owned layouts and dictionaries reborrowed and
+/// dropped after C copied them, dictionaries handed to C and back, and
+/// distinct objects on many threads; every option is read back after each
+/// round, and the objects are freed by C.
+mod typed_setters {
+    use core::ffi::{CStr, c_void};
+    use std::ffi::CString;
+
+    use ffmpeg::libavutil::channel_layout::{ChannelCustom, ChannelLayout};
+    use ffmpeg::libavutil::dict::Dict;
+    use ffmpeg::libavutil::ffi;
+    use ffmpeg::libavutil::opt::{ObjectMut, ObjectRef, SearchFlags};
+    use ffmpeg::libavutil::pixfmt::PixelFormat;
+    use ffmpeg::libavutil::rational::Rational;
+    use ffmpeg::libavutil::samplefmt::SampleFormat;
+
+    use super::fixture::{ARRAYS_NAMES, OBJ_OPTIONS, Owned, OwnedArrays};
+
+    const EINVAL: i32 = -22;
+    const ERANGE: i32 = -34;
+
+    fn under_bsan() -> bool {
+        std::env::var("CRUSTIFY_FFMPEG_VARIANT").as_deref() == Ok("bsan")
+    }
+
+    /// The exclusive handle of the object at `obj`.
+    fn exclusive<'a>(obj: *mut c_void) -> ObjectMut<'a> {
+        // SAFETY: every caller passes a live fixture object of a well-formed
+        // class, accessed through no other handle while this one lives.
+        unsafe { ObjectMut::from_ptr(obj) }.unwrap()
+    }
+
+    /// Reads every option of `names` through the getters, children included.
+    fn read_all(r: ObjectRef<'_>, names: &[&CStr]) {
+        for &n in names {
+            for f in [SearchFlags::NONE, SearchFlags::CHILDREN] {
+                let _ = r.get(n, f);
+                let _ = r.get_nullable(n, f);
+                let _ = r.get_array_size(n, f);
+                let _ = r.is_set_to_default(n, f);
+            }
+        }
+    }
+
+    fn obj_names() -> Vec<&'static CStr> {
+        OBJ_OPTIONS.0[..OBJ_OPTIONS.0.len() - 1]
+            .iter()
+            // SAFETY: every name of the static table is a literal.
+            .map(|o| unsafe { CStr::from_ptr(o.name) })
+            .chain([c"missing"])
+            .collect()
+    }
+
+    /// A custom layout whose first name fills its field without a NUL.
+    fn unterminated() -> ffmpeg::libavutil::channel_layout::ChannelLayoutVal {
+        let mut l = ChannelLayout::custom(1).unwrap();
+        let mut map = l.as_mut().into_custom_map_mut().unwrap();
+        map.get_mut(0)
+            .unwrap()
+            .set(ChannelCustom::from_raw(ffi::AVChannelCustom {
+                id: ffi::AVChannel::AV_CHAN_FRONT_LEFT,
+                name: [b'n' as core::ffi::c_char; 16],
+                opaque: core::ptr::null_mut(),
+            }));
+        l
+    }
+
+    #[test]
+    fn every_typed_setter_on_every_option() {
+        let o = Owned::with_child();
+        let names = obj_names();
+        let layouts = [
+            ChannelLayout::parse(c"5.1").unwrap(),
+            ChannelLayout::parse(c"FL@front-left+FR").unwrap(),
+            ChannelLayout::unspecified(3),
+            ChannelLayout::parse(c"ambisonic 1").unwrap(),
+        ];
+        let bad = unterminated();
+        let dict = Dict::from_entries([(c"k", c"v"), (c"K", c"w")]).unwrap();
+        let mut m = exclusive(o.as_obj());
+        for round in 0..2 {
+            for &name in &names {
+                for f in [SearchFlags::NONE, SearchFlags::CHILDREN] {
+                    for q in [(1, 2), (1, 0), (0, 0), (i32::MIN, -1), (i32::MAX, i32::MIN)] {
+                        let _ = m.set_rational(name, Rational::new(q.0, q.1), f);
+                        let _ = m.set_video_rate(name, Rational::new(q.0, q.1), f);
+                    }
+                    for p in [-2, -1, 0, 3, 1000, i32::MAX, i32::MIN] {
+                        let _ = m.set_pixel_format(
+                            name,
+                            PixelFormat::from_raw(ffi::AVPixelFormat(p)),
+                            f,
+                        );
+                        let _ = m.set_sample_format(
+                            name,
+                            SampleFormat::from_raw(ffi::AVSampleFormat(p)),
+                            f,
+                        );
+                    }
+                    for l in &layouts {
+                        let _ = m.set_channel_layout(name, l.as_ref(), f);
+                    }
+                    assert!(m.set_channel_layout(name, bad.as_ref(), f).is_err());
+                    let _ = m.set_dictionary(name, dict.as_ref(), f);
+                    if round == 1 {
+                        let _ = m.set_dictionary(name, None, f);
+                    }
+                }
+            }
+            read_all(m.as_ref(), &names);
+        }
+        // Array options refuse every typed scalar store.
+        for name in [c"array", c"strings", c"empty"] {
+            let f = SearchFlags::NONE;
+            assert_eq!(m.set_rational(name, Rational::new(1, 2), f), Err(EINVAL));
+            assert_eq!(m.set_video_rate(name, Rational::new(1, 2), f), Err(EINVAL));
+            assert_eq!(m.set_pixel_format(name, PixelFormat::NONE, f), Err(EINVAL));
+            assert_eq!(
+                m.set_sample_format(name, SampleFormat::NONE, f),
+                Err(EINVAL)
+            );
+            assert_eq!(
+                m.set_channel_layout(name, layouts[0].as_ref(), f),
+                Err(EINVAL)
+            );
+            assert_eq!(m.set_dictionary(name, None, f), Err(EINVAL));
+        }
+        m.free_options();
+        read_all(m.as_ref(), &names);
+    }
+
+    /// Exactly sized heap copies of `strs`, and borrows of them.
+    fn exact(strs: &[&[u8]]) -> Vec<Box<CStr>> {
+        strs.iter()
+            .map(|s| CString::new(*s).unwrap().into_boxed_c_str())
+            .collect()
+    }
+
+    #[test]
+    fn every_array_edit_of_every_value_type() {
+        let o = OwnedArrays::with_child();
+        let strings = exact(&[
+            b"3", b"1/2", b"red", b"5.1", b"a=1:b=2", b"640x480", b"", b"1:02.5",
+        ]);
+        let strs: Vec<&CStr> = strings.iter().map(|s| &**s).collect();
+        let opt_strs: Vec<Option<&CStr>> = strs.iter().map(|&s| Some(s)).chain([None]).collect();
+        let layouts = [
+            ChannelLayout::parse(c"stereo").unwrap(),
+            ChannelLayout::parse(c"FL@x+FR@y").unwrap(),
+        ];
+        let layout_refs: Vec<_> = layouts.iter().map(|l| l.as_ref()).collect();
+        let dicts = [Dict::from_entries([(c"a", c"1")]).unwrap(), Dict::new()];
+        let dict_refs: Vec<_> = dicts.iter().map(Dict::as_ref).collect();
+        let qs = [
+            Rational::new(1, 3),
+            Rational::new(1, 0),
+            Rational::new(i32::MIN, -1),
+        ];
+        let pix = [
+            PixelFormat::NONE,
+            PixelFormat::from_raw(ffi::AVPixelFormat(3)),
+        ];
+        let samples = [
+            SampleFormat::S16,
+            SampleFormat::from_raw(ffi::AVSampleFormat(-7)),
+        ];
+        let mut m = exclusive(o.as_obj());
+        let rounds = if under_bsan() { 1 } else { 3 };
+        for _ in 0..rounds {
+            for name in ARRAYS_NAMES {
+                for f in [SearchFlags::NONE, SearchFlags::CHILDREN] {
+                    for start in [0, 1, 3, 7, u32::MAX as usize, usize::MAX] {
+                        macro_rules! both {
+                            ($v:expr) => {{
+                                let _ = m.insert_array(name, start, $v, f);
+                                let _ = m.replace_array(name, start, $v, f);
+                            }};
+                        }
+                        // String elements parse through C's evaluator, whose
+                        // `av_strtod` BSan misreports (see `objects`).
+                        if !under_bsan() {
+                            both!(&strs[..]);
+                            both!(&opt_strs[..]);
+                        }
+                        both!(&[5i32, -3, i32::MIN]);
+                        both!(&[1i64 << 40, 9]);
+                        both!(&[7u32, u32::MAX]);
+                        both!(&[u64::MAX]);
+                        both!(&[0.5f32, f32::INFINITY]);
+                        both!(&[2.5f64, -1e300]);
+                        both!(&qs);
+                        both!(&pix);
+                        both!(&samples);
+                        both!(&[(640, 480), (-1, i32::MAX)]);
+                        both!(&[[1u8, 2, 3, 4]]);
+                        both!(&layout_refs[..]);
+                        both!(&dict_refs[..]);
+                        let _ = m.remove_array(name, start, 1, f);
+                        let _ = m.remove_array(name, 0, start, f);
+                    }
+                }
+            }
+            read_all(m.as_ref(), &ARRAYS_NAMES);
+        }
+        // Values C would convert with undefined behaviour, and the binary
+        // array C overruns, are refused.
+        let f = SearchFlags::NONE;
+        assert_eq!(m.insert_array(c"qs", 0, &[f64::NAN], f), Err(ERANGE));
+        assert_eq!(m.insert_array(c"rates", 0, &[f32::NAN], f), Err(ERANGE));
+        assert_eq!(m.insert_array(c"wide_qs", 0, &[1e10], f), Err(ERANGE));
+        assert_eq!(m.replace_array(c"wide_qs", 0, &[i64::MAX], f), Err(ERANGE));
+        assert_eq!(m.insert_array(c"bins", 0, &[c"0a0b"], f), Err(EINVAL));
+        assert_eq!(m.insert_array(c"bins", 0, &[None::<&CStr>], f), Err(EINVAL));
+        assert_eq!(
+            m.insert_array(c"layouts", 0, &[unterminated().as_ref()], f),
+            Err(EINVAL)
+        );
+        if !under_bsan() {
+            assert_eq!(m.insert_array(c"dbls", 0, &[c"ld(1e300)"], f), Err(EINVAL));
+            assert_eq!(m.insert_array(c"colors", 0, &[c"red@nan"], f), Err(EINVAL));
+            assert_eq!(m.set(c"bins", c"0a,0b", f), Err(EINVAL));
+        }
+        // SAFETY: a raw read of the live object, while only `m` is live.
+        assert_eq!(unsafe { (*o.ptr()).bins.len }, 0);
+        m.free_options();
+        read_all(m.as_ref(), &ARRAYS_NAMES);
+    }
+
+    /// C copies each borrowed layout and dictionary: the Rust values are
+    /// reborrowed, rewritten and dropped afterwards without touching what
+    /// the object holds, which is read and freed by C. On zeroed objects,
+    /// with no string parses, so that BorrowSanitizer runs it without C's
+    /// evaluator (whose `av_strtod` end pointers it misreports).
+    #[test]
+    fn borrowed_values_across_reborrows() {
+        let o = OwnedArrays::zeroed_with_child();
+        let s = Owned::zeroed_with_child();
+        for round in 0..3 {
+            let mut layouts = [
+                ChannelLayout::parse(c"FL@abc+FR@def+LFE").unwrap(),
+                ChannelLayout::parse(c"7.1").unwrap(),
+            ];
+            let mut dicts = [
+                Dict::from_entries([(c"key", c"value")]).unwrap(),
+                Dict::new(),
+            ];
+            {
+                let mut m = exclusive(o.as_obj());
+                let refs: Vec<_> = layouts.iter().map(|l| l.as_ref()).collect();
+                m.insert_array(c"layouts", 0, &refs, SearchFlags::NONE)
+                    .unwrap();
+                m.replace_array(c"layouts", 1, &refs[..1], SearchFlags::NONE)
+                    .unwrap();
+                m.insert_array(c"layouts", 0, &refs, SearchFlags::CHILDREN)
+                    .unwrap();
+                let drefs: Vec<_> = dicts.iter().map(Dict::as_ref).collect();
+                m.insert_array(c"dicts", 0, &drefs, SearchFlags::NONE)
+                    .unwrap();
+                let mut scalar = exclusive(s.as_obj());
+                scalar
+                    .set_channel_layout(c"layout", layouts[0].as_ref(), SearchFlags::CHILDREN)
+                    .unwrap();
+                scalar
+                    .set_dictionary(c"dict", dicts[0].as_ref(), SearchFlags::NONE)
+                    .unwrap();
+            }
+            // The Rust values change and drop; the objects keep their copies.
+            layouts[0].as_mut().set_native(1 << 2);
+            dicts[0] = Dict::new();
+            drop(layouts);
+            drop(dicts);
+            let m = exclusive(o.as_obj());
+            let got = m.as_ref().get(c"layouts", SearchFlags::NONE).unwrap();
+            assert!(
+                got.as_bytes()
+                    .starts_with(b"3 channels (FL@abc+FR@def+LFE)|"),
+                "{round}"
+            );
+            let scalar = exclusive(s.as_obj());
+            let got = scalar
+                .as_ref()
+                .get(c"layout", SearchFlags::CHILDREN)
+                .unwrap();
+            assert_eq!(got.as_bytes(), b"3 channels (FL@abc+FR@def+LFE)");
+            assert_eq!(
+                scalar
+                    .as_ref()
+                    .get(c"dict", SearchFlags::NONE)
+                    .unwrap()
+                    .as_bytes(),
+                b"key=value"
+            );
+            let mut m = m;
+            m.remove_array(c"layouts", 0, 1, SearchFlags::NONE).unwrap();
+        }
+    }
+
+    /// Dictionaries handed to C and taken back: the leftovers are owned
+    /// again, a failure leaves the dictionary as it was, and every block is
+    /// freed once (LeakSanitizer).
+    #[test]
+    fn dictionaries_handed_over_and_back() {
+        if under_bsan() {
+            return;
+        }
+        let o = Owned::with_child();
+        let mut m = exclusive(o.as_obj());
+        for round in 0..20 {
+            let mut d = Dict::from_entries([
+                (c"int", c"5"),
+                (c"string", c"text"),
+                (c"nosuch", c"1"),
+                (c"layout", c"quad"),
+                (c"strings", c"x|y"),
+                (c"dict", c"a=1"),
+            ])
+            .unwrap();
+            if round % 2 == 0 {
+                m.set_from_dict(&mut d).unwrap();
+            } else {
+                m.set_from_dict_with(&mut d, SearchFlags::CHILDREN).unwrap();
+            }
+            assert!(d.as_ref().is_some());
+            // C's own failure (out of range) and a refused value.
+            let mut bad = Dict::from_entries([(c"int", c"1000"), (c"other", c"x")]).unwrap();
+            assert_eq!(m.set_from_dict(&mut bad), Err(ERANGE));
+            let mut refused = Dict::from_entries([(c"dbl", c"ld(1e300)")]).unwrap();
+            assert_eq!(m.set_from_dict(&mut refused), Err(EINVAL));
+            drop((d, bad, refused));
+            read_all(m.as_ref(), &obj_names());
+        }
+    }
+
+    #[test]
+    fn distinct_objects_on_many_threads() {
+        std::thread::scope(|s| {
+            for t in 0..4 {
+                s.spawn(move || {
+                    let o = OwnedArrays::with_child();
+                    let layout = ChannelLayout::parse(c"FL@a+FR@b").unwrap();
+                    let dict = Dict::from_entries([(c"k", c"v")]).unwrap();
+                    let mut m = exclusive(o.as_obj());
+                    for i in 0..50 {
+                        let f = if (i + t) % 2 == 0 {
+                            SearchFlags::NONE
+                        } else {
+                            SearchFlags::CHILDREN
+                        };
+                        let _ = m.insert_array(c"layouts", i % 3, &[layout.as_ref()], f);
+                        let _ = m.insert_array(c"dicts", 0, &[dict.as_ref()], f);
+                        let _ = m.replace_array(c"qs", 0, &[Rational::new(i as i32, 7)], f);
+                        let _ = m.remove_array(c"layouts", 0, 1, f);
+                    }
+                    read_all(m.as_ref(), &ARRAYS_NAMES);
+                });
+            }
+        });
+    }
+}

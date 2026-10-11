@@ -34,13 +34,15 @@
 //! An `AVOptions`-enabled object, the `void *obj` the `av_opt_*` routines
 //! read and write, is borrowed as an [`ObjectRef`] (getters: values by name,
 //! formatted or numeric, serialization, children) or an [`ObjectMut`]
-//! (setters: parsed or typed values, defaults, key-value strings, copies,
-//! freeing). The objects themselves are wrapped by later layers; until then
-//! a handle is adopted from a raw pointer under [`ObjectRef`]'s contract.
-//! The typed getters read a value as a [`Rational`], a [`PixelFormat`], a
-//! [`SampleFormat`], a copied [`ChannelLayoutVal`] or [`Dict`], and an array
-//! option's elements as any [`ArrayElement`]; [`ClassRef::potential_children`]
-//! lists the classes of the children an object of a class may have.
+//! (setters: parsed or typed values, defaults, key-value strings and
+//! dictionaries, array edits, copies, freeing). The objects themselves are
+//! wrapped by later layers; until then a handle is adopted from a raw
+//! pointer under [`ObjectRef`]'s contract. The typed getters read a value
+//! as a [`Rational`], a [`PixelFormat`], a [`SampleFormat`], a copied
+//! [`ChannelLayoutVal`] or [`Dict`], and an array option's elements as any
+//! [`ArrayElement`]; array edits store values of any [`ArrayInput`] type;
+//! [`ClassRef::potential_children`] lists the classes of the children an
+//! object of a class may have.
 //! Several C setters and getters reach undefined behaviour for some values
 //! (unchecked `double` to integer conversions, a scalar store over an array,
 //! an out-of-bounds type name lookup); the wrappers refuse those values
@@ -61,8 +63,8 @@ use std::ffi::CString;
 
 use ffibox::{CBox, CDrop, CSlice, CZeroable, define_ctype};
 
-use super::channel_layout::{ChannelLayout, ChannelLayoutVal};
-use super::dict::{Dict, DictionaryBox};
+use super::channel_layout::{ChannelLayout, ChannelLayoutRef, ChannelLayoutVal};
+use super::dict::{Dict, DictionaryBox, DictionaryRef};
 use super::ffi;
 use super::log::{ClassRef, ItemNameFn};
 use super::mem::HeapString;
@@ -1725,8 +1727,9 @@ impl<'a> ObjectMut<'a> {
     /// Also, before C runs, for a value whose parse could reach undefined
     /// behaviour in C: `AVERROR(EINVAL)` for an expression that
     /// [`eval::parse_and_eval`] refuses, a color whose alpha reads as NaN
-    /// (`"red@nan"`), or a channel layout of an ambisonic order of exactly
-    /// `INT_MAX`; `AVERROR(ERANGE)` for a `+` / `-` flag operand whose value
+    /// (`"red@nan"`), a channel layout of an ambisonic order of exactly
+    /// `INT_MAX`, or any element of an array of binary elements, whose length
+    /// C writes past each element's pointer; `AVERROR(ERANGE)` for a `+` / `-` flag operand whose value
     /// is NaN or outside the `i64` range (`"+1e30"`), or a rational value in
     /// the option's bounds but outside the `int` range, both of which C
     /// converts unchecked. A refused array element refuses the whole value.
@@ -2120,6 +2123,10 @@ impl ObjectRef<'_> {
         if !ty.is_array() {
             return elem_refusal(target, o, ty, val);
         }
+        if ty.base() == OptionType::BINARY && !val.is_empty() {
+            // C writes each element's length past its pointer.
+            return Ok(Some(EINVAL));
+        }
         let sep = match o.default_value() {
             OptionDefault::Array(Some(def)) => def.separator(),
             _ => b',',
@@ -2188,21 +2195,7 @@ impl ObjectRef<'_> {
         if o.option_type().is_array() {
             return Some(EINVAL);
         }
-        if !matches!(
-            o.option_type(),
-            OptionType::RATIONAL | OptionType::VIDEO_RATE
-        ) {
-            return None;
-        }
-        let value = num * intnum as f64;
-        if o.max() < value || o.min() > value {
-            // C's own `AVERROR(ERANGE)`.
-            return None;
-        }
-        // C tests `(int) num == num`, then converts `num * intnum` to `int`
-        // when it holds.
-        let ub = !fits_int(num) || (num.trunc() == num && !fits_int(value));
-        ub.then_some(ERANGE)
+        write_refusal(o, num, 1, intnum)
     }
 
     /// The error [`ObjectMut::set_bin`] and [`ObjectMut::set_image_size`]
@@ -2292,6 +2285,28 @@ impl ObjectRef<'_> {
         }
         Ok(None)
     }
+}
+
+/// The error a store of `num * intnum / den` (C's `write_number` operands)
+/// into option `o`, or an element of its array, is refused with:
+/// `AVERROR(ERANGE)` for a rational or video rate value within the option's
+/// bounds that C converts to `int` unchecked.
+fn write_refusal(o: OptionDefRef<'_>, num: f64, den: c_int, intnum: i64) -> Option<i32> {
+    if !matches!(
+        o.option_type().base(),
+        OptionType::RATIONAL | OptionType::VIDEO_RATE
+    ) {
+        return None;
+    }
+    let value = num * intnum as f64;
+    if den == 0 || o.max() * f64::from(den) < value || o.min() * f64::from(den) > value {
+        // C's own `AVERROR(ERANGE)`.
+        return None;
+    }
+    // C tests `(int) num == num`, then converts `num * intnum` to `int`
+    // when it holds.
+    let ub = !fits_int(num) || (num.trunc() == num && !fits_int(value));
+    ub.then_some(ERANGE)
 }
 
 /// `s` without its first byte, which is not its NUL.
@@ -2997,6 +3012,667 @@ impl<'a> Iterator for PotentialChildren<'a> {
 }
 
 impl core::iter::FusedIterator for PotentialChildren<'_> {}
+
+// Options wave 1, batch 1: the typed setters (rationals, video rates, pixel
+// and sample formats, channel layouts, dictionaries), the array editor and
+// the dictionary appliers.
+
+/// Typed setters, array edits and dictionary appliers.
+impl ObjectMut<'_> {
+    /// Wraps: av_opt_set_q
+    ///
+    /// Stores `val` in numeric option `name`, converted to its type: kept as
+    /// is in a rational or video rate, its quotient (rounded to nearest for
+    /// an integer) in the other types.
+    ///
+    /// # Errors
+    ///
+    /// `AVERROR_OPTION_NOT_FOUND` for no such option, `AVERROR(EINVAL)` for a
+    /// read-only option, a non-numeric one, or a non-runtime option of an
+    /// initialized object, `AVERROR(ERANGE)` (logged) for a value out of the
+    /// option's range (a zero denominator is out of every range but a flags
+    /// option's) or not a valid set of flags. Also, before C runs,
+    /// `AVERROR(EINVAL)` for an array option, which C would overwrite as a
+    /// scalar.
+    pub fn set_rational(
+        &mut self,
+        name: &CStr,
+        val: Rational,
+        flags: SearchFlags,
+    ) -> Result<(), i32> {
+        // A rational's parts are `int`s, so only the array store is refused.
+        if let Some(err) = self.as_ref().number_refusal(name, 1.0, 1, flags.0) {
+            return Err(err);
+        }
+        let obj = self.as_mut_ptr();
+        // SAFETY: as for `set`; the check above refused an array option, and
+        // every conversion C makes of an `int` pair is defined.
+        let ret = unsafe { ffi::av_opt_set_q(obj, name.as_ptr(), val.into_raw(), flags.0) };
+        if ret < 0 { Err(ret) } else { Ok(()) }
+    }
+
+    /// Wraps: av_opt_set_video_rate
+    ///
+    /// Stores `val`, as is, in video rate option `name`.
+    ///
+    /// # Errors
+    ///
+    /// As [`set_bin`](Self::set_bin), and `AVERROR(ERANGE)` (logged) for a
+    /// rate out of the option's range or with a zero denominator.
+    pub fn set_video_rate(
+        &mut self,
+        name: &CStr,
+        val: Rational,
+        flags: SearchFlags,
+    ) -> Result<(), i32> {
+        if let Some(err) = self
+            .as_ref()
+            .type_refusal(name, OptionType::VIDEO_RATE, flags.0)
+        {
+            return Err(err);
+        }
+        let (obj, val) = (self.as_mut_ptr(), val.into_raw());
+        // SAFETY: as for `set_bin`; C stores the `int` pair as is.
+        let ret = unsafe { ffi::av_opt_set_video_rate(obj, name.as_ptr(), val, flags.0) };
+        if ret < 0 { Err(ret) } else { Ok(()) }
+    }
+
+    /// Wraps: av_opt_set_pixel_fmt
+    ///
+    /// Stores `fmt` in pixel format option `name`.
+    ///
+    /// # Errors
+    ///
+    /// As [`set_bin`](Self::set_bin), and `AVERROR(ERANGE)` (logged) for a
+    /// format outside the option's range or the formats this libavutil
+    /// knows ([`PixelFormat::NONE`] is in range when the option's minimum
+    /// allows it).
+    pub fn set_pixel_format(
+        &mut self,
+        name: &CStr,
+        fmt: PixelFormat,
+        flags: SearchFlags,
+    ) -> Result<(), i32> {
+        if let Some(err) = self
+            .as_ref()
+            .type_refusal(name, OptionType::PIXEL_FORMAT, flags.0)
+        {
+            return Err(err);
+        }
+        let obj = self.as_mut_ptr();
+        // SAFETY: as for `set_bin`; the contract keeps the option's bounds,
+        // which C converts to `int`, within its range.
+        let ret = unsafe { ffi::av_opt_set_pixel_fmt(obj, name.as_ptr(), fmt.into_raw(), flags.0) };
+        if ret < 0 { Err(ret) } else { Ok(()) }
+    }
+
+    /// Wraps: av_opt_set_sample_fmt
+    ///
+    /// Stores `fmt` in sample format option `name`.
+    ///
+    /// # Errors
+    ///
+    /// As [`set_pixel_format`](Self::set_pixel_format), for sample formats.
+    pub fn set_sample_format(
+        &mut self,
+        name: &CStr,
+        fmt: SampleFormat,
+        flags: SearchFlags,
+    ) -> Result<(), i32> {
+        if let Some(err) = self
+            .as_ref()
+            .type_refusal(name, OptionType::SAMPLE_FORMAT, flags.0)
+        {
+            return Err(err);
+        }
+        let (obj, fmt) = (self.as_mut_ptr(), fmt.into_raw());
+        // SAFETY: as for `set_pixel_format`.
+        let ret = unsafe { ffi::av_opt_set_sample_fmt(obj, name.as_ptr(), fmt, flags.0) };
+        if ret < 0 { Err(ret) } else { Ok(()) }
+    }
+
+    /// Wraps: av_opt_set_chlayout
+    ///
+    /// Stores a copy of `layout` in channel layout option `name`, releasing
+    /// the layout it replaces; `layout` stays the caller's.
+    ///
+    /// # Errors
+    ///
+    /// As [`set_bin`](Self::set_bin), and `AVERROR(ENOMEM)` when the copy of
+    /// a custom map fails. Also, before C runs, `AVERROR(EINVAL)` for a
+    /// layout C's readers of the option cannot read (a custom map name
+    /// without a NUL, which only [`ChannelCustom::from_raw`] builds, or an
+    /// ambisonic count whose order overflows), which [`ObjectRef::get`]
+    /// would later describe.
+    ///
+    /// Beyond C: when the copy of a custom map fails, C leaves the option a
+    /// custom layout without a map, which its readers dereference; it is
+    /// left the empty layout of unspecified order here.
+    ///
+    /// [`ChannelCustom::from_raw`]: super::channel_layout::ChannelCustom::from_raw
+    pub fn set_channel_layout(
+        &mut self,
+        name: &CStr,
+        layout: ChannelLayoutRef<'_>,
+        flags: SearchFlags,
+    ) -> Result<(), i32> {
+        if let Some(err) = self
+            .as_ref()
+            .type_refusal(name, OptionType::CHANNEL_LAYOUT, flags.0)
+        {
+            return Err(err);
+        }
+        layout.describable()?;
+        let obj = self.as_mut_ptr();
+        // SAFETY: as for `set_bin`; `layout` is a live layout every safe path
+        // keeps valid, which C only reads (a custom map is copied), and no
+        // handle to the object's own field exists while `self` borrows it.
+        let ret = unsafe { ffi::av_opt_set_chlayout(obj, name.as_ptr(), layout.as_ptr(), flags.0) };
+        if ret < 0 {
+            self.reset_unmapped_layout(name, flags.0);
+            return Err(ret);
+        }
+        Ok(())
+    }
+
+    /// Resets channel layout option `name` to the zeroed layout
+    /// (unspecified order, no channels) when it is a custom layout without
+    /// a map, as `av_channel_layout_copy` leaves its destination when it
+    /// cannot allocate the map: C's readers would dereference the NULL map.
+    fn reset_unmapped_layout(&mut self, name: &CStr, search_flags: c_int) {
+        let Some(field) = self.as_ref().layout_field(name, search_flags) else {
+            return;
+        };
+        let p = field.as_ptr();
+        // SAFETY: `p` addresses the option's layout in the object or a child,
+        // live for the exclusive borrow; the union member is read as the
+        // pointer C's custom order stores.
+        let (order, map) = unsafe { (addr_of!((*p).order).read(), addr_of!((*p).u.map).read()) };
+        if order == ffi::AVChannelOrder::AV_CHANNEL_ORDER_CUSTOM && map.is_null() {
+            // SAFETY: as above, writable through the exclusive borrow; the
+            // layout owns no map to leak, and all-zero is the empty layout
+            // every reader accepts.
+            unsafe { p.write(core::mem::zeroed()) };
+        }
+    }
+
+    /// Wraps: av_opt_set_dict_val
+    ///
+    /// Stores a copy of `val` in dictionary option `name`, freeing the
+    /// dictionary it replaces; `None` is the empty dictionary. `val` stays
+    /// the caller's. The copy is made with no flags: an entry whose key
+    /// equals an earlier one's, case-insensitively, replaces it.
+    ///
+    /// # Errors
+    ///
+    /// As [`set_bin`](Self::set_bin), and `AVERROR(ENOMEM)`, after which the
+    /// option holds the entries copied so far.
+    pub fn set_dictionary(
+        &mut self,
+        name: &CStr,
+        val: Option<DictionaryRef<'_>>,
+        flags: SearchFlags,
+    ) -> Result<(), i32> {
+        if let Some(err) = self.as_ref().type_refusal(name, OptionType::DICT, flags.0) {
+            return Err(err);
+        }
+        let (obj, val) = (self.as_mut_ptr(), val.map_or(ptr::null(), |d| d.as_ptr()));
+        // SAFETY: as for `set_bin`; `val` is NULL or a live dictionary C only
+        // iterates, distinct from the object's own, which `self` borrows
+        // exclusively.
+        let ret = unsafe { ffi::av_opt_set_dict_val(obj, name.as_ptr(), val, flags.0) };
+        if ret < 0 { Err(ret) } else { Ok(()) }
+    }
+
+    /// Wraps: av_opt_set_array
+    ///
+    /// Inserts `values` into array option `name` before element `start`
+    /// (`start` equal to the array's size appends), shifting the elements
+    /// from `start` on. Each value is converted as the scalar setter of its
+    /// type would: a string is parsed as by [`set`](Self::set) (a string
+    /// array stores a copy of it), an integer, float or rational converted
+    /// as by [`set_int`](Self::set_int), [`set_double`](Self::set_double) or
+    /// [`set_rational`](Self::set_rational), and a value of the array's own
+    /// element type copied (dictionaries and channel layouts deeply). The
+    /// array is left as it was when any value fails.
+    ///
+    /// # Errors
+    ///
+    /// `AVERROR_OPTION_NOT_FOUND` for no such option, `AVERROR(EINVAL)` for
+    /// a read-only option, one that is not an array, a `start` past the
+    /// array's end, a resulting size outside the definition's bounds or not
+    /// below `u32::MAX`, `AVERROR(ENOSYS)` for a value type that does not
+    /// convert to the element type, the error of the first value that does
+    /// not convert or is out of range (logged), `AVERROR(ENOMEM)`.
+    ///
+    /// Also, before C runs: `AVERROR(EINVAL)` for an array of binary
+    /// elements, whose length C writes past each element, and for any value
+    /// the scalar setter of its type refuses ([`set`](Self::set),
+    /// [`set_int`](Self::set_int), [`set_double`](Self::set_double),
+    /// [`set_channel_layout`](Self::set_channel_layout)), with that
+    /// setter's error.
+    pub fn insert_array<T: ArrayInput>(
+        &mut self,
+        name: &CStr,
+        start: usize,
+        values: &[T],
+        flags: SearchFlags,
+    ) -> Result<(), i32> {
+        self.store_array(name, start, values, flags.0)
+    }
+
+    /// Wraps: av_opt_set_array
+    ///
+    /// As [`insert_array`](Self::insert_array), but `values` replace the
+    /// elements from `start` on (`AV_OPT_ARRAY_REPLACE`), whose values are
+    /// released, and extend the array where they run past its end.
+    ///
+    /// # Errors
+    ///
+    /// As [`insert_array`](Self::insert_array).
+    pub fn replace_array<T: ArrayInput>(
+        &mut self,
+        name: &CStr,
+        start: usize,
+        values: &[T],
+        flags: SearchFlags,
+    ) -> Result<(), i32> {
+        self.store_array(name, start, values, flags.0 | ARRAY_REPLACE)
+    }
+
+    /// Wraps: av_opt_set_array
+    ///
+    /// Removes `count` elements of array option `name` from element `start`
+    /// on, releasing their values and shifting the later ones down.
+    ///
+    /// # Errors
+    ///
+    /// `AVERROR_OPTION_NOT_FOUND` for no such option, `AVERROR(EINVAL)` for
+    /// a read-only option, one that is not an array, a range past the
+    /// array's end or a resulting size below the definition's minimum,
+    /// `AVERROR(ENOMEM)`.
+    pub fn remove_array(
+        &mut self,
+        name: &CStr,
+        start: usize,
+        count: usize,
+        flags: SearchFlags,
+    ) -> Result<(), i32> {
+        let start = c_uint::try_from(start).map_err(|_| EINVAL)?;
+        let count = c_uint::try_from(count).map_err(|_| EINVAL)?;
+        let obj = self.as_mut_ptr();
+        let ty = ffi::AVOptionType::AV_OPT_TYPE_INT;
+        // SAFETY: as for `set`; with a NULL `val` C only releases and shifts
+        // elements of the array the object owns, after checking the range
+        // against its count, and ignores `val_type`.
+        let ret = unsafe {
+            ffi::av_opt_set_array(obj, name.as_ptr(), flags.0, start, count, ty, ptr::null())
+        };
+        if ret < 0 { Err(ret) } else { Ok(()) }
+    }
+
+    /// `av_opt_set_array` of `values` with `search_flags`.
+    fn store_array<T: ArrayInput>(
+        &mut self,
+        name: &CStr,
+        start: usize,
+        values: &[T],
+        search_flags: c_int,
+    ) -> Result<(), i32> {
+        let start = c_uint::try_from(start).map_err(|_| EINVAL)?;
+        let count = c_uint::try_from(values.len()).map_err(|_| EINVAL)?;
+        if let Some(err) = self.as_ref().array_refusal(name, values, search_flags)? {
+            return Err(err);
+        }
+        let elems: Vec<T::C> = values.iter().map(|&v| v.to_c()).collect();
+        let (obj, ty) = (self.as_mut_ptr(), T::TYPE.into());
+        // SAFETY: as for `set`, for each element; `elems` holds `count`
+        // values of the C type of `ty`, each live for the call (strings,
+        // dictionaries and channel layout maps borrowed from `values`), which
+        // C only reads; the check above refused binary arrays and every value
+        // whose conversion could reach undefined behaviour.
+        let ret = unsafe {
+            ffi::av_opt_set_array(
+                obj,
+                name.as_ptr(),
+                search_flags,
+                start,
+                count,
+                ty,
+                elems.as_ptr().cast(),
+            )
+        };
+        if ret < 0 { Err(ret) } else { Ok(()) }
+    }
+
+    /// Wraps: av_opt_set_dict
+    ///
+    /// Sets each entry of `options`, in order, as [`set`](Self::set) sets
+    /// its key to its value, on the object itself; on success `options` is
+    /// left holding the entries no option is named by, in order.
+    ///
+    /// # Errors
+    ///
+    /// The error of the first entry that does not set (logged, with
+    /// `AVERROR_OPTION_NOT_FOUND` not counting), after the entries before it
+    /// have been set, or `AVERROR(ENOMEM)`; `options` is left unchanged.
+    /// Also, before C runs, the error of [`set`](Self::set)'s refusal of any
+    /// entry's value, with no entry set.
+    ///
+    /// A color or image size entry that does not parse leaves C's
+    /// uninitialised parse buffer in its option, as C does: the entry C
+    /// stopped at is not known here, so [`set`](Self::set)'s restore does
+    /// not apply.
+    pub fn set_from_dict(&mut self, options: &mut Dict) -> Result<(), i32> {
+        self.apply_dict(options, 0, |obj, slot| {
+            // SAFETY: as for `set`, for each entry; `slot` is the dictionary
+            // slot `apply_dict` hands over.
+            unsafe { ffi::av_opt_set_dict(obj, slot) }
+        })
+    }
+
+    /// Wraps: av_opt_set_dict2
+    ///
+    /// As [`set_from_dict`](Self::set_from_dict), setting each entry with
+    /// `flags` ([`SearchFlags::CHILDREN`] reaches the children's options).
+    ///
+    /// # Errors
+    ///
+    /// As [`set_from_dict`](Self::set_from_dict).
+    pub fn set_from_dict_with(
+        &mut self,
+        options: &mut Dict,
+        flags: SearchFlags,
+    ) -> Result<(), i32> {
+        self.apply_dict(options, flags.0, |obj, slot| {
+            // SAFETY: as for `set_from_dict`; no FAKE_OBJ flag reaches C.
+            unsafe { ffi::av_opt_set_dict2(obj, slot, flags.0) }
+        })
+    }
+
+    /// Refuses `options` as [`set`](Self::set) refuses each entry's value
+    /// with `search_flags`, then hands `apply` the object and the
+    /// dictionary's slot, and takes back the dictionary C leaves in it.
+    fn apply_dict(
+        &mut self,
+        options: &mut Dict,
+        search_flags: c_int,
+        apply: impl FnOnce(*mut c_void, *mut *mut ffi::AVDictionary) -> c_int,
+    ) -> Result<(), i32> {
+        for e in options.iter() {
+            let (key, value) = (e.key(), e.value().to_bytes());
+            if let Some(err) = self.as_ref().value_refusal(key, value, search_flags)? {
+                return Err(err);
+            }
+        }
+        let mut slot = Option::<DictionaryBox>::from(core::mem::take(options))
+            .map_or(ptr::null_mut(), CBox::into_c);
+        let ret = apply(self.as_mut_ptr(), &mut slot);
+        // SAFETY: C leaves NULL or a dictionary only the slot references in
+        // it: the one handed over when it fails, else the fresh dictionary
+        // of the entries no option names, after freeing the one handed over.
+        *options = Dict::from(unsafe { DictionaryBox::from_c(slot) });
+        if ret < 0 { Err(ret) } else { Ok(()) }
+    }
+}
+
+/// `AV_OPT_ARRAY_REPLACE`.
+const ARRAY_REPLACE: c_int = ffi::AV_OPT_ARRAY_REPLACE as c_int;
+
+/// Undefined-behaviour checks for array edits and channel layouts.
+impl ObjectRef<'_> {
+    /// The error [`ObjectMut::insert_array`] and [`ObjectMut::replace_array`]
+    /// refuse to store `values` in option `name` with; `Err` as in
+    /// [`value_refusal`](Self::value_refusal).
+    fn array_refusal<T: ArrayInput>(
+        &self,
+        name: &CStr,
+        values: &[T],
+        search_flags: c_int,
+    ) -> Result<Option<i32>, i32> {
+        let Some((o, target)) = self.find(name, None, search_flags & !ARRAY_REPLACE) else {
+            return Ok(None);
+        };
+        let ty = o.option_type();
+        if o.flags() & ffi::AV_OPT_FLAG_READONLY as c_int != 0 || !ty.is_array() {
+            // C's own `AVERROR(EINVAL)`.
+            return Ok(None);
+        }
+        if ty.base() == OptionType::BINARY {
+            return Ok(Some(EINVAL));
+        }
+        for &v in values {
+            if let Some(err) = v.refusal(target, o, ty.base())? {
+                return Ok(Some(err));
+            }
+        }
+        Ok(None)
+    }
+
+    /// The address of option `name`'s value when it is a channel layout,
+    /// for [`ObjectMut::set_channel_layout`] to repair after a failed copy.
+    fn layout_field(
+        &self,
+        name: &CStr,
+        search_flags: c_int,
+    ) -> Option<NonNull<ffi::AVChannelLayout>> {
+        let (o, target) = self.find(name, None, search_flags)?;
+        if o.option_type() != OptionType::CHANNEL_LAYOUT {
+            return None;
+        }
+        // SAFETY: the contract makes the option's offset address its layout
+        // in `target`, the object or a child.
+        Some(unsafe { target.cast::<u8>().add(usize::try_from(o.offset()).ok()?) }.cast())
+    }
+}
+
+/// A value type of [`ObjectMut::insert_array`] and
+/// [`ObjectMut::replace_array`]: the C type `av_opt_set_array` reads, which
+/// C copies into an array of the same element type and otherwise converts.
+///
+/// | Rust | C (`val_type`) | stores into |
+/// |---|---|---|
+/// | `&CStr`, `Option<&CStr>` | `char *` (`STRING`) | a copy into a string array; parsed into the others (`None` as C's NULL) |
+/// | `i32`, `i64` | `int`, `int64_t` (`INT`, `INT64`) | a copy, or converted into the numeric types |
+/// | `f32`, `f64` | `float`, `double` (`FLOAT`, `DOUBLE`) | a copy, or converted into the numeric types |
+/// | [`Rational`] | `AVRational` (`RATIONAL`) | a copy, or converted into the numeric types |
+/// | `u32`, `u64` | `unsigned`, `uint64_t` (`UINT`, `UINT64`) | a copy only |
+/// | [`PixelFormat`], [`SampleFormat`] | their enums | a copy only |
+/// | `(i32, i32)` | `int[2]` (`IMAGE_SIZE`) | a copy only |
+/// | `[u8; 4]` | `uint8_t[4]` (`COLOR`) | a copy only |
+/// | [`ChannelLayoutRef`] | `AVChannelLayout` (`CHLAYOUT`) | a deep copy only |
+/// | `Option<DictionaryRef>` | `AVDictionary *` (`DICT`) | a deep copy only |
+///
+/// "A copy only": into an array of another element type C fails with
+/// `AVERROR(ENOSYS)`. Sealed. The types differ from the owned
+/// [`ArrayElement`]s [`ObjectRef::get_array`] reads out where C's values own
+/// something: strings, layouts and dictionaries go in borrowed.
+///
+/// ```
+/// use ffmpeg::libavutil::log::{Class, ClassCategory};
+/// use ffmpeg::libavutil::opt::{BareObject, SearchFlags};
+/// static CLASS: Class = Class::new(c"MyContext", ClassCategory::NA);
+/// let mut obj = BareObject::new(CLASS.as_ref()).unwrap();
+/// let mut m = obj.as_object_mut();
+/// // A bare object has no array option to edit.
+/// assert!(m.insert_array(c"list", 0, &[1i32, 2], SearchFlags::NONE).is_err());
+/// assert!(m.replace_array(c"list", 0, &[c"1", c"2"], SearchFlags::NONE).is_err());
+/// ```
+///
+/// Other value types do not convert:
+///
+/// ```compile_fail,E0277
+/// # use ffmpeg::libavutil::log::{Class, ClassCategory};
+/// # use ffmpeg::libavutil::opt::{BareObject, SearchFlags};
+/// # static CLASS: Class = Class::new(c"MyContext", ClassCategory::NA);
+/// # let mut obj = BareObject::new(CLASS.as_ref()).unwrap();
+/// let _ = obj.as_object_mut().insert_array(c"list", 0, &["text"], SearchFlags::NONE);
+/// ```
+pub trait ArrayInput: array_input::Sealed {}
+
+mod array_input {
+    use super::*;
+
+    pub trait Sealed: Copy {
+        /// The C type of an element of `val`.
+        type C;
+        /// The `val_type` naming [`C`](Self::C).
+        const TYPE: OptionType;
+        /// The element as C reads it, pointing into what `self` borrows.
+        fn to_c(self) -> Self::C;
+        /// The error `av_opt_set_array` of this value into option `o` of
+        /// `target`, of element type `base`, is refused with; `Err` as in
+        /// `value_refusal`.
+        fn refusal(
+            self,
+            target: NonNull<c_void>,
+            o: OptionDefRef<'_>,
+            base: OptionType,
+        ) -> Result<Option<i32>, i32>;
+    }
+}
+
+/// Declares the element types C copies into an array of their own type and
+/// converts into no other, which C's copy and range check handle for every
+/// value.
+macro_rules! copied_elements {
+    ($($t:ty => $c:ty, $ty:ident, |$v:ident| $to_c:expr;)*) => {
+        $(
+            impl array_input::Sealed for $t {
+                type C = $c;
+                const TYPE: OptionType = OptionType::$ty;
+                fn to_c(self) -> $c {
+                    let $v = self;
+                    $to_c
+                }
+                fn refusal(
+                    self,
+                    _: NonNull<c_void>,
+                    _: OptionDefRef<'_>,
+                    _: OptionType,
+                ) -> Result<Option<i32>, i32> {
+                    Ok(None)
+                }
+            }
+            impl ArrayInput for $t {}
+        )*
+    };
+}
+
+copied_elements! {
+    u32 => c_uint, UINT, |v| v;
+    u64 => u64, UINT64, |v| v;
+    PixelFormat => ffi::AVPixelFormat, PIXEL_FORMAT, |v| v.into_raw();
+    SampleFormat => ffi::AVSampleFormat, SAMPLE_FORMAT, |v| v.into_raw();
+    (i32, i32) => [c_int; 2], IMAGE_SIZE, |v| [v.0, v.1];
+    [u8; 4] => [u8; 4], COLOR, |v| v;
+    Option<DictionaryRef<'_>> => *const ffi::AVDictionary, DICT, |v| v.map_or(ptr::null(), |d| d.as_ptr());
+}
+
+/// Declares the numeric element types C also converts, through
+/// `write_number` with the operands `$num`, `$den` and `$intnum`.
+macro_rules! numeric_elements {
+    ($($t:ty => $c:ty, $ty:ident, |$v:ident| ($num:expr, $den:expr, $intnum:expr), $to_c:expr;)*) => {
+        $(
+            impl array_input::Sealed for $t {
+                type C = $c;
+                const TYPE: OptionType = OptionType::$ty;
+                fn to_c(self) -> $c {
+                    let $v = self;
+                    $to_c
+                }
+                fn refusal(
+                    self,
+                    _: NonNull<c_void>,
+                    o: OptionDefRef<'_>,
+                    base: OptionType,
+                ) -> Result<Option<i32>, i32> {
+                    let $v = self;
+                    // C copies a value of the element type, and range-checks
+                    // it as a double without converting it back.
+                    if base == Self::TYPE {
+                        return Ok(None);
+                    }
+                    Ok(write_refusal(o, $num, $den, $intnum))
+                }
+            }
+            impl ArrayInput for $t {}
+        )*
+    };
+}
+
+numeric_elements! {
+    i32 => c_int, INT, |v| (1.0, 1, i64::from(v)), v;
+    i64 => i64, INT64, |v| (1.0, 1, v), v;
+    f32 => f32, FLOAT, |v| (f64::from(v), 1, 1), v;
+    f64 => f64, DOUBLE, |v| (v, 1, 1), v;
+    Rational => ffi::AVRational, RATIONAL, |v| (f64::from(v.as_ref().num()), v.as_ref().den(), 1), v.into_raw();
+}
+
+impl array_input::Sealed for Option<&CStr> {
+    type C = *const c_char;
+    const TYPE: OptionType = OptionType::STRING;
+    fn to_c(self) -> *const c_char {
+        self.map_or(ptr::null(), CStr::as_ptr)
+    }
+    fn refusal(
+        self,
+        target: NonNull<c_void>,
+        o: OptionDefRef<'_>,
+        base: OptionType,
+    ) -> Result<Option<i32>, i32> {
+        // C copies a string into a string array, and parses it into any
+        // other as `av_opt_set` parses an element; NULL parses to a default
+        // or fails, without evaluating anything.
+        match self {
+            Some(s) if base != OptionType::STRING => elem_refusal(target, o, base, s.to_bytes()),
+            _ => Ok(None),
+        }
+    }
+}
+impl ArrayInput for Option<&CStr> {}
+
+impl array_input::Sealed for &CStr {
+    type C = *const c_char;
+    const TYPE: OptionType = OptionType::STRING;
+    fn to_c(self) -> *const c_char {
+        self.as_ptr()
+    }
+    fn refusal(
+        self,
+        target: NonNull<c_void>,
+        o: OptionDefRef<'_>,
+        base: OptionType,
+    ) -> Result<Option<i32>, i32> {
+        Some(self).refusal(target, o, base)
+    }
+}
+impl ArrayInput for &CStr {}
+
+impl array_input::Sealed for ChannelLayoutRef<'_> {
+    type C = ffi::AVChannelLayout;
+    const TYPE: OptionType = OptionType::CHANNEL_LAYOUT;
+    fn to_c(self) -> ffi::AVChannelLayout {
+        // SAFETY: the handle covers a live layout; the bitwise copy shares
+        // its map, which C only reads (to copy it) while `self` is borrowed,
+        // and is never released.
+        unsafe { self.as_ptr().read() }
+    }
+    fn refusal(
+        self,
+        _: NonNull<c_void>,
+        _: OptionDefRef<'_>,
+        base: OptionType,
+    ) -> Result<Option<i32>, i32> {
+        // A layout C copies into the array must stay readable by the
+        // option's describers, as `ObjectMut::set_channel_layout` requires.
+        if base != OptionType::CHANNEL_LAYOUT {
+            return Ok(None);
+        }
+        Ok(self.describable().err())
+    }
+}
+impl ArrayInput for ChannelLayoutRef<'_> {}
 
 #[cfg(test)]
 #[path = "../tests/common/opt.rs"]
@@ -4730,6 +5406,406 @@ mod unit_tests {
             // Fused: C would start again from the state's end.
             assert!(it.next().is_none() && it.next().is_none());
             assert_eq!(class(&OBJ_CLASS).potential_children().count(), 0);
+        }
+    }
+
+    /// Options wave 1, batch 1: the typed setters' and array editors'
+    /// refusals, element conversions and the corrections of C's defects.
+    mod typed_setters {
+        use super::*;
+        use crate::libavutil::channel_layout::ChannelLayoutVal;
+        use crate::libavutil::channel_layout::{ChannelCustom, ChannelLayout};
+        use fixture::{Owned, OwnedArrays};
+
+        /// The exclusive handle of a fixture object.
+        fn object(o: &Owned) -> ObjectMut<'_> {
+            // SAFETY: `o` is a live, defaulted object of the well-formed
+            // `OBJ_CLASS`, used through no other handle while this one lives.
+            unsafe { ObjectMut::from_ptr(o.as_obj()) }.unwrap()
+        }
+
+        /// The exclusive handle of an array fixture object.
+        fn arrays(o: &OwnedArrays) -> ObjectMut<'_> {
+            // SAFETY: `o` is a live, defaulted object of the well-formed
+            // `ARRAYS_CLASS`, used through no other handle while this one
+            // lives.
+            unsafe { ObjectMut::from_ptr(o.as_obj()) }.unwrap()
+        }
+
+        /// The option `name` of `OBJ_CLASS`.
+        fn option(name: &CStr) -> OptionDefRef<'static> {
+            fixture::OBJ_OPTIONS
+                .0
+                .iter()
+                // SAFETY: an entry of the immutable static table.
+                .map(|o| unsafe { OptionDefRef::from_ptr(ptr::from_ref(o).cast_mut()) }.unwrap())
+                .find(|o| o.name() == Some(name))
+                .unwrap()
+        }
+
+        /// A custom layout of two channels whose first name fills its field
+        /// without a NUL.
+        fn unterminated() -> ChannelLayoutVal {
+            let mut l = ChannelLayout::custom(2).unwrap();
+            let mut map = l.as_mut().into_custom_map_mut().unwrap();
+            map.get_mut(0)
+                .unwrap()
+                .set(ChannelCustom::from_raw(ffi::AVChannelCustom {
+                    id: ffi::AVChannel::AV_CHAN_FRONT_LEFT,
+                    name: [b'n' as c_char; 16],
+                    opaque: ptr::null_mut(),
+                }));
+            map.get_mut(1)
+                .unwrap()
+                .set_id(crate::libavutil::channel_layout::Channel::FRONT_RIGHT);
+            l
+        }
+
+        #[test]
+        fn write_refusal_mirrors_write_number() {
+            let (q, wide, rate, int) = (
+                option(c"q"),
+                option(c"wide_q"),
+                option(c"rate"),
+                option(c"int"),
+            );
+            // Only rationals and video rates convert to `int` unchecked.
+            assert_eq!(write_refusal(int, f64::NAN, 1, 1), None);
+            // NaN passes C's range check, then `(int) num` is undefined.
+            assert_eq!(write_refusal(q, f64::NAN, 1, 1), Some(ERANGE));
+            assert_eq!(write_refusal(rate, f64::NAN, 1, 1), Some(ERANGE));
+            // Out of bounds: C's own `AVERROR(ERANGE)`, before converting.
+            assert_eq!(write_refusal(q, 1e10, 1, 1), None);
+            assert_eq!(write_refusal(q, -1.0, 1, 1), None);
+            // A zero denominator is out of range.
+            assert_eq!(write_refusal(wide, f64::NAN, 0, 1), None);
+            // A negative denominator flips C's bounds: `max * den < num`.
+            // With symmetric bounds, every finite value fails it.
+            assert_eq!(write_refusal(q, -5.0, -1, 1), None);
+            assert_eq!(write_refusal(wide, 1e10, -1, 1), None);
+            assert_eq!(write_refusal(wide, f64::NAN, -1, 1), Some(ERANGE));
+            // Within wide bounds: `num` beyond `int`, or an integral `num`
+            // whose product with `intnum` is.
+            assert_eq!(write_refusal(wide, 1e10, 1, 1), Some(ERANGE));
+            assert_eq!(write_refusal(wide, 1.0, 1, 1 << 40), Some(ERANGE));
+            assert_eq!(write_refusal(wide, 2.5, 1, 1 << 40), None);
+            assert_eq!(write_refusal(wide, 2.5, 1, 1), None);
+            assert_eq!(write_refusal(wide, -2_147_483_648.0, 1, 1), None);
+            assert_eq!(write_refusal(wide, 2_147_483_647.0, 7, 1), None);
+            assert_eq!(write_refusal(wide, 2_147_483_648.0, 7, 1), Some(ERANGE));
+        }
+
+        #[test]
+        fn array_elements_name_their_c_types() {
+            use array_input::Sealed;
+            assert_eq!(<&CStr as Sealed>::TYPE, OptionType::STRING);
+            assert_eq!(<Option<&CStr> as Sealed>::TYPE, OptionType::STRING);
+            assert_eq!(<i32 as Sealed>::TYPE, OptionType::INT);
+            assert_eq!(<i64 as Sealed>::TYPE, OptionType::INT64);
+            assert_eq!(<u32 as Sealed>::TYPE, OptionType::UINT);
+            assert_eq!(<u64 as Sealed>::TYPE, OptionType::UINT64);
+            assert_eq!(<f32 as Sealed>::TYPE, OptionType::FLOAT);
+            assert_eq!(<f64 as Sealed>::TYPE, OptionType::DOUBLE);
+            assert_eq!(<Rational as Sealed>::TYPE, OptionType::RATIONAL);
+            assert_eq!(<PixelFormat as Sealed>::TYPE, OptionType::PIXEL_FORMAT);
+            assert_eq!(<SampleFormat as Sealed>::TYPE, OptionType::SAMPLE_FORMAT);
+            assert_eq!(<(i32, i32) as Sealed>::TYPE, OptionType::IMAGE_SIZE);
+            assert_eq!(<[u8; 4] as Sealed>::TYPE, OptionType::COLOR);
+            assert_eq!(
+                <ChannelLayoutRef<'_> as Sealed>::TYPE,
+                OptionType::CHANNEL_LAYOUT
+            );
+            assert_eq!(
+                <Option<DictionaryRef<'_>> as Sealed>::TYPE,
+                OptionType::DICT
+            );
+            // Each C type is the size `opt_type_desc` gives the type.
+            assert_eq!(size_of::<<(i32, i32) as Sealed>::C>(), 8);
+            assert_eq!(size_of::<<Rational as Sealed>::C>(), 8);
+            assert_eq!(size_of::<<ChannelLayoutRef<'_> as Sealed>::C>(), 24);
+            assert_eq!(size_of::<<PixelFormat as Sealed>::C>(), size_of::<c_int>());
+
+            let s = c"abc";
+            assert_eq!(s.to_c(), s.as_ptr());
+            assert_eq!(Some(s).to_c(), s.as_ptr());
+            assert!(None::<&CStr>.to_c().is_null());
+            assert_eq!((3, -4).to_c(), [3, -4]);
+            assert_eq!([1u8, 2, 3, 4].to_c(), [1, 2, 3, 4]);
+            let q = Rational::from_raw(ffi::AVRational { num: 3, den: -7 });
+            assert_eq!((q.to_c().num, q.to_c().den), (3, -7));
+            assert_eq!(
+                PixelFormat::NONE.to_c(),
+                ffi::AVPixelFormat::AV_PIX_FMT_NONE
+            );
+            assert_eq!(
+                SampleFormat::S16.to_c(),
+                ffi::AVSampleFormat::AV_SAMPLE_FMT_S16
+            );
+            assert!(None::<DictionaryRef<'_>>.to_c().is_null());
+        }
+
+        #[test]
+        fn borrowed_elements_point_into_their_values() {
+            use array_input::Sealed;
+            let d = Dict::from_entries([(c"k", c"v")]).unwrap();
+            assert_eq!(d.as_ref().to_c(), d.as_ref().unwrap().as_ptr());
+            let l = ChannelLayout::parse(c"FL@a+FR@b").unwrap();
+            let raw = l.as_ref().to_c();
+            // The copy shares the map; it is never released.
+            // SAFETY: a union read of the custom map pointer of a live layout.
+            assert_eq!(unsafe { raw.u.map }, unsafe {
+                (*l.as_ref().as_ptr()).u.map
+            });
+            assert_eq!(raw.nb_channels, 2);
+        }
+
+        #[test]
+        fn binary_arrays_are_refused_before_c_overruns_them() {
+            let o = OwnedArrays::new();
+            let mut obj = arrays(&o);
+            let r = obj.as_ref();
+            assert_eq!(r.array_refusal(c"bins", &[c"0a"], 0), Ok(Some(EINVAL)));
+            assert_eq!(r.array_refusal::<&CStr>(c"bins", &[], 0), Ok(Some(EINVAL)));
+            assert_eq!(r.value_refusal(c"bins", b"0a,0b", 0), Ok(Some(EINVAL)));
+            // An empty value splits into no element: C stores nothing.
+            assert_eq!(r.value_refusal(c"bins", b"", 0), Ok(None));
+            // C writes each element's 4-byte length past its 8-byte slot
+            // (ASan: heap-buffer-overflow, opt.c:373); refused instead.
+            assert_eq!(
+                obj.insert_array(c"bins", 0, &[c"0a"], SearchFlags::NONE),
+                Err(EINVAL)
+            );
+            assert_eq!(
+                obj.replace_array(c"bins", 0, &[None::<&CStr>], SearchFlags::NONE),
+                Err(EINVAL)
+            );
+            assert_eq!(obj.set(c"bins", c"0a0b", SearchFlags::NONE), Err(EINVAL));
+            assert_eq!(obj.set(c"bins", c"", SearchFlags::NONE), Ok(()));
+            assert_eq!(obj.remove_array(c"bins", 0, 0, SearchFlags::NONE), Ok(()));
+            // SAFETY: a raw read of the live object's field.
+            let bins = unsafe { (*o.ptr()).bins.len };
+            assert_eq!(bins, 0);
+        }
+
+        #[test]
+        fn array_values_reaching_undefined_conversions_are_refused() {
+            let o = OwnedArrays::new();
+            let obj = arrays(&o);
+            let r = obj.as_ref();
+            let refused = Ok(Some(ERANGE));
+            assert_eq!(r.array_refusal(c"qs", &[f64::NAN], 0), refused);
+            assert_eq!(r.array_refusal(c"rates", &[f32::NAN], 0), refused);
+            assert_eq!(r.array_refusal(c"wide_qs", &[1e10], 0), refused);
+            assert_eq!(r.array_refusal(c"wide_qs", &[1i64 << 40], 0), refused);
+            assert_eq!(r.array_refusal(c"wide_qs", &[i32::MAX], 0), Ok(None));
+            // The second value is refused: the whole edit is.
+            assert_eq!(r.array_refusal(c"wide_qs", &[2.5, 1e10], 0), refused);
+            // Rationals keep their `int` parts.
+            let q = [Rational::new(i32::MIN, -1)];
+            assert_eq!(r.array_refusal(c"wide_qs", &q, 0), Ok(None));
+            // Values of the element type are copied and range-checked as
+            // doubles: no conversion.
+            let q = [Rational::new(1, 0)];
+            assert_eq!(r.array_refusal(c"qs", &q, 0), Ok(None));
+            assert_eq!(r.array_refusal(c"dbls", &[f64::NAN], 0), Ok(None));
+            assert_eq!(r.array_refusal(c"ints", &[i32::MIN], 0), Ok(None));
+            // Strings are refused as `set` refuses them.
+            let einval = Ok(Some(EINVAL));
+            assert_eq!(r.array_refusal(c"dbls", &[c"ld(1e300)"], 0), einval);
+            assert_eq!(r.array_refusal(c"colors", &[c"red@nan"], 0), einval);
+            assert_eq!(r.array_refusal(c"flags", &[c"+1e30"], 0), refused);
+            let amb = [c"ambisonic 2147483647"];
+            assert_eq!(r.array_refusal(c"layouts", &amb, 0), einval);
+            // A string array copies its strings, unparsed.
+            assert_eq!(r.array_refusal(c"strs", &[c"ld(1e300)"], 0), Ok(None));
+            assert_eq!(r.array_refusal(c"dbls", &[None::<&CStr>], 0), Ok(None));
+            // A layout the option's describers cannot read.
+            let bad = unterminated();
+            assert_eq!(r.array_refusal(c"layouts", &[bad.as_ref()], 0), einval);
+            assert_eq!(r.array_refusal(c"ints", &[bad.as_ref()], 0), Ok(None));
+            // C's own checks: no such option, read-only, not an array.
+            for name in [c"missing", c"ro", c"scalar"] {
+                assert_eq!(r.array_refusal(name, &[f64::NAN], 0), Ok(None), "{name:?}");
+            }
+            // The replace flag does not hide the option.
+            assert_eq!(r.array_refusal(c"qs", &[f64::NAN], ARRAY_REPLACE), refused);
+        }
+
+        #[test]
+        fn refused_edits_leave_the_array() {
+            let o = OwnedArrays::new();
+            let mut obj = arrays(&o);
+            obj.insert_array(c"wide_qs", 0, &[Rational::new(1, 2)], SearchFlags::NONE)
+                .unwrap();
+            assert_eq!(
+                obj.insert_array(c"wide_qs", 0, &[0.5, f64::NAN], SearchFlags::NONE),
+                Err(ERANGE)
+            );
+            assert_eq!(
+                obj.replace_array(c"wide_qs", 0, &[i64::MAX], SearchFlags::NONE),
+                Err(ERANGE)
+            );
+            assert_eq!(
+                obj.as_ref()
+                    .get(c"wide_qs", SearchFlags::NONE)
+                    .unwrap()
+                    .as_bytes(),
+                b"1/2"
+            );
+            // Indices beyond `unsigned` never reach C.
+            if usize::BITS > 32 {
+                let far = u32::MAX as usize + 1;
+                assert_eq!(
+                    obj.insert_array(c"wide_qs", far, &[1.0], SearchFlags::NONE),
+                    Err(EINVAL)
+                );
+                assert_eq!(
+                    obj.remove_array(c"wide_qs", 0, far, SearchFlags::NONE),
+                    Err(EINVAL)
+                );
+                assert_eq!(
+                    obj.remove_array(c"wide_qs", far, 0, SearchFlags::NONE),
+                    Err(EINVAL)
+                );
+            }
+            assert_eq!(
+                obj.as_ref().get_array_size(c"wide_qs", SearchFlags::NONE),
+                Ok(1)
+            );
+        }
+
+        #[test]
+        fn unreadable_layouts_are_refused() {
+            let o = Owned::new();
+            let mut obj = object(&o);
+            let bad = unterminated();
+            assert_eq!(
+                obj.set_channel_layout(c"layout", bad.as_ref(), SearchFlags::NONE),
+                Err(EINVAL)
+            );
+            assert_eq!(
+                obj.as_ref()
+                    .get(c"layout", SearchFlags::NONE)
+                    .unwrap()
+                    .as_bytes(),
+                b"stereo"
+            );
+            let good = ChannelLayout::parse(c"FL@a+FR@b").unwrap();
+            obj.set_channel_layout(c"layout", good.as_ref(), SearchFlags::NONE)
+                .unwrap();
+            assert_eq!(
+                obj.as_ref()
+                    .get(c"layout", SearchFlags::NONE)
+                    .unwrap()
+                    .as_bytes(),
+                b"2 channels (FL@a+FR@b)"
+            );
+        }
+
+        #[test]
+        fn layouts_left_without_a_map_are_reset() {
+            let o = Owned::with_child();
+            let p = o.ptr();
+            // SAFETY: raw writes of the live object's layout, which owns no
+            // map in native order, before any handle exists: the state C's
+            // failed copy leaves.
+            unsafe {
+                (*p).layout = ffi::AVChannelLayout {
+                    order: ffi::AVChannelOrder::AV_CHANNEL_ORDER_CUSTOM,
+                    nb_channels: 3,
+                    opaque: ptr::dangling_mut(),
+                    ..Default::default()
+                };
+            }
+            let mut obj = object(&o);
+            // The child, searched first, holds a readable layout: left alone.
+            obj.reset_unmapped_layout(c"layout", ffi::AV_OPT_SEARCH_CHILDREN as c_int);
+            obj.reset_unmapped_layout(c"int", 0);
+            obj.reset_unmapped_layout(c"missing", 0);
+            // SAFETY: a raw read of the live object's layout.
+            assert_eq!(unsafe { (*p).layout.nb_channels }, 3);
+            obj.reset_unmapped_layout(c"layout", 0);
+            // SAFETY: as above.
+            let l = unsafe { (*p).layout };
+            assert_eq!(l.order, ffi::AVChannelOrder::AV_CHANNEL_ORDER_UNSPEC);
+            assert_eq!(l.nb_channels, 0);
+            assert!(l.opaque.is_null());
+            // A custom layout with a map is left alone.
+            let custom = ChannelLayout::parse(c"FL@a+FR@b").unwrap();
+            obj.set_channel_layout(c"layout", custom.as_ref(), SearchFlags::NONE)
+                .unwrap();
+            obj.reset_unmapped_layout(c"layout", 0);
+            let got = obj.as_ref().get(c"layout", SearchFlags::NONE).unwrap();
+            assert_eq!(got.as_bytes(), b"2 channels (FL@a+FR@b)");
+        }
+
+        /// The corrected behaviour: when `av_channel_layout_copy` cannot
+        /// allocate a custom map, C leaves the option a custom layout of two
+        /// channels and a NULL map, which `av_opt_get` would describe through
+        /// the NULL pointer; the wrapper leaves the empty layout. Runs alone
+        /// in a child: the allocation limit is process-wide.
+        #[test]
+        fn failed_layout_copies_leave_the_empty_layout() {
+            const KEY: &str = "CRUSTIFY_OPT_UNIT_LAYOUT_ENOMEM";
+            if std::env::var_os(KEY).is_none() {
+                let name = "libavutil::opt::unit_tests::typed_setters::failed_layout_copies_leave_the_empty_layout";
+                let status = std::process::Command::new(std::env::current_exe().unwrap())
+                    .args(["--exact", name, "--test-threads=1"])
+                    .env(KEY, "1")
+                    .status()
+                    .unwrap();
+                assert!(status.success(), "isolated run failed: {status}");
+                return;
+            }
+            let o = Owned::with_child();
+            let mut obj = object(&o);
+            let custom = ChannelLayout::parse(c"FL@a+FR@b").unwrap();
+            // SAFETY: `av_max_alloc` takes a size by value; this process
+            // runs nothing else.
+            unsafe { ffi::av_max_alloc(16) };
+            let ret = obj.set_channel_layout(c"layout", custom.as_ref(), SearchFlags::CHILDREN);
+            // SAFETY: as above.
+            unsafe { ffi::av_max_alloc(i32::MAX as usize) };
+            assert_eq!(ret, Err(-(ffi::ENOMEM as i32)));
+            // The child's layout was found first.
+            for p in [o.child(), o.ptr()] {
+                // SAFETY: raw reads of the live objects' layouts.
+                let (order, n) = unsafe { ((*p).layout.order, (*p).layout.nb_channels) };
+                if p == o.child() {
+                    assert_eq!(
+                        (order, n),
+                        (ffi::AVChannelOrder::AV_CHANNEL_ORDER_UNSPEC, 0)
+                    );
+                } else {
+                    assert_eq!(
+                        (order, n),
+                        (ffi::AVChannelOrder::AV_CHANNEL_ORDER_NATIVE, 2)
+                    );
+                }
+            }
+            let got = obj.as_ref().get(c"layout", SearchFlags::CHILDREN).unwrap();
+            assert_eq!(got.as_bytes(), b"0 channels");
+        }
+
+        #[test]
+        fn refused_dictionary_entries_set_nothing() {
+            let o = Owned::new();
+            let mut obj = object(&o);
+            let mut options =
+                Dict::from_entries([(c"int", c"5"), (c"dbl", c"ld(1e300)"), (c"nosuch", c"x")])
+                    .unwrap();
+            assert_eq!(obj.set_from_dict(&mut options), Err(EINVAL));
+            assert_eq!(obj.as_ref().get_int(c"int", SearchFlags::NONE), Ok(7));
+            // The dictionary is left as it was, every entry in order.
+            let before = options.as_ref().unwrap().as_ptr();
+            assert_eq!(
+                obj.set_from_dict_with(&mut options, SearchFlags::CHILDREN),
+                Err(EINVAL)
+            );
+            assert_eq!(options.as_ref().unwrap().as_ptr(), before);
+            let mut empty = Dict::new();
+            assert_eq!(obj.set_from_dict(&mut empty), Ok(()));
+            assert!(empty.as_ref().is_none());
         }
     }
 }

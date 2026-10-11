@@ -393,3 +393,254 @@ mod info_tags_and_colors {
         });
     }
 }
+
+/// Options wave 1, batch 1: ratios, video rates, date fields and UTC times
+/// at the edges of each syntax, in exactly sized heap strings, with the
+/// C-UB inputs the wrappers refuse, every `int` edge of a `Tm`, borrowed
+/// rests outliving the `Tm`, and calls from many threads.
+mod ratios_and_dates {
+    use ffmpeg::libavutil::bprint::Tm;
+    use ffmpeg::libavutil::ffi;
+    use ffmpeg::libavutil::log::{Class, ClassCategory};
+    use ffmpeg::libavutil::opt::BareObject;
+    use ffmpeg::libavutil::parseutils::{
+        parse_ratio, parse_ratio_with_context, parse_video_rate, small_strptime, timegm,
+    };
+
+    use super::{EINVAL, exact};
+
+    const RATIOS: [&[u8]; 26] = [
+        b"16:9",
+        b"0:0",
+        b"-2147483648:-1",
+        b"2147483647:-2147483648",
+        b"99999999999999999999:-99999999999999999999",
+        b" \t\n7:\t3",
+        b"7:3x",
+        b"7:",
+        b":",
+        b"",
+        b"1e308*10",
+        b"-1e308*10",
+        b"1/0",
+        b"0/0",
+        b"sqrt(-1)",
+        b"PI*E",
+        b"1e-320",
+        b"((((((((((1))))))))))",
+        b"ld(0)",
+        b"ld(1e300)",
+        b"st(0,1)+random(0)",
+        b"print(1, 2147483647)",
+        b"gcd(1e300, 2)",
+        b"ntsc",
+        b"\xff\xfe",
+        b"1:1:1",
+    ];
+
+    #[test]
+    fn ratios_at_every_bound_and_offset() {
+        for r in RATIOS {
+            let s = exact(r);
+            for max in [i32::MIN, -1, 0, 1, 1_001_000, i32::MAX] {
+                for offset in [
+                    i32::MIN,
+                    -8,
+                    0,
+                    ffi::AV_LOG_MAX_OFFSET as i32,
+                    i32::MAX - 56,
+                    i32::MAX,
+                ] {
+                    let got = parse_ratio_with_context(&s, max, offset, None);
+                    if max < 0 {
+                        assert_eq!(got, Err(EINVAL), "{r:?}");
+                    }
+                    if let Ok(q) = got {
+                        let q = q.into_raw();
+                        assert!(q.num.unsigned_abs() <= max.max(1) as u32, "{r:?} {max}");
+                        assert!(q.den.unsigned_abs() <= max.max(1) as u32, "{r:?} {max}");
+                    }
+                }
+            }
+            let _ = parse_ratio(&s, 255);
+        }
+        // Refused before C: its unchecked conversions and offsets.
+        for r in [&b"ld(1e300)"[..], b"st(0,1)+random(0)", b"gcd(1e300, 2)"] {
+            assert_eq!(parse_ratio(&exact(r), 255), Err(EINVAL), "{r:?}");
+        }
+        assert_eq!(
+            parse_ratio_with_context(c"x", 10, i32::MAX, None),
+            Err(EINVAL)
+        );
+    }
+
+    #[test]
+    fn ratios_log_in_a_context() {
+        static CLASS: Class = Class::new(c"crustify-ratio", ClassCategory::NA);
+        let ctx = Box::new(BareObject::new(CLASS.as_ref()).unwrap());
+        for r in RATIOS {
+            let s = exact(r);
+            let _ = parse_ratio_with_context(
+                &s,
+                100,
+                ffi::AV_LOG_MAX_OFFSET as i32,
+                Some(ctx.as_object()),
+            );
+        }
+    }
+
+    #[test]
+    fn video_rates() {
+        for r in RATIOS.iter().copied().chain([
+            &b"ntsc-film"[..],
+            b"pal",
+            b"NTSC",
+            b"1001000:1",
+            b"0.0000001",
+        ]) {
+            if let Ok(q) = parse_video_rate(&exact(r)) {
+                let q = q.into_raw();
+                assert!(q.num > 0 && q.den > 0, "{r:?}");
+            }
+        }
+        assert_eq!(parse_video_rate(c"ld(1e300)"), Err(EINVAL));
+    }
+
+    const FORMATS: [&[u8]; 14] = [
+        b"%Y-%m-%d",
+        b"%T",
+        b"%J:%M:%S",
+        b"%b %d",
+        b"%B",
+        b"%h",
+        b"%%",
+        b"%",
+        b"%Y%",
+        b"%q",
+        b" ",
+        b"%H %M",
+        b"",
+        b"%T%T%T",
+    ];
+
+    const INPUTS: [&[u8]; 16] = [
+        b"2024-02-29",
+        b"23:59:59",
+        b"9999:59:59",
+        b"December 31",
+        b"dec",
+        b"de",
+        b"%",
+        b"",
+        b" \t\n\x0b\x0c\r",
+        b"00:00:0000:00:0000:00:00",
+        b"99999999",
+        b"\xff",
+        b"-1",
+        b"+1",
+        b"1:2:3",
+        b"Feb",
+    ];
+
+    #[test]
+    fn strptime_rests_stay_within_the_input() {
+        for fmt in FORMATS {
+            let fmt = exact(fmt);
+            for input in INPUTS {
+                let s = exact(input);
+                let mut tm = Tm::new();
+                if let Some(rest) = small_strptime(&s, &fmt, tm.as_mut()) {
+                    let off = rest.as_ptr() as usize - s.as_ptr() as usize;
+                    assert!(off <= input.len(), "{input:?}");
+                    assert_eq!(rest.to_bytes(), &input[off..]);
+                }
+                // The zone is never written: still the `'static` NULL.
+                assert!(tm.as_ref().zone().is_none());
+            }
+        }
+    }
+
+    /// The rest borrows the input, not the `Tm`: it outlives the `Tm`, and
+    /// the `Tm` is reused while it lives.
+    #[test]
+    fn rests_outlive_the_tm() {
+        let s = exact(b"12:34:56 rest");
+        let rest = {
+            let mut tm = Tm::new();
+            let rest = small_strptime(&s, c"%T", tm.as_mut()).unwrap();
+            assert_eq!(small_strptime(rest, c" ", tm.as_mut()), Some(c"rest"));
+            rest
+        };
+        assert_eq!(rest, c" rest");
+    }
+
+    #[test]
+    fn utc_times_at_every_int_edge() {
+        let edges = [
+            i32::MIN,
+            i32::MIN + 1,
+            -5_885_416,
+            -1,
+            0,
+            1,
+            12,
+            59,
+            60,
+            5_881_616,
+            i32::MAX - 1,
+            i32::MAX,
+        ];
+        let mut tm = Tm::new();
+        for &a in &edges {
+            for &b in &edges {
+                for field in 0..6 {
+                    let mut m = tm.as_mut();
+                    m.set_year(70);
+                    m.set_mon(0);
+                    m.set_mday(1);
+                    m.set_hour(0);
+                    m.set_min(0);
+                    m.set_sec(0);
+                    match field {
+                        0 => m.set_year(a),
+                        1 => m.set_mon(a),
+                        2 => m.set_mday(a),
+                        3 => m.set_hour(a),
+                        4 => m.set_min(a),
+                        _ => m.set_sec(a),
+                    }
+                    match (field + 1) % 6 {
+                        0 => m.set_year(b),
+                        1 => m.set_mon(b),
+                        2 => m.set_mday(b),
+                        3 => m.set_hour(b),
+                        4 => m.set_min(b),
+                        _ => m.set_sec(b),
+                    }
+                    let _ = timegm(tm.as_ref());
+                }
+            }
+        }
+    }
+
+    #[test]
+    fn many_threads() {
+        std::thread::scope(|s| {
+            for t in 0..4 {
+                s.spawn(move || {
+                    for i in 0..200 {
+                        let _ = parse_ratio(&exact(RATIOS[(i + t) % RATIOS.len()]), 1000);
+                        let _ = parse_video_rate(&exact(RATIOS[(i * 7 + t) % RATIOS.len()]));
+                        let mut tm = Tm::new();
+                        let _ = small_strptime(
+                            &exact(INPUTS[i % INPUTS.len()]),
+                            &exact(FORMATS[t]),
+                            tm.as_mut(),
+                        );
+                        let _ = timegm(tm.as_ref());
+                    }
+                });
+            }
+        });
+    }
+}
