@@ -719,6 +719,36 @@
    "fields": []
   },
   {
+   "name": "AVSHA",
+   "defined_in": "libavutil/sha.c",
+   "_comment_agent": "Public forward declaration only. C owns concrete layout/allocation. av_sha_alloc is av_mallocz(sizeof AVSHA); successful av_sha_init (160/224/256) establishes transform and resets count; reinit may change algorithm and leaves stale buffer bytes unread until filled. Hash/HMAC/Mov owners free through av_free/av_freep; random_seed uses adequately sized aligned inline scratch and init. No refcount, heap fields, retained input, clone, or field disposer. Safe wrapper exposes full-sized allocated initialized owners and borrowed handles; no public field access.",
+   "fields": [
+    {
+     "name": "transform",
+     "ptr": {
+      "scalar": {
+       "by_val": true
+      },
+      "array": null,
+      "string": false,
+      "owned": false,
+      "borrowed": {
+       "lifetime": "static"
+      },
+      "nullable": true,
+      "mutable": false,
+      "note": "Zero-filled allocation has NULL before init. Successful init stores sha1_transform or sha256_transform, static functions with no ownership or freeing; update invokes it on context state (5 or 8 u32 words) and a 64-byte read-only block. Not public; callers cannot set or invoke it independently."
+     }
+    }
+   ]
+  },
+  {
+   "name": "AVSHA512",
+   "defined_in": "libavutil/sha512.c",
+   "_comment_agent": "Public forward declaration only; all fields are by-value integers/arrays private to sha512.c. av_sha512_alloc calls av_mallocz(sizeof AVSHA512), successful init (224/256/384/512) sets state/digest_len and count=0. C hash/HMAC owners release through av_freep; no refcount, heap fields, retained input, clone or field disposer. Reinit leaves stale buffer bytes which update overwrites before reading. Safe wrapper only uses full-sized initialized C allocations behind ffibox handles.",
+   "fields": []
+  },
+  {
    "name": "AVSampleFormat",
    "defined_in": "libavutil/samplefmt.h",
    "_comment_agent": "C enum (int-backed, AV_SAMPLE_FMT_NONE = -1 .. AV_SAMPLE_FMT_NB = 12): no fields, no pointers, no lifecycle. Stored by value in public fields users write directly (AVCodecContext.sample_fmt / request_sample_fmt, AVFrame.format as int, AVOption AV_OPT_TYPE_SAMPLE_FMT targets) and in AV_SAMPLE_FMT_NONE-terminated arrays (AVCodec.sample_fmts), so any int is an observable value; libavutil/samplefmt.c and swresample bound-check with `< 0 || >= AV_SAMPLE_FMT_NB` before table lookups. Wrapped as an open #[repr(transparent)] newtype (SampleFormat) accepting every int; plain element (CPlainElem) for av_malloc arrays.",
@@ -9950,6 +9980,128 @@
       "nullable": false,
       "mutable": false,
       "note": "Set of pair separator bytes (strspn), read for the call only. Must not be NULL."
+     }
+    }
+   ]
+  },
+  {
+   "name": "av_sha512_alloc",
+   "defined_in": "libavutil/sha512.c",
+   "lifetime": {
+    "for": "return",
+    "is_dropper": false,
+    "is_disposer": false,
+    "is_cloner": null,
+    "is_constructor": {
+     "alloc": true,
+     "init": false
+    }
+   },
+   "ptr_ret": {
+    "ptr": {
+     "scalar": {
+      "by_val": true
+     },
+     "array": null,
+     "string": false,
+     "owned": true,
+     "borrowed": null,
+     "nullable": true,
+     "mutable": true,
+     "note": "Fresh unique av_mallocz allocation of the full private struct, NULL on OOM. Zero-fill alone is not an initialized hash context; init must succeed before hashing. Single object released through av_free; no owned fields."
+    }
+   }
+  },
+  {
+   "name": "av_sha512_init",
+   "defined_in": "libavutil/sha512.c",
+   "lifetime": {
+    "for": "ctx",
+    "is_dropper": false,
+    "is_disposer": false,
+    "is_cloner": null,
+    "is_constructor": {
+     "alloc": false,
+     "init": true
+    }
+   },
+   "ptr_args": [
+    {
+     "name": "ctx",
+     "ptr": {
+      "scalar": {
+       "by_val": true
+      },
+      "array": null,
+      "string": false,
+      "owned": false,
+      "borrowed": {
+       "lifetime": "call"
+      },
+      "nullable": false,
+      "mutable": true,
+      "note": "Exclusive borrowed full-sized context/storage; never retained or released. Resets count, state and digest_len for supported bits; AVSHA also sets static transform. Invalid bits return EINVAL after partially changing digest_len, so the Rust enum excludes them."
+     }
+    }
+   ]
+  },
+  {
+   "name": "av_sha_alloc",
+   "defined_in": "libavutil/sha.c",
+   "lifetime": {
+    "for": "return",
+    "is_dropper": false,
+    "is_disposer": false,
+    "is_cloner": null,
+    "is_constructor": {
+     "alloc": true,
+     "init": false
+    }
+   },
+   "ptr_ret": {
+    "ptr": {
+     "scalar": {
+      "by_val": true
+     },
+     "array": null,
+     "string": false,
+     "owned": true,
+     "borrowed": null,
+     "nullable": true,
+     "mutable": true,
+     "note": "Fresh unique av_mallocz allocation of the full private struct, NULL on OOM. Zero-fill alone is not an initialized hash context; init must succeed before hashing. Single object released through av_free; no owned fields."
+    }
+   }
+  },
+  {
+   "name": "av_sha_init",
+   "defined_in": "libavutil/sha.c",
+   "lifetime": {
+    "for": "ctx",
+    "is_dropper": false,
+    "is_disposer": false,
+    "is_cloner": null,
+    "is_constructor": {
+     "alloc": false,
+     "init": true
+    }
+   },
+   "ptr_args": [
+    {
+     "name": "ctx",
+     "ptr": {
+      "scalar": {
+       "by_val": true
+      },
+      "array": null,
+      "string": false,
+      "owned": false,
+      "borrowed": {
+       "lifetime": "call"
+      },
+      "nullable": false,
+      "mutable": true,
+      "note": "Exclusive borrowed full-sized context/storage; never retained or released. Resets count, state and digest_len for supported bits; AVSHA also sets static transform. Invalid bits return EINVAL after partially changing digest_len, so the Rust enum excludes them."
      }
     }
    ]

@@ -27,6 +27,8 @@ mod pixfmt;
 mod random_seed;
 mod rational;
 mod samplefmt;
+mod sha;
+mod sha512;
 mod time;
 mod timestamp;
 mod xtea;
