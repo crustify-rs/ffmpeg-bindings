@@ -17,6 +17,7 @@ mod intreadwrite;
 mod log;
 mod mathematics;
 mod mem;
+mod opt;
 mod pixdesc;
 mod pixelutils;
 mod pixfmt;

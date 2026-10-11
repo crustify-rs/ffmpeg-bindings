@@ -96,6 +96,11 @@ function av_opt_next
 function av_opt_set_defaults2
 function av_opt_free
 
+# libavutil/opt.h: the C reader that accepts an option exactly when its type
+# carries AV_OPT_TYPE_FLAG_ARRAY, which the AVOptionType tests compare
+# OptionType::is_array against (options wave 0).
+function av_opt_get_array_size
+
 # libavutil/rational.h: AVRational's constructor (static inline, compiled by
 # bindgen's wrap_static_fns), and the C readers and writers of its fields
 # that equivalence tests compare the safe accessors against.

@@ -440,6 +440,26 @@
    ]
   },
   {
+   "name": "AVOptionRange",
+   "defined_in": "libavutil/opt.h",
+   "_comment_agent": "A range is always an element of an AVOptionRanges list: av_mallocz'd by av_opt_query_ranges_default or a class callback and released only by av_opt_freep_ranges as part of the list (no standalone constructor, copy or free). Rust wraps it as OptionRange with borrowed OptionRangeRef/OptionRangeMut handles reached through the list's owner; str gets a borrowed getter, an av_free-releasing replacement setter and an owning take, all with HeapString (av_free policy).",
+   "fields": [
+    {
+     "name": "str",
+     "ptr": {
+      "scalar": null,
+      "array": null,
+      "string": true,
+      "owned": true,
+      "borrowed": null,
+      "nullable": true,
+      "mutable": false,
+      "note": "NULL or an av_malloc-family NUL-terminated string owned by the range: av_opt_freep_ranges av_freep's it before the range itself. av_opt_query_ranges_default leaves it NULL (av_mallocz); a class query_ranges callback may set it (no in-tree class does; the test fixture av_strdup's one). Declared const char *, so never written through; replaced only by storing a new owned pointer after freeing the old. No C reader besides the release (opt_list prints value_min/value_max only)."
+     }
+    }
+   ]
+  },
+  {
    "name": "AVOptionRanges",
    "defined_in": "libavutil/opt.h",
    "_comment_agent": "Allocated by av_opt_query_ranges / av_opt_query_ranges_default (or an AVClass.query_ranges callback, none in tree) through an out-parameter, released by av_opt_freep_ranges. No dup routine. nb_ranges and nb_components bound the release loop, so no setter may change them or range.",
@@ -463,6 +483,12 @@
      }
     }
    ]
+  },
+  {
+   "name": "AVOptionType",
+   "defined_in": "libavutil/opt.h",
+   "_comment_agent": "C enum with no pointer fields: the base types AV_OPT_TYPE_FLAGS..AV_OPT_TYPE_UINT (1..20) combinable with the AV_OPT_TYPE_FLAG_ARRAY bit (1<<16). Stored by value in AVOption.type (and opt_type_desc's index via TYPE_BASE); any unsigned value can reach C through a class's option table, so Rust wraps it as an open newtype OptionType over the binding.",
+   "fields": []
   },
   {
    "name": "AVPictureType",

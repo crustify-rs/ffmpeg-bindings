@@ -1,0 +1,10 @@
+error[E0502]: cannot borrow `*b` as mutable because it is also borrowed as immutable
+ --> tests/ub_safe/compile_fail/opt_range_label_outlives_set.rs
+  |
+  |     let label = b.as_ref().get(0, 0).and_then(|r| r.label());
+  |                 - immutable borrow occurs here
+  |     if let Some(mut m) = b.as_mut().get_mut(0, 0) {
+  |                          ^^^^^^^^^^ mutable borrow occurs here
+...
+  |     label.map_or(0, |l| l.count_bytes())
+  |     ----- immutable borrow later used here

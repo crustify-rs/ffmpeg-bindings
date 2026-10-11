@@ -7,24 +7,35 @@
 //! lifetime. [`OptionDefMut`] exists only as the layout type's exclusive
 //! handle and has no setters.
 //!
+//! [`OptionType`] is an option's type (`enum AVOptionType`), an open newtype
+//! over the C value.
+//!
 //! [`OptionRanges`] is the list `av_opt_query_ranges` and
 //! `av_opt_query_ranges_default` allocate (`AVOptionRanges`). It is owned as
 //! an [`OptionRangesBox`], built by [`OptionRanges::query`] or
 //! [`OptionRanges::query_default`] and released by `av_opt_freep_ranges`,
 //! which also frees every range it lists. C has no copy routine, so the box is
-//! not `Clone`, and the list is read-only: its counts bound the release loop.
+//! not `Clone`, and the list's shape is read-only: its counts bound the
+//! release loop.
+//!
+//! [`OptionRange`] is one element of a list (`AVOptionRange`), owned by it
+//! together with its string and only ever borrowed from it: an
+//! [`OptionRangeRef`] reads it, and an [`OptionRangeMut`], reached through the
+//! list's exclusive handle, rewrites its bounds and replaces its string with
+//! a [`HeapString`], which the list then releases.
 //!
 //! Raw seams remain where the dependency is wrapped by a later batch: the
-//! object a range query inspects (an `AVClass`-enabled `void *`), the
-//! `AVOptionRange` elements, an array option's `AVOptionArrayDef`, and the
-//! `AVOptionType` value.
+//! object a range query inspects (an `AVClass`-enabled `void *`) and an array
+//! option's `AVOptionArrayDef`.
 
-use core::ffi::{CStr, c_char, c_void};
-use core::ptr::{NonNull, addr_of};
+use core::ffi::{CStr, c_char, c_int, c_uint, c_void};
+use core::fmt;
+use core::ptr::{NonNull, addr_of, addr_of_mut};
 
 use ffibox::{CBox, CDrop, CSlice, define_ctype};
 
 use super::ffi;
+use super::mem::HeapString;
 
 define_ctype!(
     /// Wraps: AVOption
@@ -143,12 +154,12 @@ impl<'a> OptionDefRef<'a> {
 
     /// Field: AVOption.type
     ///
-    /// The option's type, an `AV_OPT_TYPE_*` value possibly combined with
-    /// `AV_OPT_TYPE_FLAG_ARRAY`.
-    pub fn option_type(&self) -> ffi::AVOptionType {
+    /// The option's type: a base type, possibly combined with
+    /// [`OptionType::ARRAY`].
+    pub fn option_type(&self) -> OptionType {
         // SAFETY: a read of a projected field through the shared handle; every
         // `c_uint` is a valid `AVOptionType`.
-        unsafe { addr_of!((*self.as_ptr()).type_).read() }
+        OptionType(unsafe { addr_of!((*self.as_ptr()).type_).read() })
     }
 
     /// Field: AVOption.default_val
@@ -163,10 +174,10 @@ impl<'a> OptionDefRef<'a> {
     ///
     /// [`option_type`]: Self::option_type
     pub fn default_value(&self) -> OptionDefault<'a> {
-        use ffi::AVOptionType as T;
+        use OptionType as T;
         let ty = self.option_type();
         let val = self.as_ptr();
-        if ty.0 & T::AV_OPT_TYPE_FLAG_ARRAY.0 != 0 {
+        if ty.is_array() {
             // SAFETY: a read of a projected union member through the shared
             // handle; an array option's table entry initialises `arr`, as
             // `av_opt_set_defaults` relies on, and a pointer has no invalid
@@ -174,32 +185,32 @@ impl<'a> OptionDefRef<'a> {
             return OptionDefault::Array(unsafe { addr_of!((*val).default_val.arr).read() });
         }
         match ty {
-            T::AV_OPT_TYPE_BOOL
-            | T::AV_OPT_TYPE_FLAGS
-            | T::AV_OPT_TYPE_INT
-            | T::AV_OPT_TYPE_UINT
-            | T::AV_OPT_TYPE_INT64
-            | T::AV_OPT_TYPE_UINT64
-            | T::AV_OPT_TYPE_DURATION
-            | T::AV_OPT_TYPE_PIXEL_FMT
-            | T::AV_OPT_TYPE_SAMPLE_FMT
-            | T::AV_OPT_TYPE_CONST => {
+            T::BOOL
+            | T::FLAGS
+            | T::INT
+            | T::UINT
+            | T::INT64
+            | T::UINT64
+            | T::DURATION
+            | T::PIXEL_FORMAT
+            | T::SAMPLE_FORMAT
+            | T::CONST => {
                 // SAFETY: a read of a projected union member through the
                 // shared handle; all 8 bytes of the union are initialised by
                 // its table entry, and every bit pattern is a valid `i64`.
                 OptionDefault::Int(unsafe { addr_of!((*val).default_val.i64_).read() })
             }
-            T::AV_OPT_TYPE_DOUBLE | T::AV_OPT_TYPE_FLOAT | T::AV_OPT_TYPE_RATIONAL => {
+            T::DOUBLE | T::FLOAT | T::RATIONAL => {
                 // SAFETY: as above, for an `f64`.
                 OptionDefault::Double(unsafe { addr_of!((*val).default_val.dbl).read() })
             }
-            T::AV_OPT_TYPE_STRING
-            | T::AV_OPT_TYPE_COLOR
-            | T::AV_OPT_TYPE_IMAGE_SIZE
-            | T::AV_OPT_TYPE_VIDEO_RATE
-            | T::AV_OPT_TYPE_BINARY
-            | T::AV_OPT_TYPE_CHLAYOUT
-            | T::AV_OPT_TYPE_DICT => {
+            T::STRING
+            | T::COLOR
+            | T::IMAGE_SIZE
+            | T::VIDEO_RATE
+            | T::BINARY
+            | T::CHANNEL_LAYOUT
+            | T::DICT => {
                 // SAFETY: as above, for a pointer.
                 let s = unsafe { addr_of!((*val).default_val.str_).read() };
                 // SAFETY: an option of these types initialises `str` to NULL
@@ -248,6 +259,168 @@ impl<'a> OptionDefRef<'a> {
     }
 }
 
+/// Wraps: AVOptionType
+/// Handwritten
+///
+/// The type of an option (`enum AVOptionType`): the C type of the value it
+/// names in its object, and which `av_opt_get_*` / `av_opt_set_*` routines and
+/// string syntax access that value.
+///
+/// Open, like the C enum: an `AVClass`'s option table stores whatever its
+/// author wrote, so any `c_uint` is a valid value, and the associated
+/// constants name the known ones. A type is a base type, possibly combined
+/// with the [`ARRAY`](Self::ARRAY) flag that makes it an array option of that
+/// base; [`base`](Self::base) and [`array`](Self::array) convert between the
+/// two. `ffi::AVOptionType` has no zero enumerator, and libavutil reads 0 only
+/// as the type of a table's terminating entry, so there is no `Default`.
+#[repr(transparent)]
+#[derive(Clone, Copy, PartialEq, Eq, Hash)]
+pub struct OptionType(ffi::AVOptionType);
+
+impl OptionType {
+    /// A set of named flags, stored as an `unsigned int`.
+    pub const FLAGS: Self = Self(ffi::AVOptionType::AV_OPT_TYPE_FLAGS);
+    /// An `int`.
+    pub const INT: Self = Self(ffi::AVOptionType::AV_OPT_TYPE_INT);
+    /// An `int64_t`.
+    pub const INT64: Self = Self(ffi::AVOptionType::AV_OPT_TYPE_INT64);
+    /// A `double`.
+    pub const DOUBLE: Self = Self(ffi::AVOptionType::AV_OPT_TYPE_DOUBLE);
+    /// A `float`.
+    pub const FLOAT: Self = Self(ffi::AVOptionType::AV_OPT_TYPE_FLOAT);
+    /// A `char *`, NULL or a string of the `av_malloc` family.
+    pub const STRING: Self = Self(ffi::AVOptionType::AV_OPT_TYPE_STRING);
+    /// An `AVRational`.
+    pub const RATIONAL: Self = Self(ffi::AVOptionType::AV_OPT_TYPE_RATIONAL);
+    /// A `uint8_t *`, NULL or an array of the `av_malloc` family, immediately
+    /// followed by an `int` holding its length in bytes.
+    pub const BINARY: Self = Self(ffi::AVOptionType::AV_OPT_TYPE_BINARY);
+    /// An `AVDictionary *`.
+    pub const DICT: Self = Self(ffi::AVOptionType::AV_OPT_TYPE_DICT);
+    /// A `uint64_t`.
+    pub const UINT64: Self = Self(ffi::AVOptionType::AV_OPT_TYPE_UINT64);
+    /// A named constant of the options sharing its unit; it names no field
+    /// of the object, and its offset is 0.
+    pub const CONST: Self = Self(ffi::AVOptionType::AV_OPT_TYPE_CONST);
+    /// Two consecutive `int`s, a width and a height.
+    pub const IMAGE_SIZE: Self = Self(ffi::AVOptionType::AV_OPT_TYPE_IMAGE_SIZE);
+    /// An `enum AVPixelFormat`.
+    pub const PIXEL_FORMAT: Self = Self(ffi::AVOptionType::AV_OPT_TYPE_PIXEL_FMT);
+    /// An `enum AVSampleFormat`.
+    pub const SAMPLE_FORMAT: Self = Self(ffi::AVOptionType::AV_OPT_TYPE_SAMPLE_FMT);
+    /// An `AVRational` frame rate.
+    pub const VIDEO_RATE: Self = Self(ffi::AVOptionType::AV_OPT_TYPE_VIDEO_RATE);
+    /// An `int64_t` duration in microseconds.
+    pub const DURATION: Self = Self(ffi::AVOptionType::AV_OPT_TYPE_DURATION);
+    /// A `uint8_t[4]` RGBA colour.
+    pub const COLOR: Self = Self(ffi::AVOptionType::AV_OPT_TYPE_COLOR);
+    /// An `int` boolean, which may also be -1 for "auto".
+    pub const BOOL: Self = Self(ffi::AVOptionType::AV_OPT_TYPE_BOOL);
+    /// An `AVChannelLayout`.
+    pub const CHANNEL_LAYOUT: Self = Self(ffi::AVOptionType::AV_OPT_TYPE_CHLAYOUT);
+    /// An `unsigned int`.
+    pub const UINT: Self = Self(ffi::AVOptionType::AV_OPT_TYPE_UINT);
+    /// The flag that declares an array option when combined with a base type
+    /// (`AV_OPT_TYPE_FLAG_ARRAY`): the option's offset then names a pointer to
+    /// elements of that type, immediately followed by an `unsigned int`
+    /// element count. Not a type on its own.
+    pub const ARRAY: Self = Self(ffi::AVOptionType::AV_OPT_TYPE_FLAG_ARRAY);
+
+    /// Every named value with its constant's name, in declaration order.
+    const KNOWN: [(Self, &'static str); 21] = [
+        (Self::FLAGS, "FLAGS"),
+        (Self::INT, "INT"),
+        (Self::INT64, "INT64"),
+        (Self::DOUBLE, "DOUBLE"),
+        (Self::FLOAT, "FLOAT"),
+        (Self::STRING, "STRING"),
+        (Self::RATIONAL, "RATIONAL"),
+        (Self::BINARY, "BINARY"),
+        (Self::DICT, "DICT"),
+        (Self::UINT64, "UINT64"),
+        (Self::CONST, "CONST"),
+        (Self::IMAGE_SIZE, "IMAGE_SIZE"),
+        (Self::PIXEL_FORMAT, "PIXEL_FORMAT"),
+        (Self::SAMPLE_FORMAT, "SAMPLE_FORMAT"),
+        (Self::VIDEO_RATE, "VIDEO_RATE"),
+        (Self::DURATION, "DURATION"),
+        (Self::COLOR, "COLOR"),
+        (Self::BOOL, "BOOL"),
+        (Self::CHANNEL_LAYOUT, "CHANNEL_LAYOUT"),
+        (Self::UINT, "UINT"),
+        (Self::ARRAY, "ARRAY"),
+    ];
+
+    /// The type with the raw value `value`, named or not.
+    #[inline]
+    pub const fn from_value(value: c_uint) -> Self {
+        Self(ffi::AVOptionType(value))
+    }
+
+    /// The raw value C stores for this type.
+    #[inline]
+    pub const fn value(self) -> c_uint {
+        self.0.0
+    }
+
+    /// The name of this value's constant, or `None` for an unnamed value,
+    /// which includes every base type combined with [`ARRAY`](Self::ARRAY).
+    pub fn name(self) -> Option<&'static str> {
+        Self::KNOWN
+            .iter()
+            .find(|(t, _)| *t == self)
+            .map(|&(_, name)| name)
+    }
+
+    /// Whether this is an array option's type: the [`ARRAY`](Self::ARRAY)
+    /// flag is set.
+    #[inline]
+    pub const fn is_array(self) -> bool {
+        self.value() & Self::ARRAY.value() != 0
+    }
+
+    /// The type of an array option's elements: this type without the
+    /// [`ARRAY`](Self::ARRAY) flag, as libavutil's `TYPE_BASE` computes it.
+    /// A scalar type is its own base.
+    #[inline]
+    pub const fn base(self) -> Self {
+        Self::from_value(self.value() & !Self::ARRAY.value())
+    }
+
+    /// The type of an array option whose elements have this type: this type
+    /// with the [`ARRAY`](Self::ARRAY) flag set.
+    #[inline]
+    pub const fn array(self) -> Self {
+        Self::from_value(self.value() | Self::ARRAY.value())
+    }
+}
+
+impl fmt::Debug for OptionType {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match (self.name(), self.base().name()) {
+            (Some(name), _) => write!(f, "OptionType::{name}"),
+            (None, Some(base)) if self.is_array() => {
+                write!(f, "OptionType::{base} | OptionType::ARRAY")
+            }
+            _ => write!(f, "OptionType({})", self.value()),
+        }
+    }
+}
+
+impl From<ffi::AVOptionType> for OptionType {
+    #[inline]
+    fn from(raw: ffi::AVOptionType) -> Self {
+        Self(raw)
+    }
+}
+
+impl From<OptionType> for ffi::AVOptionType {
+    #[inline]
+    fn from(ty: OptionType) -> Self {
+        ty.0
+    }
+}
+
 define_ctype!(
     /// Wraps: AVOptionRanges
     ///
@@ -268,21 +441,22 @@ define_ctype!(
 // owner, or an exclusive handle, moves between threads as a `Box<[Box<T>]>`
 // does.
 unsafe impl Send for OptionRanges {}
-// SAFETY: as for `OptionRanges`: `OptionRangesMut` has no setters, so it
-// reaches only the same bytes, read-only.
+// SAFETY: as for `OptionRanges`: `OptionRangesMut` reaches the same blocks,
+// writing only the ranges' bounds and their `av_free`-released strings
+// (`get_mut`), none of which is tied to a thread.
 unsafe impl Send for OptionRangesMut<'_> {}
 
 // SAFETY: nothing reachable through a shared handle writes: `OptionRangesRef`
-// has getters only, the list has no interior mutability, and no C path writes
-// a list after its query returns, so concurrent shared access reads
-// unchanging bytes.
+// and the `OptionRangeRef`s it hands out have getters only, the list has no
+// interior mutability, and no C path writes a list after its query returns,
+// so concurrent shared access reads unchanging bytes.
 unsafe impl Sync for OptionRanges {}
 // SAFETY: as for `Sync for OptionRanges`: copies of a shared handle only read.
 unsafe impl Send for OptionRangesRef<'_> {}
 // SAFETY: as above.
 unsafe impl Sync for OptionRangesRef<'_> {}
 // SAFETY: `&OptionRangesMut` reaches the list only through `as_ref`, a shared
-// handle, and the exclusive handle has no setters either.
+// handle; `get_mut`, its only path to a write, takes `&mut self`.
 unsafe impl Sync for OptionRangesMut<'_> {}
 
 /// `av_opt_freep_ranges`, as the policy of an owned [`OptionRanges`].
@@ -425,12 +599,40 @@ impl<'a> OptionRangesRef<'a> {
     /// Field: AVOptionRanges.range
     ///
     /// Every range, component-major: component `c`'s range `i` is element
-    /// `c * range_count() + i`, as [`get`](Self::get) indexes. An element may
-    /// be NULL when a class callback left it so.
+    /// `c * range_count() + i`, as [`get`](Self::get) indexes. An element is
+    /// `None` when a class callback left it NULL.
+    pub fn ranges(&self) -> RangeIter<'a> {
+        RangeIter {
+            list: *self,
+            front: 0,
+            back: self.slots().len(),
+        }
+    }
+
+    /// Field: AVOptionRanges.range
     ///
-    /// Raw elements until `AVOptionRange` is wrapped: each addresses a range
-    /// the list owns, live and unwritten for `'a`.
-    pub fn ranges(&self) -> CSlice<'a, *const ffi::AVOptionRange> {
+    /// Range `index` of component `component`; `None` when either is out of
+    /// bounds, or when a class callback left the element NULL.
+    pub fn get(&self, index: usize, component: usize) -> Option<OptionRangeRef<'a>> {
+        if index >= self.range_count() || component >= self.component_count() {
+            return None;
+        }
+        self.slot(component * self.range_count() + index)?
+    }
+
+    /// Element `i` of the `range` array: `None` out of bounds, `Some(None)`
+    /// for a NULL element.
+    fn slot(&self, i: usize) -> Option<Option<OptionRangeRef<'a>>> {
+        let range = self.slots().elem(i)?;
+        // SAFETY: a non-NULL element addresses a range the list owns, live
+        // and initialised for `'a`; nothing writes it meanwhile, since
+        // `OptionRangeMut` needs the list's exclusive handle.
+        Some(unsafe { OptionRangeRef::from_ptr(range.cast_mut()) })
+    }
+
+    /// The `range` array, `nb_ranges * nb_components` elements; empty when
+    /// it is NULL or a count is not positive.
+    fn slots(&self) -> CSlice<'a, *const ffi::AVOptionRange> {
         let len = self
             .range_count()
             .checked_mul(self.component_count())
@@ -450,18 +652,244 @@ impl<'a> OptionRangesRef<'a> {
             }
         }
     }
+}
 
+impl OptionRangesMut<'_> {
     /// Field: AVOptionRanges.range
     ///
-    /// Range `index` of component `component`; `None` when either is out of
-    /// bounds. Raw, as for [`ranges`](Self::ranges).
-    pub fn get(&self, index: usize, component: usize) -> Option<*const ffi::AVOptionRange> {
-        if index >= self.range_count() || component >= self.component_count() {
-            return None;
-        }
-        self.ranges().elem(component * self.range_count() + index)
+    /// Range `index` of component `component`, to rewrite; `None` as for
+    /// [`OptionRangesRef::get`]. The list's shape stays read-only.
+    pub fn get_mut(&mut self, index: usize, component: usize) -> Option<OptionRangeMut<'_>> {
+        let range = self.as_ref().get(index, component)?.as_ptr();
+        // SAFETY: `range` addresses a live range the list owns, which only
+        // this exclusive borrow of the list reaches for its lifetime: a
+        // fresh list's elements are distinct allocations, as
+        // `av_opt_freep_ranges` frees each one.
+        unsafe { OptionRangeMut::from_ptr(range.cast_mut()) }
     }
 }
+
+define_ctype!(
+    /// Wraps: AVOptionRange
+    ///
+    /// One allowed range of values, or one allowed value, of an option
+    /// component: an element of an [`OptionRanges`] list, which owns it and
+    /// its string. No C routine allocates, copies or frees a range alone, so
+    /// it is only ever borrowed from its list: as an [`OptionRangeRef`] from
+    /// [`OptionRangesRef::get`] or [`OptionRangesRef::ranges`], and as an
+    /// [`OptionRangeMut`] from [`OptionRangesMut::get_mut`].
+    OptionRange,
+    OptionRangeRef,
+    OptionRangeMut,
+    ffi::AVOptionRange
+);
+
+// SAFETY: a range is four doubles, an `int` and `str`, NULL or an
+// `av_malloc`-family string the range owns, which `av_opt_freep_ranges` (and
+// `set_label` / a dropped `take_label` result) releases through `av_free`,
+// which any thread may call. Nothing in it is tied to a thread, so an
+// exclusive handle moves between threads as a `&mut (f64, Box<CStr>)` does.
+unsafe impl Send for OptionRange {}
+// SAFETY: as for `OptionRange`.
+unsafe impl Send for OptionRangeMut<'_> {}
+
+// SAFETY: the range has no interior mutability and C writes no range after
+// its query returns; the only writers are `OptionRangeMut`'s setters, which
+// need the exclusive handle, so concurrent shared access reads unchanging
+// bytes.
+unsafe impl Sync for OptionRange {}
+// SAFETY: as for `Sync for OptionRange`: copies of a shared handle only read.
+unsafe impl Send for OptionRangeRef<'_> {}
+// SAFETY: as above.
+unsafe impl Sync for OptionRangeRef<'_> {}
+// SAFETY: `&OptionRangeMut` reaches the range only through `as_ref`, a shared
+// handle; every setter takes `&mut self`.
+unsafe impl Sync for OptionRangeMut<'_> {}
+
+impl<'a> OptionRangeRef<'a> {
+    /// Field: AVOptionRange.str
+    ///
+    /// The range's string form, when its producer gave one; `None` for every
+    /// range of the default query, which leaves it NULL.
+    pub fn label(&self) -> Option<&'a CStr> {
+        // SAFETY: a read of a projected field through the shared handle.
+        let label = unsafe { addr_of!((*self.as_ptr()).str_).read() };
+        // SAFETY: `str` is NULL or a NUL-terminated string the range owns,
+        // freed only with the range or through `OptionRangeMut`, which cannot
+        // coexist with a shared borrow of the list for `'a`.
+        unsafe { opt_c_str(label) }
+    }
+
+    /// Field: AVOptionRange.value_min
+    ///
+    /// The smallest allowed value, or the value when [`is_range`] is
+    /// `false`. For a string option it is the minimum length, for an image
+    /// size the minimum pixel count, width or height, by component.
+    ///
+    /// [`is_range`]: Self::is_range
+    pub fn value_min(&self) -> f64 {
+        // SAFETY: a read of a projected field through the shared handle.
+        unsafe { addr_of!((*self.as_ptr()).value_min).read() }
+    }
+
+    /// Field: AVOptionRange.value_max
+    ///
+    /// The largest allowed value, as for [`value_min`](Self::value_min).
+    pub fn value_max(&self) -> f64 {
+        // SAFETY: a read of a projected field through the shared handle.
+        unsafe { addr_of!((*self.as_ptr()).value_max).read() }
+    }
+
+    /// Field: AVOptionRange.component_min
+    ///
+    /// The smallest allowed value of one component of the value; for a
+    /// string option, the smallest allowed code point.
+    pub fn component_min(&self) -> f64 {
+        // SAFETY: a read of a projected field through the shared handle.
+        unsafe { addr_of!((*self.as_ptr()).component_min).read() }
+    }
+
+    /// Field: AVOptionRange.component_max
+    ///
+    /// The largest allowed value of one component, as for
+    /// [`component_min`](Self::component_min): 127 limits a string to ASCII.
+    pub fn component_max(&self) -> f64 {
+        // SAFETY: a read of a projected field through the shared handle.
+        unsafe { addr_of!((*self.as_ptr()).component_max).read() }
+    }
+
+    /// Field: AVOptionRange.is_range
+    ///
+    /// Whether the range spans [`value_min`](Self::value_min) to
+    /// [`value_max`](Self::value_max) rather than naming the single value
+    /// `value_min`: C's flag is non-zero.
+    pub fn is_range(&self) -> bool {
+        // SAFETY: a read of a projected field through the shared handle.
+        unsafe { addr_of!((*self.as_ptr()).is_range).read() != 0 }
+    }
+}
+
+impl OptionRangeMut<'_> {
+    /// Field: AVOptionRange.str
+    ///
+    /// Replaces the range's string with `label`, or clears it with `None`,
+    /// releasing the previous one; the list releases the new one with
+    /// itself.
+    pub fn set_label(&mut self, label: Option<HeapString>) {
+        drop(self.take_label());
+        let new = label.map_or(core::ptr::null_mut(), HeapString::into_raw);
+        // SAFETY: a write of a projected field through the exclusive handle;
+        // `new` is NULL or an owned `av_malloc`-family string, which the list
+        // now owns and `av_opt_freep_ranges` releases with `av_freep`.
+        unsafe { addr_of_mut!((*self.as_mut_ptr()).str_).write(new) };
+    }
+
+    /// Field: AVOptionRange.str
+    ///
+    /// Takes the range's string out of it, leaving it without one; `None`
+    /// when it has none.
+    pub fn take_label(&mut self) -> Option<HeapString> {
+        let range = self.as_mut_ptr();
+        // SAFETY: a read, then a write, of a projected field through the
+        // exclusive handle.
+        let old = unsafe { addr_of_mut!((*range).str_).replace(core::ptr::null()) };
+        // SAFETY: `old` is NULL or the `av_malloc`-family string the range
+        // owned, as `av_opt_freep_ranges` requires of every range, whose claim
+        // the NULL just stored hands over: neither the list nor C frees it
+        // again.
+        unsafe { HeapString::from_raw(old.cast_mut()) }
+    }
+
+    /// Field: AVOptionRange.value_min
+    ///
+    /// Sets the smallest allowed value, or the value of a single-value range.
+    pub fn set_value_min(&mut self, value: f64) {
+        // SAFETY: a write of a projected field through the exclusive handle.
+        unsafe { addr_of_mut!((*self.as_mut_ptr()).value_min).write(value) }
+    }
+
+    /// Field: AVOptionRange.value_max
+    ///
+    /// Sets the largest allowed value.
+    pub fn set_value_max(&mut self, value: f64) {
+        // SAFETY: a write of a projected field through the exclusive handle.
+        unsafe { addr_of_mut!((*self.as_mut_ptr()).value_max).write(value) }
+    }
+
+    /// Field: AVOptionRange.component_min
+    ///
+    /// Sets the smallest allowed value of one component.
+    pub fn set_component_min(&mut self, value: f64) {
+        // SAFETY: a write of a projected field through the exclusive handle.
+        unsafe { addr_of_mut!((*self.as_mut_ptr()).component_min).write(value) }
+    }
+
+    /// Field: AVOptionRange.component_max
+    ///
+    /// Sets the largest allowed value of one component.
+    pub fn set_component_max(&mut self, value: f64) {
+        // SAFETY: a write of a projected field through the exclusive handle.
+        unsafe { addr_of_mut!((*self.as_mut_ptr()).component_max).write(value) }
+    }
+
+    /// Field: AVOptionRange.is_range
+    ///
+    /// Makes the range span `value_min` to `value_max` (`true`, stored as 1)
+    /// or name the single value `value_min` (`false`, stored as 0).
+    pub fn set_is_range(&mut self, is_range: bool) {
+        // SAFETY: a write of a projected field through the exclusive handle.
+        unsafe { addr_of_mut!((*self.as_mut_ptr()).is_range).write(c_int::from(is_range)) }
+    }
+}
+
+/// The ranges of an [`OptionRanges`] list in order, from
+/// [`OptionRangesRef::ranges`]: a handle for each element, `None` for a NULL
+/// one.
+#[derive(Clone, Copy)]
+pub struct RangeIter<'a> {
+    list: OptionRangesRef<'a>,
+    front: usize,
+    back: usize,
+}
+
+impl<'a> Iterator for RangeIter<'a> {
+    type Item = Option<OptionRangeRef<'a>>;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        if self.front == self.back {
+            return None;
+        }
+        self.front += 1;
+        self.list.slot(self.front - 1)
+    }
+
+    fn size_hint(&self) -> (usize, Option<usize>) {
+        let n = self.back - self.front;
+        (n, Some(n))
+    }
+}
+
+impl DoubleEndedIterator for RangeIter<'_> {
+    fn next_back(&mut self) -> Option<Self::Item> {
+        if self.front == self.back {
+            return None;
+        }
+        self.back -= 1;
+        self.list.slot(self.back)
+    }
+}
+
+impl ExactSizeIterator for RangeIter<'_> {}
+
+impl fmt::Debug for RangeIter<'_> {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.debug_struct("RangeIter")
+            .field("remaining", &(self.back - self.front))
+            .finish()
+    }
+}
+
+impl core::iter::FusedIterator for RangeIter<'_> {}
 
 #[cfg(test)]
 #[path = "../tests/common/opt.rs"]
@@ -512,7 +940,7 @@ mod unit_tests {
         assert_eq!(o.help(), Some(c"an int"));
         assert_eq!(o.unit(), Some(c"mode"));
         assert_eq!(o.offset(), core::mem::offset_of!(Ctx, int) as i32);
-        assert_eq!(o.option_type(), T::AV_OPT_TYPE_INT);
+        assert_eq!(o.option_type(), OptionType::INT);
         assert_eq!((o.min(), o.max()), (-10.0, 100.0));
         assert_eq!(o.flags(), 0);
         assert_eq!(o.default_value(), OptionDefault::Int(7));
@@ -653,7 +1081,7 @@ mod unit_tests {
             let o = unsafe { OptionDefRef::from_ptr(found.cast_mut()) }.unwrap();
             assert_eq!((o.name(), o.unit()), (Some(name), unit.or(o.unit())));
             if unit.is_some() {
-                assert_eq!(o.option_type(), T::AV_OPT_TYPE_CONST);
+                assert_eq!(o.option_type(), OptionType::CONST);
             }
         }
     }
@@ -915,10 +1343,9 @@ mod unit_tests {
         }
     }
 
-    /// Reads the value bounds of the range at `p`.
-    fn bounds(p: *const ffi::AVOptionRange) -> (f64, f64) {
-        // SAFETY: each caller passes an element of a live `Local`.
-        unsafe { ((*p).value_min, (*p).value_max) }
+    /// Reads the value bounds of `r`.
+    fn bounds(r: OptionRangeRef<'_>) -> (f64, f64) {
+        (r.value_min(), r.value_max())
     }
 
     #[test]
@@ -929,7 +1356,7 @@ mod unit_tests {
         let all = r.ranges();
         assert_eq!(all.len(), 6);
         assert_eq!(
-            all.elems().map(bounds).map(|b| b.0).collect::<Vec<_>>(),
+            all.map(|e| bounds(e.unwrap()).0).collect::<Vec<_>>(),
             [0., 1., 2., 3., 4., 5.]
         );
         // Component `c`'s range `i` is element `c * nb_ranges + i`.
@@ -957,19 +1384,260 @@ mod unit_tests {
         // A NULL array is empty whatever the counts claim.
         let l = Local::new(2, 3, None).without_array();
         let r = l.handle();
-        assert!(r.ranges().is_empty());
+        assert_eq!(r.ranges().len(), 0);
+        assert!(r.ranges().next().is_none());
         assert!(r.get(0, 0).is_none());
 
         // An empty list owns no array.
         let l = Local::new(0, 1, None).without_array();
-        assert!(l.handle().ranges().is_empty());
+        assert_eq!(l.handle().ranges().len(), 0);
     }
 
     #[test]
     fn null_elements_pass_through() {
         let l = Local::new(3, 1, Some(1));
         let r = l.handle();
-        assert!(r.get(1, 0).unwrap().is_null());
-        assert_eq!(r.ranges().elems().filter(|p| p.is_null()).count(), 1);
+        // `get` reads a NULL element as no range, and so does the iterator.
+        assert!(r.get(1, 0).is_none());
+        assert!(r.get(0, 0).is_some() && r.get(2, 0).is_some());
+        let holes: Vec<bool> = r.ranges().map(|e| e.is_none()).collect();
+        assert_eq!(holes, [false, true, false]);
+        assert_eq!(r.slot(1).map(|e| e.is_none()), Some(true));
+        assert!(r.slot(3).is_none());
+    }
+
+    #[test]
+    fn range_iter_is_double_ended_exact_and_fused() {
+        let l = Local::new(3, 2, Some(4));
+        let r = l.handle();
+        let first = |e: Option<OptionRangeRef<'_>>| e.map(|e| e.value_min());
+        let mut it = r.ranges();
+        assert_eq!(it.size_hint(), (6, Some(6)));
+        assert_eq!(it.next().map(first), Some(Some(0.0)));
+        assert_eq!(it.next_back().map(first), Some(Some(5.0)));
+        assert_eq!(it.next_back().map(first), Some(None));
+        assert_eq!(it.len(), 3);
+        // A copy resumes where the original stood.
+        let copy = it;
+        assert_eq!(
+            copy.map(first).collect::<Vec<_>>(),
+            [Some(1.0), Some(2.0), Some(3.0)]
+        );
+        assert_eq!(format!("{it:?}"), "RangeIter { remaining: 3 }");
+        assert_eq!(it.by_ref().rev().filter_map(first).count(), 3);
+        // Exhausted from either end, it stays so.
+        assert!(it.next().is_none() && it.next_back().is_none() && it.next().is_none());
+        assert_eq!(it.len(), 0);
+        assert_eq!(
+            r.ranges().rev().map(first).collect::<Vec<_>>(),
+            [Some(5.0), None, Some(3.0), Some(2.0), Some(1.0), Some(0.0)]
+        );
+    }
+
+    #[test]
+    fn range_getters_read_every_field() {
+        let l = Local::new(2, 1, None);
+        let r = l.handle();
+        let (a, b) = (r.get(0, 0).unwrap(), r.get(1, 0).unwrap());
+        assert_eq!((a.value_min(), a.value_max()), (0.0, 0.5));
+        assert_eq!((a.component_min(), a.component_max()), (0.0, 1.0));
+        assert!(a.is_range() && b.is_range());
+        assert_eq!(a.label(), None);
+        // A non-zero flag other than 1 still reads as a range, and 0 as a
+        // single value.
+        for (raw, expected) in [(0, false), (1, true), (2, true), (-1, true)] {
+            // SAFETY: `l.0` is the live allocation owned by `l`, and no
+            // handle is in use across this write.
+            unsafe { (*l.0).ranges[1].is_range = raw };
+            assert_eq!(l.handle().get(1, 0).unwrap().is_range(), expected);
+        }
+        // SAFETY: as above; the literal outlives `l`.
+        unsafe { (*l.0).ranges[0].str_ = c"label".as_ptr() };
+        assert_eq!(l.handle().get(0, 0).unwrap().label(), Some(c"label"));
+        // SAFETY: as above; the range no longer refers to the literal.
+        unsafe { (*l.0).ranges[0].str_ = core::ptr::null() };
+    }
+
+    impl Local {
+        fn handle_mut(&mut self) -> OptionRangesMut<'_> {
+            // SAFETY: `list` is live and initialised for the exclusive borrow
+            // of `self`.
+            unsafe { OptionRangesMut::from_ptr(&raw mut (*self.0).list) }.unwrap()
+        }
+    }
+
+    #[test]
+    fn range_setters_write_every_field() {
+        let mut l = Local::new(2, 2, Some(3));
+        let mut m = l.handle_mut();
+        assert!(m.get_mut(1, 1).is_none(), "a NULL element");
+        assert!(m.get_mut(2, 0).is_none() && m.get_mut(0, 2).is_none());
+        {
+            let mut e = m.get_mut(1, 0).unwrap();
+            e.set_value_min(-4.0);
+            e.set_value_max(8.5);
+            e.set_component_min(-1.0);
+            e.set_component_max(0x10FFFF as f64);
+            e.set_is_range(false);
+            let r = e.as_ref();
+            assert_eq!((r.value_min(), r.value_max()), (-4.0, 8.5));
+            assert_eq!((r.component_min(), r.component_max()), (-1.0, 1_114_111.0));
+            assert!(!r.is_range());
+            e.set_is_range(true);
+        }
+        // The raw flag is C's 0 / 1.
+        // SAFETY: `l.0` is live; the handles above are no longer used.
+        assert_eq!(unsafe { (*l.0).ranges[1].is_range }, 1);
+        let r = l.handle().get(1, 0).unwrap();
+        assert_eq!(bounds(r), (-4.0, 8.5));
+        // Its neighbours are untouched.
+        assert_eq!(bounds(l.handle().get(0, 0).unwrap()), (0.0, 0.5));
+        assert_eq!(bounds(l.handle().get(0, 1).unwrap()), (2.0, 2.5));
+    }
+
+    #[test]
+    fn range_label_is_replaced_taken_and_released() {
+        let mut l = Local::new(1, 1, None);
+        let mut m = l.handle_mut();
+        let mut e = m.get_mut(0, 0).unwrap();
+        assert!(e.take_label().is_none());
+        e.set_label(crate::libavutil::mem::string_from_c_str(c"first"));
+        assert_eq!(e.as_ref().label(), Some(c"first"));
+        // Replacing releases the old string (LeakSanitizer reports a miss).
+        e.set_label(crate::libavutil::mem::string_from_c_str(c"second"));
+        assert_eq!(e.as_ref().label(), Some(c"second"));
+        let taken = e.take_label().unwrap();
+        assert_eq!(taken.as_c_str(), c"second");
+        assert_eq!(e.as_ref().label(), None);
+        assert!(e.take_label().is_none());
+        // Clearing an empty label is a no-op; clearing a set one frees it.
+        e.set_label(None);
+        e.set_label(Some(taken));
+        e.set_label(None);
+        // SAFETY: `l.0` is live; the handles above are no longer used.
+        assert!(unsafe { (*l.0).ranges[0].str_ }.is_null());
+    }
+
+    #[test]
+    fn ranges_and_their_handles_are_send_and_sync() {
+        fn send_sync<T: Send + Sync>() {}
+        send_sync::<OptionRange>();
+        send_sync::<OptionRangeRef<'static>>();
+        send_sync::<OptionRangeMut<'static>>();
+        send_sync::<RangeIter<'static>>();
+        send_sync::<OptionType>();
+    }
+
+    /// Every named type, against its raw C enumerator.
+    const TYPES: [(OptionType, T, &str); 21] = [
+        (OptionType::FLAGS, T::AV_OPT_TYPE_FLAGS, "FLAGS"),
+        (OptionType::INT, T::AV_OPT_TYPE_INT, "INT"),
+        (OptionType::INT64, T::AV_OPT_TYPE_INT64, "INT64"),
+        (OptionType::DOUBLE, T::AV_OPT_TYPE_DOUBLE, "DOUBLE"),
+        (OptionType::FLOAT, T::AV_OPT_TYPE_FLOAT, "FLOAT"),
+        (OptionType::STRING, T::AV_OPT_TYPE_STRING, "STRING"),
+        (OptionType::RATIONAL, T::AV_OPT_TYPE_RATIONAL, "RATIONAL"),
+        (OptionType::BINARY, T::AV_OPT_TYPE_BINARY, "BINARY"),
+        (OptionType::DICT, T::AV_OPT_TYPE_DICT, "DICT"),
+        (OptionType::UINT64, T::AV_OPT_TYPE_UINT64, "UINT64"),
+        (OptionType::CONST, T::AV_OPT_TYPE_CONST, "CONST"),
+        (
+            OptionType::IMAGE_SIZE,
+            T::AV_OPT_TYPE_IMAGE_SIZE,
+            "IMAGE_SIZE",
+        ),
+        (
+            OptionType::PIXEL_FORMAT,
+            T::AV_OPT_TYPE_PIXEL_FMT,
+            "PIXEL_FORMAT",
+        ),
+        (
+            OptionType::SAMPLE_FORMAT,
+            T::AV_OPT_TYPE_SAMPLE_FMT,
+            "SAMPLE_FORMAT",
+        ),
+        (
+            OptionType::VIDEO_RATE,
+            T::AV_OPT_TYPE_VIDEO_RATE,
+            "VIDEO_RATE",
+        ),
+        (OptionType::DURATION, T::AV_OPT_TYPE_DURATION, "DURATION"),
+        (OptionType::COLOR, T::AV_OPT_TYPE_COLOR, "COLOR"),
+        (OptionType::BOOL, T::AV_OPT_TYPE_BOOL, "BOOL"),
+        (
+            OptionType::CHANNEL_LAYOUT,
+            T::AV_OPT_TYPE_CHLAYOUT,
+            "CHANNEL_LAYOUT",
+        ),
+        (OptionType::UINT, T::AV_OPT_TYPE_UINT, "UINT"),
+        (OptionType::ARRAY, T::AV_OPT_TYPE_FLAG_ARRAY, "ARRAY"),
+    ];
+
+    #[test]
+    fn option_type_constants_are_the_c_enumerators() {
+        assert_eq!(OptionType::KNOWN.len(), TYPES.len());
+        for ((ty, raw, name), (known, known_name)) in TYPES.into_iter().zip(OptionType::KNOWN) {
+            assert_eq!((ty, name), (known, known_name));
+            assert_eq!(ty.value(), raw.0);
+            assert_eq!(ffi::AVOptionType::from(ty), raw);
+            assert_eq!(OptionType::from(raw), ty);
+            assert_eq!(OptionType::from_value(raw.0), ty);
+            assert_eq!(ty.name(), Some(name));
+            assert_eq!(format!("{ty:?}"), format!("OptionType::{name}"));
+        }
+        // The base types are 1 through 20, the flag bit 16.
+        assert_eq!(OptionType::FLAGS.value(), 1);
+        assert_eq!(OptionType::UINT.value(), 20);
+        assert_eq!(OptionType::ARRAY.value(), 1 << 16);
+        assert_eq!(size_of::<OptionType>(), size_of::<ffi::AVOptionType>());
+    }
+
+    #[test]
+    fn option_type_array_flag_round_trips() {
+        for (ty, ..) in &TYPES[..20] {
+            let arr = ty.array();
+            assert!(!ty.is_array() && arr.is_array());
+            assert_eq!((arr.base(), ty.base()), (*ty, *ty));
+            assert_eq!(arr.array(), arr);
+            assert_eq!(arr.value(), ty.value() | 0x1_0000);
+            assert_eq!(arr.name(), None);
+            assert_eq!(format!("{arr:?}"), format!("{ty:?} | OptionType::ARRAY"));
+        }
+        // The flag alone is an array of the unnamed type 0.
+        assert!(OptionType::ARRAY.is_array());
+        assert_eq!(OptionType::ARRAY.base().value(), 0);
+        assert_eq!(OptionType::from_value(0).array(), OptionType::ARRAY);
+    }
+
+    #[test]
+    fn option_type_keeps_unnamed_values() {
+        for v in [0, 21, 99, 0xFFFF, 0x2_0000, u32::MAX] {
+            let ty = OptionType::from_value(v);
+            assert_eq!(ty.value(), v);
+            assert_eq!(ty.name(), None, "{v:#x}");
+            assert_eq!(format!("{ty:?}"), format!("OptionType({v})"));
+            assert_eq!(ty.base().value(), v & !0x1_0000);
+            assert_eq!(ty.is_array(), v & 0x1_0000 != 0);
+        }
+        // An unnamed base with the flag prints as a value.
+        let odd = OptionType::from_value(99).array();
+        assert_eq!(format!("{odd:?}"), format!("OptionType({})", 99 | 0x1_0000));
+        // Hashing and equality follow the raw value.
+        let set: std::collections::HashSet<_> = TYPES.iter().map(|t| t.0).collect();
+        assert_eq!(set.len(), 21);
+        assert!(set.contains(&OptionType::from_value(2)));
+    }
+
+    /// The type each fixture option reads as is the one its table stores.
+    #[test]
+    fn option_type_reads_the_table_entry() {
+        for i in 0..=NAMED {
+            let o = entry(i);
+            let raw = OPTIONS.0[i].type_;
+            assert_eq!(o.option_type().value(), raw.0);
+        }
+        let array = named(c"array").option_type();
+        assert_eq!((array.base(), array.is_array()), (OptionType::INT, true));
+        assert_eq!(named(c"bogus").option_type(), OptionType::from_value(99));
     }
 }
