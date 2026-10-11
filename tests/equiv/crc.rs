@@ -130,3 +130,40 @@ fn batch10_scalar_tables_match_c_in_isolated_process() {
         .unwrap();
     assert!(status.success());
 }
+
+#[test]
+fn standard_table_sequences_match_c() {
+    use ffmpeg::libavutil::crc::{CrcId, get_table};
+    for id in [
+        CrcId::ATM_8,
+        CrcId::ANSI_16,
+        CrcId::CCITT_16,
+        CrcId::IEEE_32,
+        CrcId::IEEE_32_LE,
+        CrcId::ANSI_16_LE,
+        CrcId::IEEE_24,
+        CrcId::EBU_8,
+    ] {
+        let actual = get_table(id).unwrap();
+        // SAFETY: C validates the ID and returns a read-only static table;
+        // no allocation is transferred or later freed by this reference.
+        let reference = unsafe { ffi::av_crc_get_table(id.into_raw()) };
+        assert!(!reference.is_null());
+        let input = [0x57; 259];
+        let (mut a, mut r) = (0x12345678, 0x12345678);
+        for len in [0, 1, 2, 3, 4, 7, 16, 255, 256] {
+            a = actual.update(a, &input[3..3 + len]);
+            // SAFETY: an initialized immutable C table; input has a 3-byte
+            // prefix so generic C's end-3 pointer remains within the allocation.
+            r = unsafe { ffi::av_crc(reference, r, input.as_ptr().add(3), len) };
+            assert_eq!(a, r);
+        }
+    }
+    for id in [8, 9, u32::MAX] {
+        let id = CrcId::from_raw(ffi::AVCRCId(id));
+        assert!(get_table(id).is_none());
+        // SAFETY: every enum encoding is validated by C, which returns NULL
+        // rather than indexing a table for an unsupported identifier.
+        assert!(unsafe { ffi::av_crc_get_table(id.into_raw()) }.is_null());
+    }
+}

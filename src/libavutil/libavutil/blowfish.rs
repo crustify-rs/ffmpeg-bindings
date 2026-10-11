@@ -4,6 +4,7 @@
 //! support shared and exclusive handles. Array getters return snapshots, not
 //! references to memory C can access. Dropping a box uses [`Heap`](super::mem::Heap).
 
+use super::aes::{CryptError, Direction, buffer_count};
 use super::{ffi, mem::HeapBox};
 use core::ptr::{addr_of, addr_of_mut};
 use ffibox::{CZeroable, define_ctype};
@@ -116,11 +117,119 @@ impl BlowfishMut<'_> {
     }
 }
 
+impl BlowfishRef<'_> {
+    /// Wraps: av_blowfish_crypt
+    ///
+    /// Encrypt or decrypt whole blocks.
+    /// `None` selects ECB; `Some` selects CBC and updates the IV after each block.
+    /// Buffers must have equal lengths; errors leave all state unchanged.
+    pub fn crypt(
+        &self,
+        dst: &mut [u8],
+        src: &[u8],
+        iv: Option<&mut [u8; 8]>,
+        direction: Direction,
+    ) -> Result<(), CryptError> {
+        let count = buffer_count(dst.len(), src.len(), 8)?;
+        if count == 0 {
+            return Ok(());
+        }
+        // SAFETY: the shared handle addresses an initialized full context;
+        // equal-length disjoint slices hold count whole blocks, and any IV is
+        // a separate writable 8-byte array. C retains no buffer pointers.
+        // C reads but never writes the schedule despite its mutable ABI pointer.
+        unsafe {
+            ffi::av_blowfish_crypt(
+                self.as_ptr().cast_mut(),
+                dst.as_mut_ptr(),
+                src.as_ptr(),
+                count,
+                iv.map_or(core::ptr::null_mut(), |iv| iv.as_mut_ptr()),
+                direction.as_int(),
+            )
+        };
+        Ok(())
+    }
+
+    /// In-place form of [`Self::crypt`], with the same modes and validation.
+    pub fn crypt_in_place(
+        &self,
+        data: &mut [u8],
+        iv: Option<&mut [u8; 8]>,
+        direction: Direction,
+    ) -> Result<(), CryptError> {
+        let count = buffer_count(data.len(), data.len(), 8)?;
+        if count == 0 {
+            return Ok(());
+        }
+        let ptr = data.as_mut_ptr();
+        // SAFETY: one exclusive slice provides count whole readable/writable
+        // blocks. C explicitly supports src == dst, preserving ciphertext before
+        // CBC decryption writes it. The initialized context and optional IV are
+        // borrowed without writers and disjoint; no pointer is retained.
+        // C never writes the schedule despite its mutable ABI pointer.
+        unsafe {
+            ffi::av_blowfish_crypt(
+                self.as_ptr().cast_mut(),
+                ptr,
+                ptr,
+                count,
+                iv.map_or(core::ptr::null_mut(), |iv| iv.as_mut_ptr()),
+                direction.as_int(),
+            )
+        };
+        Ok(())
+    }
+}
+
+impl BlowfishRef<'_> {
+    /// Wraps: av_blowfish_crypt_ecb
+    ///
+    /// Process a pair of numeric 32-bit halves (not host-endian byte strings).
+    pub fn crypt_ecb(&self, halves: &mut [u32; 2], direction: Direction) {
+        let ptr = halves.as_mut_ptr();
+        // SAFETY: the context is initialized and shared without writers. The
+        // two distinct aligned u32 slots are writable for the synchronous call;
+        // C reads both before writing and retains neither pointer.
+        unsafe {
+            ffi::av_blowfish_crypt_ecb(
+                self.as_ptr().cast_mut(),
+                ptr,
+                ptr.add(1),
+                direction.as_int(),
+            )
+        };
+    }
+}
+
 #[cfg(test)]
 mod unit_tests {
     use super::*;
 
     // No FFI: also run under Miri to check layout, projection and reborrows.
+    #[test]
+    #[cfg(not(miri))]
+    fn rejected_buffers_are_atomic() {
+        let key = [0; 1];
+        let context = Blowfish::new(&key).unwrap();
+        let mut data = [0x99; 8 * 2];
+        let mut iv = [0x77; 8];
+        assert_eq!(
+            context
+                .as_ref()
+                .crypt(&mut data, &[0; 8], Some(&mut iv), Direction::Encrypt),
+            Err(CryptError::LengthMismatch)
+        );
+        assert_eq!(
+            context
+                .as_ref()
+                .crypt_in_place(&mut data[..8 - 1], Some(&mut iv), Direction::Decrypt),
+            Err(CryptError::IncompleteBlock)
+        );
+        assert_eq!(data, [0x99; 8 * 2]);
+        assert_eq!(iv, [0x77; 8]);
+    }
+
     #[test]
     fn layout_and_field_projections() {
         assert_eq!(size_of::<Blowfish>(), size_of::<ffi::AVBlowfish>());

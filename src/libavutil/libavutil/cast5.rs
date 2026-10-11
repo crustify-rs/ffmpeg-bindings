@@ -7,6 +7,7 @@ use core::{fmt, ptr::NonNull};
 
 use ffibox::{CBox, CDrop, define_ctype};
 
+use super::aes::{CryptError, Direction, buffer_count};
 use super::ffi;
 
 define_ctype!(
@@ -147,9 +148,167 @@ pub fn context_size() -> &'static i32 {
     unsafe { &ffi::av_cast5_size }
 }
 
+impl Cast5Ref<'_> {
+    /// Wraps: av_cast5_crypt
+    ///
+    /// Encrypt or decrypt whole blocks.
+    /// Buffers must have equal lengths; errors leave all state unchanged.
+    pub fn crypt(
+        &self,
+        dst: &mut [u8],
+        src: &[u8],
+        direction: Direction,
+    ) -> Result<(), CryptError> {
+        let count = buffer_count(dst.len(), src.len(), 8)?;
+        if count == 0 {
+            return Ok(());
+        }
+        // SAFETY: the shared handle addresses an initialized full context;
+        // equal-length disjoint slices hold count whole blocks, and any IV is
+        // a separate writable 8-byte array. C retains no buffer pointers.
+        // C reads but never writes the schedule despite its mutable ABI pointer.
+        unsafe {
+            ffi::av_cast5_crypt(
+                self.as_ptr().cast_mut(),
+                dst.as_mut_ptr(),
+                src.as_ptr(),
+                count,
+                direction.as_int(),
+            )
+        };
+        Ok(())
+    }
+
+    /// In-place form of [`Self::crypt`], with the same modes and validation.
+    pub fn crypt_in_place(&self, data: &mut [u8], direction: Direction) -> Result<(), CryptError> {
+        let count = buffer_count(data.len(), data.len(), 8)?;
+        if count == 0 {
+            return Ok(());
+        }
+        let ptr = data.as_mut_ptr();
+        // SAFETY: one exclusive slice provides count whole readable/writable
+        // blocks. C explicitly supports src == dst, preserving ciphertext before
+        // CBC decryption writes it. The initialized context and optional IV are
+        // borrowed without writers and disjoint; no pointer is retained.
+        // C never writes the schedule despite its mutable ABI pointer.
+        unsafe {
+            ffi::av_cast5_crypt(
+                self.as_ptr().cast_mut(),
+                ptr,
+                ptr,
+                count,
+                direction.as_int(),
+            )
+        };
+        Ok(())
+    }
+}
+
+impl Cast5Ref<'_> {
+    /// Wraps: av_cast5_crypt2
+    ///
+    /// Encrypt or decrypt whole blocks.
+    /// `None` selects ECB; `Some` selects CBC and updates the IV after each block.
+    /// Buffers must have equal lengths; errors leave all state unchanged.
+    pub fn crypt_cbc(
+        &self,
+        dst: &mut [u8],
+        src: &[u8],
+        iv: Option<&mut [u8; 8]>,
+        direction: Direction,
+    ) -> Result<(), CryptError> {
+        let count = buffer_count(dst.len(), src.len(), 8)?;
+        if count == 0 {
+            return Ok(());
+        }
+        // SAFETY: the shared handle addresses an initialized full context;
+        // equal-length disjoint slices hold count whole blocks, and any IV is
+        // a separate writable 8-byte array. C retains no buffer pointers.
+        // C reads but never writes the schedule despite its mutable ABI pointer.
+        unsafe {
+            ffi::av_cast5_crypt2(
+                self.as_ptr().cast_mut(),
+                dst.as_mut_ptr(),
+                src.as_ptr(),
+                count,
+                iv.map_or(core::ptr::null_mut(), |iv| iv.as_mut_ptr()),
+                direction.as_int(),
+            )
+        };
+        Ok(())
+    }
+
+    /// In-place form of [`Self::crypt_cbc`], with the same modes and validation.
+    pub fn crypt_cbc_in_place(
+        &self,
+        data: &mut [u8],
+        iv: Option<&mut [u8; 8]>,
+        direction: Direction,
+    ) -> Result<(), CryptError> {
+        let count = buffer_count(data.len(), data.len(), 8)?;
+        if count == 0 {
+            return Ok(());
+        }
+        let ptr = data.as_mut_ptr();
+        // SAFETY: one exclusive slice provides count whole readable/writable
+        // blocks. C explicitly supports src == dst, preserving ciphertext before
+        // CBC decryption writes it. The initialized context and optional IV are
+        // borrowed without writers and disjoint; no pointer is retained.
+        // C never writes the schedule despite its mutable ABI pointer.
+        unsafe {
+            ffi::av_cast5_crypt2(
+                self.as_ptr().cast_mut(),
+                ptr,
+                ptr,
+                count,
+                iv.map_or(core::ptr::null_mut(), |iv| iv.as_mut_ptr()),
+                direction.as_int(),
+            )
+        };
+        Ok(())
+    }
+}
+
 #[cfg(test)]
 mod unit_tests {
     use super::*;
+
+    #[test]
+    #[cfg(not(miri))]
+    fn rejected_buffers_are_atomic() {
+        let key = [0; 5];
+        let context = Cast5::new(&key).unwrap();
+        let mut data = [0x99; 8 * 2];
+        let mut iv = [0x77; 8];
+        assert_eq!(
+            context
+                .as_ref()
+                .crypt_cbc(&mut data, &[0; 8], Some(&mut iv), Direction::Encrypt),
+            Err(CryptError::LengthMismatch)
+        );
+        assert_eq!(
+            context.as_ref().crypt_cbc_in_place(
+                &mut data[..8 - 1],
+                Some(&mut iv),
+                Direction::Decrypt
+            ),
+            Err(CryptError::IncompleteBlock)
+        );
+        assert_eq!(
+            context
+                .as_ref()
+                .crypt(&mut data, &[0; 8], Direction::Encrypt),
+            Err(CryptError::LengthMismatch)
+        );
+        assert_eq!(
+            context
+                .as_ref()
+                .crypt_in_place(&mut data[..7], Direction::Decrypt),
+            Err(CryptError::IncompleteBlock)
+        );
+        assert_eq!(data, [0x99; 8 * 2]);
+        assert_eq!(iv, [0x77; 8]);
+    }
 
     #[test]
     fn rejects_invalid_lengths_before_ffi() {

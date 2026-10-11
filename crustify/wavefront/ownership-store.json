@@ -1153,6 +1153,80 @@
    }
   },
   {
+   "name": "av_aes_crypt",
+   "defined_in": "libavutil/aes.c",
+   "ptr_args": [
+    {
+     "name": "a",
+     "ptr": {
+      "scalar": {
+       "by_val": true
+      },
+      "array": null,
+      "string": false,
+      "owned": false,
+      "borrowed": {
+       "lifetime": "arg:a"
+      },
+      "nullable": false,
+      "mutable": true,
+      "note": "Synchronous borrow only; no caller buffer or context pointer is stored, transferred, freed or cloned. Key initialization selects direction; decrypt argument is ignored. Software processing writes inline scratch state."
+     }
+    },
+    {
+     "name": "dst",
+     "ptr": {
+      "scalar": null,
+      "array": {
+       "by_val": true
+      },
+      "string": false,
+      "owned": false,
+      "borrowed": {
+       "lifetime": "arg:dst"
+      },
+      "nullable": false,
+      "mutable": true,
+      "note": "Synchronous borrow only; no caller buffer or context pointer is stored, transferred, freed or cloned. Count is bytes for CTR, 16-byte blocks for AES/Camellia, 8-byte blocks for Blowfish/CAST5. Exact src==dst is supported; partially overlapping ranges are not exposed."
+     }
+    },
+    {
+     "name": "iv",
+     "ptr": {
+      "scalar": null,
+      "array": {
+       "by_val": true
+      },
+      "string": false,
+      "owned": false,
+      "borrowed": {
+       "lifetime": "arg:iv"
+      },
+      "nullable": true,
+      "mutable": true,
+      "note": "Synchronous borrow only; no caller buffer or context pointer is stored, transferred, freed or cloned. Setters copy 8-byte nonce or 16-byte full counter. CBC needs a separate whole writable block, updates it per block; NULL selects ECB."
+     }
+    },
+    {
+     "name": "src",
+     "ptr": {
+      "scalar": null,
+      "array": {
+       "by_val": true
+      },
+      "string": false,
+      "owned": false,
+      "borrowed": {
+       "lifetime": "arg:src"
+      },
+      "nullable": false,
+      "mutable": false,
+      "note": "Synchronous borrow only; no caller buffer or context pointer is stored, transferred, freed or cloned. Count is bytes for CTR, 16-byte blocks for AES/Camellia, 8-byte blocks for Blowfish/CAST5. Exact src==dst is supported; partially overlapping ranges are not exposed."
+     }
+    }
+   ]
+  },
+  {
    "name": "av_aes_ctr_alloc",
    "defined_in": "libavutil/aes_ctr.c",
    "lifetime": {
@@ -1181,6 +1255,63 @@
    }
   },
   {
+   "name": "av_aes_ctr_crypt",
+   "defined_in": "libavutil/aes_ctr.c",
+   "ptr_args": [
+    {
+     "name": "a",
+     "ptr": {
+      "scalar": {
+       "by_val": true
+      },
+      "array": null,
+      "string": false,
+      "owned": false,
+      "borrowed": {
+       "lifetime": "arg:a"
+      },
+      "nullable": false,
+      "mutable": true,
+      "note": "Synchronous borrow only; no caller buffer or context pointer is stored, transferred, freed or cloned."
+     }
+    },
+    {
+     "name": "dst",
+     "ptr": {
+      "scalar": null,
+      "array": {
+       "by_val": true
+      },
+      "string": false,
+      "owned": false,
+      "borrowed": {
+       "lifetime": "arg:dst"
+      },
+      "nullable": false,
+      "mutable": true,
+      "note": "Synchronous borrow only; no caller buffer or context pointer is stored, transferred, freed or cloned. Count is bytes for CTR, 16-byte blocks for AES/Camellia, 8-byte blocks for Blowfish/CAST5. Exact src==dst is supported; partially overlapping ranges are not exposed."
+     }
+    },
+    {
+     "name": "src",
+     "ptr": {
+      "scalar": null,
+      "array": {
+       "by_val": true
+      },
+      "string": false,
+      "owned": false,
+      "borrowed": {
+       "lifetime": "arg:src"
+      },
+      "nullable": false,
+      "mutable": false,
+      "note": "Synchronous borrow only; no caller buffer or context pointer is stored, transferred, freed or cloned. Count is bytes for CTR, 16-byte blocks for AES/Camellia, 8-byte blocks for Blowfish/CAST5. Exact src==dst is supported; partially overlapping ranges are not exposed."
+     }
+    }
+   ]
+  },
+  {
    "name": "av_aes_ctr_free",
    "defined_in": "libavutil/aes_ctr.c",
    "lifetime": {
@@ -1204,6 +1335,68 @@
       "nullable": true,
       "mutable": true,
       "note": "Consumes av_malloc-family storage; no reads, so accepts allocated but not initialized contexts and null."
+     }
+    }
+   ]
+  },
+  {
+   "name": "av_aes_ctr_get_iv",
+   "defined_in": "libavutil/aes_ctr.c",
+   "ptr_args": [
+    {
+     "name": "a",
+     "ptr": {
+      "scalar": {
+       "by_val": true
+      },
+      "array": null,
+      "string": false,
+      "owned": false,
+      "borrowed": {
+       "lifetime": "arg:a"
+      },
+      "nullable": false,
+      "mutable": false,
+      "note": "Synchronous borrow only; no caller buffer or context pointer is stored, transferred, freed or cloned."
+     }
+    }
+   ],
+   "ptr_ret": {
+    "ptr": {
+     "scalar": null,
+     "array": {
+      "by_val": true
+     },
+     "string": false,
+     "owned": false,
+     "borrowed": {
+      "lifetime": "arg:a"
+     },
+     "nullable": false,
+     "mutable": false,
+     "note": "Non-null inline counter[16], borrowed while context lives and unchanged. Safe API copies a snapshot, never retains a C reference."
+    }
+   }
+  },
+  {
+   "name": "av_aes_ctr_increment_iv",
+   "defined_in": "libavutil/aes_ctr.c",
+   "ptr_args": [
+    {
+     "name": "a",
+     "ptr": {
+      "scalar": {
+       "by_val": true
+      },
+      "array": null,
+      "string": false,
+      "owned": false,
+      "borrowed": {
+       "lifetime": "arg:a"
+      },
+      "nullable": false,
+      "mutable": true,
+      "note": "Synchronous borrow only; no caller buffer or context pointer is stored, transferred, freed or cloned."
      }
     }
    ]
@@ -1254,6 +1447,109 @@
       "nullable": false,
       "mutable": false,
       "note": "Reads and copies exactly key_bits/8 bytes (AES valid sizes 16/24/32) or 16 bytes (CTR), retains no pointer."
+     }
+    }
+   ]
+  },
+  {
+   "name": "av_aes_ctr_set_full_iv",
+   "defined_in": "libavutil/aes_ctr.c",
+   "ptr_args": [
+    {
+     "name": "a",
+     "ptr": {
+      "scalar": {
+       "by_val": true
+      },
+      "array": null,
+      "string": false,
+      "owned": false,
+      "borrowed": {
+       "lifetime": "arg:a"
+      },
+      "nullable": false,
+      "mutable": true,
+      "note": "Synchronous borrow only; no caller buffer or context pointer is stored, transferred, freed or cloned."
+     }
+    },
+    {
+     "name": "iv",
+     "ptr": {
+      "scalar": null,
+      "array": {
+       "by_val": true
+      },
+      "string": false,
+      "owned": false,
+      "borrowed": {
+       "lifetime": "arg:iv"
+      },
+      "nullable": false,
+      "mutable": false,
+      "note": "Synchronous borrow only; no caller buffer or context pointer is stored, transferred, freed or cloned. Setters copy 8-byte nonce or 16-byte full counter. CBC needs a separate whole writable block, updates it per block; NULL selects ECB."
+     }
+    }
+   ]
+  },
+  {
+   "name": "av_aes_ctr_set_iv",
+   "defined_in": "libavutil/aes_ctr.c",
+   "ptr_args": [
+    {
+     "name": "a",
+     "ptr": {
+      "scalar": {
+       "by_val": true
+      },
+      "array": null,
+      "string": false,
+      "owned": false,
+      "borrowed": {
+       "lifetime": "arg:a"
+      },
+      "nullable": false,
+      "mutable": true,
+      "note": "Synchronous borrow only; no caller buffer or context pointer is stored, transferred, freed or cloned."
+     }
+    },
+    {
+     "name": "iv",
+     "ptr": {
+      "scalar": null,
+      "array": {
+       "by_val": true
+      },
+      "string": false,
+      "owned": false,
+      "borrowed": {
+       "lifetime": "arg:iv"
+      },
+      "nullable": false,
+      "mutable": false,
+      "note": "Synchronous borrow only; no caller buffer or context pointer is stored, transferred, freed or cloned. Setters copy 8-byte nonce or 16-byte full counter. CBC needs a separate whole writable block, updates it per block; NULL selects ECB."
+     }
+    }
+   ]
+  },
+  {
+   "name": "av_aes_ctr_set_random_iv",
+   "defined_in": "libavutil/aes_ctr.c",
+   "ptr_args": [
+    {
+     "name": "a",
+     "ptr": {
+      "scalar": {
+       "by_val": true
+      },
+      "array": null,
+      "string": false,
+      "owned": false,
+      "borrowed": {
+       "lifetime": "arg:a"
+      },
+      "nullable": false,
+      "mutable": true,
+      "note": "Synchronous borrow only; no caller buffer or context pointer is stored, transferred, freed or cloned. C random-seed timing-jitter fallback has unsynchronized static state; safe callers share random_seed::get mutex."
      }
     }
    ]
@@ -1615,6 +1911,137 @@
      "note": "Fresh full-sized zeroed singleton; av_free releases it; no nested resources or retained alias."
     }
    }
+  },
+  {
+   "name": "av_blowfish_crypt",
+   "defined_in": "libavutil/blowfish.c",
+   "ptr_args": [
+    {
+     "name": "ctx",
+     "ptr": {
+      "scalar": {
+       "by_val": true
+      },
+      "array": null,
+      "string": false,
+      "owned": false,
+      "borrowed": {
+       "lifetime": "arg:ctx"
+      },
+      "nullable": false,
+      "mutable": false,
+      "note": "Synchronous borrow only; no caller buffer or context pointer is stored, transferred, freed or cloned."
+     }
+    },
+    {
+     "name": "dst",
+     "ptr": {
+      "scalar": null,
+      "array": {
+       "by_val": true
+      },
+      "string": false,
+      "owned": false,
+      "borrowed": {
+       "lifetime": "arg:dst"
+      },
+      "nullable": false,
+      "mutable": true,
+      "note": "Synchronous borrow only; no caller buffer or context pointer is stored, transferred, freed or cloned. Count is bytes for CTR, 16-byte blocks for AES/Camellia, 8-byte blocks for Blowfish/CAST5. Exact src==dst is supported; partially overlapping ranges are not exposed."
+     }
+    },
+    {
+     "name": "iv",
+     "ptr": {
+      "scalar": null,
+      "array": {
+       "by_val": true
+      },
+      "string": false,
+      "owned": false,
+      "borrowed": {
+       "lifetime": "arg:iv"
+      },
+      "nullable": true,
+      "mutable": true,
+      "note": "Synchronous borrow only; no caller buffer or context pointer is stored, transferred, freed or cloned. Setters copy 8-byte nonce or 16-byte full counter. CBC needs a separate whole writable block, updates it per block; NULL selects ECB."
+     }
+    },
+    {
+     "name": "src",
+     "ptr": {
+      "scalar": null,
+      "array": {
+       "by_val": true
+      },
+      "string": false,
+      "owned": false,
+      "borrowed": {
+       "lifetime": "arg:src"
+      },
+      "nullable": false,
+      "mutable": false,
+      "note": "Synchronous borrow only; no caller buffer or context pointer is stored, transferred, freed or cloned. Count is bytes for CTR, 16-byte blocks for AES/Camellia, 8-byte blocks for Blowfish/CAST5. Exact src==dst is supported; partially overlapping ranges are not exposed."
+     }
+    }
+   ]
+  },
+  {
+   "name": "av_blowfish_crypt_ecb",
+   "defined_in": "libavutil/blowfish.c",
+   "ptr_args": [
+    {
+     "name": "ctx",
+     "ptr": {
+      "scalar": {
+       "by_val": true
+      },
+      "array": null,
+      "string": false,
+      "owned": false,
+      "borrowed": {
+       "lifetime": "arg:ctx"
+      },
+      "nullable": false,
+      "mutable": false,
+      "note": "Synchronous borrow only; no caller buffer or context pointer is stored, transferred, freed or cloned."
+     }
+    },
+    {
+     "name": "xl",
+     "ptr": {
+      "scalar": {
+       "by_val": true
+      },
+      "array": null,
+      "string": false,
+      "owned": false,
+      "borrowed": {
+       "lifetime": "arg:xl"
+      },
+      "nullable": false,
+      "mutable": true,
+      "note": "Synchronous borrow only; no caller buffer or context pointer is stored, transferred, freed or cloned."
+     }
+    },
+    {
+     "name": "xr",
+     "ptr": {
+      "scalar": {
+       "by_val": true
+      },
+      "array": null,
+      "string": false,
+      "owned": false,
+      "borrowed": {
+       "lifetime": "arg:xr"
+      },
+      "nullable": false,
+      "mutable": true,
+      "note": "Synchronous borrow only; no caller buffer or context pointer is stored, transferred, freed or cloned."
+     }
+    }
+   ]
   },
   {
    "name": "av_blowfish_init",
@@ -2187,6 +2614,80 @@
    }
   },
   {
+   "name": "av_camellia_crypt",
+   "defined_in": "libavutil/camellia.c",
+   "ptr_args": [
+    {
+     "name": "cs",
+     "ptr": {
+      "scalar": {
+       "by_val": true
+      },
+      "array": null,
+      "string": false,
+      "owned": false,
+      "borrowed": {
+       "lifetime": "arg:cs"
+      },
+      "nullable": false,
+      "mutable": false,
+      "note": "Synchronous borrow only; no caller buffer or context pointer is stored, transferred, freed or cloned. Reads schedule and global SP; synchronize with every initialization rewriting SP."
+     }
+    },
+    {
+     "name": "dst",
+     "ptr": {
+      "scalar": null,
+      "array": {
+       "by_val": true
+      },
+      "string": false,
+      "owned": false,
+      "borrowed": {
+       "lifetime": "arg:dst"
+      },
+      "nullable": false,
+      "mutable": true,
+      "note": "Synchronous borrow only; no caller buffer or context pointer is stored, transferred, freed or cloned. Count is bytes for CTR, 16-byte blocks for AES/Camellia, 8-byte blocks for Blowfish/CAST5. Exact src==dst is supported; partially overlapping ranges are not exposed."
+     }
+    },
+    {
+     "name": "iv",
+     "ptr": {
+      "scalar": null,
+      "array": {
+       "by_val": true
+      },
+      "string": false,
+      "owned": false,
+      "borrowed": {
+       "lifetime": "arg:iv"
+      },
+      "nullable": true,
+      "mutable": true,
+      "note": "Synchronous borrow only; no caller buffer or context pointer is stored, transferred, freed or cloned. Setters copy 8-byte nonce or 16-byte full counter. CBC needs a separate whole writable block, updates it per block; NULL selects ECB."
+     }
+    },
+    {
+     "name": "src",
+     "ptr": {
+      "scalar": null,
+      "array": {
+       "by_val": true
+      },
+      "string": false,
+      "owned": false,
+      "borrowed": {
+       "lifetime": "arg:src"
+      },
+      "nullable": false,
+      "mutable": false,
+      "note": "Synchronous borrow only; no caller buffer or context pointer is stored, transferred, freed or cloned. Count is bytes for CTR, 16-byte blocks for AES/Camellia, 8-byte blocks for Blowfish/CAST5. Exact src==dst is supported; partially overlapping ranges are not exposed."
+     }
+    }
+   ]
+  },
+  {
    "name": "av_camellia_init",
    "defined_in": "libavutil/camellia.c",
    "lifetime": {
@@ -2268,6 +2769,137 @@
      "note": "Fresh sole-owned zero-filled AVCAST5 allocation; av_free releases it, no suballocations. Must initialize key before crypt."
     }
    }
+  },
+  {
+   "name": "av_cast5_crypt",
+   "defined_in": "libavutil/cast5.c",
+   "ptr_args": [
+    {
+     "name": "cs",
+     "ptr": {
+      "scalar": {
+       "by_val": true
+      },
+      "array": null,
+      "string": false,
+      "owned": false,
+      "borrowed": {
+       "lifetime": "arg:cs"
+      },
+      "nullable": false,
+      "mutable": false,
+      "note": "Synchronous borrow only; no caller buffer or context pointer is stored, transferred, freed or cloned."
+     }
+    },
+    {
+     "name": "dst",
+     "ptr": {
+      "scalar": null,
+      "array": {
+       "by_val": true
+      },
+      "string": false,
+      "owned": false,
+      "borrowed": {
+       "lifetime": "arg:dst"
+      },
+      "nullable": false,
+      "mutable": true,
+      "note": "Synchronous borrow only; no caller buffer or context pointer is stored, transferred, freed or cloned. Count is bytes for CTR, 16-byte blocks for AES/Camellia, 8-byte blocks for Blowfish/CAST5. Exact src==dst is supported; partially overlapping ranges are not exposed."
+     }
+    },
+    {
+     "name": "src",
+     "ptr": {
+      "scalar": null,
+      "array": {
+       "by_val": true
+      },
+      "string": false,
+      "owned": false,
+      "borrowed": {
+       "lifetime": "arg:src"
+      },
+      "nullable": false,
+      "mutable": false,
+      "note": "Synchronous borrow only; no caller buffer or context pointer is stored, transferred, freed or cloned. Count is bytes for CTR, 16-byte blocks for AES/Camellia, 8-byte blocks for Blowfish/CAST5. Exact src==dst is supported; partially overlapping ranges are not exposed."
+     }
+    }
+   ]
+  },
+  {
+   "name": "av_cast5_crypt2",
+   "defined_in": "libavutil/cast5.c",
+   "ptr_args": [
+    {
+     "name": "cs",
+     "ptr": {
+      "scalar": {
+       "by_val": true
+      },
+      "array": null,
+      "string": false,
+      "owned": false,
+      "borrowed": {
+       "lifetime": "arg:cs"
+      },
+      "nullable": false,
+      "mutable": false,
+      "note": "Synchronous borrow only; no caller buffer or context pointer is stored, transferred, freed or cloned."
+     }
+    },
+    {
+     "name": "dst",
+     "ptr": {
+      "scalar": null,
+      "array": {
+       "by_val": true
+      },
+      "string": false,
+      "owned": false,
+      "borrowed": {
+       "lifetime": "arg:dst"
+      },
+      "nullable": false,
+      "mutable": true,
+      "note": "Synchronous borrow only; no caller buffer or context pointer is stored, transferred, freed or cloned. Count is bytes for CTR, 16-byte blocks for AES/Camellia, 8-byte blocks for Blowfish/CAST5. Exact src==dst is supported; partially overlapping ranges are not exposed."
+     }
+    },
+    {
+     "name": "iv",
+     "ptr": {
+      "scalar": null,
+      "array": {
+       "by_val": true
+      },
+      "string": false,
+      "owned": false,
+      "borrowed": {
+       "lifetime": "arg:iv"
+      },
+      "nullable": true,
+      "mutable": true,
+      "note": "Synchronous borrow only; no caller buffer or context pointer is stored, transferred, freed or cloned. Setters copy 8-byte nonce or 16-byte full counter. CBC needs a separate whole writable block, updates it per block; NULL selects ECB."
+     }
+    },
+    {
+     "name": "src",
+     "ptr": {
+      "scalar": null,
+      "array": {
+       "by_val": true
+      },
+      "string": false,
+      "owned": false,
+      "borrowed": {
+       "lifetime": "arg:src"
+      },
+      "nullable": false,
+      "mutable": false,
+      "note": "Synchronous borrow only; no caller buffer or context pointer is stored, transferred, freed or cloned. Count is bytes for CTR, 16-byte blocks for AES/Camellia, 8-byte blocks for Blowfish/CAST5. Exact src==dst is supported; partially overlapping ranges are not exposed."
+     }
+    }
+   ]
   },
   {
    "name": "av_cast5_init",
@@ -3398,6 +4030,26 @@
      }
     }
    ]
+  },
+  {
+   "name": "av_crc_get_table",
+   "defined_in": "libavutil/crc.c",
+   "ptr_ret": {
+    "ptr": {
+     "scalar": null,
+     "array": {
+      "by_val": true
+     },
+     "string": false,
+     "owned": false,
+     "borrowed": {
+      "lifetime": "static"
+     },
+     "nullable": true,
+     "mutable": false,
+     "note": "C-owned immutable static table after once initialization. NULL for unsupported IDs. Architecture-specific extents: generic 1024 words (257 with CONFIG_SMALL), x86 accelerated 17, aarch64 alternate constants. Never free, mutate or assume one fixed array length."
+    }
+   }
   },
   {
    "name": "av_crc_init",
