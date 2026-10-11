@@ -1,0 +1,35 @@
+{
+  "ptr_args": {
+    "0": {
+      "ptr": {
+        "scalar": {
+          "by_val": true
+        },
+        "array": null,
+        "string": false,
+        "owned": false,
+        "borrowed": {
+          "lifetime": "arg:obj"
+        },
+        "nullable": false,
+        "mutable": true,
+        "note": "AVClass-bearing object (first member a non-NULL const AVClass *), written for the call: the option's field at its offset (or a child's, with AV_OPT_SEARCH_CHILDREN) is replaced, releasing the owned value it held. Wrapped as opt::ObjectMut (exclusive borrow). opt_set_init requires AV_OPT_TYPE_VIDEO_RATE; on a mismatching array option its error log reads opt_type_desc[o->type] out of bounds, so the wrapper refuses array options of another type (type_refusal). The value goes through set_number/write_number (num, den, intnum 1): range-checked as doubles (a zero den is ERANGE), then stored as the int pair it is, with no conversion."
+      }
+    },
+    "1": {
+      "ptr": {
+        "scalar": null,
+        "array": null,
+        "string": true,
+        "owned": false,
+        "borrowed": {
+          "lifetime": "arg:name"
+        },
+        "nullable": false,
+        "mutable": false,
+        "note": "Option name, compared with strcmp during the call only. Must not be NULL."
+      }
+    }
+  },
+  "lifetime": null
+}

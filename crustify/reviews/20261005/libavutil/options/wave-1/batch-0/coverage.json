@@ -1,0 +1,273 @@
+{
+ "method": {
+  "c": "CRUSTIFY_FFMPEG_VARIANT=coverage (gcc gcov build), GCOV_PREFIX=/tmp/rw1b0/cov/gcov, gcov 13 -b -c -f over dict.c, eval.c, opt.c and parseutils.c, driven by the workset-filtered lib, equiv, ub_safe and ub_unsafe tests (cargo +nightly test -p ffmpeg --lib --tests -- dict eval opt parseutils --skip compile_fail) on the fixed tree",
+  "rust": "RUSTFLAGS=-C instrument-coverage in the same run, nightly llvm-profdata/llvm-cov report over the four test binaries, the four home files",
+  "note": "measured after the fix only. The review added the failed-shrink removal (ub_unsafe, unit test) and the rational-into-integer-array equivalence test. The remaining Rust misses are test-harness arms (BSan early returns, panic! arms, user functions a test never calls) and two lines of wave-0 code (options_refusal's NULL-token return, default_number's catch-all)"
+ },
+ "c": {
+  "files": {
+   "libavutil/dict.c": {
+    "lines": {
+     "count": 148,
+     "percent": 100.0
+    }
+   },
+   "libavutil/eval.c": {
+    "lines": {
+     "count": 484,
+     "percent": 100.0
+    }
+   },
+   "libavutil/opt.c": {
+    "lines": {
+     "count": 1674,
+     "percent": 96.77
+    },
+    "note": "whole file; the misses are outside the workset (av_opt_is_set_to_default's dictionary and image-size arms and its unsupported-type default, options wave 2) or unreachable for a well-formed class (read_number's CONST case, opt_copy_elem's unhandled-type log)"
+   },
+   "libavutil/parseutils.c": {
+    "lines": {
+     "count": 308,
+     "percent": 100.0
+    }
+   }
+  },
+  "functions": {
+   "av_dict_copy": {
+    "lines": {
+     "count": 5,
+     "percent": 100.0
+    }
+   },
+   "av_dict_count": {
+    "lines": {
+     "count": 2,
+     "percent": 100.0
+    }
+   },
+   "av_dict_free": {
+    "lines": {
+     "count": 9,
+     "percent": 100.0
+    }
+   },
+   "av_dict_get": {
+    "lines": {
+     "count": 17,
+     "percent": 100.0
+    }
+   },
+   "av_dict_get_string": {
+    "lines": {
+     "count": 18,
+     "percent": 100.0
+    }
+   },
+   "av_dict_iterate": {
+    "lines": {
+     "count": 8,
+     "percent": 100.0
+    }
+   },
+   "av_dict_parse_string": {
+    "lines": {
+     "count": 8,
+     "percent": 100.0
+    }
+   },
+   "av_dict_set": {
+    "lines": {
+     "count": 70,
+     "percent": 100.0
+    }
+   },
+   "av_dict_set_int": {
+    "lines": {
+     "count": 7,
+     "percent": 100.0
+    }
+   },
+   "av_expr_count_func": {
+    "lines": {
+     "count": 2,
+     "percent": 100.0
+    }
+   },
+   "av_expr_count_vars": {
+    "lines": {
+     "count": 2,
+     "percent": 100.0
+    }
+   },
+   "av_expr_eval": {
+    "lines": {
+     "count": 7,
+     "percent": 100.0
+    }
+   },
+   "av_expr_free": {
+    "lines": {
+     "count": 10,
+     "percent": 100.0
+    }
+   },
+   "av_expr_parse": {
+    "lines": {
+     "count": 49,
+     "percent": 100.0
+    }
+   },
+   "av_opt_child_class_iterate": {
+    "lines": {
+     "count": 3,
+     "percent": 100.0
+    }
+   },
+   "av_opt_get_array": {
+    "lines": {
+     "count": 57,
+     "percent": 98.25
+    },
+    "note": "the one missed line is the av_assert0(0) default of its out_type switch, unreachable"
+   },
+   "av_opt_get_chlayout": {
+    "lines": {
+     "count": 9,
+     "percent": 100.0
+    }
+   },
+   "av_opt_get_dict_val": {
+    "lines": {
+     "count": 8,
+     "percent": 100.0
+    }
+   },
+   "av_opt_get_pixel_fmt": {
+    "lines": {
+     "count": 2,
+     "percent": 100.0
+    }
+   },
+   "av_opt_get_q": {
+    "lines": {
+     "count": 8,
+     "percent": 100.0
+    }
+   },
+   "av_opt_get_sample_fmt": {
+    "lines": {
+     "count": 2,
+     "percent": 100.0
+    }
+   },
+   "av_opt_get_video_rate": {
+    "lines": {
+     "count": 2,
+     "percent": 100.0
+    }
+   },
+   "av_opt_set_array": {
+    "lines": {
+     "count": 119,
+     "percent": 100.0
+    }
+   },
+   "av_opt_set_chlayout": {
+    "lines": {
+     "count": 7,
+     "percent": 100.0
+    }
+   },
+   "av_opt_set_dict": {
+    "lines": {
+     "count": 2,
+     "percent": 100.0
+    }
+   },
+   "av_opt_set_dict2": {
+    "lines": {
+     "count": 16,
+     "percent": 100.0
+    }
+   },
+   "av_opt_set_dict_val": {
+    "lines": {
+     "count": 8,
+     "percent": 100.0
+    }
+   },
+   "av_opt_set_pixel_fmt": {
+    "lines": {
+     "count": 2,
+     "percent": 100.0
+    }
+   },
+   "av_opt_set_q": {
+    "lines": {
+     "count": 2,
+     "percent": 100.0
+    }
+   },
+   "av_opt_set_sample_fmt": {
+    "lines": {
+     "count": 2,
+     "percent": 100.0
+    }
+   },
+   "av_opt_set_video_rate": {
+    "lines": {
+     "count": 2,
+     "percent": 100.0
+    }
+   },
+   "av_parse_ratio": {
+    "lines": {
+     "count": 10,
+     "percent": 100.0
+    }
+   },
+   "av_parse_video_rate": {
+    "lines": {
+     "count": 11,
+     "percent": 100.0
+    }
+   },
+   "av_small_strptime": {
+    "lines": {
+     "count": 60,
+     "percent": 100.0
+    }
+   },
+   "av_timegm": {
+    "lines": {
+     "count": 10,
+     "percent": 100.0
+    }
+   }
+  }
+ },
+ "rust": {
+  "files": {
+   "crustify/rust/ffmpeg/libavutil/dict.rs": {
+    "regions": 99.61,
+    "functions": 100.0,
+    "lines": 100.0
+   },
+   "crustify/rust/ffmpeg/libavutil/eval.rs": {
+    "regions": 98.28,
+    "functions": 97.56,
+    "lines": 97.78
+   },
+   "crustify/rust/ffmpeg/libavutil/opt.rs": {
+    "regions": 99.1,
+    "functions": 99.36,
+    "lines": 99.38
+   },
+   "crustify/rust/ffmpeg/libavutil/parseutils.rs": {
+    "regions": 99.41,
+    "functions": 100.0,
+    "lines": 100.0
+   }
+  }
+ }
+}
