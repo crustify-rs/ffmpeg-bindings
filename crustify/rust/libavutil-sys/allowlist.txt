@@ -623,3 +623,14 @@ function av_xtea_init
 function av_xtea_le_init
 function av_xtea_crypt
 function av_xtea_le_crypt
+
+# Crypto wave 0, batch 7: AVSHA and AVSHA512 lifecycle; update/final
+# are C observation probes for the lifecycle equivalence tests.
+function av_sha_alloc
+function av_sha_init
+function av_sha_update
+function av_sha_final
+function av_sha512_alloc
+function av_sha512_init
+function av_sha512_update
+function av_sha512_final
