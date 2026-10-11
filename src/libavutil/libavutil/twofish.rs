@@ -2,12 +2,12 @@
 //!
 //! C stores inline subkeys and lookup tables, never the supplied key pointer.
 //! The public header exposes no fields or clone routine. Storage remains
-//! C-allocated and is released by the existing [`super::mem::Heap`] policy.
+//! C-allocated and is released by the [`TwofishFree`] policy.
 
-use core::fmt;
-use ffibox::define_ctype;
+use core::{fmt, ptr::NonNull};
+use ffibox::{CBox, CDrop, define_ctype};
 
-use super::{ffi, mem::HeapBox};
+use super::{ffi, mem::Heap};
 
 define_ctype!(
     /// Wraps: AVTWOFISH
@@ -36,7 +36,30 @@ define_ctype!(
 );
 
 /// Sole ownership of a C-allocated Twofish context, freed with `av_free`.
-pub type TwofishBox = HeapBox<Twofish>;
+///
+/// The opaque layout has no Rust size, so there is no Rust-sized allocation:
+///
+/// ```compile_fail,E0277
+/// use ffmpeg::libavutil::twofish::TwofishBox;
+/// let _ = TwofishBox::new_uninit();
+/// ```
+pub type TwofishBox = CBox<Twofish, TwofishFree>;
+
+/// Storage-only release of an `av_twofish_alloc` context. Unlike [`Heap`], it
+/// offers no generic allocator: the opaque layout's Rust size is zero, so
+/// only C can size a Twofish context.
+#[derive(Clone, Copy, Debug, Default)]
+pub struct TwofishFree;
+
+/// Wraps: av_free
+// SAFETY: TwofishBox adopts only `av_twofish_alloc` storage, which owns no sub-allocations;
+// Heap's av_free releases that av_malloc-family block once without reading it.
+unsafe impl CDrop<Twofish> for TwofishFree {
+    unsafe fn c_drop(&self, ptr: NonNull<Twofish>) {
+        // SAFETY: CDrop's caller transfers the unique av_malloc-family claim.
+        unsafe { <Heap as CDrop<Twofish>>::c_drop(&Heap, ptr) }
+    }
+}
 
 /// C's successful initialization return value.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -96,7 +119,7 @@ impl Twofish {
     pub fn new(key: &[u8], key_bits: i32) -> Result<(TwofishBox, InitStatus), InitError> {
         validate_key(key, key_bits)?;
         // SAFETY: fresh zero-filled C storage has only inline scalar fields,
-        // and Heap releases it using the paired av_free. No owner escapes
+        // and TwofishFree releases it using the paired av_free. No owner escapes
         // before init fills all fields subsequently read by the C cipher.
         let mut owner = unsafe { TwofishBox::from_c(ffi::av_twofish_alloc()) }
             .ok_or(InitError::AllocationFailed)?;
@@ -198,7 +221,7 @@ mod unit_tests {
         let (owner, _) = Twofish::new(&[7; 16], 128).unwrap();
         let ptr = owner.into_c();
         // SAFETY: into_c transferred the sole initialized allocation and no
-        // borrow remains. Heap is still the matching release policy.
+        // borrow remains. TwofishFree is still the matching release policy.
         let owner = unsafe { TwofishBox::from_c(ptr) }.unwrap();
         drop(owner);
     }

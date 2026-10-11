@@ -107,3 +107,72 @@ fn batch10_registry_indices_match_c() {
         assert_eq!(hash::name(i), raw);
     }
 }
+
+#[test]
+fn allocation_failures_match_c() {
+    // The av_max_alloc limit is process-global: run in an isolated child.
+    const ISOLATED: &str = "CRUSTIFY_HASH_ALLOC_LIMIT_CHILD";
+    if std::env::var_os(ISOLATED).is_none() {
+        let status = std::process::Command::new(std::env::current_exe().unwrap())
+            .args([
+                "--exact",
+                "hash::allocation_failures_match_c",
+                "--test-threads=1",
+            ])
+            .env(ISOLATED, "1")
+            .status()
+            .unwrap();
+        assert!(status.success());
+        return;
+    }
+    let names = [
+        c"MD5",
+        c"murmur3",
+        c"RIPEMD320",
+        c"SHA256",
+        c"SHA512",
+        c"CRC32",
+        c"adler32",
+    ];
+    // A limit at which the parent context fits (adler32, which has no child,
+    // succeeds) while another algorithm fails reaches av_hash_alloc's
+    // partial-failure path: the child allocation fails and C frees the parent.
+    let mut child_failures = 0;
+    for limit in [0, 1, 8, 16, 24, 32, 48, 64, 96, 128, 192, 256, 512, 4096] {
+        ffmpeg::libavutil::mem::set_max_alloc(limit);
+        let mut failures = 0;
+        let mut parent_fits = false;
+        for name in names {
+            let mut context = ptr::null_mut();
+            // SAFETY: valid output slot and NUL-terminated name; on success C
+            // transfers an allocation this test frees below.
+            let expected = unsafe { ffi::av_hash_alloc(&mut context, name.as_ptr()) };
+            let actual = HashContext::new(name);
+            if expected < 0 {
+                assert!(context.is_null());
+                assert_eq!(actual.err(), Some(expected), "{name:?} at {limit}");
+                failures += 1;
+            } else {
+                assert!(!context.is_null());
+                assert_eq!(actual.unwrap().as_ref().name(), name_of(context));
+                parent_fits |= name == c"adler32";
+                // SAFETY: this test owns the fresh context and frees it once.
+                unsafe { ffi::av_hash_freep(&mut context) };
+            }
+        }
+        if parent_fits {
+            child_failures += failures;
+        }
+    }
+    ffmpeg::libavutil::mem::set_max_alloc(i32::MAX as usize);
+    assert!(
+        child_failures > 0,
+        "no limit separated parent and child sizes"
+    );
+}
+
+fn name_of(context: *const ffi::AVHashContext) -> &'static CStr {
+    // SAFETY: context is a live allocated context with a valid algorithm; C
+    // returns a NUL-terminated name in static storage.
+    unsafe { CStr::from_ptr(ffi::av_hash_get_name(context)) }
+}

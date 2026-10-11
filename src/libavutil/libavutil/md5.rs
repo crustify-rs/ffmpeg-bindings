@@ -22,6 +22,13 @@ define_ctype!(
 pub struct Md5Free;
 
 /// Sole owner of an initialized MD5 context. Drop releases the C allocation.
+///
+/// The opaque layout has no Rust size, so there is no Rust-sized allocation:
+///
+/// ```compile_fail,E0277
+/// use ffmpeg::libavutil::md5::Md5Box;
+/// let _ = Md5Box::new_uninit();
+/// ```
 pub type Md5Box = CBox<Md5, Md5Free>;
 
 /// Wraps: av_free

@@ -20,6 +20,13 @@ define_ctype!(
 pub struct Murmur3Free;
 
 /// Sole owner of a MurmurHash3 context, released through `av_free`.
+///
+/// The opaque layout has no Rust size, so there is no Rust-sized allocation:
+///
+/// ```compile_fail,E0277
+/// use ffmpeg::libavutil::murmur3::Murmur3Box;
+/// let _ = Murmur3Box::new_uninit();
+/// ```
 pub type Murmur3Box = CBox<Murmur3, Murmur3Free>;
 
 /// Wraps: av_free
