@@ -1,0 +1,67 @@
+{
+  "objective": "review",
+  "items": [
+    {
+      "name": "AVActiveFormatDescription",
+      "defined_in": "libavutil/frame.h",
+      "kind": "type",
+      "field_anchors": [],
+      "home": "crustify/rust/ffmpeg/libavutil/frame.rs"
+    },
+    {
+      "name": "AVBuffer",
+      "defined_in": "libavutil/buffer_internal.h",
+      "kind": "type",
+      "field_anchors": [],
+      "home": "crustify/rust/ffmpeg/libavutil/buffer.rs"
+    },
+    {
+      "name": "AVBufferPool",
+      "defined_in": "libavutil/buffer_internal.h",
+      "kind": "type",
+      "field_anchors": [],
+      "home": "crustify/rust/ffmpeg/libavutil/buffer.rs"
+    },
+    {
+      "name": "AVFrameSideDataType",
+      "defined_in": "libavutil/frame.h",
+      "kind": "type",
+      "field_anchors": [],
+      "home": "crustify/rust/ffmpeg/libavutil/frame.rs"
+    },
+    {
+      "name": "AVRefStructOpaque",
+      "defined_in": "libavutil/refstruct.h",
+      "kind": "type",
+      "field_anchors": [
+        "c",
+        "nc"
+      ],
+      "home": "crustify/rust/ffmpeg/libavutil/refstruct.rs"
+    },
+    {
+      "name": "AVRefStructPool",
+      "defined_in": "libavutil/refstruct.c",
+      "kind": "type",
+      "field_anchors": [],
+      "home": "crustify/rust/ffmpeg/libavutil/refstruct.rs"
+    },
+    {
+      "name": "AVSideDataDescriptor",
+      "defined_in": "libavutil/frame.h",
+      "kind": "type",
+      "field_anchors": [
+        "name",
+        "props"
+      ],
+      "home": "crustify/rust/ffmpeg/libavutil/frame.rs"
+    },
+    {
+      "name": "AVSideDataProps",
+      "defined_in": "libavutil/frame.h",
+      "kind": "type",
+      "field_anchors": [],
+      "home": "crustify/rust/ffmpeg/libavutil/frame.rs"
+    }
+  ]
+}

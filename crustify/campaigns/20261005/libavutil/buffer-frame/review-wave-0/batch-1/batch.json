@@ -1,0 +1,54 @@
+{
+  "objective": "review",
+  "items": [
+    {
+      "name": "av_buffer_default_free",
+      "defined_in": "libavutil/buffer.c",
+      "kind": "symbol",
+      "field_anchors": [],
+      "home": "crustify/rust/ffmpeg/libavutil/buffer.rs"
+    },
+    {
+      "name": "av_refstruct_allocz",
+      "defined_in": "libavutil/refstruct.h",
+      "kind": "symbol",
+      "field_anchors": [],
+      "home": "crustify/rust/ffmpeg/libavutil/refstruct.rs"
+    },
+    {
+      "name": "av_refstruct_exclusive",
+      "defined_in": "libavutil/refstruct.c",
+      "kind": "symbol",
+      "field_anchors": [],
+      "home": "crustify/rust/ffmpeg/libavutil/refstruct.rs"
+    },
+    {
+      "name": "av_refstruct_ref",
+      "defined_in": "libavutil/refstruct.c",
+      "kind": "symbol",
+      "field_anchors": [],
+      "home": "crustify/rust/ffmpeg/libavutil/refstruct.rs"
+    },
+    {
+      "name": "av_refstruct_ref_c",
+      "defined_in": "libavutil/refstruct.c",
+      "kind": "symbol",
+      "field_anchors": [],
+      "home": "crustify/rust/ffmpeg/libavutil/refstruct.rs"
+    },
+    {
+      "name": "av_refstruct_replace",
+      "defined_in": "libavutil/refstruct.c",
+      "kind": "symbol",
+      "field_anchors": [],
+      "home": "crustify/rust/ffmpeg/libavutil/refstruct.rs"
+    },
+    {
+      "name": "av_refstruct_unref",
+      "defined_in": "libavutil/refstruct.c",
+      "kind": "symbol",
+      "field_anchors": [],
+      "home": "crustify/rust/ffmpeg/libavutil/refstruct.rs"
+    }
+  ]
+}
