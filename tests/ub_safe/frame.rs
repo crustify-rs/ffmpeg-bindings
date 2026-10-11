@@ -104,3 +104,73 @@ mod side_data_type {
         assert_eq!(t, SideDataType::ICC_PROFILE);
     }
 }
+
+/// `ActiveFormatDescription` (buffer-frame wave 0, batch 0): every named,
+/// reserved and out-of-byte value through each conversion, `av_malloc`-family
+/// arrays of it, and sharing and moving it across threads.
+mod active_format_description {
+    use std::thread;
+
+    use ffmpeg::libavutil::ffi;
+    use ffmpeg::libavutil::frame::ActiveFormatDescription as Afd;
+    use ffmpeg::libavutil::mem::{alloc_array_from_fn, alloc_array_zeroed};
+
+    /// Raw values at every edge: each byte, the first values past a byte, and
+    /// the `unsigned int` limits a C `int`'s negative values map onto.
+    fn raws() -> impl Iterator<Item = u32> {
+        (0..=0x101).chain([i32::MAX as u32, i32::MIN as u32, u32::MAX - 1, u32::MAX])
+    }
+
+    #[test]
+    fn every_raw_value_converts_and_formats() {
+        for raw in raws() {
+            let afd = Afd::from_raw(ffi::AVActiveFormatDescription(raw));
+            assert_eq!(afd.into_raw().0, raw);
+            let back: ffi::AVActiveFormatDescription = afd.into();
+            assert_eq!(Afd::from(back), afd);
+            match afd.to_byte() {
+                Some(b) => {
+                    assert_eq!(u32::from(b), raw);
+                    assert_eq!(Afd::from(b), afd);
+                }
+                None => assert!(raw > u32::from(u8::MAX)),
+            }
+            assert!(!format!("{afd:?}").is_empty());
+        }
+    }
+
+    #[test]
+    fn heap_arrays_read_any_stored_value() {
+        let bytes = alloc_array_from_fn(256, |i| Afd::from_byte(i as u8)).unwrap();
+        let back: Vec<Option<u8>> = bytes.as_slice().iter().map(|a| a.to_byte()).collect();
+        assert_eq!(back, (0..=u8::MAX).map(Some).collect::<Vec<_>>());
+
+        let mut zeroed = alloc_array_zeroed::<Afd>(3).unwrap();
+        assert!(zeroed.as_slice().iter().all(|&a| a == Afd::from_byte(0)));
+        zeroed.as_mut_slice()[1] = Afd::SP_4_3;
+        zeroed.as_mut_slice()[2] = Afd::from_raw(ffi::AVActiveFormatDescription(u32::MAX));
+        let copy = zeroed.clone();
+        drop(zeroed);
+        assert_eq!(copy.as_slice()[1], Afd::SP_4_3);
+        assert_eq!(copy.as_slice()[2].to_byte(), None);
+    }
+
+    #[test]
+    fn values_cross_threads() {
+        let all: Vec<Afd> = raws()
+            .map(|r| Afd::from_raw(ffi::AVActiveFormatDescription(r)))
+            .collect();
+        let shared = &all;
+        thread::scope(|s| {
+            for _ in 0..4 {
+                s.spawn(move || {
+                    for afd in shared {
+                        let _ = (afd.to_byte(), format!("{afd:?}"));
+                    }
+                });
+            }
+        });
+        let afd = thread::spawn(|| Afd::ASPECT_16_9_SP_14_9).join().unwrap();
+        assert_eq!(afd, Afd::ASPECT_16_9_SP_14_9);
+    }
+}

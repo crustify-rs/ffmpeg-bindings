@@ -763,3 +763,9 @@ function ^av_frame_side_data_name$
 function ^av_frame_new_side_data$
 function ^av_frame_get_side_data$
 function ^av_frame_remove_side_data$
+
+# libavutil/frame.h: the C copy of AV_FRAME_DATA_AFD side data, whose payload
+# byte holds an AVActiveFormatDescription; with batch 2's side-data store and
+# lookup above, the equivalence reference for frame.rs's
+# ActiveFormatDescription (buffer-frame wave 0, batch 0).
+function ^av_frame_copy_props$

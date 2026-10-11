@@ -32,6 +32,12 @@
    "fields": []
   },
   {
+   "name": "AVActiveFormatDescription",
+   "defined_in": "libavutil/frame.h",
+   "_comment_agent": "C enum (SAME=8, 4_3=9, 16_9=10, 14_9=11, 4_3_SP_14_9=13, 16_9_SP_14_9=14, SP_4_3=15), no fields, no lifecycle; every enumerator is non-negative so bindgen backs ffi::AVActiveFormatDescription by c_uint. No C signature takes or returns the enum: its values travel as the single byte of AV_FRAME_DATA_AFD / AV_PKT_DATA_AFD side data (mpeg12dec writes the parsed afd byte, itut35.c writes payload & 0xf, v210enc copies the frame side data into the packet, ffprobe/vf_showinfo print data[0] as an integer). The value set is therefore open: the reserved 4-bit codes 0-7 and 12, and any other byte, reach readers. Wrapped as a transparent newtype accepting every bit pattern, with byte conversions for the side-data payload.",
+   "fields": []
+  },
+  {
    "name": "AVAlphaMode",
    "defined_in": "libavutil/pixfmt.h",
    "_comment_agent": "C enum (c_uint under bindgen), no fields, no lifecycle. Open value set: AVFrame.alpha_mode is a public field C users write directly, frame.c copies it verbatim, and av_alpha_mode_from_name returns AVERROR(EINVAL) (-22, i.e. 0xffffffea as c_uint) typed as enum AVAlphaMode; av_alpha_mode_name maps (unsigned)mode >= AVALPHA_MODE_NB to NULL. AVALPHA_MODE_NB is 'Not part of ABI'. Zero (UNSPECIFIED) is the zeroed and get_frame_defaults value. Wrapped as a transparent newtype accepting every bit pattern.",
