@@ -1894,3 +1894,137 @@ mod typed_setters {
         });
     }
 }
+
+/// Options wave 1 review: `ObjectMut::remove_array` when C cannot shrink the
+/// array's block. C releases the removed elements and shifts the later ones
+/// down, then fails `av_realloc_array` under an `av_max_alloc` limit and
+/// keeps the old count, so the last elements repeat or address released
+/// values: reading them is a use after free, and `av_opt_free` a double
+/// free (ASan). The wrapper sets the count to the new size.
+mod remove_array_shrink_failure {
+    use core::ffi::CStr;
+
+    use ffmpeg::libavutil::channel_layout::{ChannelLayout, ChannelLayoutVal};
+    use ffmpeg::libavutil::dict::Dict;
+    use ffmpeg::libavutil::mem::{HeapString, set_max_alloc};
+    use ffmpeg::libavutil::opt::{ObjectMut, ObjectRef, SearchFlags};
+
+    use super::fixture::OwnedArrays;
+
+    const ENOMEM: i32 = -12;
+
+    fn strings(r: ObjectRef<'_>, name: &CStr, f: SearchFlags) -> Vec<Vec<u8>> {
+        let n = r.get_array_size(name, f).unwrap() as u32;
+        let v = r.get_array::<Option<HeapString>>(name, f, 0, n).unwrap();
+        v.iter()
+            .map(|s| s.as_ref().unwrap().as_c_str().to_bytes().to_vec())
+            .collect()
+    }
+
+    fn dicts(r: ObjectRef<'_>, f: SearchFlags) -> Vec<Vec<u8>> {
+        let n = r.get_array_size(c"dicts", f).unwrap() as u32;
+        let v = r.get_array::<Dict>(c"dicts", f, 0, n).unwrap();
+        v.iter()
+            .map(|d| {
+                d.serialize(b'=', b':')
+                    .unwrap()
+                    .as_c_str()
+                    .to_bytes()
+                    .to_vec()
+            })
+            .collect()
+    }
+
+    fn layouts(r: ObjectRef<'_>, f: SearchFlags) -> Vec<Vec<u8>> {
+        let n = r.get_array_size(c"layouts", f).unwrap() as u32;
+        let v = r
+            .get_array::<ChannelLayoutVal>(c"layouts", f, 0, n)
+            .unwrap();
+        v.iter()
+            .map(|l| l.as_ref().description().unwrap().into_bytes())
+            .collect()
+    }
+
+    /// Removes element `at` of three under a limit no shrunk block fits:
+    /// `ENOMEM`, two elements left, those that were not removed.
+    fn remove_under_limit(m: &mut ObjectMut<'_>, name: &CStr, at: usize, f: SearchFlags) {
+        set_max_alloc(1);
+        let ret = m.remove_array(name, at, 1, f);
+        set_max_alloc(i32::MAX as usize);
+        assert_eq!(ret, Err(ENOMEM), "{name:?} at {at}");
+        assert_eq!(
+            m.as_ref().get_array_size(name, f),
+            Ok(2),
+            "{name:?} at {at}"
+        );
+    }
+
+    #[test]
+    fn failed_shrinks_leave_the_remaining_elements_once() {
+        const KEY: &str = "CRUSTIFY_UB_UNSAFE_OPT_REMOVE_SHRINK_ISOLATED";
+        if std::env::var_os(KEY).is_none() {
+            // The allocation limit is process-wide: run alone in a child.
+            let status = std::process::Command::new(std::env::current_exe().unwrap())
+                .args([
+                    "--exact",
+                    "opt::remove_array_shrink_failure::failed_shrinks_leave_the_remaining_elements_once",
+                    "--test-threads=1",
+                ])
+                .env(KEY, "1")
+                .status()
+                .unwrap();
+            assert!(status.success(), "isolated run failed: {status}");
+            return;
+        }
+        let words = [c"a", c"b", c"c"];
+        let entries = [
+            Dict::from_entries([(c"k", c"1")]).unwrap(),
+            Dict::from_entries([(c"k", c"2")]).unwrap(),
+            Dict::from_entries([(c"k", c"3")]).unwrap(),
+        ];
+        let entry_refs: Vec<_> = entries.iter().map(|d| d.as_ref()).collect();
+        let custom = [
+            ChannelLayout::parse(c"FL@a+FR@b").unwrap(),
+            ChannelLayout::parse(c"FL@c+FR@d").unwrap(),
+            ChannelLayout::parse(c"FL@e+FR@f").unwrap(),
+        ];
+        let custom_refs: Vec<_> = custom.iter().map(|l| l.as_ref()).collect();
+        let o = OwnedArrays::zeroed_with_child();
+        // SAFETY: a live fixture object of a well-formed class, accessed
+        // through this handle only while it lives.
+        let mut m = unsafe { ObjectMut::from_ptr(o.as_obj()) }.unwrap();
+        for f in [SearchFlags::NONE, SearchFlags::CHILDREN] {
+            for at in 0..3 {
+                let keep = |all: Vec<Vec<u8>>| -> Vec<Vec<u8>> {
+                    let mut all = all;
+                    all.remove(at);
+                    all
+                };
+                m.replace_array(c"strs", 0, &words, f).unwrap();
+                let before = strings(m.as_ref(), c"strs", f);
+                remove_under_limit(&mut m, c"strs", at, f);
+                assert_eq!(strings(m.as_ref(), c"strs", f), keep(before));
+
+                m.replace_array(c"dicts", 0, &entry_refs, f).unwrap();
+                let before = dicts(m.as_ref(), f);
+                remove_under_limit(&mut m, c"dicts", at, f);
+                assert_eq!(dicts(m.as_ref(), f), keep(before));
+
+                m.replace_array(c"layouts", 0, &custom_refs, f).unwrap();
+                let before = layouts(m.as_ref(), f);
+                remove_under_limit(&mut m, c"layouts", at, f);
+                assert_eq!(layouts(m.as_ref(), f), keep(before));
+            }
+        }
+        // Removing every element frees the block without shrinking it.
+        set_max_alloc(1);
+        let ret = m.remove_array(c"dicts", 0, 2, SearchFlags::NONE);
+        set_max_alloc(i32::MAX as usize);
+        assert_eq!(ret, Ok(()));
+        assert_eq!(
+            m.as_ref().get_array_size(c"dicts", SearchFlags::NONE),
+            Ok(0)
+        );
+        // The owner's drop releases every element the counts cover, once.
+    }
+}
