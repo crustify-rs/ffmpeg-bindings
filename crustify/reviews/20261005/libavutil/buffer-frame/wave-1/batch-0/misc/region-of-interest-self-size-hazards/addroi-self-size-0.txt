@@ -1,0 +1,2 @@
+payload 28 bytes, self_size 0
+Assertion old_roi_size && sd->size % old_roi_size == 0 failed at src/libavfilter/vf_addroi.c:119
