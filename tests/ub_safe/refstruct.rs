@@ -985,3 +985,178 @@ mod releases_and_typed_pools {
         assert_eq!(Arc::strong_count(&counts), 1);
     }
 }
+
+/// Typed pools torn down from inside their own callbacks (buffer-frame wave 1
+/// symbol review): a reset that drops the pool's last reference, so C runs
+/// the pool's uninit, and with it the entry-freeing callbacks, nested in
+/// `reset_with`; an entry-freeing callback that releases other entries of
+/// the same pool during that uninit's flush; and an init that releases the
+/// state's pool reference and entries while C is getting one. Each callback
+/// reads the shared state again after the nested teardown has returned, so a
+/// state dropped too early is a use after free (ASan), and the state's drop
+/// is checked to come after every callback.
+mod pool_teardown_in_callbacks {
+    use std::sync::atomic::{AtomicBool, Ordering};
+    use std::sync::{Arc, Mutex};
+
+    use ffmpeg::libavutil::intfloat::IntFloat64;
+    use ffmpeg::libavutil::refstruct::{
+        PoolCallbacks, PoolFlags, RefStructBox, TypedRefStructPool,
+    };
+
+    /// What the callbacks share: a pool reference and entries they may drop,
+    /// and the log of every callback, written after any nested teardown.
+    #[derive(Default)]
+    struct Owner {
+        pool: Mutex<Option<TypedRefStructPool<IntFloat64>>>,
+        entries: Mutex<Vec<RefStructBox<IntFloat64>>>,
+        log: Mutex<Vec<(&'static str, u64)>>,
+        /// Set when the pool drops its state, which must follow every
+        /// callback.
+        dropped: AtomicBool,
+    }
+
+    /// The pool's state, C's opaque: its drop is C's `free_cb`.
+    struct State(Arc<Owner>);
+
+    impl Drop for State {
+        fn drop(&mut self) {
+            self.0.dropped.store(true, Ordering::SeqCst);
+        }
+    }
+
+    /// Records `what` on `bits`, checking the state is still alive.
+    fn record(s: &State, what: &'static str, bits: u64) {
+        assert!(
+            !s.0.dropped.load(Ordering::SeqCst),
+            "{what} after the state"
+        );
+        s.0.log.lock().unwrap().push((what, bits));
+    }
+
+    /// Drops what the state holds outside its locks: the nested callbacks
+    /// lock them again.
+    fn release_held(s: &State) {
+        let pool = s.0.pool.lock().unwrap().take();
+        let entries = std::mem::take(&mut *s.0.entries.lock().unwrap());
+        drop(entries);
+        drop(pool);
+    }
+
+    fn get(pool: &TypedRefStructPool<IntFloat64>, bits: u64) -> RefStructBox<IntFloat64> {
+        let mut e = pool.get().unwrap();
+        e.as_mut().set_bits(bits);
+        e
+    }
+
+    fn freed(owner: &Owner) -> bool {
+        owner.dropped.load(Ordering::SeqCst)
+    }
+
+    #[test]
+    fn reset_drops_the_last_pool_reference() {
+        for flags in [PoolFlags::NONE, PoolFlags::ZERO_EVERY_TIME] {
+            let owner = Arc::new(Owner::default());
+            let callbacks = PoolCallbacks::<IntFloat64, _>::new(State(Arc::clone(&owner)))
+                .reset(|s, e| {
+                    let bits = e.as_ref().bits();
+                    release_held(s);
+                    record(s, "reset", bits);
+                })
+                .free_entry(|s, e| record(s, "free_entry", e.as_ref().bits()));
+            let pool = TypedRefStructPool::with_callbacks(flags, callbacks).unwrap();
+            let out = get(&pool, 1);
+            // Returned while nothing is held: C keeps it for reuse.
+            drop(get(&pool, 2));
+            *owner.pool.lock().unwrap() = Some(pool);
+            // The reset drops the pool's last reference: C frees the kept
+            // entry inside it, and this one when the reset returns.
+            drop(out);
+            assert!(freed(&owner), "the pool was freed");
+            assert_eq!(
+                *owner.log.lock().unwrap(),
+                [
+                    ("reset", 2),
+                    ("free_entry", 2),
+                    ("reset", 1),
+                    ("free_entry", 1)
+                ],
+                "{flags:?}"
+            );
+            assert_eq!(Arc::strong_count(&owner), 1);
+        }
+    }
+
+    #[test]
+    fn free_entry_releases_entries_of_its_own_pool() {
+        let owner = Arc::new(Owner::default());
+        let callbacks = PoolCallbacks::<IntFloat64, _>::new(State(Arc::clone(&owner)))
+            .reset(|s, e| record(s, "reset", e.as_ref().bits()))
+            .free_entry(|s, e| {
+                let bits = e.as_ref().bits();
+                release_held(s);
+                record(s, "free_entry", bits);
+            });
+        let pool = TypedRefStructPool::with_callbacks(PoolFlags::NONE, callbacks).unwrap();
+        let held: Vec<_> = (10..13).map(|b| get(&pool, b)).collect();
+        let kept = [get(&pool, 1), get(&pool, 2)];
+        drop(kept);
+        owner.log.lock().unwrap().clear();
+        *owner.entries.lock().unwrap() = held;
+        // The pool's last reference: C's uninit frees the two kept entries,
+        // and the first entry-freeing callback releases the three held ones,
+        // each reset and freed inside it.
+        drop(pool);
+        assert!(freed(&owner), "the pool was freed");
+        let log = owner.log.lock().unwrap().clone();
+        assert_eq!(log.len(), 2 + 3 * 2, "{log:?}");
+        assert_eq!(log.iter().filter(|(w, _)| *w == "reset").count(), 3);
+        let mut freed: Vec<_> = log
+            .iter()
+            .filter(|(w, _)| *w == "free_entry")
+            .map(|&(_, b)| b)
+            .collect();
+        freed.sort_unstable();
+        assert_eq!(freed, [1, 2, 10, 11, 12]);
+        assert_eq!(Arc::strong_count(&owner), 1);
+    }
+
+    #[test]
+    fn init_releases_pool_references_and_entries() {
+        let owner = Arc::new(Owner::default());
+        let callbacks = PoolCallbacks::<IntFloat64, _>::new(State(Arc::clone(&owner)))
+            .init(|s, mut e| {
+                release_held(s);
+                record(s, "init", 0);
+                e.set_bits(7);
+                true
+            })
+            .reset(|s, e| record(s, "reset", e.as_ref().bits()))
+            .free_entry(|s, e| record(s, "free_entry", e.as_ref().bits()));
+        let pool = TypedRefStructPool::with_callbacks(PoolFlags::NONE, callbacks).unwrap();
+        let first = get(&pool, 3);
+        *owner.entries.lock().unwrap() = vec![first];
+        *owner.pool.lock().unwrap() = Some(pool.clone());
+        // The free list is empty, so C allocates and inits a new entry; the
+        // init returns the held entry and drops the state's pool reference
+        // while the caller's keeps the pool.
+        let second = pool.get().unwrap();
+        assert_eq!(second.as_ref().bits(), 7);
+        drop(pool);
+        assert!(!freed(&owner), "an entry is still out");
+        drop(second);
+        assert!(freed(&owner), "the pool was freed");
+        assert_eq!(
+            *owner.log.lock().unwrap(),
+            [
+                ("init", 0),
+                ("reset", 3),
+                ("init", 0),
+                ("free_entry", 3),
+                ("reset", 7),
+                ("free_entry", 7)
+            ]
+        );
+        assert_eq!(Arc::strong_count(&owner), 1);
+    }
+}

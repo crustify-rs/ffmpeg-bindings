@@ -575,16 +575,16 @@ mod sealed {
 /// A generic policy over every payload type, so no `impl_cdrop!`; C takes the
 /// reference's slot rather than the object. It covers the uninitialised
 /// storage of [`CAlloc`] too, whose release never reads the payload.
+// The safe sources of a `RefStructUnref` reference, and of its clones, give
+// every object either no callback (`av_refstruct_allocz`, and `CAlloc`'s
+// `av_refstruct_alloc_ext_c`, the only one whose storage may be
+// uninitialised) or one that accepts every payload safe code can leave:
+// `alloc_with_release`'s trampoline, which hands the initialised payload to
+// a safe closure, and a `TypedRefStructPool`'s entries, which C returns to
+// their pool through `reset_with`, a safe callback too.
 // SAFETY: `av_refstruct_unref` drops one count of the object and frees its
 // block once, when the last reference goes, after running the object's
-// release callback, if any. The safe sources of a `RefStructUnref`
-// reference, and of its clones, give every object either no callback
-// (`av_refstruct_allocz`, and `CAlloc`'s `av_refstruct_alloc_ext_c`, the
-// only one whose storage may be uninitialised) or one that accepts every
-// payload safe code can leave: `alloc_with_release`'s trampoline, which
-// hands the initialised payload to a safe closure, and a
-// `TypedRefStructPool`'s entries, which C returns to their pool through
-// `reset_with`, a safe callback too.
+// release callback, if any, which accepts the payload, as above.
 unsafe impl<T> CDrop<T> for RefStructUnref {
     #[inline]
     unsafe fn c_drop(&self, ptr: NonNull<T>) {
@@ -1010,12 +1010,17 @@ struct PoolState<T: CCell + 'static, S> {
 /// entries it holds for reuse, while entries still in use keep the pool
 /// alive.
 ///
-/// Every entry it hands out is a valid `T`: C zeroes each entry it
+/// Every entry it hands out, and every entry its callbacks see, is a valid
+/// `T`. Without [`PoolFlags::ZERO_EVERY_TIME`], C zeroes each entry it
 /// allocates, before the init callback runs, and an entry it reuses holds
-/// what its last user and the reset callback left. So `T` is
-/// [`CZeroable`], and [`PoolFlags::NO_ZEROING`] is ignored: the bytes it
-/// would leave are unspecified, and zeroes are among them. Payloads aligned
-/// beyond the 16 bytes C guarantees are rejected at compile time.
+/// what its last user and the reset callback left. With it, C allocates
+/// entries unzeroed and zeroes every entry as it hands it out, after the
+/// init or reset callback; the init trampoline zeroes a new entry before
+/// the init callback, or a failed init's reset and entry-freeing callbacks,
+/// can see it. So `T` is [`CZeroable`], and [`PoolFlags::NO_ZEROING`] is
+/// ignored: the bytes it would leave are unspecified, and zeroes are among
+/// them. Payloads aligned beyond the 16 bytes C guarantees are rejected at
+/// compile time.
 ///
 /// It crosses threads when its entries do, so when `T` is `Send` and `Sync`:
 ///
