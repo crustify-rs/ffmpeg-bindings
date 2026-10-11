@@ -13873,7 +13873,7 @@
      "borrowed": null,
      "nullable": true,
      "mutable": true,
-     "note": "NULL on ENOMEM or init_cb failure; otherwise an entry (a RefStruct object of pool->size bytes with refcount 1) the caller owns, released by av_refstruct_unref, which runs reset_cb and returns it to the pool (or frees it after uninit). Reused entries hold what the last user/reset left; fresh ones zeroed unless NO_ZEROING. Rust: TypedRefStructPool<T>::get -> Option<RefStructBox<T>>."
+     "note": "NULL on ENOMEM or init_cb failure; otherwise an entry (a RefStruct object of pool->size bytes with refcount 1) the caller owns, released by av_refstruct_unref, which runs reset_cb and returns it to the pool (or frees it after uninit). Its bytes depend on the pool's flags: under AV_REFSTRUCT_POOL_FLAG_ZERO_EVERY_TIME every entry, new or reused, is memset to zero right before it is returned, after init_cb or the last reset_cb (refstruct.c refstruct_pool_get_ext; new entries are then allocated with NO_ZEROING, so init_cb sees uninitialised bytes); otherwise a reused entry holds what its last user and reset_cb left, and a new one is zeroed before init_cb unless NO_ZEROING (then uninitialised apart from what init_cb wrote). Rust: TypedRefStructPool<T>::get -> Option<RefStructBox<T>> (NO_ZEROING stripped; init_with zeroes a new entry first under ZERO_EVERY_TIME)."
     }
    }
   },
