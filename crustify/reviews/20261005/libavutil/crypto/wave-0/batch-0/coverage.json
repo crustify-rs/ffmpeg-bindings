@@ -1,0 +1,350 @@
+{
+  "method": {
+    "rust": "RUSTFLAGS=-C instrument-coverage, nightly llvm-profdata merge + llvm-cov report over the lib, equiv, ub_safe and ub_unsafe test binaries (cargo +nightly test -p ffmpeg --lib --tests -- aes blowfish camellia cast5 crc des hash hmac md5 murmur3 rc4 ripemd sha tea twofish xtea --skip compile_fail), reported for the 18 home files",
+    "c": "the same run with CRUSTIFY_FFMPEG_VARIANT=coverage and GCOV_PREFIX; gcov -b -c -f over the workset's .c files, reported for the lifecycle routines (alloc/init/free) and the metadata getters of the types",
+    "note": "measured on the review's tree (wave tip 7935c403e0 plus this review's changes); av_hash_alloc re-measured after adding its allocation-limit test"
+  },
+  "rust": {
+    "libavutil/aes.rs": {
+      "regions": {
+        "count": 184,
+        "percent": 98.91
+      },
+      "functions": {
+        "count": 15,
+        "percent": 100.0
+      },
+      "lines": {
+        "count": 131,
+        "percent": 98.47
+      }
+    },
+    "libavutil/aes_ctr.rs": {
+      "regions": {
+        "count": 43,
+        "percent": 95.35
+      },
+      "functions": {
+        "count": 6,
+        "percent": 100.0
+      },
+      "lines": {
+        "count": 37,
+        "percent": 94.59
+      }
+    },
+    "libavutil/blowfish.rs": {
+      "regions": {
+        "count": 93,
+        "percent": 95.7
+      },
+      "functions": {
+        "count": 11,
+        "percent": 100.0
+      },
+      "lines": {
+        "count": 66,
+        "percent": 100.0
+      }
+    },
+    "libavutil/camellia.rs": {
+      "regions": {
+        "count": 77,
+        "percent": 97.4
+      },
+      "functions": {
+        "count": 11,
+        "percent": 100.0
+      },
+      "lines": {
+        "count": 54,
+        "percent": 100.0
+      }
+    },
+    "libavutil/cast5.rs": {
+      "regions": {
+        "count": 82,
+        "percent": 97.56
+      },
+      "functions": {
+        "count": 9,
+        "percent": 100.0
+      },
+      "lines": {
+        "count": 60,
+        "percent": 98.33
+      }
+    },
+    "libavutil/crc.rs": {
+      "regions": {
+        "count": 136,
+        "percent": 100.0
+      },
+      "functions": {
+        "count": 12,
+        "percent": 100.0
+      },
+      "lines": {
+        "count": 100,
+        "percent": 100.0
+      }
+    },
+    "libavutil/des.rs": {
+      "regions": {
+        "count": 169,
+        "percent": 97.63
+      },
+      "functions": {
+        "count": 14,
+        "percent": 100.0
+      },
+      "lines": {
+        "count": 101,
+        "percent": 100.0
+      }
+    },
+    "libavutil/hash.rs": {
+      "regions": {
+        "count": 50,
+        "percent": 100.0
+      },
+      "functions": {
+        "count": 8,
+        "percent": 100.0
+      },
+      "lines": {
+        "count": 42,
+        "percent": 100.0
+      }
+    },
+    "libavutil/hmac.rs": {
+      "regions": {
+        "count": 90,
+        "percent": 95.56
+      },
+      "functions": {
+        "count": 10,
+        "percent": 100.0
+      },
+      "lines": {
+        "count": 57,
+        "percent": 98.25
+      }
+    },
+    "libavutil/md5.rs": {
+      "regions": {
+        "count": 128,
+        "percent": 100.0
+      },
+      "functions": {
+        "count": 12,
+        "percent": 100.0
+      },
+      "lines": {
+        "count": 90,
+        "percent": 100.0
+      }
+    },
+    "libavutil/murmur3.rs": {
+      "regions": {
+        "count": 94,
+        "percent": 100.0
+      },
+      "functions": {
+        "count": 12,
+        "percent": 100.0
+      },
+      "lines": {
+        "count": 73,
+        "percent": 100.0
+      }
+    },
+    "libavutil/rc4.rs": {
+      "regions": {
+        "count": 134,
+        "percent": 97.01
+      },
+      "functions": {
+        "count": 16,
+        "percent": 100.0
+      },
+      "lines": {
+        "count": 88,
+        "percent": 100.0
+      }
+    },
+    "libavutil/ripemd.rs": {
+      "regions": {
+        "count": 71,
+        "percent": 95.77
+      },
+      "functions": {
+        "count": 9,
+        "percent": 100.0
+      },
+      "lines": {
+        "count": 51,
+        "percent": 96.08
+      }
+    },
+    "libavutil/sha.rs": {
+      "regions": {
+        "count": 73,
+        "percent": 97.26
+      },
+      "functions": {
+        "count": 12,
+        "percent": 100.0
+      },
+      "lines": {
+        "count": 62,
+        "percent": 96.77
+      }
+    },
+    "libavutil/sha512.rs": {
+      "regions": {
+        "count": 76,
+        "percent": 97.37
+      },
+      "functions": {
+        "count": 12,
+        "percent": 100.0
+      },
+      "lines": {
+        "count": 63,
+        "percent": 96.83
+      }
+    },
+    "libavutil/tea.rs": {
+      "regions": {
+        "count": 40,
+        "percent": 97.5
+      },
+      "functions": {
+        "count": 6,
+        "percent": 100.0
+      },
+      "lines": {
+        "count": 34,
+        "percent": 100.0
+      }
+    },
+    "libavutil/twofish.rs": {
+      "regions": {
+        "count": 102,
+        "percent": 98.04
+      },
+      "functions": {
+        "count": 9,
+        "percent": 100.0
+      },
+      "lines": {
+        "count": 85,
+        "percent": 100.0
+      }
+    },
+    "libavutil/xtea.rs": {
+      "regions": {
+        "count": 77,
+        "percent": 100.0
+      },
+      "functions": {
+        "count": 11,
+        "percent": 100.0
+      },
+      "lines": {
+        "count": 64,
+        "percent": 100.0
+      }
+    },
+    "uncovered": [
+      "aes.rs:136/158, aes_ctr.rs:81/98, cast5.rs:134: the C initializer's negative-status arms; av_aes_init/av_aes_ctr_init/av_cast5_init fail only for key sizes the wrappers reject first",
+      "ripemd.rs:101-102, sha.rs:119-120, sha512.rs:121-122: the free-and-None arm after a failing av_*_init, which C never takes for the sizes the Rust enums admit",
+      "hmac.rs:171: the closing line of a 64-bit-only `if` in a unit test (coverage artifact)",
+      "region-only misses: `?` error arms of the same unreachable C failures in non-test instantiations"
+    ]
+  },
+  "c": {
+    "libavutil/aes.c": {
+      "av_aes_init": "100% of 34 lines",
+      "av_aes_alloc": "100% of 2 lines"
+    },
+    "libavutil/aes_ctr.c": {
+      "av_aes_ctr_free": "100% of 3 lines",
+      "av_aes_ctr_init": "100% of 5 lines",
+      "av_aes_ctr_alloc": "100% of 2 lines"
+    },
+    "libavutil/blowfish.c": {
+      "av_blowfish_init": "100% of 22 lines",
+      "av_blowfish_alloc": "100% of 2 lines"
+    },
+    "libavutil/camellia.c": {
+      "av_camellia_init": "100% of 37 lines",
+      "av_camellia_alloc": "100% of 2 lines"
+    },
+    "libavutil/cast5.c": {
+      "av_cast5_init": "100% of 18 lines",
+      "av_cast5_alloc": "100% of 2 lines"
+    },
+    "libavutil/crc.c": {
+      "av_crc": "100% of 16 lines",
+      "av_crc_init": "100% of 23 lines"
+    },
+    "libavutil/des.c": {
+      "av_des_init": "100% of 7 lines",
+      "av_des_alloc": "100% of 2 lines"
+    },
+    "libavutil/hash.c": {
+      "av_hash_freep": "100% of 5 lines",
+      "av_hash_init": "100% of 18 lines",
+      "av_hash_alloc": "100% of 25 lines (92% before this review: the child-allocation-failure path, now driven by equiv/hash.rs::allocation_failures_match_c)",
+      "av_hash_get_size": "100% of 2 lines",
+      "av_hash_get_name": "100% of 2 lines",
+      "av_hash_names": "100% of 3 lines"
+    },
+    "libavutil/hmac.c": {
+      "av_hmac_init": "100% of 19 lines",
+      "av_hmac_free": "100% of 4 lines",
+      "av_hmac_alloc": "100% of 58 lines"
+    },
+    "libavutil/md5.c": {
+      "av_md5_init": "100% of 7 lines",
+      "av_md5_alloc": "100% of 2 lines"
+    },
+    "libavutil/murmur3.c": {
+      "av_murmur3_init": "100% of 3 lines",
+      "av_murmur3_init_seeded": "100% of 4 lines",
+      "av_murmur3_alloc": "100% of 2 lines"
+    },
+    "libavutil/rc4.c": {
+      "av_rc4_init": "100% of 15 lines",
+      "av_rc4_alloc": "100% of 2 lines"
+    },
+    "libavutil/ripemd.c": {
+      "av_ripemd_init": "100% of 44 lines",
+      "av_ripemd_alloc": "100% of 2 lines"
+    },
+    "libavutil/sha.c": {
+      "av_sha_init": "100% of 35 lines",
+      "av_sha_alloc": "100% of 2 lines"
+    },
+    "libavutil/sha512.c": {
+      "av_sha512_init": "100% of 45 lines",
+      "av_sha512_alloc": "100% of 2 lines"
+    },
+    "libavutil/tea.c": {
+      "av_tea_init": "100% of 6 lines",
+      "av_tea_alloc": "100% of 2 lines"
+    },
+    "libavutil/twofish.c": {
+      "av_twofish_init": "100% of 32 lines",
+      "av_twofish_alloc": "100% of 2 lines"
+    },
+    "libavutil/xtea.c": {
+      "av_xtea_le_init": "100% of 5 lines",
+      "av_xtea_init": "100% of 5 lines",
+      "av_xtea_alloc": "100% of 2 lines"
+    },
+    "note": "gcov 13 reads the gcc 14 data with a version warning and reports av_aes_ctr_init, av_blowfish_init and av_cast5_init above 100% (140%, 109%, 111%); every line of them is executed. Field-only types (AVCRCId, AVHMACType) have no C lifecycle path; av_crc/av_crc_init are the CRC table routines the workset's CrcId selects."
+  }
+}

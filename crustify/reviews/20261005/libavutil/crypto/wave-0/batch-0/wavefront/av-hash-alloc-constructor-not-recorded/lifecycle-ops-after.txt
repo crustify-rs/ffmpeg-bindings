@@ -1,0 +1,3 @@
+av_hash_alloc
+av_hash_freep
+av_hash_init
