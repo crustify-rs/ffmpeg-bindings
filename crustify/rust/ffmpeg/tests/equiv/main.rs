@@ -21,6 +21,8 @@ mod intfloat;
 mod intreadwrite;
 mod log;
 mod mathematics;
+mod md5;
+mod murmur3;
 mod mem;
 mod opt;
 mod parseutils;
