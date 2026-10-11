@@ -23,7 +23,16 @@ fn lifecycle_and_field_sequences_match_c() {
             // separate writable local; crypt retains no pointers.
             unsafe {
                 ffi::av_blowfish_crypt_ecb(&mut reference, &mut a, &mut b, decrypt);
-                ffi::av_blowfish_crypt_ecb(safe.as_c_ptr(), &mut c, &mut d, decrypt);
+                let mut halves = [c, d];
+                safe.as_ref().crypt_ecb(
+                    &mut halves,
+                    if decrypt != 0 {
+                        Direction::Decrypt
+                    } else {
+                        Direction::Encrypt
+                    },
+                );
+                [c, d] = halves;
             }
             assert_eq!((a, b), (c, d));
         }
@@ -44,6 +53,91 @@ fn lifecycle_and_field_sequences_match_c() {
         unsafe {
             assert_eq!(addr_of!((*safe.as_c_ptr()).p).read(), p);
             assert_eq!(addr_of!((*safe.as_c_ptr()).s).read(), s);
+        }
+    }
+}
+
+use ffmpeg::libavutil::aes::Direction;
+
+#[test]
+fn buffer_sequences_match_c() {
+    for key_len in [1, 8, 56] {
+        for direction in [Direction::Encrypt, Direction::Decrypt] {
+            let key = vec![0xa7; key_len];
+            let actual = Blowfish::new(&key).unwrap();
+            let reference = Blowfish::new_boxed(&key).unwrap();
+            let src: Vec<u8> = (0..8 * 8 + 3).map(|i| (i * 31) as u8).collect();
+            for cbc in [false, true] {
+                let (mut ia, mut ir) = ([0x73; 8], [0x73; 8]);
+                for blocks in [0, 1, 2, 4, 8, 1] {
+                    let len = blocks * 8;
+                    let (mut a, mut r) = (vec![0xcc; len + 3], vec![0xcc; len + 3]);
+                    actual
+                        .as_ref()
+                        .crypt(
+                            &mut a[1..1 + len],
+                            &src[2..2 + len],
+                            cbc.then_some(&mut ia),
+                            direction,
+                        )
+                        .unwrap();
+                    let iv = if cbc {
+                        ir.as_mut_ptr()
+                    } else {
+                        core::ptr::null_mut()
+                    };
+                    // SAFETY: independent initialized context, len whole readable/
+                    // writable blocks in disjoint allocations; IV is a separate
+                    // full block or NULL. This synchronous call retains nothing.
+                    unsafe {
+                        ffi::av_blowfish_crypt(
+                            reference.as_c_ptr(),
+                            r.as_mut_ptr().add(1),
+                            src.as_ptr().add(2),
+                            blocks as i32,
+                            iv,
+                            i32::from(direction == Direction::Decrypt),
+                        )
+                    };
+                    assert_eq!(a, r);
+                    assert_eq!(ia, ir);
+                    // Compare subsequent in-place processing and IV transitions.
+                    actual
+                        .as_ref()
+                        .crypt_in_place(&mut a[1..1 + len], cbc.then_some(&mut ia), direction)
+                        .unwrap();
+                    // SAFETY: same initialized reference, exact-alias buffers
+                    // explicitly supported by C, with len full blocks and separate IV.
+                    unsafe {
+                        ffi::av_blowfish_crypt(
+                            reference.as_c_ptr(),
+                            r.as_mut_ptr().add(1),
+                            r.as_mut_ptr().add(1),
+                            blocks as i32,
+                            iv,
+                            i32::from(direction == Direction::Decrypt),
+                        )
+                    };
+                    assert_eq!(a, r);
+                    assert_eq!(ia, ir);
+                }
+            }
+            let (mut a, mut r) = ([0x12345678, 0xabcdef01], [0x12345678, 0xabcdef01]);
+            for _ in 0..3 {
+                actual.as_ref().crypt_ecb(&mut a, direction);
+                let ptr = r.as_mut_ptr();
+                // SAFETY: independent initialized context and two distinct
+                // aligned writable u32 words; the routine retains no pointer.
+                unsafe {
+                    ffi::av_blowfish_crypt_ecb(
+                        reference.as_c_ptr(),
+                        ptr,
+                        ptr.add(1),
+                        i32::from(direction == Direction::Decrypt),
+                    )
+                };
+                assert_eq!(a, r);
+            }
         }
     }
 }

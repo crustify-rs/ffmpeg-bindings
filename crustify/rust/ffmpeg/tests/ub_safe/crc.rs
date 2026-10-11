@@ -51,3 +51,36 @@ fn batch10_tables_clone_share_and_stream_unaligned_data() {
         }
     }
 }
+
+#[test]
+fn standard_tables_are_static_shared_and_thread_safe() {
+    use ffmpeg::libavutil::crc::{CrcId, get_table};
+    let threads: Vec<_> = [
+        CrcId::ATM_8,
+        CrcId::ANSI_16,
+        CrcId::CCITT_16,
+        CrcId::IEEE_32,
+        CrcId::IEEE_32_LE,
+        CrcId::ANSI_16_LE,
+        CrcId::IEEE_24,
+        CrcId::EBU_8,
+    ]
+    .into_iter()
+    .map(|id| {
+        // C's once-control permits concurrent first lookup for each polynomial.
+        std::thread::spawn(move || {
+            let table = get_table(id).unwrap();
+            let copy = table;
+            let input = [0x57; 259];
+            for len in [0, 1, 2, 3, 4, 7, 16, 255, 256] {
+                let _crc = copy.update(table.update(0, &input[1..1 + len]), &input[2..2 + len]);
+            }
+            table
+        })
+    })
+    .collect();
+    for thread in threads {
+        let table = thread.join().unwrap();
+        let _crc = table.update(0, b"after originating thread exited");
+    }
+}

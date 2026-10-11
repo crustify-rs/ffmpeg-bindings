@@ -7,6 +7,7 @@
 //! calls are serialized; future crypt wrappers must use the same internal
 //! lock. Raw C calls must exclude concurrent initialization/crypt accesses.
 
+use super::aes::{CryptError, Direction, buffer_count};
 use super::{ffi, mem::Heap};
 use core::ptr::NonNull;
 use ffibox::{CBox, CDrop, define_ctype};
@@ -118,9 +119,101 @@ pub fn context_size() -> &'static i32 {
     unsafe { &ffi::av_camellia_size }
 }
 
+impl CamelliaRef<'_> {
+    /// Wraps: av_camellia_crypt
+    ///
+    /// Encrypt or decrypt whole blocks.
+    /// `None` selects ECB; `Some` selects CBC and updates the IV after each block.
+    /// Buffers must have equal lengths; errors leave all state unchanged.
+    pub fn crypt(
+        &self,
+        dst: &mut [u8],
+        src: &[u8],
+        iv: Option<&mut [u8; 16]>,
+        direction: Direction,
+    ) -> Result<(), CryptError> {
+        let count = buffer_count(dst.len(), src.len(), 16)?;
+        if count == 0 {
+            return Ok(());
+        }
+        let _guard = lock_c_access();
+        // SAFETY: the shared handle addresses an initialized full context;
+        // equal-length disjoint slices hold count whole blocks, and any IV is
+        // a separate writable 16-byte array. C retains no buffer pointers.
+        // C reads but never writes the schedule despite its mutable ABI pointer.
+        // The guard also excludes every safe writer/reader of C's global SP.
+        unsafe {
+            ffi::av_camellia_crypt(
+                self.as_ptr().cast_mut(),
+                dst.as_mut_ptr(),
+                src.as_ptr(),
+                count,
+                iv.map_or(core::ptr::null_mut(), |iv| iv.as_mut_ptr()),
+                direction.as_int(),
+            )
+        };
+        Ok(())
+    }
+
+    /// In-place form of [`Self::crypt`], with the same modes and validation.
+    pub fn crypt_in_place(
+        &self,
+        data: &mut [u8],
+        iv: Option<&mut [u8; 16]>,
+        direction: Direction,
+    ) -> Result<(), CryptError> {
+        let count = buffer_count(data.len(), data.len(), 16)?;
+        if count == 0 {
+            return Ok(());
+        }
+        let _guard = lock_c_access();
+        let ptr = data.as_mut_ptr();
+        // SAFETY: one exclusive slice provides count whole readable/writable
+        // blocks. C explicitly supports src == dst, preserving ciphertext before
+        // CBC decryption writes it. The initialized context and optional IV are
+        // borrowed without writers and disjoint; no pointer is retained.
+        // C never writes the schedule despite its mutable ABI pointer.
+        // The guard excludes all safe accesses to the shared C lookup table.
+        unsafe {
+            ffi::av_camellia_crypt(
+                self.as_ptr().cast_mut(),
+                ptr,
+                ptr,
+                count,
+                iv.map_or(core::ptr::null_mut(), |iv| iv.as_mut_ptr()),
+                direction.as_int(),
+            )
+        };
+        Ok(())
+    }
+}
+
 #[cfg(test)]
 mod unit_tests {
     use super::*;
+
+    #[test]
+    #[cfg(not(miri))]
+    fn rejected_buffers_are_atomic() {
+        let key = [0; 16];
+        let context = Camellia::new(&key).unwrap();
+        let mut data = [0x99; 16 * 2];
+        let mut iv = [0x77; 16];
+        assert_eq!(
+            context
+                .as_ref()
+                .crypt(&mut data, &[0; 16], Some(&mut iv), Direction::Encrypt),
+            Err(CryptError::LengthMismatch)
+        );
+        assert_eq!(
+            context
+                .as_ref()
+                .crypt_in_place(&mut data[..16 - 1], Some(&mut iv), Direction::Decrypt),
+            Err(CryptError::IncompleteBlock)
+        );
+        assert_eq!(data, [0x99; 16 * 2]);
+        assert_eq!(iv, [0x77; 16]);
+    }
 
     #[test]
     fn invalid_key_lengths() {

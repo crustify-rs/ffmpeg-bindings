@@ -2,7 +2,7 @@
 //!
 //! C owns allocation and the private layout. Keys are copied during initialization;
 //! no caller buffer is retained. A context has no sub-allocations or C clone routine.
-//! Processing routines are wrapped by the symbol batch, not this lifecycle module.
+//! Processing borrows buffers synchronously, with distinct disjoint and in-place APIs.
 
 use core::{fmt, mem::MaybeUninit, ptr::NonNull};
 use ffibox::{CAlloc, CBox, CDrop, define_ctype};
@@ -20,6 +20,40 @@ impl Direction {
     pub(crate) fn as_int(self) -> i32 {
         i32::from(self == Self::Decrypt)
     }
+}
+
+/// Buffer validation failure. Rejected calls leave context, output and IV unchanged.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum CryptError {
+    LengthMismatch,
+    IncompleteBlock,
+    CountOverflow,
+}
+
+impl fmt::Display for CryptError {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.write_str(match self {
+            Self::LengthMismatch => "source and destination lengths differ",
+            Self::IncompleteBlock => "buffer length is not a whole number of blocks",
+            Self::CountOverflow => "buffer count exceeds C's int range",
+        })
+    }
+}
+
+impl std::error::Error for CryptError {}
+
+pub(crate) fn buffer_count(
+    dst_len: usize,
+    src_len: usize,
+    block: usize,
+) -> Result<i32, CryptError> {
+    if dst_len != src_len {
+        return Err(CryptError::LengthMismatch);
+    }
+    if !src_len.is_multiple_of(block) {
+        return Err(CryptError::IncompleteBlock);
+    }
+    i32::try_from(src_len / block).map_err(|_| CryptError::CountOverflow)
 }
 
 /// Failure to construct or reinitialize an AES context.
@@ -171,9 +205,213 @@ pub fn context_size() -> &'static i32 {
     unsafe { &ffi::av_aes_size }
 }
 
+impl AesMut<'_> {
+    /// Wraps: av_aes_crypt
+    ///
+    /// Process whole blocks with the direction selected by initialization.
+    /// C ignores its redundant decrypt argument.
+    /// `None` selects ECB; `Some` selects CBC and updates the IV after each block.
+    /// Buffers must have equal lengths; errors leave all state unchanged.
+    /// These modes provide no authentication or padding.
+    ///
+    /// Use the in-place variant rather than aliasing two buffer arguments:
+    /// ```compile_fail,E0502
+    /// use ffmpeg::libavutil::aes::{Aes, Direction};
+    /// let mut aes = Aes::new(&[0; 16], Direction::Encrypt).unwrap();
+    /// let mut data = [0; 16];
+    /// aes.as_mut().crypt(&mut data, &data, None).unwrap();
+    /// ```
+    /// A CBC IV cannot alias the output:
+    /// ```compile_fail,E0499
+    /// use ffmpeg::libavutil::aes::{Aes, Direction};
+    /// let mut aes = Aes::new(&[0; 16], Direction::Encrypt).unwrap();
+    /// let mut data = [0; 16];
+    /// aes.as_mut().crypt(&mut data, &[0; 16], Some(&mut data)).unwrap();
+    /// ```
+    pub fn crypt(
+        &mut self,
+        dst: &mut [u8],
+        src: &[u8],
+        iv: Option<&mut [u8; 16]>,
+    ) -> Result<(), CryptError> {
+        let count = buffer_count(dst.len(), src.len(), 16)?;
+        if count == 0 {
+            return Ok(());
+        }
+        // SAFETY: the exclusive handle addresses an initialized full context;
+        // equal-length disjoint slices hold count whole blocks, and any IV is
+        // a separate writable 16-byte array. C retains no buffer pointers.
+        unsafe {
+            ffi::av_aes_crypt(
+                self.as_mut_ptr(),
+                dst.as_mut_ptr(),
+                src.as_ptr(),
+                count,
+                iv.map_or(core::ptr::null_mut(), |iv| iv.as_mut_ptr()),
+                0,
+            )
+        };
+        Ok(())
+    }
+
+    /// In-place form of [`Self::crypt`], with the same modes and validation.
+    pub fn crypt_in_place(
+        &mut self,
+        data: &mut [u8],
+        iv: Option<&mut [u8; 16]>,
+    ) -> Result<(), CryptError> {
+        let count = buffer_count(data.len(), data.len(), 16)?;
+        if count == 0 {
+            return Ok(());
+        }
+        let ptr = data.as_mut_ptr();
+        // SAFETY: one exclusive slice provides count whole readable/writable
+        // blocks. C explicitly supports src == dst, preserving ciphertext before
+        // CBC decryption writes it. The initialized context and optional IV are
+        // exclusively borrowed and disjoint; no pointer is retained.
+        unsafe {
+            ffi::av_aes_crypt(
+                self.as_mut_ptr(),
+                ptr,
+                ptr,
+                count,
+                iv.map_or(core::ptr::null_mut(), |iv| iv.as_mut_ptr()),
+                0,
+            )
+        };
+        Ok(())
+    }
+}
+
 #[cfg(test)]
 mod unit_tests {
     use super::*;
+
+    #[test]
+    #[cfg(not(miri))]
+    fn software_fallback_processing() {
+        // Isolate CPU dispatch changes before the child uses any C facility.
+        const CHILD: &str = "CRUSTIFY_CRYPTO_W1_B0_SOFTWARE";
+        if std::env::var_os(CHILD).is_none() {
+            let status = std::process::Command::new(std::env::current_exe().unwrap())
+                .args([
+                    "--exact",
+                    "libavutil::aes::unit_tests::software_fallback_processing",
+                ])
+                .env(CHILD, "1")
+                .status()
+                .unwrap();
+            assert!(status.success());
+            return;
+        }
+        // SAFETY: this fresh child runs only this exact test; no prior C state
+        // exists and zero enables no unsupported CPU feature. Never restore the
+        // flags, so all C objects and buffers use the same dispatch/alignment.
+        unsafe { super::super::cpu::force_cpu_flags(0) };
+        for key_len in [16, 24, 32] {
+            let key = vec![0x57; key_len];
+            for cbc in [false, true] {
+                for blocks in [0, 1, 2, 8] {
+                    let mut enc = Aes::new(&key, Direction::Encrypt).unwrap();
+                    let mut dec = Aes::new(&key, Direction::Decrypt).unwrap();
+                    let input = vec![0xa7; blocks * 16 + 3];
+                    let mut output = vec![0; input.len()];
+                    let (mut ie, mut id) = ([0x73; 16], [0x73; 16]);
+                    enc.as_mut()
+                        .crypt(
+                            &mut output[1..1 + blocks * 16],
+                            &input[2..2 + blocks * 16],
+                            cbc.then_some(&mut ie),
+                        )
+                        .unwrap();
+                    dec.as_mut()
+                        .crypt_in_place(&mut output[1..1 + blocks * 16], cbc.then_some(&mut id))
+                        .unwrap();
+                    assert_eq!(output[1..1 + blocks * 16], input[2..2 + blocks * 16]);
+                    assert_eq!(ie, id);
+                    enc.as_mut()
+                        .crypt_in_place(&mut output[1..1 + blocks * 16], cbc.then_some(&mut ie))
+                        .unwrap();
+                    dec.as_mut()
+                        .crypt_in_place(&mut output[1..1 + blocks * 16], cbc.then_some(&mut id))
+                        .unwrap();
+                    assert_eq!(output[1..1 + blocks * 16], input[2..2 + blocks * 16]);
+                    assert_eq!(ie, id);
+                }
+            }
+        }
+        use super::super::crc::{CrcId, Table, TableSize, get_table};
+        for (id, le, bits, poly) in [
+            (CrcId::ATM_8, false, 8, 0x07),
+            (CrcId::EBU_8, false, 8, 0x1d),
+            (CrcId::ANSI_16, false, 16, 0x8005),
+            (CrcId::CCITT_16, false, 16, 0x1021),
+            (CrcId::IEEE_24, false, 24, 0x864cfb),
+            (CrcId::IEEE_32, false, 32, 0x04c11db7),
+            (CrcId::IEEE_32_LE, true, 32, 0xedb88320),
+            (CrcId::ANSI_16_LE, true, 16, 0xa001),
+        ] {
+            let standard = get_table(id).unwrap();
+            for size in [TableSize::Compact, TableSize::Fast] {
+                let generated = Table::new(le, bits, poly, size).unwrap();
+                let input = [0x57; 259];
+                for len in [0, 1, 2, 3, 4, 7, 16, 255, 256] {
+                    assert_eq!(
+                        standard.update(0, &input[1..1 + len]),
+                        generated.update(0, &input[1..1 + len])
+                    );
+                }
+            }
+        }
+    }
+
+    #[test]
+    fn buffer_validation() {
+        assert_eq!(buffer_count(16, 16, 16), Ok(1));
+        assert_eq!(buffer_count(0, 0, 16), Ok(0));
+        assert_eq!(buffer_count(8, 16, 16), Err(CryptError::LengthMismatch));
+        assert_eq!(buffer_count(15, 15, 16), Err(CryptError::IncompleteBlock));
+        assert_eq!(
+            buffer_count(i32::MAX as usize + 1, i32::MAX as usize + 1, 1),
+            Err(CryptError::CountOverflow)
+        );
+        for error in [
+            CryptError::LengthMismatch,
+            CryptError::IncompleteBlock,
+            CryptError::CountOverflow,
+        ] {
+            assert!(!error.to_string().is_empty());
+        }
+    }
+
+    #[test]
+    #[cfg(not(miri))]
+    fn rejected_buffers_preserve_context_output_and_iv() {
+        let mut owner = Aes::new(&[0; 16], Direction::Encrypt).unwrap();
+        let mut output = [9; 32];
+        let mut iv = [7; 16];
+        assert_eq!(
+            owner.as_mut().crypt(&mut output, &[0; 16], Some(&mut iv)),
+            Err(CryptError::LengthMismatch)
+        );
+        assert_eq!(
+            owner
+                .as_mut()
+                .crypt_in_place(&mut output[..15], Some(&mut iv)),
+            Err(CryptError::IncompleteBlock)
+        );
+        assert_eq!(output, [9; 32]);
+        assert_eq!(iv, [7; 16]);
+        let mut block = [0; 16];
+        owner.as_mut().crypt_in_place(&mut block, None).unwrap();
+        assert_eq!(
+            block,
+            [
+                0x66, 0xe9, 0x4b, 0xd4, 0xef, 0x8a, 0x2c, 0x3b, 0x88, 0x4c, 0xfa, 0x59, 0xca, 0x34,
+                0x2b, 0x2e
+            ]
+        );
+    }
 
     #[test]
     fn key_validation_and_error_messages() {
@@ -253,35 +491,13 @@ mod unit_tests {
         let input = [0; 16];
         let mut before = [0; 16];
         let mut after = [0; 16];
-        // SAFETY: an initialized full context and disjoint 16-byte buffers; ECB
-        // uses no IV. No borrowed handles or references cover the C context.
-        unsafe {
-            ffi::av_aes_crypt(
-                owner.as_c_ptr(),
-                before.as_mut_ptr(),
-                input.as_ptr(),
-                1,
-                core::ptr::null_mut(),
-                0,
-            )
-        };
+        owner.as_mut().crypt(&mut before, &input, None).unwrap();
         for len in [0, 15, 17, 33] {
             assert_eq!(
                 owner.as_mut().init(&vec![0; len], Direction::Decrypt),
                 Err(InitError::InvalidKeyLength)
             );
-            // SAFETY: the rejected key never reached C, preserving its valid
-            // schedule; buffers have one readable/writable block, and no IV.
-            unsafe {
-                ffi::av_aes_crypt(
-                    owner.as_c_ptr(),
-                    after.as_mut_ptr(),
-                    input.as_ptr(),
-                    1,
-                    core::ptr::null_mut(),
-                    0,
-                )
-            };
+            owner.as_mut().crypt(&mut after, &input, None).unwrap();
             assert_eq!(after, before);
         }
         // AES-128 known answer with an all-zero key and block.

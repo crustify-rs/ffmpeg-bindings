@@ -5,6 +5,18 @@
 //! [`random_bytes_uninit`] one that is not yet initialised.
 
 use core::mem::MaybeUninit;
+use std::sync::{Mutex, MutexGuard};
+
+// C's timing-jitter fallback mutates static i/buffer. Share this lock with
+// indirect seed consumers (notably AES-CTR's random-IV routine). Raw C users
+// must independently exclude concurrent fallback access.
+static SEED_ACCESS: Mutex<()> = Mutex::new(());
+
+pub(crate) fn lock_seed_access() -> MutexGuard<'static, ()> {
+    SEED_ACCESS
+        .lock()
+        .unwrap_or_else(|poisoned| poisoned.into_inner())
+}
 
 use super::ffi;
 
@@ -15,8 +27,10 @@ use super::ffi;
 /// it again for more bits.
 #[must_use]
 pub fn get() -> u32 {
+    let _guard = lock_seed_access();
     // SAFETY: `av_get_random_seed` takes no arguments and has no
-    // preconditions; it fills a local of its own.
+    // pointer preconditions. The lock excludes other safe users of its
+    // static timing-jitter fallback state.
     unsafe { ffi::av_get_random_seed() }
 }
 
@@ -68,6 +82,16 @@ pub fn random_bytes_uninit(buf: &mut [MaybeUninit<u8>]) -> Result<&mut [u8], i32
 #[cfg(test)]
 mod unit_tests {
     use super::*;
+
+    #[test]
+    fn seed_lock_recovers_after_unwind() {
+        let result = std::panic::catch_unwind(|| {
+            let _guard = lock_seed_access();
+            panic!("poison seed access without calling C");
+        });
+        assert!(result.is_err());
+        drop(lock_seed_access());
+    }
 
     #[test]
     fn fills_every_byte() {

@@ -67,3 +67,53 @@ fn allocation_failure_is_reported_without_leaking() {
         .unwrap();
     assert!(status.success());
 }
+
+use ffmpeg::libavutil::aes::Direction;
+
+#[test]
+fn processing_across_reborrows_and_unaligned_buffers() {
+    for key_len in [1, 8, 56] {
+        for direction in [Direction::Encrypt, Direction::Decrypt] {
+            let key = vec![0xa7; key_len];
+            let mut owner = Blowfish::new(&key).unwrap();
+            drop(key);
+            let mut source = [0x5a; 8 * 8 + 3];
+            let mut destination = vec![0x99; source.len()];
+            for cbc in [false, true] {
+                let mut iv = [0xf3; 8];
+                for blocks in [0, 1, 4, 2, 8] {
+                    let len = blocks * 8;
+                    let mut outer = owner.as_mut();
+                    {
+                        let handle = outer.as_mut();
+                        handle
+                            .as_ref()
+                            .crypt(
+                                &mut destination[1..1 + len],
+                                &source[2..2 + len],
+                                cbc.then_some(&mut iv),
+                                direction,
+                            )
+                            .unwrap();
+                    }
+                    outer
+                        .as_ref()
+                        .crypt_in_place(&mut source[1..1 + len], cbc.then_some(&mut iv), direction)
+                        .unwrap();
+                }
+                owner
+                    .as_ref()
+                    .crypt_in_place(&mut [], cbc.then_some(&mut iv), direction)
+                    .unwrap();
+            }
+            let mut halves = [0x12345678, 0xabcdef01];
+            owner.as_ref().crypt_ecb(&mut halves, direction);
+            let boxed = Blowfish::new_boxed(&[0; 8]).unwrap();
+            boxed.as_ref().crypt_ecb(&mut halves, direction);
+            boxed
+                .as_ref()
+                .crypt_in_place(&mut source[1..9], None, direction)
+                .unwrap();
+        }
+    }
+}

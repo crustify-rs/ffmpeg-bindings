@@ -137,35 +137,83 @@ impl Table {
     /// Update a CRC from its previous value (or the polynomial's initial value).
     /// For non-little-endian tables C uses its documented byte-swapped form.
     pub fn update(&self, initial: u32, input: &[u8]) -> u32 {
-        // Give even a short/empty input a live prefix and suffix: the generic
-        // fast C path forms `end - 3` before checking the loop condition. This
-        // keeps that pointer within an allocation, including at length zero.
-        if input.len() < 3 {
-            let mut padded = [0u8; 8];
-            padded[3..3 + input.len()].copy_from_slice(input);
-            // SAFETY: the private table came from successful av_crc_init.
-            // Input lives at offset 3 in an 8-byte allocation, so C's pointer
-            // arithmetic is in bounds, and it reads only input.len() bytes.
-            unsafe {
-                ffi::av_crc(
-                    self.entries.as_ptr(),
-                    initial,
-                    padded.as_ptr().add(3),
-                    input.len(),
-                )
-            }
-        } else {
-            // SAFETY: the table is initialized and unmodified; the input is
-            // readable for its length, and `end - 3` remains in bounds.
-            // C retains no pointers and writes neither shared input.
-            unsafe { ffi::av_crc(self.entries.as_ptr(), initial, input.as_ptr(), input.len()) }
+        update(TableView::Owned(self), initial, input)
+    }
+}
+
+/// Handwritten
+///
+/// A copyable, shared handle to C's immutable process-lifetime standard table.
+///
+/// This stores its identifier rather than a fixed-size slice: accelerated C
+/// tables can have only 17 words, unlike the generic 1024-word tables. No C
+/// memory is owned, exposed as a Rust reference, modified or freed by the handle.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct StandardTable {
+    id: CrcId,
+}
+
+/// Wraps: av_crc_get_table
+///
+/// Borrow a standard table. Unknown identifiers return `None`. C initializes
+/// generic tables under its once-control before returning; later uses are read-only.
+pub fn get_table(id: CrcId) -> Option<StandardTable> {
+    // SAFETY: C validates every enum encoding and returns NULL for unsupported
+    // values, or a fully initialized immutable table with static lifetime.
+    let ptr = unsafe { ffi::av_crc_get_table(id.into_raw()) };
+    (!ptr.is_null()).then_some(StandardTable { id })
+}
+
+impl StandardTable {
+    /// Update through the borrowed standard table, without changing it.
+    pub fn update(&self, initial: u32, input: &[u8]) -> u32 {
+        update(TableView::Standard(self), initial, input)
+    }
+}
+
+enum TableView<'a> {
+    Owned(&'a Table),
+    Standard(&'a StandardTable),
+}
+
+fn update(view: TableView<'_>, initial: u32, input: &[u8]) -> u32 {
+    let table = match view {
+        TableView::Owned(table) => table.entries.as_ptr(),
+        TableView::Standard(table) => {
+            // SAFETY: get_table admitted only supported identifiers; every
+            // lookup returns an initialized immutable table with static lifetime.
+            unsafe { ffi::av_crc_get_table(table.id.into_raw()) }
         }
+    };
+    // Give even a short/empty input a live prefix and suffix: the generic
+    // fast C path forms `end - 3` before checking the loop condition. This
+    // keeps that pointer within an allocation, including at length zero.
+    if input.len() < 3 {
+        let mut padded = [0u8; 8];
+        padded[3..3 + input.len()].copy_from_slice(input);
+        // SAFETY: the view supplies a live, initialized immutable C table.
+        // Input lives at offset 3 in an 8-byte allocation, so C's pointer
+        // arithmetic is in bounds, and it reads only input.len() bytes.
+        unsafe { ffi::av_crc(table, initial, padded.as_ptr().add(3), input.len()) }
+    } else {
+        // SAFETY: the view keeps an initialized, unmodified table alive; the input is
+        // readable for its length, and `end - 3` remains in bounds.
+        // C retains no pointers and writes neither shared input.
+        unsafe { ffi::av_crc(table, initial, input.as_ptr(), input.len()) }
     }
 }
 
 #[cfg(test)]
 mod unit_tests {
     use super::*;
+
+    #[test]
+    fn standard_handle_traits() {
+        let table = StandardTable { id: CrcId::ATM_8 };
+        let copy = table;
+        assert_eq!(table, copy);
+        assert!(format!("{copy:?}").contains("ATM_8"));
+    }
 
     #[test]
     fn layout_and_unknown_values() {

@@ -2,9 +2,10 @@
 //!
 //! The private context contains an inline AES context, counters and a block offset;
 //! it owns no pointers. Initialization copies the key and resets the counter and
-//! offset. Only C knows its size and alignment. IV and processing operations belong
-//! to the subsequent symbol batch.
+//! offset. Only C knows its size and alignment. IV getters return snapshots;
+//! processing and setters borrow caller buffers only for the synchronous call.
 
+use super::aes::{CryptError, buffer_count};
 use super::{aes::InitError, ffi};
 use core::{mem::MaybeUninit, ptr::NonNull};
 use ffibox::{CAlloc, CBox, CDrop, define_ctype, impl_cdrop};
@@ -102,9 +103,121 @@ impl AesCtrMut<'_> {
     }
 }
 
+impl AesCtrRef<'_> {
+    /// Wraps: av_aes_ctr_get_iv
+    ///
+    /// Snapshot the full 16-byte counter, including its current block counter.
+    /// A partial crypt call may already have advanced the counter for its scratch block.
+    pub fn iv(&self) -> [u8; 16] {
+        // SAFETY: get_iv only returns the inline initialized counter without
+        // writing the context despite its mutable C parameter. The shared handle
+        // excludes mutation; copy all 16 bytes before the context can be freed.
+        unsafe {
+            ffi::av_aes_ctr_get_iv(self.as_ptr().cast_mut())
+                .cast::<[u8; 16]>()
+                .read()
+        }
+    }
+}
+
+impl AesCtrMut<'_> {
+    /// Wraps: av_aes_ctr_set_iv
+    ///
+    /// Copy the 8-byte nonce, zero the block counter and discard partial-block state.
+    /// Never reuse a key/nonce pair for different messages.
+    pub fn set_iv(&mut self, iv: &[u8; 8]) {
+        // SAFETY: exclusive initialized context, exactly 8 readable bytes;
+        // C copies the nonce and retains no caller pointer.
+        unsafe { ffi::av_aes_ctr_set_iv(self.as_mut_ptr(), iv.as_ptr()) };
+    }
+
+    /// Wraps: av_aes_ctr_set_full_iv
+    ///
+    /// Copy the full counter and discard partial-block state.
+    pub fn set_full_iv(&mut self, iv: &[u8; 16]) {
+        // SAFETY: exclusive initialized context, exactly 16 readable bytes;
+        // C copies the full counter and retains no caller pointer.
+        unsafe { ffi::av_aes_ctr_set_full_iv(self.as_mut_ptr(), iv.as_ptr()) };
+    }
+
+    /// Wraps: av_aes_ctr_increment_iv
+    ///
+    /// Increment the big-endian nonce with wrapping arithmetic, zero the block
+    /// counter, and discard partial-block state. Avoid nonce reuse on wraparound.
+    pub fn increment_iv(&mut self) {
+        // SAFETY: the exclusive handle addresses the initialized full context;
+        // the routine only updates its inline counter and offset.
+        unsafe { ffi::av_aes_ctr_increment_iv(self.as_mut_ptr()) };
+    }
+
+    /// Wraps: av_aes_ctr_set_random_iv
+    ///
+    /// Ask C to choose an 8-byte nonce; reset block counter and partial state.
+    /// C's random-seed API does not guarantee cryptographic uniqueness or entropy.
+    pub fn set_random_iv(&mut self) {
+        let _guard = super::random_seed::lock_seed_access();
+        // SAFETY: the exclusive handle addresses the initialized full context;
+        // C stores only copied nonce bytes. The shared seed lock serializes
+        // its unsynchronized static timing-jitter fallback with other safe users.
+        unsafe { ffi::av_aes_ctr_set_random_iv(self.as_mut_ptr()) };
+    }
+
+    /// Wraps: av_aes_ctr_crypt
+    ///
+    /// XOR any byte count with the CTR stream, preserving partial-block state
+    /// across calls. Buffers must have equal lengths fitting C's int range.
+    /// Encryption and decryption are identical; CTR supplies no authentication.
+    pub fn crypt(&mut self, dst: &mut [u8], src: &[u8]) -> Result<(), CryptError> {
+        let count = buffer_count(dst.len(), src.len(), 1)?;
+        if count == 0 {
+            return Ok(());
+        }
+        // SAFETY: the initialized full context is exclusive; equal-length,
+        // disjoint slices hold count bytes, within C's int range. No pointers
+        // are retained; unaligned user buffers are supported by the C routine.
+        unsafe { ffi::av_aes_ctr_crypt(self.as_mut_ptr(), dst.as_mut_ptr(), src.as_ptr(), count) };
+        Ok(())
+    }
+
+    /// In-place form of [`Self::crypt`], preserving the same stream state.
+    pub fn crypt_in_place(&mut self, data: &mut [u8]) -> Result<(), CryptError> {
+        let count = buffer_count(data.len(), data.len(), 1)?;
+        if count == 0 {
+            return Ok(());
+        }
+        let ptr = data.as_mut_ptr();
+        // SAFETY: exclusive initialized context and a readable/writable slice
+        // of count bytes. C supports src == dst and keeps no user pointers.
+        unsafe { ffi::av_aes_ctr_crypt(self.as_mut_ptr(), ptr, ptr, count) };
+        Ok(())
+    }
+}
+
 #[cfg(test)]
 mod unit_tests {
     use super::*;
+
+    #[test]
+    #[cfg(not(miri))]
+    fn rejected_lengths_preserve_stream() {
+        let mut owner = AesCtr::new(&[0; 16]).unwrap();
+        let mut data = [9; 17];
+        owner.as_mut().crypt_in_place(&mut data[..1]).unwrap();
+        let before = owner.as_ref().iv();
+        assert_eq!(
+            owner.as_mut().crypt(&mut data, &[0; 16]),
+            Err(CryptError::LengthMismatch)
+        );
+        assert_eq!(owner.as_ref().iv(), before);
+        assert_eq!(data[1..], [9; 16]);
+        // The rejected call must preserve not just IV but the scratch offset.
+        let mut reference = AesCtr::new(&[0; 16]).unwrap();
+        reference.as_mut().crypt_in_place(&mut [9]).unwrap();
+        let mut expected = data;
+        owner.as_mut().crypt_in_place(&mut data).unwrap();
+        reference.as_mut().crypt_in_place(&mut expected).unwrap();
+        assert_eq!(data, expected);
+    }
 
     #[test]
     fn null_adoption_and_opaque_layout() {

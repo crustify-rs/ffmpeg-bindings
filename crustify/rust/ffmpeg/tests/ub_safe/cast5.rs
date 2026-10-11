@@ -83,3 +83,57 @@ fn batch10_immutable_size_across_threads() {
         worker.join().unwrap();
     }
 }
+
+use ffmpeg::libavutil::aes::Direction;
+
+#[test]
+fn processing_across_reborrows_and_unaligned_buffers() {
+    for key_len in [5, 10, 11, 16] {
+        for direction in [Direction::Encrypt, Direction::Decrypt] {
+            let key = vec![0xa7; key_len];
+            let mut owner = Cast5::new(&key).unwrap();
+            drop(key);
+            let mut source = [0x5a; 8 * 8 + 3];
+            let mut destination = vec![0x99; source.len()];
+            for cbc in [false, true] {
+                let mut iv = [0xf3; 8];
+                for blocks in [0, 1, 4, 2, 8] {
+                    let len = blocks * 8;
+                    let mut outer = owner.as_mut();
+                    {
+                        let handle = outer.as_mut();
+                        handle
+                            .as_ref()
+                            .crypt_cbc(
+                                &mut destination[1..1 + len],
+                                &source[2..2 + len],
+                                cbc.then_some(&mut iv),
+                                direction,
+                            )
+                            .unwrap();
+                    }
+                    outer
+                        .as_ref()
+                        .crypt_cbc_in_place(
+                            &mut source[1..1 + len],
+                            cbc.then_some(&mut iv),
+                            direction,
+                        )
+                        .unwrap();
+                }
+                owner
+                    .as_ref()
+                    .crypt_cbc_in_place(&mut [], cbc.then_some(&mut iv), direction)
+                    .unwrap();
+            }
+            owner
+                .as_ref()
+                .crypt(&mut destination[1..17], &source[2..18], direction)
+                .unwrap();
+            owner
+                .as_ref()
+                .crypt_in_place(&mut source[1..17], direction)
+                .unwrap();
+        }
+    }
+}
