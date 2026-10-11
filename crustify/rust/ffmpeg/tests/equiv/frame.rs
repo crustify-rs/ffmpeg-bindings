@@ -313,3 +313,174 @@ mod side_data_type {
         }
     }
 }
+
+/// [`ActiveFormatDescription`] against `AVActiveFormatDescription`
+/// (buffer-frame wave 0, batch 0): C's enumerator values, and the
+/// `AV_FRAME_DATA_AFD` side-data byte C frames store, look up and copy
+/// through `av_frame_copy_props`. No C routine reads or writes the enum itself.
+///
+/// [`ActiveFormatDescription`]: ffmpeg::libavutil::frame::ActiveFormatDescription
+mod active_format_description {
+    use core::ptr::addr_of;
+
+    use ffmpeg::libavutil::ffi;
+    use ffmpeg::libavutil::frame::ActiveFormatDescription as Afd;
+
+    type CAfd = ffi::AVActiveFormatDescription;
+
+    /// Every named constant beside its C enumerator.
+    const NAMED: [(Afd, CAfd); 7] = [
+        (Afd::SAME, CAfd::AV_AFD_SAME),
+        (Afd::ASPECT_4_3, CAfd::AV_AFD_4_3),
+        (Afd::ASPECT_16_9, CAfd::AV_AFD_16_9),
+        (Afd::ASPECT_14_9, CAfd::AV_AFD_14_9),
+        (Afd::ASPECT_4_3_SP_14_9, CAfd::AV_AFD_4_3_SP_14_9),
+        (Afd::ASPECT_16_9_SP_14_9, CAfd::AV_AFD_16_9_SP_14_9),
+        (Afd::SP_4_3, CAfd::AV_AFD_SP_4_3),
+    ];
+
+    /// A frame from `av_frame_alloc`, freed with `av_frame_free` on drop.
+    struct CFrame(*mut ffi::AVFrame);
+
+    impl CFrame {
+        fn new() -> Self {
+            // SAFETY: no arguments; NULL on failure, checked below.
+            let f = unsafe { ffi::av_frame_alloc() };
+            assert!(!f.is_null());
+            Self(f)
+        }
+
+        /// A new frame holding a copy of this frame's properties, its side
+        /// data included, as `av_frame_copy_props` deep-copies them.
+        fn copy_props_c(&self) -> Self {
+            let copy = Self::new();
+            // SAFETY: both frames are live and distinct; `copy.0` is ours.
+            assert_eq!(unsafe { ffi::av_frame_copy_props(copy.0, self.0) }, 0);
+            copy
+        }
+
+        /// Adds one byte of AFD side data, as decoders do, and stores `byte`.
+        fn add_afd(&mut self, byte: u8) {
+            // SAFETY: `self.0` is a live frame we own; NULL on failure,
+            // checked below.
+            let sd = unsafe {
+                ffi::av_frame_new_side_data(self.0, ffi::AVFrameSideDataType::AV_FRAME_DATA_AFD, 1)
+            };
+            assert!(!sd.is_null());
+            // SAFETY: `sd` is the live entry C just added to our frame; its
+            // `data` is a writable `av_buffer_alloc` block of `size` bytes.
+            unsafe {
+                assert_eq!(addr_of!((*sd).size).read(), 1);
+                addr_of!((*sd).data).read().write(byte);
+            }
+        }
+
+        /// Overwrites the AFD byte C finds on this frame.
+        fn set_afd(&mut self, byte: u8) {
+            let sd = self.afd_entry();
+            // SAFETY: `sd` is a live entry of our frame with at least one
+            // byte of `data`, which no Rust reference covers.
+            unsafe { addr_of!((*sd).data).read().write(byte) }
+        }
+
+        /// The AFD byte C finds on this frame.
+        fn afd(&self) -> u8 {
+            let sd = self.afd_entry();
+            // SAFETY: `sd` is a live entry of our frame with at least one
+            // byte of `data`.
+            unsafe { addr_of!((*sd).data).read().read() }
+        }
+
+        /// C's own view of the AFD byte: the payload converted to the enum,
+        /// as `(enum AVActiveFormatDescription)sd->data[0]` reads it.
+        fn afd_as_c_enum(&self) -> CAfd {
+            ffi::AVActiveFormatDescription(self.afd().into())
+        }
+
+        fn afd_entry(&self) -> *mut ffi::AVFrameSideData {
+            // SAFETY: `self.0` is a live frame.
+            let sd = unsafe {
+                ffi::av_frame_get_side_data(self.0, ffi::AVFrameSideDataType::AV_FRAME_DATA_AFD)
+            };
+            assert!(!sd.is_null());
+            // SAFETY: `sd` is a live entry of our frame.
+            assert!(unsafe { addr_of!((*sd).size).read() } >= 1);
+            sd
+        }
+    }
+
+    impl Drop for CFrame {
+        fn drop(&mut self) {
+            // SAFETY: `self.0` is a live frame we own; `av_frame_free`
+            // releases it with its side data and NULLs the slot.
+            unsafe { ffi::av_frame_free(&mut self.0) }
+        }
+    }
+
+    #[test]
+    fn constants_are_the_c_enumerators() {
+        for (afd, c) in NAMED {
+            assert_eq!(afd.into_raw(), c);
+            assert_eq!(Afd::from_raw(c), afd);
+            assert_eq!(Afd::from(c), afd);
+            // C's implicit `uint8_t` conversion of each enumerator, as
+            // mpeg12dec stores `*sd->data = s1->afd`.
+            assert_eq!(afd.to_byte(), Some(c.0 as u8));
+            assert_eq!(Afd::from_byte(c.0 as u8), afd);
+        }
+    }
+
+    #[test]
+    fn named_constants_round_trip_through_c_side_data() {
+        for (afd, c) in NAMED {
+            let mut frame = CFrame::new();
+            frame.add_afd(afd.to_byte().unwrap());
+            assert_eq!(frame.afd_as_c_enum(), c);
+            assert_eq!(Afd::from_byte(frame.afd()), afd);
+            let copy = frame.copy_props_c();
+            assert_eq!(copy.afd_as_c_enum(), c);
+            assert_eq!(Afd::from_byte(copy.afd()), afd);
+        }
+    }
+
+    /// Every payload byte, reserved codes and out-of-nibble values included,
+    /// through a sequence of C stores, lookups and copies, comparing Rust's
+    /// view with C's after each step.
+    #[test]
+    fn every_payload_byte_reads_as_c_reads_it() {
+        for byte in 0..=u8::MAX {
+            let mut frame = CFrame::new();
+            frame.add_afd(Afd::from_byte(byte).to_byte().unwrap());
+            assert_eq!(frame.afd(), byte);
+            assert_eq!(
+                Afd::from_byte(frame.afd()).into_raw(),
+                frame.afd_as_c_enum()
+            );
+
+            // The copy holds its own byte: a later store through the original
+            // changes only the original.
+            let mut copy = frame.copy_props_c();
+            assert_eq!(copy.afd(), byte);
+            assert_eq!(Afd::from_byte(copy.afd()).into_raw(), copy.afd_as_c_enum());
+            let nibble = byte & 0xf;
+            frame.set_afd(Afd::from_byte(nibble).to_byte().unwrap());
+            for (f, held) in [(&frame, nibble), (&copy, byte)] {
+                assert_eq!(f.afd(), held);
+                assert_eq!(Afd::from_byte(f.afd()), Afd::from_raw(f.afd_as_c_enum()));
+                assert_eq!(Afd::from_byte(f.afd()).to_byte(), Some(held));
+            }
+
+            // The copy outlives the original, and a copy of a copy carries
+            // its latest store.
+            drop(frame);
+            copy.set_afd(Afd::SP_4_3.to_byte().unwrap());
+            let again = copy.copy_props_c();
+            drop(copy);
+            assert_eq!(
+                again.afd_as_c_enum(),
+                ffi::AVActiveFormatDescription::AV_AFD_SP_4_3
+            );
+            assert_eq!(Afd::from_byte(again.afd()), Afd::SP_4_3);
+        }
+    }
+}

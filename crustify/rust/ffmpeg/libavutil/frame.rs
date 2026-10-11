@@ -243,6 +243,144 @@ impl From<SideDataType> for ffi::AVFrameSideDataType {
 // identity: a copy read out of C memory is the whole of it.
 unsafe impl CPlainElem for SideDataType {}
 
+/// Wraps: AVActiveFormatDescription
+/// Handwritten
+///
+/// An Active Format Description (ETSI TS 101 154): which part of a coded
+/// picture carries the image the producer means to be shown, and which part
+/// is safe to crop when the picture is displayed at another aspect ratio.
+///
+/// A newtype over the C enum rather than a Rust `enum`: no C signature takes
+/// or returns the enum, and its values travel as the single byte of
+/// `AV_FRAME_DATA_AFD` frame and `AV_PKT_DATA_AFD` packet side data, which
+/// decoders fill with the 4-bit code they parsed. The reserved codes (0 to 7,
+/// and 12) and any other byte reach readers of that payload, so a Rust view of
+/// it must accept every value. Match on the associated constants, with a `_`
+/// arm for the values C does not name:
+///
+/// ```
+/// use ffmpeg::libavutil::frame::ActiveFormatDescription as Afd;
+/// fn is_pillarboxed_4_3(afd: Afd) -> bool {
+///     matches!(afd, Afd::ASPECT_4_3 | Afd::ASPECT_4_3_SP_14_9)
+/// }
+/// assert!(is_pillarboxed_4_3(Afd::from_byte(9)));
+/// assert!(!is_pillarboxed_4_3(Afd::from_byte(0)));
+/// ```
+///
+/// The C names `AV_AFD_4_3`, `AV_AFD_16_9`, `AV_AFD_14_9`,
+/// `AV_AFD_4_3_SP_14_9` and `AV_AFD_16_9_SP_14_9` are not Rust identifiers,
+/// so their constants carry an `ASPECT_` prefix. There is no `Default`: the
+/// zeroed value is a reserved code, and C has no default description.
+///
+/// No ffibox primitive covers a C enum: it owns nothing, has no handles, and
+/// is `Send + Sync` as the integer it is.
+#[repr(transparent)]
+#[derive(Clone, Copy, PartialEq, Eq, Hash)]
+pub struct ActiveFormatDescription(ffi::AVActiveFormatDescription);
+
+impl ActiveFormatDescription {
+    /// The image fills the coded frame (code `1000`).
+    pub const SAME: Self = Self(ffi::AVActiveFormatDescription::AV_AFD_SAME);
+    /// A 4:3 image, centred in the coded frame (code `1001`).
+    pub const ASPECT_4_3: Self = Self(ffi::AVActiveFormatDescription::AV_AFD_4_3);
+    /// A 16:9 image, centred in the coded frame (code `1010`).
+    pub const ASPECT_16_9: Self = Self(ffi::AVActiveFormatDescription::AV_AFD_16_9);
+    /// A 14:9 image, centred in the coded frame (code `1011`).
+    pub const ASPECT_14_9: Self = Self(ffi::AVActiveFormatDescription::AV_AFD_14_9);
+    /// A 4:3 image whose centred 14:9 part is safe to show alone (code
+    /// `1101`).
+    pub const ASPECT_4_3_SP_14_9: Self = Self(ffi::AVActiveFormatDescription::AV_AFD_4_3_SP_14_9);
+    /// A 16:9 image whose centred 14:9 part is safe to show alone (code
+    /// `1110`).
+    pub const ASPECT_16_9_SP_14_9: Self = Self(ffi::AVActiveFormatDescription::AV_AFD_16_9_SP_14_9);
+    /// A 16:9 image whose centred 4:3 part is safe to show alone (code
+    /// `1111`).
+    pub const SP_4_3: Self = Self(ffi::AVActiveFormatDescription::AV_AFD_SP_4_3);
+
+    /// The description C encodes as `raw`, whatever its value.
+    #[inline]
+    pub const fn from_raw(raw: ffi::AVActiveFormatDescription) -> Self {
+        Self(raw)
+    }
+
+    /// The C encoding of this description.
+    #[inline]
+    pub const fn into_raw(self) -> ffi::AVActiveFormatDescription {
+        self.0
+    }
+
+    /// The description stored as `byte`, the payload of `AV_FRAME_DATA_AFD`
+    /// and `AV_PKT_DATA_AFD` side data, whatever its value.
+    #[inline]
+    pub const fn from_byte(byte: u8) -> Self {
+        Self(ffi::AVActiveFormatDescription(byte as _))
+    }
+
+    /// This description as a side-data payload byte, or `None` for a value
+    /// above 255 that no byte holds.
+    #[inline]
+    pub const fn to_byte(self) -> Option<u8> {
+        if self.0.0 <= u8::MAX as _ {
+            Some(self.0.0 as u8)
+        } else {
+            None
+        }
+    }
+
+    /// The name of the constant this value equals, if any.
+    const fn constant_name(self) -> Option<&'static str> {
+        Some(match self {
+            Self::SAME => "SAME",
+            Self::ASPECT_4_3 => "ASPECT_4_3",
+            Self::ASPECT_16_9 => "ASPECT_16_9",
+            Self::ASPECT_14_9 => "ASPECT_14_9",
+            Self::ASPECT_4_3_SP_14_9 => "ASPECT_4_3_SP_14_9",
+            Self::ASPECT_16_9_SP_14_9 => "ASPECT_16_9_SP_14_9",
+            Self::SP_4_3 => "SP_4_3",
+            _ => return None,
+        })
+    }
+}
+
+impl fmt::Debug for ActiveFormatDescription {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self.constant_name() {
+            Some(name) => f.write_str(name),
+            None => f
+                .debug_tuple("ActiveFormatDescription")
+                .field(&self.0.0)
+                .finish(),
+        }
+    }
+}
+
+impl From<ffi::AVActiveFormatDescription> for ActiveFormatDescription {
+    #[inline]
+    fn from(raw: ffi::AVActiveFormatDescription) -> Self {
+        Self::from_raw(raw)
+    }
+}
+
+impl From<ActiveFormatDescription> for ffi::AVActiveFormatDescription {
+    #[inline]
+    fn from(afd: ActiveFormatDescription) -> Self {
+        afd.into_raw()
+    }
+}
+
+impl From<u8> for ActiveFormatDescription {
+    #[inline]
+    fn from(byte: u8) -> Self {
+        Self::from_byte(byte)
+    }
+}
+
+// SAFETY: `ActiveFormatDescription` is `#[repr(transparent)]` over
+// `ffi::AVActiveFormatDescription`, itself `#[repr(transparent)]` over a
+// `c_uint`, so every bit pattern is a valid value, and it is a value with no
+// C-side identity: a copy read out of C memory is the whole of it.
+unsafe impl CPlainElem for ActiveFormatDescription {}
+
 #[cfg(test)]
 mod unit_tests {
     use super::*;
@@ -374,5 +512,98 @@ mod unit_tests {
             .collect();
         assert_eq!(set.len(), NAMED.len());
         assert!(!set.contains(&SideDataType::from_raw(ffi::AVFrameSideDataType(38))));
+    }
+
+    /// Every named constant beside its name and its 4-bit code.
+    const AFD_NAMED: [(ActiveFormatDescription, &str, u8); 7] = [
+        (ActiveFormatDescription::SAME, "SAME", 0b1000),
+        (ActiveFormatDescription::ASPECT_4_3, "ASPECT_4_3", 0b1001),
+        (ActiveFormatDescription::ASPECT_16_9, "ASPECT_16_9", 0b1010),
+        (ActiveFormatDescription::ASPECT_14_9, "ASPECT_14_9", 0b1011),
+        (
+            ActiveFormatDescription::ASPECT_4_3_SP_14_9,
+            "ASPECT_4_3_SP_14_9",
+            0b1101,
+        ),
+        (
+            ActiveFormatDescription::ASPECT_16_9_SP_14_9,
+            "ASPECT_16_9_SP_14_9",
+            0b1110,
+        ),
+        (ActiveFormatDescription::SP_4_3, "SP_4_3", 0b1111),
+    ];
+
+    #[test]
+    fn active_format_description_constants_are_the_named_codes() {
+        for (afd, name, code) in AFD_NAMED {
+            assert_eq!(afd.into_raw().0, u32::from(code), "{name}");
+            assert_eq!(afd.to_byte(), Some(code), "{name}");
+            assert_eq!(ActiveFormatDescription::from_byte(code), afd, "{name}");
+            assert_eq!(format!("{afd:?}"), name);
+        }
+        for (i, (a, ..)) in AFD_NAMED.iter().enumerate() {
+            for (b, ..) in &AFD_NAMED[i + 1..] {
+                assert_ne!(a, b);
+            }
+        }
+    }
+
+    #[test]
+    fn active_format_description_reserved_codes_have_no_name() {
+        for code in (0..8).chain([12]) {
+            let afd = ActiveFormatDescription::from_byte(code);
+            assert_eq!(afd.constant_name(), None);
+            assert_eq!(
+                format!("{afd:?}"),
+                format!("ActiveFormatDescription({code})")
+            );
+            assert_eq!(afd.to_byte(), Some(code));
+        }
+    }
+
+    #[test]
+    fn active_format_description_bytes_round_trip() {
+        for byte in 0..=u8::MAX {
+            let afd = ActiveFormatDescription::from(byte);
+            assert_eq!(afd, ActiveFormatDescription::from_byte(byte));
+            assert_eq!(afd.into_raw().0, u32::from(byte));
+            assert_eq!(afd.to_byte(), Some(byte));
+            assert_eq!(
+                afd.constant_name().is_some(),
+                AFD_NAMED.iter().any(|n| n.0 == afd)
+            );
+        }
+    }
+
+    #[test]
+    fn active_format_description_values_past_a_byte_have_no_byte() {
+        for raw in [256, 0x1_08, i32::MAX as u32, u32::MAX] {
+            let afd = ActiveFormatDescription::from_raw(ffi::AVActiveFormatDescription(raw));
+            assert_eq!(afd.to_byte(), None, "{raw}");
+            assert_eq!(afd.constant_name(), None, "{raw}");
+            assert_eq!(afd.into_raw().0, raw);
+            let back: ffi::AVActiveFormatDescription = afd.into();
+            assert_eq!(ActiveFormatDescription::from(back), afd);
+            assert_eq!(
+                format!("{afd:?}"),
+                format!("ActiveFormatDescription({raw})")
+            );
+        }
+    }
+
+    #[test]
+    fn active_format_description_is_layout_compatible_with_c() {
+        assert_eq!(
+            size_of::<ActiveFormatDescription>(),
+            size_of::<ffi::AVActiveFormatDescription>()
+        );
+        assert_eq!(
+            align_of::<ActiveFormatDescription>(),
+            align_of::<ffi::AVActiveFormatDescription>()
+        );
+        assert_eq!(
+            size_of::<ffi::AVActiveFormatDescription>(),
+            size_of::<c_uint>()
+        );
     }
 }
