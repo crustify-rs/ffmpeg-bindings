@@ -1671,10 +1671,10 @@ mod side_data {
         for flags in [0, 2, 1, 3, 2] {
             for i in 0..src.nb as usize {
                 let (mut sd, mut nb) = core::mem::take(&mut r).into_raw_parts();
+                let entry = src.entry(i);
                 // SAFETY: the Rust array, lent to C for the call, and a live
                 // source entry, whose buffer C shares and metadata it copies.
-                let x =
-                    unsafe { ffi::av_frame_side_data_clone(&mut sd, &mut nb, src.entry(i), flags) };
+                let x = unsafe { ffi::av_frame_side_data_clone(&mut sd, &mut nb, entry, flags) };
                 // SAFETY: the array C changed, its entries' fields copied
                 // from initialised entries.
                 r = unsafe { SideDataArray::from_raw_parts(sd, nb) };
