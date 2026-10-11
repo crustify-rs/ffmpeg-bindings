@@ -13,6 +13,7 @@ mod channel_layout;
 mod common;
 mod cpu;
 mod csp;
+mod des;
 mod dict;
 mod error;
 mod eval;
