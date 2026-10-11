@@ -1229,3 +1229,201 @@ mod color_primaries_descriptor {
         assert_eq!(read, FIELDS[..4]);
     }
 }
+
+/// `ColorPrimaries::descriptor` and `ColorPrimariesDescriptorRef::identify`:
+/// every lookup value, the `'static` handles kept past the lookup and
+/// identified from many threads, and identification of every owner form
+/// (value, `HeapBox`, the last element of an `av_malloc` array, C's static
+/// table) at every coordinate edge, while exclusive handles reborrow and
+/// after the owner is written.
+mod primaries_lookup {
+    use std::sync::OnceLock;
+    use std::thread;
+
+    use ffmpeg::libavutil::csp::{
+        CieXy, ColorPrimariesDescriptor, ColorPrimariesDescriptorMut, ColorPrimariesDescriptorRef,
+        PrimaryCoefficients,
+    };
+    use ffmpeg::libavutil::ffi;
+    use ffmpeg::libavutil::mem::{HeapBox, alloc_cell_array_zeroed};
+    use ffmpeg::libavutil::pixfmt::ColorPrimaries;
+    use ffmpeg::libavutil::rational::Rational;
+
+    fn values() -> impl Iterator<Item = u32> {
+        let ext = ffi::AVColorPrimaries::AVCOL_PRI_EXT_BASE.0;
+        (0..ffi::AVColorPrimaries::AVCOL_PRI_NB.0 + 3)
+            .chain(ext - 1..ffi::AVColorPrimaries::AVCOL_PRI_EXT_NB.0 + 3)
+            .chain([u32::MAX, 1 << 31, (1 << 31) - 1])
+    }
+
+    fn kept() -> &'static [ColorPrimariesDescriptorRef<'static>] {
+        static KEPT: OnceLock<Vec<ColorPrimariesDescriptorRef<'static>>> = OnceLock::new();
+        KEPT.get_or_init(|| {
+            values()
+                .filter_map(|raw| ColorPrimaries::from_raw(ffi::AVColorPrimaries(raw)).descriptor())
+                .collect()
+        })
+    }
+
+    /// Coordinate parts at every edge for C's rational arithmetic: the
+    /// `int` limits (whose cross products are C's widest), zero and
+    /// negative denominators, and values one part off a table entry.
+    const EDGES: [i32; 12] = [
+        0,
+        1,
+        -1,
+        i32::MAX,
+        i32::MIN,
+        i32::MAX - 1,
+        i32::MIN + 1,
+        100_000,
+        -100_000,
+        63_999,
+        1 << 30,
+        46_341,
+    ];
+
+    fn desc(f: [i32; 16]) -> ColorPrimariesDescriptor {
+        let q = |num, den| Rational::from_raw(ffi::AVRational { num, den });
+        let xy = |i: usize| CieXy::new(q(f[i], f[i + 1]), q(f[i + 2], f[i + 3]));
+        ColorPrimariesDescriptor::new(xy(0), PrimaryCoefficients::new(xy(4), xy(8), xy(12)))
+    }
+
+    fn fields(d: ColorPrimariesDescriptorRef<'_>) -> [i32; 16] {
+        let p = d.primaries();
+        let mut out = [0; 16];
+        for (i, xy) in [d.white_point(), p.r(), p.g(), p.b()]
+            .into_iter()
+            .enumerate()
+        {
+            let (x, y) = (xy.x(), xy.y());
+            out[4 * i..4 * i + 4].copy_from_slice(&[x.num(), x.den(), y.num(), y.den()]);
+        }
+        out
+    }
+
+    /// BT.709's parts with every part, in turn, replaced by every edge, and
+    /// every part set to each edge at once.
+    fn edge_descriptions() -> Vec<ColorPrimariesDescriptor> {
+        let bt709 = ColorPrimaries::BT709.descriptor().unwrap();
+        let base = fields(bt709);
+        let bt709 = bt709.get();
+        let mut out = vec![bt709];
+        for i in 0..16 {
+            for e in EDGES {
+                let mut f = base;
+                f[i] = e;
+                out.push(desc(f));
+            }
+        }
+        out.extend(EDGES.map(|e| desc([e; 16])));
+        out
+    }
+
+    #[test]
+    fn every_value_looks_up_and_identifies_across_threads() {
+        let kept = kept();
+        assert!(kept.len() >= 12, "{}", kept.len());
+        thread::scope(|s| {
+            for _ in 0..4 {
+                s.spawn(|| {
+                    for d in kept {
+                        let _ = d.identify();
+                        assert_ne!(d.primaries().r().x().num(), 0);
+                    }
+                    for raw in values() {
+                        let p = ColorPrimaries::from_raw(ffi::AVColorPrimaries(raw));
+                        let _ = p.descriptor().map(|d| d.identify());
+                    }
+                });
+            }
+        });
+        // A `'static` handle moves into a detached thread on its own.
+        let d = ColorPrimaries::BT2020.descriptor().unwrap();
+        let id = thread::spawn(move || d.identify()).join().unwrap();
+        assert_eq!(id, Some(ColorPrimaries::BT2020));
+    }
+
+    #[test]
+    fn edge_descriptions_identify_in_every_owner_form() {
+        let all = edge_descriptions();
+        let mut boxed = HeapBox::<ColorPrimariesDescriptor>::new_zeroed().unwrap();
+        // The description C reads is the array's last element, ending at the
+        // block's end.
+        let mut array = alloc_cell_array_zeroed::<ColorPrimariesDescriptor>(3).unwrap();
+        for d in &all {
+            let id = d.as_ref().identify();
+            boxed.as_mut().set(*d);
+            assert_eq!(boxed.as_ref().identify(), id);
+            let mut handles = array.as_handles_mut();
+            handles.get_mut(2).unwrap().set(*d);
+            let last = array.as_handles().get(2).unwrap();
+            assert_eq!(last.identify(), id);
+        }
+        // The all-zero and every zero-denominator description match nothing.
+        assert_eq!(
+            HeapBox::<ColorPrimariesDescriptor>::new_zeroed()
+                .unwrap()
+                .as_ref()
+                .identify(),
+            None
+        );
+        for d in &all {
+            let f = fields(d.as_ref());
+            if (0..8).any(|i| f[2 * i + 1] == 0) {
+                assert_eq!(d.as_ref().identify(), None, "{f:?}");
+            }
+        }
+    }
+
+    fn reborrow_identify(mut m: ColorPrimariesDescriptorMut<'_>) -> Option<ColorPrimaries> {
+        // A shared reborrow of the exclusive handle, read by C, then a
+        // write through the exclusive handle once it is gone.
+        let id = m.as_ref().identify();
+        m.white_point_mut().x_mut().set_num(0);
+        assert_eq!(m.as_ref().identify(), None);
+        id
+    }
+
+    #[test]
+    fn identify_through_reborrows_and_after_writes() {
+        let reference = ColorPrimaries::SMPTE431.descriptor().unwrap();
+        let mut value = reference.get();
+        assert_eq!(
+            reborrow_identify(value.as_mut()),
+            Some(ColorPrimaries::SMPTE431)
+        );
+        let mut boxed = HeapBox::<ColorPrimariesDescriptor>::new_zeroed().unwrap();
+        boxed.as_mut().set(reference.get());
+        assert_eq!(
+            reborrow_identify(boxed.as_mut()),
+            Some(ColorPrimaries::SMPTE431)
+        );
+        // A copy outlives its owner with the write, and C's table entry is
+        // unchanged.
+        let copy = boxed.as_ref().get();
+        drop(boxed);
+        assert_eq!(copy.as_ref().identify(), None);
+        assert_eq!(reference.identify(), Some(ColorPrimaries::SMPTE431));
+    }
+
+    #[test]
+    fn shared_owners_identify_concurrently() {
+        let all = edge_descriptions();
+        let mut boxed = HeapBox::<ColorPrimariesDescriptor>::new_zeroed().unwrap();
+        boxed
+            .as_mut()
+            .set(ColorPrimaries::FILM.descriptor().unwrap().get());
+        let (boxed, all) = (&boxed, &all);
+        thread::scope(|s| {
+            for t in 0..4 {
+                s.spawn(move || {
+                    assert_eq!(boxed.as_ref().identify(), Some(ColorPrimaries::FILM));
+                    for d in all.iter().skip(t).step_by(4) {
+                        let _ = d.as_ref().identify();
+                    }
+                });
+            }
+        });
+    }
+}
