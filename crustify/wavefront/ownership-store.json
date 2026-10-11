@@ -13537,6 +13537,80 @@
    }
   },
   {
+   "name": "av_xtea_crypt",
+   "defined_in": "libavutil/xtea.c",
+   "ptr_args": [
+    {
+     "name": "ctx",
+     "ptr": {
+      "scalar": {
+       "by_val": true
+      },
+      "array": null,
+      "string": false,
+      "owned": false,
+      "borrowed": {
+       "lifetime": "call"
+      },
+      "nullable": true,
+      "mutable": false,
+      "note": "All cipher paths read only ctx->key[0..4], despite mutable C signature. No context writes, allocation, transfer or retained pointer. Shared initialized storage is sufficient. NULL is accepted only for count=0, when the loop touches no pointee; the safe API uses a valid context and empty slices instead."
+     }
+    },
+    {
+     "name": "dst",
+     "ptr": {
+      "scalar": null,
+      "array": {
+       "by_val": true
+      },
+      "string": false,
+      "owned": false,
+      "borrowed": {
+       "lifetime": "call"
+      },
+      "nullable": true,
+      "mutable": true,
+      "note": "Borrowed output of exactly count*8 writable bytes. C count must be nonnegative; negative count causes runaway iteration/UB. Supports disjoint src or exact src==dst, not arbitrary overlap. No pointer retained. NULL is accepted only for count=0, when the loop touches no pointee; the safe API uses a valid context and empty slices instead."
+     }
+    },
+    {
+     "name": "iv",
+     "ptr": {
+      "scalar": null,
+      "array": {
+       "by_val": true
+      },
+      "string": false,
+      "owned": false,
+      "borrowed": {
+       "lifetime": "call"
+      },
+      "nullable": true,
+      "mutable": true,
+      "note": "NULL selects ECB, otherwise exactly 8 exclusively borrowed bytes disjoint from buffers and context. CBC encryption and decryption update IV with final ciphertext; count=0 leaves IV unchanged. Not stored or retained."
+     }
+    },
+    {
+     "name": "src",
+     "ptr": {
+      "scalar": null,
+      "array": {
+       "by_val": true
+      },
+      "string": false,
+      "owned": false,
+      "borrowed": {
+       "lifetime": "call"
+      },
+      "nullable": true,
+      "mutable": false,
+      "note": "Borrowed input of count*8 readable bytes. Supports disjoint output or exact in-place overlap (including CBC decryption: ciphertext saved to IV before output write). No pointer retained. NULL is accepted only for count=0, when the loop touches no pointee; the safe API uses a valid context and empty slices instead."
+     }
+    }
+   ]
+  },
+  {
    "name": "av_xtea_init",
    "defined_in": "libavutil/xtea.c",
    "lifetime": {
@@ -13565,6 +13639,80 @@
       "nullable": false,
       "mutable": true,
       "note": "Exclusively borrowed context for this call; writes only first four u32 words, preserving last twelve. Key array parameter omitted by extraction: exactly 16 borrowed readable bytes, endian-decoded and copied, not retained. No allocation or transfer; caller preinitializes tail before safe adoption."
+     }
+    }
+   ]
+  },
+  {
+   "name": "av_xtea_le_crypt",
+   "defined_in": "libavutil/xtea.c",
+   "ptr_args": [
+    {
+     "name": "ctx",
+     "ptr": {
+      "scalar": {
+       "by_val": true
+      },
+      "array": null,
+      "string": false,
+      "owned": false,
+      "borrowed": {
+       "lifetime": "call"
+      },
+      "nullable": true,
+      "mutable": false,
+      "note": "All cipher paths read only ctx->key[0..4], despite mutable C signature. No context writes, allocation, transfer or retained pointer. Shared initialized storage is sufficient. NULL is accepted only for count=0, when the loop touches no pointee; the safe API uses a valid context and empty slices instead."
+     }
+    },
+    {
+     "name": "dst",
+     "ptr": {
+      "scalar": null,
+      "array": {
+       "by_val": true
+      },
+      "string": false,
+      "owned": false,
+      "borrowed": {
+       "lifetime": "call"
+      },
+      "nullable": true,
+      "mutable": true,
+      "note": "Borrowed output of exactly count*8 writable bytes. C count must be nonnegative; negative count causes runaway iteration/UB. Supports disjoint src or exact src==dst, not arbitrary overlap. No pointer retained. NULL is accepted only for count=0, when the loop touches no pointee; the safe API uses a valid context and empty slices instead."
+     }
+    },
+    {
+     "name": "iv",
+     "ptr": {
+      "scalar": null,
+      "array": {
+       "by_val": true
+      },
+      "string": false,
+      "owned": false,
+      "borrowed": {
+       "lifetime": "call"
+      },
+      "nullable": true,
+      "mutable": true,
+      "note": "NULL selects ECB, otherwise exactly 8 exclusively borrowed bytes disjoint from buffers and context. CBC encryption and decryption update IV with final ciphertext; count=0 leaves IV unchanged. Not stored or retained."
+     }
+    },
+    {
+     "name": "src",
+     "ptr": {
+      "scalar": null,
+      "array": {
+       "by_val": true
+      },
+      "string": false,
+      "owned": false,
+      "borrowed": {
+       "lifetime": "call"
+      },
+      "nullable": true,
+      "mutable": false,
+      "note": "Borrowed input of count*8 readable bytes. Supports disjoint output or exact in-place overlap (including CBC decryption: ciphertext saved to IV before output write). No pointer retained. NULL is accepted only for count=0, when the loop touches no pointee; the safe API uses a valid context and empty slices instead."
      }
     }
    ]

@@ -6,7 +6,9 @@
 //! Inline values need no teardown; [`XteaBox`] uses `av_xtea_alloc` and the
 //! existing [`Heap`] policy's `av_free`. There is no C refcount or cloner;
 //! copies of the words are independent values, and heap clones use `av_memdup`.
-//! Cipher operations are left to the separately scheduled symbol wrappers.
+//! Cipher operations borrow the context immutably: despite C's mutable pointer
+//! signature, all cipher paths only read its key. Buffers and CBC state are
+//! borrowed for the call and never retained. No `Send`/`Sync` assertion is added.
 
 use core::marker::PhantomData;
 use core::ptr::{NonNull, addr_of, addr_of_mut};
@@ -15,6 +17,46 @@ use ffibox::{CNew, CZeroable, define_ctype};
 
 use super::ffi;
 use super::mem::{Heap, HeapBox};
+
+/// Whether to encrypt plaintext or decrypt ciphertext.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum Direction {
+    Encrypt,
+    Decrypt,
+}
+
+/// A rejected buffer shape. Rejection changes neither output nor CBC state.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum CryptError {
+    /// Separate input and output must have equal byte lengths.
+    LengthMismatch,
+    /// The buffer must contain a whole number of eight-byte blocks.
+    PartialBlock,
+    /// The number of blocks cannot be represented by C's `int` count.
+    TooManyBlocks,
+}
+
+impl core::fmt::Display for CryptError {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        f.write_str(match self {
+            Self::LengthMismatch => "XTEA input and output lengths differ",
+            Self::PartialBlock => "XTEA requires whole eight-byte blocks",
+            Self::TooManyBlocks => "XTEA block count exceeds C int",
+        })
+    }
+}
+
+impl std::error::Error for CryptError {}
+
+fn block_count(dst_len: usize, src_len: usize) -> Result<i32, CryptError> {
+    if dst_len != src_len {
+        return Err(CryptError::LengthMismatch);
+    }
+    if !dst_len.is_multiple_of(8) {
+        return Err(CryptError::PartialBlock);
+    }
+    i32::try_from(dst_len / 8).map_err(|_| CryptError::TooManyBlocks)
+}
 
 define_ctype!(
     /// Wraps: AVXTEA
@@ -95,6 +137,94 @@ impl Xtea {
 }
 
 impl XteaRef<'_> {
+    /// Wraps: av_xtea_crypt
+    ///
+    /// Process equal-length buffers using big-endian block words.
+    /// `None` selects ECB; `Some(iv)` selects CBC and replaces the IV with
+    /// the last ciphertext block. Empty buffers leave the IV unchanged.
+    /// No padding is added. Use [`Self::crypt_in_place`] for exact overlap.
+    /// Key-word byte order is selected independently by the initializer.
+    pub fn crypt(
+        &self,
+        dst: &mut [u8],
+        src: &[u8],
+        iv: Option<&mut [u8; 8]>,
+        direction: Direction,
+    ) -> Result<(), CryptError> {
+        self.process(dst, Some(src), iv, direction, false)
+    }
+
+    /// Process big-endian blocks in place, with the same CBC and length
+    /// contracts as [`Self::crypt`]. CBC decryption saves each ciphertext
+    /// block before overwriting it, so the IV advances correctly.
+    pub fn crypt_in_place(
+        &self,
+        data: &mut [u8],
+        iv: Option<&mut [u8; 8]>,
+        direction: Direction,
+    ) -> Result<(), CryptError> {
+        self.process(data, None, iv, direction, false)
+    }
+
+    /// Wraps: av_xtea_le_crypt
+    ///
+    /// Process equal-length buffers using little-endian block words.
+    /// The ECB/CBC, IV, padding and length contracts are those of [`Self::crypt`].
+    /// Key-word byte order is selected independently by the initializer.
+    pub fn crypt_le(
+        &self,
+        dst: &mut [u8],
+        src: &[u8],
+        iv: Option<&mut [u8; 8]>,
+        direction: Direction,
+    ) -> Result<(), CryptError> {
+        self.process(dst, Some(src), iv, direction, true)
+    }
+
+    /// Process little-endian blocks in place; see [`Self::crypt_le`].
+    pub fn crypt_le_in_place(
+        &self,
+        data: &mut [u8],
+        iv: Option<&mut [u8; 8]>,
+        direction: Direction,
+    ) -> Result<(), CryptError> {
+        self.process(data, None, iv, direction, true)
+    }
+
+    fn process(
+        &self,
+        dst: &mut [u8],
+        src: Option<&[u8]>,
+        iv: Option<&mut [u8; 8]>,
+        direction: Direction,
+        le: bool,
+    ) -> Result<(), CryptError> {
+        let count = block_count(dst.len(), src.map_or(dst.len(), <[u8]>::len))?;
+        let src_ptr = src.map_or_else(|| dst.as_ptr(), <[u8]>::as_ptr);
+        let iv_ptr = iv.map_or(core::ptr::null_mut(), |iv| iv.as_mut_ptr());
+        let crypt = if le {
+            ffi::av_xtea_le_crypt
+        } else {
+            ffi::av_xtea_crypt
+        };
+        // SAFETY: both C cipher paths only READ the live context's key, so
+        // casting its shared pointer to mutable does not write shared storage.
+        // Checked buffers cover count*8 bytes and either do not overlap or
+        // overlap exactly (supported by C). The exclusive IV is NULL or eight
+        // disjoint bytes. Zero count accesses nothing; C retains no pointers.
+        unsafe {
+            crypt(
+                self.as_ptr().cast_mut(),
+                dst.as_mut_ptr(),
+                src_ptr,
+                count,
+                iv_ptr,
+                i32::from(direction == Direction::Decrypt),
+            )
+        }
+        Ok(())
+    }
+
     /// Field: AVXTEA.key
     ///
     /// Copy all sixteen words, including the twelve unused by the cipher.
@@ -140,6 +270,73 @@ impl XteaMut<'_> {
 #[cfg(test)]
 mod unit_tests {
     use super::*;
+
+    #[test]
+    fn buffer_validation_and_errors() {
+        assert_eq!(block_count(8, 16), Err(CryptError::LengthMismatch));
+        for len in 0..=65 {
+            let expected = if len % 8 == 0 {
+                Ok((len / 8) as i32)
+            } else {
+                Err(CryptError::PartialBlock)
+            };
+            assert_eq!(block_count(len, len), expected);
+        }
+        if usize::BITS > 32 {
+            let max = (i32::MAX as usize) * 8;
+            assert_eq!(block_count(max, max), Ok(i32::MAX));
+            assert_eq!(
+                block_count(max + 8, max + 8),
+                Err(CryptError::TooManyBlocks)
+            );
+        }
+        for error in [
+            CryptError::LengthMismatch,
+            CryptError::PartialBlock,
+            CryptError::TooManyBlocks,
+        ] {
+            assert!(!error.to_string().is_empty());
+        }
+    }
+
+    #[test]
+    fn rejected_buffers_preserve_output_iv_and_key() {
+        let context = Xtea::from_key_words([u32::MAX; 16]);
+        let view = context.as_ref();
+        for le in [false, true] {
+            for direction in [Direction::Encrypt, Direction::Decrypt] {
+                for len in 0..=17 {
+                    let mut dst = vec![0xa5; len];
+                    let mut iv = [0x5a; 8];
+                    assert_eq!(
+                        view.process(&mut dst, Some(&[0; 24]), Some(&mut iv), direction, le),
+                        Err(CryptError::LengthMismatch)
+                    );
+                    assert_eq!(dst, vec![0xa5; len]);
+                    assert_eq!(iv, [0x5a; 8]);
+                    if len % 8 != 0 {
+                        assert_eq!(
+                            view.process(&mut dst, None, Some(&mut iv), direction, le),
+                            Err(CryptError::PartialBlock)
+                        );
+                        assert_eq!(
+                            view.process(
+                                &mut dst,
+                                Some(&vec![0; len]),
+                                Some(&mut iv),
+                                direction,
+                                le
+                            ),
+                            Err(CryptError::PartialBlock)
+                        );
+                        assert_eq!(dst, vec![0xa5; len]);
+                        assert_eq!(iv, [0x5a; 8]);
+                    }
+                }
+            }
+        }
+        assert_eq!(view.key(), [u32::MAX; 16]);
+    }
 
     #[test]
     fn ffi_free_layout_and_value_copy() {

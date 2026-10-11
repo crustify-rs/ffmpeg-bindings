@@ -1,0 +1,9 @@
+error[E0502]: cannot borrow `ctx` as mutable because it is also borrowed as immutable
+ --> tests/ub_safe/compile_fail/xtea_cipher_reinit_while_shared.rs:5:5
+  |
+4 |     let view = ctx.as_ref();
+  |                --- immutable borrow occurs here
+5 |     ctx.as_mut().init_le(&[1; 16]);
+  |     ^^^^^^^^^^^^ mutable borrow occurs here
+6 |     view.crypt_in_place(&mut [0; 8], None, Direction::Encrypt).unwrap();
+  |     ---- immutable borrow later used here
