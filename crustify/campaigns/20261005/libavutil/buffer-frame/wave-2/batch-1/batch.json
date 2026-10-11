@@ -1,0 +1,110 @@
+{
+  "objective": "wrap",
+  "items": [
+    {
+      "name": "av_buffer_alloc",
+      "defined_in": "libavutil/buffer.c",
+      "kind": "symbol",
+      "field_anchors": [],
+      "home": "crustify/rust/ffmpeg/libavutil/buffer.rs"
+    },
+    {
+      "name": "av_buffer_allocz",
+      "defined_in": "libavutil/buffer.c",
+      "kind": "symbol",
+      "field_anchors": [],
+      "home": "crustify/rust/ffmpeg/libavutil/buffer.rs"
+    },
+    {
+      "name": "av_buffer_create",
+      "defined_in": "libavutil/buffer.c",
+      "kind": "symbol",
+      "field_anchors": [],
+      "home": "crustify/rust/ffmpeg/libavutil/buffer.rs"
+    },
+    {
+      "name": "av_buffer_get_opaque",
+      "defined_in": "libavutil/buffer.c",
+      "kind": "symbol",
+      "field_anchors": [],
+      "home": "crustify/rust/ffmpeg/libavutil/buffer.rs"
+    },
+    {
+      "name": "av_buffer_get_ref_count",
+      "defined_in": "libavutil/buffer.c",
+      "kind": "symbol",
+      "field_anchors": [],
+      "home": "crustify/rust/ffmpeg/libavutil/buffer.rs"
+    },
+    {
+      "name": "av_buffer_is_writable",
+      "defined_in": "libavutil/buffer.c",
+      "kind": "symbol",
+      "field_anchors": [],
+      "home": "crustify/rust/ffmpeg/libavutil/buffer.rs"
+    },
+    {
+      "name": "av_buffer_make_writable",
+      "defined_in": "libavutil/buffer.c",
+      "kind": "symbol",
+      "field_anchors": [],
+      "home": "crustify/rust/ffmpeg/libavutil/buffer.rs"
+    },
+    {
+      "name": "av_buffer_pool_buffer_get_opaque",
+      "defined_in": "libavutil/buffer.c",
+      "kind": "symbol",
+      "field_anchors": [],
+      "home": "crustify/rust/ffmpeg/libavutil/buffer.rs"
+    },
+    {
+      "name": "av_buffer_pool_get",
+      "defined_in": "libavutil/buffer.c",
+      "kind": "symbol",
+      "field_anchors": [],
+      "home": "crustify/rust/ffmpeg/libavutil/buffer.rs"
+    },
+    {
+      "name": "av_buffer_pool_init",
+      "defined_in": "libavutil/buffer.c",
+      "kind": "symbol",
+      "field_anchors": [],
+      "home": "crustify/rust/ffmpeg/libavutil/buffer.rs"
+    },
+    {
+      "name": "av_buffer_pool_init2",
+      "defined_in": "libavutil/buffer.c",
+      "kind": "symbol",
+      "field_anchors": [],
+      "home": "crustify/rust/ffmpeg/libavutil/buffer.rs"
+    },
+    {
+      "name": "av_buffer_realloc",
+      "defined_in": "libavutil/buffer.c",
+      "kind": "symbol",
+      "field_anchors": [],
+      "home": "crustify/rust/ffmpeg/libavutil/buffer.rs"
+    },
+    {
+      "name": "av_buffer_ref",
+      "defined_in": "libavutil/buffer.c",
+      "kind": "symbol",
+      "field_anchors": [],
+      "home": "crustify/rust/ffmpeg/libavutil/buffer.rs"
+    },
+    {
+      "name": "av_buffer_replace",
+      "defined_in": "libavutil/buffer.c",
+      "kind": "symbol",
+      "field_anchors": [],
+      "home": "crustify/rust/ffmpeg/libavutil/buffer.rs"
+    },
+    {
+      "name": "av_buffer_unref",
+      "defined_in": "libavutil/buffer.c",
+      "kind": "symbol",
+      "field_anchors": [],
+      "home": "crustify/rust/ffmpeg/libavutil/buffer.rs"
+    }
+  ]
+}
