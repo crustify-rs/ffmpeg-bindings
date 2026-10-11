@@ -7446,6 +7446,167 @@
    }
   },
   {
+   "name": "av_frame_side_data_add",
+   "defined_in": "libavutil/side_data.c",
+   "lifetime": {
+    "for": "sd",
+    "is_dropper": false,
+    "is_disposer": false,
+    "is_cloner": null,
+    "is_constructor": {
+     "alloc": true,
+     "init": false
+    }
+   },
+   "ptr_args": [
+    {
+     "name": "nb_sd",
+     "ptr": {
+      "scalar": {
+       "by_val": true
+      },
+      "array": null,
+      "string": false,
+      "owned": false,
+      "borrowed": {
+       "lifetime": "arg:nb_sd"
+      },
+      "nullable": false,
+      "mutable": true,
+      "note": "The caller's entry count, read and written with the array (an int, never NULL); C keeps it equal to the number of entry pointers in *sd."
+     }
+    },
+    {
+     "name": "pbuf",
+     "ptr": {
+      "scalar": {
+       "by_ref": {
+        "owned": true,
+        "borrowed": {
+         "lifetime": "arg:pbuf"
+        }
+       }
+      },
+      "array": null,
+      "string": false,
+      "owned": false,
+      "borrowed": {
+       "lifetime": "arg:pbuf"
+      },
+      "nullable": false,
+      "mutable": true,
+      "note": "The caller's AVBufferRef * slot (never NULL; *pbuf must be non-NULL: the REPLACE path reads buf->data unchecked). Without NEW_REF the entry takes *pbuf over on success and C NULLs the slot; on failure the slot keeps the caller's reference. With NEW_REF C takes its own av_buffer_ref (failure returns NULL), unrefs it again when it adds nothing, and never writes the slot."
+     }
+    },
+    {
+     "name": "sd",
+     "ptr": {
+      "scalar": {
+       "by_ref": {
+        "owned": true,
+        "borrowed": null
+       }
+      },
+      "array": null,
+      "string": false,
+      "owned": false,
+      "borrowed": {
+       "lifetime": "arg:sd"
+      },
+      "nullable": false,
+      "mutable": true,
+      "note": "sd is the caller's AVFrameSideData ** variable (never NULL); *sd is NULL with *nb_sd == 0, or an av_realloc_array'd block of *nb_sd pointers to distinct entries, each av_mallocz'd by add_side_data_from_buf_ext and owning its buf reference and metadata dictionary. Builds an entry into the array around *pbuf: with UNIQUE it first removes every entry of the type (even if the addition then fails); for a type without MULTI an existing entry is replaced in place only with REPLACE (old buf unref'd, metadata freed, buf and its window stored), else C returns NULL; otherwise a new av_mallocz'd entry holding buf and its window is appended. Rust: frame.rs::SideDataArrayMut::add / SideDataArray::add (buffer-frame wave 2 batch 0), no NEW_REF."
+     }
+    }
+   ],
+   "ptr_ret": {
+    "ptr": {
+     "scalar": {
+      "by_val": true
+     },
+     "array": null,
+     "string": false,
+     "owned": false,
+     "borrowed": {
+      "lifetime": "arg:sd"
+     },
+     "nullable": true,
+     "mutable": true,
+     "note": "The new or replaced entry, owned by the array, NULL when C added nothing (non-MULTI type present without REPLACE, ENOMEM, NEW_REF's av_buffer_ref failing). Its payload is the window of the buffer it took, initialised as the caller's buffer was."
+    }
+   }
+  },
+  {
+   "name": "av_frame_side_data_clone",
+   "defined_in": "libavutil/side_data.c",
+   "lifetime": {
+    "for": "src",
+    "is_dropper": false,
+    "is_disposer": false,
+    "is_cloner": {
+     "deep": true,
+     "upref": false
+    },
+    "is_constructor": null
+   },
+   "ptr_args": [
+    {
+     "name": "nb_sd",
+     "ptr": {
+      "scalar": {
+       "by_val": true
+      },
+      "array": null,
+      "string": false,
+      "owned": false,
+      "borrowed": {
+       "lifetime": "arg:nb_sd"
+      },
+      "nullable": false,
+      "mutable": true,
+      "note": "The caller's entry count, read and written with the array (an int, never NULL); C keeps it equal to the number of entry pointers in *sd."
+     }
+    },
+    {
+     "name": "sd",
+     "ptr": {
+      "scalar": {
+       "by_ref": {
+        "owned": true,
+        "borrowed": null
+       }
+      },
+      "array": null,
+      "string": false,
+      "owned": false,
+      "borrowed": {
+       "lifetime": "arg:sd"
+      },
+      "nullable": false,
+      "mutable": true,
+      "note": "sd is the caller's AVFrameSideData ** variable (never NULL); *sd is NULL with *nb_sd == 0, or an av_realloc_array'd block of *nb_sd pointers to distinct entries, each av_mallocz'd by add_side_data_from_buf_ext and owning its buf reference and metadata dictionary. Receives the copy (EINVAL when sd or nb_sd is NULL, or *nb_sd > 0 with a NULL *sd): with UNIQUE C first removes every entry of src's type; for a type without MULTI an existing entry gets src's buffer (av_buffer_replace), data/size and a copy of its metadata only with REPLACE, else EEXIST; otherwise a new entry is appended holding av_buffer_ref(src->buf), src's data/size and av_dict_copy of its metadata (removed again if that copy fails)."
+     }
+    },
+    {
+     "name": "src",
+     "ptr": {
+      "scalar": {
+       "by_val": true
+      },
+      "array": null,
+      "string": false,
+      "owned": false,
+      "borrowed": {
+       "lifetime": "arg:src"
+      },
+      "nullable": true,
+      "mutable": false,
+      "note": "The source entry, read only (NULL gives EINVAL). Its buf must be non-NULL (av_buffer_ref/av_buffer_replace dereference it). The copy is a new entry (or the replaced one) sharing src's buffer by count, so neither payload is writable while both live, and holding its own deep copy of the metadata."
+     }
+    }
+   ]
+  },
+  {
    "name": "av_frame_side_data_desc",
    "defined_in": "libavutil/side_data.c",
    "ptr_ret": {
@@ -7466,6 +7627,54 @@
    }
   },
   {
+   "name": "av_frame_side_data_free",
+   "defined_in": "libavutil/side_data.c",
+   "lifetime": {
+    "for": "sd",
+    "is_dropper": true,
+    "is_disposer": false,
+    "is_cloner": null,
+    "is_constructor": null
+   },
+   "ptr_args": [
+    {
+     "name": "nb_sd",
+     "ptr": {
+      "scalar": {
+       "by_val": true
+      },
+      "array": null,
+      "string": false,
+      "owned": false,
+      "borrowed": {
+       "lifetime": "arg:nb_sd"
+      },
+      "nullable": false,
+      "mutable": true,
+      "note": "The caller's entry count, read and written with the array (an int, never NULL); C keeps it equal to the number of entry pointers in *sd."
+     }
+    },
+    {
+     "name": "sd",
+     "ptr": {
+      "scalar": {
+       "by_ref": {
+        "owned": true,
+        "borrowed": null
+       }
+      },
+      "array": null,
+      "string": false,
+      "owned": true,
+      "borrowed": null,
+      "nullable": false,
+      "mutable": true,
+      "note": "sd is the caller's AVFrameSideData ** variable (never NULL); *sd is NULL with *nb_sd == 0, or an av_realloc_array'd block of *nb_sd pointers to distinct entries, each av_mallocz'd by add_side_data_from_buf_ext and owning its buf reference and metadata dictionary. Consumes the whole array: free_side_data_entry on every entry (av_buffer_unref(&buf), av_dict_free(&metadata), av_freep(entry)), then *nb_sd = 0 and av_freep(sd), which NULLs *sd. Rust: Drop for frame.rs::SideDataArray (buffer-frame wave 2 batch 0)."
+     }
+    }
+   ]
+  },
+  {
    "name": "av_frame_side_data_name",
    "defined_in": "libavutil/side_data.c",
    "ptr_ret": {
@@ -7484,6 +7693,171 @@
      "note": "NULL when av_frame_side_data_desc finds no named entry; otherwise the entry's name, a NUL-terminated string literal of the static table. Rust: SideDataType::name -> Option<&'static CStr>."
     }
    }
+  },
+  {
+   "name": "av_frame_side_data_new",
+   "defined_in": "libavutil/side_data.c",
+   "lifetime": {
+    "for": "sd",
+    "is_dropper": false,
+    "is_disposer": false,
+    "is_cloner": null,
+    "is_constructor": {
+     "alloc": true,
+     "init": false
+    }
+   },
+   "ptr_args": [
+    {
+     "name": "nb_sd",
+     "ptr": {
+      "scalar": {
+       "by_val": true
+      },
+      "array": null,
+      "string": false,
+      "owned": false,
+      "borrowed": {
+       "lifetime": "arg:nb_sd"
+      },
+      "nullable": false,
+      "mutable": true,
+      "note": "The caller's entry count, read and written with the array (an int, never NULL); C keeps it equal to the number of entry pointers in *sd."
+     }
+    },
+    {
+     "name": "sd",
+     "ptr": {
+      "scalar": {
+       "by_ref": {
+        "owned": true,
+        "borrowed": null
+       }
+      },
+      "array": null,
+      "string": false,
+      "owned": false,
+      "borrowed": {
+       "lifetime": "arg:sd"
+      },
+      "nullable": false,
+      "mutable": true,
+      "note": "sd is the caller's AVFrameSideData ** variable (never NULL); *sd is NULL with *nb_sd == 0, or an av_realloc_array'd block of *nb_sd pointers to distinct entries, each av_mallocz'd by add_side_data_from_buf_ext and owning its buf reference and metadata dictionary. Builds an entry into the array: with UNIQUE it first removes every entry of the type; for a type without MULTI an existing entry is replaced in place only with REPLACE (old buf unref'd, metadata freed, the new av_buffer_alloc'd buffer's window stored) and otherwise C returns NULL; else the block grows by av_realloc_array and a new av_mallocz'd entry is appended. On failure the fresh buffer is unref'd; the block may already have grown. C defect (OOM only): when av_buffer_alloc fails and REPLACE meets an existing non-MULTI entry, replace_side_data_from_buf dereferences the NULL buf (buf->data); a wrapper must not reach C's REPLACE path without a buffer."
+     }
+    }
+   ],
+   "ptr_ret": {
+    "ptr": {
+     "scalar": {
+      "by_val": true
+     },
+     "array": null,
+     "string": false,
+     "owned": false,
+     "borrowed": {
+      "lifetime": "arg:sd"
+     },
+     "nullable": true,
+     "mutable": true,
+     "note": "The new or replaced entry, owned by the array (the caller must not free it), NULL on failure or when a non-MULTI entry exists and REPLACE is unset. Its payload is an av_buffer_alloc'd window of size bytes, UNINITIALISED: the caller writes it in place."
+    }
+   }
+  },
+  {
+   "name": "av_frame_side_data_remove",
+   "defined_in": "libavutil/side_data.c",
+   "lifetime": {
+    "for": "sd",
+    "is_dropper": true,
+    "is_disposer": false,
+    "is_cloner": null,
+    "is_constructor": null
+   },
+   "ptr_args": [
+    {
+     "name": "nb_sd",
+     "ptr": {
+      "scalar": {
+       "by_val": true
+      },
+      "array": null,
+      "string": false,
+      "owned": false,
+      "borrowed": {
+       "lifetime": "arg:nb_sd"
+      },
+      "nullable": false,
+      "mutable": true,
+      "note": "The caller's entry count, read and written with the array (an int, never NULL); C keeps it equal to the number of entry pointers in *sd."
+     }
+    },
+    {
+     "name": "sd",
+     "ptr": {
+      "scalar": {
+       "by_ref": {
+        "owned": true,
+        "borrowed": null
+       }
+      },
+      "array": null,
+      "string": false,
+      "owned": true,
+      "borrowed": null,
+      "nullable": false,
+      "mutable": true,
+      "note": "sd is the caller's AVFrameSideData ** variable (never NULL); *sd is NULL with *nb_sd == 0, or an av_realloc_array'd block of *nb_sd pointers to distinct entries, each av_mallocz'd by add_side_data_from_buf_ext and owning its buf reference and metadata dictionary. Drops every entry whose type equals the argument (free_side_data_entry, then the last pointer moves into its slot and *nb_sd shrinks), walking from the end; the block itself is kept, even when it ends up empty. Entries of other types stay, possibly reordered."
+     }
+    }
+   ]
+  },
+  {
+   "name": "av_frame_side_data_remove_by_props",
+   "defined_in": "libavutil/side_data.c",
+   "lifetime": {
+    "for": "sd",
+    "is_dropper": true,
+    "is_disposer": false,
+    "is_cloner": null,
+    "is_constructor": null
+   },
+   "ptr_args": [
+    {
+     "name": "nb_sd",
+     "ptr": {
+      "scalar": {
+       "by_val": true
+      },
+      "array": null,
+      "string": false,
+      "owned": false,
+      "borrowed": {
+       "lifetime": "arg:nb_sd"
+      },
+      "nullable": false,
+      "mutable": true,
+      "note": "The caller's entry count, read and written with the array (an int, never NULL); C keeps it equal to the number of entry pointers in *sd."
+     }
+    },
+    {
+     "name": "sd",
+     "ptr": {
+      "scalar": {
+       "by_ref": {
+        "owned": true,
+        "borrowed": null
+       }
+      },
+      "array": null,
+      "string": false,
+      "owned": true,
+      "borrowed": null,
+      "nullable": false,
+      "mutable": true,
+      "note": "sd is the caller's AVFrameSideData ** variable (never NULL); *sd is NULL with *nb_sd == 0, or an av_realloc_array'd block of *nb_sd pointers to distinct entries, each av_mallocz'd by add_side_data_from_buf_ext and owning its buf reference and metadata dictionary. Drops every entry whose type has a descriptor sharing a bit with props (types without a descriptor stay), as av_frame_side_data_remove does; the block itself is kept."
+     }
+    }
+   ]
   },
   {
    "name": "av_free",

@@ -1287,12 +1287,14 @@ define_ctype!(
     /// inside the data of that buffer (a NULL `data` only when `size` is 0),
     /// which its reference keeps alive; and its `metadata` is NULL or a
     /// non-empty dictionary the entry alone owns. Every C routine that builds
-    /// or changes an entry keeps that, save one: `av_frame_side_data_new`
-    /// leaves the payload uninitialised for its caller to fill. Other
-    /// references to the same buffer (an entry's clone, a frame's copy) share
-    /// the bytes, so they are written only through an entry whose reference
-    /// is the buffer's only one and not read-only
-    /// ([`data_mut`](SideDataMut::data_mut)), as C's convention has it.
+    /// or changes an entry keeps that, save the two that allocate its payload
+    /// themselves: `av_frame_side_data_new` and the frame-level
+    /// `av_frame_new_side_data` take it from `av_buffer_alloc` and leave it
+    /// uninitialised for their caller to fill. Other references to the same
+    /// buffer (an entry's clone, a frame's copy) share the bytes, so they are
+    /// written only through an entry whose reference is the buffer's only one
+    /// and not read-only ([`data_mut`](SideDataMut::data_mut)), as C's
+    /// convention has it.
     ///
     /// The payload's bytes are borrowed from the entry, so they cannot
     /// outlive its array:
