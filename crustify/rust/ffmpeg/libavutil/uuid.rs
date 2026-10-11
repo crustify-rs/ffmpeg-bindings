@@ -4,7 +4,7 @@
 use super::ffi;
 use core::ffi::CStr;
 
-/// Wraps: av_uuid_copy
+/// Replaces: av_uuid_copy
 ///
 /// Copy the complete UUID. This is equivalent to C's inline memcpy, with
 /// Rust borrows excluding overlap; there is no foreign lifetime to preserve.
@@ -12,14 +12,14 @@ pub fn copy(destination: &mut [u8; 16], source: &[u8; 16]) {
     *destination = *source;
 }
 
-/// Wraps: av_uuid_equal
+/// Replaces: av_uuid_equal
 ///
 /// Compare all sixteen bytes (equivalent to C's inline memcmp).
 pub fn equal(left: &[u8; 16], right: &[u8; 16]) -> bool {
     left == right
 }
 
-/// Wraps: av_uuid_nil
+/// Replaces: av_uuid_nil
 ///
 /// Set every byte to zero (equivalent to C's inline memset).
 pub fn nil(uuid: &mut [u8; 16]) {

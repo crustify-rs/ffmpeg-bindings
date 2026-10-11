@@ -11,14 +11,38 @@ fn encoded_size(input_len: usize) -> Result<usize, i32> {
     Ok(input_len.div_ceil(3) * 4 + 1)
 }
 
+/// The capacity C may use of an output buffer: its size field is an `int`,
+/// and C never writes more than the data needs, so a longer buffer offers C
+/// `INT_MAX` bytes, as a C caller holding it would.
+fn c_capacity(output_len: usize) -> i32 {
+    i32::try_from(output_len).unwrap_or(i32::MAX)
+}
+
+/// The decoding capacity for an output of `output_len` bytes. A longer
+/// output than C can address is offered as `INT_MAX` bytes only when the
+/// input, of `input_len()` characters before its NUL, cannot decode to more:
+/// `AV_BASE64_DECODE_SIZE`, six bits per character in whole bytes.
+fn decode_capacity(output_len: usize, input_len: impl FnOnce() -> usize) -> Result<i32, i32> {
+    let capacity = c_capacity(output_len);
+    if output_len > capacity as usize {
+        let len = input_len();
+        if len / 4 * 3 + len % 4 * 3 / 4 > capacity as usize {
+            return Err(-(ffi::EINVAL as i32));
+        }
+    }
+    Ok(capacity)
+}
+
 /// Wraps: av_base64_encode
 ///
 /// Encode into `output`, including a terminating NUL. Return a view tied to
-/// its exclusive borrow. Insufficient space or an unrepresentable C length
-/// returns `-EINVAL` without writing anything.
+/// its exclusive borrow. Insufficient space or an input too long for C's
+/// `int` size arithmetic returns `-EINVAL` without writing anything.
 pub fn encode<'a>(input: &[u8], output: &'a mut [u8]) -> Result<&'a CStr, i32> {
     let needed = encoded_size(input.len())?;
-    let capacity = i32::try_from(output.len()).map_err(|_| -(ffi::EINVAL as i32))?;
+    // `needed` stays below `INT_MAX`, so a buffer of at least `needed` bytes
+    // offers C at least `needed`.
+    let capacity = c_capacity(output.len());
     if output.len() < needed {
         return Err(-(ffi::EINVAL as i32));
     }
@@ -45,8 +69,11 @@ pub fn encode<'a>(input: &[u8], output: &'a mut [u8]) -> Result<&'a CStr, i32> {
 /// truncates the decoded bytes but still checks the rest of the input.
 /// Invalid data returns C's negative error; earlier bytes may be written.
 /// C stops at the first NUL or `=`, without requiring canonical padding.
+/// An output longer than `INT_MAX` bytes is offered to C as `INT_MAX` bytes;
+/// if the input could decode to more than that, `-EINVAL` is returned
+/// without writing anything, since C could not report such a length.
 pub fn decode(input: &CStr, output: &mut [u8]) -> Result<usize, i32> {
-    let capacity = i32::try_from(output.len()).map_err(|_| -(ffi::EINVAL as i32))?;
+    let capacity = decode_capacity(output.len(), || input.count_bytes())?;
     let mut empty = 0u8;
     let dst = if output.is_empty() {
         &raw mut empty
@@ -89,5 +116,37 @@ mod unit_tests {
         assert!(encode(b"abc", &mut output).is_err());
         assert_eq!(output, [0xAA; 4]);
         assert!(encode(b"", &mut []).is_err());
+    }
+
+    #[test]
+    fn outputs_beyond_int_max_offer_c_int_max() {
+        let max = i32::MAX as usize;
+        for len in [0, 1, max - 1, max] {
+            assert_eq!(c_capacity(len), len as i32);
+            assert_eq!(
+                decode_capacity(len, || unreachable!("no length needed")),
+                Ok(len as i32)
+            );
+        }
+        for len in [max + 1, usize::MAX] {
+            assert_eq!(c_capacity(len), i32::MAX);
+        }
+        // 715827882 groups of four characters decode to 2147483646 bytes; a
+        // tail of one character adds no whole byte, of two one byte (exactly
+        // `INT_MAX`), and of three two bytes, one more than C can report.
+        let fits = 715_827_882 * 4 + 1;
+        for (input_len, expected) in [
+            (0, Ok(i32::MAX)),
+            (fits, Ok(i32::MAX)),
+            (fits + 1, Ok(i32::MAX)),
+            (fits + 2, Err(-(ffi::EINVAL as i32))),
+            (usize::MAX, Err(-(ffi::EINVAL as i32))),
+        ] {
+            assert_eq!(
+                decode_capacity(max + 1, || input_len),
+                expected,
+                "{input_len}"
+            );
+        }
     }
 }

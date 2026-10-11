@@ -139,6 +139,15 @@ impl ShaMut<'_> {
     }
 }
 
+/// Wraps: av_sha_size
+///
+/// The C context's size in bytes, borrowed from immutable C static storage.
+pub fn context_size() -> &'static i32 {
+    // SAFETY: C defines this global as `const int = sizeof(context)`; it has
+    // static lifetime and no writer anywhere in the library.
+    unsafe { &ffi::av_sha_size }
+}
+
 #[cfg(test)]
 mod unit_tests {
     use super::*;
@@ -179,13 +188,4 @@ mod unit_tests {
         let mut owner = unsafe { ShaBox::from_c(ptr) }.unwrap();
         owner.as_mut().init(Algorithm::Sha256);
     }
-}
-
-/// Wraps: av_sha_size
-///
-/// The C context's size in bytes, borrowed from immutable C static storage.
-pub fn context_size() -> &'static i32 {
-    // SAFETY: C defines this global as `const int = sizeof(context)`; it has
-    // static lifetime and no writer anywhere in the library.
-    unsafe { &ffi::av_sha_size }
 }

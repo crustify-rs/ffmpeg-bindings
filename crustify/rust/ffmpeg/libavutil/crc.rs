@@ -74,62 +74,6 @@ impl fmt::Debug for CrcId {
     }
 }
 
-#[cfg(test)]
-mod unit_tests {
-    use super::*;
-
-    #[test]
-    fn layout_and_unknown_values() {
-        assert_eq!(size_of::<CrcId>(), size_of::<ffi::AVCRCId>());
-        assert_eq!(align_of::<CrcId>(), align_of::<ffi::AVCRCId>());
-        for value in [0, 7, 8, 9, u32::MAX] {
-            let id = CrcId::from(ffi::AVCRCId(value));
-            let raw: ffi::AVCRCId = id.into();
-            assert_eq!(raw.0, value);
-        }
-        assert_eq!(
-            format!("{:?}", CrcId::from_raw(ffi::AVCRCId(99))),
-            "CrcId(99)"
-        );
-    }
-
-    #[test]
-    fn constant_debug_names() {
-        for (id, name) in [
-            (CrcId::ATM_8, "ATM_8"),
-            (CrcId::ANSI_16, "ANSI_16"),
-            (CrcId::CCITT_16, "CCITT_16"),
-            (CrcId::IEEE_32, "IEEE_32"),
-            (CrcId::IEEE_32_LE, "IEEE_32_LE"),
-            (CrcId::ANSI_16_LE, "ANSI_16_LE"),
-            (CrcId::IEEE_24, "IEEE_24"),
-            (CrcId::EBU_8, "EBU_8"),
-        ] {
-            assert_eq!(format!("{id:?}"), format!("CrcId::{name}"));
-        }
-    }
-
-    #[test]
-    fn invalid_parameters_are_errors() {
-        for bits in [0, 7, 33, 255] {
-            assert!(Table::new(false, bits, 1, TableSize::Compact).is_err());
-        }
-        assert!(Table::new(true, 8, 256, TableSize::Fast).is_err());
-    }
-
-    #[test]
-    fn table_traits_and_debug() {
-        let size = TableSize::Fast;
-        assert_eq!(size, TableSize::Fast);
-        assert_ne!(size, TableSize::Compact);
-        assert_eq!(format!("{size:?}"), "Fast");
-        let table = Table::new(true, 32, 0xedb88320, size).unwrap();
-        let clone = table.clone();
-        assert_eq!(table.entries(), clone.entries());
-        assert!(format!("{clone:?}").starts_with("Table { entries:"));
-    }
-}
-
 /// The two array sizes accepted by C's CRC table initializer.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum TableSize {
@@ -216,5 +160,61 @@ impl Table {
             // C retains no pointers and writes neither shared input.
             unsafe { ffi::av_crc(self.entries.as_ptr(), initial, input.as_ptr(), input.len()) }
         }
+    }
+}
+
+#[cfg(test)]
+mod unit_tests {
+    use super::*;
+
+    #[test]
+    fn layout_and_unknown_values() {
+        assert_eq!(size_of::<CrcId>(), size_of::<ffi::AVCRCId>());
+        assert_eq!(align_of::<CrcId>(), align_of::<ffi::AVCRCId>());
+        for value in [0, 7, 8, 9, u32::MAX] {
+            let id = CrcId::from(ffi::AVCRCId(value));
+            let raw: ffi::AVCRCId = id.into();
+            assert_eq!(raw.0, value);
+        }
+        assert_eq!(
+            format!("{:?}", CrcId::from_raw(ffi::AVCRCId(99))),
+            "CrcId(99)"
+        );
+    }
+
+    #[test]
+    fn constant_debug_names() {
+        for (id, name) in [
+            (CrcId::ATM_8, "ATM_8"),
+            (CrcId::ANSI_16, "ANSI_16"),
+            (CrcId::CCITT_16, "CCITT_16"),
+            (CrcId::IEEE_32, "IEEE_32"),
+            (CrcId::IEEE_32_LE, "IEEE_32_LE"),
+            (CrcId::ANSI_16_LE, "ANSI_16_LE"),
+            (CrcId::IEEE_24, "IEEE_24"),
+            (CrcId::EBU_8, "EBU_8"),
+        ] {
+            assert_eq!(format!("{id:?}"), format!("CrcId::{name}"));
+        }
+    }
+
+    #[test]
+    fn invalid_parameters_are_errors() {
+        for bits in [0, 7, 33, 255] {
+            assert!(Table::new(false, bits, 1, TableSize::Compact).is_err());
+        }
+        assert!(Table::new(true, 8, 256, TableSize::Fast).is_err());
+    }
+
+    #[test]
+    fn table_traits_and_debug() {
+        let size = TableSize::Fast;
+        assert_eq!(size, TableSize::Fast);
+        assert_ne!(size, TableSize::Compact);
+        assert_eq!(format!("{size:?}"), "Fast");
+        let table = Table::new(true, 32, 0xedb88320, size).unwrap();
+        let clone = table.clone();
+        assert_eq!(table.entries(), clone.entries());
+        assert!(format!("{clone:?}").starts_with("Table { entries:"));
     }
 }

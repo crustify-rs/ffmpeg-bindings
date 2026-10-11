@@ -96,6 +96,33 @@ impl Md5Mut<'_> {
     }
 }
 
+/// Wraps: av_md5_size
+///
+/// The C context's size in bytes, borrowed from immutable C static storage.
+pub fn context_size() -> &'static i32 {
+    // SAFETY: C defines this global as `const int = sizeof(context)`; it has
+    // static lifetime and no writer anywhere in the library.
+    unsafe { &ffi::av_md5_size }
+}
+
+/// Wraps: av_md5_sum
+///
+/// Compute the 16-byte MD5 digest (not suitable for cryptographic security).
+pub fn sum(input: &[u8]) -> [u8; 16] {
+    let mut digest = [0; 16];
+    let empty = 0u8;
+    let source = if input.is_empty() {
+        &raw const empty
+    } else {
+        input.as_ptr()
+    };
+    // SAFETY: C reads the input for this call only and writes exactly the
+    // 16 digest bytes. A live byte represents empty input for C's `src + 0`;
+    // the distinct Rust allocations cannot overlap.
+    unsafe { ffi::av_md5_sum(digest.as_mut_ptr(), source, input.len()) };
+    digest
+}
+
 #[cfg(test)]
 mod unit_tests {
     use super::*;
@@ -176,31 +203,4 @@ mod unit_tests {
             ]
         );
     }
-}
-
-/// Wraps: av_md5_size
-///
-/// The C context's size in bytes, borrowed from immutable C static storage.
-pub fn context_size() -> &'static i32 {
-    // SAFETY: C defines this global as `const int = sizeof(context)`; it has
-    // static lifetime and no writer anywhere in the library.
-    unsafe { &ffi::av_md5_size }
-}
-
-/// Wraps: av_md5_sum
-///
-/// Compute the 16-byte MD5 digest (not suitable for cryptographic security).
-pub fn sum(input: &[u8]) -> [u8; 16] {
-    let mut digest = [0; 16];
-    let empty = 0u8;
-    let source = if input.is_empty() {
-        &raw const empty
-    } else {
-        input.as_ptr()
-    };
-    // SAFETY: C reads the input for this call only and writes exactly the
-    // 16 digest bytes. A live byte represents empty input for C's `src + 0`;
-    // the distinct Rust allocations cannot overlap.
-    unsafe { ffi::av_md5_sum(digest.as_mut_ptr(), source, input.len()) };
-    digest
 }

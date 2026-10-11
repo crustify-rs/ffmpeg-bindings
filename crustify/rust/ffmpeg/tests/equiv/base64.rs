@@ -65,13 +65,92 @@ fn batch10_decode_errors_lengths_and_all_buffer_bytes_match_c() {
             let expected = if ret < 0 { Err(ret) } else { Ok(ret as usize) };
             assert_eq!(base64::decode(&text, &mut safe), expected);
             assert_eq!(safe, raw);
+            let null = core::ptr::null_mut();
             // SAFETY: null output selects C's validity-only path; valid CStr.
-            let valid =
-                unsafe { ffi::av_base64_decode(core::ptr::null_mut(), reference.as_ptr(), 0) };
+            let valid = unsafe { ffi::av_base64_decode(null, reference.as_ptr(), 0) };
             assert_eq!(
                 base64::validate(&text),
                 if valid < 0 { Err(valid) } else { Ok(()) }
             );
+        }
+    }
+}
+
+/// Outputs longer than C's `int` size field reach C as `INT_MAX` bytes, as a
+/// C caller holding such a buffer passes them, rather than failing.
+mod beyond_int_max {
+    use core::ffi::CStr;
+
+    use ffmpeg::libavutil::{base64, ffi};
+
+    const LEN: usize = i32::MAX as usize + 1;
+
+    /// BSan cost grows with a 2 GiB allocation's history (see the campaign's
+    /// test recipes); the plain and other sanitized runs cover these.
+    fn under_bsan() -> bool {
+        std::env::var("CRUSTIFY_FFMPEG_VARIANT").as_deref() == Ok("bsan")
+    }
+
+    /// A zeroed allocation, so only the pages written are ever mapped, with
+    /// a recognisable head.
+    fn buffer() -> Vec<u8> {
+        let mut buffer = vec![0u8; LEN];
+        buffer[..32].fill(0xAA);
+        buffer
+    }
+
+    #[test]
+    fn encodes_and_decodes_into_outputs_beyond_int_max_as_c() {
+        if under_bsan() {
+            return;
+        }
+        let input = b"crustify";
+        let mut raw = buffer();
+        let (out, size) = (raw.as_mut_ptr().cast(), i32::MAX);
+        // SAFETY: `raw` is writable for `INT_MAX` bytes and `input` readable
+        // for its length; C writes the encoded string and retains neither.
+        let ptr = unsafe { ffi::av_base64_encode(out, size, input.as_ptr(), 8) };
+        assert!(!ptr.is_null());
+        let expected = raw[..32].to_vec();
+        drop(raw);
+        let mut safe = buffer();
+        let text = base64::encode(input, &mut safe).unwrap();
+        assert_eq!(text, c"Y3J1c3RpZnk=");
+        assert_eq!(safe[..32], expected);
+        drop(safe);
+
+        for text in [c"Y3J1c3RpZnk=", c"Y3J1c3RpZnk", c"Y3J1!", c""] {
+            let mut raw = buffer();
+            // SAFETY: NUL-terminated input and an output writable for
+            // `INT_MAX` bytes; C writes the decoded bytes only.
+            let ret = unsafe { ffi::av_base64_decode(raw.as_mut_ptr(), text.as_ptr(), i32::MAX) };
+            let expected = (
+                if ret < 0 { Err(ret) } else { Ok(ret as usize) },
+                raw[..32].to_vec(),
+            );
+            drop(raw);
+            let mut safe = buffer();
+            let actual = base64::decode(text, &mut safe);
+            assert_eq!((actual, safe[..32].to_vec()), expected, "{text:?}");
+        }
+    }
+
+    #[test]
+    fn exact_and_short_outputs_still_follow_c() {
+        let text: &CStr = c"Y3J1c3RpZnk=";
+        for capacity in [0, 1, 7, 8, 9] {
+            let mut raw = vec![0xAA; capacity];
+            let mut safe = raw.clone();
+            let mut empty = 0;
+            let dst = if capacity == 0 {
+                &raw mut empty
+            } else {
+                raw.as_mut_ptr()
+            };
+            // SAFETY: NUL-terminated input; `dst` permits `capacity` writes.
+            let ret = unsafe { ffi::av_base64_decode(dst, text.as_ptr(), capacity as i32) };
+            assert_eq!(base64::decode(text, &mut safe), Ok(ret as usize));
+            assert_eq!(safe, raw);
         }
     }
 }

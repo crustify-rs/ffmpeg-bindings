@@ -8,9 +8,9 @@ fn batch10_stream_sequences_match_c() {
         for len in [0, 1, 4, 7, 8, 9, 184, 185, 186, 1024, 4096] {
             let input = &data[1..1 + len];
             safe = adler32::update(safe, input);
-            // SAFETY: C reads only len bytes from this independent input copy.
             let owned = input.to_vec();
-            // SAFETY: the input is valid for the stated length; no retention.
+            // SAFETY: C reads only `len` bytes of this independent copy and
+            // retains no pointer.
             raw = unsafe { ffi::av_adler32_update(raw, owned.as_ptr(), owned.len()) };
             assert_eq!(safe, raw);
         }

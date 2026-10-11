@@ -1509,9 +1509,9 @@
       "borrowed": {
        "lifetime": "arg:in"
       },
-      "nullable": false,
+      "nullable": true,
       "mutable": false,
-      "note": "Synchronous borrowed buffer; no storage, retention, cloning or deallocation."
+      "note": "Input of in_size bytes, read for the call only (AV_RB32 reads 4 bytes only while more than 3 remain). Neither dereferenced nor offset when in_size is 0, so NULL is valid then. No retention."
      }
     },
     {
@@ -1528,7 +1528,7 @@
       },
       "nullable": false,
       "mutable": true,
-      "note": "Synchronous borrowed buffer; no storage, retention, cloning or deallocation. NUL-terminated string."
+      "note": "Output buffer of out_size bytes, borrowed for the call. C fails (returns NULL, writes nothing) unless in_size < UINT_MAX / 4 and out_size >= AV_BASE64_SIZE(in_size) = (in_size + 2) / 3 * 4 + 1, then writes exactly AV_BASE64_SIZE(in_size) bytes: the encoded text and its NUL. Never writes past that, so out_size may be any int up to the buffer length (a buffer longer than INT_MAX is passed as INT_MAX). Not read on entry; holds a NUL-terminated string after success. No retention."
      }
     }
    ],
@@ -7213,7 +7213,7 @@
       },
       "nullable": false,
       "mutable": true,
-      "note": "Synchronous borrowed buffer; no storage, retention, cloning or deallocation."
+      "note": "Output of exactly 16 bytes (the digest, AV_WL32 four words), written once at the end; not read. Borrowed for the call, no retention."
      }
     },
     {
@@ -7230,7 +7230,7 @@
       },
       "nullable": false,
       "mutable": false,
-      "note": "Synchronous borrowed buffer; no storage, retention, cloning or deallocation."
+      "note": "Input of len bytes, read for the call only through a stack context. av_md5_update forms src + (len & ~63) even for len 0, so NULL is not valid in C. No retention."
      }
     }
    ]
@@ -13240,7 +13240,7 @@
       },
       "nullable": false,
       "mutable": true,
-      "note": "Synchronous borrowed buffer; no storage, retention, cloning or deallocation. NUL-terminated string."
+      "note": "Output of exactly 37 bytes (uuid.h asks for no less than 37 characters): 36 lowercase characters with hyphens before bytes 4, 6, 8 and 10, then the NUL. No size argument; not read on entry. The 16-byte AVUUID input (arg 0) is an array-typedef parameter extraction does not enumerate. Borrowed for the call, no retention."
      }
     }
    ]
