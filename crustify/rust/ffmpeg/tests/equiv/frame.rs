@@ -2058,6 +2058,121 @@ mod side_data_array_routines {
         }
     }
 
+    /// Clones replacing an entry in place, which the wrapper runs itself
+    /// rather than through C's leaking path (buffer-frame wave-3 symbol
+    /// review): sources whose metadata C's flags-0 copy merges (keys equal
+    /// but for case, exact duplicates) or keeps, over entries with and
+    /// without metadata, sharing the source's buffer or not, and of a kind
+    /// with no name; then, in an isolated child, every `av_max_alloc` limit
+    /// up to a full copy for sources whose copy C cannot leave part way
+    /// (one entry once merged), so that both fail at the metadata copy or
+    /// the new reference alike.
+    #[test]
+    fn in_place_clones_match_c() {
+        let sources: [&[(&core::ffi::CStr, &core::ffi::CStr)]; 5] = [
+            &[],
+            &[(c"Key", c"1"), (c"KEY", c"2"), (c"x", c"y")],
+            &[(c"dup", c"1"), (c"dup", c"2")],
+            &[(c"a", c"1"), (c"b", c"2"), (c"c", c"")],
+            &[(c"k", c"v"), (c"K", c"w")],
+        ];
+        let limited = std::env::var_os("CRUSTIFY_EQUIV_ISOLATED").is_some();
+        let name = "frame::side_data_array_routines::in_place_clones_match_c";
+        let limits: Vec<usize> = if limited {
+            (0..=64).collect()
+        } else {
+            vec![i32::MAX as usize]
+        };
+        for &k in &[SideDataType::AFD.into_raw().0, 1000] {
+            for (j, pairs) in sources.iter().enumerate() {
+                // Distinct entries copy one by one, so a limit could fail C
+                // part way; those run unlimited only.
+                let merged = c_pairs_count(pairs) <= 1;
+                for &limit in limits.iter().filter(|_| merged || !limited) {
+                    for (shared, old) in [(false, &PAIRS[0]), (false, &PAIRS[2]), (true, &PAIRS[1])]
+                    {
+                        let label = format!("kind {k} source {j} limit {limit} shared {shared}");
+                        let (mut r_src, mut c_src) = (SideDataArray::new(), CArray::new());
+                        let mut e = r_src
+                            .alloc_from_slice(kind(k), b"source", SideDataFlags::NONE)
+                            .unwrap();
+                        e.set_metadata(
+                            ffmpeg::libavutil::dict::Dict::from_entries(pairs.iter().copied())
+                                .unwrap(),
+                        );
+                        let i =
+                            c_new(&mut c_src, k, 6, SideDataFlags::NONE, Some(b"source")).unwrap();
+                        let _ = c_src.replace_metadata(i, c_dict(pairs));
+                        let (mut r, mut c) = (SideDataArray::new(), CArray::new());
+                        let mut e = r
+                            .alloc_from_slice(kind(k), b"old", SideDataFlags::NONE)
+                            .unwrap();
+                        e.set_metadata(
+                            ffmpeg::libavutil::dict::Dict::from_entries(old.iter().copied())
+                                .unwrap(),
+                        );
+                        if shared {
+                            let b = r_src.as_ref().get(0).unwrap().buffer().try_clone().unwrap();
+                            e.set_buffer(b);
+                        }
+                        let i = c_new(&mut c, k, 3, SideDataFlags::NONE, Some(b"old")).unwrap();
+                        let _ = c.replace_metadata(i, c_dict(old));
+                        if shared {
+                            // SAFETY: a live reference of C's source.
+                            let b = unsafe { ffi::av_buffer_ref((*c_src.entry(0)).buf) };
+                            assert!(!b.is_null());
+                            let e = c.entry(i);
+                            // SAFETY: a live entry of C's array, which takes
+                            // over `b` and its window, as `set_buffer` does.
+                            unsafe {
+                                ffi::av_buffer_unref(&raw mut (*e).buf);
+                                (*e).buf = b;
+                                (*e).data = (*b).data;
+                                (*e).size = (*b).size;
+                            }
+                        }
+                        compare(&mut r, &c, &label);
+                        let set_max = ffmpeg::libavutil::mem::set_max_alloc;
+                        set_max(limit);
+                        let got = r
+                            .as_mut()
+                            .add_clone(r_src.as_ref().get(0).unwrap(), SideDataFlags::REPLACE);
+                        // SAFETY: C's array and a live entry of C's source.
+                        let want = unsafe {
+                            ffi::av_frame_side_data_clone(
+                                &raw mut c.sd,
+                                &raw mut c.nb,
+                                c_src.entry(0),
+                                SideDataFlags::REPLACE.bits(),
+                            )
+                        };
+                        set_max(i32::MAX as usize);
+                        assert_eq!(got, if want < 0 { Err(want) } else { Ok(()) }, "{label}");
+                        compare(&mut r, &c, &format!("{label}: clone"));
+                        assert_eq!(rust_seen(&mut r_src), c_src.seen(), "{label}: source");
+                        drop((r_src, c_src));
+                        compare(&mut r, &c, &format!("{label}: source gone"));
+                    }
+                }
+            }
+        }
+        if !limited {
+            assert!(!isolated(name));
+        }
+    }
+
+    /// The number of entries C's flags-0 copy of `pairs` keeps: keys equal
+    /// but for ASCII case merge.
+    fn c_pairs_count(pairs: &[(&core::ffi::CStr, &core::ffi::CStr)]) -> usize {
+        let mut keys: Vec<Vec<u8>> = pairs
+            .iter()
+            .map(|(k, _)| k.to_bytes().to_ascii_uppercase())
+            .collect();
+        keys.sort();
+        keys.dedup();
+        keys.len()
+    }
+
     /// Each flag combination of `alloc_*` and `add_clone` over an array
     /// that holds an entry of every kind the sequences use, each with
     /// metadata, against the same calls in C.

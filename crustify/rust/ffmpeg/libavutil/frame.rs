@@ -2020,19 +2020,18 @@ impl SideDataArrayMut<'_> {
         buf: BufferReferenceBox,
         flags: SideDataFlags,
     ) -> Result<SideDataMut<'_>, BufferReferenceBox> {
-        let entry = self.add_entry(kind, buf, flags)?;
-        // SAFETY: an entry of the array, live and exclusively borrowed with
-        // it through `&mut self`.
-        Ok(unsafe { SideDataMut::from_ptr(entry) }.expect("C returned an entry"))
+        self.as_mut().into_added(kind, buf, flags)
     }
+}
 
-    /// [`add`](Self::add), returning the entry's pointer.
-    fn add_entry(
-        &mut self,
+impl<'a> SideDataArrayMut<'a> {
+    /// [`add`](Self::add), lending the entry for the array's whole borrow.
+    fn into_added(
+        self,
         kind: SideDataType,
         buf: BufferReferenceBox,
         flags: SideDataFlags,
-    ) -> Result<*mut ffi::AVFrameSideData, BufferReferenceBox> {
+    ) -> Result<SideDataMut<'a>, BufferReferenceBox> {
         let mut slot = buf.into_c();
         // Without NEW_REF, C stores the slot's reference in an entry and
         // NULLs the slot on success, and leaves both alone on failure. A new
@@ -2058,7 +2057,9 @@ impl SideDataArrayMut<'_> {
             return Err(buf.expect("C keeps the reference it did not add"));
         }
         debug_assert!(slot.is_null());
-        Ok(entry)
+        // SAFETY: an entry of the array, live and exclusively borrowed with
+        // it for `'a`, which `self`, consumed, no longer reaches.
+        Ok(unsafe { SideDataMut::from_ptr(entry) }.expect("C returned an entry"))
     }
 }
 
@@ -2072,10 +2073,7 @@ impl SideDataArray {
         buf: BufferReferenceBox,
         flags: SideDataFlags,
     ) -> Result<SideDataMut<'_>, BufferReferenceBox> {
-        let entry = self.as_mut().add_entry(kind, buf, flags)?;
-        // SAFETY: an entry of this array, live and exclusively borrowed with
-        // it through `&mut self`.
-        Ok(unsafe { SideDataMut::from_ptr(entry) }.expect("C returned an entry"))
+        self.as_mut().into_added(kind, buf, flags)
     }
 }
 
@@ -2197,6 +2195,69 @@ impl<'a> SideDataArrayRef<'a> {
         // const-correctness), live and unchanged for `'a`.
         unsafe { SideDataRef::from_ptr(entry.cast_mut()) }
     }
+
+    /// Whether C's additions of `kind` with `flags` (`_new`, `_add`,
+    /// `_clone`) change an entry in place rather than append or refuse:
+    /// `REPLACE` without `UNIQUE`, for a kind that is not `MULTI` and has an
+    /// entry here.
+    fn replaces_in_place(&self, kind: SideDataType, flags: SideDataFlags) -> bool {
+        let multi = kind
+            .descriptor()
+            .is_some_and(|d| d.props().contains(SideDataProps::MULTI));
+        flags.contains(SideDataFlags::REPLACE)
+            && !flags.contains(SideDataFlags::UNIQUE)
+            && !multi
+            && self.find(kind).is_some()
+    }
+}
+
+impl SideDataMut<'_> {
+    /// Makes this entry a copy of `src`, as `av_frame_side_data_clone`'s
+    /// in-place replacement does and in its order: a copy of `src`'s
+    /// metadata (C's flags 0, so keys equal up to ASCII case merge), then a
+    /// reference to `src`'s buffer, then `src`'s window and the copy in
+    /// place of the entry's own metadata. On failure the entry is as it
+    /// was, and the partial copy, which C's own code leaks, is freed.
+    fn assign_clone(&mut self, src: SideDataRef<'_>) -> Result<(), c_int> {
+        let s = src.as_ptr();
+        // SAFETY: reads of three fields projected through the shared
+        // handle's pointer to a live `AVFrameSideData`.
+        let (metadata, data, size) = unsafe {
+            (
+                addr_of!((*s).metadata).read(),
+                addr_of!((*s).data).read(),
+                addr_of!((*s).size).read(),
+            )
+        };
+        let mut copy = ptr::null_mut();
+        // SAFETY: `metadata` is NULL or `src`'s live dictionary, which C only
+        // reads, into a local slot.
+        let ret = unsafe { ffi::av_dict_copy(&mut copy, metadata, 0) };
+        // SAFETY: NULL, or the non-empty copy C built (in part, on failure),
+        // ours alone: an `av_dict_set` that leaves no entry frees it.
+        let copy = Dict::from(unsafe { DictionaryBox::from_c(copy) });
+        if ret < 0 {
+            return Err(ret);
+        }
+        let (p, from) = (self.as_mut_ptr(), src.buffer().as_ptr());
+        // SAFETY: the entry's own reference slot, exclusively borrowed, and
+        // `src`'s live reference, a distinct struct as `src` is another
+        // entry: C keeps the slot, or replaces its reference with a new one
+        // to `src`'s buffer, and leaves it alone on failure.
+        let ret = unsafe { ffi::av_buffer_replace(addr_of_mut!((*p).buf), from) };
+        if ret < 0 {
+            return Err(ret);
+        }
+        // SAFETY: writes of two fields projected through the exclusive
+        // handle's pointer: `src`'s window, initialised bytes of the buffer
+        // the entry now references too, by `SideData`'s invariant.
+        unsafe {
+            addr_of_mut!((*p).data).write(data);
+            addr_of_mut!((*p).size).write(size);
+        }
+        self.set_metadata(copy);
+        Ok(())
+    }
 }
 
 impl SideDataArrayMut<'_> {
@@ -2248,7 +2309,9 @@ impl SideDataArrayMut<'_> {
     ///
     /// Adds a copy of `src`, an entry of another array: one that shares its
     /// buffer, through a new reference (so neither payload is writable while
-    /// both live), and holds a copy of its metadata. Flags act as for
+    /// both live), and holds a copy of its metadata, made as C makes it,
+    /// where keys equal up to ASCII case collapse into one entry holding
+    /// the last one's value (unlike [`Dict`]'s `Clone`). Flags act as for
     /// [`add`](Self::add): [`UNIQUE`](SideDataFlags::UNIQUE) first removes
     /// every entry of `src`'s kind, even when the copy then fails; for a kind
     /// that is not `MULTI` and already present,
@@ -2278,6 +2341,14 @@ impl SideDataArrayMut<'_> {
     pub fn add_clone(&mut self, src: SideDataRef<'_>, flags: SideDataFlags) -> Result<(), c_int> {
         if !may_add_reference(src.buffer().ref_count()) {
             return Err(ENOMEM);
+        }
+        if self.as_ref().replaces_in_place(src.kind(), flags) {
+            // C's in-place path leaks a metadata copy that fails part way
+            // (`side_data.c:275-277`): run it here, freeing the copy.
+            let entry = self.as_mut().into_found(src.kind());
+            return entry
+                .expect("an entry of the kind is present")
+                .assign_clone(src);
         }
         // Every entry C builds or changes holds a new reference to `src`'s
         // buffer, `src`'s window into it, and a copy of its metadata.
@@ -2360,20 +2431,13 @@ impl<'a> SideDataArrayMut<'a> {
     /// every byte of the new payload before anything can read it, lending
     /// the entry for the array's whole borrow.
     fn into_new_entry(
-        mut self,
+        self,
         kind: SideDataType,
         size: usize,
         flags: SideDataFlags,
         init: impl FnOnce(&mut [MaybeUninit<u8>]),
     ) -> Option<SideDataMut<'a>> {
-        let multi = kind
-            .descriptor()
-            .is_some_and(|d| d.props().contains(SideDataProps::MULTI));
-        if flags.contains(SideDataFlags::REPLACE)
-            && !flags.contains(SideDataFlags::UNIQUE)
-            && !multi
-            && self.as_ref().find(kind).is_some()
-        {
+        if self.as_ref().replaces_in_place(kind, flags) {
             // C's replacement path stores the buffer it allocated without
             // checking it, so a failed allocation is a NULL dereference
             // (`replace_side_data_from_buf`). Allocate first, and replace
@@ -2383,10 +2447,7 @@ impl<'a> SideDataArrayMut<'a> {
             init(buf.as_mut_slice());
             // SAFETY: `init` wrote every byte.
             let buf = unsafe { buf.assume_init() };
-            let entry = self.add_entry(kind, buf, flags).ok()?;
-            // SAFETY: an entry of the array, live and exclusively borrowed
-            // with it for `'a`, which `self`, consumed, no longer reaches.
-            return unsafe { SideDataMut::from_ptr(entry) };
+            return self.into_added(kind, buf, flags).ok();
         }
         // SAFETY: the array's two variables, exclusively borrowed, so no
         // handle to an entry C may remove or change is alive. With no entry

@@ -7862,7 +7862,7 @@
       },
       "nullable": false,
       "mutable": true,
-      "note": "sd is the caller's AVFrameSideData ** variable (never NULL); *sd is NULL with *nb_sd == 0, or an av_realloc_array'd block of *nb_sd pointers to distinct entries, each av_mallocz'd by add_side_data_from_buf_ext and owning its buf reference and metadata dictionary. Receives the copy (EINVAL when sd or nb_sd is NULL, or *nb_sd > 0 with a NULL *sd): with UNIQUE C first removes every entry of src's type; for a type without MULTI an existing entry gets src's buffer (av_buffer_replace), data/size and a copy of its metadata only with REPLACE, else EEXIST; otherwise a new entry is appended holding av_buffer_ref(src->buf), src's data/size and av_dict_copy of its metadata (removed again if that copy fails)."
+      "note": "sd is the caller's AVFrameSideData ** variable (never NULL); *sd is NULL with *nb_sd == 0, or an av_realloc_array'd block of *nb_sd pointers to distinct entries, each av_mallocz'd by add_side_data_from_buf_ext and owning its buf reference and metadata dictionary. Receives the copy (EINVAL when sd or nb_sd is NULL, or *nb_sd > 0 with a NULL *sd): with UNIQUE C first removes every entry of src's type; for a type without MULTI an existing entry gets, only with REPLACE (else EEXIST), a copy of src's metadata into a local dict, then src's buffer (av_buffer_replace), then src's data/size, with its old metadata freed; otherwise a new entry is appended holding av_buffer_ref(src->buf), src's data/size and av_dict_copy of its metadata (removed again if that copy fails). Both metadata copies pass flags 0, so keys equal case-insensitively merge into the last value. C defect (OOM only): on the REPLACE path a failing av_dict_copy returns without freeing the local dict, leaking every entry already copied (side_data.c:275-277; a 2-entry source whose second entry cannot be allocated leaks the dict, LSan). Rust: frame.rs::SideDataArrayMut::add_clone runs that in-place path itself in C's order and frees the partial copy (buffer-frame wave-3 symbol review)."
      }
     },
     {
@@ -7879,7 +7879,7 @@
       },
       "nullable": true,
       "mutable": false,
-      "note": "The source entry, read only (NULL gives EINVAL). Its buf must be non-NULL (av_buffer_ref/av_buffer_replace dereference it). The copy is a new entry (or the replaced one) sharing src's buffer by count, so neither payload is writable while both live, and holding its own deep copy of the metadata."
+      "note": "The source entry, read only (NULL gives EINVAL). Its buf must be non-NULL (av_buffer_ref/av_buffer_replace dereference it). The copy is a new entry (or the replaced one) sharing src's buffer by count, so neither payload is writable while both live, and holding its own deep copy of the metadata. Its metadata is copied with flags 0 (no AV_DICT_MULTIKEY), so duplicate keys collapse in the copy."
      }
     }
    ]

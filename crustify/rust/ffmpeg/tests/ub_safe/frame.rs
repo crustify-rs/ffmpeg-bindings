@@ -1354,6 +1354,57 @@ mod side_data_array_routines {
         });
     }
 
+    /// Clones replacing an entry in place whose metadata copy fails part
+    /// way, at every `av_max_alloc` limit up to one that copies it all:
+    /// C's own path leaks the entries it already copied (LeakSanitizer, at
+    /// the isolated child's exit), the wrapper frees them and leaves the
+    /// entry as it was (buffer-frame wave-3 symbol review,
+    /// `ub_safe/side-data-clone-replace-leaks-partial-metadata`).
+    #[test]
+    fn in_place_clones_free_a_partial_metadata_copy() {
+        let name = "frame::side_data_array_routines::in_place_clones_free_a_partial_metadata_copy";
+        if !crate::log::isolated(name) {
+            return;
+        }
+        let set_max = ffmpeg::libavutil::mem::set_max_alloc;
+        let afd = SideDataType::AFD;
+        let mut src = SideDataArray::new();
+        let mut e = src
+            .alloc_from_slice(afd, b"src", SideDataFlags::NONE)
+            .unwrap();
+        let pairs = [(c"a", c"1"), (c"b", c"2"), (c"c", c"3"), (c"d", c"4")];
+        e.set_metadata(Dict::from_entries(pairs).unwrap());
+        let src = src.as_ref().get(0).unwrap();
+        let mut failed = 0;
+        for limit in 0..=96 {
+            let mut dst = SideDataArray::new();
+            let mut old = dst
+                .alloc_from_slice(afd, b"old", SideDataFlags::NONE)
+                .unwrap();
+            old.set_metadata(Dict::from_entries([(c"old", c"x")]).unwrap());
+            set_max(limit);
+            let ret = dst.as_mut().add_clone(src, SideDataFlags::REPLACE);
+            set_max(i32::MAX as usize);
+            let e = dst.as_ref().get(0).unwrap();
+            assert_eq!(dst.len(), 1, "limit {limit}");
+            match ret {
+                Ok(()) => {
+                    assert_eq!(e.data(), b"src", "limit {limit}");
+                    assert_eq!(e.metadata().unwrap().len(), pairs.len(), "limit {limit}");
+                }
+                Err(_) => {
+                    failed += 1;
+                    assert_eq!(e.data(), b"old", "limit {limit}");
+                    assert_eq!(e.metadata().unwrap().len(), 1, "limit {limit}");
+                    assert_eq!(e.buffer().ref_count(), 1, "limit {limit}");
+                }
+            }
+        }
+        // Copies fail after one, two and three entries on the way.
+        assert!(failed > 3 && failed <= 96, "{failed}");
+        assert_eq!(src.buffer().ref_count(), 1);
+    }
+
     /// Rust reborrows of an array's entries interleaved with C writing the
     /// array and reading the bytes Rust wrote: C grows and shrinks the
     /// pointer block, moves entries within it, writes the entries it
