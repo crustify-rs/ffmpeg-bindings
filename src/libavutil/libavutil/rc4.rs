@@ -144,9 +144,108 @@ impl Rc4Mut<'_> {
     }
 }
 
+fn crypt_count(input_len: usize, output_len: usize) -> Result<i32, i32> {
+    if output_len < input_len {
+        return Err(-22);
+    }
+    i32::try_from(input_len).map_err(|_| -22)
+}
+
+impl Rc4Mut<'_> {
+    /// Wraps: av_rc4_crypt
+    ///
+    /// Encrypt or decrypt bytes into a separate buffer. Only `src.len()` output
+    /// bytes change. Returns EINVAL for a short output or a length above C INT_MAX,
+    /// without changing the stream or output. C's unused IV/direction are omitted.
+    ///
+    /// Use the in-place method when input and output are the same buffer:
+    /// ```compile_fail,E0502
+    /// use ffmpeg::libavutil::rc4::Rc4;
+    /// let mut cipher = Rc4::from_key(b"key").unwrap();
+    /// let mut bytes = [0; 16];
+    /// cipher.as_mut().crypt(&mut bytes, &bytes).unwrap();
+    /// ```
+    pub fn crypt(&mut self, dst: &mut [u8], src: &[u8]) -> Result<(), i32> {
+        let count = crypt_count(src.len(), dst.len())?;
+        // SAFETY: exclusive live context, count readable/writable bytes in
+        // nonoverlapping slices; C retains no pointer and ignores IV/direction.
+        unsafe {
+            ffi::av_rc4_crypt(
+                self.as_mut_ptr(),
+                dst.as_mut_ptr(),
+                src.as_ptr(),
+                count,
+                core::ptr::null_mut(),
+                0,
+            )
+        };
+        Ok(())
+    }
+
+    /// Encrypt or decrypt in place; the same length limit as `crypt` applies.
+    pub fn crypt_in_place(&mut self, data: &mut [u8]) -> Result<(), i32> {
+        let count = crypt_count(data.len(), data.len())?;
+        // SAFETY: exclusive context and writable data; C explicitly supports
+        // identical source/destination, reads each byte before writing it, and
+        // retains no pointers. count fits C int and covers exactly the slice.
+        unsafe {
+            ffi::av_rc4_crypt(
+                self.as_mut_ptr(),
+                data.as_mut_ptr(),
+                data.as_ptr(),
+                count,
+                core::ptr::null_mut(),
+                0,
+            )
+        };
+        Ok(())
+    }
+
+    /// Write stream bytes without input (C's nullable source contract).
+    /// Returns EINVAL without changing state for lengths above C INT_MAX.
+    pub fn keystream(&mut self, dst: &mut [u8]) -> Result<(), i32> {
+        let count = crypt_count(dst.len(), dst.len())?;
+        // SAFETY: exclusive context and count writable bytes; a null source
+        // requests keystream generation. C retains no pointer, IV is unused.
+        unsafe {
+            ffi::av_rc4_crypt(
+                self.as_mut_ptr(),
+                dst.as_mut_ptr(),
+                core::ptr::null(),
+                count,
+                core::ptr::null_mut(),
+                0,
+            )
+        };
+        Ok(())
+    }
+}
+
 #[cfg(test)]
 mod unit_tests {
     use super::*;
+
+    #[test]
+    fn crypt_length_boundaries() {
+        assert_eq!(crypt_count(0, 0), Ok(0));
+        assert_eq!(crypt_count(1, 0), Err(-22));
+        assert_eq!(crypt_count(i32::MAX as usize, usize::MAX), Ok(i32::MAX));
+        assert_eq!(crypt_count(i32::MAX as usize + 1, usize::MAX), Err(-22));
+    }
+
+    #[test]
+    fn short_output_leaves_stream_unchanged() {
+        let mut context = Rc4::from_key(b"key").unwrap();
+        let mut reference = context;
+        let mut short = [0x7b; 2];
+        assert_eq!(context.as_mut().crypt(&mut short, b"abc"), Err(-22));
+        assert_eq!(short, [0x7b; 2]);
+        let mut actual = [0; 32];
+        let mut expected = actual;
+        context.as_mut().keystream(&mut actual).unwrap();
+        reference.as_mut().keystream(&mut expected).unwrap();
+        assert_eq!(actual, expected);
+    }
 
     #[test]
     fn key_length_boundaries() {

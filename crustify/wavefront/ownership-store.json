@@ -8070,14 +8070,14 @@
    "name": "av_murmur3_init",
    "defined_in": "libavutil/murmur3.c",
    "lifetime": {
-    "for": "c",
     "is_dropper": false,
     "is_disposer": false,
     "is_cloner": null,
     "is_constructor": {
      "alloc": false,
      "init": true
-    }
+    },
+    "for": "c"
    },
    "ptr_args": [
     {
@@ -8090,11 +8090,11 @@
       "string": false,
       "owned": false,
       "borrowed": {
-       "lifetime": "call"
+       "lifetime": "arg:c"
       },
       "nullable": false,
       "mutable": true,
-      "note": "Borrowed non-null full C context for this call; exclusively mutated, no transfer or retention. Init accepts allocated storage; update/final require initialized hashing state."
+      "note": "Exclusive full-size storage, initialized in place with no reads of the previous state; no pointer retained."
      }
     }
    ]
@@ -8103,14 +8103,14 @@
    "name": "av_murmur3_init_seeded",
    "defined_in": "libavutil/murmur3.c",
    "lifetime": {
-    "for": "c",
     "is_dropper": false,
     "is_disposer": false,
     "is_cloner": null,
     "is_constructor": {
      "alloc": false,
      "init": true
-    }
+    },
+    "for": "c"
    },
    "ptr_args": [
     {
@@ -8123,11 +8123,11 @@
       "string": false,
       "owned": false,
       "borrowed": {
-       "lifetime": "call"
+       "lifetime": "arg:c"
       },
       "nullable": false,
       "mutable": true,
-      "note": "Borrowed non-null full C context for this call; exclusively mutated, no transfer or retention. Init accepts allocated storage; update/final require initialized hashing state."
+      "note": "Exclusive full-size storage, initialized in place with no reads of the previous state; no pointer retained."
      }
     }
    ]
@@ -8146,11 +8146,11 @@
       "string": false,
       "owned": false,
       "borrowed": {
-       "lifetime": "call"
+       "lifetime": "arg:c"
       },
       "nullable": false,
       "mutable": true,
-      "note": "Borrowed non-null full C context for this call; exclusively mutated, no transfer or retention. Init accepts allocated storage; update/final require initialized hashing state."
+      "note": "Exclusively borrowed full initialized context; no suballocations or retained input pointers."
      }
     },
     {
@@ -8163,11 +8163,11 @@
       "string": false,
       "owned": false,
       "borrowed": {
-       "lifetime": "call"
+       "lifetime": "arg:src"
       },
       "nullable": false,
       "mutable": false,
-      "note": "Borrowed input array of len bytes; read/copied only during the call and never retained. Wrapper uses non-null slices, including length zero."
+      "note": "Call-scoped readable len-byte input, never stored. Empty slices use nonnull pointers."
      }
     }
    ]
@@ -11622,26 +11622,16 @@
      "borrowed": null,
      "nullable": true,
      "mutable": true,
-     "note": "Fresh unique av_mallocz storage of the actual C struct size. Caller owns and must av_free it; no subsidiary ownership. RC4 all-zero is memory-safe; RIPEMD requires successful supported initialization before hashing."
+     "note": "Fresh full-size zero-filled av_malloc-family C allocation; sole ownership transfers to caller, av_free is paired release. Opaque hash/cipher allocators need init before operations."
     }
    }
   },
   {
-   "name": "av_rc4_init",
+   "name": "av_rc4_crypt",
    "defined_in": "libavutil/rc4.c",
-   "lifetime": {
-    "for": "r",
-    "is_dropper": false,
-    "is_disposer": false,
-    "is_cloner": null,
-    "is_constructor": {
-     "alloc": false,
-     "init": true
-    }
-   },
    "ptr_args": [
     {
-     "name": "key",
+     "name": "dst",
      "ptr": {
       "scalar": null,
       "array": {
@@ -11650,11 +11640,28 @@
       "string": false,
       "owned": false,
       "borrowed": {
-       "lifetime": "arg:key"
+       "lifetime": "arg:dst"
+      },
+      "nullable": false,
+      "mutable": true,
+      "note": "Call-scoped bytes; C retains no pointer. Exact length is determined by the count or supported digest/key size."
+     }
+    },
+    {
+     "name": "iv",
+     "ptr": {
+      "scalar": null,
+      "array": {
+       "by_val": true
+      },
+      "string": false,
+      "owned": false,
+      "borrowed": {
+       "lifetime": "arg:iv"
       },
       "nullable": true,
       "mutable": false,
-      "note": "Transient key buffer, never retained. NULL is accepted only on the invalid-bit-alignment path, which returns before reading key. Successful initialization requires positive byte-aligned bits and a nonempty readable key. Reads cyclically up to the first 256 bytes for longer keys. Empty/zero-bit keys reach out-of-bounds reads and are rejected by Rust; decrypt is ignored."
+      "note": "Entirely ignored, including null, by the current implementation."
      }
     },
     {
@@ -11671,7 +11678,74 @@
       },
       "nullable": false,
       "mutable": true,
-      "note": "Exclusive full AVRC4 storage, overwritten in-place; no ownership transfer or retained pointers. Invalid bit alignment returns before mutation."
+      "note": "Exclusively borrowed full initialized context; no suballocations or retained input pointers."
+     }
+    },
+    {
+     "name": "src",
+     "ptr": {
+      "scalar": null,
+      "array": {
+       "by_val": true
+      },
+      "string": false,
+      "owned": false,
+      "borrowed": {
+       "lifetime": "arg:src"
+      },
+      "nullable": true,
+      "mutable": false,
+      "note": "Call-scoped input bytes or NULL to generate keystream; exact overlap with dst supported."
+     }
+    }
+   ]
+  },
+  {
+   "name": "av_rc4_init",
+   "defined_in": "libavutil/rc4.c",
+   "lifetime": {
+    "is_dropper": false,
+    "is_disposer": false,
+    "is_cloner": null,
+    "is_constructor": {
+     "alloc": false,
+     "init": true
+    },
+    "for": "r"
+   },
+   "ptr_args": [
+    {
+     "name": "key",
+     "ptr": {
+      "scalar": null,
+      "array": {
+       "by_val": true
+      },
+      "string": false,
+      "owned": false,
+      "borrowed": {
+       "lifetime": "arg:key"
+      },
+      "nullable": false,
+      "mutable": false,
+      "note": "Nonempty byte key; C requires a multiple-of-eight key bit count and reads at most first 256 key bytes. Empty/negative C lengths are unsafe and excluded."
+     }
+    },
+    {
+     "name": "r",
+     "ptr": {
+      "scalar": {
+       "by_val": true
+      },
+      "array": null,
+      "string": false,
+      "owned": false,
+      "borrowed": {
+       "lifetime": "arg:r"
+      },
+      "nullable": false,
+      "mutable": true,
+      "note": "Exclusive full-size storage, initialized in place with no reads of the previous state; no pointer retained."
      }
     }
    ]
@@ -12028,22 +12102,62 @@
      "borrowed": null,
      "nullable": true,
      "mutable": true,
-     "note": "Fresh unique av_mallocz storage of the actual C struct size. Caller owns and must av_free it; no subsidiary ownership. RC4 all-zero is memory-safe; RIPEMD requires successful supported initialization before hashing."
+     "note": "Fresh full-size zero-filled av_malloc-family C allocation; sole ownership transfers to caller, av_free is paired release. Opaque hash/cipher allocators need init before operations."
     }
    }
+  },
+  {
+   "name": "av_ripemd_final",
+   "defined_in": "libavutil/ripemd.c",
+   "ptr_args": [
+    {
+     "name": "ctx",
+     "ptr": {
+      "scalar": {
+       "by_val": true
+      },
+      "array": null,
+      "string": false,
+      "owned": false,
+      "borrowed": {
+       "lifetime": "arg:ctx"
+      },
+      "nullable": false,
+      "mutable": true,
+      "note": "Exclusively borrowed full initialized context; no suballocations or retained input pointers."
+     }
+    },
+    {
+     "name": "digest",
+     "ptr": {
+      "scalar": null,
+      "array": {
+       "by_val": true
+      },
+      "string": false,
+      "owned": false,
+      "borrowed": {
+       "lifetime": "arg:digest"
+      },
+      "nullable": false,
+      "mutable": true,
+      "note": "Call-scoped writable output: maximum digest is 40 bytes (RIPEMD), 32 (SHA), 64 (SHA512). Only active digest prefix is written."
+     }
+    }
+   ]
   },
   {
    "name": "av_ripemd_init",
    "defined_in": "libavutil/ripemd.c",
    "lifetime": {
-    "for": "ctx",
     "is_dropper": false,
     "is_disposer": false,
     "is_cloner": null,
     "is_constructor": {
      "alloc": false,
      "init": true
-    }
+    },
+    "for": "ctx"
    },
    "ptr_args": [
     {
@@ -12060,7 +12174,7 @@
       },
       "nullable": false,
       "mutable": true,
-      "note": "Exclusive full C context storage; supported bits reset count, active state and static transform. No retention or transfer. Unsupported bits write digest_len then EINVAL, hence safe API uses exhaustive DigestBits."
+      "note": "Exclusive full-size storage, initialized in place with no reads of the previous state; no pointer retained."
      }
     }
    ]
@@ -12069,6 +12183,46 @@
    "name": "av_ripemd_size",
    "defined_in": "libavutil/ripemd.c",
    "locked_by": null
+  },
+  {
+   "name": "av_ripemd_update",
+   "defined_in": "libavutil/ripemd.c",
+   "ptr_args": [
+    {
+     "name": "ctx",
+     "ptr": {
+      "scalar": {
+       "by_val": true
+      },
+      "array": null,
+      "string": false,
+      "owned": false,
+      "borrowed": {
+       "lifetime": "arg:ctx"
+      },
+      "nullable": false,
+      "mutable": true,
+      "note": "Exclusively borrowed full initialized context; no suballocations or retained input pointers."
+     }
+    },
+    {
+     "name": "data",
+     "ptr": {
+      "scalar": null,
+      "array": {
+       "by_val": true
+      },
+      "string": false,
+      "owned": false,
+      "borrowed": {
+       "lifetime": "arg:data"
+      },
+      "nullable": false,
+      "mutable": false,
+      "note": "Call-scoped readable len-byte input, never stored. Empty slices use nonnull pointers."
+     }
+    }
+   ]
   },
   {
    "name": "av_sample_fmt_is_planar",
@@ -12459,22 +12613,62 @@
      "borrowed": null,
      "nullable": true,
      "mutable": true,
-     "note": "Fresh unique av_mallocz allocation of the full private struct, NULL on OOM. Zero-fill alone is not an initialized hash context; init must succeed before hashing. Single object released through av_free; no owned fields."
+     "note": "Fresh full-size zero-filled av_malloc-family C allocation; sole ownership transfers to caller, av_free is paired release. Opaque hash/cipher allocators need init before operations."
     }
    }
+  },
+  {
+   "name": "av_sha512_final",
+   "defined_in": "libavutil/sha512.c",
+   "ptr_args": [
+    {
+     "name": "ctx",
+     "ptr": {
+      "scalar": {
+       "by_val": true
+      },
+      "array": null,
+      "string": false,
+      "owned": false,
+      "borrowed": {
+       "lifetime": "arg:ctx"
+      },
+      "nullable": false,
+      "mutable": true,
+      "note": "Exclusively borrowed full initialized context; no suballocations or retained input pointers."
+     }
+    },
+    {
+     "name": "digest",
+     "ptr": {
+      "scalar": null,
+      "array": {
+       "by_val": true
+      },
+      "string": false,
+      "owned": false,
+      "borrowed": {
+       "lifetime": "arg:digest"
+      },
+      "nullable": false,
+      "mutable": true,
+      "note": "Call-scoped writable output: maximum digest is 40 bytes (RIPEMD), 32 (SHA), 64 (SHA512). Only active digest prefix is written."
+     }
+    }
+   ]
   },
   {
    "name": "av_sha512_init",
    "defined_in": "libavutil/sha512.c",
    "lifetime": {
-    "for": "ctx",
     "is_dropper": false,
     "is_disposer": false,
     "is_cloner": null,
     "is_constructor": {
      "alloc": false,
      "init": true
-    }
+    },
+    "for": "ctx"
    },
    "ptr_args": [
     {
@@ -12487,11 +12681,11 @@
       "string": false,
       "owned": false,
       "borrowed": {
-       "lifetime": "call"
+       "lifetime": "arg:ctx"
       },
       "nullable": false,
       "mutable": true,
-      "note": "Exclusive borrowed full-sized context/storage; never retained or released. Resets count, state and digest_len for supported bits; AVSHA also sets static transform. Invalid bits return EINVAL after partially changing digest_len, so the Rust enum excludes them."
+      "note": "Exclusive full-size storage, initialized in place with no reads of the previous state; no pointer retained."
      }
     }
    ]
@@ -12500,6 +12694,46 @@
    "name": "av_sha512_size",
    "defined_in": "libavutil/sha512.c",
    "locked_by": null
+  },
+  {
+   "name": "av_sha512_update",
+   "defined_in": "libavutil/sha512.c",
+   "ptr_args": [
+    {
+     "name": "ctx",
+     "ptr": {
+      "scalar": {
+       "by_val": true
+      },
+      "array": null,
+      "string": false,
+      "owned": false,
+      "borrowed": {
+       "lifetime": "arg:ctx"
+      },
+      "nullable": false,
+      "mutable": true,
+      "note": "Exclusively borrowed full initialized context; no suballocations or retained input pointers."
+     }
+    },
+    {
+     "name": "data",
+     "ptr": {
+      "scalar": null,
+      "array": {
+       "by_val": true
+      },
+      "string": false,
+      "owned": false,
+      "borrowed": {
+       "lifetime": "arg:data"
+      },
+      "nullable": false,
+      "mutable": false,
+      "note": "Call-scoped readable len-byte input, never stored. Empty slices use nonnull pointers."
+     }
+    }
+   ]
   },
   {
    "name": "av_sha_alloc",
@@ -12525,22 +12759,62 @@
      "borrowed": null,
      "nullable": true,
      "mutable": true,
-     "note": "Fresh unique av_mallocz allocation of the full private struct, NULL on OOM. Zero-fill alone is not an initialized hash context; init must succeed before hashing. Single object released through av_free; no owned fields."
+     "note": "Fresh full-size zero-filled av_malloc-family C allocation; sole ownership transfers to caller, av_free is paired release. Opaque hash/cipher allocators need init before operations."
     }
    }
+  },
+  {
+   "name": "av_sha_final",
+   "defined_in": "libavutil/sha.c",
+   "ptr_args": [
+    {
+     "name": "ctx",
+     "ptr": {
+      "scalar": {
+       "by_val": true
+      },
+      "array": null,
+      "string": false,
+      "owned": false,
+      "borrowed": {
+       "lifetime": "arg:ctx"
+      },
+      "nullable": false,
+      "mutable": true,
+      "note": "Exclusively borrowed full initialized context; no suballocations or retained input pointers."
+     }
+    },
+    {
+     "name": "digest",
+     "ptr": {
+      "scalar": null,
+      "array": {
+       "by_val": true
+      },
+      "string": false,
+      "owned": false,
+      "borrowed": {
+       "lifetime": "arg:digest"
+      },
+      "nullable": false,
+      "mutable": true,
+      "note": "Call-scoped writable output: maximum digest is 40 bytes (RIPEMD), 32 (SHA), 64 (SHA512). Only active digest prefix is written."
+     }
+    }
+   ]
   },
   {
    "name": "av_sha_init",
    "defined_in": "libavutil/sha.c",
    "lifetime": {
-    "for": "ctx",
     "is_dropper": false,
     "is_disposer": false,
     "is_cloner": null,
     "is_constructor": {
      "alloc": false,
      "init": true
-    }
+    },
+    "for": "ctx"
    },
    "ptr_args": [
     {
@@ -12553,11 +12827,11 @@
       "string": false,
       "owned": false,
       "borrowed": {
-       "lifetime": "call"
+       "lifetime": "arg:ctx"
       },
       "nullable": false,
       "mutable": true,
-      "note": "Exclusive borrowed full-sized context/storage; never retained or released. Resets count, state and digest_len for supported bits; AVSHA also sets static transform. Invalid bits return EINVAL after partially changing digest_len, so the Rust enum excludes them."
+      "note": "Exclusive full-size storage, initialized in place with no reads of the previous state; no pointer retained."
      }
     }
    ]
@@ -12566,6 +12840,46 @@
    "name": "av_sha_size",
    "defined_in": "libavutil/sha.c",
    "locked_by": null
+  },
+  {
+   "name": "av_sha_update",
+   "defined_in": "libavutil/sha.c",
+   "ptr_args": [
+    {
+     "name": "ctx",
+     "ptr": {
+      "scalar": {
+       "by_val": true
+      },
+      "array": null,
+      "string": false,
+      "owned": false,
+      "borrowed": {
+       "lifetime": "arg:ctx"
+      },
+      "nullable": false,
+      "mutable": true,
+      "note": "Exclusively borrowed full initialized context; no suballocations or retained input pointers."
+     }
+    },
+    {
+     "name": "data",
+     "ptr": {
+      "scalar": null,
+      "array": {
+       "by_val": true
+      },
+      "string": false,
+      "owned": false,
+      "borrowed": {
+       "lifetime": "arg:data"
+      },
+      "nullable": false,
+      "mutable": false,
+      "note": "Call-scoped readable len-byte input, never stored. Empty slices use nonnull pointers."
+     }
+    }
+   ]
   },
   {
    "name": "av_size_mult",
@@ -13453,22 +13767,96 @@
      "borrowed": null,
      "nullable": true,
      "mutable": true,
-     "note": "Fresh zeroed av_mallocz allocation; sole ownership transfers to caller, av_free releases it; init is still required before cipher use."
+     "note": "Fresh full-size zero-filled av_malloc-family C allocation; sole ownership transfers to caller, av_free is paired release. Opaque hash/cipher allocators need init before operations."
     }
    }
+  },
+  {
+   "name": "av_tea_crypt",
+   "defined_in": "libavutil/tea.c",
+   "ptr_args": [
+    {
+     "name": "ctx",
+     "ptr": {
+      "scalar": {
+       "by_val": true
+      },
+      "array": null,
+      "string": false,
+      "owned": false,
+      "borrowed": {
+       "lifetime": "arg:ctx"
+      },
+      "nullable": false,
+      "mutable": false,
+      "note": "Shared full initialized key schedule, read-only throughout C crypt and its helpers despite the mutable C signature; no pointer retained."
+     }
+    },
+    {
+     "name": "dst",
+     "ptr": {
+      "scalar": null,
+      "array": {
+       "by_val": true
+      },
+      "string": false,
+      "owned": false,
+      "borrowed": {
+       "lifetime": "arg:dst"
+      },
+      "nullable": false,
+      "mutable": true,
+      "note": "Call-scoped bytes; C retains no pointer. Exact length is determined by the count or supported digest/key size."
+     }
+    },
+    {
+     "name": "iv",
+     "ptr": {
+      "scalar": null,
+      "array": {
+       "by_val": true
+      },
+      "string": false,
+      "owned": false,
+      "borrowed": {
+       "lifetime": "arg:iv"
+      },
+      "nullable": true,
+      "mutable": true,
+      "note": "Optional call-scoped one-block CBC IV, read and replaced per block; disjoint from input/output."
+     }
+    },
+    {
+     "name": "src",
+     "ptr": {
+      "scalar": null,
+      "array": {
+       "by_val": true
+      },
+      "string": false,
+      "owned": false,
+      "borrowed": {
+       "lifetime": "arg:src"
+      },
+      "nullable": false,
+      "mutable": false,
+      "note": "Call-scoped bytes; C retains no pointer. Exact length is determined by the count or supported digest/key size."
+     }
+    }
+   ]
   },
   {
    "name": "av_tea_init",
    "defined_in": "libavutil/tea.c",
    "lifetime": {
-    "for": "ctx",
     "is_dropper": false,
     "is_disposer": false,
     "is_cloner": null,
     "is_constructor": {
      "alloc": false,
      "init": true
-    }
+    },
+    "for": "ctx"
    },
    "ptr_args": [
     {
@@ -13481,11 +13869,11 @@
       "string": false,
       "owned": false,
       "borrowed": {
-       "lifetime": "call"
+       "lifetime": "arg:ctx"
       },
       "nullable": false,
       "mutable": true,
-      "note": "Exclusive borrowed context/storage, initialized in place. No pointer is retained, transferred, cloned or freed. Key argument is a 16-byte array omitted from the oracle pointer slots; C reads all 16 bytes during the call and stores four copied u32 words. Rounds stored unchanged."
+      "note": "Exclusive full-size storage, initialized in place with no reads of the previous state; no pointer retained."
      }
     }
    ]
@@ -13684,22 +14072,96 @@
      "borrowed": null,
      "nullable": true,
      "mutable": true,
-     "note": "Fresh zeroed av_mallocz allocation; sole ownership transfers to caller, av_free releases it; init is still required before cipher use."
+     "note": "Fresh full-size zero-filled av_malloc-family C allocation; sole ownership transfers to caller, av_free is paired release. Opaque hash/cipher allocators need init before operations."
     }
    }
+  },
+  {
+   "name": "av_twofish_crypt",
+   "defined_in": "libavutil/twofish.c",
+   "ptr_args": [
+    {
+     "name": "cs",
+     "ptr": {
+      "scalar": {
+       "by_val": true
+      },
+      "array": null,
+      "string": false,
+      "owned": false,
+      "borrowed": {
+       "lifetime": "arg:cs"
+      },
+      "nullable": false,
+      "mutable": false,
+      "note": "Shared full initialized key schedule, read-only throughout C crypt and its helpers despite the mutable C signature; no pointer retained."
+     }
+    },
+    {
+     "name": "dst",
+     "ptr": {
+      "scalar": null,
+      "array": {
+       "by_val": true
+      },
+      "string": false,
+      "owned": false,
+      "borrowed": {
+       "lifetime": "arg:dst"
+      },
+      "nullable": false,
+      "mutable": true,
+      "note": "Call-scoped bytes; C retains no pointer. Exact length is determined by the count or supported digest/key size."
+     }
+    },
+    {
+     "name": "iv",
+     "ptr": {
+      "scalar": null,
+      "array": {
+       "by_val": true
+      },
+      "string": false,
+      "owned": false,
+      "borrowed": {
+       "lifetime": "arg:iv"
+      },
+      "nullable": true,
+      "mutable": true,
+      "note": "Optional call-scoped one-block CBC IV, read and replaced per block; disjoint from input/output."
+     }
+    },
+    {
+     "name": "src",
+     "ptr": {
+      "scalar": null,
+      "array": {
+       "by_val": true
+      },
+      "string": false,
+      "owned": false,
+      "borrowed": {
+       "lifetime": "arg:src"
+      },
+      "nullable": false,
+      "mutable": false,
+      "note": "Call-scoped bytes; C retains no pointer. Exact length is determined by the count or supported digest/key size."
+     }
+    }
+   ]
   },
   {
    "name": "av_twofish_init",
    "defined_in": "libavutil/twofish.c",
    "lifetime": {
-    "for": "cs",
     "is_dropper": false,
     "is_disposer": false,
     "is_cloner": null,
     "is_constructor": {
      "alloc": false,
      "init": true
-    }
+    },
+    "for": "cs"
    },
    "ptr_args": [
     {
@@ -13712,11 +14174,11 @@
       "string": false,
       "owned": false,
       "borrowed": {
-       "lifetime": "call"
+       "lifetime": "arg:cs"
       },
       "nullable": false,
       "mutable": true,
-      "note": "Exclusive borrowed context/storage, initialized in place. No pointer is retained, transferred, cloned or freed."
+      "note": "Exclusive full-size storage, initialized in place with no reads of the previous state; no pointer retained."
      }
     },
     {
@@ -13729,11 +14191,11 @@
       "string": false,
       "owned": false,
       "borrowed": {
-       "lifetime": "call"
+       "lifetime": "arg:key"
       },
       "nullable": false,
       "mutable": false,
-      "note": "Nonnegative bits read exactly min(key_bits,256)>>3 bytes (partial byte ignored); zero reads use a nonnull pointer. Negative bits return EINVAL before reading. Key copied locally then into inline schedule, not retained."
+      "note": "Readable floor(min(key_bits,256)/8) bytes for nonnegative bits, including zero. C copies to local keypad; negative bits fail before any writes."
      }
     }
    ]
@@ -14184,7 +14646,7 @@
      "borrowed": null,
      "nullable": true,
      "mutable": true,
-     "note": "Fresh zero-filled AVXTEA from av_mallocz; sole ownership transferred to caller, freed with av_free. No fields own resources."
+     "note": "Fresh full-size zero-filled av_malloc-family C allocation; sole ownership transfers to caller, av_free is paired release. Opaque hash/cipher allocators need init before operations."
     }
    }
   },

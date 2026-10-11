@@ -86,3 +86,67 @@ fn constructors_and_exclusive_reinitialization() {
         })
     );
 }
+
+#[test]
+pub(super) fn batch2_foreign_writes_across_reborrows() {
+    let mut owner = Twofish::new(&[7; 16], 128).unwrap().0;
+    for cbc in [false, true] {
+        for length in [0, 16, 32, 2064] {
+            let mut data = vec![0x79; length + 1];
+            let original = data.clone();
+            let mut iv = [7; 16];
+            let initial_iv = iv;
+            // Unaligned byte buffers are legal; C uses unaligned byte-order loads.
+            let mut parent = owner.as_mut();
+            parent
+                .as_mut()
+                .as_ref()
+                .crypt_in_place(
+                    &mut data[1..],
+                    if cbc { Some(&mut iv) } else { None },
+                    false,
+                )
+                .unwrap();
+            iv = initial_iv;
+            parent
+                .as_mut()
+                .as_ref()
+                .crypt_in_place(&mut data[1..], if cbc { Some(&mut iv) } else { None }, true)
+                .unwrap();
+            assert_eq!(data, original);
+            let mut output = vec![0; length + 1];
+            parent
+                .as_mut()
+                .as_ref()
+                .crypt(
+                    &mut output[1..],
+                    &data[1..],
+                    if cbc { Some(&mut iv) } else { None },
+                    false,
+                )
+                .unwrap();
+            data.fill(0); // C must not retain the input
+            parent
+                .as_mut()
+                .as_ref()
+                .crypt_in_place(
+                    &mut output[1..],
+                    if cbc { Some(&mut iv) } else { None },
+                    true,
+                )
+                .unwrap();
+        }
+    }
+}
+
+#[test]
+fn batch2_copied_shared_key_schedule() {
+    let owner = Twofish::new(&[9; 16], 128).unwrap().0;
+    let shared = owner.as_ref();
+    let copied = shared;
+    let mut first = [0; 48];
+    let mut second = first;
+    shared.crypt(&mut first, &[1; 48], None, false).unwrap();
+    copied.crypt(&mut second, &[1; 48], None, false).unwrap();
+    assert_eq!(first, second);
+}

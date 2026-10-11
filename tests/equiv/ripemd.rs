@@ -49,7 +49,12 @@ fn construction_reset_and_each_hash_checkpoint_match_c() {
             // SAFETY: raw owns a full context exclusively; bits is supported.
             let status = unsafe { ffi::av_ripemd_init(raw.as_c_ptr(), bits.bits()) };
             assert_eq!(status, 0);
-            assert_eq!(digest(&wrapped, bits), digest(&raw, bits));
+            assert_eq!(
+                &wrapped.as_mut().finalize()[..bits.digest_len()],
+                digest(&raw, bits)
+            );
+            wrapped.as_mut().init(bits).unwrap();
+            let mut accumulated = Vec::new();
             for len in [0, 1, 54, 1, 7, 1, 64, 129, 1000] {
                 let input: Vec<_> = (0..len).map(|i| (i * 17) as u8).collect();
                 // A live byte is used even when len is zero: C invokes memcpy.
@@ -63,10 +68,18 @@ fn construction_reset_and_each_hash_checkpoint_match_c() {
                 // owned C allocations; data is readable for len bytes (and
                 // non-null even for zero); C retains no data pointer.
                 unsafe {
-                    ffi::av_ripemd_update(wrapped.as_c_ptr(), ptr, len);
                     ffi::av_ripemd_update(raw.as_c_ptr(), ptr, len);
                 }
-                assert_eq!(digest(&wrapped, bits), digest(&raw, bits));
+                wrapped.as_mut().update(&input);
+                accumulated.extend_from_slice(&input);
+                assert_eq!(
+                    &wrapped.as_mut().finalize()[..bits.digest_len()],
+                    digest(&raw, bits)
+                );
+                // Finalization mutates the hash; rebuild its prefix through only
+                // the safe API before extending it at the next checkpoint.
+                wrapped.as_mut().init(bits).unwrap();
+                wrapped.as_mut().update(&accumulated);
             }
         }
     }

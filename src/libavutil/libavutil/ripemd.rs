@@ -129,6 +129,42 @@ pub fn context_size() -> &'static i32 {
     unsafe { &ffi::av_ripemd_size }
 }
 
+impl RipemdMut<'_> {
+    /// Wraps: av_ripemd_update
+    ///
+    /// Append input bytes. C copies them and retains no input pointer.
+    pub fn update(&mut self, data: &[u8]) {
+        // SAFETY: the handle exclusively borrows an initialized full C context;
+        // nonempty data provides len readable bytes; empty input uses a real static
+        // byte for C's zero-length memcpy. C retains no pointer.
+        unsafe {
+            ffi::av_ripemd_update(
+                self.as_mut_ptr(),
+                if data.is_empty() {
+                    c"".as_ptr().cast()
+                } else {
+                    data.as_ptr()
+                },
+                data.len(),
+            )
+        }
+    }
+
+    /// Wraps: av_ripemd_final
+    ///
+    /// Finish the current message. The digest occupies the prefix of the returned
+    /// array; bytes beyond the selected algorithm's digest length are zero.
+    /// The maximum-size output remains safe even after changing the algorithm.
+    /// Reinitialize the context before starting another message.
+    pub fn finalize(&mut self) -> [u8; 40] {
+        let mut digest = [0; 40];
+        // SAFETY: exclusive initialized context; the output covers the largest
+        // supported digest. C writes only the active digest and retains no pointer.
+        unsafe { ffi::av_ripemd_final(self.as_mut_ptr(), digest.as_mut_ptr()) };
+        digest
+    }
+}
+
 #[cfg(test)]
 mod unit_tests {
     use super::*;

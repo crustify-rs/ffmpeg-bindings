@@ -67,3 +67,26 @@ fn batch10_immutable_size_across_threads() {
         worker.join().unwrap();
     }
 }
+
+#[test]
+pub(super) fn batch2_foreign_writes_across_reborrows() {
+    let data: Vec<u8> = (0..1025).map(|i| i as u8).collect();
+    for algorithm in ALGORITHMS {
+        let mut owner = Sha512::new(algorithm).unwrap();
+        for length in [0, 1, 55, 56, 63, 64, 65, 111, 112, 127, 128, 129, 1025] {
+            let mut parent = owner.as_mut();
+            parent.init(algorithm);
+            for chunk in data[..length].chunks(7) {
+                let mut input = chunk.to_vec();
+                parent.as_mut().update(&input);
+                input.fill(0); // input is not retained across the next reborrow
+            }
+            parent.as_mut().update(&[]);
+            let digest = parent.as_mut().finalize();
+            assert!(digest[algorithm.digest_len()..].iter().all(|&b| b == 0));
+            // Repeated final/update remains memory-safe, though not a new message.
+            parent.as_mut().finalize();
+            parent.as_mut().update(b"after final");
+        }
+    }
+}
