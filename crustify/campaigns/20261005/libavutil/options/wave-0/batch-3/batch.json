@@ -1,0 +1,173 @@
+{
+  "objective": "wrap",
+  "items": [
+    {
+      "name": "av_expr_parse_and_eval",
+      "defined_in": "libavutil/eval.c",
+      "kind": "symbol",
+      "field_anchors": [],
+      "home": "crustify/rust/ffmpeg/libavutil/eval.rs"
+    },
+    {
+      "name": "av_find_info_tag",
+      "defined_in": "libavutil/parseutils.c",
+      "kind": "symbol",
+      "field_anchors": [],
+      "home": "crustify/rust/ffmpeg/libavutil/parseutils.rs"
+    },
+    {
+      "name": "av_get_known_color_name",
+      "defined_in": "libavutil/parseutils.c",
+      "kind": "symbol",
+      "field_anchors": [],
+      "home": "crustify/rust/ffmpeg/libavutil/parseutils.rs"
+    },
+    {
+      "name": "av_opt_child_next",
+      "defined_in": "libavutil/opt.c",
+      "kind": "symbol",
+      "field_anchors": [],
+      "home": "crustify/rust/ffmpeg/libavutil/opt.rs"
+    },
+    {
+      "name": "av_opt_copy",
+      "defined_in": "libavutil/opt.c",
+      "kind": "symbol",
+      "field_anchors": [],
+      "home": "crustify/rust/ffmpeg/libavutil/opt.rs"
+    },
+    {
+      "name": "av_opt_flag_is_set",
+      "defined_in": "libavutil/opt.c",
+      "kind": "symbol",
+      "field_anchors": [],
+      "home": "crustify/rust/ffmpeg/libavutil/opt.rs"
+    },
+    {
+      "name": "av_opt_free",
+      "defined_in": "libavutil/opt.c",
+      "kind": "symbol",
+      "field_anchors": [],
+      "home": "crustify/rust/ffmpeg/libavutil/opt.rs"
+    },
+    {
+      "name": "av_opt_get",
+      "defined_in": "libavutil/opt.c",
+      "kind": "symbol",
+      "field_anchors": [],
+      "home": "crustify/rust/ffmpeg/libavutil/opt.rs"
+    },
+    {
+      "name": "av_opt_get_array_size",
+      "defined_in": "libavutil/opt.c",
+      "kind": "symbol",
+      "field_anchors": [],
+      "home": "crustify/rust/ffmpeg/libavutil/opt.rs"
+    },
+    {
+      "name": "av_opt_get_double",
+      "defined_in": "libavutil/opt.c",
+      "kind": "symbol",
+      "field_anchors": [],
+      "home": "crustify/rust/ffmpeg/libavutil/opt.rs"
+    },
+    {
+      "name": "av_opt_get_image_size",
+      "defined_in": "libavutil/opt.c",
+      "kind": "symbol",
+      "field_anchors": [],
+      "home": "crustify/rust/ffmpeg/libavutil/opt.rs"
+    },
+    {
+      "name": "av_opt_get_int",
+      "defined_in": "libavutil/opt.c",
+      "kind": "symbol",
+      "field_anchors": [],
+      "home": "crustify/rust/ffmpeg/libavutil/opt.rs"
+    },
+    {
+      "name": "av_opt_get_key_value",
+      "defined_in": "libavutil/opt.c",
+      "kind": "symbol",
+      "field_anchors": [],
+      "home": "crustify/rust/ffmpeg/libavutil/opt.rs"
+    },
+    {
+      "name": "av_opt_is_set_to_default_by_name",
+      "defined_in": "libavutil/opt.c",
+      "kind": "symbol",
+      "field_anchors": [],
+      "home": "crustify/rust/ffmpeg/libavutil/opt.rs"
+    },
+    {
+      "name": "av_opt_serialize",
+      "defined_in": "libavutil/opt.c",
+      "kind": "symbol",
+      "field_anchors": [],
+      "home": "crustify/rust/ffmpeg/libavutil/opt.rs"
+    },
+    {
+      "name": "av_opt_set",
+      "defined_in": "libavutil/opt.c",
+      "kind": "symbol",
+      "field_anchors": [],
+      "home": "crustify/rust/ffmpeg/libavutil/opt.rs"
+    },
+    {
+      "name": "av_opt_set_bin",
+      "defined_in": "libavutil/opt.c",
+      "kind": "symbol",
+      "field_anchors": [],
+      "home": "crustify/rust/ffmpeg/libavutil/opt.rs"
+    },
+    {
+      "name": "av_opt_set_defaults",
+      "defined_in": "libavutil/opt.c",
+      "kind": "symbol",
+      "field_anchors": [],
+      "home": "crustify/rust/ffmpeg/libavutil/opt.rs"
+    },
+    {
+      "name": "av_opt_set_defaults2",
+      "defined_in": "libavutil/opt.c",
+      "kind": "symbol",
+      "field_anchors": [],
+      "home": "crustify/rust/ffmpeg/libavutil/opt.rs"
+    },
+    {
+      "name": "av_opt_set_double",
+      "defined_in": "libavutil/opt.c",
+      "kind": "symbol",
+      "field_anchors": [],
+      "home": "crustify/rust/ffmpeg/libavutil/opt.rs"
+    },
+    {
+      "name": "av_opt_set_from_string",
+      "defined_in": "libavutil/opt.c",
+      "kind": "symbol",
+      "field_anchors": [],
+      "home": "crustify/rust/ffmpeg/libavutil/opt.rs"
+    },
+    {
+      "name": "av_opt_set_image_size",
+      "defined_in": "libavutil/opt.c",
+      "kind": "symbol",
+      "field_anchors": [],
+      "home": "crustify/rust/ffmpeg/libavutil/opt.rs"
+    },
+    {
+      "name": "av_opt_set_int",
+      "defined_in": "libavutil/opt.c",
+      "kind": "symbol",
+      "field_anchors": [],
+      "home": "crustify/rust/ffmpeg/libavutil/opt.rs"
+    },
+    {
+      "name": "av_opt_show2",
+      "defined_in": "libavutil/opt.c",
+      "kind": "symbol",
+      "field_anchors": [],
+      "home": "crustify/rust/ffmpeg/libavutil/opt.rs"
+    }
+  ]
+}

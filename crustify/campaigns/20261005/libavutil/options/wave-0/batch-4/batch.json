@@ -1,0 +1,40 @@
+{
+  "objective": "wrap",
+  "items": [
+    {
+      "name": "av_parse_color",
+      "defined_in": "libavutil/parseutils.c",
+      "kind": "symbol",
+      "field_anchors": [],
+      "home": "crustify/rust/ffmpeg/libavutil/parseutils.rs"
+    },
+    {
+      "name": "av_parse_time",
+      "defined_in": "libavutil/parseutils.c",
+      "kind": "symbol",
+      "field_anchors": [],
+      "home": "crustify/rust/ffmpeg/libavutil/parseutils.rs"
+    },
+    {
+      "name": "av_parse_video_size",
+      "defined_in": "libavutil/parseutils.c",
+      "kind": "symbol",
+      "field_anchors": [],
+      "home": "crustify/rust/ffmpeg/libavutil/parseutils.rs"
+    },
+    {
+      "name": "av_set_options_string",
+      "defined_in": "libavutil/opt.c",
+      "kind": "symbol",
+      "field_anchors": [],
+      "home": "crustify/rust/ffmpeg/libavutil/opt.rs"
+    },
+    {
+      "name": "av_strtod",
+      "defined_in": "libavutil/eval.c",
+      "kind": "symbol",
+      "field_anchors": [],
+      "home": "crustify/rust/ffmpeg/libavutil/eval.rs"
+    }
+  ]
+}

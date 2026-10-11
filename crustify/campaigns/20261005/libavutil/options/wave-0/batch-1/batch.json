@@ -1,0 +1,24 @@
+{
+  "objective": "wrap",
+  "items": [
+    {
+      "name": "AVExpr",
+      "defined_in": "libavutil/eval.c",
+      "kind": "type",
+      "field_anchors": [],
+      "home": "crustify/rust/ffmpeg/libavutil/eval.rs"
+    },
+    {
+      "name": "AVOptionArrayDef",
+      "defined_in": "libavutil/opt.h",
+      "kind": "type",
+      "field_anchors": [
+        "def",
+        "sep",
+        "size_max",
+        "size_min"
+      ],
+      "home": "crustify/rust/ffmpeg/libavutil/opt.rs"
+    }
+  ]
+}
