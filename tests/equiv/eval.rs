@@ -171,3 +171,535 @@ fn every_suffix_byte_agrees() {
         }
     }
 }
+
+/// Equivalence of `libavutil/eval.h`'s owned expressions with the raw C
+/// parser: every expression is parsed once by `av_expr_parse` on its own
+/// copies of the names and once by `Expr::parse`, and both trees are then
+/// observed through C's evaluator and counters, step by step.
+mod expr {
+    use core::cell::RefCell;
+    use core::ffi::{CStr, c_int, c_uint, c_void};
+    use core::ptr;
+    use std::ffi::CString;
+
+    use ffmpeg::libavutil::eval::{BinaryFn, Expr, UnaryFn};
+    use ffmpeg::libavutil::ffi;
+
+    /// `AVERROR(EINVAL)`.
+    const EINVAL: c_int = -22;
+
+    /// A level offset that moves C's parse errors (`AV_LOG_ERROR`) below the
+    /// default log level, so the bulk runs stay quiet.
+    const QUIET: c_int = 40;
+
+    /// The opaque pointer every evaluation passes; never dereferenced.
+    const OPAQUE: usize = 0x5eed;
+
+    /// One call of a user function, as it reached the function.
+    #[derive(Debug, PartialEq)]
+    enum Call {
+        Unary(u8, usize, u64),
+        Binary(u8, usize, u64, u64),
+    }
+
+    thread_local! {
+        /// The calls user functions received on this thread.
+        static CALLS: RefCell<Vec<Call>> = const { RefCell::new(Vec::new()) };
+    }
+
+    fn record(call: Call) {
+        CALLS.with(|c| c.borrow_mut().push(call));
+    }
+
+    extern "C" fn twice(opaque: *mut c_void, x: f64) -> f64 {
+        record(Call::Unary(0, opaque as usize, x.to_bits()));
+        2.0 * x
+    }
+
+    extern "C" fn negate(opaque: *mut c_void, x: f64) -> f64 {
+        record(Call::Unary(1, opaque as usize, x.to_bits()));
+        -x
+    }
+
+    extern "C" fn minus(opaque: *mut c_void, a: f64, b: f64) -> f64 {
+        record(Call::Binary(0, opaque as usize, a.to_bits(), b.to_bits()));
+        a - b
+    }
+
+    extern "C" fn hyp(opaque: *mut c_void, a: f64, b: f64) -> f64 {
+        record(Call::Binary(1, opaque as usize, a.to_bits(), b.to_bits()));
+        a.hypot(b)
+    }
+
+    /// The names and functions the corpus parses with.
+    const CONSTS: [&CStr; 3] = [c"X", c"Y", c"XY"];
+    const UNARY: [(&CStr, UnaryFn); 2] = [(c"f", twice), (c"neg", negate)];
+    const BINARY: [(&CStr, BinaryFn); 2] = [(c"g", minus), (c"hyp", hyp)];
+
+    /// A tree C parsed itself, released by `av_expr_free`.
+    struct CExpr(*mut ffi::AVExpr);
+
+    impl Drop for CExpr {
+        fn drop(&mut self) {
+            // SAFETY: a tree `av_expr_parse` handed us, released once.
+            unsafe { ffi::av_expr_free(self.0) }
+        }
+    }
+
+    /// `av_expr_parse` on its own copies of every name, dropped as soon as it
+    /// returns: C reads them only during the call.
+    fn c_parse(
+        s: &CStr,
+        consts: &[&CStr],
+        unary: &[(&CStr, UnaryFn)],
+        binary: &[(&CStr, BinaryFn)],
+        log_offset: c_int,
+    ) -> Result<CExpr, c_int> {
+        fn array(names: impl Iterator<Item = CString>) -> (Vec<CString>, Vec<*const i8>) {
+            let owned: Vec<CString> = names.collect();
+            let ptrs = owned
+                .iter()
+                .map(|n| n.as_ptr())
+                .chain([ptr::null()])
+                .collect();
+            (owned, ptrs)
+        }
+        let (_c, c_ptrs) = array(consts.iter().map(|&n| n.to_owned()));
+        let (_u, u_ptrs) = array(unary.iter().map(|(n, _)| (*n).to_owned()));
+        let (_b, b_ptrs) = array(binary.iter().map(|(n, _)| (*n).to_owned()));
+        let u_fns: Vec<_> = unary
+            .iter()
+            .map(|&(_, f)| Some(f as _))
+            .chain([None])
+            .collect();
+        let b_fns: Vec<_> = binary
+            .iter()
+            .map(|&(_, f)| Some(f as _))
+            .chain([None])
+            .collect();
+        let s = s.to_owned();
+        let mut e = ptr::null_mut();
+        // SAFETY: a writable slot; NUL-terminated strings in NULL-terminated
+        // arrays, function arrays as long as their name arrays, all live for the
+        // call; no log context.
+        let ret = unsafe {
+            ffi::av_expr_parse(
+                &mut e,
+                s.as_ptr(),
+                c_ptrs.as_ptr(),
+                u_ptrs.as_ptr(),
+                u_fns.as_ptr(),
+                b_ptrs.as_ptr(),
+                b_fns.as_ptr(),
+                log_offset,
+                ptr::null_mut(),
+            )
+        };
+        if ret < 0 {
+            assert!(e.is_null(), "C left a tree on failure");
+            Err(ret)
+        } else {
+            assert!(!e.is_null());
+            Ok(CExpr(e))
+        }
+    }
+
+    /// What C can observe of a tree: its variable and function counts, then one
+    /// value and the user calls it made per evaluation.
+    #[derive(Debug, PartialEq)]
+    struct Observed {
+        vars: Vec<c_uint>,
+        unary: Vec<c_uint>,
+        binary: Vec<c_uint>,
+        steps: Vec<(u64, Vec<Call>)>,
+    }
+
+    /// Observes the tree at `e` through C, evaluating it `steps` times with
+    /// `values` (one per constant name).
+    ///
+    /// # Safety
+    ///
+    /// `e` must be a live root that only names constants and functions of
+    /// `CONSTS`, `UNARY` and `BINARY`, and evaluates without undefined behaviour
+    /// or endless loops.
+    unsafe fn observe(e: *mut ffi::AVExpr, values: &[f64; 3], steps: usize) -> Observed {
+        let mut vars = vec![0; CONSTS.len()];
+        let mut unary = vec![0; UNARY.len()];
+        let mut binary = vec![0; BINARY.len()];
+        // SAFETY: zeroed counters of the sizes passed, and a live tree.
+        unsafe {
+            assert_eq!(
+                ffi::av_expr_count_vars(e, vars.as_mut_ptr(), vars.len() as c_int),
+                0
+            );
+            assert_eq!(ffi::av_expr_count_func(e, unary.as_mut_ptr(), 2, 1), 0);
+            assert_eq!(ffi::av_expr_count_func(e, binary.as_mut_ptr(), 2, 2), 0);
+        }
+        let steps = (0..steps)
+            .map(|_| {
+                CALLS.with(|c| c.borrow_mut().clear());
+                // SAFETY: `values` covers every constant the tree names, and the
+                // caller vouches for the evaluation.
+                let v = unsafe { ffi::av_expr_eval(e, values.as_ptr(), OPAQUE as *mut c_void) };
+                (v.to_bits(), CALLS.with(|c| c.take()))
+            })
+            .collect();
+        Observed {
+            vars,
+            unary,
+            binary,
+            steps,
+        }
+    }
+
+    /// Parses `s` both ways and checks that the outcomes agree, then that the
+    /// trees evaluate alike for each of `inputs`, three steps each.
+    fn check(s: &CStr, log_offset: c_int, inputs: &[[f64; 3]]) -> Result<(), c_int> {
+        let c = c_parse(s, &CONSTS, &UNARY, &BINARY, log_offset);
+        let r = Expr::parse(s, &CONSTS, &UNARY, &BINARY, log_offset);
+        match (&c, &r) {
+            (Err(a), Err(b)) => {
+                assert_eq!(a, b, "{s:?}");
+                Err(*a)
+            }
+            (Ok(c), Ok(r)) => {
+                for values in inputs {
+                    let r = r.as_c_ptr();
+                    // SAFETY: per each caller, `s` only names the corpus' names
+                    // and evaluates without UB; both trees are live.
+                    let (a, b) = unsafe { (observe(c.0, values, 3), observe(r, values, 3)) };
+                    assert_eq!(a, b, "{s:?} with {values:?}");
+                }
+                Ok(())
+            }
+            _ => panic!(
+                "{s:?}: C gave {:?}, Rust {:?}",
+                c.as_ref().err(),
+                r.as_ref().err()
+            ),
+        }
+    }
+
+    const INPUTS: [[f64; 3]; 4] = [
+        [3.0, 4.0, 5.0],
+        [0.0, -0.0, 1e-300],
+        [f64::INFINITY, f64::NAN, -1.5],
+        [-7.25, 1e300, 2.0],
+    ];
+
+    #[test]
+    fn valid_expressions_parse_and_evaluate_alike() {
+        if under_bsan() {
+            return;
+        }
+        for s in [
+            c"1+2^3+5*5+sin(2/3)",
+            c"X*Y - XY",
+            c" X  *  Y ",
+            c"XY",
+            c"f(X) + neg(Y)",
+            c"g(X, Y) * hyp(Y, XY)",
+            c"f(f(f(X)))",
+            c"g(f(X), neg(g(Y, 1)))",
+            c"PI * E + PHI - QP2LAMBDA",
+            c"-X + Y - (-Y)",
+            c"1 2",
+            c"X Y",
+            c"1K + 2Mi + 3B + 4KiB + 6dB",
+            c"0x10 + 1e3 + 2.5e-1",
+            c"max(X, Y) + min(X, Y) + hypot(X, Y) + atan2(Y, X)",
+            c"if(gt(X, Y), X, Y) + ifnot(eq(X, Y), 1, 2)",
+            c"between(X, 0, 10) + clip(X, -1, 1) + lerp(X, Y, 0.5)",
+            c"floor(X) + ceil(Y) + trunc(XY) + round(X) + sgn(Y)",
+            c"abs(X) + sqrt(abs(Y)) + exp(-abs(XY)) + log(abs(X) + 1)",
+            c"isnan(Y) + isinf(X) + not(X) + squish(X) + gauss(Y)",
+            c"pow(abs(X), 0.5) + X^2",
+            c"(((X)))",
+            c"st(0, X); st(1, ld(0) + Y); ld(1) * 2",
+            c"st(2, ld(2) + 1)",
+            c"st(3, ld(3) + f(X)); ld(3)",
+            c"random(0)",
+            c"st(4, 42); random(4)",
+            c"randomi(5, 10, 20)",
+            c"X; Y; XY",
+            c"taylor(1, 1)",
+            c"1/0 + -1/0",
+        ] {
+            check(s, 0, &INPUTS).unwrap();
+        }
+    }
+
+    #[test]
+    fn invalid_expressions_fail_alike() {
+        if under_bsan() {
+            return;
+        }
+        for s in [
+            c"",
+            c" ",
+            c"1+",
+            c"(1",
+            c"1)",
+            c"unknown",
+            c"f()",
+            c"nosuch(1)",
+            c"g(1, 2, 3, 4)",
+            c"max(1)",
+            c"sin(1, 2)",
+            c"f(X",
+            c"Z",
+            c"x",
+            c",",
+            c"st(0)",
+            c"-X + Y - -Y",
+            c"1 +* 2",
+        ] {
+            assert_eq!(check(s, QUIET, &INPUTS), Err(EINVAL), "{s:?}");
+        }
+        // Nesting is bounded: 50 levels parse, 101 do not.
+        let nested =
+            |n: usize| CString::new(format!("{}1{}", "(".repeat(n), ")".repeat(n))).unwrap();
+        check(&nested(50), 0, &INPUTS).unwrap();
+        assert_eq!(check(&nested(101), QUIET, &INPUTS), Err(EINVAL));
+        let calls =
+            |n: usize| CString::new(format!("{}X{}", "f(".repeat(n), ")".repeat(n))).unwrap();
+        check(&calls(20), 0, &INPUTS).unwrap();
+        assert_eq!(check(&calls(101), QUIET, &INPUTS), Err(EINVAL));
+        // An operator chain deeper than 100 tree levels is refused as if out of
+        // memory.
+        let enomem = Err(-(ffi::ENOMEM as c_int));
+        for op in ["+", "-", "*", "/", "^", ";"] {
+            let chain = |n: usize| CString::new(vec!["X"; n].join(op)).unwrap();
+            check(&chain(100), 0, &INPUTS).unwrap();
+            assert_eq!(check(&chain(102), QUIET, &INPUTS), enomem, "{op}");
+        }
+        // A call adds a level too: around a 100-level chain it is one too many,
+        // which C reports as malformed.
+        let chain = vec!["X"; 101].join("*");
+        let s = CString::new(format!("sin({chain})")).unwrap();
+        assert_eq!(check(&s, QUIET, &INPUTS), Err(EINVAL));
+        let s = CString::new(format!("({chain})")).unwrap();
+        check(&s, 0, &INPUTS).unwrap();
+    }
+
+    #[test]
+    fn names_match_at_their_first_position() {
+        if under_bsan() {
+            return;
+        }
+        // A repeated name binds the first entry; a longer name is not shadowed
+        // by its prefix.
+        let consts = [c"A", c"A", c"AB"];
+        let unary: [(&CStr, UnaryFn); 2] = [(c"f", twice), (c"f", negate)];
+        let binary: [(&CStr, BinaryFn); 2] = [(c"g", hyp), (c"g", minus)];
+        for s in [c"A + AB", c"f(A)", c"g(A, AB)", c"AB*A"] {
+            let c = c_parse(s, &consts, &unary, &binary, 0).unwrap();
+            let r = Expr::parse(s, &consts, &unary, &binary, 0).unwrap();
+            // SAFETY: both trees only name the lists above (counted within the
+            // corpus' sizes) and evaluate without UB.
+            let (a, b) = unsafe {
+                (
+                    observe(c.0, &[1.0, 2.0, 3.0], 2),
+                    observe(r.as_c_ptr(), &[1.0, 2.0, 3.0], 2),
+                )
+            };
+            assert_eq!(a, b, "{s:?}");
+        }
+        // Empty lists name nothing, but the evaluator's own names remain.
+        let c = c_parse(c"PI + sin(1)", &[], &[], &[], 0).unwrap();
+        let r = Expr::parse(c"PI + sin(1)", &[], &[], &[], 0).unwrap();
+        // SAFETY: as above, with no user names.
+        let (a, b) = unsafe {
+            (
+                observe(c.0, &[0.0; 3], 2),
+                observe(r.as_c_ptr(), &[0.0; 3], 2),
+            )
+        };
+        assert_eq!(a, b);
+        for s in [c"X", c"f(1)", c"g(1, 2)"] {
+            assert_eq!(c_parse(s, &[], &[], &[], QUIET).err(), Some(EINVAL));
+            assert_eq!(Expr::parse(s, &[], &[], &[], QUIET).err(), Some(EINVAL));
+        }
+    }
+
+    #[test]
+    fn names_need_not_outlive_the_parse() {
+        if under_bsan() {
+            return;
+        }
+        let owned: Vec<CString> = ["first", "second"]
+            .iter()
+            .map(|n| CString::new(*n).unwrap())
+            .collect();
+        let fname = CString::new("dbl").unwrap();
+        let e = {
+            let consts: Vec<&CStr> = owned.iter().map(CString::as_c_str).collect();
+            Expr::parse(c"second * dbl(first)", &consts, &[(&fname, twice)], &[], 0).unwrap()
+        };
+        drop(owned);
+        drop(fname);
+        CALLS.with(|c| c.borrow_mut().clear());
+        // SAFETY: a live root naming two constants and a function ignoring
+        // `opaque`.
+        let v = unsafe { ffi::av_expr_eval(e.as_c_ptr(), [3.0, 5.0].as_ptr(), ptr::null_mut()) };
+        assert_eq!(v, 30.0);
+        assert_eq!(
+            CALLS.with(|c| c.take()),
+            [Call::Unary(0, 0, 3f64.to_bits())]
+        );
+    }
+
+    /// Whether this run is under BSan, which misreports C's parser: every
+    /// primary goes through `av_strtod`, whose end pointer glibc's uninstrumented
+    /// `strtod` writes, so the local keeps the provenance an earlier frame left
+    /// in its slot (often a freed parse buffer) and `next[0]` can read as a use
+    /// after free. Which parse trips depends on the stack layout alone: two
+    /// `av_expr_parse` calls from pure C, the second from a deeper frame, trip it
+    /// at some depths. The tests that parse return early under it.
+    fn under_bsan() -> bool {
+        std::env::var("CRUSTIFY_FFMPEG_VARIANT").as_deref() == Ok("bsan")
+    }
+
+    /// A tiny xorshift generator, so the random corpus is reproducible.
+    struct Rng(u64);
+
+    impl Rng {
+        fn next(&mut self) -> u64 {
+            self.0 ^= self.0 << 13;
+            self.0 ^= self.0 >> 7;
+            self.0 ^= self.0 << 17;
+            self.0
+        }
+
+        fn pick<T: Copy>(&mut self, items: &[T]) -> T {
+            items[(self.next() % items.len() as u64) as usize]
+        }
+    }
+
+    /// A random expression over the corpus' names and the evaluator functions
+    /// that convert no value to an integer (those are undefined in C for
+    /// out-of-range values, a defect of evaluation, not of parsing).
+    fn generate(rng: &mut Rng, depth: u32, out: &mut String) {
+        const ATOMS: &[&str] = &[
+            "1", "0", "-3", "2.5", "1e308", "1e-320", "0x7f", "X", "Y", "XY", "PI", "E", "1K",
+            "2Mi", "3B", "5dB", "10%",
+        ];
+        const UNARY_FNS: &[&str] = &[
+            "sin", "cos", "exp", "log", "abs", "sqrt", "floor", "ceil", "trunc", "round", "not",
+            "isnan", "isinf", "sgn", "squish", "gauss", "f", "neg",
+        ];
+        const BINARY_FNS: &[&str] = &[
+            "max", "min", "eq", "gte", "gt", "lte", "lt", "hypot", "atan2", "pow", "if", "ifnot",
+            "g", "hyp",
+        ];
+        const TERNARY_FNS: &[&str] = &["if", "ifnot", "between", "clip", "lerp"];
+        const OPS: &[&str] = &["+", "-", "*", "/", "^", ";"];
+        let choice = if depth > 5 { 0 } else { rng.next() % 6 };
+        let call = |rng: &mut Rng, name: &str, n: usize, out: &mut String| {
+            out.push_str(name);
+            out.push('(');
+            for i in 0..n {
+                if i > 0 {
+                    out.push(',');
+                }
+                generate(rng, depth + 1, out);
+            }
+            out.push(')');
+        };
+        match choice {
+            0 | 1 => out.push_str(rng.pick(ATOMS)),
+            2 => {
+                let name = rng.pick(UNARY_FNS);
+                call(rng, name, 1, out)
+            }
+            3 => {
+                let name = rng.pick(BINARY_FNS);
+                call(rng, name, 2, out)
+            }
+            4 => {
+                let name = rng.pick(TERNARY_FNS);
+                call(rng, name, 3, out)
+            }
+            _ => {
+                generate(rng, depth + 1, out);
+                out.push_str(rng.pick(OPS));
+                generate(rng, depth + 1, out);
+            }
+        }
+    }
+
+    /// Random expressions and random corruptions of them (a byte deleted,
+    /// duplicated or replaced), which mostly fail to parse.
+    #[test]
+    fn random_expressions_parse_and_evaluate_alike() {
+        if under_bsan() {
+            return;
+        }
+        let mut rng = Rng(0x9e37_79b9_7f4a_7c15);
+        let (mut parsed, mut failed) = (0, 0);
+        for round in 0..1500 {
+            let mut s = String::new();
+            generate(&mut rng, 0, &mut s);
+            if round % 3 == 2 && !s.is_empty() {
+                let i = (rng.next() % s.len() as u64) as usize;
+                let mut bytes = s.into_bytes();
+                match rng.next() % 3 {
+                    0 => {
+                        bytes.remove(i);
+                    }
+                    1 => bytes.insert(i, bytes[i]),
+                    _ => bytes[i] = rng.pick(b"()+,*XfZ1 "),
+                }
+                s = String::from_utf8(bytes).unwrap();
+            }
+            let s = CString::new(s).unwrap();
+            // Corruptions keep to the safe vocabulary: no byte spells a new
+            // function name out of the generated ones, so evaluation stays
+            // defined.
+            match check(&s, QUIET, &INPUTS[..2]) {
+                Ok(()) => parsed += 1,
+                Err(_) => failed += 1,
+            }
+        }
+        assert!(
+            parsed > 500 && failed > 100,
+            "{parsed} parsed, {failed} failed"
+        );
+    }
+
+    /// The `av_max_alloc` limit is process-global, so this test lowers it only in
+    /// a child process running nothing else, and passes when the child does.
+    #[test]
+    fn allocation_failures_match_c() {
+        if under_bsan() {
+            return;
+        }
+        const ISOLATED: &str = "CRUSTIFY_EQUIV_EVAL_ISOLATED";
+        if std::env::var_os(ISOLATED).is_none() {
+            let status = std::process::Command::new(std::env::current_exe().unwrap())
+                .args(["--exact", "eval::expr::allocation_failures_match_c"])
+                .args(["--test-threads=1", "--nocapture"])
+                .env(ISOLATED, "1")
+                .status()
+                .unwrap();
+            assert!(status.success(), "isolated run failed: {status}");
+            return;
+        }
+        let long = CString::new("1+".repeat(90) + "1").unwrap();
+        let mut outcomes = Vec::new();
+        // Limits below every allocation, between them, and above them: the
+        // whitespace-free copy of the text, the nodes, the root's registers.
+        for limit in [0, 1, 8, 16, 32, 64, 80, 128, 160, 181, 182, 256, 1024, 4096] {
+            ffmpeg::libavutil::mem::set_max_alloc(limit);
+            for s in [c"1", c"X*f(Y)", c"st(0, 1); random(0)", long.as_c_str()] {
+                let c = c_parse(s, &CONSTS, &UNARY, &BINARY, QUIET).map(drop);
+                let r = Expr::parse(s, &CONSTS, &UNARY, &BINARY, QUIET).map(drop);
+                assert_eq!(c, r, "{s:?} at {limit}");
+                outcomes.push(r);
+            }
+        }
+        ffmpeg::libavutil::mem::set_max_alloc(c_int::MAX as usize);
+        let enomem = -(ffi::ENOMEM as c_int);
+        assert!(outcomes.contains(&Err(enomem)) && outcomes.contains(&Ok(())));
+    }
+}

@@ -87,3 +87,98 @@ mod option_type {
         assert_eq!(back.base(), OptionType::STRING);
     }
 }
+
+/// `OptionArrayDef`, Rust-owned: every setter and getter through the
+/// exclusive and shared handles, refused separators, and shared handles read
+/// from many threads while the owner waits.
+mod array_def {
+    use std::ffi::CStr;
+    use std::num::NonZeroU32;
+
+    use ffmpeg::libavutil::opt::{InvalidSeparator, OptionArrayDef, OptionArrayDefRef};
+
+    #[test]
+    fn edits_through_every_handle() {
+        let mut d = OptionArrayDef::default();
+        let mut m = d.as_mut();
+        for (def, min, max, sep) in [
+            (Some(c"1,2"), 0, 0, 0),
+            (Some(c""), 1, 1, b'|'),
+            (None, u32::MAX, u32::MAX, b' '),
+            (Some(c"a long default value, with spaces"), 7, 3, b'~'),
+        ] {
+            m.set_def(def);
+            m.set_size_min(min);
+            m.set_size_max(NonZeroU32::new(max));
+            m.set_separator(sep).unwrap();
+            // A shared reborrow of the exclusive handle reads the edits.
+            let r = m.as_ref();
+            assert_eq!(r.def(), def);
+            assert_eq!(r.size_min(), min);
+            assert_eq!(r.size_max().map_or(0, NonZeroU32::get), max);
+            assert_eq!(r.separator(), if sep == 0 { b',' } else { sep });
+            // An exclusive reborrow edits the same value.
+            m.as_mut().set_size_min(min / 2);
+            assert_eq!(m.as_ref().size_min(), min / 2);
+        }
+        for sep in [b'a', b'Z', b'5', b'\\', b'\n', b'\t', 0x7f, 0x80, 0xff] {
+            assert_eq!(m.set_separator(sep), Err(InvalidSeparator(sep)));
+            assert_eq!(m.as_ref().separator(), b'~');
+        }
+        let shared = d.as_ref();
+        let copy = shared;
+        assert_eq!(copy.def(), shared.def());
+        assert!(copy.ptr_eq(shared));
+        assert!(!format!("{shared:?}").is_empty());
+    }
+
+    #[test]
+    fn strings_read_through_the_handle_outlive_it() {
+        let d = {
+            let mut d = OptionArrayDef::new();
+            d.as_mut().set_def(Some(c"3;4"));
+            d
+        };
+        // `def` outlives the temporary handle it was read through, borrowing
+        // the owner; the owner moves once it is no longer read.
+        let def: Option<&CStr> = d.as_ref().def();
+        assert_eq!(def, Some(c"3;4"));
+        let moved = Box::new(d);
+        assert_eq!(OptionArrayDef::as_ref(&moved).def(), Some(c"3;4"));
+    }
+
+    #[test]
+    fn shared_handles_cross_threads() {
+        let mut d = OptionArrayDef::new();
+        d.as_mut().set_def(Some(c"9|8|7"));
+        d.as_mut().set_separator(b'|').unwrap();
+        let r: OptionArrayDefRef<'_> = d.as_ref();
+        std::thread::scope(|s| {
+            for _ in 0..8 {
+                s.spawn(move || {
+                    for _ in 0..500 {
+                        assert_eq!(r.def(), Some(c"9|8|7"));
+                        assert_eq!(r.separator(), b'|');
+                        assert_eq!(r.size_max(), None);
+                    }
+                });
+            }
+        });
+        // Values and exclusive handles move between threads.
+        let mut moved = std::thread::spawn(move || {
+            d.as_mut().set_size_min(2);
+            d
+        })
+        .join()
+        .unwrap();
+        let m = moved.as_mut();
+        std::thread::scope(|s| {
+            s.spawn(move || {
+                let mut m = m;
+                m.set_size_max(NonZeroU32::new(5));
+            });
+        });
+        assert_eq!(moved.as_ref().size_max(), NonZeroU32::new(5));
+        assert_eq!(moved.as_ref().size_min(), 2);
+    }
+}

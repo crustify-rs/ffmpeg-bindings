@@ -1,0 +1,11 @@
+error[E0505]: cannot move out of `e` because it is borrowed
+ --> tests/ub_safe/compile_fail/eval_expr_handle_outlives_box.rs
+  |
+  |     let e = Expr::parse(c"1", &[], &[], &[], 0).unwrap();
+  |         - binding `e` declared here
+  |     let r = e.as_ref();
+  |             - borrow of `e` occurs here
+  |     drop(e);
+  |          ^ move out of `e` occurs here
+  |     let _ = r;
+  |             - borrow later used here

@@ -922,3 +922,203 @@ mod set_options_string {
         assert_eq!(classless.int, 0);
     }
 }
+
+/// Equivalence of `OptionArrayDef`, built and edited through the safe API,
+/// with an independently owned raw `AVOptionArrayDef` given the same values:
+/// both are read by C's `av_opt_set_defaults` as an array option's
+/// definition, and by the handle's getters against the raw fields, after
+/// every step of one edit sequence.
+///
+/// The option holds strings, which C splits and unescapes without its
+/// expression evaluator: number elements would reach `av_strtod`, whose
+/// glibc-written end pointer BSan misreads (see `eval.rs`'s tests).
+mod array_def {
+    use core::ffi::{CStr, c_char, c_int, c_uint, c_void};
+    use core::mem::offset_of;
+    use core::num::NonZeroU32;
+    use core::ptr;
+    use std::ffi::CString;
+
+    use ffmpeg::libavutil::ffi;
+    use ffmpeg::libavutil::opt::{OptionArrayDef, OptionArrayDefMut};
+
+    use ffi::AVOptionType as T;
+
+    /// An object of the one-option class `defaults` builds.
+    #[repr(C)]
+    struct Obj {
+        class: *const ffi::AVClass,
+        elems: *mut *mut c_char,
+        len: c_uint,
+    }
+
+    /// The current `LIBAVUTIL_VERSION_INT`.
+    const VERSION: c_int = (ffi::LIBAVUTIL_VERSION_MAJOR << 16
+        | ffi::LIBAVUTIL_VERSION_MINOR << 8
+        | ffi::LIBAVUTIL_VERSION_MICRO) as c_int;
+
+    /// The elements `av_opt_set_defaults` gives a string array option defined
+    /// by `def`, on a fresh object, then freed by `av_opt_free`.
+    ///
+    /// # Safety
+    ///
+    /// `def` must be NULL or address a live definition, unwritten during the
+    /// call, whose `def` is NULL or a live NUL-terminated string and whose
+    /// separator `av_opt_set_defaults` accepts.
+    unsafe fn defaults(def: *const ffi::AVOptionArrayDef) -> Vec<CString> {
+        let table = [
+            ffi::AVOption {
+                name: c"a".as_ptr(),
+                help: ptr::null(),
+                offset: offset_of!(Obj, elems) as c_int,
+                type_: T(T::AV_OPT_TYPE_STRING.0 | T::AV_OPT_TYPE_FLAG_ARRAY.0),
+                default_val: ffi::AVOption__bindgen_ty_1 { arr: def },
+                min: 0.0,
+                max: 0.0,
+                flags: 0,
+                unit: ptr::null(),
+            },
+            ffi::AVOption::default(),
+        ];
+        let class = ffi::AVClass {
+            class_name: c"equiv-array-def".as_ptr(),
+            item_name: Some(ffi::av_default_item_name),
+            option: table.as_ptr(),
+            version: VERSION,
+            ..Default::default()
+        };
+        let mut obj = Obj {
+            class: &class,
+            elems: ptr::null_mut(),
+            len: 0,
+        };
+        let o = (&raw mut obj).cast::<c_void>();
+        // SAFETY: `obj` is led by a valid class whose terminated table and
+        // definition outlive the calls; `av_opt_set_defaults2` writes the
+        // array of `len` strings, and `av_opt_free` releases them.
+        unsafe {
+            ffi::av_opt_set_defaults2(o, 0, 0);
+            let elems = if obj.elems.is_null() {
+                Vec::new()
+            } else {
+                core::slice::from_raw_parts(obj.elems, obj.len as usize)
+                    .iter()
+                    .map(|&s| CStr::from_ptr(s).to_owned())
+                    .collect()
+            };
+            ffi::av_opt_free(o);
+            assert!(obj.elems.is_null() && obj.len == 0);
+            elems
+        }
+    }
+
+    /// One edit, applied to both definitions.
+    #[derive(Clone, Copy, Debug)]
+    enum Edit {
+        Def(Option<&'static CStr>),
+        Min(u32),
+        Max(u32),
+        Sep(u8),
+    }
+
+    fn apply(m: &mut OptionArrayDefMut<'_>, raw: &mut ffi::AVOptionArrayDef, edit: Edit) {
+        match edit {
+            Edit::Def(def) => {
+                m.set_def(def);
+                raw.def = def.map_or(ptr::null(), CStr::as_ptr);
+            }
+            Edit::Min(n) => {
+                m.set_size_min(n);
+                raw.size_min = n;
+            }
+            Edit::Max(n) => {
+                m.set_size_max(NonZeroU32::new(n));
+                raw.size_max = n;
+            }
+            Edit::Sep(b) => {
+                m.set_separator(b).unwrap();
+                raw.sep = b as c_char;
+            }
+        }
+    }
+
+    #[test]
+    fn edits_read_alike_by_c_and_by_the_getters() {
+        use Edit::*;
+        let steps: [(Edit, &[&str]); 25] = [
+            (Def(None), &[]),
+            (Def(Some(c"a,b,c")), &["a", "b", "c"]),
+            (Sep(b','), &["a", "b", "c"]),
+            (Max(3), &["a", "b", "c"]),
+            // Too many elements: the array stays unset.
+            (Max(2), &[]),
+            (Max(0), &["a", "b", "c"]),
+            (Sep(b'|'), &["a,b,c"]),
+            (Def(Some(c"d|e")), &["d", "e"]),
+            (Min(2), &["d", "e"]),
+            // Too few.
+            (Min(3), &[]),
+            (Def(Some(c"d|e|f")), &["d", "e", "f"]),
+            (Def(None), &[]),
+            (Def(Some(c"")), &[]),
+            (Min(0), &[]),
+            (Sep(b' '), &[]),
+            (Def(Some(c"7 8 9 10")), &["7", "8", "9", "10"]),
+            (Sep(b';'), &["7 8 9 10"]),
+            // An escaped separator or backslash stays in its element.
+            (Def(Some(cr"1\;2;3\\;4")), &["1;2", r"3\", "4"]),
+            // Empty elements, but none after a trailing separator.
+            (Def(Some(c";;x;")), &["", "", "x"]),
+            (Sep(0), &[";;x;"]),
+            (Def(Some(c"11,12")), &["11", "12"]),
+            (Def(Some(cr"a\,b,\q")), &["a,b", "q"]),
+            (Max(u32::MAX), &["a,b", "q"]),
+            (Min(u32::MAX), &[]),
+            (Min(1), &["a,b", "q"]),
+        ];
+        let mut d = OptionArrayDef::new();
+        let mut raw = ffi::AVOptionArrayDef {
+            def: ptr::null(),
+            size_min: 0,
+            size_max: 0,
+            sep: 0,
+        };
+        for (i, (edit, expected)) in steps.into_iter().enumerate() {
+            apply(&mut d.as_mut(), &mut raw, edit);
+
+            let r = d.as_ref();
+            // SAFETY: `raw.def` is NULL or a literal.
+            let raw_def = (!raw.def.is_null()).then(|| unsafe { CStr::from_ptr(raw.def) });
+            assert_eq!(r.def(), raw_def, "step {i}");
+            assert_eq!(r.size_min(), raw.size_min, "step {i}");
+            assert_eq!(
+                r.size_max().map_or(0, NonZeroU32::get),
+                raw.size_max,
+                "step {i}"
+            );
+            let sep = if raw.sep == 0 { b',' } else { raw.sep as u8 };
+            assert_eq!(r.separator(), sep, "step {i}");
+
+            // The pointer is taken after the edit, from the shared borrow C
+            // reads through; `OptionArrayDef` is transparent over the C type.
+            let rust_ptr = ptr::from_ref(&d).cast::<ffi::AVOptionArrayDef>();
+            // SAFETY: both definitions are live and unwritten during the
+            // calls, their strings are literals, and every separator is one
+            // `set_separator` accepted.
+            let (c, rust) = unsafe { (defaults(&raw const raw), defaults(rust_ptr)) };
+            assert_eq!(c, rust, "step {i}: {edit:?}");
+            let expected: Vec<CString> =
+                expected.iter().map(|e| CString::new(*e).unwrap()).collect();
+            assert_eq!(rust, expected, "step {i}: {edit:?}");
+        }
+    }
+
+    #[test]
+    fn a_missing_definition_reads_as_the_new_one() {
+        let d = OptionArrayDef::new();
+        // SAFETY: NULL, and a live definition with no default.
+        let (none, new) = unsafe { (defaults(ptr::null()), defaults(ptr::from_ref(&d).cast())) };
+        assert_eq!(none, new);
+        assert!(new.is_empty());
+    }
+}

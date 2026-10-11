@@ -24,15 +24,22 @@
 //! list's exclusive handle, rewrites its bounds and replaces its string with
 //! a [`HeapString`], which the list then releases.
 //!
+//! [`OptionArrayDef`] is an array option's definition (`AVOptionArrayDef`):
+//! its default, element count bounds and separator. C tables hold them as
+//! `static const` values, so [`OptionDefault::Array`] borrows one as an
+//! [`OptionArrayDefRef`]; a Rust-owned value, built by
+//! [`OptionArrayDef::new`] and edited through an [`OptionArrayDefMut`], can
+//! only point its default at a `'static` string.
+//!
 //! Raw seams remain where the dependency is wrapped by a later batch: the
-//! object a range query inspects (an `AVClass`-enabled `void *`) and an array
-//! option's `AVOptionArrayDef`.
+//! object a range query inspects (an `AVClass`-enabled `void *`).
 
 use core::ffi::{CStr, c_char, c_int, c_uint, c_void};
 use core::fmt;
+use core::num::NonZeroU32;
 use core::ptr::{NonNull, addr_of, addr_of_mut};
 
-use ffibox::{CBox, CDrop, CSlice, define_ctype};
+use ffibox::{CBox, CDrop, CSlice, CZeroable, define_ctype};
 
 use super::ffi;
 use super::mem::HeapString;
@@ -87,7 +94,10 @@ unsafe fn opt_c_str<'a>(ptr: *const c_char) -> Option<&'a CStr> {
 
 /// The default value of an option, `AVOption.default_val` read through the
 /// union member its type selects, as `av_opt_set_defaults` reads it.
-#[derive(Clone, Copy, Debug, PartialEq)]
+///
+/// Two defaults are equal when they are equal values, and two `Array`
+/// defaults when they are the same definition (or both absent).
+#[derive(Clone, Copy, Debug)]
 pub enum OptionDefault<'a> {
     /// `default_val.i64`: the default of a `BOOL`, `FLAGS`, `INT`, `UINT`,
     /// `INT64`, `UINT64`, `DURATION`, `PIXEL_FMT` or `SAMPLE_FMT` option, or a
@@ -101,23 +111,29 @@ pub enum OptionDefault<'a> {
     /// parses it with; `None` when there is no default.
     Str(Option<&'a CStr>),
     /// `default_val.arr`: an array option's (`AV_OPT_TYPE_FLAG_ARRAY`)
-    /// definition, or NULL.
-    ///
-    /// Raw until `AVOptionArrayDef` is wrapped; when non-NULL it addresses a
-    /// static definition that outlives the option.
-    Array(*const ffi::AVOptionArrayDef),
+    /// definition, borrowed from the table like the option; `None` when the
+    /// option has none, which C reads as no default, no bounds and a comma
+    /// separator.
+    Array(Option<OptionArrayDefRef<'a>>),
     /// An option type libavutil reads no default for.
     Unsupported,
 }
 
-// SAFETY: the only non-`Send` member is `Array`'s raw pointer, which is NULL
-// or addresses a `static const AVOptionArrayDef` of the option table (see
-// [`OptionDefRef::default_value`]): immutable, of program lifetime and read
-// by C from any thread. The other variants are plain values and `&'a CStr`.
-unsafe impl Send for OptionDefault<'_> {}
-// SAFETY: as above: every variant is read-only data with no interior
-// mutability.
-unsafe impl Sync for OptionDefault<'_> {}
+impl PartialEq for OptionDefault<'_> {
+    fn eq(&self, other: &Self) -> bool {
+        match (self, other) {
+            (Self::Int(a), Self::Int(b)) => a == b,
+            (Self::Double(a), Self::Double(b)) => a == b,
+            (Self::Str(a), Self::Str(b)) => a == b,
+            (Self::Array(a), Self::Array(b)) => match (a, b) {
+                (Some(a), Some(b)) => a.ptr_eq(*b),
+                (a, b) => a.is_none() && b.is_none(),
+            },
+            (Self::Unsupported, Self::Unsupported) => true,
+            _ => false,
+        }
+    }
+}
 
 impl<'a> OptionDefRef<'a> {
     /// Field: AVOption.name
@@ -182,7 +198,12 @@ impl<'a> OptionDefRef<'a> {
             // handle; an array option's table entry initialises `arr`, as
             // `av_opt_set_defaults` relies on, and a pointer has no invalid
             // bit patterns.
-            return OptionDefault::Array(unsafe { addr_of!((*val).default_val.arr).read() });
+            let arr = unsafe { addr_of!((*val).default_val.arr).read() };
+            // SAFETY: `arr` is NULL or addresses a definition of the table
+            // (in C, a `static const AVOptionArrayDef`), which outlives every
+            // handle to its entries and is never written; C reads it as such
+            // in `av_opt_set_defaults` and `av_opt_set`.
+            return OptionDefault::Array(unsafe { OptionArrayDefRef::from_ptr(arr.cast_mut()) });
         }
         match ty {
             T::BOOL
@@ -418,6 +439,203 @@ impl From<OptionType> for ffi::AVOptionType {
     #[inline]
     fn from(ty: OptionType) -> Self {
         ty.0
+    }
+}
+
+define_ctype!(
+    /// Wraps: AVOptionArrayDef
+    ///
+    /// The definition of an array option (`AV_OPT_TYPE_FLAG_ARRAY`), which
+    /// its `AVOption.default_val.arr` points to: the default value as a
+    /// string, the element count bounds and the separator `av_opt_set` and
+    /// `av_opt_get` split and join elements with.
+    ///
+    /// Published definitions are `static const` and only borrowed, as an
+    /// [`OptionArrayDefRef`] from [`OptionDefault::Array`]. A Rust-owned
+    /// value starts from [`OptionArrayDef::new`]; its default can only be a
+    /// `'static` string, so every handle's `def` is NULL or a string that
+    /// outlives it. No C routine allocates, copies or frees a definition.
+    OptionArrayDef,
+    OptionArrayDefRef,
+    OptionArrayDefMut,
+    ffi::AVOptionArrayDef
+);
+
+// SAFETY: all-zero is a definition every accessor and C reader accepts: no
+// default (`def` NULL, which `av_opt_set_defaults` skips), no minimum, no
+// maximum, and the comma separator (`sep` 0).
+unsafe impl CZeroable for OptionArrayDef {}
+
+// SAFETY: a definition is integers, a `char` and `def`, which is NULL or a
+// pointer to an immutable string of program lifetime (a C literal, or the
+// `&'static CStr` a setter stored); nothing in it is tied to a thread, so a
+// value or an exclusive handle moves between threads as a struct of
+// `&'static CStr` and integers does.
+unsafe impl Send for OptionArrayDef {}
+// SAFETY: as for `OptionArrayDef`: the exclusive handle is the only access to
+// the definition while it lives.
+unsafe impl Send for OptionArrayDefMut<'_> {}
+
+// SAFETY: nothing reachable through a shared handle writes: the setters need
+// an `OptionArrayDefMut`, the struct has no interior mutability, and no C path
+// writes a definition, so concurrent shared access reads unchanging bytes.
+unsafe impl Sync for OptionArrayDef {}
+// SAFETY: as for `Sync for OptionArrayDef`: copies of a shared handle only
+// read.
+unsafe impl Send for OptionArrayDefRef<'_> {}
+// SAFETY: as above.
+unsafe impl Sync for OptionArrayDefRef<'_> {}
+// SAFETY: `&OptionArrayDefMut` reaches the definition only through `as_ref`,
+// a shared handle; the setters need `&mut`.
+unsafe impl Sync for OptionArrayDefMut<'_> {}
+
+/// Why [`OptionArrayDefMut::set_separator`] refused a separator: one that
+/// `libavutil/opt.h` does not allow, and that `av_opt_set_defaults` aborts on
+/// when alphanumeric or a backslash.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+pub struct InvalidSeparator(pub u8);
+
+impl fmt::Display for InvalidSeparator {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(
+            f,
+            "invalid array option separator '{}'",
+            self.0.escape_ascii()
+        )
+    }
+}
+
+impl core::error::Error for InvalidSeparator {}
+
+impl OptionArrayDef {
+    /// A definition with no default, no minimum or maximum element count and
+    /// the comma separator: the all-zero definition, which C reads as it
+    /// reads a NULL `default_val.arr`.
+    pub const fn new() -> Self {
+        Self(
+            ffi::AVOptionArrayDef {
+                def: core::ptr::null(),
+                size_min: 0,
+                size_max: 0,
+                sep: 0,
+            },
+            core::marker::PhantomData,
+        )
+    }
+}
+
+impl Default for OptionArrayDef {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
+impl<'a> OptionArrayDefRef<'a> {
+    /// Field: AVOptionArrayDef.def
+    ///
+    /// The default value, elements joined by [`separator`](Self::separator)
+    /// as `av_opt_get` would serialize them (`"1,2"`), which
+    /// `av_opt_set_defaults` parses; `None` when the option has no default.
+    pub fn def(&self) -> Option<&'a CStr> {
+        // SAFETY: a read of a projected field through the shared handle.
+        let def = unsafe { addr_of!((*self.as_ptr()).def).read() };
+        // SAFETY: `def` is NULL or a string literal of the table, or the
+        // `&'static CStr` a setter stored; either outlives the handle and is
+        // never written.
+        unsafe { opt_c_str(def) }
+    }
+
+    /// Field: AVOptionArrayDef.size_min
+    ///
+    /// The minimum number of elements; when non-zero, the default holds at
+    /// least that many (C fails to set fewer).
+    pub fn size_min(&self) -> u32 {
+        // SAFETY: a read of a projected field through the shared handle.
+        unsafe { addr_of!((*self.as_ptr()).size_min).read() }
+    }
+
+    /// Field: AVOptionArrayDef.size_max
+    ///
+    /// The maximum number of elements; `None` when unlimited (C's 0).
+    pub fn size_max(&self) -> Option<NonZeroU32> {
+        // SAFETY: a read of a projected field through the shared handle.
+        NonZeroU32::new(unsafe { addr_of!((*self.as_ptr()).size_max).read() })
+    }
+
+    /// Field: AVOptionArrayDef.sep
+    ///
+    /// The separator between elements in an option's string form, as C uses
+    /// it: the stored byte, or `b','` when none is stored (C's 0).
+    pub fn separator(&self) -> u8 {
+        // SAFETY: a read of a projected field through the shared handle.
+        let sep = unsafe { addr_of!((*self.as_ptr()).sep).read() } as u8;
+        if sep == 0 { b',' } else { sep }
+    }
+
+    /// Whether `self` and `other` borrow the same definition.
+    pub fn ptr_eq(self, other: OptionArrayDefRef<'_>) -> bool {
+        core::ptr::eq(self.as_ptr(), other.as_ptr())
+    }
+}
+
+impl fmt::Debug for OptionArrayDefRef<'_> {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.debug_struct("OptionArrayDef")
+            .field("def", &self.def())
+            .field("size_min", &self.size_min())
+            .field("size_max", &self.size_max())
+            .field("separator", &char::from(self.separator()))
+            .finish()
+    }
+}
+
+impl OptionArrayDefMut<'_> {
+    /// Field: AVOptionArrayDef.def
+    ///
+    /// Sets the default value, in the syntax of [`OptionArrayDefRef::def`],
+    /// or none. `'static`, because a definition holds the pointer for as long
+    /// as an option table may publish it.
+    pub fn set_def(&mut self, def: Option<&'static CStr>) {
+        let def = def.map_or(core::ptr::null(), CStr::as_ptr);
+        // SAFETY: a write of a projected field through the exclusive handle;
+        // `def` is NULL or a `'static` immutable string, as every reader of
+        // the field requires.
+        unsafe { addr_of_mut!((*self.as_mut_ptr()).def).write(def) }
+    }
+
+    /// Field: AVOptionArrayDef.size_min
+    ///
+    /// Sets the minimum number of elements.
+    pub fn set_size_min(&mut self, size_min: u32) {
+        // SAFETY: a write of a projected field through the exclusive handle.
+        unsafe { addr_of_mut!((*self.as_mut_ptr()).size_min).write(size_min) }
+    }
+
+    /// Field: AVOptionArrayDef.size_max
+    ///
+    /// Sets the maximum number of elements, or none.
+    pub fn set_size_max(&mut self, size_max: Option<NonZeroU32>) {
+        let size_max = size_max.map_or(0, NonZeroU32::get);
+        // SAFETY: a write of a projected field through the exclusive handle.
+        unsafe { addr_of_mut!((*self.as_mut_ptr()).size_max).write(size_max) }
+    }
+
+    /// Field: AVOptionArrayDef.sep
+    ///
+    /// Sets the separator: a printable ASCII character other than a letter,
+    /// a digit or the backslash, as `libavutil/opt.h` requires, or 0 for the
+    /// comma. Refuses any other byte, leaving the separator unchanged.
+    pub fn set_separator(&mut self, sep: u8) -> Result<(), InvalidSeparator> {
+        let valid = sep == 0
+            || (sep.is_ascii_graphic() || sep == b' ')
+                && !sep.is_ascii_alphanumeric()
+                && sep != b'\\';
+        if !valid {
+            return Err(InvalidSeparator(sep));
+        }
+        // SAFETY: a write of a projected field through the exclusive handle.
+        unsafe { addr_of_mut!((*self.as_mut_ptr()).sep).write(sep as c_char) }
+        Ok(())
     }
 }
 
@@ -1083,6 +1301,8 @@ mod unit_tests {
             size_max: 0,
             sep: 0,
         };
+        // SAFETY: `def` is a live local, only read, that outlives the handle.
+        let def_ref = unsafe { OptionArrayDefRef::from_ptr((&raw const def).cast_mut()) };
         for base in [
             T::AV_OPT_TYPE_INT,
             T::AV_OPT_TYPE_STRING,
@@ -1090,14 +1310,14 @@ mod unit_tests {
         ] {
             let ty = T(base.0 | T::AV_OPT_TYPE_FLAG_ARRAY.0);
             let o = option(ty, ffi::AVOption__bindgen_ty_1 { arr: &def });
-            assert_default(o, OptionDefault::Array(&def));
+            assert_default(o, OptionDefault::Array(def_ref));
             let o = option(
                 ty,
                 ffi::AVOption__bindgen_ty_1 {
                     arr: core::ptr::null(),
                 },
             );
-            assert_default(o, OptionDefault::Array(core::ptr::null()));
+            assert_default(o, OptionDefault::Array(None));
         }
 
         // A type outside the enum reads no member: a pointer-sized garbage
@@ -1243,10 +1463,11 @@ mod unit_tests {
         assert_eq!(text(c"dict"), Some(c"k=v"));
         assert!(!ctx.dict.is_null());
 
-        let OptionDefault::Array(def) = named(c"array").default_value() else {
+        let OptionDefault::Array(Some(def)) = named(c"array").default_value() else {
             panic!()
         };
-        assert_eq!(def, &raw const fixture::ARRAY_DEF.0);
+        assert_eq!(def.as_ptr(), &raw const fixture::ARRAY_DEF.0);
+        assert_eq!(def.def(), Some(c"1,2"));
         assert_eq!(ctx.array_len, 2 as c_uint);
         // SAFETY: `array` holds `array_len` elements parsed from `ARRAY_DEF`.
         let array = unsafe { core::slice::from_raw_parts(ctx.array, 2) };
@@ -1254,7 +1475,7 @@ mod unit_tests {
         let OptionDefault::Array(def) = named(c"empty_array").default_value() else {
             panic!()
         };
-        assert!(def.is_null());
+        assert!(def.is_none());
         assert!(ctx.empty_array.is_null() && ctx.empty_array_len == 0);
         // The other options were left alone.
         assert!(ctx.int == 0 && ctx.string.is_null());
@@ -1699,5 +1920,150 @@ mod unit_tests {
         let array = named(c"array").option_type();
         assert_eq!((array.base(), array.is_array()), (OptionType::INT, true));
         assert_eq!(named(c"bogus").option_type(), OptionType::from_value(99));
+    }
+
+    #[test]
+    fn array_def_new_is_the_all_zero_definition() {
+        for d in [
+            OptionArrayDef::new(),
+            OptionArrayDef::default(),
+            OptionArrayDef::zeroed(),
+        ] {
+            let r = d.as_ref();
+            assert_eq!(r.def(), None);
+            assert_eq!(r.size_min(), 0);
+            assert_eq!(r.size_max(), None);
+            assert_eq!(r.separator(), b',');
+            // SAFETY: a read of the plain field we just built.
+            let raw = unsafe { r.as_ptr().read() };
+            assert!(raw.def.is_null() && raw.size_min == 0 && raw.size_max == 0 && raw.sep == 0);
+        }
+        assert_eq!(
+            size_of::<OptionArrayDef>(),
+            size_of::<ffi::AVOptionArrayDef>()
+        );
+    }
+
+    #[test]
+    fn array_def_setters_write_the_fields_getters_read() {
+        let mut d = OptionArrayDef::new();
+        let mut m = d.as_mut();
+        m.set_def(Some(c"1|2|3"));
+        m.set_size_min(2);
+        m.set_size_max(NonZeroU32::new(u32::MAX));
+        m.set_separator(b'|').unwrap();
+        let r = m.as_ref();
+        assert_eq!(r.def(), Some(c"1|2|3"));
+        assert_eq!(
+            (r.size_min(), r.size_max().map(NonZeroU32::get)),
+            (2, Some(u32::MAX))
+        );
+        assert_eq!(r.separator(), b'|');
+        // SAFETY: a read of the plain struct behind the handle.
+        let raw = unsafe { r.as_ptr().read() };
+        assert_eq!(raw.def, c"1|2|3".as_ptr());
+        assert_eq!(
+            (raw.size_min, raw.size_max, raw.sep as u8),
+            (2, u32::MAX, b'|')
+        );
+
+        // Back to none: NULL, unlimited and the comma.
+        m.set_def(None);
+        m.set_size_max(None);
+        m.set_separator(0).unwrap();
+        // SAFETY: as above.
+        let raw = unsafe { m.as_ref().as_ptr().read() };
+        assert!(raw.def.is_null() && raw.size_max == 0 && raw.sep == 0);
+        assert_eq!(d.as_ref().separator(), b',');
+    }
+
+    #[test]
+    fn array_def_separators_follow_opt_h() {
+        let mut d = OptionArrayDef::new();
+        let mut m = d.as_mut();
+        let mut accepted = Vec::new();
+        for b in 0..=u8::MAX {
+            match m.set_separator(b) {
+                Ok(()) => {
+                    accepted.push(b);
+                    assert_eq!(m.as_ref().separator(), if b == 0 { b',' } else { b });
+                }
+                Err(e) => {
+                    assert_eq!(e, InvalidSeparator(b));
+                    // A refused byte leaves the last accepted one.
+                    let last = *accepted.last().unwrap();
+                    assert_eq!(m.as_ref().separator(), if last == 0 { b',' } else { last });
+                }
+            }
+        }
+        // 0, and the 32 printable ASCII characters (space included) that are
+        // neither alphanumeric nor the backslash.
+        assert_eq!(accepted.len(), 1 + 32);
+        for &b in b",| ;:~/" {
+            assert!(accepted.contains(&b), "{b}");
+        }
+        for b in [b'a', b'Z', b'0', b'\\', b'\n', 0x7f, 0x80, 0xff] {
+            assert!(!accepted.contains(&b), "{b}");
+        }
+        assert_eq!(
+            InvalidSeparator(b'\\').to_string(),
+            r"invalid array option separator '\\'"
+        );
+    }
+
+    #[test]
+    fn array_defaults_compare_by_definition() {
+        let a = OptionArrayDef::new();
+        let b = OptionArrayDef::new();
+        let (a, b) = (a.as_ref(), b.as_ref());
+        assert!(a.ptr_eq(a) && !a.ptr_eq(b));
+        assert_eq!(OptionDefault::Array(Some(a)), OptionDefault::Array(Some(a)));
+        assert_ne!(OptionDefault::Array(Some(a)), OptionDefault::Array(Some(b)));
+        assert_ne!(OptionDefault::Array(Some(a)), OptionDefault::Array(None));
+        assert_eq!(OptionDefault::Array(None), OptionDefault::Array(None));
+        assert_ne!(OptionDefault::Array(None), OptionDefault::Unsupported);
+        assert_ne!(OptionDefault::Int(0), OptionDefault::Double(0.0));
+        assert_eq!(OptionDefault::Unsupported, OptionDefault::Unsupported);
+        assert_ne!(
+            OptionDefault::Double(f64::NAN),
+            OptionDefault::Double(f64::NAN)
+        );
+    }
+
+    #[test]
+    fn array_def_debug_lists_the_fields() {
+        let OptionDefault::Array(Some(def)) = named(c"array").default_value() else {
+            panic!()
+        };
+        assert_eq!(
+            format!("{def:?}"),
+            r#"OptionArrayDef { def: Some("1,2"), size_min: 0, size_max: None, separator: ',' }"#
+        );
+        assert!(
+            format!("{:?}", OptionDefault::Array(Some(def)))
+                .starts_with("Array(Some(OptionArrayDef {")
+        );
+    }
+
+    #[test]
+    fn array_defs_are_send_and_sync() {
+        fn send_sync<T: Send + Sync>() {}
+        send_sync::<OptionArrayDef>();
+        send_sync::<OptionArrayDefRef<'static>>();
+        send_sync::<OptionArrayDefMut<'static>>();
+
+        let OptionDefault::Array(Some(def)) = named(c"array").default_value() else {
+            panic!()
+        };
+        std::thread::scope(|s| {
+            for _ in 0..4 {
+                s.spawn(move || {
+                    for _ in 0..64 {
+                        assert_eq!(def.def(), Some(c"1,2"));
+                        assert_eq!(def.separator(), b',');
+                    }
+                });
+            }
+        });
     }
 }
