@@ -732,3 +732,11 @@ function av_camellia_init
 # Reference-only observers for lifecycle/field equivalence tests.
 function av_blowfish_crypt_ecb
 function av_camellia_crypt
+# crypto wave 0, batch 6: RC4 and RIPEMD type lifecycle and C references.
+function av_rc4_alloc
+function av_rc4_init
+function av_rc4_crypt
+function av_ripemd_alloc
+function av_ripemd_init
+function av_ripemd_update
+function av_ripemd_final

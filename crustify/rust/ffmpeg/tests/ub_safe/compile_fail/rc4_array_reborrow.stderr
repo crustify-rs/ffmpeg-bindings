@@ -1,0 +1,9 @@
+error[E0499]: cannot borrow `outer` as mutable more than once at a time
+ --> tests/ub_safe/compile_fail/rc4_array_reborrow.rs
+  |
+  |     let mut inner = outer.state_mut();
+  |                     ----- first mutable borrow occurs here
+  |     outer.set_x(1);
+  |     ^^^^^ second mutable borrow occurs here
+  |     assert!(inner.set_elem(0, 1));
+  |             ----- first borrow later used here

@@ -886,6 +886,36 @@
    "fields": []
   },
   {
+   "name": "AVRC4",
+   "defined_in": "libavutil/rc4.h",
+   "_comment_agent": "rc4.c alloc returns av_mallocz(sizeof AVRC4), released with av_free/av_freep (asfcrypt.c and tests). No pointer fields, resources, disposer or C cloner. Public body supports inline storage (rtmpcrypt key_in/key_out); all integers/bytes are memory-safe including zero state because crypt truncates x/y to uint8_t. Init reads a borrowed nonempty key, stores no pointer, decrypt ignored. Safe wrappers provide ffibox layout handles, Heap sole owner, Copy inline and Heap av_memdup clone; every mutation exclusive, no Send/Sync asserted.",
+   "fields": []
+  },
+  {
+   "name": "AVRIPEMD",
+   "defined_in": "libavutil/ripemd.c",
+   "_comment_agent": "Public header is opaque; ripemd.c private body owns no suballocations. Alloc av_mallocz actual sizeof AVRIPEMD, released with av_freep via hash.c av_hash_freep and av_free in tests. Full storage remains C allocated. Only supported init 128/160/256/320 publishes an initialized owner, with static transform. No known C cloner or disposer. Dedicated ffibox RipemdFree policy delegates existing Heap CDrop and does not provide generic allocation of the incomplete binding; no inline constructor or CZeroable; no Send/Sync asserted.",
+   "fields": [
+    {
+     "name": "transform",
+     "ptr": {
+      "scalar": {
+       "by_val": true
+      },
+      "array": null,
+      "string": false,
+      "owned": false,
+      "borrowed": {
+       "lifetime": "static"
+      },
+      "nullable": true,
+      "mutable": false,
+      "note": "av_mallocz leaves NULL before initialization. Supported init bits install one static ripemd128/160/256/320_transform; update invokes it with the inline state[10] and 64-byte block only for the call. No callback cookie, retained data or ownership transfer. Invalid init bits change digest_len before returning EINVAL and must not become safe initialized state."
+     }
+    }
+   ]
+  },
+  {
    "name": "AVRational",
    "defined_in": "libavutil/rational.h",
    "_comment_agent": "Plain by-value pair of ints; no pointer fields, no heap lifecycle. C passes and returns it by value (av_mul_q, av_d2q, ...) and embeds it by value in public structs (AVCodecContext.time_base, AVStream.time_base, AVFrame.sample_aspect_ratio, ...), or in caller arrays terminated by {0,0} (av_find_nearest_q_idx, AVCodec.supported_framerates). Its only constructor is the header inline av_make_q (by value, so it has no pointer-return lifetime record); copying is a byte copy and no routine drops, disposes or clones it. 0/0 is a value C itself produces (zeroed contexts, av_cmp_q's INT_MIN case) and every reader tolerates, so all-zero is a valid value. Wrapped as the ffibox layout type Rational (CZeroable, Copy, Send + Sync as plain data) with RationalRef/RationalMut num/den accessors.",
@@ -10907,6 +10937,84 @@
    ]
   },
   {
+   "name": "av_rc4_alloc",
+   "defined_in": "libavutil/rc4.c",
+   "lifetime": {
+    "for": "return",
+    "is_dropper": false,
+    "is_disposer": false,
+    "is_cloner": null,
+    "is_constructor": {
+     "alloc": true,
+     "init": false
+    }
+   },
+   "ptr_ret": {
+    "ptr": {
+     "scalar": {
+      "by_val": true
+     },
+     "array": null,
+     "string": false,
+     "owned": true,
+     "borrowed": null,
+     "nullable": true,
+     "mutable": true,
+     "note": "Fresh unique av_mallocz storage of the actual C struct size. Caller owns and must av_free it; no subsidiary ownership. RC4 all-zero is memory-safe; RIPEMD requires successful supported initialization before hashing."
+    }
+   }
+  },
+  {
+   "name": "av_rc4_init",
+   "defined_in": "libavutil/rc4.c",
+   "lifetime": {
+    "for": "r",
+    "is_dropper": false,
+    "is_disposer": false,
+    "is_cloner": null,
+    "is_constructor": {
+     "alloc": false,
+     "init": true
+    }
+   },
+   "ptr_args": [
+    {
+     "name": "key",
+     "ptr": {
+      "scalar": null,
+      "array": {
+       "by_val": true
+      },
+      "string": false,
+      "owned": false,
+      "borrowed": {
+       "lifetime": "arg:key"
+      },
+      "nullable": true,
+      "mutable": false,
+      "note": "Transient key buffer, never retained. NULL is accepted only on the invalid-bit-alignment path, which returns before reading key. Successful initialization requires positive byte-aligned bits and a nonempty readable key. Reads cyclically up to the first 256 bytes for longer keys. Empty/zero-bit keys reach out-of-bounds reads and are rejected by Rust; decrypt is ignored."
+     }
+    },
+    {
+     "name": "r",
+     "ptr": {
+      "scalar": {
+       "by_val": true
+      },
+      "array": null,
+      "string": false,
+      "owned": false,
+      "borrowed": {
+       "lifetime": "arg:r"
+      },
+      "nullable": false,
+      "mutable": true,
+      "note": "Exclusive full AVRC4 storage, overwritten in-place; no ownership transfer or retained pointers. Invalid bit alignment returns before mutation."
+     }
+    }
+   ]
+  },
+  {
    "name": "av_read_image_line",
    "defined_in": "libavutil/pixdesc.c",
    "ptr_args": [
@@ -11233,6 +11341,67 @@
   {
    "name": "av_rescale_rnd",
    "defined_in": "libavutil/mathematics.c"
+  },
+  {
+   "name": "av_ripemd_alloc",
+   "defined_in": "libavutil/ripemd.c",
+   "lifetime": {
+    "for": "return",
+    "is_dropper": false,
+    "is_disposer": false,
+    "is_cloner": null,
+    "is_constructor": {
+     "alloc": true,
+     "init": false
+    }
+   },
+   "ptr_ret": {
+    "ptr": {
+     "scalar": {
+      "by_val": true
+     },
+     "array": null,
+     "string": false,
+     "owned": true,
+     "borrowed": null,
+     "nullable": true,
+     "mutable": true,
+     "note": "Fresh unique av_mallocz storage of the actual C struct size. Caller owns and must av_free it; no subsidiary ownership. RC4 all-zero is memory-safe; RIPEMD requires successful supported initialization before hashing."
+    }
+   }
+  },
+  {
+   "name": "av_ripemd_init",
+   "defined_in": "libavutil/ripemd.c",
+   "lifetime": {
+    "for": "ctx",
+    "is_dropper": false,
+    "is_disposer": false,
+    "is_cloner": null,
+    "is_constructor": {
+     "alloc": false,
+     "init": true
+    }
+   },
+   "ptr_args": [
+    {
+     "name": "ctx",
+     "ptr": {
+      "scalar": {
+       "by_val": true
+      },
+      "array": null,
+      "string": false,
+      "owned": false,
+      "borrowed": {
+       "lifetime": "arg:ctx"
+      },
+      "nullable": false,
+      "mutable": true,
+      "note": "Exclusive full C context storage; supported bits reset count, active state and static transform. No retention or transfer. Unsupported bits write digest_len then EINVAL, hence safe API uses exhaustive DigestBits."
+     }
+    }
+   ]
   },
   {
    "name": "av_ripemd_size",
