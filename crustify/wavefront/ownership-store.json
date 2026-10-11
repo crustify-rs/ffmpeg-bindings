@@ -478,6 +478,51 @@
    ]
   },
   {
+   "name": "AVHMACType",
+   "defined_in": "libavutil/hmac.h",
+   "_comment_agent": "Resource-free enum. All six integer values select algorithms in av_hmac_alloc; other values return NULL. No storage lifecycle, fields, or retained pointers.",
+   "fields": []
+  },
+  {
+   "name": "AVHashContext",
+   "defined_in": "libavutil/hash.c",
+   "_comment_agent": "Public API opaque. av_hash_alloc owns context plus child; requires separate av_hash_init before hashing. Safe constructor combines allocation/init, av_hash_freep releases both. Metadata independent of initialization/finalization; name points into static hashdesc. All field touchers are in hash.c; consumers allocate/init/use/free opaque pointers. No clone, refcount, inline dispose, or public field surface; C owns layout/storage. No Send/Sync assertion.",
+   "fields": [
+    {
+     "name": "crctab",
+     "ptr": {
+      "scalar": null,
+      "array": {
+       "by_val": true
+      },
+      "string": false,
+      "owned": false,
+      "borrowed": {
+       "lifetime": "static"
+      },
+      "nullable": true,
+      "mutable": false,
+      "note": "CRC32 borrows static av_crc_get_table(AV_CRC_32_IEEE_LE) storage; NULL for other algorithms. Generic tables have 257 or 1024 AVCRC elements (configuration-dependent) and are initialized through ff_thread_once before return, then read-only. Architecture-specific acceleration tables may be selected. Never freed."
+     }
+    },
+    {
+     "name": "ctx",
+     "ptr": {
+      "scalar": {
+       "by_val": true
+      },
+      "array": null,
+      "string": false,
+      "owned": true,
+      "borrowed": null,
+      "nullable": true,
+      "mutable": true,
+      "note": "Owned singleton: AVMD5, AVMurMur3, AVRIPEMD, AVSHA, or AVSHA512 selected by type. av_hash_alloc allocates it; av_hash_init/update/final mutate it; av_hash_freep av_freep frees it. NULL for CRC32 and ADLER32; no clone/retain/transfer path."
+     }
+    }
+   ]
+  },
+  {
    "name": "AVLumaCoefficients",
    "defined_in": "libavutil/csp.h",
    "_comment_agent": "formats wave-1 batch-1 (wrap): three AVRational values by value (cr, cg, cb), no pointer fields, no allocator, disposer or cloner. C's only producer is av_csp_luma_coeffs_from_avcsp, which returns a const pointer into the static const luma_coefficients[AVCOL_SPC_NB] table (a 'static shared borrow, never written) or NULL for out-of-range ids and all-zero entries (cr.num == 0). Consumers (libswscale/format.c, libavfilter colorspace/drawutils/tonemap) read fields or copy the struct by value. All-zero is valid (the table's unset entries). Wrapped as a value type with RationalRef/RationalMut handles over the projected fields.",
@@ -5057,6 +5102,173 @@
   {
    "name": "av_gettime_relative_is_monotonic",
    "defined_in": "libavutil/time.c"
+  },
+  {
+   "name": "av_hash_alloc",
+   "defined_in": "libavutil/hash.c",
+   "ptr_args": [
+    {
+     "name": "ctx",
+     "ptr": {
+      "scalar": {
+       "by_ref": {
+        "owned": true,
+        "borrowed": null
+       }
+      },
+      "array": null,
+      "string": false,
+      "owned": false,
+      "borrowed": {
+       "lifetime": "arg:ctx"
+      },
+      "nullable": false,
+      "mutable": true,
+      "note": "Borrows output slot, writes NULL first, transfers fresh allocated context on success. Frees partial storage on failure. Hashing state requires av_hash_init."
+     }
+    },
+    {
+     "name": "name",
+     "ptr": {
+      "scalar": null,
+      "array": null,
+      "string": true,
+      "owned": false,
+      "borrowed": {
+       "lifetime": "arg:name"
+      },
+      "nullable": false,
+      "mutable": false,
+      "note": "Case-insensitive name read only during call; never retained."
+     }
+    }
+   ]
+  },
+  {
+   "name": "av_hash_freep",
+   "defined_in": "libavutil/hash.c",
+   "lifetime": {
+    "for": "ctx",
+    "is_dropper": true,
+    "is_disposer": false,
+    "is_cloner": null,
+    "is_constructor": null
+   },
+   "ptr_args": [
+    {
+     "name": "ctx",
+     "ptr": {
+      "scalar": {
+       "by_ref": {
+        "owned": true,
+        "borrowed": null
+       }
+      },
+      "array": null,
+      "string": false,
+      "owned": true,
+      "borrowed": {
+       "lifetime": "arg:ctx"
+      },
+      "nullable": false,
+      "mutable": true,
+      "note": "Ownership consumed for inner context and child only; outer caller slot borrowed, not freed, written NULL. Inner context may be NULL; outer slot must not be NULL."
+     }
+    }
+   ]
+  },
+  {
+   "name": "av_hash_get_name",
+   "defined_in": "libavutil/hash.c",
+   "ptr_args": [
+    {
+     "name": "ctx",
+     "ptr": {
+      "scalar": {
+       "by_val": true
+      },
+      "array": null,
+      "string": false,
+      "owned": false,
+      "borrowed": {
+       "lifetime": "arg:ctx"
+      },
+      "nullable": false,
+      "mutable": false,
+      "note": "Read-only live context with valid algorithm; no retention."
+     }
+    }
+   ],
+   "ptr_ret": {
+    "ptr": {
+     "scalar": null,
+     "array": null,
+     "string": true,
+     "owned": false,
+     "borrowed": {
+      "lifetime": "static"
+     },
+     "nullable": false,
+     "mutable": false,
+     "note": "NUL-terminated immutable static hashdesc name; nonnull for valid context; independent of context lifetime."
+    }
+   }
+  },
+  {
+   "name": "av_hash_get_size",
+   "defined_in": "libavutil/hash.c",
+   "ptr_args": [
+    {
+     "name": "ctx",
+     "ptr": {
+      "scalar": {
+       "by_val": true
+      },
+      "array": null,
+      "string": false,
+      "owned": false,
+      "borrowed": {
+       "lifetime": "arg:ctx"
+      },
+      "nullable": false,
+      "mutable": false,
+      "note": "Read-only live context with valid algorithm; no retention."
+     }
+    }
+   ]
+  },
+  {
+   "name": "av_hash_init",
+   "defined_in": "libavutil/hash.c",
+   "lifetime": {
+    "for": "ctx",
+    "is_dropper": false,
+    "is_disposer": false,
+    "is_cloner": null,
+    "is_constructor": {
+     "alloc": false,
+     "init": true
+    }
+   },
+   "ptr_args": [
+    {
+     "name": "ctx",
+     "ptr": {
+      "scalar": {
+       "by_val": true
+      },
+      "array": null,
+      "string": false,
+      "owned": false,
+      "borrowed": {
+       "lifetime": "arg:ctx"
+      },
+      "nullable": false,
+      "mutable": true,
+      "note": "Exclusive transient borrow; initializes or resets child hash state or crc. Retains no new pointer."
+     }
+    }
+   ]
   },
   {
    "name": "av_image_alloc",

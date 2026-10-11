@@ -15,6 +15,8 @@ mod dict;
 mod error;
 mod eval;
 mod file;
+mod hash;
+mod hmac;
 mod imgutils;
 mod intfloat;
 mod intreadwrite;
