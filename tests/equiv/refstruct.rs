@@ -515,3 +515,299 @@ mod pool_and_opaque {
         put(again);
     }
 }
+
+/// Buffer-frame wave 0, symbol batch 5: counted references against raw C
+/// object pointers driven through the same C routines, on independently
+/// allocated objects. After every step of a sequence, both sides must agree
+/// on which slots hold a reference, which hold the same object, which hold
+/// the only reference, and what each payload reads.
+mod counted_references {
+    use core::ffi::c_void;
+    use core::mem::size_of;
+    use core::ptr;
+
+    use ffmpeg::libavutil::csp::ColorPrimariesDescriptor;
+    use ffmpeg::libavutil::ffi;
+    use ffmpeg::libavutil::intfloat::IntFloat64;
+    use ffmpeg::libavutil::refstruct::{
+        ConstRefStructArc, RefStructArc, into_const, is_exclusive, replace, to_const,
+    };
+
+    const SLOTS: usize = 6;
+
+    /// C's side: one `void *` per slot, NULL when empty; the first `SLOTS` are
+    /// written through, the rest are `const` references.
+    struct CSide([*mut c_void; 2 * SLOTS]);
+
+    impl CSide {
+        fn unref(&mut self, i: usize) {
+            // SAFETY: the slot holds NULL or a reference this side owns.
+            unsafe { ffi::av_refstruct_unref((&raw mut self.0[i]).cast()) }
+        }
+
+        fn exclusive(&self, i: usize) -> bool {
+            // SAFETY: a non-NULL slot holds a live object's reference.
+            !self.0[i].is_null() && unsafe { ffi::av_refstruct_exclusive(self.0[i]) } == 1
+        }
+
+        fn bits(&self, i: usize) -> Option<u64> {
+            // SAFETY: as above; the payload is 8 bytes, at least 16-aligned.
+            (!self.0[i].is_null()).then(|| unsafe { self.0[i].cast::<u64>().read() })
+        }
+    }
+
+    impl Drop for CSide {
+        fn drop(&mut self) {
+            for i in 0..self.0.len() {
+                self.unref(i);
+            }
+        }
+    }
+
+    /// Rust's side, slot for slot.
+    struct RustSide {
+        refs: [Option<RefStructArc<IntFloat64>>; SLOTS],
+        consts: [Option<ConstRefStructArc<IntFloat64>>; SLOTS],
+    }
+
+    impl RustSide {
+        fn ptr(&self, i: usize) -> *const IntFloat64 {
+            let p = if i < SLOTS {
+                self.refs[i].as_ref().map(|a| a.as_ptr())
+            } else {
+                self.consts[i - SLOTS].as_ref().map(|a| a.as_ptr())
+            };
+            p.map_or(ptr::null(), |p| p.cast_const())
+        }
+
+        fn exclusive(&self, i: usize) -> bool {
+            if i < SLOTS {
+                self.refs[i].as_ref().is_some_and(is_exclusive)
+            } else {
+                self.consts[i - SLOTS].as_ref().is_some_and(is_exclusive)
+            }
+        }
+
+        fn bits(&self, i: usize) -> Option<u64> {
+            if i < SLOTS {
+                self.refs[i].as_ref().map(|a| a.as_ref().bits())
+            } else {
+                self.consts[i - SLOTS].as_ref().map(|a| a.as_ref().bits())
+            }
+        }
+    }
+
+    fn assert_same_state(step: usize, c: &CSide, r: &RustSide) {
+        for i in 0..2 * SLOTS {
+            assert_eq!(
+                c.0[i].is_null(),
+                r.ptr(i).is_null(),
+                "step {step}: slot {i} presence"
+            );
+            assert_eq!(
+                c.exclusive(i),
+                r.exclusive(i),
+                "step {step}: slot {i} exclusivity"
+            );
+            assert_eq!(c.bits(i), r.bits(i), "step {step}: slot {i} payload");
+            for j in 0..2 * SLOTS {
+                let same_c = !c.0[i].is_null() && c.0[i] == c.0[j];
+                let same_r = !r.ptr(i).is_null() && r.ptr(i) == r.ptr(j);
+                assert_eq!(same_c, same_r, "step {step}: slots {i} and {j} identity");
+            }
+        }
+    }
+
+    struct XorShift(u64);
+
+    impl XorShift {
+        fn next(&mut self) -> u64 {
+            self.0 ^= self.0 << 13;
+            self.0 ^= self.0 >> 7;
+            self.0 ^= self.0 << 17;
+            self.0
+        }
+
+        fn below(&mut self, n: usize) -> usize {
+            (self.next() % n as u64) as usize
+        }
+    }
+
+    /// One step on both sides; each arm is the C sequence, then the Rust call it
+    /// corresponds to.
+    fn step(rng: &mut XorShift, c: &mut CSide, r: &mut RustSide) {
+        let (i, j) = (rng.below(SLOTS), rng.below(SLOTS));
+        match rng.below(10) {
+            // A fresh zeroed object.
+            0 => {
+                c.unref(i);
+                // SAFETY: an allocation by size.
+                c.0[i] = unsafe { ffi::av_refstruct_allocz(8) };
+                assert!(!c.0[i].is_null());
+                r.refs[i] = Some(RefStructArc::new_zeroed().unwrap());
+            }
+            // A new reference to slot j's object (av_refstruct_ref), replacing slot i's.
+            1 => {
+                if !c.0[j].is_null() {
+                    // SAFETY: slot j holds a live object's reference.
+                    let new = unsafe { ffi::av_refstruct_ref(c.0[j]) };
+                    c.unref(i);
+                    c.0[i] = new;
+                }
+                if let Some(src) = &r.refs[j] {
+                    r.refs[i] = Some(src.clone());
+                }
+            }
+            // Release (av_refstruct_unref).
+            2 => {
+                c.unref(i);
+                r.refs[i] = None;
+            }
+            3 => {
+                c.unref(SLOTS + i);
+                r.consts[i] = None;
+            }
+            // av_refstruct_replace between written-through slots.
+            4 => {
+                let src = c.0[j];
+                // SAFETY: slot i holds NULL or an owned reference, slot j NULL
+                // or a live object.
+                unsafe { ffi::av_refstruct_replace((&raw mut c.0[i]).cast(), src) };
+                if i == j {
+                    let src = r.refs[j].clone();
+                    replace(&mut r.refs[i], src.as_ref());
+                } else {
+                    let src = r.refs[j].take();
+                    replace(&mut r.refs[i], src.as_ref());
+                    r.refs[j] = src;
+                }
+            }
+            // ... and between `const` slots.
+            5 => {
+                let src = c.0[SLOTS + j];
+                // SAFETY: as above.
+                unsafe { ffi::av_refstruct_replace((&raw mut c.0[SLOTS + i]).cast(), src) };
+                let src = r.consts[j].clone();
+                replace(&mut r.consts[i], src.as_ref());
+            }
+            // A `const` reference to a written-through slot's object
+            // (av_refstruct_ref_c).
+            6 => {
+                if !c.0[j].is_null() {
+                    // SAFETY: slot j holds a live object's reference.
+                    let new = unsafe { ffi::av_refstruct_ref_c(c.0[j]) };
+                    c.unref(SLOTS + i);
+                    c.0[SLOTS + i] = new.cast_mut();
+                }
+                if let Some(src) = &r.refs[j] {
+                    r.consts[i] = Some(to_const(src));
+                }
+            }
+            // A `const` copy of a `const` reference.
+            7 => {
+                if !c.0[SLOTS + j].is_null() {
+                    // SAFETY: as above.
+                    let new = unsafe { ffi::av_refstruct_ref_c(c.0[SLOTS + j]) };
+                    c.unref(SLOTS + i);
+                    c.0[SLOTS + i] = new.cast_mut();
+                }
+                if let Some(src) = &r.consts[j] {
+                    r.consts[i] = Some(src.clone());
+                }
+            }
+            // A reference moved into a `const` slot.
+            8 => {
+                if !c.0[j].is_null() {
+                    c.unref(SLOTS + i);
+                    c.0[SLOTS + i] = core::mem::replace(&mut c.0[j], ptr::null_mut());
+                }
+                if let Some(src) = r.refs[j].take() {
+                    r.consts[i] = Some(into_const(src));
+                }
+            }
+            // A write, where the reference is the only one.
+            _ => {
+                let v = rng.next();
+                let c_wrote = c.exclusive(i);
+                if c_wrote {
+                    // SAFETY: the only reference to a live 8-byte payload.
+                    unsafe { c.0[i].cast::<u64>().write(v) };
+                }
+                let wrote = r.refs[i]
+                    .as_mut()
+                    .and_then(|a| a.get_mut())
+                    .map(|mut m| m.set_bits(v));
+                assert_eq!(wrote.is_some(), c_wrote);
+            }
+        }
+    }
+
+    #[test]
+    fn reference_sequences_follow_c() {
+        // BSan retags every handle and slot the state checks touch: a few
+        // seeds there take minutes, all of them hours.
+        let bsan = std::env::var("CRUSTIFY_FFMPEG_VARIANT").as_deref() == Ok("bsan");
+        let (seeds, steps) = if bsan { (2u64, 100) } else { (64, 400) };
+        for seed in 1..=seeds {
+            let mut rng = XorShift(seed.wrapping_mul(0x9e37_79b9_7f4a_7c15) | 1);
+            let mut c = CSide([ptr::null_mut(); 2 * SLOTS]);
+            let mut r = RustSide {
+                refs: Default::default(),
+                consts: Default::default(),
+            };
+            for n in 0..steps {
+                step(&mut rng, &mut c, &mut r);
+                assert_same_state(n, &c, &r);
+            }
+        }
+    }
+
+    #[test]
+    fn zeroed_payloads_match_c_byte_for_byte() {
+        let size = size_of::<ffi::AVColorPrimariesDesc>();
+        // SAFETY: an allocation by size, then a read of its `size` zeroed bytes
+        // and the release of its one reference.
+        let c_bytes = unsafe {
+            let mut obj = ffi::av_refstruct_allocz(size);
+            assert!(!obj.is_null());
+            let bytes = core::slice::from_raw_parts(obj.cast::<u8>(), size).to_vec();
+            assert_eq!(ffi::av_refstruct_exclusive(obj), 1);
+            ffi::av_refstruct_unref((&raw mut obj).cast());
+            assert!(obj.is_null());
+            bytes
+        };
+        let a = RefStructArc::<ColorPrimariesDescriptor>::new_zeroed().unwrap();
+        let raw = a.as_ref().get().into_raw();
+        // SAFETY: a plain `AVColorPrimariesDesc` value viewed as its bytes.
+        let r_bytes = unsafe { core::slice::from_raw_parts((&raw const raw).cast::<u8>(), size) };
+        assert_eq!(c_bytes, r_bytes);
+        assert!(is_exclusive(&a));
+    }
+
+    #[test]
+    fn replace_of_the_last_reference_releases_like_c() {
+        // C: the slot's object goes when replaced by another, as the Rust slot's.
+        // SAFETY: two fresh objects, each reference released exactly once.
+        unsafe {
+            let mut x = ffi::av_refstruct_allocz(8);
+            let mut y = ffi::av_refstruct_allocz(8);
+            let mut slot = ffi::av_refstruct_ref(y);
+            ffi::av_refstruct_unref((&raw mut y).cast());
+            assert_eq!(ffi::av_refstruct_exclusive(slot), 1);
+            ffi::av_refstruct_replace((&raw mut slot).cast(), x);
+            assert_eq!(ffi::av_refstruct_exclusive(x), 0);
+            ffi::av_refstruct_replace((&raw mut slot).cast(), ptr::null());
+            assert!(slot.is_null());
+            assert_eq!(ffi::av_refstruct_exclusive(x), 1);
+            ffi::av_refstruct_unref((&raw mut x).cast());
+        }
+        let x = RefStructArc::<IntFloat64>::new_zeroed().unwrap();
+        let mut slot = Some(RefStructArc::<IntFloat64>::new_zeroed().unwrap());
+        assert!(is_exclusive(slot.as_ref().unwrap()));
+        replace(&mut slot, Some(&x));
+        assert!(!is_exclusive(&x));
+        replace(&mut slot, None);
+        assert!(slot.is_none());
+        assert!(is_exclusive(&x));
+    }
+}

@@ -173,3 +173,281 @@ mod pool_and_opaque {
         assert_eq!(v.as_ref().const_ptr().addr(), 0x80);
     }
 }
+
+/// Buffer-frame wave 0, symbol batch 5: counted references to RefStruct
+/// objects through every owner form, the `const` references, slot
+/// replacement and cross-thread counting.
+mod counted_references {
+    use std::sync::{Arc, Barrier};
+    use std::thread;
+
+    use ffmpeg::libavutil::csp::{CieXy, ColorPrimariesDescriptor};
+    use ffmpeg::libavutil::intfloat::IntFloat64;
+    use ffmpeg::libavutil::rational::Rational;
+    use ffmpeg::libavutil::refstruct::{
+        ConstRefStructArc, RefStructArc, RefStructBox, into_const, is_exclusive, replace, to_const,
+    };
+
+    #[test]
+    fn zeroed_payloads_are_written_and_read_end_to_end() {
+        let mut a = RefStructArc::<ColorPrimariesDescriptor>::new_zeroed().unwrap();
+        assert_eq!(a.as_ref().primaries().b().y().den(), 0);
+        {
+            let mut m = a.get_mut().unwrap();
+            // The last field of the 64-byte payload.
+            m.primaries_mut()
+                .set_b(CieXy::new(Rational::new(1, 2), Rational::new(1, 3)));
+            m.white_point_mut().set_x(Rational::new(5, 7));
+        }
+        assert_eq!(a.as_ref().primaries().b().y().den(), 3);
+        assert_eq!(a.as_ref().white_point().x().num(), 5);
+
+        let mut b = RefStructBox::<Rational>::new_zeroed().unwrap();
+        assert_eq!((b.as_ref().num(), b.as_ref().den()), (0, 0));
+        b.as_mut().set(Rational::new(-3, 4));
+        let shared = RefStructArc::from(b);
+        assert_eq!(shared.as_ref().den(), 4);
+    }
+
+    #[test]
+    fn clones_share_one_object_and_outlive_the_first_reference() {
+        let mut a = RefStructArc::<IntFloat64>::new_zeroed().unwrap();
+        a.get_mut().unwrap().set_bits(0x0123_4567_89ab_cdef);
+        let clones: Vec<_> = (0..16).map(|_| a.clone()).collect();
+        assert!(clones.iter().all(|c| RefStructArc::ptr_eq(c, &a)));
+        // The parent goes first.
+        drop(a);
+        for c in &clones {
+            assert_eq!(c.as_ref().bits(), 0x0123_4567_89ab_cdef);
+        }
+        let mut last = clones.into_iter().next_back().unwrap();
+        last.get_mut().unwrap().set_float(1.5);
+        assert_eq!(last.as_ref().float(), 1.5);
+    }
+
+    #[test]
+    fn exclusive_handle_only_for_the_sole_reference() {
+        let mut a = RefStructArc::<IntFloat64>::new_zeroed().unwrap();
+        assert!(is_exclusive(&a));
+        let b = a.clone();
+        assert!(!is_exclusive(&a) && !is_exclusive(&b));
+        assert!(a.get_mut().is_none());
+        let c = to_const(&b);
+        drop(b);
+        assert!(a.get_mut().is_none());
+        drop(c);
+        assert!(is_exclusive(&a));
+        a.get_mut().unwrap().set_bits(9);
+        assert_eq!(a.as_ref().bits(), 9);
+    }
+
+    #[test]
+    fn sole_references_convert_to_and_from_the_box() {
+        let a = RefStructArc::<IntFloat64>::new_zeroed().unwrap();
+        let b = a.clone();
+        let a = a.try_into_box().unwrap_err();
+        drop(b);
+        let mut boxed = a.try_into_box().unwrap();
+        boxed.as_mut().set_bits(42);
+        let a = RefStructArc::from(boxed);
+        let c = into_const(a);
+        assert_eq!(c.as_ref().bits(), 42);
+    }
+
+    #[test]
+    fn const_references_never_hand_out_the_exclusive_handle() {
+        let mut a = RefStructArc::<IntFloat64>::new_zeroed().unwrap();
+        a.get_mut().unwrap().set_bits(5);
+        let mut c = to_const(&a);
+        let mut d = c.clone();
+        assert!(c.get_mut().is_none() && d.get_mut().is_none());
+        drop(a);
+        drop(c);
+        // `d` is the only reference left, and still `const`.
+        assert!(is_exclusive(&d));
+        assert!(d.get_mut().is_none());
+        assert!(d.try_into_box().is_err());
+
+        let a = RefStructArc::<IntFloat64>::new_zeroed().unwrap();
+        let mut only = into_const(a);
+        assert!(only.get_mut().is_none());
+        assert_eq!(only.as_ref().bits(), 0);
+    }
+
+    #[test]
+    fn replace_covers_every_slot_transition() {
+        let mut x = RefStructArc::<IntFloat64>::new_zeroed().unwrap();
+        x.get_mut().unwrap().set_bits(1);
+        let mut y = RefStructArc::<IntFloat64>::new_zeroed().unwrap();
+        y.get_mut().unwrap().set_bits(2);
+
+        let mut slot = None;
+        replace(&mut slot, None);
+        assert!(slot.is_none());
+        replace(&mut slot, Some(&x));
+        assert!(!is_exclusive(&x));
+        replace(&mut slot, Some(&x));
+        assert!(RefStructArc::ptr_eq(slot.as_ref().unwrap(), &x));
+        replace(&mut slot, Some(&y));
+        assert!(is_exclusive(&x));
+        assert_eq!(slot.as_ref().unwrap().as_ref().bits(), 2);
+        // The slot holds the last reference to `y`'s object: replacing it frees
+        // the object while `x`'s lives on.
+        drop(y);
+        replace(&mut slot, Some(&x));
+        assert_eq!(slot.as_ref().unwrap().as_ref().bits(), 1);
+        // A slot replaced by a clone of its own reference.
+        let same = slot.clone();
+        replace(&mut slot, same.as_ref());
+        drop(same);
+        replace(&mut slot, None);
+        assert!(slot.is_none() && is_exclusive(&x));
+
+        let c = to_const(&x);
+        let mut cslot: Option<ConstRefStructArc<IntFloat64>> = None;
+        replace(&mut cslot, Some(&c));
+        drop(c);
+        drop(x);
+        assert!(is_exclusive(cslot.as_ref().unwrap()));
+        assert_eq!(cslot.as_ref().unwrap().as_ref().bits(), 1);
+        replace(&mut cslot, None);
+    }
+
+    #[test]
+    fn references_are_counted_across_threads() {
+        let mut a = RefStructArc::<IntFloat64>::new_zeroed().unwrap();
+        a.get_mut().unwrap().set_bits(77);
+        let c = to_const(&a);
+        let start = Arc::new(Barrier::new(8));
+        let workers: Vec<_> = (0..8)
+            .map(|i| {
+                let (a, c, start) = (a.clone(), c.clone(), start.clone());
+                thread::spawn(move || {
+                    start.wait();
+                    let mut slot = None;
+                    for n in 0..500 {
+                        let b = a.clone();
+                        assert_eq!(b.as_ref().bits(), 77);
+                        if (n + i) % 2 == 0 {
+                            replace(&mut slot, Some(&b));
+                        } else {
+                            replace(&mut slot, None);
+                        }
+                        let d = c.clone();
+                        assert_eq!(d.as_ref().bits(), 77);
+                        let _ = is_exclusive(&d);
+                    }
+                    // The worker's references are dropped on this thread.
+                    (a, slot)
+                })
+            })
+            .collect();
+        let mut kept: Vec<_> = workers.into_iter().map(|w| w.join().unwrap()).collect();
+        assert!(a.get_mut().is_none());
+        kept.clear();
+        drop(c);
+        a.get_mut().unwrap().set_bits(78);
+        assert_eq!(a.as_ref().bits(), 78);
+    }
+
+    #[test]
+    fn last_release_on_another_thread_happens_before_the_exclusive_write() {
+        for _ in 0..64 {
+            let mut a = RefStructArc::<IntFloat64>::new_zeroed().unwrap();
+            a.get_mut().unwrap().set_bits(1);
+            let b = a.clone();
+            let reader = thread::spawn(move || {
+                // Read the payload, then release: C's acq_rel decrement orders
+                // the read before the write the main thread makes once
+                // `get_mut` observes the count at 1.
+                assert_eq!(b.as_ref().bits(), 1);
+                drop(b);
+            });
+            loop {
+                if let Some(mut m) = a.get_mut() {
+                    m.set_bits(2);
+                    break;
+                }
+                std::hint::spin_loop();
+            }
+            reader.join().unwrap();
+            assert_eq!(a.as_ref().bits(), 2);
+        }
+    }
+
+    #[test]
+    fn objects_freed_on_the_thread_holding_the_last_reference() {
+        let objects: Vec<_> = (0..32)
+            .map(|i| {
+                let mut a = RefStructArc::<Rational>::new_zeroed().unwrap();
+                a.get_mut().unwrap().set(Rational::new(i, 1));
+                a
+            })
+            .collect();
+        let copies: Vec<_> = objects.iter().map(to_const).collect();
+        let t = thread::spawn(move || {
+            for (i, c) in copies.iter().enumerate() {
+                assert_eq!(c.as_ref().num(), i as i32);
+            }
+            drop(copies);
+        });
+        drop(objects);
+        t.join().unwrap();
+    }
+
+    #[test]
+    fn allocation_failure_returns_no_owner() {
+        // Isolate the process-wide allocator limit from every other test.
+        const ISOLATED: &str = "CRUSTIFY_UB_SAFE_REFSTRUCT_ALLOC_FAILURE_CHILD";
+        if std::env::var_os(ISOLATED).is_none() {
+            let status = std::process::Command::new(std::env::current_exe().unwrap())
+                .args([
+                    "--exact",
+                    "refstruct::counted_references::allocation_failure_returns_no_owner",
+                    "--test-threads=1",
+                ])
+                .env(ISOLATED, "1")
+                .status()
+                .unwrap();
+            assert!(status.success());
+            return;
+        }
+        let kept = RefStructArc::<IntFloat64>::new_zeroed().unwrap();
+        ffmpeg::libavutil::mem::set_max_alloc(0);
+        assert!(RefStructArc::<IntFloat64>::new_zeroed().is_none());
+        assert!(RefStructBox::<ColorPrimariesDescriptor>::new_zeroed().is_none());
+        // Counting allocates nothing.
+        let more = kept.clone();
+        let c = to_const(&more);
+        let mut slot = None;
+        replace(&mut slot, Some(&kept));
+        ffmpeg::libavutil::mem::set_max_alloc(i32::MAX as usize);
+        drop((more, c, slot));
+        assert!(is_exclusive(&kept));
+        drop(RefStructArc::<IntFloat64>::new_zeroed().unwrap());
+    }
+
+    /// Rust reads and writes of the payload interleaved with C's header-only
+    /// count updates through retained pointers, across reborrows of the handles.
+    #[test]
+    fn foreign_count_updates_across_payload_reborrows() {
+        let mut a = RefStructArc::<ColorPrimariesDescriptor>::new_zeroed().unwrap();
+        for i in 1..8 {
+            {
+                let mut m = a.get_mut().unwrap();
+                m.white_point_mut().set_y(Rational::new(i, 9));
+                let w = m.as_ref().white_point();
+                assert_eq!(w.y().num(), i);
+            }
+            let b = a.clone();
+            let c = to_const(&b);
+            assert_eq!(c.as_ref().white_point().y().num(), i);
+            let mut slot = Some(c);
+            replace(&mut slot, None);
+            drop(b);
+            let r = a.as_ref();
+            assert_eq!(r.white_point().y().den(), 9);
+            assert!(is_exclusive(&a));
+        }
+    }
+}

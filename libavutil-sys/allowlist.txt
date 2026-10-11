@@ -814,3 +814,11 @@ function ^av_buffer_unref$
 function ^av_buffer_ref$
 function ^av_buffer_get_ref_count$
 function ^av_buffer_is_writable$
+
+# Buffer-frame wave 0, batch 5: the rest of the RefStruct reference lifecycle
+# (av_refstruct_allocz is static inline, compiled by bindgen's
+# wrap_static_fns; av_refstruct_ref, _unref and _exclusive are above). Batch
+# 1's block above also binds av_buffer_default_free.
+function ^av_refstruct_allocz$
+function ^av_refstruct_ref_c$
+function ^av_refstruct_replace$

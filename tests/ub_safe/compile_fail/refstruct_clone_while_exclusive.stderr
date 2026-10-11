@@ -1,0 +1,9 @@
+error[E0502]: cannot borrow `a` as immutable because it is also borrowed as mutable
+ --> tests/ub_safe/compile_fail/refstruct_clone_while_exclusive.rs
+  |
+  |     let mut m = a.get_mut().unwrap();
+  |                 - mutable borrow occurs here
+  |     let b = a.clone();
+  |             ^ immutable borrow occurs here
+  |     m.set_bits(1);
+  |     - mutable borrow later used here

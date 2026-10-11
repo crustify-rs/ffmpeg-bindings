@@ -13,14 +13,51 @@
 //! releases one (`av_refstruct_pool_uninit`). Entries handed out by the pool
 //! keep it alive on their own, so C frees it only after the last reference
 //! and the last outstanding entry are both gone.
+//!
+//! A RefStruct object is a payload of any type preceded, in the same
+//! `av_malloc` block, by a hidden header holding an atomic reference count.
+//! C hands out the payload's address as a `void *`, and every reference to
+//! the object is that same pointer: `av_refstruct_ref` increments the count
+//! and returns it, `av_refstruct_unref` decrements it and frees the block
+//! once it reaches zero. Rust gives the payload its type: it is a
+//! [`CCell`] layout type `T`, read through `T`'s handles.
+//!
+//! One counted reference is a [`CArc`] under one of two policies, both
+//! released by `av_refstruct_unref`, which follow C's `void *` / `const void *`
+//! split:
+//!
+//! - [`RefStructArc<T>`] ([`RefStructUnref`]) clones through
+//!   `av_refstruct_ref` and hands out `T`'s shared handle always, and its
+//!   exclusive handle (`get_mut`) when `av_refstruct_exclusive` proves the
+//!   reference the only one. It is built zeroed by
+//!   `RefStructArc::<T>::new_zeroed()` (`av_refstruct_allocz`), or as a
+//!   [`RefStructBox<T>`], the sole owner, which `CArc::from` shares and
+//!   `try_into_box` takes back.
+//! - [`ConstRefStructArc<T>`] ([`ConstRefStructUnref`]) clones through
+//!   `av_refstruct_ref_c` and never hands out the exclusive handle: C's
+//!   `const` reference, through which the holder never writes. It is made
+//!   from a [`RefStructArc`] by [`to_const`] (a new reference) or
+//!   [`into_const`] (the same one).
+//!
+//! [`replace`] (`av_refstruct_replace`) points an optional reference at
+//! another object, and [`is_exclusive`] (`av_refstruct_exclusive`) tells
+//! whether a reference is the only one. Counting is atomic, so references
+//! cross threads on `Arc`'s terms: a `RefStructArc<T>` is `Send` and `Sync`
+//! when `T` is both.
+//!
+//! An object `av_refstruct_allocz` allocates has no release callback: the
+//! last `av_refstruct_unref` frees the block and nothing else, so whatever a
+//! payload's fields come to own (a C allocation a setter stored) leaks, as it
+//! does in C.
 
 use core::ffi::{c_uint, c_void};
 use core::fmt;
 use core::hash::{Hash, Hasher};
+use core::mem::{align_of, size_of};
 use core::ops::{BitOr, BitOrAssign};
-use core::ptr::{NonNull, addr_of, addr_of_mut};
+use core::ptr::{self, NonNull, addr_of, addr_of_mut};
 
-use ffibox::{CArc, CDrop, CRefClone, CZeroable, define_ctype};
+use ffibox::{CAllocZeroed, CArc, CBox, CCell, CDrop, CRefClone, CZeroable, define_ctype};
 
 use super::ffi;
 
@@ -411,6 +448,249 @@ impl BitOrAssign for PoolFlags {
     }
 }
 
+/// Alignment of every RefStruct payload: `av_malloc` aligns the block to
+/// `ALIGN` (64, 32 or 16 by the build's SIMD configuration), and the payload
+/// starts `REFCOUNT_OFFSET` bytes in, a multiple of
+/// `FFMAX(ALIGN_64, _Alignof(max_align_t))`; both are at least 16.
+const ALIGN: usize = 16;
+
+/// `av_refstruct_unref` and `av_refstruct_ref`, as the policy of a reference
+/// to a RefStruct object through which the holder may write once it is the
+/// only one.
+///
+/// Thread-agnostic: C counts with atomics and frees through `av_free`, so a
+/// reference may be cloned and released on any thread.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash)]
+pub struct RefStructUnref;
+
+/// `av_refstruct_unref` and `av_refstruct_ref_c`, as the policy of a `const`
+/// reference to a RefStruct object, through which the holder never writes.
+///
+/// Thread-agnostic, as [`RefStructUnref`].
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash)]
+pub struct ConstRefStructUnref;
+
+/// One counted reference to a RefStruct object with payload `T`.
+///
+/// `clone` adds a reference to the same object (`av_refstruct_ref`); dropping
+/// the last one frees it. `as_ref` hands out `T`'s shared handle, and
+/// `get_mut` its exclusive one when the reference is the only one
+/// (`av_refstruct_exclusive`), `None` otherwise.
+///
+/// It crosses threads on `Arc`'s terms, so a payload that is not `Send` and
+/// `Sync` keeps its references on one thread:
+///
+/// ```compile_fail,E0277
+/// use ffibox::{CZeroable, define_ctype};
+/// use ffmpeg::libavutil::{ffi, refstruct::RefStructArc};
+/// define_ctype!(Local, LocalRef, LocalMut, ffi::AVRational); // neither `Send` nor `Sync`
+/// // SAFETY: 0/0 is a value every accessor accepts.
+/// unsafe impl CZeroable for Local {}
+/// fn send<T: Send>(_: T) {}
+/// send(RefStructArc::<Local>::new_zeroed());
+/// ```
+pub type RefStructArc<T> = CArc<T, RefStructUnref>;
+
+/// The only reference to a RefStruct object with payload `T`: `as_mut` hands
+/// out `T`'s exclusive handle unconditionally. Built zeroed by
+/// `RefStructBox::<T>::new_zeroed()`, shared by `RefStructArc::from`, and
+/// recovered from a sole [`RefStructArc`] by `try_into_box`.
+pub type RefStructBox<T> = CBox<T, RefStructUnref>;
+
+/// One counted `const` reference to a RefStruct object with payload `T`.
+///
+/// `clone` adds a `const` reference (`av_refstruct_ref_c`); `as_ref` hands out
+/// `T`'s shared handle, and `get_mut` is always `None`, even for the only
+/// reference.
+///
+/// It is never allocated as such, since a fresh object is written before it
+/// is shared; make one from a [`RefStructArc`]:
+///
+/// ```compile_fail,E0277
+/// use ffmpeg::libavutil::{intfloat::IntFloat64, refstruct::ConstRefStructArc};
+/// let _ = ConstRefStructArc::<IntFloat64>::new_zeroed();
+/// ```
+pub type ConstRefStructArc<T> = CArc<T, ConstRefStructUnref>;
+
+/// The policies of a counted RefStruct reference, [`RefStructUnref`] and
+/// [`ConstRefStructUnref`]; sealed.
+pub trait RefStructPolicy: Default + sealed::Sealed {}
+
+impl RefStructPolicy for RefStructUnref {}
+impl RefStructPolicy for ConstRefStructUnref {}
+
+mod sealed {
+    pub trait Sealed {}
+    impl Sealed for super::RefStructUnref {}
+    impl Sealed for super::ConstRefStructUnref {}
+}
+
+/// Wraps: av_refstruct_unref
+/// Handwritten
+///
+/// A generic policy over every payload type, so no `impl_cdrop!`; C takes the
+/// reference's slot rather than the object.
+// SAFETY: `av_refstruct_unref` drops one count of the object and frees its
+// block once, when the last reference goes. The only safe source of a
+// `RefStructUnref` reference is `av_refstruct_allocz` (no release callback)
+// or a clone of one, so freeing the block is the whole release.
+unsafe impl<T: CCell> CDrop<T> for RefStructUnref {
+    #[inline]
+    unsafe fn c_drop(&self, ptr: NonNull<T>) {
+        let mut slot = ptr.as_ptr().cast::<c_void>();
+        // SAFETY: `slot` holds the live object's reference the caller hands
+        // over; C reads it, writes NULL back into our local slot, and drops
+        // the count, freeing the block when it reaches zero.
+        unsafe { ffi::av_refstruct_unref((&raw mut slot).cast()) }
+    }
+}
+
+/// Wraps: av_refstruct_ref
+/// Wraps: av_refstruct_exclusive
+/// Handwritten
+///
+/// A generic policy over every payload type, so no `impl_crefclone!`.
+// SAFETY: `av_refstruct_ref` increments the count of the live object and
+// cannot fail; a `uintptr_t` count cannot overflow, since every reference
+// would need its own address. `av_refstruct_exclusive` acquire-loads the
+// count, which every reference contributes to: C's `av_refstruct_unref`
+// decrements with acq_rel ordering, so a release on another thread happens
+// before a `true`, and no weak reference exists.
+unsafe impl<T: CCell> CRefClone<T> for RefStructUnref {
+    #[inline]
+    unsafe fn c_up_ref(&self, ptr: NonNull<T>) -> bool {
+        // SAFETY: the caller holds a reference that keeps the object live; C
+        // writes only its header's count and returns the same pointer.
+        unsafe { ffi::av_refstruct_ref(ptr.as_ptr().cast()) };
+        true
+    }
+
+    #[inline]
+    unsafe fn c_is_sole_owner(&self, ptr: NonNull<T>) -> bool {
+        // SAFETY: as above; C acquire-loads the count and writes nothing.
+        unsafe { ffi::av_refstruct_exclusive(ptr.as_ptr().cast_const().cast()) != 0 }
+    }
+}
+
+/// Wraps: av_refstruct_allocz
+/// Handwritten
+///
+/// A generic allocator over every zeroable payload type. Payloads aligned
+/// beyond the 16 bytes C guarantees are rejected at compile time:
+///
+/// ```compile_fail,E0080
+/// use ffibox::{CZeroable, define_ctype};
+/// use ffmpeg::libavutil::{ffi, refstruct::RefStructArc};
+/// #[repr(C, align(32))]
+/// pub struct wide_st([u8; 32]);
+/// define_ctype!(Wide, WideRef, WideMut, wide_st);
+/// // SAFETY: plain bytes, no accessor reads them.
+/// unsafe impl CZeroable for Wide {}
+/// let _ = RefStructArc::<Wide>::new_zeroed();
+/// ```
+// SAFETY: `av_refstruct_allocz(size)` returns NULL or a fresh object of
+// `size` zeroed bytes, aligned to at least `ALIGN`, holding the one counted
+// reference `av_refstruct_unref` releases. `size_of::<T>()` and the
+// alignment assertion make it a `T`'s storage, all-zero, which `T:
+// CZeroable` makes a valid `T`. `c_drop` reads only the header, so it accepts
+// every value safe setters write.
+unsafe impl<T: CZeroable> CAllocZeroed<T> for RefStructUnref {
+    #[inline]
+    fn c_alloc_zeroed(&self) -> Option<NonNull<T>> {
+        const { assert!(align_of::<T>() <= ALIGN) };
+        // SAFETY: an allocation by size; C fails with NULL when `size` plus
+        // the header overflows or exceeds the `av_max_alloc` limit.
+        NonNull::new(unsafe { ffi::av_refstruct_allocz(size_of::<T>()) }.cast())
+    }
+}
+
+/// Wraps: av_refstruct_unref
+/// Handwritten
+///
+/// As for [`RefStructUnref`].
+// SAFETY: as for `CDrop for RefStructUnref`: a `ConstRefStructUnref`
+// reference comes only from a `RefStructUnref` one (`to_const`,
+// `into_const`) or a clone of one.
+unsafe impl<T: CCell> CDrop<T> for ConstRefStructUnref {
+    #[inline]
+    unsafe fn c_drop(&self, ptr: NonNull<T>) {
+        // SAFETY: the caller hands over a live object's reference, which
+        // `RefStructUnref` releases the same way.
+        unsafe { CDrop::<T>::c_drop(&RefStructUnref, ptr) }
+    }
+}
+
+/// Wraps: av_refstruct_ref_c
+/// Handwritten
+///
+/// A generic policy over every payload type, so no `impl_crefclone!`. It
+/// keeps `c_is_sole_owner`'s default `false`: a `const` reference never
+/// writes, so it never hands out the exclusive handle.
+// SAFETY: as for `CRefClone for RefStructUnref`: `av_refstruct_ref_c`
+// increments the count of the live object and cannot fail.
+unsafe impl<T: CCell> CRefClone<T> for ConstRefStructUnref {
+    #[inline]
+    unsafe fn c_up_ref(&self, ptr: NonNull<T>) -> bool {
+        // SAFETY: the caller holds a reference that keeps the object live; C
+        // writes only its header's count, casting `const` away for it alone.
+        unsafe { ffi::av_refstruct_ref_c(ptr.as_ptr().cast_const().cast()) };
+        true
+    }
+}
+
+/// Wraps: av_refstruct_ref_c
+///
+/// A new `const` reference to `obj`'s object.
+pub fn to_const<T: CCell>(obj: &RefStructArc<T>) -> ConstRefStructArc<T> {
+    // SAFETY: `obj`'s reference keeps the object live; C increments its count
+    // and returns the same pointer.
+    let ptr = unsafe { ffi::av_refstruct_ref_c(obj.as_ptr().cast_const().cast()) };
+    // SAFETY: `ptr` is the live object with the new reference C just counted,
+    // which the arc owns and releases with `av_refstruct_unref`.
+    unsafe { ConstRefStructArc::from_raw(ptr.cast_mut().cast()) }.expect("a live object")
+}
+
+/// `obj`'s reference as a `const` reference, with no call into C.
+pub fn into_const<T: CCell>(obj: RefStructArc<T>) -> ConstRefStructArc<T> {
+    let ptr = obj.into_raw();
+    // SAFETY: `into_raw` gave up the arc's counted reference to the live
+    // object; the new arc owns it, and `av_refstruct_unref` releases either.
+    unsafe { ConstRefStructArc::from_raw(ptr) }.expect("a live object")
+}
+
+/// Wraps: av_refstruct_exclusive
+///
+/// Whether `obj` is the only reference to its object; `RefStructArc`'s
+/// `get_mut` asks the same question.
+#[must_use]
+pub fn is_exclusive<T: CCell, D: RefStructPolicy + CDrop<T>>(obj: &CArc<T, D>) -> bool {
+    // SAFETY: `obj`'s reference keeps the object, and so its header, live;
+    // C acquire-loads the count and writes nothing.
+    unsafe { ffi::av_refstruct_exclusive(obj.as_ptr().cast_const().cast()) != 0 }
+}
+
+/// Wraps: av_refstruct_replace
+///
+/// Points `dst` at `src`'s object: unless both already refer to the same
+/// object (or are both `None`), `dst`'s reference is released and replaced by
+/// a new reference to `src`'s object, or by `None`. As
+/// `*dst = src.cloned()`, without touching the counts when nothing changes.
+pub fn replace<T: CCell, D: RefStructPolicy + CDrop<T>>(
+    dst: &mut Option<CArc<T, D>>,
+    src: Option<&CArc<T, D>>,
+) {
+    let mut slot: *mut c_void = dst.take().map_or(ptr::null_mut(), |a| a.into_raw().cast());
+    let src = src.map_or(ptr::null(), |a| a.as_ptr().cast_const().cast());
+    // SAFETY: `slot` holds NULL or the counted reference `dst` gave up, and
+    // `src` is NULL or a live object its borrow keeps alive. C leaves the
+    // slot alone when the two are equal, and otherwise releases the old
+    // reference and stores NULL or a new reference to `src`.
+    unsafe { ffi::av_refstruct_replace((&raw mut slot).cast(), src) };
+    // SAFETY: the slot now holds NULL or one counted reference, of the same
+    // policy's kind, which `dst` owns again.
+    *dst = unsafe { CArc::from_raw(slot.cast()) };
+}
+
 #[cfg(test)]
 mod unit_tests {
     use core::ffi::c_void;
@@ -574,5 +854,116 @@ mod unit_tests {
         assert!(!exclusive(a.as_c_ptr()));
         drop(a);
         assert!(exclusive(b.as_c_ptr()));
+    }
+
+    /// Buffer-frame wave 0, symbol batch 5: the counted references' policies.
+    mod counted_references {
+        use super::super::*;
+        use crate::libavutil::intfloat::IntFloat64;
+
+        /// A C-allocated zeroed object, adopted by its one reference.
+        fn adopted() -> RefStructArc<IntFloat64> {
+            // SAFETY: `av_refstruct_allocz` returns a fresh, zeroed 8-byte object
+            // with one counted reference, which the arc takes over.
+            unsafe { RefStructArc::from_raw(ffi::av_refstruct_allocz(8).cast()) }.unwrap()
+        }
+
+        fn raw(a: &RefStructArc<IntFloat64>) -> *const c_void {
+            a.as_ptr().cast_const().cast()
+        }
+
+        #[test]
+        fn adopted_object_is_zeroed_exclusive_and_released_once() {
+            let mut a = adopted();
+            assert_eq!(a.as_ref().bits(), 0);
+            // SAFETY: `a` keeps the object live.
+            assert_eq!(unsafe { ffi::av_refstruct_exclusive(raw(&a)) }, 1);
+            a.get_mut().unwrap().set_bits(7);
+            let b = a.clone();
+            // SAFETY: as above.
+            assert_eq!(unsafe { ffi::av_refstruct_exclusive(raw(&a)) }, 0);
+            drop(a);
+            assert_eq!(b.as_ref().bits(), 7);
+            // SAFETY: `b` keeps the object live.
+            assert_eq!(unsafe { ffi::av_refstruct_exclusive(raw(&b)) }, 1);
+        }
+
+        #[test]
+        fn policies_count_through_the_raw_seam() {
+            let a = adopted();
+            let p = NonNull::new(a.as_ptr()).unwrap();
+            // SAFETY: `a` keeps the object live; each up_ref owes the `c_drop`
+            // that follows it.
+            unsafe {
+                assert!(RefStructUnref.c_is_sole_owner(p));
+                assert!(ConstRefStructUnref.c_up_ref(p));
+                assert!(!RefStructUnref.c_is_sole_owner(p));
+                CDrop::<IntFloat64>::c_drop(&ConstRefStructUnref, p);
+                assert!(RefStructUnref.c_is_sole_owner(p));
+                assert!(RefStructUnref.c_up_ref(p));
+                CDrop::<IntFloat64>::c_drop(&RefStructUnref, p);
+                assert!(RefStructUnref.c_is_sole_owner(p));
+            }
+        }
+
+        #[test]
+        fn const_policy_never_claims_the_sole_reference() {
+            let c = into_const(adopted());
+            let p = NonNull::new(c.as_ptr()).unwrap();
+            // SAFETY: `c` keeps the object live.
+            assert!(!unsafe { ConstRefStructUnref.c_is_sole_owner(p) });
+            assert!(is_exclusive(&c));
+        }
+
+        #[test]
+        fn into_const_keeps_the_count_and_to_const_adds_one() {
+            let a = adopted();
+            let c = to_const(&a);
+            assert!(!is_exclusive(&a));
+            assert_eq!(c.as_ptr(), a.as_ptr());
+            drop(c);
+            assert!(is_exclusive(&a));
+            let p = a.as_ptr();
+            let c = into_const(a);
+            assert_eq!(c.as_ptr(), p);
+            assert!(is_exclusive(&c));
+        }
+
+        #[test]
+        fn replace_with_the_same_object_leaves_the_count_alone() {
+            let a = adopted();
+            let mut slot = Some(a.clone());
+            replace(&mut slot, Some(&a));
+            assert!(RefStructArc::ptr_eq(slot.as_ref().unwrap(), &a));
+            assert!(!is_exclusive(&a));
+            replace(&mut slot, None);
+            assert!(slot.is_none());
+            assert!(is_exclusive(&a));
+            let mut empty: Option<RefStructArc<IntFloat64>> = None;
+            replace(&mut empty, None);
+            assert!(empty.is_none());
+        }
+
+        #[test]
+        fn drop_policy_frees_an_object_whose_last_reference_goes() {
+            // SAFETY: a fresh object with one reference plus the one `av_refstruct_ref`
+            // adds, each released once by `c_drop`; ASan reports a leak or double
+            // free otherwise.
+            unsafe {
+                let obj = NonNull::new(ffi::av_refstruct_allocz(64)).unwrap();
+                ffi::av_refstruct_ref(obj.as_ptr());
+                CDrop::<IntFloat64>::c_drop(&ConstRefStructUnref, obj.cast());
+                assert_eq!(ffi::av_refstruct_exclusive(obj.as_ptr()), 1);
+                CDrop::<IntFloat64>::c_drop(&RefStructUnref, obj.cast());
+            }
+        }
+
+        #[test]
+        fn allocation_by_size_matches_the_payload() {
+            let b = RefStructBox::<IntFloat64>::new_zeroed().unwrap();
+            assert_eq!(b.as_ptr() as usize % ALIGN, 0);
+            let a = RefStructArc::from(b);
+            assert!(is_exclusive(&a));
+        }
     }
 }

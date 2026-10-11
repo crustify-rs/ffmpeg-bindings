@@ -327,3 +327,31 @@ fn stateless_allocators_as_c_init() {
         finish(&mut rust, owner, &mut c, &mut observe);
     }
 }
+
+/// Buffer-frame wave 0, symbol batch 5: `av_buffer_default_free`'s release
+/// against the C callback.
+mod default_release {
+    use core::ptr;
+
+    use ffmpeg::libavutil::buffer::default_free;
+    use ffmpeg::libavutil::ffi;
+    use ffmpeg::libavutil::mem::{HeapVec, alloc_array_zeroed};
+
+    #[test]
+    fn default_free_releases_as_the_c_callback() {
+        for len in [0usize, 1, 7, 64, 4096] {
+            // SAFETY: an `av_malloc` block of `len` bytes (or NULL, for 0 on a
+            // failing allocation), released once by the default callback, which
+            // ignores its opaque.
+            unsafe {
+                let data = ffi::av_malloc(len).cast::<u8>();
+                ffi::av_buffer_default_free(ptr::null_mut(), data);
+            }
+            default_free(alloc_array_zeroed::<u8>(len).unwrap_or_else(HeapVec::empty));
+        }
+        // NULL data is a no-op on both sides.
+        // SAFETY: `av_free(NULL)` does nothing.
+        unsafe { ffi::av_buffer_default_free(ptr::null_mut(), ptr::null_mut()) };
+        default_free(HeapVec::<u8>::empty());
+    }
+}

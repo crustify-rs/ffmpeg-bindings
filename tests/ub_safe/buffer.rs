@@ -105,3 +105,37 @@ fn concurrent_construction_and_release() {
         }
     });
 }
+
+/// Buffer-frame wave 0, symbol batch 5: `av_buffer_default_free`'s release
+/// of every array shape, on any thread.
+mod default_release {
+    use std::mem::MaybeUninit;
+    use std::thread;
+
+    use ffmpeg::libavutil::buffer::default_free;
+    use ffmpeg::libavutil::mem::{HeapVec, alloc_array, alloc_array_zeroed};
+
+    #[test]
+    fn default_free_releases_every_array_shape() {
+        let filled = HeapVec::from_slice(&[0xa5u8; 4096]).unwrap();
+        assert_eq!(filled.as_slice()[4095], 0xa5);
+        default_free(filled);
+        default_free(alloc_array::<u8>(17).unwrap());
+        default_free(alloc_array_zeroed::<u64>(3).unwrap());
+        default_free(HeapVec::<u8>::empty());
+        default_free(HeapVec::<MaybeUninit<u8>>::empty());
+        for len in [0, 1, 63, 64, 65] {
+            default_free(alloc_array_zeroed::<u8>(len).unwrap_or_else(HeapVec::empty));
+        }
+    }
+
+    #[test]
+    fn default_free_releases_on_another_thread() {
+        let arrays: Vec<_> = (1..64)
+            .map(|n| HeapVec::from_slice(&vec![n as u8; n]).unwrap())
+            .collect();
+        thread::spawn(move || arrays.into_iter().for_each(default_free))
+            .join()
+            .unwrap();
+    }
+}
