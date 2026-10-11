@@ -1,0 +1,14 @@
+{
+  "objective": "wrap",
+  "items": [
+    {
+      "name": "AVXTEA",
+      "defined_in": "libavutil/xtea.h",
+      "kind": "type",
+      "field_anchors": [
+        "key"
+      ],
+      "home": "crustify/rust/ffmpeg/libavutil/xtea.rs"
+    }
+  ]
+}

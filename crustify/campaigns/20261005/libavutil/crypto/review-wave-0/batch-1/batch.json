@@ -1,0 +1,173 @@
+{
+  "objective": "review",
+  "items": [
+    {
+      "name": "av_adler32_update",
+      "defined_in": "libavutil/adler32.c",
+      "kind": "symbol",
+      "field_anchors": [],
+      "home": "crustify/rust/ffmpeg/libavutil/adler32.rs"
+    },
+    {
+      "name": "av_aes_size",
+      "defined_in": "libavutil/aes.c",
+      "kind": "symbol",
+      "field_anchors": [],
+      "home": "crustify/rust/ffmpeg/libavutil/aes.rs"
+    },
+    {
+      "name": "av_base64_decode",
+      "defined_in": "libavutil/base64.c",
+      "kind": "symbol",
+      "field_anchors": [],
+      "home": "crustify/rust/ffmpeg/libavutil/base64.rs"
+    },
+    {
+      "name": "av_base64_encode",
+      "defined_in": "libavutil/base64.c",
+      "kind": "symbol",
+      "field_anchors": [],
+      "home": "crustify/rust/ffmpeg/libavutil/base64.rs"
+    },
+    {
+      "name": "av_camellia_size",
+      "defined_in": "libavutil/camellia.c",
+      "kind": "symbol",
+      "field_anchors": [],
+      "home": "crustify/rust/ffmpeg/libavutil/camellia.rs"
+    },
+    {
+      "name": "av_cast5_size",
+      "defined_in": "libavutil/cast5.c",
+      "kind": "symbol",
+      "field_anchors": [],
+      "home": "crustify/rust/ffmpeg/libavutil/cast5.rs"
+    },
+    {
+      "name": "av_crc",
+      "defined_in": "libavutil/crc.c",
+      "kind": "symbol",
+      "field_anchors": [],
+      "home": "crustify/rust/ffmpeg/libavutil/crc.rs"
+    },
+    {
+      "name": "av_crc_init",
+      "defined_in": "libavutil/crc.c",
+      "kind": "symbol",
+      "field_anchors": [],
+      "home": "crustify/rust/ffmpeg/libavutil/crc.rs"
+    },
+    {
+      "name": "av_hash_names",
+      "defined_in": "libavutil/hash.c",
+      "kind": "symbol",
+      "field_anchors": [],
+      "home": "crustify/rust/ffmpeg/libavutil/hash.rs"
+    },
+    {
+      "name": "av_lzo1x_decode",
+      "defined_in": "libavutil/lzo.c",
+      "kind": "symbol",
+      "field_anchors": [],
+      "home": "crustify/rust/ffmpeg/libavutil/lzo.rs"
+    },
+    {
+      "name": "av_md5_size",
+      "defined_in": "libavutil/md5.c",
+      "kind": "symbol",
+      "field_anchors": [],
+      "home": "crustify/rust/ffmpeg/libavutil/md5.rs"
+    },
+    {
+      "name": "av_md5_sum",
+      "defined_in": "libavutil/md5.c",
+      "kind": "symbol",
+      "field_anchors": [],
+      "home": "crustify/rust/ffmpeg/libavutil/md5.rs"
+    },
+    {
+      "name": "av_ripemd_size",
+      "defined_in": "libavutil/ripemd.c",
+      "kind": "symbol",
+      "field_anchors": [],
+      "home": "crustify/rust/ffmpeg/libavutil/ripemd.rs"
+    },
+    {
+      "name": "av_sha512_size",
+      "defined_in": "libavutil/sha512.c",
+      "kind": "symbol",
+      "field_anchors": [],
+      "home": "crustify/rust/ffmpeg/libavutil/sha512.rs"
+    },
+    {
+      "name": "av_sha_size",
+      "defined_in": "libavutil/sha.c",
+      "kind": "symbol",
+      "field_anchors": [],
+      "home": "crustify/rust/ffmpeg/libavutil/sha.rs"
+    },
+    {
+      "name": "av_tea_size",
+      "defined_in": "libavutil/tea.c",
+      "kind": "symbol",
+      "field_anchors": [],
+      "home": "crustify/rust/ffmpeg/libavutil/tea.rs"
+    },
+    {
+      "name": "av_twofish_size",
+      "defined_in": "libavutil/twofish.c",
+      "kind": "symbol",
+      "field_anchors": [],
+      "home": "crustify/rust/ffmpeg/libavutil/twofish.rs"
+    },
+    {
+      "name": "av_uuid_copy",
+      "defined_in": "libavutil/uuid.h",
+      "kind": "symbol",
+      "field_anchors": [],
+      "home": "crustify/rust/ffmpeg/libavutil/uuid.rs"
+    },
+    {
+      "name": "av_uuid_equal",
+      "defined_in": "libavutil/uuid.h",
+      "kind": "symbol",
+      "field_anchors": [],
+      "home": "crustify/rust/ffmpeg/libavutil/uuid.rs"
+    },
+    {
+      "name": "av_uuid_nil",
+      "defined_in": "libavutil/uuid.h",
+      "kind": "symbol",
+      "field_anchors": [],
+      "home": "crustify/rust/ffmpeg/libavutil/uuid.rs"
+    },
+    {
+      "name": "av_uuid_parse",
+      "defined_in": "libavutil/uuid.c",
+      "kind": "symbol",
+      "field_anchors": [],
+      "home": "crustify/rust/ffmpeg/libavutil/uuid.rs"
+    },
+    {
+      "name": "av_uuid_parse_range",
+      "defined_in": "libavutil/uuid.c",
+      "kind": "symbol",
+      "field_anchors": [],
+      "home": "crustify/rust/ffmpeg/libavutil/uuid.rs"
+    },
+    {
+      "name": "av_uuid_unparse",
+      "defined_in": "libavutil/uuid.c",
+      "kind": "symbol",
+      "field_anchors": [],
+      "home": "crustify/rust/ffmpeg/libavutil/uuid.rs"
+    },
+    {
+      "name": "av_uuid_urn_parse",
+      "defined_in": "libavutil/uuid.c",
+      "kind": "symbol",
+      "field_anchors": [],
+      "home": "crustify/rust/ffmpeg/libavutil/uuid.rs"
+    }
+  ]
+}
