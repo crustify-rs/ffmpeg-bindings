@@ -1,0 +1,40 @@
+[mid @ 0x511000000400] config in time_base: 1/25, frame_rate: 0/1
+[mid @ 0x511000000400] config out time_base: 0/0, frame_rate: 0/0
+payload 28 bytes, self_size 4
+[mid @ 0x511000000400] n:   0 pts:  NOPTS pts_time:NOPTS   duration:      0 duration_time:0       fmt:yuv420p cl:unspecified sar:0/1 s:16x16 i:P iskey:0 type:? checksum:5B0A1D0F plane_checksum:[6491BE00 081A2F80 081A2F80] mean:[190 190 190] stdev:[0.0 0.0 0.0]
+[mid @ 0x511000000400]   side data - Regions Of Interest: index: 0, region: (0, 0) -> (8, 8), qp offset: -1/10.
+=================================================================
+==1168236==ERROR: AddressSanitizer: heap-buffer-overflow on address 0x50900000159c at pc 0x72d5d0c05876 bp 0x7ffe34832370 sp 0x7ffe34832368
+READ of size 4 at 0x50900000159c thread T0
+    #0 0x72d5d0c05875 in dump_roi /target/crustify/builds/asan-ubsan/src/libavfilter/vf_showinfo.c:151:96
+    #1 0x72d5d0c05875 in filter_frame /target/crustify/builds/asan-ubsan/src/libavfilter/vf_showinfo.c:830:13
+    #2 0x72d5cfdd9c8a in filter_frame_framed /target/crustify/builds/asan-ubsan/src/libavfilter/avfilter.c:1059:11
+    #3 0x72d5cfdd9c8a in filter_frame_to_filter /target/crustify/builds/asan-ubsan/src/libavfilter/avfilter.c:1217:11
+    #4 0x72d5cfdd9c8a in filter_activate_default /target/crustify/builds/asan-ubsan/src/libavfilter/avfilter.c:1279:20
+    #7 0x5f60f3e1ce8a in main /tmp/rw1b0/probe/roi_showinfo.c:45:15
+
+0x50900000159c is located 0 bytes after 28-byte region [0x509000001580,0x50900000159c)
+allocated by thread T0 here:
+    #0 0x5f60f3dded4b in posix_memalign (/tmp/rw1b0/probe/roi_showinfo+0xc7d4b) (BuildId: 6bfdf6ad6562e2fa095b21352912e37403b66d37)
+    #1 0x72d5ce4c2eaf in av_malloc /target/crustify/builds/asan-ubsan/src/libavutil/mem.c:107:9
+    #2 0x72d5ce3f7fd4 in av_buffer_alloc /target/crustify/builds/asan-ubsan/src/libavutil/buffer.c:82:12
+    #3 0x72d5ce474207 in av_frame_new_side_data /target/crustify/builds/asan-ubsan/src/libavutil/frame.c:652:24
+    #4 0x5f60f3e1cc00 in main /tmp/rw1b0/probe/roi_showinfo.c:33:27
+    #7 0x5f60f3d43414 in _start (/tmp/rw1b0/probe/roi_showinfo+0x2c414) (BuildId: 6bfdf6ad6562e2fa095b21352912e37403b66d37)
+
+SUMMARY: AddressSanitizer: heap-buffer-overflow /target/crustify/builds/asan-ubsan/src/libavfilter/vf_showinfo.c:151:96 in dump_roi
+Shadow bytes around the buggy address:
+  0x509000001300: fa fa fa fa fa fa fa fa fd fd fd fd fa fa fa fa
+  0x509000001380: fa fa fa fa fa fa fa fa 00 fa fa fa fa fa fa fa
+  0x509000001400: fa fa fa fa fa fa fa fa fa fa fa fa fa fa fa fa
+  0x509000001480: 00 00 00 00 00 00 fa fa fa fa fa fa fa fa fa fa
+  0x509000001500: 00 00 00 fa fa fa fa fa fa fa fa fa fa fa fa fa
+=>0x509000001580: 00 00 00[04]fa fa fa fa fa fa fa fa fa fa fa fa
+  0x509000001600: 00 00 00 00 00 00 fa fa fa fa fa fa fa fa fa fa
+  0x509000001680: fa fa fa fa fa fa fa fa 00 00 00 fa fa fa fa fa
+  0x509000001700: fa fa fa fa fa fa fa fa 00 00 00 00 00 fa fa fa
+  0x509000001780: fa fa fa fa fa fa fa fa fa fa fa fa fa fa fa fa
+  0x509000001800: fa fa fa fa fa fa fa fa fa fa fa fa fa fa fa fa
+Shadow byte legend (one shadow byte represents 8 application bytes):
+  Addressable:           00
+  Partially addressable: 01 02 03 04 05 06 07 
