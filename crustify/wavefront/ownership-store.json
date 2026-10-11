@@ -6129,7 +6129,7 @@
       },
       "nullable": false,
       "mutable": false,
-      "note": "Value string, parsed during the call only (sscanf num/den for rationals, av_expr_parse_and_eval otherwise). Must not be NULL."
+      "note": "Value string, parsed during the call only. AV_OPT_TYPE_FLAGS is evaluated token by token: an optional '+'/'-', then at most 255 bytes up to the next '+'/'-' (copied into buf[256]; an empty token evaluates the whole rest), each token looked up as a CONST of o->unit or parsed as its own av_expr_parse_and_eval expression. A token cut at the 255-byte limit starts inside what the whole string reads as one name or number, so a check of the whole string cannot stand in for the tokens: '0*' + 253 zeros + 'ld(1e300)' evaluates ld(1e300), converting 1e300 to int unchecked (UBSan eval.c float-cast-overflow). opt::flags_refusal checks every token with eval::refuses (options wave-2 review). Must not be NULL."
      }
     }
    ]

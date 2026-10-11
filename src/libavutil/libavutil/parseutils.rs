@@ -668,10 +668,13 @@ mod unit_tests {
             );
         }
         // Every string of up to four bytes over an alphabet that reaches
-        // each branch.
+        // each branch. Under BSan the 38k four-byte strings alone take over
+        // 50 minutes (each a `CString` and a libc call), so the sweep stops
+        // at three bytes there; plain and the other sanitizers cover four.
         let alphabet = b" \x0b+-nNaA()_1x.";
+        let bsan = std::env::var("CRUSTIFY_FFMPEG_VARIANT").as_deref() == Ok("bsan");
         let mut s = Vec::new();
-        for len in 0..=4u32 {
+        for len in 0..=if bsan { 3 } else { 4u32 } {
             for mut i in 0..alphabet.len().pow(len) {
                 s.clear();
                 for _ in 0..len {

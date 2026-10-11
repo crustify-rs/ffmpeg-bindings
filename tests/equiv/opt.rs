@@ -4524,4 +4524,162 @@ mod lookups {
             }
         }
     }
+
+    /// Flags values longer than C's 255-byte token buffer, which C cuts into
+    /// tokens it evaluates one by one: the values C evaluates safely agree
+    /// with C after every call on one flags value per side; a value with a
+    /// cut token whose evaluation C converts unchecked is refused alone
+    /// (options wave-2 review,
+    /// `ub_safe/eval-flags-token-split-hides-evaluator-call`).
+    #[test]
+    fn long_flag_values_are_cut_and_refused_as_tokens() {
+        // BSan misreads C's reads through glibc `strtod` / `strtol` end
+        // pointers (`eval.c:120`, `parseutils.c:166`) in these evaluations
+        // and the fixture's defaults, as in the other object suites.
+        if std::env::var("CRUSTIFY_FFMPEG_VARIANT").as_deref() == Ok("bsan") {
+            return;
+        }
+        /// `head`, padded with `fill` to `pad` bytes, then `tail`.
+        fn long(head: &str, fill: u8, pad: usize, tail: &str) -> std::ffi::CString {
+            let mut v = head.as_bytes().to_vec();
+            v.resize(pad, fill);
+            v.extend(tail.as_bytes());
+            std::ffi::CString::new(v).unwrap()
+        }
+        let o = parent_and_child();
+        let obj = shared(&o);
+        let fake = Fake::new();
+        let agreed = [
+            long("0*", b'0', 255, "1"),
+            long("0*", b'0', 255, "ld(1)"),
+            long("+0*", b'0', 256, "one"),
+            long("-0*", b'0', 256, "+bit"),
+            long("", b'0', 254, "1eight"),
+            long("", b' ', 255, "one"),
+            long("0*", b'0', 255, "abc"),
+            long("0*", b'0', 300, "+one"),
+            long("eight", b' ', 255, "-eight"),
+        ];
+        let refused = [
+            long("0*", b'0', 255, "ld(1e300)"),
+            long("+0*", b'0', 256, "ld(-1e300)"),
+            long("0*", b'0', 255, "print(1,1e300)"),
+            long("0*", b'0', 255, "taylor(1,2,1e300)"),
+        ];
+        for (cflags, c_obj, ctx) in [
+            (c"flags", o.as_obj(), EvalContext::from(obj)),
+            (c"cflags", o.as_obj(), EvalContext::from(obj)),
+            (c"flags", fake.obj(), EvalContext::from(obj.class())),
+        ] {
+            let e = obj.find(cflags, None, 0, SearchFlags::NONE).unwrap();
+            let i = obj
+                .options()
+                .position(|x| x.name() == Some(cflags))
+                .unwrap();
+            let c_e = &raw const OBJ_OPTIONS.0[i];
+            let (mut rust, mut c) = (3, 3);
+            for val in &agreed {
+                let r = e.eval_flags(ctx, val, &mut rust);
+                // SAFETY: as in `evaluate`.
+                let ret = unsafe { ffi::av_opt_eval_flags(c_obj, c_e, val.as_ptr(), &mut c) };
+                assert_eq!(r.err().unwrap_or(0), ret, "{cflags:?} {val:?}");
+                assert_eq!(rust, c, "{cflags:?} {val:?}");
+            }
+            for val in &refused {
+                let before = rust;
+                assert_eq!(e.eval_flags(ctx, val, &mut rust), Err(EINVAL), "{val:?}");
+                assert_eq!(rust, before);
+            }
+        }
+    }
+
+    /// A dictionary option whose default C cannot parse (a key with no
+    /// value): both default checks fail with C's `av_dict_parse_string`
+    /// error, before and after a value is set.
+    #[test]
+    fn unparsable_dictionary_defaults_fail_as_c() {
+        use super::fixture::{Class, Table};
+
+        #[repr(C)]
+        struct DictObj {
+            class: *const ffi::AVClass,
+            dict: *mut ffi::AVDictionary,
+        }
+
+        static OPTIONS: Table<2> = Table([
+            ffi::AVOption {
+                name: c"dict".as_ptr(),
+                help: ptr::null(),
+                offset: core::mem::offset_of!(DictObj, dict) as c_int,
+                type_: ffi::AVOptionType::AV_OPT_TYPE_DICT,
+                default_val: ffi::AVOption__bindgen_ty_1 {
+                    str_: c"nokey".as_ptr(),
+                },
+                min: 0.0,
+                max: 0.0,
+                flags: 0,
+                unit: ptr::null(),
+            },
+            ffi::AVOption {
+                name: ptr::null(),
+                help: ptr::null(),
+                offset: 0,
+                type_: ffi::AVOptionType(0),
+                default_val: ffi::AVOption__bindgen_ty_1 { i64_: 0 },
+                min: 0.0,
+                max: 0.0,
+                flags: 0,
+                unit: ptr::null(),
+            },
+        ]);
+        static CLASS: Class = Class(ffi::AVClass {
+            class_name: c"crustify-opt-bad-dict".as_ptr(),
+            item_name: Some(ffi::av_default_item_name),
+            option: &OPTIONS.0[0],
+            version: 0,
+            log_level_offset_offset: 0,
+            parent_log_context_offset: 0,
+            category: ffi::AVClassCategory::AV_CLASS_CATEGORY_NA,
+            get_category: None,
+            query_ranges: None,
+            child_next: None,
+            child_class_iterate: None,
+            state_flags_offset: 0,
+        });
+
+        let o = Box::into_raw(Box::new(DictObj {
+            class: &CLASS.0,
+            dict: ptr::null_mut(),
+        }));
+        let obj = o.cast::<c_void>();
+        let c_o = &raw const OPTIONS.0[0];
+        for step in [None, Some(c"k=v")] {
+            {
+                // SAFETY: a live object of the well-formed class above (its
+                // default fails to parse, which is no undefined behaviour),
+                // used through this handle only while it lives.
+                let mut handle = unsafe { ObjectMut::from_ptr(obj) }.unwrap();
+                if let Some(val) = step {
+                    handle.set(c"dict", val, SearchFlags::NONE).unwrap();
+                }
+            }
+            // SAFETY: as above, shared while C reads too.
+            let handle = unsafe { ObjectRef::from_ptr(obj) }.unwrap();
+            let o_rust = handle.find(c"dict", None, 0, SearchFlags::NONE).unwrap();
+            // SAFETY: the live object and an entry of its class's table.
+            let c = unsafe { ffi::av_opt_is_set_to_default(obj, c_o) };
+            // SAFETY: as above.
+            let c_named = unsafe { ffi::av_opt_is_set_to_default_by_name(obj, c"dict".as_ptr(), 0) };
+            assert_eq!(c, EINVAL);
+            assert_eq!(handle.is_option_set_to_default(o_rust), Err(c));
+            assert_eq!(handle.is_set_to_default(c"dict", SearchFlags::NONE), Err(c_named));
+        }
+        {
+            // SAFETY: as above.
+            let mut handle = unsafe { ObjectMut::from_ptr(obj) }.unwrap();
+            handle.free_options();
+        }
+        // SAFETY: the box allocated above, its dictionary freed.
+        drop(unsafe { Box::from_raw(o) });
+    }
 }

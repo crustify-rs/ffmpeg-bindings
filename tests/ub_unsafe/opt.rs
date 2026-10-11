@@ -2219,6 +2219,44 @@ mod lookups {
         assert!(outcomes > 0);
     }
 
+    /// Flags values whose second 255-byte token C evaluates on its own, as
+    /// an expression the whole value hides (`0...0ld(1e300)`): refused by
+    /// the evaluators in both contexts and by the setters that share their
+    /// refusal, before C converts `1e300` to an `int` (options wave-2
+    /// review, `ub_safe/eval-flags-token-split-hides-evaluator-call`).
+    #[test]
+    fn cut_flag_tokens_are_refused_by_evaluators_and_setters() {
+        // BSan misreads C's reads through glibc `strtod` / `strtol` end
+        // pointers (`eval.c:120`, `parseutils.c:166`) in these evaluations
+        // and the fixture's defaults, as in the other object suites.
+        if std::env::var("CRUSTIFY_FFMPEG_VARIANT").as_deref() == Ok("bsan") {
+            return;
+        }
+        let mut v = b"0*".to_vec();
+        v.extend([b'0'; 253]);
+        v.extend(b"ld(1e300)");
+        let val = std::ffi::CString::new(v).unwrap();
+        let pair = std::ffi::CString::new([&b"flags="[..], val.to_bytes()].concat()).unwrap();
+        let o = Owned::with_child();
+        {
+            let obj = shared(&o);
+            for ctx in [EvalContext::from(obj), EvalContext::from(obj.class())] {
+                for name in [c"flags", c"cflags"] {
+                    let e = obj.find(name, None, 0, SearchFlags::NONE).unwrap();
+                    let mut f = 5;
+                    let r = e.eval_flags(ctx, &val, &mut f);
+                    assert_eq!((r, f), (Err(EINVAL), 5), "{name:?}");
+                }
+            }
+        }
+        let mut obj = exclusive(&o);
+        assert_eq!(obj.set(c"flags", &val, SearchFlags::NONE), Err(EINVAL));
+        assert_eq!(obj.set_options_string(&pair, c"=", c":"), Err(EINVAL));
+        assert_eq!(obj.set_from_string(&pair, &[], c"=", c":"), Err(EINVAL));
+        // Untouched: still the default.
+        assert_eq!(obj.as_ref().get_int(c"flags", SearchFlags::NONE), Ok(3));
+    }
+
     /// A class context and its options shared by several threads, each
     /// evaluating, looking up and querying at once (`Send` / `Sync` on
     /// `ClassRef` and `OptionDefRef`; an `EvalContext` holds no more than

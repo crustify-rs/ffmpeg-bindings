@@ -1736,7 +1736,8 @@ impl<'a> ObjectMut<'a> {
     ///
     /// Also, before C runs, for a value whose parse could reach undefined
     /// behaviour in C: `AVERROR(EINVAL)` for an expression that
-    /// [`eval::parse_and_eval`] refuses, a color whose alpha reads as NaN
+    /// [`eval::parse_and_eval`] refuses (for flags, any token C evaluates on
+    /// its own: each `+` / `-` part, cut every 255 bytes), a color whose alpha reads as NaN
     /// (`"red@nan"`), a channel layout of an ambisonic order of exactly
     /// `INT_MAX`, or any element of an array of binary elements, whose length
     /// C writes past each element's pointer; `AVERROR(ERANGE)` for a `+` / `-` flag operand whose value
@@ -2381,13 +2382,17 @@ fn elem_refusal(
     }
 }
 
-/// The error a flags value is refused with: `AVERROR(ERANGE)` when C's
-/// `set_string_number` reaches a `+` or `-` token whose value is NaN or
-/// outside the `int64_t` range, which it converts unchecked.
+/// The error a flags value is refused with: `AVERROR(EINVAL)` for a token
+/// whose evaluation could reach undefined behaviour, and `AVERROR(ERANGE)`
+/// when C's `set_string_number` reaches a `+` or `-` token whose value is
+/// NaN or outside the `int64_t` range, which it converts unchecked.
 ///
 /// Splits `val` as C does: an optional `+` or `-`, then up to 255 bytes up
 /// to the next `+` or `-`; an empty token evaluates the whole rest and ends
-/// the value.
+/// the value. C parses each token as an expression of its own, and a token
+/// cut at the 255-byte limit can start inside what the whole value reads as
+/// one name or number (`0` x 255 then `ld(1e300)`), so every token is checked
+/// on its own.
 fn flags_refusal(
     target: NonNull<c_void>,
     o: OptionDefRef<'_>,
@@ -2405,6 +2410,9 @@ fn flags_refusal(
             .take_while(|&&c| c != b'+' && c != b'-')
             .count();
         let token = if len > 0 { &rest[..len] } else { rest };
+        if eval::refuses(token, 0) {
+            return Ok(Some(EINVAL));
+        }
         if cmd {
             match number_value(target, o, token)? {
                 Some(d) if !fits_i64(d) => return Ok(Some(ERANGE)),
@@ -4058,9 +4066,9 @@ type EvalFn<T> =
 /// error of an expression C cannot parse; `AVERROR(ERANGE)` (logged) for a
 /// value outside the option's bounds. Also the values [`ObjectMut::set`]
 /// refuses before C parses them for the same type: `AVERROR(EINVAL)` for an
-/// expression whose evaluation C converts unchecked, and `AVERROR(ERANGE)`
-/// for a flag operand outside the `int64_t` range or a rational within wide
-/// bounds outside the `int` range.
+/// expression (for flags, any token of it) whose evaluation C converts
+/// unchecked, and `AVERROR(ERANGE)` for a flag operand outside the `int64_t`
+/// range or a rational within wide bounds outside the `int` range.
 impl OptionDefRef<'_> {
     /// Wraps: av_opt_eval_flags
     ///
@@ -6711,6 +6719,28 @@ mod unit_tests {
             let names: Vec<_> = obj.options().map(|o| o.name()).collect();
             let table: Vec<_> = obj.class().options().iter().map(|o| o.name()).collect();
             assert_eq!(names, table);
+        }
+
+        /// Each token C evaluates on its own is checked, one that starts
+        /// after the 255-byte cut included; tokens without `+` or `-` are
+        /// checked without C, so the target is never read (options wave-2
+        /// review, `ub_safe/eval-flags-token-split-hides-evaluator-call`).
+        #[test]
+        fn flags_refusal_checks_every_cut_token() {
+            let o = (0..NAMED).map(entry).find(|o| o.name() == Some(c"flags"));
+            let o = o.unwrap();
+            let target = NonNull::dangling();
+            let cut = |zeros: usize, tail: &[u8]| [&b"0*"[..], &vec![b'0'; zeros], tail].concat();
+            for tail in [&b"ld(1e300)"[..], b"print(1,1e300)", b"taylor(1,2,1e300)"] {
+                let refusal = flags_refusal(target, o, &cut(253, tail));
+                assert_eq!(refusal, Ok(Some(EINVAL)), "{tail:?}");
+            }
+            for tail in [&b"ld(1)"[..], b"1", b"abc"] {
+                assert_eq!(flags_refusal(target, o, &cut(253, tail)), Ok(None));
+            }
+            // One zero fewer and the cut falls after the `l`: C then parses
+            // `d(1e300)`, which fails without calling anything.
+            assert_eq!(flags_refusal(target, o, &cut(252, b"ld(1e300)")), Ok(None));
         }
 
         #[test]
