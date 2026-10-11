@@ -60,6 +60,18 @@
    ]
   },
   {
+   "name": "AVBlowfish",
+   "defined_in": "libavutil/blowfish.h",
+   "_comment_agent": "p is u32[18], s is u32[4][256] (nested dimension omitted in structural oracle array record). No pointers/resources, address identity, field disposal, or C clone. av_blowfish_alloc uses av_mallocz; av_free releases it. av_blowfish_init also fills stack contexts (rtmpe9_sig) and retains neither context nor key. Public arrays support copying getters and replacement setters.",
+   "fields": []
+  },
+  {
+   "name": "AVCAMELLIA",
+   "defined_in": "libavutil/camellia.c",
+   "_comment_agent": "Opaque in public header; concrete body has only Kw[4], Ke[6], K[24] u64 arrays and key_bits int. av_camellia_alloc allocates full av_mallocz storage, freed by av_free, no nested allocations/copy/dispose primitives. init reads exactly 16/24/32 key bytes, stores schedule not pointer. computeSP unconditionally rewrites static SP on every init; all safe init and future crypt operations must share a Rust global lock, even on distinct contexts. Raw C accesses must exclude races.",
+   "fields": []
+  },
+  {
    "name": "AVCAST5",
    "defined_in": "libavutil/cast5.c",
    "_comment_agent": "Opaque in cast5.h. Concrete private body contains two 17-element u32 arrays and rounds, no pointer fields or resources. av_cast5_alloc returns fresh av_mallocz storage, released by av_free; av_cast5_init copies a 5..16-byte key, sets rounds=12 or 16 and writes keys in place. C crypt routines only read context. No C clone/dispose/refcount and no retained buffers. Public fields: none. Consumers in libavutil/tests/cast5.c free with av_free; tools/crypto_bench.c retains a process-lifetime static allocation.",
@@ -1547,6 +1559,84 @@
    "defined_in": "libavutil/mathematics.c"
   },
   {
+   "name": "av_blowfish_alloc",
+   "defined_in": "libavutil/blowfish.c",
+   "lifetime": {
+    "for": "return",
+    "is_dropper": false,
+    "is_disposer": false,
+    "is_cloner": null,
+    "is_constructor": {
+     "alloc": true,
+     "init": false
+    }
+   },
+   "ptr_ret": {
+    "ptr": {
+     "scalar": {
+      "by_val": true
+     },
+     "array": null,
+     "string": false,
+     "owned": true,
+     "borrowed": null,
+     "nullable": true,
+     "mutable": true,
+     "note": "Fresh full-sized zeroed singleton; av_free releases it; no nested resources or retained alias."
+    }
+   }
+  },
+  {
+   "name": "av_blowfish_init",
+   "defined_in": "libavutil/blowfish.c",
+   "lifetime": {
+    "for": "ctx",
+    "is_dropper": false,
+    "is_disposer": false,
+    "is_cloner": null,
+    "is_constructor": {
+     "alloc": false,
+     "init": true
+    }
+   },
+   "ptr_args": [
+    {
+     "name": "ctx",
+     "ptr": {
+      "scalar": {
+       "by_val": true
+      },
+      "array": null,
+      "string": false,
+      "owned": false,
+      "borrowed": {
+       "lifetime": "arg:ctx"
+      },
+      "nullable": false,
+      "mutable": true,
+      "note": "Exclusive full-sized context borrowed for call only; inline also supported for Blowfish."
+     }
+    },
+    {
+     "name": "key",
+     "ptr": {
+      "scalar": null,
+      "array": {
+       "by_val": true
+      },
+      "string": false,
+      "owned": false,
+      "borrowed": {
+       "lifetime": "arg:key"
+      },
+      "nullable": false,
+      "mutable": false,
+      "note": "Borrowed read-only key for call; never retained. Blowfish requires at least one readable byte and positive int length. Camellia reads exactly key_bits/8 bytes for 128/192/256."
+     }
+    }
+   ]
+  },
+  {
    "name": "av_bprint_append_data",
    "defined_in": "libavutil/bprint.c",
    "ptr_args": [
@@ -2037,6 +2127,84 @@
      "note": "Array of nmemb elements of size bytes, ZEROED (av_mallocz); also one zeroed object when nmemb is 1 (av_calloc(1, sizeof(RNNModel)) in libavfilter/af_arnndn.c, av_calloc(1, sizeof(*fc->ft)) in libavcodec/vvc/thread.c). NULL also when nmemb*size overflows size_t. Fresh av_malloc storage: posix_memalign(ALIGN) with ALIGN = 64/32/16 by SIMD config (16 is the floor); size 0 yields a 1-byte block, so NULL means failure: size > max_alloc_size (INT_MAX by default, av_max_alloc) or OOM. Released by av_free/av_freep."
     }
    }
+  },
+  {
+   "name": "av_camellia_alloc",
+   "defined_in": "libavutil/camellia.c",
+   "lifetime": {
+    "for": "return",
+    "is_dropper": false,
+    "is_disposer": false,
+    "is_cloner": null,
+    "is_constructor": {
+     "alloc": true,
+     "init": false
+    }
+   },
+   "ptr_ret": {
+    "ptr": {
+     "scalar": {
+      "by_val": true
+     },
+     "array": null,
+     "string": false,
+     "owned": true,
+     "borrowed": null,
+     "nullable": true,
+     "mutable": true,
+     "note": "Fresh full-sized zeroed singleton; av_free releases it; no nested resources or retained alias."
+    }
+   }
+  },
+  {
+   "name": "av_camellia_init",
+   "defined_in": "libavutil/camellia.c",
+   "lifetime": {
+    "for": "cs",
+    "is_dropper": false,
+    "is_disposer": false,
+    "is_cloner": null,
+    "is_constructor": {
+     "alloc": false,
+     "init": true
+    }
+   },
+   "ptr_args": [
+    {
+     "name": "cs",
+     "ptr": {
+      "scalar": {
+       "by_val": true
+      },
+      "array": null,
+      "string": false,
+      "owned": false,
+      "borrowed": {
+       "lifetime": "arg:cs"
+      },
+      "nullable": false,
+      "mutable": true,
+      "note": "Exclusive full-sized context borrowed for call only; inline also supported for Blowfish."
+     }
+    },
+    {
+     "name": "key",
+     "ptr": {
+      "scalar": null,
+      "array": {
+       "by_val": true
+      },
+      "string": false,
+      "owned": false,
+      "borrowed": {
+       "lifetime": "arg:key"
+      },
+      "nullable": false,
+      "mutable": false,
+      "note": "Borrowed read-only key for call; never retained. Blowfish requires at least one readable byte and positive int length. Camellia reads exactly key_bits/8 bytes for 128/192/256."
+     }
+    }
+   ]
   },
   {
    "name": "av_camellia_size",

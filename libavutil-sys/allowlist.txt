@@ -724,3 +724,11 @@ function av_des_crypt
 function av_hmac_init
 function av_hmac_update
 function av_hmac_final
+# libavutil crypto wave 0, batch 1: Blowfish and Camellia lifecycle.
+function av_blowfish_alloc
+function av_blowfish_init
+function av_camellia_alloc
+function av_camellia_init
+# Reference-only observers for lifecycle/field equivalence tests.
+function av_blowfish_crypt_ecb
+function av_camellia_crypt

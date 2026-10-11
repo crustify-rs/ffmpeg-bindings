@@ -4,6 +4,7 @@ mod aes;
 mod aes_ctr;
 mod avstring;
 mod avutil;
+mod blowfish;
 mod bprint;
 mod bswap;
 mod cast5;

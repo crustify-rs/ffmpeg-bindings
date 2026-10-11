@@ -1,0 +1,9 @@
+error[E0502]: cannot borrow `outer` as mutable because it is also borrowed as immutable
+ --> tests/ub_safe/compile_fail/blowfish_reborrow_alias.rs
+  |
+  |     let shared = outer.as_ref();
+  |                  ----- immutable borrow occurs here
+  |     outer.as_mut().set_p([0; 18]);
+  |     ^^^^^^^^^^^^^^ mutable borrow occurs here
+  |     let _ = shared.p();
+  |             ------ immutable borrow later used here
