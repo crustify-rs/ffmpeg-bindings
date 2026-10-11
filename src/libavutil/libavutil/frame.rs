@@ -846,6 +846,66 @@ impl SideDataDescriptorMut<'_> {
     }
 }
 
+impl SideDataType {
+    /// Wraps: av_frame_side_data_desc
+    ///
+    /// This side data type's descriptor in C's table, borrowed for the whole
+    /// program: the table is static and never written, and its names are
+    /// string literals, the descriptor's invariant. `None` for a value the
+    /// table has no named entry for, such as one past the last type these
+    /// bindings know.
+    ///
+    /// The handle is shared, as C's table is never written; a descriptor to
+    /// edit is a copy, [`get`](SideDataDescriptorRef::get):
+    ///
+    /// ```compile_fail,E0599
+    /// use ffmpeg::libavutil::frame::SideDataType;
+    /// let mut desc = SideDataType::STEREO_3D.descriptor().unwrap();
+    /// desc.set_name(None);
+    /// ```
+    ///
+    /// ```
+    /// use ffmpeg::libavutil::frame::{SideDataProps, SideDataType};
+    /// let desc = SideDataType::DISPLAY_MATRIX.descriptor().unwrap();
+    /// assert_eq!(desc.name(), Some(c"3x3 displaymatrix"));
+    /// assert!(desc.props().contains(SideDataProps::GLOBAL));
+    /// ```
+    #[must_use]
+    pub fn descriptor(self) -> Option<SideDataDescriptorRef<'static>> {
+        // SAFETY: `av_frame_side_data_desc` takes the enum by value, checks
+        // it against the bounds of its static `const` table, and returns NULL
+        // or the address of a named entry, which lives, unwritten, for the
+        // whole program; its `name` is a string literal, the descriptor's
+        // invariant, and a shared `'static` handle only reads it.
+        unsafe {
+            let p = ffi::av_frame_side_data_desc(self.into_raw());
+            SideDataDescriptorRef::from_ptr(p.cast_mut())
+        }
+    }
+
+    /// Wraps: av_frame_side_data_name
+    ///
+    /// This side data type's human-readable name, the
+    /// [`name`](SideDataDescriptorRef::name) of its
+    /// [`descriptor`](Self::descriptor), such as `Stereo 3D`; `None` when the
+    /// table has no named entry for it.
+    ///
+    /// ```
+    /// use ffmpeg::libavutil::frame::SideDataType;
+    /// assert_eq!(SideDataType::STEREO_3D.name(), Some(c"Stereo 3D"));
+    /// ```
+    #[must_use]
+    pub fn name(self) -> Option<&'static CStr> {
+        // SAFETY: `av_frame_side_data_name` takes the enum by value and
+        // returns NULL or the `name` of an entry of the same static table,
+        // a string literal.
+        let name = unsafe { ffi::av_frame_side_data_name(self.into_raw()) };
+        // SAFETY: a non-NULL `name` is a NUL-terminated string literal,
+        // immutable for the life of the process.
+        (!name.is_null()).then(|| unsafe { CStr::from_ptr(name) })
+    }
+}
+
 #[cfg(test)]
 mod unit_tests {
     use super::*;

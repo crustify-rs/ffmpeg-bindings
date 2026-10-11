@@ -451,3 +451,537 @@ mod counted_references {
         }
     }
 }
+
+/// Buffer-frame wave 1, symbol batch 1: objects with a release closure and
+/// typed pools, through every owner form, drop order, flag set and callback
+/// subset; releases and callbacks on other threads, concurrently; callbacks
+/// that re-enter their pool; entries outliving their pool; and allocation
+/// failures, which drop the closures and state unrun.
+mod releases_and_typed_pools {
+    use std::sync::atomic::{AtomicBool, AtomicU64, AtomicUsize, Ordering};
+    use std::sync::{Arc, Barrier, Mutex};
+    use std::thread;
+
+    use ffmpeg::libavutil::csp::ColorPrimariesDescriptor;
+    use ffmpeg::libavutil::intfloat::{IntFloat64, IntFloat64Mut};
+    use ffmpeg::libavutil::rational::Rational;
+    use ffmpeg::libavutil::refstruct::{
+        ConstRefStructArc, PoolCallbacks, PoolFlags, RefStructArc, RefStructBox,
+        TypedRefStructPool, alloc_with_release, into_const, is_exclusive, replace, to_const,
+    };
+
+    fn every_flag_set() -> impl Iterator<Item = PoolFlags> {
+        let all = [
+            PoolFlags::NO_ZEROING,
+            PoolFlags::RESET_ON_INIT_ERROR,
+            PoolFlags::FREE_ON_INIT_ERROR,
+            PoolFlags::ZERO_EVERY_TIME,
+        ];
+        (0..16u32).map(move |m| {
+            all.iter()
+                .enumerate()
+                .filter(|(i, _)| m & (1 << i) != 0)
+                .fold(PoolFlags::NONE, |f, (_, &x)| f | x)
+        })
+    }
+
+    /// An object whose release counts its runs and records what it saw.
+    fn counted(runs: &Arc<AtomicUsize>, seen: &Arc<AtomicU64>) -> RefStructBox<IntFloat64> {
+        let (runs, seen) = (Arc::clone(runs), Arc::clone(seen));
+        alloc_with_release::<IntFloat64, _>(move |mut last| {
+            runs.fetch_add(1, Ordering::SeqCst);
+            seen.store(last.as_ref().bits(), Ordering::SeqCst);
+            // The release may write the payload: nothing reads it after.
+            last.set_bits(u64::MAX);
+        })
+        .unwrap()
+    }
+
+    #[test]
+    fn release_runs_once_through_every_owner_form() {
+        let runs = Arc::new(AtomicUsize::new(0));
+        let seen = Arc::new(AtomicU64::new(0));
+
+        // The sole owner, dropped at once.
+        drop(counted(&runs, &seen));
+        assert_eq!(runs.load(Ordering::SeqCst), 1);
+
+        // Shared, `const` and replaced references, the last one released
+        // through each form in turn.
+        for last in 0..4 {
+            let before = runs.load(Ordering::SeqCst);
+            let mut b = counted(&runs, &seen);
+            b.as_mut().set_bits(100 + last);
+            let a = RefStructArc::from(b);
+            let c: ConstRefStructArc<IntFloat64> = to_const(&a);
+            let mut slot = Some(a.clone());
+            let k = into_const(a);
+            assert!(!is_exclusive(&k));
+            let survivor = match last {
+                0 => {
+                    drop((c, k));
+                    replace(&mut slot, None);
+                    None
+                }
+                1 => {
+                    drop((c, slot.take()));
+                    Some(k)
+                }
+                2 => {
+                    drop((k, slot.take()));
+                    Some(c)
+                }
+                _ => {
+                    let a = slot.take().unwrap();
+                    drop((c, k));
+                    let mut b = a.try_into_box().expect("sole");
+                    b.as_mut().set_bits(200);
+                    drop(b);
+                    None
+                }
+            };
+            if let Some(s) = survivor {
+                assert_eq!(runs.load(Ordering::SeqCst), before);
+                assert_eq!(s.as_ref().bits(), 100 + last);
+                drop(s);
+            }
+            assert_eq!(runs.load(Ordering::SeqCst), before + 1);
+            let expected = if last == 3 { 200 } else { 100 + last };
+            assert_eq!(seen.load(Ordering::SeqCst), expected);
+        }
+        assert_eq!(Arc::strong_count(&runs), 1, "every release was dropped");
+    }
+
+    /// The release of a 64-byte payload writes its last field, on the thread
+    /// that drops the last of many references spread over threads.
+    #[test]
+    fn release_runs_on_the_thread_dropping_the_last_reference() {
+        for round in 0..16 {
+            let (tx, rx) = std::sync::mpsc::channel();
+            let mut b = alloc_with_release::<ColorPrimariesDescriptor, _>(move |mut last| {
+                let den = last.as_ref().white_point().y().den();
+                last.white_point_mut().set_y(Rational::new(0, 1));
+                tx.send((thread::current().id(), den)).unwrap();
+            })
+            .unwrap();
+            b.as_mut()
+                .white_point_mut()
+                .set_y(Rational::new(1, 9 + round));
+            let a = RefStructArc::from(b);
+            let barrier = Arc::new(Barrier::new(4));
+            let handles: Vec<_> = (0..4)
+                .map(|_| {
+                    let mine = a.clone();
+                    let barrier = Arc::clone(&barrier);
+                    thread::spawn(move || {
+                        barrier.wait();
+                        assert_eq!(mine.as_ref().white_point().y().num(), 1);
+                        let more = mine.clone();
+                        drop(mine);
+                        drop(more);
+                        thread::current().id()
+                    })
+                })
+                .collect();
+            drop(a);
+            let ids: Vec<_> = handles.into_iter().map(|h| h.join().unwrap()).collect();
+            let (released_on, den) = rx.recv().unwrap();
+            assert!(ids.contains(&released_on) || released_on == thread::current().id());
+            assert_eq!(den, 9 + round);
+        }
+    }
+
+    #[test]
+    fn typed_pool_entries_are_valid_under_every_flag_set() {
+        for flags in every_flag_set() {
+            let pool = TypedRefStructPool::<ColorPrimariesDescriptor>::new(flags).unwrap();
+            let mut held = Vec::new();
+            for round in 0..3 {
+                for i in 0..4 {
+                    let mut e = pool.get().unwrap();
+                    let d = e.as_ref().white_point().x().den();
+                    // New entries are zeroed whatever the flags; reused
+                    // ones hold what was left, or zeroes again.
+                    assert!(d == 0 || (7..=10).contains(&d), "{flags:?} {d}");
+                    e.as_mut().white_point_mut().set_x(Rational::new(1, 7 + i));
+                    held.push(e);
+                }
+                if round < 2 {
+                    held.truncate(1);
+                }
+            }
+            let zero = flags.contains(PoolFlags::ZERO_EVERY_TIME);
+            drop(held);
+            let e = pool.get().unwrap();
+            assert_eq!(e.as_ref().white_point().x().den() == 0, zero, "{flags:?}");
+        }
+    }
+
+    /// Entries outlive the pool: dropping its last reference frees only the
+    /// entries it holds; each one returned later is freed then, and the
+    /// last of them frees the pool and drops its state.
+    #[test]
+    fn entries_outlive_their_pool_in_every_order() {
+        for order in 0..3 {
+            let freed = Arc::new(AtomicUsize::new(0));
+            let state = Arc::clone(&freed);
+            let callbacks = PoolCallbacks::<IntFloat64, _>::new(state)
+                .reset(|_, mut e| e.set_bits(0))
+                .free_entry(|freed, _| {
+                    freed.fetch_add(1, Ordering::SeqCst);
+                });
+            let pool = TypedRefStructPool::with_callbacks(PoolFlags::NONE, callbacks).unwrap();
+            let clone = pool.clone();
+            assert!(TypedRefStructPool::ptr_eq(&pool, &clone));
+            let mut entries: Vec<_> = (0..4).map(|_| pool.get().unwrap()).collect();
+            drop(entries.pop());
+            drop(entries.pop());
+            match order {
+                0 => drop((pool, clone)),
+                1 => drop((clone, pool)),
+                _ => {
+                    let shared = RefStructArc::from(entries.pop().unwrap());
+                    drop((pool, clone));
+                    let again = shared.clone();
+                    drop(shared);
+                    assert_eq!(again.as_ref().bits(), 0);
+                    drop(again);
+                }
+            }
+            let left = entries.len();
+            assert_eq!(freed.load(Ordering::SeqCst), 4 - left);
+            for (i, mut e) in entries.into_iter().enumerate() {
+                e.as_mut().set_bits(i as u64);
+                drop(e);
+            }
+            assert_eq!(freed.load(Ordering::SeqCst), 4);
+            assert_eq!(Arc::strong_count(&freed), 1, "the pool dropped its state");
+        }
+    }
+
+    /// The shared state of the callbacks below.
+    #[derive(Default)]
+    struct Counts {
+        inits: AtomicUsize,
+        resets: AtomicUsize,
+        frees: AtomicUsize,
+        fail: AtomicBool,
+    }
+
+    fn init(c: &Arc<Counts>, mut e: IntFloat64Mut<'_>) -> bool {
+        assert_eq!(e.as_ref().bits(), 0, "init sees a zeroed entry");
+        c.inits.fetch_add(1, Ordering::SeqCst);
+        e.set_bits(1);
+        !c.fail.load(Ordering::SeqCst)
+    }
+
+    fn reset(c: &Arc<Counts>, mut e: IntFloat64Mut<'_>) {
+        c.resets.fetch_add(1, Ordering::SeqCst);
+        e.set_bits(2);
+    }
+
+    fn free_entry(c: &Arc<Counts>, e: IntFloat64Mut<'_>) {
+        // Reads the entry C is about to free, whatever it holds.
+        std::hint::black_box(e.as_ref().bits());
+        c.frees.fetch_add(1, Ordering::SeqCst);
+    }
+
+    fn callbacks(c: &Arc<Counts>, mask: u8) -> PoolCallbacks<IntFloat64, Arc<Counts>> {
+        let mut cbs = PoolCallbacks::new(Arc::clone(c));
+        if mask & 1 != 0 {
+            cbs = cbs.init(init);
+        }
+        if mask & 2 != 0 {
+            cbs = cbs.reset(reset);
+        }
+        if mask & 4 != 0 {
+            cbs = cbs.free_entry(free_entry);
+        }
+        cbs
+    }
+
+    /// Init failures under every flag set and callback subset: `get` is
+    /// `None`, the entry is freed (LSan reports otherwise), and the error
+    /// callbacks C selects run on it.
+    #[test]
+    fn failing_init_under_every_flag_set_and_callback_subset() {
+        for flags in every_flag_set() {
+            for mask in 0..8u8 {
+                let counts = Arc::new(Counts::default());
+                let pool =
+                    TypedRefStructPool::with_callbacks(flags, callbacks(&counts, mask)).unwrap();
+                let ok = pool.get().unwrap();
+                counts.fail.store(true, Ordering::SeqCst);
+                let failed = pool.get();
+                assert_eq!(failed.is_none(), mask & 1 != 0, "{flags:?} {mask}");
+                drop(failed);
+                counts.fail.store(false, Ordering::SeqCst);
+                drop(ok);
+                let reused = pool.get().unwrap();
+                drop((pool, reused));
+                let resets = counts.resets.load(Ordering::SeqCst);
+                let frees = counts.frees.load(Ordering::SeqCst);
+                let on_error = |flag, bit| mask & 1 != 0 && mask & bit != 0 && flags.contains(flag);
+                let reset_on_error = usize::from(on_error(PoolFlags::RESET_ON_INIT_ERROR, 2));
+                let free_on_error = usize::from(on_error(PoolFlags::FREE_ON_INIT_ERROR, 4));
+                // Without an init callback nothing fails: the second get
+                // is a second entry, returned (reset) and freed like the
+                // first.
+                let second = usize::from(mask & 1 == 0);
+                if mask & 2 != 0 {
+                    assert_eq!(resets, 2 + second + reset_on_error, "{flags:?} {mask}");
+                }
+                if mask & 4 != 0 {
+                    assert_eq!(frees, 1 + second + free_on_error, "{flags:?} {mask}");
+                }
+                assert_eq!(Arc::strong_count(&counts), 1);
+            }
+        }
+    }
+
+    /// `init` sees zeroes under `ZERO_EVERY_TIME`, where C does not zero a
+    /// new entry, even when the allocator hands back dirty memory.
+    #[test]
+    fn init_sees_zeroed_entries_where_c_leaves_them_dirty() {
+        for flags in [
+            PoolFlags::ZERO_EVERY_TIME,
+            PoolFlags::NO_ZEROING | PoolFlags::ZERO_EVERY_TIME,
+            PoolFlags::NO_ZEROING,
+        ] {
+            for _ in 0..8 {
+                // Dirty blocks of an entry's size for av_malloc to reuse.
+                let dirty: Vec<_> = (0..32)
+                    .map(|_| {
+                        let mut b = RefStructBox::<IntFloat64>::new_zeroed().unwrap();
+                        b.as_mut().set_bits(u64::MAX);
+                        b
+                    })
+                    .collect();
+                drop(dirty);
+                let counts = Arc::new(Counts::default());
+                let pool =
+                    TypedRefStructPool::with_callbacks(flags, callbacks(&counts, 1)).unwrap();
+                let entries: Vec<_> = (0..32).map(|_| pool.get().unwrap()).collect();
+                let zeroed = flags.contains(PoolFlags::ZERO_EVERY_TIME);
+                assert!(entries.iter().all(|e| (e.as_ref().bits() == 0) == zeroed));
+                let plain = TypedRefStructPool::<IntFloat64>::new(flags).unwrap();
+                assert!(
+                    (0..32)
+                        .map(|_| plain.get().unwrap())
+                        .all(|e| e.as_ref().bits() == 0)
+                );
+            }
+        }
+    }
+
+    /// Callbacks that get from and return to their own pool while C runs
+    /// them: neither holds the pool's lock. The state's pool reference is a
+    /// cycle, broken before the end so the pool is freed (LSan checks).
+    #[test]
+    fn callbacks_reenter_their_pool() {
+        #[derive(Default)]
+        struct Reentrant {
+            pool: Mutex<Option<TypedRefStructPool<IntFloat64>>>,
+            depth: AtomicUsize,
+            nested: AtomicUsize,
+        }
+        fn reenter(s: &Arc<Reentrant>) {
+            if s.depth.fetch_add(1, Ordering::SeqCst) == 0 {
+                let pool = s.pool.lock().unwrap().clone();
+                if let Some(pool) = pool {
+                    let e = pool.get();
+                    s.nested
+                        .fetch_add(usize::from(e.is_some()), Ordering::SeqCst);
+                    drop(e);
+                }
+            }
+            s.depth.fetch_sub(1, Ordering::SeqCst);
+        }
+        let state = Arc::new(Reentrant::default());
+        let callbacks = PoolCallbacks::<IntFloat64, _>::new(Arc::clone(&state))
+            .init(|s, _| {
+                reenter(s);
+                true
+            })
+            .reset(|s, _| reenter(s));
+        let pool = TypedRefStructPool::with_callbacks(PoolFlags::NONE, callbacks).unwrap();
+        *state.pool.lock().unwrap() = Some(pool.clone());
+        for _ in 0..8 {
+            let a = pool.get().unwrap();
+            let b = pool.get().unwrap();
+            drop(a);
+            drop(b);
+        }
+        assert!(state.nested.load(Ordering::SeqCst) >= 8);
+        state.pool.lock().unwrap().take();
+        drop(pool);
+        assert_eq!(Arc::strong_count(&state), 1, "the pool was freed");
+    }
+
+    /// Pool references and entries spread over threads: concurrent gets,
+    /// writes, returns on other threads than the getter's, and the pool's
+    /// last reference dropped while entries are out (TSan checks the C
+    /// synchronization and the shared state).
+    #[test]
+    fn concurrent_gets_and_returns_across_threads() {
+        let counts = Arc::new(Counts::default());
+        let pool =
+            TypedRefStructPool::with_callbacks(PoolFlags::NONE, callbacks(&counts, 7)).unwrap();
+        let (tx, rx) = std::sync::mpsc::channel::<RefStructBox<IntFloat64>>();
+        let barrier = Arc::new(Barrier::new(5));
+        let getters: Vec<_> = (0..4)
+            .map(|t| {
+                let pool = pool.clone();
+                let tx = tx.clone();
+                let barrier = Arc::clone(&barrier);
+                thread::spawn(move || {
+                    barrier.wait();
+                    for i in 0..200u64 {
+                        let mut e = pool.get().unwrap();
+                        assert!(matches!(e.as_ref().bits(), 1 | 2));
+                        e.as_mut().set_bits(1000 * t + i + 3);
+                        if i % 3 == 0 {
+                            tx.send(e).unwrap();
+                        } else {
+                            let shared = RefStructArc::from(e);
+                            let other = shared.clone();
+                            drop(shared);
+                            assert_eq!(other.as_ref().bits(), 1000 * t + i + 3);
+                        }
+                    }
+                })
+            })
+            .collect();
+        drop(tx);
+        let returner = thread::spawn(move || {
+            barrier.wait();
+            rx.into_iter()
+                .map(|e| assert!(e.as_ref().bits() >= 3))
+                .count()
+        });
+        drop(pool);
+        for g in getters {
+            g.join().unwrap();
+        }
+        assert_eq!(returner.join().unwrap(), 4 * 67);
+        let inits = counts.inits.load(Ordering::SeqCst);
+        assert_eq!(counts.frees.load(Ordering::SeqCst), inits);
+        assert_eq!(counts.resets.load(Ordering::SeqCst), 800);
+        assert_eq!(Arc::strong_count(&counts), 1);
+    }
+
+    /// C's writes to an entry (the reset callback through C's pointer, then
+    /// `ZERO_EVERY_TIME`'s memset) between Rust views of it through the
+    /// boxes `get` hands out, and the release's write through C's pointer
+    /// after Rust reborrows of the payload: BSan's foreign-write checks.
+    #[test]
+    fn foreign_writes_between_rust_views_of_entries() {
+        let counts = Arc::new(Counts::default());
+        let pool =
+            TypedRefStructPool::with_callbacks(PoolFlags::ZERO_EVERY_TIME, callbacks(&counts, 3))
+                .unwrap();
+        for i in 1..16u64 {
+            let mut e = pool.get().unwrap();
+            assert_eq!(e.as_ref().bits(), 0);
+            e.as_mut().set_bits(i);
+            let r = e.as_ref();
+            assert_eq!(r.bits(), i);
+            let a = RefStructArc::from(e);
+            let b = a.clone();
+            assert_eq!(a.as_ref().bits(), b.as_ref().bits());
+            drop(a);
+            drop(b);
+        }
+        let seen = Arc::new(AtomicU64::new(0));
+        let runs = Arc::new(AtomicUsize::new(0));
+        let mut b = counted(&runs, &seen);
+        for i in 0..8 {
+            b.as_mut().set_bits(i);
+            assert_eq!(b.as_ref().bits(), i);
+        }
+        drop(b);
+        assert_eq!(seen.load(Ordering::SeqCst), 7);
+    }
+
+    /// Every way to hold a typed pool: fallible and infallible clones, the
+    /// shared handle, identity and `Debug`, each outliving the original.
+    #[test]
+    fn pool_references_clone_compare_and_format() {
+        let pool = TypedRefStructPool::<IntFloat64>::new(PoolFlags::NONE).unwrap();
+        let other = TypedRefStructPool::<IntFloat64>::new(PoolFlags::NONE).unwrap();
+        let tried = pool.try_clone().expect("64-bit counts never refuse");
+        let cloned = tried.clone();
+        assert!(TypedRefStructPool::ptr_eq(&pool, &tried));
+        assert!(TypedRefStructPool::ptr_eq(&cloned, &pool));
+        assert!(!TypedRefStructPool::ptr_eq(&pool, &other));
+        let shown = format!("{pool:?}");
+        assert!(shown.starts_with("TypedRefStructPool("), "{shown}");
+        assert_eq!(shown, format!("{cloned:?}"));
+        drop(pool);
+        {
+            let handle = tried.as_ref();
+            let copy = handle;
+            std::hint::black_box((handle, copy));
+        }
+        let mut e = tried.get().unwrap();
+        e.as_mut().set_bits(3);
+        drop((tried, cloned));
+        assert_eq!(e.as_ref().bits(), 3);
+    }
+
+    /// Under an `av_max_alloc` limit of zero nothing is allocated: the
+    /// constructors fail and drop their closure and state unrun, and a pool
+    /// still hands out the entries it holds. The limit is process-wide, so
+    /// this runs alone in a child process.
+    #[test]
+    fn allocation_failure_drops_closures_and_state_unrun() {
+        const ISOLATED: &str = "CRUSTIFY_UB_SAFE_REFSTRUCT_RELEASE_ALLOC_FAILURE_CHILD";
+        if std::env::var_os(ISOLATED).is_none() {
+            let status = std::process::Command::new(std::env::current_exe().unwrap())
+                .args([
+                    "--exact",
+                    "refstruct::releases_and_typed_pools::allocation_failure_drops_closures_and_state_unrun",
+                    "--test-threads=1",
+                ])
+                .env(ISOLATED, "1")
+                .status()
+                .unwrap();
+            assert!(status.success());
+            return;
+        }
+        let counts = Arc::new(Counts::default());
+        let pool =
+            TypedRefStructPool::with_callbacks(PoolFlags::NONE, callbacks(&counts, 7)).unwrap();
+        drop(pool.get().unwrap());
+        let runs = Arc::new(AtomicUsize::new(0));
+        let seen = Arc::new(AtomicU64::new(0));
+        ffmpeg::libavutil::mem::set_max_alloc(0);
+        let (r, s) = (Arc::clone(&runs), Arc::clone(&seen));
+        let none = alloc_with_release::<IntFloat64, _>(move |_| {
+            r.fetch_add(1, Ordering::SeqCst);
+            drop(s);
+        });
+        assert!(none.is_none());
+        assert_eq!(
+            (Arc::strong_count(&runs), runs.load(Ordering::SeqCst)),
+            (1, 0)
+        );
+        assert!(TypedRefStructPool::<IntFloat64>::new(PoolFlags::NONE).is_none());
+        assert!(
+            TypedRefStructPool::with_callbacks(PoolFlags::NONE, callbacks(&counts, 7)).is_none()
+        );
+        assert_eq!(
+            Arc::strong_count(&counts),
+            2,
+            "the failed pool's state was dropped"
+        );
+        assert!(RefStructBox::<IntFloat64>::new_uninit().is_none());
+        // The returned entry is reused without an allocation; a second one
+        // needs one.
+        let reused = pool.get().expect("a free entry");
+        assert!(pool.get().is_none());
+        ffmpeg::libavutil::mem::set_max_alloc(i32::MAX as usize);
+        drop((reused, pool));
+        assert_eq!(Arc::strong_count(&counts), 1);
+    }
+}

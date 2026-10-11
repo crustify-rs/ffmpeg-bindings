@@ -787,6 +787,9 @@ function ^av_refstruct_alloc_ext_c$
 function ^av_refstruct_alloc_ext$
 function ^av_refstruct_pool_alloc_ext_c$
 function ^av_refstruct_pool_alloc_ext$
+# Buffer-frame wave 1, batch 1: the object allocation flag of
+# av_refstruct_alloc_ext_c (uninitialised storage for RefStructUnref's CAlloc).
+var ^AV_REFSTRUCT_FLAG_NO_ZEROING$
 
 # Buffer-frame wave 0, batch 4: C readers of AVSideDataDescriptor and of
 # AVSideDataProps bits (the static descriptor table and the side data array

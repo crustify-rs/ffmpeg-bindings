@@ -471,3 +471,74 @@ mod side_data_descriptor {
         });
     }
 }
+
+/// `SideDataType::descriptor` and `SideDataType::name` (buffer-frame wave 1,
+/// batch 1): every value, including those the table has no entry for and
+/// those past its end; the `'static` borrows outliving the values and copies
+/// they came from, read on other threads, and copied into Rust-held
+/// descriptors.
+mod side_data_lookups {
+    use core::ffi::CStr;
+    use std::thread;
+
+    use ffmpeg::libavutil::ffi;
+    use ffmpeg::libavutil::frame::{SideDataDescriptor, SideDataDescriptorRef, SideDataType};
+
+    fn every_value() -> impl Iterator<Item = SideDataType> {
+        (0..=256u32)
+            .chain((0..32).map(|s| 1u32 << s))
+            .chain([u32::MAX, u32::MAX - 1, i32::MAX as u32])
+            .map(|raw| SideDataType::from_raw(ffi::AVFrameSideDataType(raw)))
+    }
+
+    #[test]
+    fn every_value_looks_up_without_reading_past_the_table() {
+        for t in every_value() {
+            let d = t.descriptor();
+            let n = t.name();
+            assert_eq!(d.and_then(|d| d.name()), n, "{t:?}");
+            if let Some(n) = n {
+                // The whole literal, through its NUL.
+                assert!(!n.to_bytes().is_empty());
+                assert!(n.to_str().is_ok());
+            }
+        }
+    }
+
+    /// The `'static` results outlive the value they came from, and cross
+    /// threads both ways.
+    #[test]
+    fn static_results_outlive_their_value_and_cross_threads() {
+        let found: Vec<(SideDataDescriptorRef<'static>, &'static CStr)> = {
+            let values: Vec<SideDataType> = every_value().collect();
+            values
+                .iter()
+                .filter_map(|t| Some((t.descriptor()?, t.name()?)))
+                .collect()
+        };
+        let handles: Vec<_> = (0..4)
+            .map(|i| {
+                let found = found.clone();
+                thread::spawn(move || {
+                    let mut copies = Vec::new();
+                    for (d, n) in found.iter().skip(i).step_by(4) {
+                        assert_eq!(d.name(), Some(*n));
+                        let mut own = SideDataDescriptor::new();
+                        own.as_mut().set(d.get());
+                        own.as_mut().set_name(d.name());
+                        copies.push(own);
+                    }
+                    copies
+                })
+            })
+            .collect();
+        let copies: Vec<SideDataDescriptor> = handles
+            .into_iter()
+            .flat_map(|h| h.join().unwrap())
+            .collect();
+        assert_eq!(copies.len(), found.len());
+        for (d, _) in &found {
+            assert!(copies.contains(&d.get()));
+        }
+    }
+}
