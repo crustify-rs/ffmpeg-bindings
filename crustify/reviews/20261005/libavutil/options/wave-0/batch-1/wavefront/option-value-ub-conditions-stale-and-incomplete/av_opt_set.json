@@ -1,0 +1,18 @@
+{
+ "ptr_args": {
+  "2": {
+   "ptr": {
+    "scalar": null,
+    "array": null,
+    "string": true,
+    "owned": false,
+    "borrowed": {
+     "lifetime": "arg:val"
+    },
+    "nullable": true,
+    "mutable": false,
+    "note": "Value string parsed for the option's type and copied (av_strdup for strings); read for the call. NULL is accepted for some types. Values whose parse reaches C UB: a +/- flag operand (or named constant) whose value is NaN or outside int64_t, converted by (int64_t)d (opt.c:508); a rational value within wide min/max but outside int, converted by (int)num (opt.c:343); an evaluator call with an out-of-range index, level or operand (ld/st/random/randomi/taylor/print/gcd/bitand/bitor) or random together with st/root (eval.c's unchecked double-to-int conversions); a color whose @alpha strtod reads as NaN (parseutils.c:433); an ambisonic channel layout order of INT_MAX (channel_layout.c:341). Whether a flag operand or wide rational converts in range depends on its value, which a caller can only learn by evaluating it as C will: with C's constants (for an array option DEFAULT_NUMVAL reads default_val.dbl, the bits of the AVOptionArrayDef address, as `default`) and only for expressions that do not call time(), whose value changes between the caller's evaluation and C's. Integer and float stores outside the field type (llrint, double to float) are unspecified or IEEE-defined, not UB. A failing image size stores set_string_image_size's uninitialised tmp[2]. opt::ObjectMut::set refuses the UB values before C runs."
+   }
+  }
+ }
+}

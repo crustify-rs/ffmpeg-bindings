@@ -1,0 +1,10 @@
+[package]
+name = "bare-object-foreign-callbacks-read-past-object"
+version = "0.0.0"
+edition = "2024"
+publish = false
+
+[workspace]
+
+[dependencies]
+ffmpeg = { path = "../../../../../../../../rust/ffmpeg" }

@@ -1,0 +1,469 @@
+{
+ "method": {
+  "c": "CRUSTIFY_FFMPEG_VARIANT=coverage (gcc gcov build), GCOV_PREFIX=/tmp/opts-w0b1/cov/gcov, gcov 13 -b -c -f over opt.c, eval.c and parseutils.c, driven by the workset-filtered lib, equiv, ub_safe and ub_unsafe tests (cargo +nightly test -p ffmpeg --lib --tests -- opt eval parseutils --skip compile_fail) on the rebased fixed tree",
+  "rust": "RUSTFLAGS=-C instrument-coverage in the same run, nightly llvm-profdata/llvm-cov report over the four test binaries, the three home files",
+  "note": "measured after the fix only; the review added the flagged-table listing test (log_default 34% -> 98%, log_value/log_int_value/log_type/get_opt_const_name/opt_list -> 100%), numeric pixel/sample format, 1e19 uint64 and 1e-9 rational values to the setter corpus, the C-side AVERROR_PATCHWELCOME case, a negative-duration alias, and the two cases noted under opt_serialize and eval_expr"
+ },
+ "c": {
+  "files": {
+   "libavutil/opt.c": {
+    "lines": {
+     "count": 1674,
+     "percent": 80.65
+    },
+    "note": "whole file, including routines outside this workset (av_opt_get_q, *_fmt getters, chlayout/dict getters, av_opt_set_array, av_opt_eval_*, ...)"
+   },
+   "libavutil/eval.c": {
+    "lines": {
+     "count": 484,
+     "percent": 99.17
+    }
+   },
+   "libavutil/parseutils.c": {
+    "lines": {
+     "count": 308,
+     "percent": 93.18
+    },
+    "note": "the uncovered lines are av_parse_ratio's av_reduce arm and the strptime formats av_parse_time never passes; av_parse_video_rate is outside this workset"
+   }
+  },
+  "functions": {
+   "av_expr_parse_and_eval": {
+    "lines": {
+     "count": 9,
+     "percent": 100.0
+    }
+   },
+   "av_strtod": {
+    "lines": {
+     "count": 26,
+     "percent": 100.0
+    }
+   },
+   "av_find_info_tag": {
+    "lines": {
+     "count": 26,
+     "percent": 100.0
+    }
+   },
+   "av_get_known_color_name": {
+    "lines": {
+     "count": 7,
+     "percent": 100.0
+    }
+   },
+   "av_parse_color": {
+    "lines": {
+     "count": 61,
+     "percent": 100.0
+    }
+   },
+   "av_parse_time": {
+    "lines": {
+     "count": 104,
+     "percent": 100.0
+    }
+   },
+   "av_parse_video_size": {
+    "lines": {
+     "count": 20,
+     "percent": 100.0
+    }
+   },
+   "av_opt_child_next": {
+    "lines": {
+     "count": 4,
+     "percent": 100.0
+    }
+   },
+   "av_opt_copy": {
+    "lines": {
+     "count": 15,
+     "percent": 100.0
+    }
+   },
+   "av_opt_flag_is_set": {
+    "lines": {
+     "count": 8,
+     "percent": 100.0
+    }
+   },
+   "av_opt_free": {
+    "lines": {
+     "count": 8,
+     "percent": 100.0
+    }
+   },
+   "av_opt_get": {
+    "lines": {
+     "count": 26,
+     "percent": 100.0
+    }
+   },
+   "av_opt_get_array_size": {
+    "lines": {
+     "count": 9,
+     "percent": 100.0
+    }
+   },
+   "av_opt_get_double": {
+    "lines": {
+     "count": 7,
+     "percent": 100.0
+    }
+   },
+   "av_opt_get_image_size": {
+    "lines": {
+     "count": 10,
+     "percent": 100.0
+    }
+   },
+   "av_opt_get_int": {
+    "lines": {
+     "count": 8,
+     "percent": 100.0
+    }
+   },
+   "av_opt_get_key_value": {
+    "lines": {
+     "count": 13,
+     "percent": 100.0
+    }
+   },
+   "av_opt_is_set_to_default_by_name": {
+    "lines": {
+     "count": 7,
+     "percent": 100.0
+    }
+   },
+   "av_opt_serialize": {
+    "lines": {
+     "count": 14,
+     "percent": 100.0
+    }
+   },
+   "av_opt_set": {
+    "lines": {
+     "count": 8,
+     "percent": 100.0
+    }
+   },
+   "av_opt_set_bin": {
+    "lines": {
+     "count": 16,
+     "percent": 100.0
+    }
+   },
+   "av_opt_set_defaults": {
+    "lines": {
+     "count": 3,
+     "percent": 100.0
+    }
+   },
+   "av_opt_set_defaults2": {
+    "lines": {
+     "count": 58,
+     "percent": 100.0
+    }
+   },
+   "av_opt_set_double": {
+    "lines": {
+     "count": 2,
+     "percent": 100.0
+    }
+   },
+   "av_opt_set_from_string": {
+    "lines": {
+     "count": 37,
+     "percent": 97.3
+    },
+    "untaken": [
+     "line 1986: a NULL shorthand; the wrapper always passes a NULL-terminated array"
+    ]
+   },
+   "av_opt_set_image_size": {
+    "lines": {
+     "count": 15,
+     "percent": 100.0
+    }
+   },
+   "av_opt_set_int": {
+    "lines": {
+     "count": 2,
+     "percent": 100.0
+    }
+   },
+   "av_opt_show2": {
+    "lines": {
+     "count": 5,
+     "percent": 100.0
+    }
+   },
+   "av_set_options_string": {
+    "lines": {
+     "count": 8,
+     "percent": 100.0
+    }
+   },
+   "set_string_number": {
+    "lines": {
+     "count": 69,
+     "percent": 97.1
+    },
+    "untaken": [
+     "lines 467-468: the deprecated named-constant warning; the fixture has no deprecated constant"
+    ]
+   },
+   "write_number": {
+    "lines": {
+     "count": 47,
+     "percent": 100.0
+    }
+   },
+   "read_number": {
+    "lines": {
+     "count": 33,
+     "percent": 90.91
+    },
+    "untaken": [
+     "lines 268-270: the CONST case; av_opt_find2 without a unit never returns a constant to get_number"
+    ]
+   },
+   "opt_set_elem": {
+    "lines": {
+     "count": 53,
+     "percent": 90.57
+    },
+    "untaken": [
+     "lines 735-737: the NULL value test; every wrapper passes a C string",
+     "lines 801-802: an option type opt.h does not define, outside ObjectRef's contract"
+    ]
+   },
+   "opt_set_array": {
+    "lines": {
+     "count": 57,
+     "percent": 94.74
+    },
+    "untaken": [
+     "lines 850-851: av_realloc_array failure (environment-dependent)",
+     "line 880: the NULL destination arm, reached only without a target object"
+    ]
+   },
+   "opt_get_elem": {
+    "lines": {
+     "count": 85,
+     "percent": 96.47
+    },
+    "untaken": [
+     "lines 1158-1160: the CONST case; av_opt_get refuses constants first"
+    ]
+   },
+   "opt_get_array": {
+    "lines": {
+     "count": 38,
+     "percent": 84.21
+    },
+    "untaken": [
+     "the element-error, ERANGE size-overflow and av_reallocp failure arms: no fixture element type fails to format, sizes cannot overflow, allocation failure is environment-dependent"
+    ]
+   },
+   "format_duration": {
+    "lines": {
+     "count": 30,
+     "percent": 100.0
+    }
+   },
+   "set_string_fmt": {
+    "lines": {
+     "count": 26,
+     "percent": 76.92
+    },
+    "untaken": [
+     "lines 640-641: the min == max == 0 compatibility hack and lines 645-648 the range error; the fixture's format bounds are -1..INT_MAX",
+     "line 655: av_unreachable default"
+    ]
+   },
+   "set_string_dict": {
+    "lines": {
+     "count": 13,
+     "percent": 84.62
+    },
+    "untaken": [
+     "lines 697-698: the NULL destination arm"
+    ]
+   },
+   "set_string_channel_layout": {
+    "lines": {
+     "count": 11,
+     "percent": 90.91
+    },
+    "untaken": [
+     "line 723: the NULL destination arm"
+    ]
+   },
+   "log_default": {
+    "lines": {
+     "count": 53,
+     "percent": 100.0
+    }
+   },
+   "log_value": {
+    "lines": {
+     "count": 29,
+     "percent": 100.0
+    }
+   },
+   "log_int_value": {
+    "lines": {
+     "count": 13,
+     "percent": 100.0
+    }
+   },
+   "log_type": {
+    "lines": {
+     "count": 10,
+     "percent": 100.0
+    }
+   },
+   "opt_list": {
+    "lines": {
+     "count": 46,
+     "percent": 100.0
+    }
+   },
+   "get_opt_const_name": {
+    "lines": {
+     "count": 7,
+     "percent": 100.0
+    }
+   },
+   "av_opt_is_set_to_default": {
+    "lines": {
+     "count": 92,
+     "percent": 92.39
+    },
+    "untaken": [
+     "lines 2745-2746: a dictionary default that does not parse; line 2757: an image size default of NULL or \"none\"; lines 2776-2780: an undefined option type (outside the contract)"
+    ]
+   },
+   "opt_serialize": {
+    "lines": {
+     "count": 29,
+     "percent": 96.55
+    },
+    "untaken": [
+     "line 2818 was covered after this measurement by the added (ENCODING_PARAM, NONE) serialize case"
+    ]
+   },
+   "opt_copy_elem": {
+    "lines": {
+     "count": 35,
+     "percent": 97.14
+    },
+    "untaken": [
+     "lines 2176-2177: an undefined option type (outside the contract)"
+    ]
+   },
+   "opt_copy_array": {
+    "lines": {
+     "count": 19,
+     "percent": 100.0
+    },
+    "untaken": [
+     "lines 2206-2207: an element copy failure (av_strdup ENOMEM, environment-dependent)"
+    ]
+   },
+   "double_to_rational": {
+    "lines": {
+     "count": 5,
+     "percent": 100.0
+    }
+   },
+   "eval_expr": {
+    "lines": {
+     "count": 138,
+     "percent": 97.1
+    },
+    "untaken": [
+     "lines 300-303 (root's second search phase) were covered after this measurement by the added `root(1.5-ld(0),1)` equivalence case (12 executions of line 300 in a separate gcov run)"
+    ]
+   },
+   "parse_primary": {
+    "lines": {
+     "count": 134,
+     "percent": 100.0
+    }
+   },
+   "av_small_strptime": {
+    "lines": {
+     "count": 60,
+     "percent": 83.33
+    },
+    "untaken": [
+     "the %T, %b/%B/%h and %% formats; av_parse_time uses only %Y %m %d %H %M %S %J"
+    ]
+   },
+   "date_get_month": {
+    "lines": {
+     "count": 10,
+     "percent": 0.0
+    },
+    "untaken": [
+     "only reached through %b/%B/%h, which no caller of av_parse_time uses"
+    ]
+   }
+  }
+ },
+ "rust": {
+  "crustify/rust/ffmpeg/libavutil/opt.rs": {
+   "lines": {
+    "count": 1870,
+    "percent": 99.14
+   },
+   "functions": {
+    "count": 215,
+    "percent": 99.07
+   },
+   "regions": {
+    "count": 2765,
+    "percent": 98.95
+   },
+   "untaken": [
+    "line 2236: options_refusal's value-token allocation failure after the longer key token allocated (unreachable: the value is a strict suffix)",
+    "line 2471: default_number's fallback for option types C never evaluates DEFAULT_NUMVAL on",
+    "the rest: unit-test early returns under BSan and panic arms of test helpers"
+   ]
+  },
+  "crustify/rust/ffmpeg/libavutil/eval.rs": {
+   "lines": {
+    "count": 493,
+    "percent": 97.97
+   },
+   "functions": {
+    "count": 62,
+    "percent": 96.77
+   },
+   "regions": {
+    "count": 649,
+    "percent": 98.31
+   },
+   "untaken": [
+    "unit-test code only: two unused extern \"C\" helpers and BSan early returns"
+   ]
+  },
+  "crustify/rust/ffmpeg/libavutil/parseutils.rs": {
+   "lines": {
+    "count": 310,
+    "percent": 100.0
+   },
+   "functions": {
+    "count": 32,
+    "percent": 100.0
+   },
+   "regions": {
+    "count": 492,
+    "percent": 100.0
+   }
+  }
+ }
+}
