@@ -1,0 +1,11 @@
+error[E0505]: cannot move out of `array` because it is borrowed
+ --> tests/ub_safe/compile_fail/frame_side_data_alloc_entry_outlives_array.rs
+  |
+  |     let mut array = SideDataArray::new();
+  |         --------- binding `array` declared here
+  |     let entry = array.alloc_zeroed(SideDataType::AFD, 4, SideDataFlags::NONE);
+  |                 ----- borrow of `array` occurs here
+  |     drop(array);
+  |          ^^^^^ move out of `array` occurs here
+  |     drop(entry);
+  |          ----- borrow later used here

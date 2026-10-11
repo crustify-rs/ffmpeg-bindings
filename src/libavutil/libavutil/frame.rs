@@ -30,14 +30,16 @@ use core::fmt;
 use core::hash::{Hash, Hasher};
 use core::iter::FusedIterator;
 use core::marker::PhantomData;
-use core::mem::ManuallyDrop;
+use core::mem::{ManuallyDrop, MaybeUninit};
 use core::ops::{BitAnd, BitAndAssign, BitOr, BitOrAssign, Range, Sub, SubAssign};
 use core::ptr::{self, NonNull, addr_of, addr_of_mut};
 use core::slice;
 
 use ffibox::{CBox, CPlainElem, CZeroable, define_ctype};
 
-use super::buffer::{BufferReferenceBox, BufferReferenceRef};
+use super::buffer::{
+    BufferReference, BufferReferenceBox, BufferReferenceRef, ENOMEM, may_add_reference,
+};
 use super::dict::{Dict, DictionaryBox, DictionaryRef};
 use super::ffi;
 use super::rational::{Rational, RationalMut, RationalRef};
@@ -1587,8 +1589,12 @@ impl SideDataMut<'_> {
 ///
 /// Its entries are reached through a [`SideDataArrayRef`] (`as_ref()`) and a
 /// [`SideDataArrayMut`] (`as_mut()`), the same handles a frame's own list
-/// hands out; the latter adds them ([`add`](SideDataArrayMut::add)). An
-/// array C built is taken over with [`from_raw_parts`](Self::from_raw_parts).
+/// hands out. The former looks them up by kind
+/// ([`find`](SideDataArrayRef::find)); the latter adds them
+/// ([`add`](SideDataArrayMut::add), [`alloc_zeroed`](SideDataArrayMut::alloc_zeroed),
+/// [`add_clone`](SideDataArrayMut::add_clone)) and removes them
+/// ([`remove`](SideDataArrayMut::remove)). An array C built is taken over
+/// with [`from_raw_parts`](Self::from_raw_parts).
 ///
 /// Hand-written rather than a `CVec`: the C routines that grow, shrink and
 /// free an array take the two variables by address and update both, the
@@ -2154,6 +2160,308 @@ impl DoubleEndedIterator for SideDataIterMut<'_> {
 impl ExactSizeIterator for SideDataIterMut<'_> {}
 
 impl FusedIterator for SideDataIterMut<'_> {}
+
+impl<'a> SideDataArrayRef<'a> {
+    /// Wraps: av_frame_side_data_get_c
+    ///
+    /// The first entry of `kind`, in array order; `None` when there is none.
+    #[must_use]
+    pub fn find(&self, kind: SideDataType) -> Option<SideDataRef<'a>> {
+        // The count came from a `c_int`, so it converts back.
+        let len = c_int::try_from(self.len).expect("an array counts entries in an int");
+        let sd = self.entries.cast();
+        // SAFETY: an array of `len` live entries, unchanged for `'a`, which C
+        // only reads; it returns one of them, or NULL.
+        let entry = unsafe { ffi::av_frame_side_data_get_c(sd, len, kind.into_raw()) };
+        // SAFETY: NULL, or an entry of the array (const only for C's
+        // const-correctness), live and unchanged for `'a`.
+        unsafe { SideDataRef::from_ptr(entry.cast_mut()) }
+    }
+}
+
+impl SideDataArrayMut<'_> {
+    /// Wraps: av_frame_side_data_get
+    ///
+    /// The first entry of `kind`, in array order, writable; `None` when
+    /// there is none.
+    #[must_use]
+    pub fn find_mut(&mut self, kind: SideDataType) -> Option<SideDataMut<'_>> {
+        self.as_mut().into_found(kind)
+    }
+
+    /// Wraps: av_frame_side_data_remove
+    ///
+    /// Removes every entry of `kind`, freeing each with its buffer reference
+    /// and metadata. C moves the array's last entry into each freed slot, so
+    /// the others may change order.
+    pub fn remove(&mut self, kind: SideDataType) {
+        // SAFETY: the array's two variables, exclusively borrowed, so no
+        // handle to an entry C frees or moves is alive; C keeps the count
+        // equal to the entries left, and their invariant.
+        unsafe {
+            ffi::av_frame_side_data_remove(
+                self.entries.as_ptr(),
+                self.len.as_ptr(),
+                kind.into_raw(),
+            )
+        }
+    }
+
+    /// Wraps: av_frame_side_data_remove_by_props
+    ///
+    /// Removes every entry whose kind has properties in common with `props`
+    /// ([`SideDataProps::intersects`] its
+    /// [`descriptor`](SideDataType::descriptor)'s), freeing each with its
+    /// buffer reference and metadata, as [`remove`](Self::remove) does. Kinds
+    /// C has no descriptor for stay.
+    pub fn remove_by_props(&mut self, props: SideDataProps) {
+        // C's `int` filter, the bits as they are (C ANDs it with an unsigned
+        // `props`, which converts it back).
+        let props = props.bits() as c_int;
+        // SAFETY: as in `remove`.
+        unsafe {
+            ffi::av_frame_side_data_remove_by_props(self.entries.as_ptr(), self.len.as_ptr(), props)
+        }
+    }
+
+    /// Wraps: av_frame_side_data_clone
+    ///
+    /// Adds a copy of `src`, an entry of another array: one that shares its
+    /// buffer, through a new reference (so neither payload is writable while
+    /// both live), and holds a copy of its metadata. Flags act as for
+    /// [`add`](Self::add): [`UNIQUE`](SideDataFlags::UNIQUE) first removes
+    /// every entry of `src`'s kind, even when the copy then fails; for a kind
+    /// that is not `MULTI` and already present,
+    /// [`REPLACE`](SideDataFlags::REPLACE) makes that entry the copy in
+    /// place, and without it C refuses. Otherwise the copy is the array's
+    /// last entry.
+    ///
+    /// ```
+    /// use ffmpeg::libavutil::buffer::BufferReference;
+    /// use ffmpeg::libavutil::frame::{SideDataArray, SideDataFlags, SideDataType};
+    /// let mut src = SideDataArray::new();
+    /// let afd = BufferReference::alloc(1).unwrap().fill(8);
+    /// src.add(SideDataType::AFD, afd, SideDataFlags::NONE).unwrap();
+    /// let mut dst = SideDataArray::new();
+    /// let entry = src.as_ref().get(0).unwrap();
+    /// dst.as_mut().add_clone(entry, SideDataFlags::NONE).unwrap();
+    /// assert_eq!(dst.as_ref().get(0).unwrap().data(), [8]);
+    /// assert!(dst.as_mut().add_clone(entry, SideDataFlags::NONE).is_err());
+    /// ```
+    ///
+    /// # Errors
+    ///
+    /// `AVERROR(EEXIST)` for a kind present without `REPLACE`, and
+    /// `AVERROR(ENOMEM)` when C cannot allocate, or `src`'s buffer counts so
+    /// many references that another could near wrapping its count. The array
+    /// is then as `UNIQUE` left it.
+    pub fn add_clone(&mut self, src: SideDataRef<'_>, flags: SideDataFlags) -> Result<(), c_int> {
+        if !may_add_reference(src.buffer().ref_count()) {
+            return Err(ENOMEM);
+        }
+        // Every entry C builds or changes holds a new reference to `src`'s
+        // buffer, `src`'s window into it, and a copy of its metadata.
+        // SAFETY: the array's two variables, exclusively borrowed, so no
+        // handle to an entry C may remove or change is alive; `src` a live
+        // entry of another array (borrowed shared, so not this one), which C
+        // only reads. The entries C writes keep `SideData`'s invariant.
+        let ret = unsafe {
+            ffi::av_frame_side_data_clone(
+                self.entries.as_ptr(),
+                self.len.as_ptr(),
+                src.as_ptr(),
+                flags.bits(),
+            )
+        };
+        if ret < 0 { Err(ret) } else { Ok(()) }
+    }
+
+    /// Wraps: av_frame_side_data_new
+    ///
+    /// Adds side data of `kind` with a new payload of `size` zeroed bytes,
+    /// and returns the entry holding it, as [`add`](Self::add) does with a
+    /// buffer C allocates; its payload is writable
+    /// ([`data_mut`](SideDataMut::data_mut)) until its buffer is shared.
+    /// `None` when C adds nothing: `kind` is not `MULTI`, an entry of it is
+    /// present and [`REPLACE`](SideDataFlags::REPLACE) is not set, or the
+    /// allocation fails. [`UNIQUE`](SideDataFlags::UNIQUE) removes every
+    /// entry of `kind` first, even then.
+    ///
+    /// ```
+    /// use ffmpeg::libavutil::frame::{SideDataArray, SideDataFlags, SideDataType};
+    /// let mut array = SideDataArray::new();
+    /// let mut entry = array.alloc_zeroed(SideDataType::AFD, 1, SideDataFlags::NONE).unwrap();
+    /// entry.data_mut().unwrap()[0] = 10;
+    /// assert_eq!(array.as_ref().find(SideDataType::AFD).unwrap().data(), [10]);
+    /// ```
+    pub fn alloc_zeroed(
+        &mut self,
+        kind: SideDataType,
+        size: usize,
+        flags: SideDataFlags,
+    ) -> Option<SideDataMut<'_>> {
+        self.as_mut().into_new_entry(kind, size, flags, zero_into)
+    }
+
+    /// Wraps: av_frame_side_data_new
+    ///
+    /// Adds side data of `kind` with a new payload copied from `bytes`, and
+    /// returns the entry holding it, as [`alloc_zeroed`](Self::alloc_zeroed)
+    /// does with zeroes.
+    pub fn alloc_from_slice(
+        &mut self,
+        kind: SideDataType,
+        bytes: &[u8],
+        flags: SideDataFlags,
+    ) -> Option<SideDataMut<'_>> {
+        self.as_mut()
+            .into_new_entry(kind, bytes.len(), flags, |run| copy_into(run, bytes))
+    }
+}
+
+impl<'a> SideDataArrayMut<'a> {
+    /// [`find_mut`](Self::find_mut), lending the entry for the array's
+    /// whole borrow.
+    fn into_found(self, kind: SideDataType) -> Option<SideDataMut<'a>> {
+        // SAFETY: reads of the two variables, which hold an array of live
+        // entries; C only reads it, and returns one of its entry pointers
+        // (const only for C's const-correctness), or NULL.
+        let entry = unsafe {
+            ffi::av_frame_side_data_get(self.entries.read(), self.len.read(), kind.into_raw())
+        };
+        // SAFETY: NULL, or an entry of the array, live and exclusively
+        // borrowed with it for `'a`, which `self`, consumed, no longer
+        // reaches.
+        unsafe { SideDataMut::from_ptr(entry.cast_mut()) }
+    }
+
+    /// [`alloc_zeroed`](Self::alloc_zeroed) and
+    /// [`alloc_from_slice`](Self::alloc_from_slice), with `init` writing
+    /// every byte of the new payload before anything can read it, lending
+    /// the entry for the array's whole borrow.
+    fn into_new_entry(
+        mut self,
+        kind: SideDataType,
+        size: usize,
+        flags: SideDataFlags,
+        init: impl FnOnce(&mut [MaybeUninit<u8>]),
+    ) -> Option<SideDataMut<'a>> {
+        let multi = kind
+            .descriptor()
+            .is_some_and(|d| d.props().contains(SideDataProps::MULTI));
+        if flags.contains(SideDataFlags::REPLACE)
+            && !flags.contains(SideDataFlags::UNIQUE)
+            && !multi
+            && self.as_ref().find(kind).is_some()
+        {
+            // C's replacement path stores the buffer it allocated without
+            // checking it, so a failed allocation is a NULL dereference
+            // (`replace_side_data_from_buf`). Allocate first, and replace
+            // through `av_frame_side_data_add`, which writes the entry's
+            // fields as C's path does.
+            let mut buf = BufferReference::alloc(size)?;
+            init(buf.as_mut_slice());
+            // SAFETY: `init` wrote every byte.
+            let buf = unsafe { buf.assume_init() };
+            let entry = self.add_entry(kind, buf, flags).ok()?;
+            // SAFETY: an entry of the array, live and exclusively borrowed
+            // with it for `'a`, which `self`, consumed, no longer reaches.
+            return unsafe { SideDataMut::from_ptr(entry) };
+        }
+        // SAFETY: the array's two variables, exclusively borrowed, so no
+        // handle to an entry C may remove or change is alive. With no entry
+        // to replace, C appends an entry holding a fresh, sole reference to
+        // `size` bytes, its window, or fails with the array as `UNIQUE` left
+        // it; the payload is uninitialised until written below.
+        let entry = unsafe {
+            ffi::av_frame_side_data_new(
+                self.entries.as_ptr(),
+                self.len.as_ptr(),
+                kind.into_raw(),
+                size,
+                flags.bits(),
+            )
+        };
+        if entry.is_null() {
+            return None;
+        }
+        // SAFETY: reads of the new entry's window, `size` bytes of a buffer
+        // the entry alone references, which nothing has read or lent yet.
+        let run = unsafe {
+            (
+                addr_of!((*entry).data).read(),
+                addr_of!((*entry).size).read(),
+            )
+        };
+        let run = match NonNull::new(run.0) {
+            Some(data) if run.1 > 0 => (data, run.1),
+            _ => (NonNull::dangling(), 0),
+        };
+        let data = run.0.cast::<MaybeUninit<u8>>().as_ptr();
+        // SAFETY: the window's bytes (or nothing), writable, viewed
+        // uninitialised and exclusively for `init`, which writes them all
+        // before the entry is handed out, restoring `SideData`'s invariant.
+        let bytes = unsafe { slice::from_raw_parts_mut(data, run.1) };
+        init(bytes);
+        // SAFETY: the new entry, its payload written in full, live and
+        // exclusively borrowed with the array for `'a`, which `self`,
+        // consumed, no longer reaches.
+        unsafe { SideDataMut::from_ptr(entry) }
+    }
+}
+
+/// Zeroes `dst`, in one operation.
+fn zero_into(dst: &mut [MaybeUninit<u8>]) {
+    // SAFETY: writes the whole exclusively borrowed run.
+    unsafe { ptr::write_bytes(dst.as_mut_ptr(), 0, dst.len()) };
+}
+
+/// Copies `src` into `dst`, of the same length, in one operation.
+fn copy_into(dst: &mut [MaybeUninit<u8>], src: &[u8]) {
+    assert_eq!(
+        dst.len(),
+        src.len(),
+        "source length differs from the payload's"
+    );
+    // SAFETY: two runs of `src.len()` bytes that cannot overlap, `src`
+    // borrowed shared and `dst` exclusively.
+    unsafe { ptr::copy_nonoverlapping(src.as_ptr(), dst.as_mut_ptr().cast::<u8>(), src.len()) };
+}
+
+impl SideDataArray {
+    /// The first entry of `kind`, in array order, writable; `None` when
+    /// there is none, as [`SideDataArrayMut::find_mut`] finds it, borrowing
+    /// the array.
+    #[must_use]
+    pub fn find_mut(&mut self, kind: SideDataType) -> Option<SideDataMut<'_>> {
+        self.as_mut().into_found(kind)
+    }
+
+    /// Adds side data of `kind` with `size` zeroed bytes, and returns the
+    /// entry holding it, as [`SideDataArrayMut::alloc_zeroed`] does,
+    /// borrowing the array.
+    pub fn alloc_zeroed(
+        &mut self,
+        kind: SideDataType,
+        size: usize,
+        flags: SideDataFlags,
+    ) -> Option<SideDataMut<'_>> {
+        self.as_mut().into_new_entry(kind, size, flags, zero_into)
+    }
+
+    /// Adds side data of `kind` with a payload copied from `bytes`, and
+    /// returns the entry holding it, as [`SideDataArrayMut::alloc_from_slice`]
+    /// does, borrowing the array.
+    pub fn alloc_from_slice(
+        &mut self,
+        kind: SideDataType,
+        bytes: &[u8],
+        flags: SideDataFlags,
+    ) -> Option<SideDataMut<'_>> {
+        self.as_mut()
+            .into_new_entry(kind, bytes.len(), flags, |run| copy_into(run, bytes))
+    }
+}
 
 #[cfg(test)]
 mod unit_tests {
@@ -2930,5 +3238,134 @@ mod unit_tests {
             ffi::AV_FRAME_SIDE_DATA_FLAG_REPLACE
         );
         assert!(SideDataFlags::default() == SideDataFlags::NONE);
+    }
+
+    /// `alloc_zeroed` replacing an entry, when its allocation fails, returns
+    /// `None` and leaves the entry as it was: C's `av_frame_side_data_new`
+    /// would free the entry's buffer and metadata and then dereference the
+    /// NULL buffer (`replace_side_data_from_buf`), so the wrapper allocates
+    /// first (a deliberate correction of C).
+    #[test]
+    #[cfg_attr(miri, ignore)]
+    fn side_data_alloc_replacing_with_a_failed_allocation_keeps_the_entry() {
+        let mut a = SideDataArray::new();
+        let mut e = a
+            .alloc_from_slice(SideDataType::AFD, &[7], SideDataFlags::NONE)
+            .unwrap();
+        e.set_metadata(Dict::from_entries([(c"k", c"v")]).unwrap());
+        // More than `av_max_alloc`'s default `INT_MAX` limit, which fails
+        // without touching the process-wide limit other tests share.
+        let huge = 1 << 40;
+        assert!(
+            a.alloc_zeroed(SideDataType::AFD, huge, SideDataFlags::REPLACE)
+                .is_none()
+        );
+        let mut entries = a.as_mut();
+        assert!(
+            entries
+                .alloc_zeroed(SideDataType::AFD, huge, SideDataFlags::REPLACE)
+                .is_none()
+        );
+        let e = a.as_ref().find(SideDataType::AFD).unwrap();
+        assert_eq!(e.data(), [7]);
+        assert_eq!(e.metadata().map(|m| m.len()), Some(1));
+        assert_eq!(a.len(), 1);
+        // Without an entry to replace, C's own path fails cleanly.
+        let multi = SideDataType::SEI_UNREGISTERED;
+        assert!(
+            a.alloc_zeroed(multi, huge, SideDataFlags::REPLACE)
+                .is_none()
+        );
+        assert!(
+            a.alloc_zeroed(SideDataType::AFD, huge, SideDataFlags::UNIQUE)
+                .is_none()
+        );
+        assert!(a.is_empty(), "UNIQUE removed the entry before failing");
+    }
+
+    /// `alloc_*` replacing an entry goes through `av_frame_side_data_add`
+    /// with a buffer it filled: the entry keeps its place and kind, takes the
+    /// new payload, loses its metadata and releases its old reference.
+    #[test]
+    #[cfg_attr(miri, ignore)]
+    fn side_data_alloc_replacing_takes_a_filled_buffer() {
+        let mut a = side_data_array(&[b"m"]);
+        let mut e = a
+            .alloc_from_slice(SideDataType::AFD, b"old", SideDataFlags::NONE)
+            .unwrap();
+        e.set_metadata(Dict::from_entries([(c"k", c"v")]).unwrap());
+        let old = e.as_ref().buffer().try_clone().unwrap();
+        assert_eq!(count(&old), 2);
+        let mut e = a
+            .alloc_from_slice(SideDataType::AFD, b"new!", SideDataFlags::REPLACE)
+            .unwrap();
+        assert_eq!(e.data_mut().unwrap(), b"new!");
+        assert_eq!(count(&old), 1);
+        let mut entries = a.as_mut();
+        let e = entries
+            .alloc_zeroed(SideDataType::AFD, 3, SideDataFlags::REPLACE)
+            .unwrap();
+        assert_eq!(e.as_ref().data(), [0; 3]);
+        assert!(e.as_ref().metadata().is_none());
+        let kinds: Vec<_> = a.as_ref().iter().map(|e| e.kind()).collect();
+        assert_eq!(kinds, [SideDataType::SEI_UNREGISTERED, SideDataType::AFD]);
+        assert_eq!(old.as_ref().data(), b"old");
+    }
+
+    /// `add_clone` refuses at `MAX_REFERENCES` without calling C, leaving
+    /// the count and the array, and clones one below it.
+    #[test]
+    #[cfg_attr(miri, ignore)]
+    fn side_data_clones_stop_at_the_reference_limit() {
+        use crate::libavutil::buffer::MAX_REFERENCES;
+        use crate::libavutil::buffer::unit_tests::{counts, set_count};
+        let src = side_data_array(&[b"abc"]);
+        let held = src.as_ref().get(0).unwrap().buffer().try_clone().unwrap();
+        let mut dst = SideDataArray::new();
+        let entry = src.as_ref().get(0).unwrap();
+        set_count(&held, MAX_REFERENCES);
+        assert_eq!(
+            dst.as_mut().add_clone(entry, SideDataFlags::NONE),
+            Err(ENOMEM)
+        );
+        assert_eq!(counts(&held).1, MAX_REFERENCES);
+        assert!(dst.is_empty());
+        set_count(&held, MAX_REFERENCES - 1);
+        assert_eq!(dst.as_mut().add_clone(entry, SideDataFlags::NONE), Ok(()));
+        assert_eq!(counts(&held).1, MAX_REFERENCES);
+        set_count(&held, 3);
+        assert_eq!(counts(&held), (3, 3));
+        drop(dst);
+        assert_eq!(count(&held), 2);
+    }
+
+    /// `find` on a handle whose count C stored negative reads no pointer,
+    /// as C's loop does not.
+    #[test]
+    #[cfg_attr(miri, ignore)]
+    fn side_data_find_reads_negative_counts_as_empty() {
+        // SAFETY: a dangling, never-read block, and a negative count that
+        // the handle reads as empty.
+        let r = unsafe { SideDataArrayRef::from_raw_parts(NonNull::dangling().as_ptr(), -3) };
+        assert!(r.find(SideDataType::AFD).is_none());
+    }
+
+    #[test]
+    fn side_data_payload_initialisers_write_every_byte() {
+        let mut run = [MaybeUninit::new(0xa5u8); 9];
+        zero_into(&mut run);
+        // SAFETY: every byte is initialised, before and after.
+        assert_eq!(unsafe { run.map(|b| b.assume_init()) }, [0; 9]);
+        copy_into(&mut run, b"012345678");
+        // SAFETY: as above.
+        assert_eq!(unsafe { run.map(|b| b.assume_init()) }, *b"012345678");
+        zero_into(&mut []);
+        copy_into(&mut [], &[]);
+    }
+
+    #[test]
+    #[should_panic(expected = "source length differs")]
+    fn side_data_payload_copies_need_equal_lengths() {
+        copy_into(&mut [MaybeUninit::uninit(); 2], b"abc");
     }
 }

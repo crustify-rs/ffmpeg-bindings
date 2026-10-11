@@ -1,0 +1,9 @@
+error[E0499]: cannot borrow `entries` as mutable more than once at a time
+ --> tests/ub_safe/compile_fail/frame_side_data_find_mut_excludes_another.rs
+  |
+  |     let first = entries.find_mut(SideDataType::AFD);
+  |                 ------- first mutable borrow occurs here
+  |     let second = entries.find_mut(SideDataType::AFD);
+  |                  ^^^^^^^ second mutable borrow occurs here
+  |     drop((first, second));
+  |           ----- first borrow later used here

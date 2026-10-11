@@ -1113,17 +1113,17 @@ mod side_data {
 
     /// What C sees of one entry.
     #[derive(Clone, Debug, PartialEq, Eq)]
-    struct Seen {
-        kind: u32,
-        bytes: Vec<u8>,
-        metadata: Pairs,
+    pub(super) struct Seen {
+        pub(super) kind: u32,
+        pub(super) bytes: Vec<u8>,
+        pub(super) metadata: Pairs,
         count: c_int,
         writable: bool,
         window: bool,
     }
 
     /// C's reading of a dictionary, in iteration order.
-    fn c_pairs(m: *const ffi::AVDictionary) -> Pairs {
+    pub(super) fn c_pairs(m: *const ffi::AVDictionary) -> Pairs {
         let mut out = Vec::new();
         let mut e = ptr::null();
         loop {
@@ -1169,7 +1169,7 @@ mod side_data {
     }
 
     /// C's reading of the Rust array, which it lends C for the call.
-    fn rust_seen(a: &mut SideDataArray) -> Vec<Seen> {
+    pub(super) fn rust_seen(a: &mut SideDataArray) -> Vec<Seen> {
         let (sd, nb) = core::mem::take(a).into_raw_parts();
         // SAFETY: the array Rust held, live until it is taken back below.
         let seen = unsafe { c_seen(sd, nb) };
@@ -1179,11 +1179,11 @@ mod side_data {
     }
 
     /// Key/value pairs as bytes, in iteration order.
-    type Pairs = Vec<(Vec<u8>, Vec<u8>)>;
+    pub(super) type Pairs = Vec<(Vec<u8>, Vec<u8>)>;
 
     /// The Rust getters' reading of an entry, in [`Seen`]'s terms where the
     /// safe API has them.
-    fn getters(e: SideDataRef<'_>) -> (u32, Vec<u8>, Pairs) {
+    pub(super) fn getters(e: SideDataRef<'_>) -> (u32, Vec<u8>, Pairs) {
         let metadata = e.metadata().map_or_else(Vec::new, |m| {
             m.iter()
                 .map(|p| (p.key().to_bytes().into(), p.value().to_bytes().into()))
@@ -1193,33 +1193,33 @@ mod side_data {
     }
 
     /// An `AVFrameSideData *` array C grows and writes, freed on drop.
-    struct CArray {
-        sd: *mut *mut ffi::AVFrameSideData,
-        nb: c_int,
+    pub(super) struct CArray {
+        pub(super) sd: *mut *mut ffi::AVFrameSideData,
+        pub(super) nb: c_int,
     }
 
     impl CArray {
-        fn new() -> Self {
+        pub(super) fn new() -> Self {
             Self {
                 sd: ptr::null_mut(),
                 nb: 0,
             }
         }
 
-        fn entry(&self, i: usize) -> *mut ffi::AVFrameSideData {
+        pub(super) fn entry(&self, i: usize) -> *mut ffi::AVFrameSideData {
             assert!(i < self.nb as usize);
             // SAFETY: `i < nb`.
             unsafe { *self.sd.add(i) }
         }
 
-        fn seen(&self) -> Vec<Seen> {
+        pub(super) fn seen(&self) -> Vec<Seen> {
             // SAFETY: the array C built.
             unsafe { c_seen(self.sd, self.nb) }
         }
 
         /// `av_frame_side_data_add` of `buf`, which C takes on success;
         /// whether it added, and the reference it left the caller.
-        fn add(
+        pub(super) fn add(
             &mut self,
             kind: u32,
             buf: *mut ffi::AVBufferRef,
@@ -1258,7 +1258,7 @@ mod side_data {
             }
         }
 
-        fn replace_metadata(
+        pub(super) fn replace_metadata(
             &mut self,
             i: usize,
             m: *mut ffi::AVDictionary,
@@ -1297,7 +1297,7 @@ mod side_data {
     }
 
     /// A C reference holding `bytes`.
-    fn c_buffer(bytes: &[u8]) -> *mut ffi::AVBufferRef {
+    pub(super) fn c_buffer(bytes: &[u8]) -> *mut ffi::AVBufferRef {
         // SAFETY: a fresh reference to `len` bytes, filled from `bytes`.
         unsafe {
             let b = ffi::av_buffer_alloc(bytes.len());
@@ -1308,7 +1308,7 @@ mod side_data {
     }
 
     /// A C dictionary of `pairs`, inserted as `Dict::from_entries` does.
-    fn c_dict(pairs: &[(&CStr, &CStr)]) -> *mut ffi::AVDictionary {
+    pub(super) fn c_dict(pairs: &[(&CStr, &CStr)]) -> *mut ffi::AVDictionary {
         let mut m = ptr::null_mut();
         for (k, v) in pairs {
             // SAFETY: C copies the strings into `m`.
@@ -1344,7 +1344,7 @@ mod side_data {
 
     /// Asserts both arrays read alike, through C and through the getters,
     /// and that C's lookups and clones of the Rust array match its own.
-    fn compare(r: &mut SideDataArray, c: &CArray, step: &str) {
+    pub(super) fn compare(r: &mut SideDataArray, c: &CArray, step: &str) {
         let (rs, cs) = (rust_seen(r), c.seen());
         assert_eq!(rs, cs, "{step}");
         assert_eq!(r.len(), cs.len(), "{step}");
@@ -1399,28 +1399,28 @@ mod side_data {
 
     /// The kinds the sequences use: `MULTI`, two unique named ones, and one
     /// C does not name.
-    const KINDS: [u32; 4] = [
+    pub(super) const KINDS: [u32; 4] = [
         SideDataType::SEI_UNREGISTERED.into_raw().0,
         SideDataType::AFD.into_raw().0,
         SideDataType::ICC_PROFILE.into_raw().0,
         1000,
     ];
 
-    fn xorshift(x: &mut u64) -> u64 {
+    pub(super) fn xorshift(x: &mut u64) -> u64 {
         *x ^= *x << 13;
         *x ^= *x >> 7;
         *x ^= *x << 17;
         *x
     }
 
-    const FLAGS: [SideDataFlags; 4] = [
+    pub(super) const FLAGS: [SideDataFlags; 4] = [
         SideDataFlags::NONE,
         SideDataFlags::UNIQUE,
         SideDataFlags::REPLACE,
         SideDataFlags::REPLACE,
     ];
 
-    const PAIRS: [&[(&CStr, &CStr)]; 4] = [
+    pub(super) const PAIRS: [&[(&CStr, &CStr)]; 4] = [
         &[],
         &[(c"k", c"v")],
         &[(c"a", c"1"), (c"b", c"2")],
@@ -1694,3 +1694,426 @@ mod side_data {
 /// Side data arrays built through the safe API for the `side_data` tests.
 #[path = "../common/side_data.rs"]
 mod side_data_fixture;
+
+/// The side data array routines against C's (buffer-frame wave 3, batch 1):
+/// `SideDataArrayRef::find` (`av_frame_side_data_get_c`),
+/// `SideDataArrayMut::find_mut` (`av_frame_side_data_get`), `remove`,
+/// `remove_by_props`, `add_clone` (`av_frame_side_data_clone`) and
+/// `alloc_zeroed` / `alloc_from_slice` (`av_frame_side_data_new`, then a
+/// fill), with the owner's twins, on a Rust array and a C array driven
+/// through the same random sequences, compared after every step by the
+/// `side_data` suite's `compare`: C's reading of both arrays, their getters,
+/// C's lookups and clones of them. Clones come from a Rust and a C source
+/// array, compared too, and replaced halfway so that clones outlive them.
+mod side_data_array_routines {
+    use core::ffi::c_int;
+    use core::ptr;
+
+    use ffmpeg::libavutil::ffi;
+    use ffmpeg::libavutil::frame::{SideDataArray, SideDataFlags, SideDataProps, SideDataType};
+
+    use super::side_data::{
+        CArray, FLAGS, KINDS, PAIRS, c_buffer, c_dict, compare, getters, rust_seen, xorshift,
+    };
+    use super::side_data_fixture::{SAMPLE, array};
+
+    /// Property filters: none, each named one, combinations, a bit no
+    /// descriptor has, and every bit (C's `int` -1).
+    const PROPS: [u32; 8] = [
+        0,
+        SideDataProps::GLOBAL.bits(),
+        SideDataProps::MULTI.bits(),
+        SideDataProps::SIZE_DEPENDENT.bits() | SideDataProps::COLOR_DEPENDENT.bits(),
+        SideDataProps::CHANNEL_DEPENDENT.bits(),
+        SideDataProps::all().bits(),
+        1 << 30,
+        u32::MAX,
+    ];
+
+    fn kind(raw: u32) -> SideDataType {
+        SideDataType::from_raw(ffi::AVFrameSideDataType(raw))
+    }
+
+    /// The index of C's entry `e` in `c`.
+    fn index(c: &CArray, e: *const ffi::AVFrameSideData) -> Option<usize> {
+        (0..c.nb as usize).find(|&i| ptr::eq(c.entry(i), e))
+    }
+
+    /// The source arrays clones come from: [`SAMPLE`] built through the
+    /// safe API, and the same entries built by C.
+    fn sources() -> (SideDataArray, CArray) {
+        let mut c = CArray::new();
+        for spec in &SAMPLE {
+            let (ok, _) = c.add(
+                spec.kind.into_raw().0,
+                c_buffer(spec.payload),
+                SideDataFlags::NONE,
+            );
+            assert!(ok);
+            let n = c.nb as usize - 1;
+            let _ = c.replace_metadata(n, c_dict(spec.metadata));
+        }
+        (array(&SAMPLE), c)
+    }
+
+    /// `av_frame_side_data_new` on C's array, with its payload then written
+    /// as `fill` says, as the wrappers do.
+    fn c_new(
+        c: &mut CArray,
+        k: u32,
+        size: usize,
+        flags: SideDataFlags,
+        fill: Option<&[u8]>,
+    ) -> Option<usize> {
+        // SAFETY: the array C built; the payload of an entry C returns is
+        // written in full before anything reads it.
+        let e = unsafe {
+            let e = ffi::av_frame_side_data_new(
+                &raw mut c.sd,
+                &raw mut c.nb,
+                ffi::AVFrameSideDataType(k),
+                size,
+                flags.bits(),
+            );
+            if !e.is_null() {
+                match fill {
+                    Some(bytes) => ptr::copy_nonoverlapping(bytes.as_ptr(), (*e).data, size),
+                    None => ptr::write_bytes((*e).data, 0, size),
+                }
+            }
+            e
+        };
+        (!e.is_null()).then(|| index(c, e).expect("C returned an entry of the array"))
+    }
+
+    /// Random sequences of every routine, compared after each step.
+    fn run(seed: u64, steps: usize) {
+        let mut x = seed;
+        let (mut r, mut c) = (SideDataArray::new(), CArray::new());
+        let (mut r_src, mut c_src) = sources();
+        for step in 0..steps {
+            let v = xorshift(&mut x);
+            let k = KINDS[(v >> 4) as usize % KINDS.len()];
+            let flags = FLAGS[(v >> 6) as usize % FLAGS.len()];
+            let flags = if v >> 50 & 1 == 1 {
+                flags | SideDataFlags::UNIQUE
+            } else {
+                flags
+            };
+            let owner = v >> 51 & 1 == 1;
+            let payload: Vec<u8> = (0..(v >> 20) % 70).map(|n| (n as u8) ^ (v as u8)).collect();
+            let what = v % 8;
+            let label = format!("seed {seed} step {step} op {what} kind {k} flags {flags:?}");
+            match what {
+                0 | 1 => {
+                    let fill = (what == 1).then_some(&payload[..]);
+                    let got = match (fill, owner) {
+                        (None, true) => r
+                            .alloc_zeroed(kind(k), payload.len(), flags)
+                            .map(|e| getters(e.as_ref())),
+                        (None, false) => r
+                            .as_mut()
+                            .alloc_zeroed(kind(k), payload.len(), flags)
+                            .map(|e| getters(e.as_ref())),
+                        (Some(b), true) => r
+                            .alloc_from_slice(kind(k), b, flags)
+                            .map(|e| getters(e.as_ref())),
+                        (Some(b), false) => r
+                            .as_mut()
+                            .alloc_from_slice(kind(k), b, flags)
+                            .map(|e| getters(e.as_ref())),
+                    };
+                    let want = c_new(&mut c, k, payload.len(), flags, fill).map(|i| {
+                        let s = c.seen().swap_remove(i);
+                        (s.kind, s.bytes, s.metadata)
+                    });
+                    assert_eq!(got, want, "{label}");
+                }
+                2 => {
+                    let j = (v >> 12) as usize % SAMPLE.len();
+                    let got = r.as_mut().add_clone(r_src.as_ref().get(j).unwrap(), flags);
+                    // SAFETY: C's array and a live entry of C's source.
+                    let want = unsafe {
+                        ffi::av_frame_side_data_clone(
+                            &raw mut c.sd,
+                            &raw mut c.nb,
+                            c_src.entry(j),
+                            flags.bits(),
+                        )
+                    };
+                    assert_eq!(got, if want < 0 { Err(want) } else { Ok(()) }, "{label}");
+                }
+                3 => {
+                    r.as_mut().remove(kind(k));
+                    // SAFETY: C's array.
+                    unsafe {
+                        ffi::av_frame_side_data_remove(
+                            &raw mut c.sd,
+                            &raw mut c.nb,
+                            ffi::AVFrameSideDataType(k),
+                        )
+                    };
+                }
+                4 => {
+                    let props = PROPS[(v >> 12) as usize % PROPS.len()];
+                    r.as_mut()
+                        .remove_by_props(SideDataProps::from_bits_retain(props));
+                    // SAFETY: C's array.
+                    unsafe {
+                        ffi::av_frame_side_data_remove_by_props(
+                            &raw mut c.sd,
+                            &raw mut c.nb,
+                            props as c_int,
+                        )
+                    };
+                }
+                5 => {
+                    let got = r.as_ref().find(kind(k)).map(getters);
+                    // SAFETY: C's array, read for the call.
+                    let e = unsafe {
+                        ffi::av_frame_side_data_get_c(
+                            c.sd.cast(),
+                            c.nb,
+                            ffi::AVFrameSideDataType(k),
+                        )
+                    };
+                    let want = (!e.is_null()).then(|| {
+                        let s = c.seen().swap_remove(index(&c, e).unwrap());
+                        (s.kind, s.bytes, s.metadata)
+                    });
+                    assert_eq!(got, want, "{label}");
+                }
+                6 => {
+                    // Marks the entry found with another kind, which tells
+                    // in the comparison which one it was.
+                    let mark = KINDS[(v >> 12) as usize % KINDS.len()] ^ 2;
+                    let found = match owner {
+                        true => r.find_mut(kind(k)).map(|mut e| e.set_kind(kind(mark))),
+                        false => r
+                            .as_mut()
+                            .find_mut(kind(k))
+                            .map(|mut e| e.set_kind(kind(mark))),
+                    };
+                    // SAFETY: C's array; the entry C returns is one of its
+                    // own, written as the array's holder may.
+                    let e = unsafe {
+                        ffi::av_frame_side_data_get(c.sd, c.nb, ffi::AVFrameSideDataType(k))
+                    };
+                    if !e.is_null() {
+                        // SAFETY: as above.
+                        unsafe { (*e.cast_mut()).type_ = ffi::AVFrameSideDataType(mark) };
+                    }
+                    assert_eq!(found.is_some(), !e.is_null(), "{label}");
+                }
+                _ => {
+                    let byte = (v >> 30) as u8;
+                    let wrote = r
+                        .as_mut()
+                        .find_mut(kind(k))
+                        .and_then(|mut e| e.data_mut().map(|d| d.fill(byte)))
+                        .is_some();
+                    // SAFETY: C's array; a payload is written only when its
+                    // buffer is sole and not read-only.
+                    let c_wrote = unsafe {
+                        let e =
+                            ffi::av_frame_side_data_get(c.sd, c.nb, ffi::AVFrameSideDataType(k));
+                        let ok = !e.is_null() && ffi::av_buffer_is_writable((*e).buf) != 0;
+                        if ok {
+                            ptr::write_bytes((*e).data, byte, (*e).size);
+                        }
+                        ok
+                    };
+                    assert_eq!(wrote, c_wrote, "{label}");
+                }
+            }
+            compare(&mut r, &c, &label);
+            assert_eq!(rust_seen(&mut r_src), c_src.seen(), "{label}: sources");
+            if step == steps / 2 {
+                // Clones outlive their sources, whose buffers they share.
+                (r_src, c_src) = sources();
+                compare(&mut r, &c, &format!("{label}: sources replaced"));
+            }
+        }
+    }
+
+    #[test]
+    fn random_sequences_match_c_after_every_step() {
+        for seed in 1..=40u64 {
+            run(seed.wrapping_mul(0x2545_f491_4f6c_dd1d), 120);
+        }
+    }
+
+    /// Whether this is the isolated child of test `name`; in the parent, runs
+    /// the child, asserts it passed, and returns `false`.
+    fn isolated(name: &str) -> bool {
+        const ISOLATED: &str = "CRUSTIFY_EQUIV_ISOLATED";
+        if std::env::var_os(ISOLATED).is_some() {
+            return true;
+        }
+        let status = std::process::Command::new(std::env::current_exe().unwrap())
+            .args(["--exact", name, "--test-threads=1", "--nocapture"])
+            .env(ISOLATED, "1")
+            .status()
+            .unwrap();
+        assert!(status.success(), "isolated run failed: {status}");
+        false
+    }
+
+    /// Clones and allocations failing at `av_max_alloc` limits, in an
+    /// isolated child as the limit is process-wide: each limit fails a
+    /// different allocation of C's clone (the new reference, the pointer
+    /// block, the entry, the metadata copy, whose failure removes the entry
+    /// again) and of its replacement (the metadata copy, the reference), and
+    /// the payload of an allocation. Both sides fail alike, with the arrays
+    /// compared once the limit is lifted.
+    #[test]
+    fn failures_at_the_av_max_alloc_limit_match_c() {
+        let name = "frame::side_data_array_routines::failures_at_the_av_max_alloc_limit_match_c";
+        if !isolated(name) {
+            return;
+        }
+        let set_max = ffmpeg::libavutil::mem::set_max_alloc;
+        let key = std::ffi::CString::new(vec![b'k'; 150]).unwrap();
+        let long: &[(&core::ffi::CStr, &core::ffi::CStr)] = &[(&key, c"v")];
+        // Source entries: a unique kind and a MULTI one, each with and
+        // without metadata whose key C copies in one 151-byte block.
+        let specs = [
+            (SideDataType::AFD, long),
+            (SideDataType::AFD, &[][..]),
+            (SideDataType::SEI_UNREGISTERED, long),
+            (SideDataType::SEI_UNREGISTERED, &[][..]),
+        ];
+        for limit in [0, 16, 23, 24, 32, 39, 40, 47, 48, 64, 100, 150, 151, 200] {
+            for (j, &(k, pairs)) in specs.iter().enumerate() {
+                for flags in [SideDataFlags::NONE, SideDataFlags::REPLACE] {
+                    let label = format!("limit {limit} source {j} flags {flags:?}");
+                    let (mut r_src, mut c_src) = (SideDataArray::new(), CArray::new());
+                    let mut e = r_src
+                        .alloc_from_slice(k, b"src", SideDataFlags::NONE)
+                        .unwrap();
+                    e.set_metadata(
+                        ffmpeg::libavutil::dict::Dict::from_entries(pairs.iter().copied()).unwrap(),
+                    );
+                    let i = c_new(
+                        &mut c_src,
+                        k.into_raw().0,
+                        3,
+                        SideDataFlags::NONE,
+                        Some(b"src"),
+                    )
+                    .unwrap();
+                    let _ = c_src.replace_metadata(i, c_dict(pairs));
+                    // Destinations holding an entry of each kind already.
+                    let (mut r, mut c) = (SideDataArray::new(), CArray::new());
+                    for k2 in [SideDataType::AFD, SideDataType::SEI_UNREGISTERED] {
+                        r.alloc_from_slice(k2, b"old", SideDataFlags::NONE).unwrap();
+                        c_new(
+                            &mut c,
+                            k2.into_raw().0,
+                            3,
+                            SideDataFlags::NONE,
+                            Some(b"old"),
+                        )
+                        .unwrap();
+                    }
+                    set_max(limit);
+                    let got = r.as_mut().add_clone(r_src.as_ref().get(0).unwrap(), flags);
+                    // SAFETY: C's array and a live entry of C's source.
+                    let want = unsafe {
+                        ffi::av_frame_side_data_clone(
+                            &raw mut c.sd,
+                            &raw mut c.nb,
+                            c_src.entry(0),
+                            flags.bits(),
+                        )
+                    };
+                    set_max(i32::MAX as usize);
+                    assert_eq!(
+                        got,
+                        if want < 0 { Err(want) } else { Ok(()) },
+                        "{label}: clone"
+                    );
+                    compare(&mut r, &c, &format!("{label}: clone"));
+                    // An allocation with no entry to replace, which C
+                    // reaches itself.
+                    let size = limit / 2 + 8;
+                    set_max(limit);
+                    let got = r
+                        .alloc_zeroed(SideDataType::ICC_PROFILE, size, SideDataFlags::NONE)
+                        .is_some();
+                    let want = c_new(
+                        &mut c,
+                        SideDataType::ICC_PROFILE.into_raw().0,
+                        size,
+                        SideDataFlags::NONE,
+                        None,
+                    )
+                    .is_some();
+                    set_max(i32::MAX as usize);
+                    assert_eq!(got, want, "{label}: alloc");
+                    compare(&mut r, &c, &format!("{label}: alloc"));
+                    assert_eq!(rust_seen(&mut r_src), c_src.seen(), "{label}: source");
+                }
+            }
+        }
+    }
+
+    /// Each flag combination of `alloc_*` and `add_clone` over an array
+    /// that holds an entry of every kind the sequences use, each with
+    /// metadata, against the same calls in C.
+    #[test]
+    fn every_flag_over_present_kinds_matches_c() {
+        let all = [
+            SideDataFlags::NONE,
+            SideDataFlags::UNIQUE,
+            SideDataFlags::REPLACE,
+            SideDataFlags::UNIQUE | SideDataFlags::REPLACE,
+        ];
+        let (r_src, c_src) = sources();
+        for flags in all {
+            for (n, &k) in KINDS.iter().enumerate() {
+                let (mut r, mut c) = (SideDataArray::new(), CArray::new());
+                for (m, &k2) in KINDS.iter().enumerate() {
+                    let pairs = PAIRS[m % PAIRS.len()];
+                    let mut e = r
+                        .alloc_from_slice(kind(k2), &[m as u8; 3], SideDataFlags::NONE)
+                        .unwrap();
+                    e.set_metadata(
+                        ffmpeg::libavutil::dict::Dict::from_entries(pairs.iter().copied()).unwrap(),
+                    );
+                    let i = c_new(&mut c, k2, 3, SideDataFlags::NONE, Some(&[m as u8; 3])).unwrap();
+                    let _ = c.replace_metadata(i, c_dict(pairs));
+                }
+                let label = format!("kind {k} flags {flags:?}");
+                compare(&mut r, &c, &label);
+                let got = r
+                    .alloc_zeroed(kind(k), 5, flags)
+                    .map(|e| getters(e.as_ref()));
+                let want = c_new(&mut c, k, 5, flags, None).map(|i| {
+                    let s = c.seen().swap_remove(i);
+                    (s.kind, s.bytes, s.metadata)
+                });
+                assert_eq!(got, want, "{label}: alloc");
+                compare(&mut r, &c, &format!("{label}: alloc"));
+                for j in [n, SAMPLE.len() - 1 - n] {
+                    let got = r.as_mut().add_clone(r_src.as_ref().get(j).unwrap(), flags);
+                    // SAFETY: C's array and a live entry of C's source.
+                    let want = unsafe {
+                        ffi::av_frame_side_data_clone(
+                            &raw mut c.sd,
+                            &raw mut c.nb,
+                            c_src.entry(j),
+                            flags.bits(),
+                        )
+                    };
+                    assert_eq!(
+                        got,
+                        if want < 0 { Err(want) } else { Ok(()) },
+                        "{label}: clone {j}"
+                    );
+                    compare(&mut r, &c, &format!("{label}: clone {j}"));
+                }
+            }
+        }
+    }
+}

@@ -1086,3 +1086,317 @@ mod side_data {
 /// Side data arrays C builds, filled, for the `side_data` tests.
 #[path = "../common/side_data.rs"]
 mod side_data_fixture;
+
+/// The side data array routines (buffer-frame wave 3, batch 1): payloads
+/// `alloc_zeroed` and `alloc_from_slice` allocate, from empty to page-sized,
+/// read and written in full so that a run past the end is an ASan report;
+/// the replacement whose allocation fails, where C's own routine would
+/// dereference NULL; clones outliving their source and the entry they
+/// replaced; lookups and removals over every kind and property filter, with
+/// references the test keeps outliving the removed entries; and clones,
+/// lookups and drops across threads.
+mod side_data_array_routines {
+    use std::thread;
+
+    use ffmpeg::libavutil::buffer::BufferReferenceBox;
+    use ffmpeg::libavutil::dict::Dict;
+    use ffmpeg::libavutil::frame::{
+        SideDataArray, SideDataFlags, SideDataProps, SideDataRef, SideDataType,
+    };
+
+    use super::side_data_fixture::{SAMPLE, array, sample};
+
+    /// Whether every byte of `bytes` is `b`, compared as one slice.
+    fn is_all(bytes: &[u8], b: u8) -> bool {
+        *bytes == *vec![b; bytes.len()]
+    }
+
+    fn kinds(a: &SideDataArray) -> Vec<SideDataType> {
+        a.as_ref().iter().map(|e| e.kind()).collect()
+    }
+
+    /// The payload sizes the allocations use: empty, odd, and a page.
+    const SIZES: [usize; 5] = [0, 1, 7, 64, 4096];
+
+    #[test]
+    fn allocated_payloads_are_initialised_and_exactly_sized() {
+        let mut a = SideDataArray::new();
+        let multi = SideDataType::SEI_UNREGISTERED;
+        for (i, &n) in SIZES.iter().enumerate() {
+            let mut e = a.alloc_zeroed(multi, n, SideDataFlags::NONE).unwrap();
+            assert!(is_all(e.as_ref().data(), 0));
+            e.data_mut().unwrap().fill(i as u8 + 1);
+            let bytes: Vec<u8> = (0..n).map(|k| k as u8).collect();
+            let mut entries = a.as_mut();
+            let mut e = entries
+                .alloc_from_slice(multi, &bytes, SideDataFlags::NONE)
+                .unwrap();
+            assert!(e.as_ref().data() == bytes);
+            e.data_mut().unwrap().fill(0xee);
+        }
+        assert_eq!(a.len(), 2 * SIZES.len());
+        for (i, &n) in SIZES.iter().enumerate() {
+            let e = a.as_ref().get(2 * i).unwrap();
+            assert_eq!(e.len(), n);
+            assert!(is_all(e.data(), i as u8 + 1));
+            assert!(e.buffer().data() == e.data());
+            assert!(is_all(a.as_ref().get(2 * i + 1).unwrap().data(), 0xee));
+        }
+        assert!(is_all(a.as_ref().find(multi).unwrap().data(), 1));
+    }
+
+    #[test]
+    fn failed_allocations_leave_the_array_readable() {
+        let mut a = sample();
+        let afd = SideDataType::AFD;
+        let mut e = a.find_mut(afd).unwrap();
+        e.set_metadata(Dict::from_entries([(c"keep", c"me")]).unwrap());
+        for huge in [1 << 40, usize::MAX] {
+            // Replacing: C's routine would free the entry's buffer and
+            // metadata, then dereference its failed allocation.
+            assert!(a.alloc_zeroed(afd, huge, SideDataFlags::REPLACE).is_none());
+            assert!(
+                a.as_mut()
+                    .alloc_zeroed(afd, huge, SideDataFlags::REPLACE)
+                    .is_none()
+            );
+            // Refused, or appended, for lack of memory.
+            assert!(a.alloc_zeroed(afd, huge, SideDataFlags::NONE).is_none());
+            let multi = SideDataType::SEI_UNREGISTERED;
+            assert!(
+                a.alloc_zeroed(multi, huge, SideDataFlags::REPLACE)
+                    .is_none()
+            );
+        }
+        let e = a.as_ref().find(afd).unwrap();
+        assert_eq!(e.data(), SAMPLE[0].payload);
+        assert_eq!(e.metadata().unwrap().len(), 1);
+        assert_eq!(a.len(), SAMPLE.len());
+        assert!(
+            a.alloc_zeroed(afd, 1 << 40, SideDataFlags::UNIQUE | SideDataFlags::REPLACE)
+                .is_none()
+        );
+        assert!(a.as_ref().find(afd).is_none());
+        assert_eq!(a.len(), SAMPLE.len() - 1);
+    }
+
+    #[test]
+    fn replacements_free_what_they_replace() {
+        let mut a = sample();
+        let icc = SideDataType::ICC_PROFILE;
+        let mut e = a.find_mut(icc).unwrap();
+        e.set_metadata(Dict::from_entries([(c"a", c"1"), (c"b", c"2")]).unwrap());
+        let kept: BufferReferenceBox = e.as_ref().buffer().try_clone().unwrap();
+        for (i, &n) in SIZES.iter().enumerate() {
+            let flags = SideDataFlags::REPLACE;
+            let e = if i % 2 == 0 {
+                a.alloc_zeroed(icc, n, flags).unwrap()
+            } else {
+                a.alloc_from_slice(icc, &vec![i as u8; n], flags).unwrap()
+            };
+            assert_eq!(e.as_ref().len(), n);
+            assert!(e.as_ref().metadata().is_none());
+        }
+        assert_eq!(kinds(&a), SAMPLE.map(|s| s.kind));
+        assert!(kept.as_ref().data() == SAMPLE[4].payload);
+        assert_eq!(kept.as_ref().ref_count(), 1);
+    }
+
+    #[test]
+    fn clones_outlive_their_source() {
+        let mut src = sample();
+        let mut dst = SideDataArray::new();
+        for e in src.as_ref() {
+            let flags = SideDataFlags::REPLACE;
+            dst.as_mut().add_clone(e, flags).unwrap();
+        }
+        // Every entry is shared now, so neither side writes.
+        assert!(src.as_mut().iter_mut().all(|mut e| e.data_mut().is_none()));
+        // A unique kind present: refused without REPLACE.
+        let afd = src.as_ref().find(SideDataType::AFD).unwrap();
+        assert!(dst.as_mut().add_clone(afd, SideDataFlags::NONE).is_err());
+        drop(src);
+        for (e, spec) in dst.as_ref().iter().zip(&SAMPLE) {
+            assert_eq!(e.kind(), spec.kind);
+            assert!(e.data() == spec.payload);
+        }
+        let mut sei = dst.find_mut(SideDataType::SEI_UNREGISTERED).unwrap();
+        sei.data_mut().expect("the source is gone").fill(1);
+        assert_eq!(dst.len(), SAMPLE.len());
+        let page = dst.as_ref().get(3).unwrap();
+        assert_eq!(page.metadata().unwrap().len(), 3);
+        assert!(page.data() == SAMPLE[3].payload);
+    }
+
+    #[test]
+    fn clones_replacing_entries_free_their_buffer_and_metadata() {
+        let src = array(&[SAMPLE[1]]);
+        let mut dst = sample();
+        let a53 = SideDataType::A53_CC;
+        let mut e = dst.find_mut(a53).unwrap();
+        // Sharing the source's buffer first: C's replacement then only
+        // takes its window.
+        e.set_buffer(src.as_ref().get(0).unwrap().buffer().try_clone().unwrap());
+        let entry = src.as_ref().get(0).unwrap();
+        for flags in [
+            SideDataFlags::REPLACE,
+            SideDataFlags::UNIQUE,
+            SideDataFlags::UNIQUE | SideDataFlags::REPLACE,
+        ] {
+            dst.as_mut().add_clone(entry, flags).unwrap();
+            let e = dst.as_ref().find(a53).unwrap();
+            assert!(e.data().is_empty());
+            assert_eq!(e.metadata().unwrap().len(), 1);
+        }
+        drop(src);
+        assert_eq!(dst.as_ref().find(a53).unwrap().buffer().ref_count(), 1);
+    }
+
+    #[test]
+    fn removals_keep_the_rest_and_what_the_caller_holds() {
+        let mut a = sample();
+        let held: Vec<BufferReferenceBox> = a
+            .as_ref()
+            .iter()
+            .map(|e| e.buffer().try_clone().unwrap())
+            .collect();
+        a.as_mut().remove(SideDataType::SEI_UNREGISTERED);
+        assert_eq!(a.len(), SAMPLE.len() - 2);
+        assert!(a.as_ref().find(SideDataType::SEI_UNREGISTERED).is_none());
+        a.as_mut().remove(SideDataType::SEI_UNREGISTERED);
+        a.as_mut().remove_by_props(SideDataProps::GLOBAL);
+        assert!(a.as_ref().find(SideDataType::ICC_PROFILE).is_none());
+        a.as_mut()
+            .remove_by_props(SideDataProps::from_bits_retain(u32::MAX));
+        // AFD and A53_CC have no properties, the last kind no descriptor.
+        assert_eq!(a.len(), 3);
+        for e in a.as_ref() {
+            let spec = SAMPLE.iter().find(|s| s.kind == e.kind()).unwrap();
+            assert!(e.data() == spec.payload);
+        }
+        for k in [SideDataType::AFD, SideDataType::A53_CC, SAMPLE[5].kind] {
+            a.as_mut().remove(k);
+        }
+        assert!(a.is_empty());
+        a.as_mut().remove(SideDataType::AFD);
+        a.as_mut().remove_by_props(SideDataProps::all());
+        for (b, spec) in held.iter().zip(&SAMPLE) {
+            assert!(b.as_ref().data() == spec.payload);
+            assert_eq!(b.as_ref().ref_count(), 1);
+        }
+        assert!(
+            a.alloc_zeroed(SideDataType::AFD, 1, SideDataFlags::NONE)
+                .is_some()
+        );
+        let mut empty = SideDataArray::new();
+        empty.as_mut().remove(SideDataType::AFD);
+        empty.as_mut().remove_by_props(SideDataProps::all());
+        assert!(empty.as_ref().find(SideDataType::AFD).is_none());
+        assert!(empty.find_mut(SideDataType::AFD).is_none());
+    }
+
+    #[test]
+    fn lookups_find_the_first_entry_of_a_kind() {
+        let mut a = sample();
+        for (i, spec) in SAMPLE.iter().enumerate() {
+            let first = SAMPLE.iter().position(|s| s.kind == spec.kind).unwrap();
+            let found: SideDataRef<'_> = a.as_ref().find(spec.kind).unwrap();
+            assert!(found.data() == SAMPLE[first].payload, "{i}");
+        }
+        let r = a.as_ref();
+        let afd = r.find(SideDataType::AFD).unwrap();
+        let again = r.find(SideDataType::AFD).unwrap();
+        assert_eq!(afd.data(), again.data());
+        let mut entries = a.as_mut();
+        let mut e = entries
+            .find_mut(SideDataType::from_raw(
+                ffmpeg::libavutil::ffi::AVFrameSideDataType(u32::MAX),
+            ))
+            .unwrap();
+        e.data_mut().unwrap().fill(0);
+        assert!(entries.find_mut(SideDataType::DISPLAY_MATRIX).is_none());
+        assert!(is_all(a.as_ref().get(5).unwrap().data(), 0));
+    }
+
+    #[test]
+    fn clones_and_lookups_cross_threads() {
+        let src = sample();
+        let r = src.as_ref();
+        let arrays: Vec<SideDataArray> = thread::scope(|s| {
+            let workers: Vec<_> = (0..4)
+                .map(|_| {
+                    s.spawn(move || {
+                        let mut a = SideDataArray::new();
+                        for e in r {
+                            a.as_mut().add_clone(e, SideDataFlags::NONE).unwrap();
+                            assert!(r.find(e.kind()).is_some());
+                        }
+                        a
+                    })
+                })
+                .collect();
+            workers.into_iter().map(|w| w.join().unwrap()).collect()
+        });
+        assert_eq!(r.get(0).unwrap().buffer().ref_count(), 5);
+        thread::spawn(move || drop(src)).join().unwrap();
+        thread::scope(|s| {
+            for mut a in arrays {
+                s.spawn(move || {
+                    assert!(
+                        a.as_ref().find(SideDataType::ICC_PROFILE).unwrap().data()
+                            == SAMPLE[4].payload
+                    );
+                    a.as_mut().remove_by_props(SideDataProps::COLOR_DEPENDENT);
+                    a.as_mut().remove(SideDataType::AFD);
+                    drop(a);
+                });
+            }
+        });
+    }
+
+    /// Rust reborrows of an array's entries interleaved with C writing the
+    /// array and reading the bytes Rust wrote: C grows and shrinks the
+    /// pointer block, moves entries within it, writes the entries it
+    /// replaces and the counts of shared buffers, while handles and views
+    /// Rust took before are re-derived after each call (the BSan target of
+    /// this batch).
+    #[test]
+    fn foreign_writes_across_reborrows() {
+        let mut src = sample();
+        let mut a = SideDataArray::new();
+        for round in 0..3u8 {
+            let mut e = a
+                .alloc_zeroed(SideDataType::SEI_UNREGISTERED, 16, SideDataFlags::NONE)
+                .unwrap();
+            e.data_mut().unwrap().fill(round);
+            // The round's own entry: the last round's went with MULTI.
+            let view = a
+                .as_ref()
+                .find(SideDataType::SEI_UNREGISTERED)
+                .unwrap()
+                .data();
+            assert!(is_all(view, round));
+            for e in src.as_ref() {
+                let _ = a.as_mut().add_clone(e, SideDataFlags::REPLACE);
+            }
+            let mut afd = a.find_mut(SideDataType::AFD).unwrap();
+            assert!(afd.data_mut().is_none());
+            let _ = afd.as_ref().data();
+            let mut replaced = a
+                .alloc_from_slice(SideDataType::AFD, &[round; 2], SideDataFlags::REPLACE)
+                .unwrap();
+            replaced.data_mut().unwrap()[1] = 0xff;
+            a.as_mut().remove(SideDataType::ICC_PROFILE);
+            src.find_mut(SideDataType::AFD)
+                .unwrap()
+                .set_kind(SideDataType::AFD);
+            a.as_mut().remove_by_props(SideDataProps::MULTI);
+            assert_eq!(
+                a.as_ref().find(SideDataType::AFD).unwrap().data(),
+                [round, 0xff]
+            );
+        }
+        drop(src);
+        assert!(a.as_mut().iter_mut().all(|mut e| e.data_mut().is_some()));
+    }
+}
