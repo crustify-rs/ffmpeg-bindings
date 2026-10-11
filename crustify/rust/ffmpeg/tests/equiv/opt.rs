@@ -617,134 +617,102 @@ mod option_type {
     }
 }
 
-/// `av_set_options_string`: C and Rust set options of two objects of the
-/// test class from the same lists, and every option field compares equal
-/// after each call.
+/// `av_set_options_string` against `ObjectMut::set_options_string`: C and
+/// Rust set options of two independently owned `OBJ_CLASS` objects (each
+/// with a child, which C searches first) from the same lists, and every
+/// option of both objects and children reads the same after each call.
+/// (The options wave-0 batch-1 review replaced the raw free function the
+/// earlier version of this module compared, on the test class whose
+/// undefined option type `ObjectMut`'s contract excludes.)
 mod set_options_string {
     use core::ffi::{CStr, c_char, c_int, c_void};
     use core::ptr;
-    use std::ffi::CString;
 
     use ffmpeg::libavutil::ffi;
-    use ffmpeg::libavutil::opt::set_options_string;
+    use ffmpeg::libavutil::log::{Class, ClassCategory};
+    use ffmpeg::libavutil::opt::{BareObject, ObjectMut};
 
-    use super::fixture::{CLASS, Ctx};
+    use super::fixture::{OBJ_OPTIONS, Owned};
 
-    /// What C can observe of every option field of a [`Ctx`]; floats by
-    /// their bits, so that NaN compares.
-    #[derive(Debug, PartialEq)]
-    struct Fields {
-        int: c_int,
-        int64: i64,
-        uint64: u64,
-        dbl: u64,
-        flt: u32,
-        string: Option<CString>,
-        q: (c_int, c_int),
-        boolean: c_int,
-        flags: c_int,
-        size: [c_int; 2],
-        rate: (c_int, c_int),
-        color: [u8; 4],
-        duration: i64,
-        binary: Option<Vec<u8>>,
-        dict: Option<Vec<(CString, CString)>>,
-        array: Option<Vec<c_int>>,
-        empty_array: Option<Vec<c_int>>,
-        bare: c_int,
-        nostr: Option<CString>,
-        bogus: c_int,
-    }
-
-    fn string(p: *const c_char) -> Option<CString> {
-        // SAFETY: per the caller, `p` is NULL or a string field's live
-        // NUL-terminated value.
-        (!p.is_null()).then(|| unsafe { CStr::from_ptr(p) }.to_owned())
-    }
-
-    fn array<T: Copy>(p: *const T, len: usize) -> Option<Vec<T>> {
-        // SAFETY: per the caller, `p` is NULL or a field's live block of
-        // `len` elements.
-        (!p.is_null()).then(|| unsafe { core::slice::from_raw_parts(p, len) }.to_vec())
-    }
-
-    fn dict(d: *mut c_void) -> Option<Vec<(CString, CString)>> {
-        if d.is_null() {
-            return None;
-        }
-        let mut entries = Vec::new();
-        let mut e: *const ffi::AVDictionaryEntry = ptr::null();
-        loop {
-            // SAFETY: `d` is the live dictionary C stored in the field, and
-            // `e` NULL or its previous entry; the empty key with
-            // `AV_DICT_IGNORE_SUFFIX` matches every entry in turn.
-            e = unsafe {
-                ffi::av_dict_get(
-                    d.cast(),
-                    c"".as_ptr(),
-                    e,
-                    ffi::AV_DICT_IGNORE_SUFFIX as c_int,
-                )
-            };
-            if e.is_null() {
-                return Some(entries);
-            }
-            // SAFETY: an entry of a live dictionary holds two live strings.
-            let (k, v) = unsafe { ((*e).key, (*e).value) };
-            entries.push((string(k).unwrap(), string(v).unwrap()));
-        }
-    }
-
-    fn fields(c: &Ctx) -> Fields {
-        Fields {
-            int: c.int,
-            int64: c.int64,
-            uint64: c.uint64,
-            dbl: c.dbl.to_bits(),
-            flt: c.flt.to_bits(),
-            string: string(c.string),
-            q: (c.q.num, c.q.den),
-            boolean: c.boolean,
-            flags: c.flags,
-            size: c.size,
-            rate: (c.rate.num, c.rate.den),
-            color: c.color,
-            duration: c.duration,
-            binary: array(c.binary, c.binary_len as usize),
-            dict: dict(c.dict),
-            array: array(c.array, c.array_len as usize),
-            empty_array: array(c.empty_array, c.empty_array_len as usize),
-            bare: c.bare,
-            nostr: string(c.nostr),
-            bogus: c.bogus,
-        }
-    }
-
-    /// An object of the test class that frees its option values on drop.
-    struct Owned(Ctx);
-
-    impl Owned {
-        fn new() -> Self {
-            Self(Ctx::new(&CLASS))
-        }
-    }
-
-    impl Drop for Owned {
-        fn drop(&mut self) {
-            // SAFETY: the object's owned fields hold NULL or values C stored.
-            unsafe { ffi::av_opt_free(self.0.as_obj()) }
-        }
-    }
-
-    fn c_set(ctx: *mut c_void, opts: &CStr, kv: &CStr, pairs: &CStr) -> Result<usize, i32> {
-        // SAFETY: as for `set_options_string`, which every caller honours.
-        let ret =
-            unsafe { ffi::av_set_options_string(ctx, opts.as_ptr(), kv.as_ptr(), pairs.as_ptr()) };
-        if ret < 0 { Err(ret) } else { Ok(ret as usize) }
-    }
+    const ALLOW_NULL: c_int = ffi::AV_OPT_ALLOW_NULL as c_int;
 
     /// `AVERROR_OPTION_NOT_FOUND`: `FFERRTAG(0xF8, 'O', 'P', 'T')`.
     const NOT_FOUND: i32 = -i32::from_le_bytes([0xF8, b'O', b'P', b'T']);
+
+    fn under_bsan() -> bool {
+        std::env::var("CRUSTIFY_FFMPEG_VARIANT").as_deref() == Ok("bsan")
+    }
+
+    /// What C reads of `o` and its child: every option but the named
+    /// constants, formatted by `av_opt_get`; an image size or color that a
+    /// failed parse may have left uninitialised (`mask`: C copies its parse
+    /// buffer into the field either way) reads as `None`.
+    fn observe(o: &Owned, mask: bool) -> Vec<(i32, Option<Vec<u8>>)> {
+        let names = OBJ_OPTIONS.0[..OBJ_OPTIONS.0.len() - 1]
+            .iter()
+            .filter(|o| o.type_ != ffi::AVOptionType::AV_OPT_TYPE_CONST)
+            // SAFETY: every name of the static table is a literal.
+            .map(|o| unsafe { CStr::from_ptr(o.name) });
+        let mut seen = Vec::new();
+        for obj in [o.as_obj(), o.child().cast()] {
+            for name in names.clone() {
+                if mask && (name == c"size" || name == c"color") {
+                    seen.push((0, None));
+                    continue;
+                }
+                let mut out = ptr::null_mut();
+                // SAFETY: a live, well-formed object, a live name and a
+                // writable slot.
+                let ret = unsafe { ffi::av_opt_get(obj, name.as_ptr(), ALLOW_NULL, &mut out) };
+                let s = (!out.is_null()).then(|| {
+                    // SAFETY: a returned string is an owned C string, freed
+                    // here.
+                    let s = unsafe { CStr::from_ptr(out.cast::<c_char>()) }
+                        .to_bytes()
+                        .to_vec();
+                    // SAFETY: as above.
+                    unsafe { ffi::av_free(out.cast()) };
+                    s
+                });
+                seen.push((ret, s));
+            }
+        }
+        seen
+    }
+
+    /// After a failing list, the image size and color C may have filled
+    /// from its uninitialised parse buffers (in the object or the child),
+    /// reset on both sides so that later steps compare.
+    fn reset_clobbered(objects: [&Owned; 2]) {
+        for o in objects {
+            for p in [o.ptr(), o.child()] {
+                if !p.is_null() {
+                    // SAFETY: raw writes of a live object's plain fields,
+                    // while no handle is live.
+                    unsafe {
+                        (*p).size = [0; 2];
+                        (*p).color = [0; 4];
+                    }
+                }
+            }
+        }
+    }
+
+    fn c_set(obj: *mut c_void, opts: &CStr, kv: &CStr, pairs: &CStr) -> Result<usize, i32> {
+        // SAFETY: a live, well-formed object (or NULL-free bare one), live
+        // strings, and lists whose values C sets without undefined
+        // behaviour.
+        let ret =
+            unsafe { ffi::av_set_options_string(obj, opts.as_ptr(), kv.as_ptr(), pairs.as_ptr()) };
+        if ret < 0 { Err(ret) } else { Ok(ret as usize) }
+    }
+
+    fn rust_set(o: &Owned, opts: &CStr, kv: &CStr, pairs: &CStr) -> Result<usize, i32> {
+        // SAFETY: a live, well-formed object, accessed through this handle
+        // only while it lives.
+        let mut m = unsafe { ObjectMut::from_ptr(o.as_obj()) }.unwrap();
+        m.set_options_string(opts, kv, pairs)
+    }
 
     /// Each step: the list and its separators.
     const STEPS: &[(&CStr, &CStr, &CStr)] = &[
@@ -763,7 +731,7 @@ mod set_options_string {
         ),
         (c"dict=a\\=1\\:b\\=2:array=1,2,3", c"=", c":"),
         (c"string=replaced:binary=:dict=c=3:array=4", c"=", c":"),
-        (c"empty_array=7,8:bare=1:nostr=x", c"=", c":"),
+        (c"empty=7,8:uint=3:nostr=x", c"=", c":"),
         (c" int = 9 ; string = ' spaced : quoted ' ", c"=", c";"),
         (c"int:10,string:\\'esc\\'", c":", c","),
         (c"int=11 dbl@2.25", c"=@", c" "),
@@ -776,70 +744,88 @@ mod set_options_string {
         (c"int=16:missing=1:int=17", c"=", c":"),
         (c"int=1000", c"=", c":"),
         (c"int=17:boolean=maybe", c"=", c":"),
-        (c"bogus=1", c"=", c":"),
+        (c"ro=1", c"=", c":"),
         (c"seven=1", c"=", c":"),
         (c"int=seven", c"=", c":"),
         (c"flags=+bit-bit", c"=", c":"),
+        (c"cflags=+one+eight", c"=", c":"),
+        (c"big=high+low:wide_q=1e9", c"=", c":"),
         (c"color=red@0x80:size=320x240:rate=ntsc", c"=", c":"),
         (c"color=nocolor", c"=", c":"),
+        (
+            c"strings=a|b\\\\|c:layout=5.1:pix=yuv420p:sample=fltp",
+            c"=",
+            c":",
+        ),
         (c"duration=-1:01:02.5", c"=", c":"),
         (c"string=\\\\back\\\\slash", c"=", c":"),
     ];
 
     #[test]
     fn sequences_agree_after_every_call() {
-        let (mut c, mut r) = (Owned::new(), Owned::new());
+        if under_bsan() {
+            return;
+        }
+        let (c, r) = (Owned::with_child(), Owned::with_child());
         for &(opts, kv, pairs) in STEPS {
-            let expected = c_set(c.0.as_obj(), opts, kv, pairs);
-            // SAFETY: `r` is a live object of the test class whose owned
-            // fields hold NULL or values C stored; every value is in range
-            // and no color has a NaN opacity.
-            let got = unsafe { set_options_string(r.0.as_obj(), opts, kv, pairs) };
+            let expected = c_set(c.as_obj(), opts, kv, pairs);
+            let got = rust_set(&r, opts, kv, pairs);
             assert_eq!(got, expected, "{opts:?}");
-            assert_eq!(fields(&r.0), fields(&c.0), "{opts:?}");
+            let failed = expected.is_err();
+            assert_eq!(observe(&r, failed), observe(&c, failed), "{opts:?}");
+            if failed {
+                reset_clobbered([&c, &r]);
+            }
         }
-        // Then the defaults, set over the values, and the list once more.
-        for o in [&mut c, &mut r] {
-            // SAFETY: as above.
-            unsafe { ffi::av_opt_set_defaults2(o.0.as_obj(), 0, 0) };
+        // Then the defaults, set over the values, and the lists once more.
+        for o in [&c, &r] {
+            // SAFETY: a live, well-formed object.
+            unsafe { ffi::av_opt_set_defaults(o.as_obj()) };
         }
-        assert_eq!(fields(&r.0), fields(&c.0));
+        assert_eq!(observe(&r, false), observe(&c, false));
         for &(opts, kv, pairs) in STEPS.iter().rev() {
-            let expected = c_set(c.0.as_obj(), opts, kv, pairs);
-            // SAFETY: as above.
-            let got = unsafe { set_options_string(r.0.as_obj(), opts, kv, pairs) };
+            let expected = c_set(c.as_obj(), opts, kv, pairs);
+            let got = rust_set(&r, opts, kv, pairs);
             assert_eq!(got, expected, "{opts:?}");
-            assert_eq!(fields(&r.0), fields(&c.0), "{opts:?}");
+            let failed = expected.is_err();
+            assert_eq!(observe(&r, failed), observe(&c, failed), "{opts:?}");
+            if failed {
+                reset_clobbered([&c, &r]);
+            }
         }
     }
 
-    /// C's image-size setter copies its uninitialised result into the field
-    /// when the size does not parse, so only the error and the other fields
-    /// compare after one.
+    /// C's image-size and color setters copy their uninitialised result into
+    /// the field when the value does not parse, so only the error and the
+    /// other options compare after one.
     #[test]
     fn failed_image_sizes_agree_but_for_the_size() {
-        let (mut c, mut r) = (Owned::new(), Owned::new());
+        if under_bsan() {
+            return;
+        }
+        let (c, r) = (Owned::new(), Owned::new());
         for opts in [
             c"int=5:size=0x0",
             c"size=640x480:size=x",
             c"size=-1x1",
             c"size=hd720",
         ] {
-            let expected = c_set(c.0.as_obj(), opts, c"=", c":");
-            // SAFETY: as in `sequences_agree_after_every_call`.
-            let got = unsafe { set_options_string(r.0.as_obj(), opts, c"=", c":") };
+            let expected = c_set(c.as_obj(), opts, c"=", c":");
+            let got = rust_set(&r, opts, c"=", c":");
             assert_eq!(got, expected, "{opts:?}");
-            let (mut cf, mut rf) = (fields(&c.0), fields(&r.0));
-            if expected.is_err() {
-                (cf.size, rf.size) = ([0; 2], [0; 2]);
-            }
-            assert_eq!(rf, cf, "{opts:?}");
+            let failed = expected.is_err();
+            assert_eq!(observe(&r, failed), observe(&c, failed), "{opts:?}");
         }
-        assert_eq!((r.0.size, c.0.size), ([1280, 720], [1280, 720]));
+        // SAFETY: raw reads of the live objects, while no handle is live.
+        let sizes = unsafe { ((*r.ptr()).size, (*c.ptr()).size) };
+        assert_eq!(sizes, ([1280, 720], [1280, 720]));
     }
 
     #[test]
     fn errors_agree() {
+        if under_bsan() {
+            return;
+        }
         let cases: &[(&CStr, &CStr, &CStr, Result<usize, i32>)] = &[
             (c"int=5", c"=", c":", Ok(1)),
             (c"int=5:int=6", c"=", c":", Ok(2)),
@@ -849,14 +835,13 @@ mod set_options_string {
             (c"=5", c"=", c":", Err(-22)),
             (c"int=5", c"", c":", Err(-22)),
             (c"int=1000", c"=", c":", Err(-34)),
+            (c"ro=1", c"=", c":", Err(-22)),
         ];
         for &(opts, kv, pairs, expected) in cases {
-            let (mut c, mut r) = (Owned::new(), Owned::new());
-            assert_eq!(c_set(c.0.as_obj(), opts, kv, pairs), expected, "{opts:?}");
-            // SAFETY: as in `sequences_agree_after_every_call`.
-            let got = unsafe { set_options_string(r.0.as_obj(), opts, kv, pairs) };
-            assert_eq!(got, expected, "{opts:?}");
-            assert_eq!(fields(&r.0), fields(&c.0), "{opts:?}");
+            let (c, r) = (Owned::with_child(), Owned::with_child());
+            assert_eq!(c_set(c.as_obj(), opts, kv, pairs), expected, "{opts:?}");
+            assert_eq!(rust_set(&r, opts, kv, pairs), expected, "{opts:?}");
+            assert_eq!(observe(&r, false), observe(&c, false), "{opts:?}");
         }
     }
 
@@ -867,6 +852,9 @@ mod set_options_string {
     /// nothing else, and passes when the child does.
     #[test]
     fn allocation_failure_at_the_av_max_alloc_limit_agrees() {
+        if under_bsan() {
+            return;
+        }
         if std::env::var_os(super::ISOLATED).is_none() {
             let name =
                 "opt::set_options_string::allocation_failure_at_the_av_max_alloc_limit_agrees";
@@ -881,13 +869,12 @@ mod set_options_string {
         let opts = c"int=5:string=abc";
         let len = opts.count_bytes();
         for limit in [0, 1, 4, len - 1, len, len + 1, 64, 4096] {
-            let (mut c, mut r) = (Owned::new(), Owned::new());
+            let (c, r) = (Owned::new(), Owned::new());
             // SAFETY: `av_max_alloc` takes a size by value; nothing else
             // runs in this process.
             unsafe { ffi::av_max_alloc(limit) };
-            let expected = c_set(c.0.as_obj(), opts, c"=", c":");
-            // SAFETY: as in `sequences_agree_after_every_call`.
-            let got = unsafe { set_options_string(r.0.as_obj(), opts, c"=", c":") };
+            let expected = c_set(c.as_obj(), opts, c"=", c":");
+            let got = rust_set(&r, opts, c"=", c":");
             // SAFETY: as above; restores the default limit.
             unsafe { ffi::av_max_alloc(i32::MAX as usize) };
             assert_eq!(got, expected, "limit={limit}");
@@ -897,29 +884,25 @@ mod set_options_string {
                 // limits too.
                 assert_eq!(expected, Err(-12), "limit={limit}");
             }
-            assert_eq!(fields(&r.0), fields(&c.0), "limit={limit}");
+            assert_eq!(observe(&r, false), observe(&c, false), "limit={limit}");
             if limit == 4096 {
                 assert_eq!(got, Ok(2));
             }
         }
     }
 
-    /// With a NULL object, or one whose class is NULL, every key is not
-    /// found, and an empty list sets nothing without reading the object.
+    /// On an object without options every key is not found, and an empty
+    /// list sets nothing.
     #[test]
-    fn classless_objects_agree() {
-        let mut classless = Ctx::new(&CLASS);
-        classless.class = ptr::null();
-        for obj in [ptr::null_mut(), classless.as_obj()] {
-            for opts in [c"", c"int=5", c"a=b:c=d", c"int"] {
-                let expected = c_set(obj, opts, c"=", c":");
-                // SAFETY: a NULL object, or one with a NULL class, is within
-                // the contract.
-                let got = unsafe { set_options_string(obj, opts, c"=", c":") };
-                assert_eq!(got, expected, "{opts:?}");
-            }
+    fn bare_objects_agree() {
+        static CLASS: Class = Class::new(c"crustify-opt-bare-list", ClassCategory::NA);
+        let mut bare = BareObject::new(CLASS.as_ref()).unwrap();
+        let mut c_bare = CLASS.as_c_ptr();
+        for opts in [c"", c"int=5", c"a=b:c=d", c"int"] {
+            let expected = c_set((&raw mut c_bare).cast(), opts, c"=", c":");
+            let got = bare.as_object_mut().set_options_string(opts, c"=", c":");
+            assert_eq!(got, expected, "{opts:?}");
         }
-        assert_eq!(classless.int, 0);
     }
 }
 
@@ -1217,7 +1200,7 @@ mod objects {
     }
 
     /// Values C sets or rejects without undefined behaviour.
-    const SETS: [(&CStr, &CStr); 60] = [
+    const SETS: [(&CStr, &CStr); 66] = [
         (c"int", c"5"),
         (c"int", c"seven"),
         (c"int", c"max"),
@@ -1228,6 +1211,7 @@ mod objects {
         (c"int64", c"1k"),
         (c"uint64", c"18446744073709551615"),
         (c"uint64", c"-1"),
+        (c"uint64", c"1e19"),
         (c"uint", c"4294967295"),
         (c"dbl", c"1e300"),
         (c"dbl", c"-0.0"),
@@ -1239,6 +1223,7 @@ mod objects {
         (c"q", c"3/2"),
         (c"q", c"30000:1001"),
         (c"q", c"0.333"),
+        (c"q", c"1e-9"),
         (c"q", c"1:0"),
         (c"wide_q", c"1e9"),
         (c"wide_q", c"-7/3"),
@@ -1275,7 +1260,11 @@ mod objects {
         (c"layout", c"5.1"),
         (c"layout", c"bogus"),
         (c"pix", c"yuv420p"),
+        (c"pix", c"3"),
+        (c"pix", c"99999"),
         (c"sample", c"fltp"),
+        (c"sample", c"2"),
+        (c"sample", c"none"),
         (c"ro", c"1"),
         (c"missing", c"1"),
     ];
@@ -1598,6 +1587,7 @@ mod objects {
         for (opt_flags, flags) in [
             (0, SerializeFlags::NONE),
             (0, SerializeFlags::SKIP_DEFAULTS),
+            (ffi::AV_OPT_FLAG_ENCODING_PARAM as i32, SerializeFlags::NONE),
             (
                 ffi::AV_OPT_FLAG_ENCODING_PARAM as i32,
                 SerializeFlags::OPT_FLAGS_EXACT,
@@ -2012,6 +2002,326 @@ mod objects {
                 );
             }
             set_limit(i32::MAX as usize);
+        }
+    }
+
+    /// Options wave 0, batch-1 review: `av_opt_show2` lists only options
+    /// whose flags meet `req_flags`, and `OBJ_CLASS`'s are mostly flagless,
+    /// so its listing never reached most of C's default and range printers
+    /// (`log_default`, `log_value`, `log_int_value`, `get_opt_const_name`).
+    /// This lists a copy of the table with every option flagged, plus
+    /// aliases whose bounds and defaults are the named extremes those
+    /// printers spell out, from C and through `ObjectRef::show`, and compares
+    /// the lines.
+    #[test]
+    fn listings_of_every_type_and_extreme_log_as_c() {
+        if under_bsan() {
+            return;
+        }
+        if !isolated("opt::objects::listings_of_every_type_and_extreme_log_as_c") {
+            return;
+        }
+        use super::fixture::{OBJ_CLASS, Obj};
+        use core::mem::offset_of;
+        type T = ffi::AVOptionType;
+        let enc = ffi::AV_OPT_FLAG_ENCODING_PARAM as c_int;
+        let end = OBJ_OPTIONS.0.len() - 1;
+        let mut table: Vec<ffi::AVOption> = OBJ_OPTIONS.0[..end]
+            .iter()
+            .map(|o| ffi::AVOption {
+                flags: o.flags | enc,
+                ..*o
+            })
+            .collect();
+        let alias = |name: &'static CStr,
+                     offset: usize,
+                     ty: T,
+                     i: Option<i64>,
+                     d: f64,
+                     min: f64,
+                     max: f64,
+                     unit: Option<&'static CStr>| ffi::AVOption {
+            name: name.as_ptr(),
+            help: c"an extreme".as_ptr(),
+            offset: offset as c_int,
+            type_: ty,
+            default_val: match i {
+                Some(i) => ffi::AVOption__bindgen_ty_1 { i64_: i },
+                None => ffi::AVOption__bindgen_ty_1 { dbl: d },
+            },
+            min,
+            max,
+            flags: enc,
+            unit: unit.map_or(ptr::null(), CStr::as_ptr),
+        };
+        let (int, int64, uint) = (
+            offset_of!(Obj, int),
+            offset_of!(Obj, int64),
+            offset_of!(Obj, uint),
+        );
+        let (flt, dbl) = (offset_of!(Obj, flt), offset_of!(Obj, dbl));
+        let (imin, imax) = (i32::MIN as f64, i32::MAX as f64);
+        let (fmax, fmin) = (f32::MAX as f64, f32::MIN_POSITIVE as f64);
+        table.extend([
+            alias(
+                c"imax",
+                int,
+                T::AV_OPT_TYPE_INT,
+                Some(i32::MAX.into()),
+                0.0,
+                imin,
+                imax,
+                None,
+            ),
+            alias(
+                c"imin",
+                int,
+                T::AV_OPT_TYPE_INT,
+                Some(i32::MIN.into()),
+                0.0,
+                imin,
+                imax,
+                None,
+            ),
+            alias(
+                c"named",
+                int,
+                T::AV_OPT_TYPE_INT,
+                Some(7),
+                0.0,
+                -10.0,
+                100.0,
+                Some(c"mode"),
+            ),
+            alias(
+                c"u32",
+                uint,
+                T::AV_OPT_TYPE_UINT,
+                Some(u32::MAX.into()),
+                0.0,
+                0.0,
+                u32::MAX as f64,
+                None,
+            ),
+            alias(
+                c"i64max",
+                int64,
+                T::AV_OPT_TYPE_INT64,
+                Some(i64::MAX),
+                0.0,
+                i64::MIN as f64,
+                i64::MAX as f64,
+                None,
+            ),
+            alias(
+                c"i64min",
+                int64,
+                T::AV_OPT_TYPE_INT64,
+                Some(i64::MIN),
+                0.0,
+                i64::MIN as f64,
+                i64::MAX as f64,
+                None,
+            ),
+            alias(
+                c"fmax",
+                flt,
+                T::AV_OPT_TYPE_FLOAT,
+                None,
+                fmax,
+                -fmax,
+                fmax,
+                None,
+            ),
+            alias(
+                c"fmin",
+                flt,
+                T::AV_OPT_TYPE_FLOAT,
+                None,
+                fmin,
+                -fmin,
+                fmin,
+                None,
+            ),
+            alias(
+                c"dmin",
+                dbl,
+                T::AV_OPT_TYPE_DOUBLE,
+                None,
+                f64::MIN_POSITIVE,
+                -f64::MIN_POSITIVE,
+                f64::MIN_POSITIVE,
+                None,
+            ),
+            alias(
+                c"dmax",
+                dbl,
+                T::AV_OPT_TYPE_DOUBLE,
+                None,
+                -f64::MAX,
+                f64::MIN,
+                f64::MAX,
+                None,
+            ),
+            alias(
+                c"dint",
+                dbl,
+                T::AV_OPT_TYPE_DOUBLE,
+                None,
+                imax,
+                imin,
+                u32::MAX as f64,
+                None,
+            ),
+            alias(
+                c"dlow",
+                dbl,
+                T::AV_OPT_TYPE_DOUBLE,
+                None,
+                imin,
+                i64::MIN as f64,
+                0.5,
+                None,
+            ),
+            alias(
+                c"hexflags",
+                offset_of!(Obj, flags),
+                T::AV_OPT_TYPE_FLAGS,
+                Some(0x40),
+                0.0,
+                0.0,
+                u32::MAX as f64,
+                Some(c"dunit"),
+            ),
+            alias(
+                c"auto",
+                offset_of!(Obj, boolean),
+                T::AV_OPT_TYPE_BOOL,
+                Some(-1),
+                0.0,
+                -1.0,
+                1.0,
+                None,
+            ),
+            alias(
+                c"forever",
+                offset_of!(Obj, duration),
+                T::AV_OPT_TYPE_DURATION,
+                Some(i64::MAX),
+                0.0,
+                0.0,
+                i64::MAX as f64,
+                None,
+            ),
+            alias(
+                c"long",
+                offset_of!(Obj, duration),
+                T::AV_OPT_TYPE_DURATION,
+                Some(3_723_000_001),
+                0.0,
+                0.0,
+                i64::MAX as f64,
+                None,
+            ),
+            alias(
+                c"negative",
+                offset_of!(Obj, duration),
+                T::AV_OPT_TYPE_DURATION,
+                Some(-61_500_000),
+                0.0,
+                i64::MIN as f64,
+                0.0,
+                None,
+            ),
+            alias(
+                c"nopix",
+                offset_of!(Obj, pix),
+                T::AV_OPT_TYPE_PIXEL_FMT,
+                Some(-1),
+                0.0,
+                -1.0,
+                imax,
+                None,
+            ),
+            alias(
+                c"nosample",
+                offset_of!(Obj, sample),
+                T::AV_OPT_TYPE_SAMPLE_FMT,
+                Some(-1),
+                0.0,
+                -1.0,
+                imax,
+                None,
+            ),
+            alias(
+                c"third",
+                offset_of!(Obj, q),
+                T::AV_OPT_TYPE_RATIONAL,
+                None,
+                1.0 / 3.0,
+                0.0,
+                imax,
+                None,
+            ),
+        ]);
+        table.push(OBJ_OPTIONS.0[end]);
+        let mut class = OBJ_CLASS.0;
+        class.option = table.as_ptr();
+        let (c, r) = (Owned::with_child(), Owned::with_child());
+        for o in [&c, &r] {
+            // SAFETY: `o` is live and owned; its class pointer is swapped for
+            // a local class over the same fields (every alias names a field
+            // of its type), live until it is restored below.
+            unsafe { (*o.ptr()).class = &class };
+        }
+        let _state = LogState::lock();
+        for (req, rej) in [
+            (enc, 0),
+            (-1, ffi::AV_OPT_FLAG_READONLY as c_int),
+            (enc, enc),
+        ] {
+            for log_ctx in [false, true] {
+                let c_lines = captured(|| {
+                    let ctx = if log_ctx {
+                        c.child().cast()
+                    } else {
+                        ptr::null_mut()
+                    };
+                    // SAFETY: live objects of well-formed classes.
+                    unsafe { ffi::av_opt_show2(c.as_obj(), ctx, req, rej) };
+                });
+                let r_lines = captured(|| {
+                    // SAFETY: a live, well-formed object nothing writes.
+                    let h = unsafe { ObjectRef::from_ptr(r.as_obj()) }.unwrap();
+                    let ctx = log_ctx.then(|| h.children().next().unwrap());
+                    h.show(ctx, req, rej);
+                });
+                assert_eq!(c_lines, r_lines, "{req} {rej} {log_ctx}");
+                if rej != enc {
+                    let text: String = c_lines.iter().map(|l| format!("{l:?}")).collect();
+                    for spelled in [
+                        "INT_MAX",
+                        "INT_MIN",
+                        "UINT32_MAX",
+                        "I64_MAX",
+                        "I64_MIN",
+                        "FLT_MAX",
+                        "FLT_MIN",
+                        "DBL_MIN",
+                        "-DBL_MAX",
+                        "seven",
+                        "auto",
+                        "none",
+                        "1/3",
+                    ] {
+                        assert!(text.contains(spelled), "{spelled} in {text}");
+                    }
+                }
+            }
+        }
+        for o in [&c, &r] {
+            // SAFETY: as above, restoring the static class.
+            unsafe { (*o.ptr()).class = &OBJ_CLASS.0 };
         }
     }
 

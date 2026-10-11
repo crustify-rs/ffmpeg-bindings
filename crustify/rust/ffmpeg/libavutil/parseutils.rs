@@ -11,10 +11,11 @@
 //! buffer; [`known_color_name`] enumerates the named colors the color parser
 //! recognizes.
 
-use core::ffi::{CStr, c_char, c_int, c_void};
+use core::ffi::{CStr, c_char, c_int};
 use core::ptr;
 
 use super::ffi;
+use super::opt::ObjectRef;
 
 /// `AVERROR(EINVAL)`.
 const AVERROR_EINVAL: c_int = -(ffi::EINVAL as c_int);
@@ -147,25 +148,18 @@ pub fn parse_color_prefix(color: &CStr, len: usize) -> Result<[u8; 4], i32> {
 /// Wraps: av_parse_color
 ///
 /// As [`parse_color`], or with `Some(len)` as [`parse_color_prefix`], logging
-/// a failure with `log_ctx` as the context.
-///
-/// `log_ctx` stays a raw seam while logging contexts have no safe handle:
-/// pass NULL for no context.
-///
-/// # Safety
-///
-/// `log_ctx` must be NULL or point to a live struct whose first member is a
-/// `const AVClass *` (NULL, or a valid class) that `av_log` and the installed
-/// log callback may read during the call.
-pub unsafe fn parse_color_with_context(
+/// a failure with `log_ctx` as the context (`None` for no context).
+pub fn parse_color_with_context(
     color: &CStr,
     len: Option<usize>,
-    log_ctx: *mut c_void,
+    log_ctx: Option<ObjectRef<'_>>,
 ) -> Result<[u8; 4], i32> {
     let slen = checked_slen(color, len.unwrap_or(usize::MAX))?;
     let mut rgba = [0u8; 4];
-    // SAFETY: as for `parse_color_prefix`, and the caller vouches for
-    // `log_ctx`.
+    let log_ctx = log_ctx.map_or(ptr::null_mut(), |o| o.as_ptr());
+    // SAFETY: as for `parse_color_prefix`; `log_ctx` is NULL or a live
+    // `AVClass`-enabled object whose class callbacks `av_log` may call, as
+    // `ObjectRef` guarantees for the call.
     let ret = unsafe { ffi::av_parse_color(rgba.as_mut_ptr(), color.as_ptr(), slen, log_ctx) };
     if ret < 0 { Err(ret) } else { Ok(rgba) }
 }
@@ -485,8 +479,7 @@ mod unit_tests {
                 Err(AVERROR_EINVAL),
                 "{color:?} {len}"
             );
-            // SAFETY: a NULL log context is "no context".
-            let ret = unsafe { parse_color_with_context(color, Some(len), ptr::null_mut()) };
+            let ret = parse_color_with_context(color, Some(len), None);
             assert_eq!(ret, Err(AVERROR_EINVAL), "{color:?} {len}");
         }
         // The marker alone is a valid, empty, prefix.

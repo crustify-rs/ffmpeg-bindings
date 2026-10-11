@@ -10,6 +10,7 @@ use std::sync::{Mutex, MutexGuard, PoisonError};
 
 use ffmpeg::libavutil::ffi;
 use ffmpeg::libavutil::log::{self, Callback, Record};
+use ffmpeg::libavutil::opt::ObjectRef;
 use ffmpeg::libavutil::parseutils::{
     parse_color, parse_color_prefix, parse_color_with_context, parse_date, parse_duration,
     parse_video_size,
@@ -156,8 +157,7 @@ fn colors_agree_at_every_prefix() {
                 c_color(color, len as c_int)
             };
             assert_eq!(parse_color_prefix(color, len), expected, "{color:?} {len}");
-            // SAFETY: a NULL log context is "no context".
-            let got = unsafe { parse_color_with_context(color, Some(len), null_mut()) };
+            let got = parse_color_with_context(color, Some(len), None);
             assert_eq!(got, expected, "{color:?} {len}");
         }
     }
@@ -328,8 +328,10 @@ fn failure_messages_agree() {
         let rust = captured(|| {
             let _ = parse_color(color);
             let _ = parse_color_prefix(color, len);
-            // SAFETY: `ctx` is a live context of a valid class.
-            let _ = unsafe { parse_color_with_context(color, None, obj) };
+            // SAFETY: `ctx` is a live object of a well-formed class without
+            // options, which nothing writes while the handle lives.
+            let log_ctx = unsafe { ObjectRef::from_ptr(obj) };
+            let _ = parse_color_with_context(color, None, log_ctx);
         });
         assert_eq!(rust, c, "{color:?}");
         if parse_color(color).is_err() {

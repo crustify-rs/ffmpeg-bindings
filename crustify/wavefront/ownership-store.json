@@ -3627,7 +3627,7 @@
       },
       "nullable": true,
       "mutable": false,
-      "note": "Parent log context (an AVClass-bearing object) of the parser's \"Eval\" context, read by av_log during the call only; NULL for none."
+      "note": "Parent log context (an AVClass-enabled object) of the parser's \"Eval\" context, read by av_log during the call only; NULL for none. The default callback names the parent too, calling its class's item_name and get_category on it, so it must be an object those callbacks accept: a live object of its class, not merely a struct that starts with the class pointer, unless the class's item_name is NULL or av_default_item_name and it has no get_category (opt::BareObject admits only such classes since the options wave-0 batch-1 review). Wrapped as Option<opt::ObjectRef>."
      }
     },
     {
@@ -6312,7 +6312,7 @@
       },
       "nullable": true,
       "mutable": false,
-      "note": "Value string parsed for the option's type and copied (av_strdup for strings); read for the call. NULL is accepted for some types."
+      "note": "Value string parsed for the option's type and copied (av_strdup for strings); read for the call. NULL is accepted for some types. Values whose parse reaches C UB: a +/- flag operand (or named constant) whose value is NaN or outside int64_t, converted by (int64_t)d (opt.c:508); a rational value within wide min/max but outside int, converted by (int)num (opt.c:343); an evaluator call with an out-of-range index, level or operand (ld/st/random/randomi/taylor/print/gcd/bitand/bitor) or random together with st/root (eval.c's unchecked double-to-int conversions); a color whose @alpha strtod reads as NaN (parseutils.c:433); an ambisonic channel layout order of INT_MAX (channel_layout.c:341). Whether a flag operand or wide rational converts in range depends on its value, which a caller can only learn by evaluating it as C will: with C's constants (for an array option DEFAULT_NUMVAL reads default_val.dbl, the bits of the AVOptionArrayDef address, as `default`) and only for expressions that do not call time(), whose value changes between the caller's evaluation and C's. Integer and float stores outside the field type (llrint, double to float) are unspecified or IEEE-defined, not UB. A failing image size stores set_string_image_size's uninitialised tmp[2]. opt::ObjectMut::set refuses the UB values before C runs."
      }
     }
    ]
@@ -6655,7 +6655,7 @@
       },
       "nullable": true,
       "mutable": false,
-      "note": "Log context (AVClass-bearing object) for the listing, read by av_log during the call; NULL for none."
+      "note": "Log context (AVClass-enabled object) for the listing, read by av_log during the call; NULL for none. av_log's default callback calls the context's class item_name (and, for a class whose version is current, get_category) on the context itself to print the line prefix, so the context must be an object those callbacks accept: a live object of its class, not merely a struct that starts with the class pointer, unless the class's item_name is NULL or av_default_item_name and it has no get_category (opt::BareObject admits only such classes since the options wave-0 batch-1 review). Wrapped as Option<opt::ObjectRef>."
      }
     },
     {
@@ -6714,7 +6714,7 @@
       },
       "nullable": true,
       "mutable": false,
-      "note": "Log context passed to av_log on the error paths only, read during the call, not retained. NULL means no context; otherwise a struct whose first member is a const AVClass * (type-erased)."
+      "note": "Log context passed to av_log on the error paths only, read during the call, not retained. NULL means no context; otherwise an AVClass-enabled object (first member a const AVClass *, type-erased). av_log's default callback calls the context's class item_name (and, for a class whose version is current, get_category) on the context itself to print the line prefix, so the context must be an object those callbacks accept: a live object of its class, not merely a struct that starts with the class pointer, unless the class's item_name is NULL or av_default_item_name and it has no get_category (opt::BareObject admits only such classes since the options wave-0 batch-1 review). Wrapped as Option<opt::ObjectRef> by parseutils::parse_color_with_context."
      }
     },
     {
@@ -7758,7 +7758,7 @@
       },
       "nullable": true,
       "mutable": true,
-      "note": "AVClass-enabled object (first member a const AVClass *), borrowed mutably for the call and not retained: av_opt_set(ctx, key, val, AV_OPT_SEARCH_CHILDREN) writes each option's field at its offset, releasing the field's previous value (av_freep for strings and binaries, av_dict_free, array frees) and storing fresh av_malloc-family values that ctx then owns (av_opt_free releases them). Children reached through the class's child_next are written likewise. Also the av_log context. NULL, or a NULL class, makes every key fail with AVERROR_OPTION_NOT_FOUND. Not touched when opts is NULL or empty. Reaches C UB through av_opt_set for a color option whose alpha is NaN (av_parse_color, parseutils.c:433), and for numeric options whose min/max lie outside the field type's range (write_number converts after the min/max check only). A failing AV_OPT_TYPE_IMAGE_SIZE value memcpy's set_string_image_size's uninitialised tmp[2] into the field (unspecified sizes left behind). The Rust wrapper is unsafe with these conditions in its contract."
+      "note": "AVClass-enabled object (first member a const AVClass *), borrowed mutably for the call and not retained: av_opt_set(ctx, key, val, AV_OPT_SEARCH_CHILDREN) writes each option's field at its offset, releasing the field's previous value (av_freep for strings and binaries, av_dict_free, array frees) and storing fresh av_malloc-family values that ctx then owns (av_opt_free releases them). Children reached through the class's child_next are written likewise. Also the av_log context. NULL, or a NULL class, makes every key fail with AVERROR_OPTION_NOT_FOUND. Not touched when opts is NULL or empty. Each value reaches C UB exactly as av_opt_set's val does (see there). Wrapped as the safe opt::ObjectMut::set_options_string (options wave-0 batch-1 review), which refuses a list holding any such value before C runs."
      }
     },
     {
