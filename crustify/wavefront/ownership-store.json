@@ -526,6 +526,12 @@
    ]
   },
   {
+   "name": "AVFrameSideDataType",
+   "defined_in": "libavutil/frame.h",
+   "_comment_agent": "Plain C enum (AV_FRAME_DATA_PANSCAN=0 .. AV_FRAME_DATA_DOWNMIX_MATRIX=37, contiguous, no count sentinel, no deprecated enumerators). No fields, no pointers, no lifecycle. Every enumerator is non-negative, so the underlying type is unsigned (ffi::AVFrameSideDataType is a c_uint newtype). Passed by value to the av_frame_side_data_* and av_frame_{new,get,remove}_side_data family and stored in the public, user-writable field AVFrameSideData.type (also libavcodec's internal SideDataMap.frame). Every C reader accepts any value: av_frame_side_data_desc/_name bounds-check `(unsigned)type < FF_ARRAY_ELEMS(sd_props)` and a NULL name (returning NULL otherwise), av_frame_side_data_get/remove compare for equality, and the add/clone paths treat a NULL descriptor as 'no props'. A Rust view of AVFrameSideData.type may therefore meet any unsigned value: the wrapper must be an open, layout-compatible newtype accepting every value (not a Rust enum), plain data (CPlainElem), Send+Sync as an integer. PANSCAN is the zeroed value; no value means 'no side data', so the wrapper has no Default.",
+   "fields": []
+  },
+  {
    "name": "AVHMAC",
    "defined_in": "libavutil/hmac.c",
    "_comment_agent": "hmac.c private body is never published; public hmac.h is opaque. av_hmac_alloc constructs callbacks and owns one algorithm-specific hash allocation, but does not initialize hash state: keyed safe constructor also invokes av_hmac_init before returning. init copies short keys or hashes long keys into inline key[128]; init/update/final retain no caller buffer. Only av_hmac_free releases hash and parent, including alloc-before-key-init state. No clone, upref, lock, shared ownership, or inline public variant.",
