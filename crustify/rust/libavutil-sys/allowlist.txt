@@ -769,3 +769,21 @@ function ^av_frame_remove_side_data$
 # lookup above, the equivalence reference for frame.rs's
 # ActiveFormatDescription (buffer-frame wave 0, batch 0).
 function ^av_frame_copy_props$
+
+# Buffer-frame wave 0, batch 3: AVRefStructPool's lifecycle (constructor,
+# down-ref through av_refstruct_pool_uninit, up-ref) and its flags.
+function ^av_refstruct_pool_alloc$
+function ^av_refstruct_pool_uninit$
+function ^av_refstruct_ref$
+var ^AV_REFSTRUCT_POOL_FLAG_.*
+# C references for the pool and AVRefStructOpaque equivalence tests: entries,
+# the shared count, and the C consumers of an opaque (the static inline
+# av_refstruct_alloc_ext and av_refstruct_pool_alloc_ext build
+# `{ .nc = opaque }` in C).
+function ^av_refstruct_pool_get$
+function ^av_refstruct_unref$
+function ^av_refstruct_exclusive$
+function ^av_refstruct_alloc_ext_c$
+function ^av_refstruct_alloc_ext$
+function ^av_refstruct_pool_alloc_ext_c$
+function ^av_refstruct_pool_alloc_ext$

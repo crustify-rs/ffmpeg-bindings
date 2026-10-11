@@ -53,3 +53,6 @@ mod ripemd;
 mod tea;
 mod twofish;
 mod uuid;
+
+// Buffer-frame wave 0.
+mod refstruct;

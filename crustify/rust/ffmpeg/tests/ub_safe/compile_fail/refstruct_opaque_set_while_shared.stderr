@@ -1,0 +1,9 @@
+error[E0502]: cannot borrow `value` as mutable because it is also borrowed as immutable
+ --> tests/ub_safe/compile_fail/refstruct_opaque_set_while_shared.rs
+  |
+  |     let shared = value.as_ref();
+  |                  ----- immutable borrow occurs here
+  |     value.as_mut().set_mut_ptr(std::ptr::null_mut());
+  |     ^^^^^^^^^^^^^^ mutable borrow occurs here
+  |     let _ = shared.mut_ptr();
+  |             ------ immutable borrow later used here
