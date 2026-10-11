@@ -1,0 +1,22 @@
+{
+  "objective": "wrap",
+  "items": [
+    {
+      "name": "AVBlowfish",
+      "defined_in": "libavutil/blowfish.h",
+      "kind": "type",
+      "field_anchors": [
+        "p",
+        "s"
+      ],
+      "home": "crustify/rust/ffmpeg/libavutil/blowfish.rs"
+    },
+    {
+      "name": "AVCAMELLIA",
+      "defined_in": "libavutil/camellia.c",
+      "kind": "type",
+      "field_anchors": [],
+      "home": "crustify/rust/ffmpeg/libavutil/camellia.rs"
+    }
+  ]
+}

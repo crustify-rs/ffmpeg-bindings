@@ -1,0 +1,19 @@
+{
+  "objective": "wrap",
+  "items": [
+    {
+      "name": "AVAES",
+      "defined_in": "libavutil/aes_internal.h",
+      "kind": "type",
+      "field_anchors": [],
+      "home": "crustify/rust/ffmpeg/libavutil/aes.rs"
+    },
+    {
+      "name": "AVAESCTR",
+      "defined_in": "libavutil/aes_ctr.c",
+      "kind": "type",
+      "field_anchors": [],
+      "home": "crustify/rust/ffmpeg/libavutil/aes_ctr.rs"
+    }
+  ]
+}

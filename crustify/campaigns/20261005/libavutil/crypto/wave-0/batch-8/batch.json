@@ -1,0 +1,19 @@
+{
+  "objective": "wrap",
+  "items": [
+    {
+      "name": "AVTEA",
+      "defined_in": "libavutil/tea.c",
+      "kind": "type",
+      "field_anchors": [],
+      "home": "crustify/rust/ffmpeg/libavutil/tea.rs"
+    },
+    {
+      "name": "AVTWOFISH",
+      "defined_in": "libavutil/twofish.c",
+      "kind": "type",
+      "field_anchors": [],
+      "home": "crustify/rust/ffmpeg/libavutil/twofish.rs"
+    }
+  ]
+}
