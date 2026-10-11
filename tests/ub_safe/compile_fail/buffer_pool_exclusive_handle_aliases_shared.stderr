@@ -1,0 +1,9 @@
+error[E0502]: cannot borrow `owner` as mutable because it is also borrowed as immutable
+ --> tests/ub_safe/compile_fail/buffer_pool_exclusive_handle_aliases_shared.rs
+  |
+  |     let shared = owner.as_ref();
+  |                  ----- immutable borrow occurs here
+  |     let exclusive = owner.as_mut();
+  |                     ^^^^^^^^^^^^^^ mutable borrow occurs here
+  |     take(shared);
+  |          ------ immutable borrow later used here

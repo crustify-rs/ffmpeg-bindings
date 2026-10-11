@@ -1,0 +1,11 @@
+error[E0505]: cannot move out of `owner` because it is borrowed
+ --> tests/ub_safe/compile_fail/buffer_pool_handle_outlives_owner.rs
+  |
+  |     let owner = BufferPool::new(64).unwrap();
+  |         ----- binding `owner` declared here
+  |     let shared = owner.as_ref();
+  |                  ----- borrow of `owner` occurs here
+  |     drop(owner);
+  |          ^^^^^ move out of `owner` occurs here
+  |     take(shared);
+  |          ------ borrow later used here

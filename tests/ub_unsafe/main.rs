@@ -1,6 +1,7 @@
 //! UB tests against the unsafe public API.
 
 mod bprint;
+mod buffer;
 mod cpu;
 mod file;
 mod frame;

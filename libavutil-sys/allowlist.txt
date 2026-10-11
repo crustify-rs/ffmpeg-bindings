@@ -797,3 +797,20 @@ function ^av_frame_side_data_desc$
 function ^av_frame_side_data_new$
 function ^av_frame_side_data_free$
 function ^av_frame_side_data_remove_by_props$
+
+# buffer-frame wave 0, batch 1: AVBufferPool's lifecycle (av_buffer_pool_init,
+# av_buffer_pool_init2, av_buffer_pool_uninit), and the AVBufferRef routines
+# the pool's equivalence and UB tests drive it with until AVBufferRef's own
+# wrapper lands.
+function ^av_buffer_pool_init$
+function ^av_buffer_pool_init2$
+function ^av_buffer_pool_uninit$
+function ^av_buffer_pool_get$
+function ^av_buffer_pool_buffer_get_opaque$
+function ^av_buffer_alloc$
+function ^av_buffer_create$
+function ^av_buffer_default_free$
+function ^av_buffer_unref$
+function ^av_buffer_ref$
+function ^av_buffer_get_ref_count$
+function ^av_buffer_is_writable$
