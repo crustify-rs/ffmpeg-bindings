@@ -1,0 +1,28 @@
+error: Undefined Behavior: write access through <25037776>(unprotected) at alloc427395[0x0] is forbidden
+   --> /target/crustify/builds/bsan/src/libavutil/blowfish.c:419:17
+    |
+419 | memcpy(iv, dst, 8);
+    | ^
+    = help: the accessed tag <25037776>(unprotected) has state Frozen which forbids this child write access
+help: the accessed tag <25037776>(unprotected) was created here, in the initial state Reserved
+   --> /root/.rustup/toolchains/bsan/lib/rustlib/src/rust/library/core/src/slice/mod.rs:762:0
+    |
+762 | pub const fn as_mut_ptr(&mut self) -> *mut T {
+    | ^
+help: the accessed tag <25037776>(unprotected) later transitioned to Unique due to a child write access at offsets [0x0..0x8]
+   --> /target/crustify/builds/bsan/src/libavutil/blowfish.c:419:17
+    |
+419 | memcpy(iv, dst, 8);
+    | ^
+    = help: this transition corresponds to the first write to a 2-phase borrowed mutable reference
+help: the accessed tag <25037776>(unprotected) later transitioned to Frozen due to a reborrow (acting as a foreign read access) at offsets [0x0..0x8]
+   --> /tmp/cw1r/tip/crustify/rust/ffmpeg/tests/equiv/blowfish.rs:103:21
+    |
+103 | assert_eq!(ia, ir);
+    | ^
+    = help: this transition corresponds to a loss of write permissions
+
+stack backtrace:
+stack backtrace:
+0: av_blowfish_crypt
+      at /target/crustify/builds/bsan/src/libavutil/blowfish.c:419:17

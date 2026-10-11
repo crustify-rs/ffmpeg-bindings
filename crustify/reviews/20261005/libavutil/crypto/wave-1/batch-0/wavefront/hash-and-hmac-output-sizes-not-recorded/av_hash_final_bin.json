@@ -1,0 +1,37 @@
+{
+ "ptr_args": {
+  "0": {
+   "ptr": {
+    "scalar": {
+     "by_val": true
+    },
+    "array": null,
+    "string": false,
+    "owned": false,
+    "borrowed": {
+     "lifetime": "arg:ctx"
+    },
+    "nullable": false,
+    "mutable": true,
+    "note": "Call-scoped borrow; no caller pointer retained. Context storage and children remain C-owned; byte buffers have the scalar length/count or backend digest size."
+   }
+  },
+  "1": {
+   "ptr": {
+    "scalar": null,
+    "array": {
+     "by_val": true
+    },
+    "string": false,
+    "owned": false,
+    "borrowed": {
+     "lifetime": "arg:dst"
+    },
+    "nullable": false,
+    "mutable": true,
+    "note": "Output of exactly size bytes: min(size, digest size) digest bytes, then zero padding up to size. size is the caller's upper bound and may be any int up to the buffer length; a caller holding a buffer longer than INT_MAX passes INT_MAX and pads the rest itself. size 0 writes nothing (memcpy of 0 bytes needs a valid pointer). The context is finalized even then. No retention."
+   }
+  }
+ },
+ "lifetime": null
+}

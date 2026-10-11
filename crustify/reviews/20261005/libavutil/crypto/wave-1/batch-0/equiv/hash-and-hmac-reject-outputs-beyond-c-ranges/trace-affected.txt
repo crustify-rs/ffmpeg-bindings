@@ -1,0 +1,21 @@
+SHA256 final_bin into 2^31 bytes:
+  C    Ok(()) [a7, af, 94, bf, 93, 8e, 78, 9d, 13, 37, 8d, 57, 13, ba, 39, 6a, 17, 75, c5, 46, 33, 27, 8f, 45, 02, fd, ea, 21, 6b, 6a, ae, ae, 00, 00, 00, 00, 0
+  Rust Err(-22) [aa, aa, aa, aa, aa, aa, aa, aa, aa, aa, aa, aa, aa, aa, aa, aa, aa, aa, aa, aa, aa, aa, aa, aa, aa, aa, aa, aa, aa, aa, aa, aa, aa, aa, aa, aa,
+  DIFFER
+SHA256 final_hex into 2^31 bytes:
+  C    Ok(()) [61, 37, 61, 66, 39, 34, 62, 66, 39, 33, 38, 65, 37, 38, 39, 64, 31, 33, 33, 37, 38, 64, 35, 37, 31, 33, 62, 61, 33, 39, 36, 61, 31, 37, 37, 35, 6
+  Rust Err(-22) [aa, aa, aa, aa, aa, aa, aa, aa, aa, aa, aa, aa, aa, aa, aa, aa, aa, aa, aa, aa, aa, aa, aa, aa, aa, aa, aa, aa, aa, aa, aa, aa, aa, aa, aa, aa,
+  DIFFER
+SHA256 final_b64 into 2^31 bytes:
+  C    Ok(()) [70, 36, 2b, 55, 76, 35, 4f, 4f, 65, 4a, 30, 54, 4e, 34, 31, 58, 45, 37, 6f, 35, 61, 68, 64, 31, 78, 55, 59, 7a, 4a, 34, 39, 46, 41, 76, 33, 71, 4
+  Rust Err(-22) [aa, aa, aa, aa, aa, aa, aa, aa, aa, aa, aa, aa, aa, aa, aa, aa, aa, aa, aa, aa, aa, aa, aa, aa, aa, aa, aa, aa, aa, aa, aa, aa, aa, aa, aa, aa,
+  DIFFER
+HMAC-SHA256 final into 2^32 bytes:
+  C    Ok(32) [ca, 6f, a6, 40, 2b, 56, 51, 08, d9, e6, b4, 93, e8, d1, 57, 9b, 52, 65, d7, e5, a1, 58, 88, ce, d2, 02, 1b, 0c, 56, ae, 78, 5a, aa, aa, aa, aa, a
+  Rust Err(-22) [aa, aa, aa, aa, aa, aa, aa, aa, aa, aa, aa, aa, aa, aa, aa, aa, aa, aa, aa, aa, aa, aa, aa, aa, aa, aa, aa, aa, aa, aa, aa, aa, aa, aa, aa, aa,
+  DIFFER
+HMAC-SHA256 calc into 2^32 bytes:
+  C    Ok(32) [ca, 6f, a6, 40, 2b, 56, 51, 08, d9, e6, b4, 93, e8, d1, 57, 9b, 52, 65, d7, e5, a1, 58, 88, ce, d2, 02, 1b, 0c, 56, ae, 78, 5a, aa, aa, aa, aa, a
+  Rust Err(-22) [aa, aa, aa, aa, aa, aa, aa, aa, aa, aa, aa, aa, aa, aa, aa, aa, aa, aa, aa, aa, aa, aa, aa, aa, aa, aa, aa, aa, aa, aa, aa, aa, aa, aa, aa, aa,
+  DIFFER
+exit 1
