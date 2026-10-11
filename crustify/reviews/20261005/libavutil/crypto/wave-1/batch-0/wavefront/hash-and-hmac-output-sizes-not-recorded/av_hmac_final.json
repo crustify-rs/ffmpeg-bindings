@@ -1,0 +1,37 @@
+{
+ "ptr_args": {
+  "0": {
+   "ptr": {
+    "scalar": {
+     "by_val": true
+    },
+    "array": null,
+    "string": false,
+    "owned": false,
+    "borrowed": {
+     "lifetime": "arg:c"
+    },
+    "nullable": false,
+    "mutable": true,
+    "note": "Call-scoped borrow; no caller pointer retained. Context storage and children remain C-owned; byte buffers have the scalar length/count or backend digest size."
+   }
+  },
+  "1": {
+   "ptr": {
+    "scalar": null,
+    "array": {
+     "by_val": true
+    },
+    "string": false,
+    "owned": false,
+    "borrowed": {
+     "lifetime": "arg:out"
+    },
+    "nullable": false,
+    "mutable": true,
+    "note": "Output of exactly the algorithm's hash length (16..64 bytes) after C checks outlen >= hashlen (else AVERROR(EINVAL), nothing written or changed). outlen is an upper bound and may be any unsigned int up to the buffer length (UINT_MAX for longer buffers); C also reads the written digest back through out. No retention."
+   }
+  }
+ },
+ "lifetime": null
+}

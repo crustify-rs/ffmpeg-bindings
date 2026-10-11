@@ -1,0 +1,10 @@
+[package]
+name = "hash-and-hmac-reject-outputs-beyond-c-ranges"
+version = "0.0.0"
+edition = "2024"
+publish = false
+
+[workspace]
+
+[dependencies]
+ffmpeg = { path = "../../../../../../../../rust/ffmpeg" }

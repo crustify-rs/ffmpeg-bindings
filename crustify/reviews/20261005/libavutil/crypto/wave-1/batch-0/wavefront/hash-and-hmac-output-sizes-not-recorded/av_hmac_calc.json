@@ -1,0 +1,69 @@
+{
+ "ptr_args": {
+  "0": {
+   "ptr": {
+    "scalar": {
+     "by_val": true
+    },
+    "array": null,
+    "string": false,
+    "owned": false,
+    "borrowed": {
+     "lifetime": "arg:c"
+    },
+    "nullable": false,
+    "mutable": true,
+    "note": "Call-scoped borrow; no caller pointer retained. Context storage and children remain C-owned; byte buffers have the scalar length/count or backend digest size."
+   }
+  },
+  "1": {
+   "ptr": {
+    "scalar": null,
+    "array": {
+     "by_val": true
+    },
+    "string": false,
+    "owned": false,
+    "borrowed": {
+     "lifetime": "arg:data"
+    },
+    "nullable": false,
+    "mutable": false,
+    "note": "Input of len bytes, read once by the hash update callback for the call only; no retention. len is bounded by unsigned int per call."
+   }
+  },
+  "3": {
+   "ptr": {
+    "scalar": null,
+    "array": {
+     "by_val": true
+    },
+    "string": false,
+    "owned": false,
+    "borrowed": {
+     "lifetime": "arg:key"
+    },
+    "nullable": false,
+    "mutable": false,
+    "note": "Key of keylen bytes: copied into the context, or hashed down to hashlen bytes when longer than the block length. Read for the call only; no retention."
+   }
+  },
+  "5": {
+   "ptr": {
+    "scalar": null,
+    "array": {
+     "by_val": true
+    },
+    "string": false,
+    "owned": false,
+    "borrowed": {
+     "lifetime": "arg:out"
+    },
+    "nullable": false,
+    "mutable": true,
+    "note": "As av_hmac_final: exactly hashlen bytes written (and read back) when outlen >= hashlen, else AVERROR(EINVAL) with nothing written, after the context has been re-keyed and fed data. outlen is an upper bound and may be any unsigned int up to the buffer length (UINT_MAX for longer buffers). No retention."
+   }
+  }
+ },
+ "lifetime": null
+}

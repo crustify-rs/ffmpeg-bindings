@@ -1,0 +1,31 @@
+av_hash_final arg 1 `dst`
+  before: Call-scoped borrow; no caller pointer retained. Context storage and children remain C-owned; byte buffers have the scalar length/count or backend digest size.
+  after:  Output of exactly av_hash_get_size(ctx) bytes (the digest of the context's algorithm; at most AV_HASH_MAX_SIZE = 64), written once and not read. Borrowed for the call, no retention.
+
+av_hash_final_bin arg 1 `dst`
+  before: Call-scoped borrow; no caller pointer retained. Context storage and children remain C-owned; byte buffers have the scalar length/count or backend digest size.
+  after:  Output of exactly size bytes: min(size, digest size) digest bytes, then zero padding up to size. size is the caller's upper bound and may be any int up to the buffer length; a caller holding a buffer longer than INT_MAX passes INT_MAX and pads the rest itself. size 0 writes nothing (memcpy of 0 bytes needs a valid pointer). The context is finalized even then. No retention.
+
+av_hash_final_hex arg 1 `dst`
+  before: Writes snprintf output in pairs; capacities 0/1 leave dst untouched despite termination documentation. Safe API rejects capacities below 2.
+  after:  Lowercase hex digest via snprintf(dst + 2i, size - 2i, "%02x") for i < min(digest size, size / 2): writes at most min(2 * digest size + 1, size) bytes, NUL-terminated, never more. size is an upper bound and may be any int up to the buffer length (INT_MAX for longer buffers). Sizes 0 and 1 write nothing and leave dst unterminated despite the header; the context is finalized regardless. No retention.
+
+av_hash_final_b64 arg 1 `dst`
+  before: Writes NUL at dst[size-1] on truncation; size must be positive. Safe API rejects empty output before C.
+  after:  Base64 digest: copies min(AV_BASE64_SIZE(digest size), size) bytes from a NUL-terminated local encoding and, on truncation, writes NUL at dst[size - 1]. Never writes more than AV_BASE64_SIZE(digest size) <= 89 bytes; size may be any positive int up to the buffer length (INT_MAX for longer buffers). size 0 writes dst[-1] (out of bounds): must be positive. No retention.
+
+av_hmac_final arg 1 `out`
+  before: Call-scoped borrow; no caller pointer retained. Context storage and children remain C-owned; byte buffers have the scalar length/count or backend digest size.
+  after:  Output of exactly the algorithm's hash length (16..64 bytes) after C checks outlen >= hashlen (else AVERROR(EINVAL), nothing written or changed). outlen is an upper bound and may be any unsigned int up to the buffer length (UINT_MAX for longer buffers); C also reads the written digest back through out. No retention.
+
+av_hmac_calc arg 1 `data`
+  before: Call-scoped borrow; no caller pointer retained. Context storage and children remain C-owned; byte buffers have the scalar length/count or backend digest size.
+  after:  Input of len bytes, read once by the hash update callback for the call only; no retention. len is bounded by unsigned int per call.
+
+av_hmac_calc arg 3 `key`
+  before: Call-scoped borrow; no caller pointer retained. Context storage and children remain C-owned; byte buffers have the scalar length/count or backend digest size.
+  after:  Key of keylen bytes: copied into the context, or hashed down to hashlen bytes when longer than the block length. Read for the call only; no retention.
+
+av_hmac_calc arg 5 `out`
+  before: Call-scoped borrow; no caller pointer retained. Context storage and children remain C-owned; byte buffers have the scalar length/count or backend digest size.
+  after:  As av_hmac_final: exactly hashlen bytes written (and read back) when outlen >= hashlen, else AVERROR(EINVAL) with nothing written, after the context has been re-keyed and fed data. outlen is an upper bound and may be any unsigned int up to the buffer length (UINT_MAX for longer buffers). No retention.
