@@ -961,3 +961,114 @@ mod mutation {
         assert_eq!(buf.as_ref().data()[299], 3);
     }
 }
+
+/// Review of buffer-frame wave 2: `UninitBuffer::from_owner`, buffers over
+/// Rust owners of uninitialised bytes, at sizes from empty to 64 KiB and in
+/// every owner shape: their views are exactly the owner's bytes (a read
+/// past one is an ASan report), filled, resized (a copy, as the buffer has
+/// an opaque) and released once, on whichever thread drops the last
+/// reference; the conversion back refuses them, as it does initialised
+/// owners.
+mod uninit_owner {
+    use core::mem::MaybeUninit;
+    use std::sync::Arc;
+    use std::sync::atomic::{AtomicUsize, Ordering};
+    use std::thread;
+
+    use ffmpeg::libavutil::buffer::{BufferReference, UninitBuffer};
+
+    use super::reference::pattern;
+
+    const SIZES: [usize; 5] = [0, 1, 15, 4096, 1 << 16];
+
+    /// Uninitialised bytes that count the drops of their owner.
+    struct Counted {
+        bytes: Vec<MaybeUninit<u8>>,
+        drops: Arc<AtomicUsize>,
+    }
+
+    impl AsMut<[MaybeUninit<u8>]> for Counted {
+        fn as_mut(&mut self) -> &mut [MaybeUninit<u8>] {
+            &mut self.bytes
+        }
+    }
+
+    impl Drop for Counted {
+        fn drop(&mut self) {
+            self.drops.fetch_add(1, Ordering::SeqCst);
+        }
+    }
+
+    #[test]
+    fn every_owner_shape_views_exactly_its_bytes() {
+        for size in SIZES {
+            let want = pattern(size, 3);
+            let owners = [
+                UninitBuffer::from_owner(vec![MaybeUninit::uninit(); size]).unwrap(),
+                UninitBuffer::from_owner(Box::<[u8]>::new_uninit_slice(size)).unwrap(),
+            ];
+            for u in owners {
+                assert_eq!((u.len(), u.as_slice().len()), (size, size));
+                let buf = u.copy_from_slice(&want);
+                assert!(buf.as_ref().data() == want.as_slice());
+                assert!(!buf.as_ref().opaque().is_null());
+            }
+        }
+        // An inline array, moved into the buffer with its owner.
+        let inline = UninitBuffer::from_owner([MaybeUninit::new(7u8); 33]).unwrap();
+        assert!(inline.fill(8).as_ref().data() == [8; 33].as_slice());
+    }
+
+    #[test]
+    fn owners_resize_by_copy_and_release_once_anywhere() {
+        for size in SIZES {
+            let drops = Arc::new(AtomicUsize::new(0));
+            let owner = Counted {
+                bytes: vec![MaybeUninit::uninit(); size],
+                drops: drops.clone(),
+            };
+            let Ok(mut u) = UninitBuffer::from_owner(owner) else {
+                panic!("a buffer over the owner");
+            };
+            let at = u.as_slice().as_ptr();
+            u.resize(size + 9).unwrap();
+            // The copy released the owner's buffer, its only reference.
+            assert_eq!(drops.load(Ordering::SeqCst), 1);
+            assert!(size == 0 || u.as_slice().as_ptr() != at);
+            let mut buf = u.fill(0x42);
+            assert!(buf.as_ref().data() == vec![0x42; size + 9].as_slice());
+            assert!(buf.as_ref().opaque().is_null());
+            buf.as_mut().resize(size, 0).unwrap();
+            assert!(buf.as_ref().data() == vec![0x42; size].as_slice());
+
+            let drops = Arc::new(AtomicUsize::new(0));
+            let owner = Counted {
+                bytes: vec![MaybeUninit::uninit(); size],
+                drops: drops.clone(),
+            };
+            let Ok(u) = UninitBuffer::from_owner(owner) else {
+                panic!("a buffer over the owner");
+            };
+            let buf = u.fill(1);
+            let copy = buf.clone();
+            let buf = UninitBuffer::try_from(buf).unwrap_err();
+            drop(buf);
+            thread::spawn(move || {
+                assert!(copy.as_ref().data() == vec![1; size].as_slice());
+                let copy = UninitBuffer::try_from(copy).unwrap_err();
+                assert_eq!(copy.as_ref().ref_count(), 1);
+            })
+            .join()
+            .unwrap();
+            assert_eq!(drops.load(Ordering::SeqCst), 1);
+        }
+    }
+
+    #[test]
+    fn initialised_owners_never_convert() {
+        let mut buf = BufferReference::from_owner(vec![5u8; 12]).unwrap();
+        assert!(buf.as_mut().data_mut().is_some());
+        let buf = UninitBuffer::try_from(buf).unwrap_err();
+        assert!(buf.as_ref().data() == [5; 12].as_slice());
+    }
+}

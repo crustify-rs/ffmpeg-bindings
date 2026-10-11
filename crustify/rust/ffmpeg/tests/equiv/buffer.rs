@@ -713,7 +713,12 @@ mod reference {
                     }
                     Op::Write(k, byte) | Op::Refill(k, byte) => {
                         let r = self.held[k % n];
-                        let wrote = ffi::av_buffer_is_writable(r) != 0;
+                        let mut wrote = ffi::av_buffer_is_writable(r) != 0;
+                        // `UninitBuffer::try_from` also refuses a buffer with
+                        // an opaque, whose release may read the bytes.
+                        if matches!(op, Op::Refill(..)) {
+                            wrote &= ffi::av_buffer_get_opaque(r).is_null();
+                        }
                         if wrote {
                             ptr::write_bytes((*r).data, byte, (*r).size);
                         }
@@ -1368,13 +1373,12 @@ mod mutation {
 /// is set, and how many allocator buffers were released.
 mod pool_get {
     use core::ffi::c_void;
+    use core::mem::MaybeUninit;
     use core::ptr;
     use core::sync::atomic::{AtomicUsize, Ordering};
     use std::sync::Arc;
 
-    use ffmpeg::libavutil::buffer::{
-        BufferPool, BufferPoolBox, BufferReference, BufferReferenceBox, UninitBuffer,
-    };
+    use ffmpeg::libavutil::buffer::{BufferPool, BufferPoolBox, BufferReferenceBox, UninitBuffer};
     use ffmpeg::libavutil::ffi;
 
     /// The index of `p` in `seen`, appended when new; NULL is `None`.
@@ -1395,10 +1399,10 @@ mod pool_get {
     type Got = (usize, Option<usize>, usize, i32, bool, bool);
 
     /// Bytes a Rust allocator's buffer owns, counting their releases.
-    struct Counted(Vec<u8>, Arc<AtomicUsize>);
+    struct Counted(Vec<MaybeUninit<u8>>, Arc<AtomicUsize>);
 
-    impl AsMut<[u8]> for Counted {
-        fn as_mut(&mut self) -> &mut [u8] {
+    impl AsMut<[MaybeUninit<u8>]> for Counted {
+        fn as_mut(&mut self) -> &mut [MaybeUninit<u8>] {
             &mut self.0
         }
     }
@@ -1584,8 +1588,8 @@ mod pool_get {
                 // and its release (`Counted`'s drop) never touches the pool.
                 let rust_pool = unsafe {
                     BufferPool::with_allocator(size, move |n| {
-                        let owner = Counted(vec![0; n], counter.clone());
-                        UninitBuffer::try_from(BufferReference::from_owner(owner).ok()?).ok()
+                        let owner = Counted(vec![MaybeUninit::uninit(); n], counter.clone());
+                        UninitBuffer::from_owner(owner).ok()
                     })
                 }
                 .unwrap();
@@ -1608,5 +1612,107 @@ mod pool_get {
         STATE.store(ptr::null_mut(), Ordering::SeqCst);
         // SAFETY: every C buffer was released, and no pool is left.
         drop(unsafe { Box::from_raw(state) });
+    }
+}
+
+/// Review of buffer-frame wave 2: resizing a pool's buffer, which the
+/// wrappers copy themselves (`realloc_by_copy`) as the buffer has an opaque,
+/// against C's `av_buffer_realloc` of a buffer from a pool C builds the same
+/// way, where C takes its own copy path. Both sides compare the resized
+/// window's bytes and length, its count, writability and opaque, whether it
+/// left the pool's block, and whether the next request recycles that block,
+/// for filled (`BufferReferenceMut::resize`) and uninitialised
+/// (`UninitBuffer::resize`) buffers.
+mod pool_resize {
+    use core::ptr;
+
+    use ffmpeg::libavutil::buffer::BufferPool;
+    use ffmpeg::libavutil::ffi;
+
+    /// The resized window's bytes, count, writability and whether it has an
+    /// opaque; whether its data left the pool's block; whether the next
+    /// request got that block back.
+    type Seen = (Vec<u8>, i32, bool, bool, bool, bool);
+
+    const SIZES: [usize; 4] = [0, 3, 64, 300];
+    const LENS: [usize; 5] = [0, 1, 3, 64, 4096];
+
+    fn rust(size: usize, len: usize, filled: bool) -> Seen {
+        let pool = BufferPool::new(size).unwrap();
+        let u = pool.as_ref().get().unwrap();
+        let block = u.as_slice().as_ptr().cast::<u8>();
+        let buf = if filled {
+            let mut buf = u.fill(0x11);
+            buf.as_mut().resize(len, 0x22).unwrap();
+            buf
+        } else {
+            let mut u = u;
+            u.resize(len).unwrap();
+            u.fill(0x33)
+        };
+        let r = buf.as_ref();
+        let moved = r.is_empty() || r.data().as_ptr() != block;
+        let seen = (
+            r.data().to_vec(),
+            r.ref_count() as i32,
+            r.is_writable(),
+            r.opaque().is_null(),
+        );
+        let next = pool.as_ref().get().unwrap();
+        let recycled = size == 0 || next.as_slice().as_ptr().cast::<u8>() == block;
+        drop(next);
+        (seen.0, seen.1, seen.2, seen.3, moved, recycled)
+    }
+
+    fn c(size: usize, len: usize, filled: bool) -> Seen {
+        // SAFETY: a NULL allocator selects av_buffer_alloc; every reference
+        // is live until its unref, and its window's bytes are written whole
+        // before anything reads them.
+        unsafe {
+            let mut pool = ffi::av_buffer_pool_init(size, None);
+            assert!(!pool.is_null());
+            let mut r = ffi::av_buffer_pool_get(pool);
+            assert!(!r.is_null());
+            let block = (*r).data.cast_const();
+            let old = (*r).size;
+            if filled {
+                ptr::write_bytes((*r).data, 0x11, old);
+            }
+            assert_eq!(ffi::av_buffer_realloc(&mut r, len), 0);
+            if filled {
+                if len > old {
+                    ptr::write_bytes((*r).data.add(old), 0x22, len - old);
+                }
+            } else {
+                ptr::write_bytes((*r).data, 0x33, len);
+            }
+            let bytes = core::slice::from_raw_parts((*r).data, (*r).size).to_vec();
+            let moved = (*r).size == 0 || (*r).data.cast_const() != block;
+            let seen = (
+                bytes,
+                ffi::av_buffer_get_ref_count(r),
+                ffi::av_buffer_is_writable(r) != 0,
+                ffi::av_buffer_get_opaque(r).is_null(),
+            );
+            let mut next = ffi::av_buffer_pool_get(pool);
+            assert!(!next.is_null());
+            let recycled = size == 0 || (*next).data.cast_const() == block;
+            ffi::av_buffer_unref(&mut next);
+            ffi::av_buffer_pool_uninit(&mut pool);
+            ffi::av_buffer_unref(&mut r);
+            (seen.0, seen.1, seen.2, seen.3, moved, recycled)
+        }
+    }
+
+    #[test]
+    fn pool_buffers_resize_by_copy_as_c() {
+        for size in SIZES {
+            for len in LENS {
+                for filled in [true, false] {
+                    let want = c(size, len, filled);
+                    assert_eq!(rust(size, len, filled), want, "{size} -> {len}, {filled}");
+                }
+            }
+        }
     }
 }
