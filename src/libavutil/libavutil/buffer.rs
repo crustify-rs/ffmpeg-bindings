@@ -28,6 +28,17 @@
 //! through [`BufferReferenceMut::data_mut`] only while the reference is the
 //! buffer's only one and not read-only, as C's convention has it. A new
 //! buffer of uninitialised bytes is an [`UninitBuffer`] until filled.
+//!
+//! A reference reports its buffer's count, writability and opaque
+//! ([`BufferReferenceRef::ref_count`], [`is_writable`](BufferReferenceRef::is_writable),
+//! [`opaque`](BufferReferenceRef::opaque)), and changes buffer in place,
+//! the struct C may know it by staying where it is: to a writable copy
+//! ([`BufferReferenceMut::make_mut`]), a resized one
+//! ([`BufferReferenceMut::resize`], [`UninitBuffer::resize`]; in place for
+//! a buffer from [`BufferReference::alloc_resizable`]), or another
+//! reference's buffer and window ([`BufferReferenceMut::assign`]; [`assign`]
+//! for an optional owner, as C's slot). A pool hands its buffers out
+//! through [`BufferPoolRef::get`].
 
 use core::ffi::{c_int, c_uint, c_void};
 use core::fmt;
@@ -284,6 +295,61 @@ impl BufferPool {
     }
 }
 
+impl BufferPoolRef<'_> {
+    /// Wraps: av_buffer_pool_get
+    ///
+    /// A buffer of the pool's size: one of its free buffers, its bytes as
+    /// their last user left them, or else a new one from the pool's
+    /// allocator. It is the buffer's only reference, and its bytes are not
+    /// known to be initialised. When the buffer's last reference is
+    /// released, it goes back to the pool instead of being freed, and until
+    /// then it keeps the pool alive, past the drop of its owner. `None` when
+    /// the allocator fails, or C cannot allocate the reference.
+    ///
+    /// Any thread may ask, concurrently: C serializes requests, and the
+    /// allocator calls they make, under the pool's mutex.
+    ///
+    /// C counts a pool's outstanding buffers in an unchecked 32-bit count,
+    /// which `mem::forget` of 2^32 of them would wrap; each holds at least
+    /// 112 bytes of C heap (its pool entry and reference), so that takes
+    /// some 480 GB of leaked memory first.
+    #[must_use]
+    pub fn get(&self) -> Option<UninitBuffer> {
+        let pool = self.as_ptr().cast_mut();
+        // SAFETY: a live pool, which C locks around its free list and the
+        // allocator call, counting the buffer atomically; it returns NULL or
+        // a fresh reference whose release (av_buffer_unref) returns the
+        // buffer to the pool. Its bytes go straight into an `UninitBuffer`.
+        let buf = unsafe { BufferReferenceBox::from_c(ffi::av_buffer_pool_get(pool)) }?;
+        // A reference fresh from a pool is its buffer's only one, and C
+        // creates recycled buffers writable; a first one is the allocator's,
+        // writable for the pools this crate builds.
+        UninitBuffer::try_from(buf).ok()
+    }
+
+    /// Wraps: av_buffer_pool_buffer_get_opaque
+    ///
+    /// A buffer as [`get`](Self::get) hands it out, and the opaque its
+    /// allocator created it with: a pool takes its buffers' own opaque over
+    /// ([`BufferReferenceRef::opaque`] reads the pool's bookkeeping), and
+    /// this is the one way to the original.
+    ///
+    /// It is the allocator's address, handed back as the raw cookie it is:
+    /// NULL for buffers from [`BufferPool::new`]'s allocator and from
+    /// [`BufferReference::alloc`], and an address private to this crate for
+    /// [`BufferReference::from_owner`] buffers. Dereferencing it is the
+    /// caller's `unsafe` business.
+    #[must_use]
+    pub fn get_with_opaque(&self) -> Option<(UninitBuffer, *mut c_void)> {
+        let buf = self.get()?;
+        // SAFETY: a live reference av_buffer_pool_get just returned, so its
+        // buffer's opaque is the pool entry C reads the allocator's opaque
+        // from; C only reads.
+        let opaque = unsafe { ffi::av_buffer_pool_buffer_get_opaque(buf.0.as_c_ptr()) };
+        Some((buf, opaque))
+    }
+}
+
 /// `alloc2` for [`BufferPool::with_allocator`]: runs the boxed allocator and
 /// hands its buffer's reference to the pool.
 unsafe extern "C" fn allocate_with<F>(state: *mut c_void, size: usize) -> *mut ffi::AVBufferRef
@@ -418,11 +484,17 @@ unsafe impl CDrop<BufferReference> for BufferUnref {
 /// that pass the check concurrently on other threads, at most one per thread.
 const MAX_REFERENCES: c_uint = c_uint::MAX / 2;
 
-/// Whether a buffer counting `count` references may take another, `count`
-/// being what `av_buffer_get_ref_count` returns: C converts the unsigned
-/// count to `int`, which converts back to it.
-fn may_add_reference(count: c_int) -> bool {
-    (count as c_uint) < MAX_REFERENCES
+/// Whether a buffer counting `count` references may take another.
+fn may_add_reference(count: c_uint) -> bool {
+    count < MAX_REFERENCES
+}
+
+/// `AVERROR(ENOMEM)`, the one error buffer.h's routines report.
+const ENOMEM: c_int = -(ffi::ENOMEM as c_int);
+
+/// A buffer.h status as a `Result`.
+fn status(ret: c_int) -> Result<(), c_int> {
+    if ret < 0 { Err(ret) } else { Ok(()) }
 }
 
 /// Wraps: av_buffer_ref
@@ -511,6 +583,27 @@ impl BufferReference {
         // `size` zeroed av_malloc bytes, released by av_buffer_unref with
         // av_free, on any thread.
         unsafe { BufferReferenceBox::from_c(ffi::av_buffer_allocz(size)) }
+    }
+
+    /// Wraps: av_buffer_realloc
+    ///
+    /// A reference to a new buffer of `size` uninitialised bytes, as
+    /// [`alloc`](Self::alloc), that can be resized in place: C allocates
+    /// them with `av_realloc` and marks the buffer for it, so that
+    /// [`UninitBuffer::resize`] and [`BufferReferenceMut::resize`] resize it
+    /// without a copy while this is its only reference and its window
+    /// starts at its data. `None` when C cannot allocate them.
+    #[must_use]
+    pub fn alloc_resizable(size: usize) -> Option<UninitBuffer> {
+        let mut slot = ptr::null_mut();
+        // SAFETY: an empty slot asks C for a new buffer: it stores a fresh,
+        // sole, writable reference to `size` av_realloc'ed bytes, released by
+        // av_buffer_unref with av_free, or leaves the slot NULL on failure.
+        unsafe { ffi::av_buffer_realloc(&mut slot, size) };
+        // SAFETY: NULL, or that reference. Its bytes are uninitialised, so the
+        // box goes straight into an `UninitBuffer`, which never lends its
+        // handles.
+        unsafe { BufferReferenceBox::from_c(slot) }.map(UninitBuffer)
     }
 
     /// Wraps: av_buffer_create
@@ -629,12 +722,63 @@ impl<'a> BufferReferenceRef<'a> {
         }
     }
 
+    /// Whether the window is C's NULL, which only an empty one can be.
+    fn data_is_null(&self) -> bool {
+        // SAFETY: a read of the `data` field projected through the shared
+        // handle's pointer to a live, initialised `AVBufferRef`.
+        unsafe { addr_of!((*self.as_ptr()).data).read() }.is_null()
+    }
+
+    /// Wraps: av_buffer_is_writable
+    ///
     /// Whether the buffer has this one reference and is not read-only, so
-    /// its bytes are this reference's alone.
-    fn is_sole_and_writable(&self) -> bool {
+    /// that its bytes are this reference's alone to write
+    /// ([`data_mut`](BufferReferenceMut::data_mut)). Through a shared handle
+    /// the answer may be stale by the time it is read, as another holder of
+    /// the handle may clone the reference meanwhile; through an exclusive
+    /// one it holds until the reference is cloned.
+    #[must_use]
+    pub fn is_writable(&self) -> bool {
         // SAFETY: a live reference; C acquire-loads the count and reads the
         // buffer's flags, which are fixed since creation.
         unsafe { ffi::av_buffer_is_writable(self.as_ptr()) != 0 }
+    }
+
+    /// Wraps: av_buffer_get_ref_count
+    ///
+    /// The number of references to the buffer, this one included. Other
+    /// threads may clone or release references to it meanwhile, so the
+    /// count may be stale by the time it is read; it is at least 1.
+    #[must_use]
+    pub fn ref_count(&self) -> u32 {
+        // SAFETY: a live reference; C atomically loads its buffer's count.
+        let count = unsafe { ffi::av_buffer_get_ref_count(self.as_ptr()) };
+        // C converts its unsigned count to `int`, which converts back to it.
+        count as c_uint
+    }
+
+    /// Wraps: av_buffer_get_opaque
+    ///
+    /// The opaque the buffer was created with, as the address it is. C hands
+    /// it to the buffer's data release and never reads it otherwise, so what
+    /// it points at, and for how long, is its creator's business: it comes
+    /// back as the raw cookie it is, and dereferencing it is the caller's
+    /// `unsafe` business.
+    ///
+    /// It is NULL for the buffers [`BufferReference::alloc`],
+    /// [`alloc_zeroed`](BufferReference::alloc_zeroed),
+    /// [`alloc_resizable`](BufferReference::alloc_resizable) and
+    /// [`from_heap_vec`](BufferReference::from_heap_vec) build, and the copies
+    /// [`BufferReferenceMut::make_mut`] and `resize` make; an address private
+    /// to this crate for [`from_owner`](BufferReference::from_owner) and
+    /// [`from_read_only`](BufferReference::from_read_only) buffers; and the
+    /// pool's own bookkeeping for a pool's buffers, whose allocator's opaque
+    /// [`BufferPoolRef::get_with_opaque`] reads.
+    #[must_use]
+    pub fn opaque(&self) -> *mut c_void {
+        // SAFETY: a live reference; C reads its buffer's opaque, fixed while
+        // the buffer has references, and only copies the pointer.
+        unsafe { ffi::av_buffer_get_opaque(self.as_ptr()) }
     }
 
     /// Field: AVBufferRef.data
@@ -690,8 +834,7 @@ impl<'a> BufferReferenceRef<'a> {
     /// cannot allocate it, or the buffer's count would near wrapping.
     #[must_use]
     pub fn try_clone(&self) -> Option<BufferReferenceBox> {
-        // SAFETY: a live reference; C atomically loads its buffer's count.
-        if !may_add_reference(unsafe { ffi::av_buffer_get_ref_count(self.as_ptr()) }) {
+        if !may_add_reference(self.ref_count()) {
             return None;
         }
         // SAFETY: a live reference; C copies the struct into a fresh
@@ -722,7 +865,7 @@ impl BufferReferenceMut<'_> {
     #[must_use]
     pub fn data_mut(&mut self) -> Option<&mut [u8]> {
         let shared = self.as_ref();
-        if !shared.is_sole_and_writable() {
+        if !shared.is_writable() {
             return None;
         }
         let (data, len) = shared.parts();
@@ -797,6 +940,170 @@ impl BufferReferenceMut<'_> {
     pub fn set(&mut self, with: BufferReferenceBox) {
         drop(self.replace(with));
     }
+
+    /// Wraps: av_buffer_make_writable
+    ///
+    /// The bytes this reference describes, writable, as
+    /// [`data_mut`](Self::data_mut) hands them out, after C copies them
+    /// into a new buffer of their length when the reference is not writable
+    /// (it has clones, or the buffer is read-only), as `Arc::make_mut` does.
+    /// This reference then counts the copy instead of its old buffer, whose
+    /// other references and bytes stay as they were.
+    ///
+    /// # Errors
+    ///
+    /// `AVERROR(ENOMEM)` when C cannot allocate the copy; the reference is
+    /// then left as it was.
+    pub fn make_mut(&mut self) -> Result<&mut [u8], c_int> {
+        let shared = self.as_ref();
+        if !shared.is_writable() && shared.data_is_null() {
+            // C would copy the empty window with `memcpy` from NULL, which is
+            // UB even for 0 bytes: its copy of nothing is a new empty buffer.
+            let empty = BufferReference::alloc(0).ok_or(ENOMEM)?.fill(0);
+            self.set(empty);
+        } else {
+            let mut slot = self.as_mut_ptr();
+            // C leaves a writable reference alone; otherwise it copies the
+            // window into a new sole buffer and moves that reference into
+            // this struct in place, freeing the temporary struct and one
+            // count of the old buffer. On failure it changes nothing.
+            // SAFETY: `slot` holds this live, exclusively borrowed reference,
+            // whose window is `len` initialised bytes, at a non-NULL address
+            // unless writable; C never writes the slot itself.
+            status(unsafe { ffi::av_buffer_make_writable(&mut slot) })?;
+        }
+        Ok(self.data_mut().expect("C made the reference writable"))
+    }
+
+    /// Wraps: av_buffer_realloc
+    ///
+    /// Resizes the window this reference describes to `len` bytes, as
+    /// `Vec::resize`: its first bytes up to the shorter length are kept, and
+    /// any new ones set to `value`. A buffer from
+    /// [`BufferReference::alloc_resizable`] that has this one reference and
+    /// whose window still starts at its data is resized in place
+    /// (`av_realloc`); any other is copied into a new resizable buffer of
+    /// `len` bytes, which this reference then counts instead, the old one's
+    /// other references and bytes staying as they were. Nothing changes when
+    /// `len` is the length already.
+    ///
+    /// # Errors
+    ///
+    /// `AVERROR(ENOMEM)` when C cannot allocate; the reference is then left
+    /// as it was.
+    pub fn resize(&mut self, len: usize, value: u8) -> Result<(), c_int> {
+        let old = self.as_ref().len();
+        self.realloc(len)?;
+        if len > old {
+            let (data, _) = self.as_ref().parts();
+            // SAFETY: C grew the window to `len` bytes of a buffer this
+            // reference alone holds, in place only when it was sole and
+            // writable, and as a new one otherwise. Its first `old` bytes are
+            // initialised and the rest, inside it, are written here before
+            // anything reads them, in one operation.
+            unsafe { ptr::write_bytes(data.as_ptr().add(old), value, len - old) };
+        }
+        Ok(())
+    }
+
+    /// `av_buffer_realloc` on this reference: the window becomes `len`
+    /// bytes, any past its old length uninitialised, of a buffer this
+    /// reference alone holds unless `len` was its length already.
+    fn realloc(&mut self, len: usize) -> Result<(), c_int> {
+        let shared = self.as_ref();
+        if shared.len() != len && shared.data_is_null() {
+            // C would copy the empty window into the new buffer with `memcpy`
+            // from NULL, which is UB even for 0 bytes: its copy of nothing is
+            // a new resizable buffer.
+            let fresh = BufferReference::alloc_resizable(len).ok_or(ENOMEM)?;
+            self.set(fresh.0);
+            return Ok(());
+        }
+        let mut slot = self.as_mut_ptr();
+        // C keeps the reference, resizes its sole, writable, reallocatable
+        // buffer in place, or copies the window's first bytes into a new
+        // resizable buffer and moves that reference into this struct in
+        // place, freeing the temporary struct and one count of the old
+        // buffer. On failure it changes nothing.
+        // SAFETY: `slot` holds this live, exclusively borrowed reference,
+        // whose window is at a non-NULL address unless `len` is its length;
+        // C never writes the slot itself.
+        status(unsafe { ffi::av_buffer_realloc(&mut slot, len) })
+    }
+
+    /// Wraps: av_buffer_replace
+    ///
+    /// Makes this reference describe what `src` does, buffer and window:
+    /// when both count the same buffer, only the window changes; otherwise
+    /// this one takes a new count of `src`'s buffer and releases its old
+    /// one, as [`set`](Self::set) with `src`'s clone. The struct C may know
+    /// this reference by stays where it is, where C's own call would move
+    /// the reference to a new struct.
+    ///
+    /// # Errors
+    ///
+    /// `AVERROR(ENOMEM)` when C cannot allocate the new reference, or the
+    /// buffer's count would near wrapping; this reference is then left as it
+    /// was.
+    pub fn assign(&mut self, src: BufferReferenceRef<'_>) -> Result<(), c_int> {
+        if !self.as_ref().buffer().ptr_eq(&src.buffer()) {
+            self.set(src.try_clone().ok_or(ENOMEM)?);
+            return Ok(());
+        }
+        let mut slot = self.as_mut_ptr();
+        // SAFETY: two live references to the same buffer, distinct as this
+        // one is borrowed exclusively and `src` shared: C copies `src`'s
+        // window, initialised bytes of that buffer, into this struct, and
+        // allocates, frees or counts nothing, leaving the slot as it is.
+        status(unsafe { ffi::av_buffer_replace(&mut slot, src.as_ptr()) })
+    }
+}
+
+/// Wraps: av_buffer_replace
+///
+/// Makes `dst` a reference to what `src` describes, buffer and window, or
+/// empty for `None`, as C does with a reference slot: a `dst` that counts
+/// `src`'s buffer only takes its window, and any other is released and
+/// replaced by a new reference to `src`'s buffer, in a new struct.
+///
+/// `src` cannot be borrowed from `dst` itself:
+///
+/// ```compile_fail,E0502
+/// use ffmpeg::libavutil::buffer::{BufferReference, assign};
+/// let mut slot = Some(BufferReference::alloc_zeroed(8).unwrap());
+/// let _ = assign(&mut slot, slot.as_ref().map(|r| r.as_ref()));
+/// ```
+///
+/// # Errors
+///
+/// `AVERROR(ENOMEM)` when C cannot allocate the new reference, or the
+/// buffer's count would near wrapping; `dst` is then left as it was.
+pub fn assign(
+    dst: &mut Option<BufferReferenceBox>,
+    src: Option<BufferReferenceRef<'_>>,
+) -> Result<(), c_int> {
+    if let Some(src) = src {
+        let same = dst
+            .as_ref()
+            .is_some_and(|dst| dst.as_ref().buffer().ptr_eq(&src.buffer()));
+        if !same && !may_add_reference(src.ref_count()) {
+            return Err(ENOMEM);
+        }
+    }
+    let src = src.map_or(ptr::null(), |src| src.as_ptr());
+    let mut slot = dst
+        .take()
+        .map_or(ptr::null_mut(), BufferReferenceBox::into_c);
+    // SAFETY: `slot` is NULL or the live reference `dst` gave up, and `src`
+    // NULL or a live reference other than it (`dst` is borrowed exclusively,
+    // `src` shared). C leaves the slot as it was, makes it NULL, gives its
+    // reference `src`'s window into the same buffer, or releases it and
+    // stores a new reference to `src`'s buffer and window; every such
+    // reference keeps the type's invariant.
+    let ret = unsafe { ffi::av_buffer_replace(&mut slot, src) };
+    // SAFETY: NULL, or the reference C left in the slot, ours alone.
+    *dst = unsafe { BufferReferenceBox::from_c(slot) };
+    status(ret)
 }
 
 /// Wraps: AVBufferRef
@@ -903,6 +1210,24 @@ impl UninitBuffer {
         unsafe { self.assume_init() }
     }
 
+    /// Wraps: av_buffer_realloc
+    ///
+    /// Resizes the bytes to `len`, keeping the first ones up to the shorter
+    /// length; any new ones are uninitialised. A buffer from
+    /// [`BufferReference::alloc_resizable`] whose window still starts at its
+    /// data is resized in place (`av_realloc`); any other is copied into a
+    /// new resizable buffer, the old one freed. Nothing changes when `len` is
+    /// the length already.
+    ///
+    /// # Errors
+    ///
+    /// `AVERROR(ENOMEM)` when C cannot allocate; the bytes are then left as
+    /// they were.
+    pub fn resize(&mut self, len: usize) -> Result<(), c_int> {
+        // The only reference, writable, its handle used by no byte reader.
+        self.0.as_mut().realloc(len)
+    }
+
     /// The reference, its bytes taken as initialised.
     ///
     /// # Safety
@@ -926,7 +1251,7 @@ impl TryFrom<BufferReferenceBox> for UninitBuffer {
     type Error = BufferReferenceBox;
 
     fn try_from(buf: BufferReferenceBox) -> Result<Self, Self::Error> {
-        if buf.as_ref().is_sole_and_writable() {
+        if buf.as_ref().is_writable() {
             Ok(Self(buf))
         } else {
             Err(buf)
@@ -957,10 +1282,9 @@ mod unit_tests {
         }
     }
 
-    /// A buffer from the pool, through C (no safe `get` exists yet).
-    fn get(pool: &BufferPoolBox) -> *mut ffi::AVBufferRef {
-        // SAFETY: the box keeps the pool alive; av_buffer_pool_get locks it.
-        unsafe { ffi::av_buffer_pool_get(pool.as_ref().as_ptr().cast_mut()) }
+    /// A buffer from the pool.
+    fn get(pool: &BufferPoolBox) -> Option<UninitBuffer> {
+        pool.as_ref().get()
     }
 
     fn unref(mut buf: *mut ffi::AVBufferRef) {
@@ -1050,10 +1374,9 @@ mod unit_tests {
         // SAFETY: into_c handed back the sole pool reference, with no handle
         // alive; adoption restores its release policy.
         let pool = unsafe { BufferPoolBox::from_c(ptr) }.unwrap();
-        let buf = get(&pool);
-        assert!(!buf.is_null());
+        let buf = get(&pool).unwrap();
         drop(pool);
-        unref(buf);
+        drop(buf);
         // SAFETY: NULL is rejected without being adopted.
         assert!(unsafe { BufferPoolBox::from_c(ptr::null_mut()) }.is_none());
     }
@@ -1062,14 +1385,12 @@ mod unit_tests {
     #[cfg_attr(miri, ignore)]
     fn release_policy_frees_free_buffers_and_defers_outstanding_ones() {
         let pool = BufferPool::new(8).unwrap();
-        let (a, b) = (get(&pool), get(&pool));
-        unref(a);
+        let (a, b) = (get(&pool).unwrap(), get(&pool).unwrap());
+        drop(a);
         // `a` waits in the pool's free list, `b` is outstanding: dropping the
         // box flushes `a` and leaves the pool alive for `b`.
         drop(pool);
-        // SAFETY: `b` is a live 8-byte reference of this test's.
-        unsafe { ptr::write_bytes((*b).data, 0x5a, 8) };
-        unref(b);
+        assert_eq!(b.fill(0x5a).as_ref().data(), &[0x5a; 8]);
     }
 
     #[test]
@@ -1089,13 +1410,12 @@ mod unit_tests {
             })
         }
         .unwrap();
-        let a = get(&pool);
-        unref(a);
-        let b = get(&pool);
+        drop(get(&pool).unwrap());
+        let b = get(&pool).unwrap();
         assert_eq!(calls.load(Ordering::SeqCst), 1);
         drop(pool);
         assert_eq!(drops.load(Ordering::SeqCst), 0);
-        unref(b);
+        drop(b);
         assert_eq!(drops.load(Ordering::SeqCst), 1);
     }
 
@@ -1159,15 +1479,14 @@ mod unit_tests {
             // SAFETY: this isolated child runs only this exact test, so no
             // concurrent C allocator reads or writes the process-wide limit.
             unsafe { ffi::av_max_alloc(64) };
-            assert!(get(&pool).is_null());
+            assert!(get(&pool).is_none());
             assert_eq!(calls.load(Ordering::SeqCst), 1);
             // SAFETY: as above; C's default limit.
             unsafe { ffi::av_max_alloc(i32::MAX as usize) };
-            let buf = get(&pool);
-            assert!(!buf.is_null());
+            let buf = get(&pool).unwrap();
             assert_eq!(calls.load(Ordering::SeqCst), 2);
             drop(pool);
-            unref(buf);
+            drop(buf);
             assert_eq!(drops.load(Ordering::SeqCst), 1);
             return;
         }
@@ -1199,26 +1518,22 @@ mod unit_tests {
                 })
             }
             .unwrap();
-            let first = get(&pool);
-            assert!(!first.is_null());
-            // SAFETY: a live reference of this test's.
-            let data = unsafe { (*first).data };
-            unref(first);
+            let first = get(&pool).unwrap();
+            let data = first.as_slice().as_ptr();
+            drop(first);
             // Reusing the free entry needs only a new 24-byte AVBufferRef,
             // which a 16-byte limit refuses: C fails the request and keeps
             // the entry listed, without calling the allocator.
             // SAFETY: this isolated child runs only this exact test, so no
             // concurrent C allocator reads or writes the process-wide limit.
             unsafe { ffi::av_max_alloc(16) };
-            assert!(get(&pool).is_null());
+            assert!(get(&pool).is_none());
             // SAFETY: as above; C's default limit.
             unsafe { ffi::av_max_alloc(i32::MAX as usize) };
-            let again = get(&pool);
-            assert!(!again.is_null());
-            // SAFETY: a live reference of this test's.
-            assert_eq!(unsafe { (*again).data }, data);
+            let again = get(&pool).unwrap();
+            assert_eq!(again.as_slice().as_ptr(), data);
             assert_eq!(calls.load(Ordering::SeqCst), 1);
-            unref(again);
+            drop(again);
             drop(pool);
             return;
         }
@@ -1265,13 +1580,14 @@ mod unit_tests {
     #[test]
     fn reference_limit_leaves_half_the_count_for_racing_clones() {
         for count in [0, 1, 2, i32::MAX - 1] {
-            assert!(may_add_reference(count), "{count}");
+            assert!(may_add_reference(count as c_uint), "{count}");
         }
         // `MAX_REFERENCES` is `i32::MAX` as unsigned; counts past `INT_MAX`
-        // come back from C as negative `int`s.
+        // come back from C as negative `int`s, which `ref_count` converts
+        // back.
         assert_eq!(MAX_REFERENCES, i32::MAX as c_uint);
         for count in [i32::MAX, i32::MIN, -2, -1] {
-            assert!(!may_add_reference(count), "{count}");
+            assert!(!may_add_reference(count as c_uint), "{count}");
         }
     }
 
@@ -1483,6 +1799,159 @@ mod unit_tests {
             .args([
                 "--exact",
                 "libavutil::buffer::unit_tests::reference_failures_return_their_inputs",
+                "--test-threads=1",
+            ])
+            .env(FLAG, "1")
+            .status()
+            .unwrap();
+        assert!(status.success());
+    }
+
+    /// Buffer-frame wave 2, batch 1: the status mapping of the mutators.
+    #[test]
+    fn statuses_map_negative_codes_to_errors() {
+        assert_eq!(status(0), Ok(()));
+        assert_eq!(status(1), Ok(()));
+        assert_eq!(status(ENOMEM), Err(-12));
+        assert_eq!(status(c_int::MIN), Err(c_int::MIN));
+    }
+
+    /// C copies a reference's window with `memcpy` from its data, which is
+    /// NULL for an empty `av_buffer_create(NULL, 0)` window (`from_heap_vec`
+    /// of an empty array): UB even for 0 bytes (UBSan `buffer.c:176` in
+    /// `av_buffer_make_writable`, `:218` in `av_buffer_realloc`). The
+    /// wrappers take a fresh buffer there instead, C's copy of nothing; an
+    /// asan-ubsan run of this test prints no `runtime error:`.
+    #[test]
+    #[cfg_attr(miri, ignore)]
+    fn null_windows_are_copied_without_cs_memcpy() {
+        let null = || BufferReference::from_heap_vec(HeapVec::empty()).unwrap();
+        let mut a = null();
+        let b = a.clone();
+        assert!(a.as_ref().data_is_null() && !a.as_ref().is_writable());
+        assert!(a.as_mut().make_mut().unwrap().is_empty());
+        assert!(!a.as_ref().data_is_null());
+        assert!(!a.as_ref().buffer().ptr_eq(&b.as_ref().buffer()));
+        assert_eq!((a.as_ref().ref_count(), b.as_ref().ref_count()), (1, 1));
+        // A sole one is writable already, and C returns before copying.
+        let mut c = b;
+        assert!(c.as_mut().make_mut().unwrap().is_empty());
+        assert!(c.as_ref().data_is_null());
+        // Resizing one, shared or sole, to another length.
+        let mut d = c.clone();
+        c.as_mut().resize(3, 7).unwrap();
+        assert_eq!(c.as_ref().data(), &[7; 3]);
+        assert!(d.as_ref().data_is_null() && d.as_ref().ref_count() == 1);
+        d.as_mut().resize(0, 1).unwrap();
+        assert!(d.as_ref().data_is_null());
+        d.as_mut().resize(2, 1).unwrap();
+        assert_eq!(d.as_ref().data(), &[1, 1]);
+        // An uninitialised one, whose fresh buffer then resizes in place.
+        let mut u = UninitBuffer::try_from(null()).unwrap();
+        u.resize(5).unwrap();
+        let body = u.0.as_ref().buffer().as_ptr();
+        u.resize(9).unwrap();
+        assert_eq!(u.0.as_ref().buffer().as_ptr(), body);
+        assert_eq!(u.fill(4).as_ref().data(), &[4; 9]);
+    }
+
+    /// Both assignments refuse at `MAX_REFERENCES` before C adds a count,
+    /// and leave their destination; the same buffer adds none, so it
+    /// passes, and `None` releases.
+    #[test]
+    #[cfg_attr(miri, ignore)]
+    fn assignments_stop_at_the_reference_limit() {
+        let src = BufferReference::alloc_zeroed(8).unwrap();
+        let mut dst = BufferReference::alloc_zeroed(4).unwrap();
+        let mut slot = Some(BufferReference::alloc_zeroed(2).unwrap());
+        let mut empty = None;
+        let mut same = src.clone();
+        same.as_mut().advance(3);
+        set_count(&src, MAX_REFERENCES);
+        assert_eq!(dst.as_mut().assign(src.as_ref()), Err(ENOMEM));
+        assert_eq!(assign(&mut slot, Some(src.as_ref())), Err(ENOMEM));
+        assert_eq!(assign(&mut empty, Some(src.as_ref())), Err(ENOMEM));
+        assert_eq!(counts(&src).1, MAX_REFERENCES);
+        assert_eq!(dst.as_ref().len(), 4);
+        assert_eq!(slot.as_ref().map(|r| r.as_ref().len()), Some(2));
+        assert!(empty.is_none());
+        same.as_mut().assign(src.as_ref()).unwrap();
+        assert_eq!(same.as_ref().len(), 8);
+        same.as_mut().advance(1);
+        let mut same = Some(same);
+        assign(&mut same, Some(src.as_ref())).unwrap();
+        assert_eq!(same.as_ref().map(|r| r.as_ref().len()), Some(8));
+        assert_eq!(counts(&src).1, MAX_REFERENCES);
+        set_count(&src, 2);
+        assign(&mut same, None).unwrap();
+        assert!(same.is_none());
+        assert_eq!(counts(&src), (1, 1));
+        assign(&mut slot, None).unwrap();
+        assert!(slot.is_none());
+    }
+
+    /// Every mutator's allocation failure leaves the reference as it was
+    /// and reports `AVERROR(ENOMEM)`; what needs no allocation still works.
+    #[test]
+    #[cfg_attr(miri, ignore)]
+    fn mutations_fail_cleanly_without_memory() {
+        const FLAG: &str = "CRUSTIFY_BUFFER_MUTATION_FAILURE_CHILD";
+        if std::env::var_os(FLAG).is_some() {
+            let shared = BufferReference::alloc(8).unwrap().fill(1);
+            let mut copy = shared.clone();
+            let mut resizable = BufferReference::alloc_resizable(8).unwrap().fill(2);
+            let mut uninit = BufferReference::alloc_resizable(8).unwrap();
+            let mut null = BufferReference::from_heap_vec(HeapVec::empty()).unwrap();
+            let null_copy = null.clone();
+            let other = BufferReference::alloc_zeroed(3).unwrap();
+            let mut slot = Some(BufferReference::alloc_zeroed(5).unwrap());
+            let mut empty = None;
+            // A 16-byte limit admits up to 16 data bytes, but neither the
+            // 48-byte AVBuffer nor the 24-byte AVBufferRef.
+            // SAFETY: this isolated child runs only this exact test, so no
+            // concurrent C allocator reads or writes the process-wide limit.
+            unsafe { ffi::av_max_alloc(16) };
+            assert!(BufferReference::alloc_resizable(4).is_none());
+            assert_eq!(copy.as_mut().make_mut().err(), Some(ENOMEM));
+            assert_eq!(null.as_mut().make_mut().err(), Some(ENOMEM));
+            assert_eq!(copy.as_mut().resize(4, 0), Err(ENOMEM));
+            assert_eq!(copy.as_mut().resize(12, 0), Err(ENOMEM));
+            assert_eq!(null.as_mut().resize(2, 0), Err(ENOMEM));
+            assert_eq!(resizable.as_mut().resize(17, 0), Err(ENOMEM));
+            assert_eq!(uninit.resize(17), Err(ENOMEM));
+            assert_eq!(copy.as_mut().assign(other.as_ref()), Err(ENOMEM));
+            assert_eq!(assign(&mut slot, Some(other.as_ref())), Err(ENOMEM));
+            assert_eq!(assign(&mut empty, Some(other.as_ref())), Err(ENOMEM));
+            assert!(copy.as_ref().buffer().ptr_eq(&shared.as_ref().buffer()));
+            assert_eq!(
+                (copy.as_ref().data(), shared.as_ref().ref_count()),
+                (&[1; 8][..], 2)
+            );
+            assert!(null.as_ref().data_is_null() && null_copy.as_ref().ref_count() == 2);
+            assert_eq!(resizable.as_ref().data(), &[2; 8]);
+            assert_eq!(uninit.len(), 8);
+            assert_eq!(slot.as_ref().map(|r| r.as_ref().len()), Some(5));
+            assert!(empty.is_none());
+            // In place, within the limit, and the same buffer's window.
+            let body = resizable.as_ref().buffer().as_ptr();
+            resizable.as_mut().resize(16, 3).unwrap();
+            assert_eq!(resizable.as_ref().buffer().as_ptr(), body);
+            assert_eq!(resizable.as_ref().data(), &[[2; 8], [3; 8]].concat()[..]);
+            uninit.resize(2).unwrap();
+            copy.as_mut().advance(2);
+            copy.as_mut().assign(shared.as_ref()).unwrap();
+            assert_eq!(copy.as_ref().len(), 8);
+            // SAFETY: as above; C's default limit.
+            unsafe { ffi::av_max_alloc(i32::MAX as usize) };
+            assert_eq!(copy.as_mut().make_mut().unwrap(), &[1; 8]);
+            assert_eq!(shared.as_ref().ref_count(), 1);
+            assert_eq!(uninit.fill(9).as_ref().data(), &[9; 2]);
+            return;
+        }
+        let status = std::process::Command::new(std::env::current_exe().unwrap())
+            .args([
+                "--exact",
+                "libavutil::buffer::unit_tests::mutations_fail_cleanly_without_memory",
                 "--test-threads=1",
             ])
             .env(FLAG, "1")

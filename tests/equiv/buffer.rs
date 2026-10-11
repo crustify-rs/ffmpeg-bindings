@@ -3,10 +3,9 @@
 //! request/reference/release sequence, the same allocator calls, and the
 //! allocator state released at the same point.
 //!
-//! Both sides are driven through C's `av_buffer_pool_get` and the raw
-//! `AVBufferRef` routines until the pool's `get` has a safe wrapper; the Rust
-//! side reaches its pool through the owner's raw seam, and its allocators
-//! return safe `UninitBuffer`s.
+//! The Rust side takes its buffers through the pool's safe `get` (since
+//! buffer-frame wave 2), and its allocators return safe `UninitBuffer`s;
+//! both sides then hold, clone and release them as raw `AVBufferRef`s.
 
 use core::ffi::c_void;
 use core::ptr;
@@ -47,8 +46,10 @@ fn ops(seed: u64, len: usize) -> Vec<Op> {
 /// writability.
 type Held = (usize, usize, i32, i32);
 
-/// One side's pool and the references taken from it.
+/// One side's pool and the references taken from it: the Rust side's
+/// owner, through which it requests buffers, or C's raw pool.
 struct Side {
+    owner: Option<BufferPoolBox>,
     pool: *mut ffi::AVBufferPool,
     held: Vec<*mut ffi::AVBufferRef>,
     seen: Vec<*mut u8>,
@@ -58,9 +59,17 @@ impl Side {
     fn new(pool: *mut ffi::AVBufferPool) -> Self {
         assert!(!pool.is_null());
         Self {
+            owner: None,
             pool,
             held: Vec::new(),
             seen: Vec::new(),
+        }
+    }
+
+    fn rust(owner: BufferPoolBox) -> Self {
+        Self {
+            owner: Some(owner),
+            ..Self::new(ptr::NonNull::dangling().as_ptr())
         }
     }
 
@@ -68,8 +77,15 @@ impl Side {
     fn step(&mut self, op: Op) -> bool {
         match op {
             Op::Get => {
-                // SAFETY: the pool is live until `finish`.
-                let buf = unsafe { ffi::av_buffer_pool_get(self.pool) };
+                let buf = match &self.owner {
+                    // The bytes are written whole before they are read.
+                    Some(owner) => owner
+                        .as_ref()
+                        .get()
+                        .map_or(ptr::null_mut(), |u| u.fill(0x5a).into_c()),
+                    // SAFETY: the pool is live until `finish`.
+                    None => unsafe { ffi::av_buffer_pool_get(self.pool) },
+                };
                 if buf.is_null() {
                     return false;
                 }
@@ -141,8 +157,8 @@ fn run(rust: &mut Side, c: &mut Side, ops: &[Op], observe: &mut dyn FnMut(&str))
 }
 
 /// Releases both pools' owners with outstanding buffers, then the buffers.
-fn finish(rust: &mut Side, owner: BufferPoolBox, c: &mut Side, observe: &mut dyn FnMut(&str)) {
-    drop(owner);
+fn finish(rust: &mut Side, c: &mut Side, observe: &mut dyn FnMut(&str)) {
+    drop(rust.owner.take().unwrap());
     // SAFETY: C's own pool reference, released once; the slot is NULLed.
     unsafe { ffi::av_buffer_pool_uninit(&mut c.pool) };
     assert!(c.pool.is_null());
@@ -165,12 +181,12 @@ fn default_pools_hand_out_recycle_and_count_as_c() {
     for size in SIZES {
         for seed in 1..=6 {
             let owner = BufferPool::new(size).unwrap();
-            let mut rust = Side::new(owner.as_c_ptr());
+            let mut rust = Side::rust(owner);
             // SAFETY: a NULL allocator selects av_buffer_alloc.
             let mut c = Side::new(unsafe { ffi::av_buffer_pool_init(size, None) });
             let ops = ops(seed * 0x9e37_79b9 + size as u64, 120);
             run(&mut rust, &mut c, &ops, &mut |_| {});
-            finish(&mut rust, owner, &mut c, &mut |_| {});
+            finish(&mut rust, &mut c, &mut |_| {});
         }
     }
 }
@@ -183,13 +199,13 @@ fn owners_released_first_and_last_as_c() {
         for gets in [0, 3] {
             for keep in [0, 1, 3] {
                 let owner = BufferPool::new(size).unwrap();
-                let mut rust = Side::new(owner.as_c_ptr());
+                let mut rust = Side::rust(owner);
                 // SAFETY: as above.
                 let mut c = Side::new(unsafe { ffi::av_buffer_pool_init(size, None) });
                 let mut seq = vec![Op::Get; gets];
                 seq.extend((keep.min(gets)..gets).map(|_| Op::Unref(0)));
                 run(&mut rust, &mut c, &seq, &mut |_| {});
-                finish(&mut rust, owner, &mut c, &mut |_| {});
+                finish(&mut rust, &mut c, &mut |_| {});
             }
         }
     }
@@ -263,7 +279,7 @@ fn allocator_pools_call_and_release_their_state_as_c_init2() {
                 let c_pool = unsafe {
                     ffi::av_buffer_pool_init2(size, state.cast(), Some(c_alloc2), Some(c_pool_free))
                 };
-                let mut rust = Side::new(owner.as_c_ptr());
+                let mut rust = Side::rust(owner);
                 let mut c = Side::new(c_pool);
                 let mut observe = |at: &str| {
                     // SAFETY: `state` is live until the end of this iteration.
@@ -281,7 +297,7 @@ fn allocator_pools_call_and_release_their_state_as_c_init2() {
                 };
                 let ops = ops(seed * 7919 + fail_every as u64, 90);
                 run(&mut rust, &mut c, &ops, &mut observe);
-                finish(&mut rust, owner, &mut c, &mut observe);
+                finish(&mut rust, &mut c, &mut observe);
                 assert_eq!(drops.load(Ordering::SeqCst), 1);
                 // SAFETY: both pools are freed; `state` is ours again.
                 drop(unsafe { Box::from_raw(state) });
@@ -316,7 +332,7 @@ fn stateless_allocators_as_c_init() {
         // SAFETY: `c_alloc` returns NULL or a sole, writable `size`-byte
         // reference.
         let mut c = Side::new(unsafe { ffi::av_buffer_pool_init(size, Some(c_alloc)) });
-        let mut rust = Side::new(owner.as_c_ptr());
+        let mut rust = Side::rust(owner);
         let mut observe = |at: &str| {
             assert_eq!(
                 calls.load(Ordering::SeqCst),
@@ -325,7 +341,7 @@ fn stateless_allocators_as_c_init() {
             );
         };
         run(&mut rust, &mut c, &ops(size as u64 + 3, 100), &mut observe);
-        finish(&mut rust, owner, &mut c, &mut observe);
+        finish(&mut rust, &mut c, &mut observe);
     }
 }
 
@@ -803,5 +819,794 @@ mod reference {
             );
         }
         assert!(outcomes[0] > 20 && outcomes[1] > 20, "{outcomes:?}");
+    }
+}
+
+/// Buffer-frame wave 2, batch 1: references from the safe constructors and
+/// `alloc_resizable`, against raw C references built the same way, driven
+/// through the same random sequence of clones, releases and narrowings and
+/// of the mutators: `make_mut` (`av_buffer_make_writable`), `resize`
+/// (`av_buffer_realloc`), `assign` and its slot form
+/// (`av_buffer_replace`), each followed by a write of the bytes it made
+/// writable or new. After every step both sides compare each reference's
+/// buffer (by creation order, a resized buffer keeping its place) and window
+/// offset, bytes, count, writability and whether it has an opaque, the
+/// status each mutator returned, and how many owners were released.
+///
+/// A NULL window (`from_heap_vec` of an empty array) is left out: C copies
+/// it with `memcpy` from NULL, UB the wrappers avoid (`buffer.rs`'s
+/// `null_windows_are_copied_without_cs_memcpy`).
+mod mutation {
+    use core::ffi::{c_int, c_void};
+    use core::ptr;
+    use core::sync::atomic::{AtomicUsize, Ordering};
+    use std::sync::Arc;
+
+    use ffmpeg::libavutil::buffer::{self, BufferReference, BufferReferenceBox};
+    use ffmpeg::libavutil::ffi;
+    use ffmpeg::libavutil::mem::HeapVec;
+
+    #[derive(Clone, Copy, Debug)]
+    enum Kind {
+        AllocZeroed,
+        Heap,
+        Owner,
+        ReadOnly,
+        Resizable(u8),
+    }
+
+    /// One step; indices pick a held reference modulo their count.
+    #[derive(Clone, Copy, Debug)]
+    enum Op {
+        New(Kind, usize),
+        Clone(usize),
+        Drop(usize),
+        Advance(usize, usize),
+        MakeMut(usize, u8),
+        Resize(usize, usize, u8),
+        Assign(usize, usize),
+        AssignSlot(usize, Option<usize>),
+        AssignNew(usize),
+    }
+
+    const SIZES: [usize; 5] = [0, 1, 5, 64, 300];
+
+    fn xorshift(x: &mut u64) -> u64 {
+        *x ^= *x << 13;
+        *x ^= *x >> 7;
+        *x ^= *x << 17;
+        *x
+    }
+
+    fn ops(seed: u64, len: usize) -> Vec<Op> {
+        let mut x = seed | 1;
+        (0..len)
+            .map(|_| {
+                let r = xorshift(&mut x);
+                let (a, b) = ((r >> 16) as usize, (r >> 40) as usize);
+                match r % 13 {
+                    0 | 1 => {
+                        let kind = match a % 5 {
+                            0 => Kind::AllocZeroed,
+                            1 => Kind::Heap,
+                            2 => Kind::Owner,
+                            3 => Kind::ReadOnly,
+                            _ => Kind::Resizable(b as u8),
+                        };
+                        Op::New(kind, SIZES[b % SIZES.len()])
+                    }
+                    2 | 3 => Op::Clone(a),
+                    4 => Op::Drop(a),
+                    5 => Op::Advance(a, b),
+                    6 | 7 => Op::MakeMut(a, b as u8),
+                    8 | 9 => Op::Resize(a, [0, 1, 7, 64, 301, 700][b % 6], (b >> 8) as u8),
+                    // Neighbours are often clones, sharing a buffer.
+                    10 => Op::Assign(a, if b % 2 == 0 { b } else { a + 1 }),
+                    11 => Op::AssignSlot(a, (b % 4 != 0).then_some(b)),
+                    _ => Op::AssignNew(a),
+                }
+            })
+            .collect()
+    }
+
+    /// `len` bytes that differ from one `New` to the next.
+    fn pattern(len: usize, seed: usize) -> Vec<u8> {
+        let mut v = (0..=255u8)
+            .collect::<Vec<_>>()
+            .repeat(len.div_ceil(256) + 1);
+        v.drain(..seed % 256);
+        v.truncate(len);
+        v
+    }
+
+    /// What one side reports for a reference: the index of the buffer it
+    /// counts, its window's offset from that buffer's data, its bytes, the
+    /// buffer's count and writability, and whether it has an opaque.
+    type Seen = (usize, usize, Vec<u8>, c_int, bool, bool);
+
+    /// The buffers a side created, newest last, with their data.
+    #[derive(Default)]
+    struct Buffers(Vec<(*mut ffi::AVBuffer, *mut u8)>);
+
+    impl Buffers {
+        fn index(&self, r: *const ffi::AVBufferRef) -> usize {
+            // SAFETY: callers pass live references.
+            let buffer = unsafe { (*r).buffer };
+            self.0.iter().rposition(|&(b, _)| b == buffer).unwrap()
+        }
+
+        /// `r`'s buffer, its window and the bytes in it.
+        ///
+        /// # Safety
+        ///
+        /// `r` must be a live reference to initialised bytes.
+        unsafe fn window(&self, r: *const ffi::AVBufferRef) -> (usize, usize, Vec<u8>) {
+            let k = self.index(r);
+            // SAFETY: the caller passes a live reference, whose window holds
+            // `size` initialised bytes.
+            unsafe {
+                let (data, size) = ((*r).data, (*r).size);
+                let bytes = if size == 0 {
+                    Vec::new()
+                } else {
+                    core::slice::from_raw_parts(data, size).to_vec()
+                };
+                (k, (data as usize).wrapping_sub(self.0[k].1 as usize), bytes)
+            }
+        }
+
+        /// Records `r`'s buffer as the newest, or as resized in place.
+        ///
+        /// # Safety
+        ///
+        /// `r` must be a live reference.
+        unsafe fn track(
+            &mut self,
+            r: *const ffi::AVBufferRef,
+            before: (*mut ffi::AVBuffer, *mut u8),
+        ) {
+            // SAFETY: the caller passes a live reference.
+            let (buffer, data) = unsafe { ((*r).buffer, (*r).data) };
+            if buffer != before.0 {
+                self.0.push((buffer, data));
+            } else if data != before.1 {
+                // Reallocated in place, which needs a window at its start.
+                let k = self.index(r);
+                self.0[k].1 = data;
+            }
+        }
+    }
+
+    /// The parts of `r` that `Buffers::track` compares.
+    ///
+    /// # Safety
+    ///
+    /// `r` must be a live reference.
+    unsafe fn parts(r: *const ffi::AVBufferRef) -> (*mut ffi::AVBuffer, *mut u8) {
+        // SAFETY: as above.
+        unsafe { ((*r).buffer, (*r).data) }
+    }
+
+    /// The Rust side's bytes, counting their releases.
+    struct Counted {
+        bytes: Vec<u8>,
+        frees: Arc<AtomicUsize>,
+    }
+
+    impl AsMut<[u8]> for Counted {
+        fn as_mut(&mut self) -> &mut [u8] {
+            &mut self.bytes
+        }
+    }
+
+    impl AsRef<[u8]> for Counted {
+        fn as_ref(&self) -> &[u8] {
+            &self.bytes
+        }
+    }
+
+    impl Drop for Counted {
+        fn drop(&mut self) {
+            self.frees.fetch_add(1, Ordering::SeqCst);
+        }
+    }
+
+    /// The C side's release: frees the av_malloc copy, counting.
+    unsafe extern "C" fn c_counted_free(opaque: *mut c_void, data: *mut u8) {
+        // SAFETY: `opaque` is the test's live counter; `data` is the block
+        // `CSide::new_ref` allocated for this buffer.
+        unsafe {
+            (*opaque.cast::<AtomicUsize>()).fetch_add(1, Ordering::SeqCst);
+            ffi::av_free(data.cast());
+        }
+    }
+
+    #[derive(Default)]
+    struct RustSide {
+        held: Vec<BufferReferenceBox>,
+        buffers: Buffers,
+        frees: Arc<AtomicUsize>,
+    }
+
+    #[derive(Default)]
+    struct CSide {
+        held: Vec<*mut ffi::AVBufferRef>,
+        buffers: Buffers,
+        frees: Arc<AtomicUsize>,
+        /// Copies into a new buffer, resizes in place, and assignments
+        /// within one buffer.
+        paths: [usize; 3],
+    }
+
+    impl RustSide {
+        fn new_ref(&self, kind: Kind, size: usize, seed: usize) -> BufferReferenceBox {
+            let counted = || Counted {
+                bytes: pattern(size, seed),
+                frees: self.frees.clone(),
+            };
+            match kind {
+                Kind::AllocZeroed => BufferReference::alloc_zeroed(size).unwrap(),
+                Kind::Heap => BufferReference::from_heap_vec(
+                    HeapVec::from_slice(&pattern(size, seed)).unwrap(),
+                )
+                .unwrap(),
+                Kind::Owner => BufferReference::from_owner(counted())
+                    .map_err(drop)
+                    .unwrap(),
+                Kind::ReadOnly => BufferReference::from_read_only(counted())
+                    .map_err(drop)
+                    .unwrap(),
+                Kind::Resizable(byte) => BufferReference::alloc_resizable(size).unwrap().fill(byte),
+            }
+        }
+
+        /// Runs `op`; reports what a mutator returned.
+        fn step(&mut self, op: Op, seed: usize) -> Option<c_int> {
+            let n = self.held.len();
+            let code = |r: Result<(), c_int>| Some(r.err().unwrap_or(0));
+            let before = |r: &BufferReferenceBox| {
+                // SAFETY: a live reference.
+                unsafe { parts(r.as_c_ptr()) }
+            };
+            match op {
+                Op::New(kind, size) => {
+                    let r = self.new_ref(kind, size, seed);
+                    // SAFETY: a live reference.
+                    unsafe {
+                        self.buffers
+                            .track(r.as_c_ptr(), (ptr::null_mut(), ptr::null_mut()))
+                    };
+                    self.held.push(r);
+                }
+                Op::AssignNew(j) if n > 0 => {
+                    let mut slot = None;
+                    let ret = buffer::assign(&mut slot, Some(self.held[j % n].as_ref()));
+                    self.held.extend(slot);
+                    return code(ret);
+                }
+                _ if n == 0 => {}
+                Op::Clone(k) => {
+                    let r = self.held[k % n].try_clone().unwrap();
+                    self.held.push(r);
+                }
+                Op::Drop(k) => drop(self.held.swap_remove(k % n)),
+                Op::Advance(k, by) => {
+                    let mut m = self.held[k % n].as_mut();
+                    let by = by % (m.as_ref().len() + 1);
+                    m.advance(by);
+                }
+                Op::MakeMut(k, byte) => {
+                    let r = &mut self.held[k % n];
+                    let was = before(r);
+                    let ret = r.as_mut().make_mut().map(|bytes| bytes.fill(byte));
+                    // SAFETY: a live reference.
+                    unsafe { self.buffers.track(r.as_c_ptr(), was) };
+                    return code(ret);
+                }
+                Op::Resize(k, len, byte) => {
+                    let r = &mut self.held[k % n];
+                    let was = before(r);
+                    let ret = r.as_mut().resize(len, byte);
+                    // SAFETY: a live reference.
+                    unsafe { self.buffers.track(r.as_c_ptr(), was) };
+                    return code(ret);
+                }
+                Op::Assign(k, j) => {
+                    let (k, j) = (k % n, j % n);
+                    if k == j {
+                        return Some(0);
+                    }
+                    let (lo, hi) = self.held.split_at_mut(k.max(j));
+                    let (dst, src) = if k < j {
+                        (&mut lo[k], &hi[0])
+                    } else {
+                        (&mut hi[0], &lo[j])
+                    };
+                    return code(dst.as_mut().assign(src.as_ref()));
+                }
+                Op::AssignSlot(k, j) => {
+                    let k = k % n;
+                    if j.is_some_and(|j| j % n == k) {
+                        return Some(0);
+                    }
+                    let mut slot = Some(self.held.remove(k));
+                    let src = j.map(|j| self.held[(j % n) - usize::from(j % n > k)].as_ref());
+                    let ret = buffer::assign(&mut slot, src);
+                    if let Some(r) = slot {
+                        self.held.insert(k, r);
+                    }
+                    return code(ret);
+                }
+                Op::AssignNew(_) => unreachable!(),
+            }
+            None
+        }
+
+        fn snapshot(&self) -> Vec<Seen> {
+            let see = |r: &BufferReferenceBox| {
+                // SAFETY: every held reference is live, its bytes initialised.
+                let (k, offset, _) = unsafe { self.buffers.window(r.as_c_ptr()) };
+                let r = r.as_ref();
+                let count = r.ref_count() as c_int;
+                (
+                    k,
+                    offset,
+                    r.data().to_vec(),
+                    count,
+                    r.is_writable(),
+                    r.opaque().is_null(),
+                )
+            };
+            self.held.iter().map(see).collect()
+        }
+    }
+
+    impl CSide {
+        fn new_ref(&self, kind: Kind, size: usize, seed: usize) -> *mut ffi::AVBufferRef {
+            let copy = |flags: c_int, counted: bool| {
+                let p = pattern(size, seed);
+                // SAFETY: a fresh av_malloc block of `size` bytes takes the
+                // pattern; C owns it from the av_buffer_create on.
+                unsafe {
+                    let data = ffi::av_malloc(size).cast::<u8>();
+                    assert!(!data.is_null());
+                    ptr::copy_nonoverlapping(p.as_ptr(), data, size);
+                    let (free, opaque) = if counted {
+                        let opaque = Arc::as_ptr(&self.frees).cast_mut().cast::<c_void>();
+                        (Some(c_counted_free as unsafe extern "C" fn(_, _)), opaque)
+                    } else {
+                        (None, ptr::null_mut())
+                    };
+                    ffi::av_buffer_create(data, size, free, opaque, flags)
+                }
+            };
+            let r = match kind {
+                // SAFETY: no preconditions.
+                Kind::AllocZeroed => unsafe { ffi::av_buffer_allocz(size) },
+                Kind::Heap => copy(0, false),
+                Kind::Owner => copy(0, true),
+                Kind::ReadOnly => copy(ffi::AV_BUFFER_FLAG_READONLY as c_int, true),
+                Kind::Resizable(byte) => {
+                    let mut r = ptr::null_mut();
+                    // SAFETY: an empty slot gets a fresh reference to `size`
+                    // writable bytes, filled here.
+                    unsafe {
+                        assert_eq!(ffi::av_buffer_realloc(&mut r, size), 0);
+                        ptr::write_bytes((*r).data, byte, size);
+                    }
+                    r
+                }
+            };
+            assert!(!r.is_null());
+            r
+        }
+
+        fn step(&mut self, op: Op, seed: usize) -> Option<c_int> {
+            let n = self.held.len();
+            // SAFETY: every held reference is live and this side's own; each
+            // is released once, by `Drop`, an assignment of NULL or `finish`.
+            unsafe {
+                match op {
+                    Op::New(kind, size) => {
+                        let r = self.new_ref(kind, size, seed);
+                        self.buffers.track(r, (ptr::null_mut(), ptr::null_mut()));
+                        self.held.push(r);
+                    }
+                    Op::AssignNew(j) if n > 0 => {
+                        let mut r = ptr::null_mut();
+                        let ret = ffi::av_buffer_replace(&mut r, self.held[j % n]);
+                        if !r.is_null() {
+                            self.held.push(r);
+                        }
+                        return Some(ret);
+                    }
+                    _ if n == 0 => {}
+                    Op::Clone(k) => {
+                        let r = ffi::av_buffer_ref(self.held[k % n]);
+                        assert!(!r.is_null());
+                        self.held.push(r);
+                    }
+                    Op::Drop(k) => {
+                        let mut r = self.held.swap_remove(k % n);
+                        ffi::av_buffer_unref(&mut r);
+                    }
+                    Op::Advance(k, by) => {
+                        let r = self.held[k % n];
+                        let by = by % ((*r).size + 1);
+                        (*r).data = (*r).data.wrapping_add(by);
+                        (*r).size -= by;
+                    }
+                    Op::MakeMut(k, byte) => {
+                        let was = parts(self.held[k % n]);
+                        let ret = ffi::av_buffer_make_writable(&mut self.held[k % n]);
+                        let r = self.held[k % n];
+                        if ret == 0 {
+                            ptr::write_bytes((*r).data, byte, (*r).size);
+                        }
+                        self.paths[0] += usize::from((*r).buffer != was.0);
+                        self.buffers.track(r, was);
+                        return Some(ret);
+                    }
+                    Op::Resize(k, len, byte) => {
+                        let was = parts(self.held[k % n]);
+                        let old = (*self.held[k % n]).size;
+                        let ret = ffi::av_buffer_realloc(&mut self.held[k % n], len);
+                        let r = self.held[k % n];
+                        if ret == 0 && len > old {
+                            ptr::write_bytes((*r).data.add(old), byte, len - old);
+                        }
+                        self.paths[0] += usize::from((*r).buffer != was.0);
+                        self.paths[1] += usize::from((*r).buffer == was.0 && len != old);
+                        self.buffers.track(r, was);
+                        return Some(ret);
+                    }
+                    Op::Assign(k, j) => {
+                        let (k, j) = (k % n, j % n);
+                        if k == j {
+                            return Some(0);
+                        }
+                        self.paths[2] +=
+                            usize::from((*self.held[k]).buffer == (*self.held[j]).buffer);
+                        return Some(ffi::av_buffer_replace(&mut self.held[k], self.held[j]));
+                    }
+                    Op::AssignSlot(k, j) => {
+                        let k = k % n;
+                        if j.is_some_and(|j| j % n == k) {
+                            return Some(0);
+                        }
+                        let src = j.map_or(ptr::null(), |j| self.held[j % n].cast_const());
+                        let ret = ffi::av_buffer_replace(&mut self.held[k], src);
+                        if self.held[k].is_null() {
+                            self.held.remove(k);
+                        }
+                        return Some(ret);
+                    }
+                    Op::AssignNew(_) => unreachable!(),
+                }
+            }
+            None
+        }
+
+        fn snapshot(&self) -> Vec<Seen> {
+            let see = |&r: &*mut ffi::AVBufferRef| {
+                // SAFETY: every held reference is live, its bytes initialised.
+                unsafe {
+                    let (k, offset, bytes) = self.buffers.window(r);
+                    (
+                        k,
+                        offset,
+                        bytes,
+                        ffi::av_buffer_get_ref_count(r),
+                        ffi::av_buffer_is_writable(r) != 0,
+                        ffi::av_buffer_get_opaque(r).is_null(),
+                    )
+                }
+            };
+            self.held.iter().map(see).collect()
+        }
+
+        fn finish(&mut self) {
+            for mut r in self.held.drain(..) {
+                // SAFETY: this side's live reference, released once.
+                unsafe { ffi::av_buffer_unref(&mut r) };
+            }
+        }
+    }
+
+    #[test]
+    fn sequences_mutate_count_and_release_as_c() {
+        // Mutators run, and C's copies, in-place resizes and same-buffer
+        // assignments, so that the sequences demonstrably reach every path.
+        let (mut mutated, mut paths) = (0usize, [0usize; 3]);
+        for seed in 1..=16u64 {
+            let (mut rust, mut c) = (RustSide::default(), CSide::default());
+            for (i, op) in ops(seed * 0x9e37_79b9, 200).into_iter().enumerate() {
+                let op = match op {
+                    // `from_heap_vec` of an empty array is a NULL window.
+                    Op::New(Kind::Heap, 0) => Op::New(Kind::AllocZeroed, 0),
+                    op => op,
+                };
+                let ret = rust.step(op, i);
+                assert_eq!(ret, c.step(op, i), "seed {seed} step {i}: {op:?}");
+                mutated += usize::from(ret.is_some());
+                assert_eq!(
+                    rust.snapshot(),
+                    c.snapshot(),
+                    "seed {seed} step {i}: {op:?}"
+                );
+                assert_eq!(
+                    rust.frees.load(Ordering::SeqCst),
+                    c.frees.load(Ordering::SeqCst),
+                    "seed {seed} step {i}: {op:?}"
+                );
+                assert_eq!(
+                    rust.buffers.0.len(),
+                    c.buffers.0.len(),
+                    "seed {seed} step {i}"
+                );
+            }
+            rust.held.clear();
+            c.finish();
+            assert_eq!(
+                rust.frees.load(Ordering::SeqCst),
+                c.frees.load(Ordering::SeqCst)
+            );
+            paths.iter_mut().zip(c.paths).for_each(|(p, n)| *p += n);
+        }
+        assert!(mutated > 800, "{mutated}");
+        assert!(paths.iter().all(|&n| n > 10), "{paths:?}");
+    }
+}
+
+/// Buffer-frame wave 2, batch 1: `BufferPoolRef::get_with_opaque` against
+/// C's `av_buffer_pool_get` + `av_buffer_pool_buffer_get_opaque`, for the
+/// default allocator and for allocators whose buffers carry an opaque of
+/// their own, over random request/release sequences: after every step both
+/// sides compare which buffer each request recycled, its allocator's opaque
+/// (by first-seen order, so recycling shows as a repeat), its length,
+/// count, writability, and whether its own opaque (the pool's bookkeeping)
+/// is set, and how many allocator buffers were released.
+mod pool_get {
+    use core::ffi::c_void;
+    use core::ptr;
+    use core::sync::atomic::{AtomicUsize, Ordering};
+    use std::sync::Arc;
+
+    use ffmpeg::libavutil::buffer::{
+        BufferPool, BufferPoolBox, BufferReference, BufferReferenceBox, UninitBuffer,
+    };
+    use ffmpeg::libavutil::ffi;
+
+    /// The index of `p` in `seen`, appended when new; NULL is `None`.
+    fn index<T: PartialEq + Copy>(seen: &mut Vec<T>, p: T, null: bool) -> Option<usize> {
+        if null {
+            return None;
+        }
+        Some(seen.iter().position(|&q| q == p).unwrap_or_else(|| {
+            seen.push(p);
+            seen.len() - 1
+        }))
+    }
+
+    /// What one side reports for a request: its data's (0 for empty data,
+    /// which Rust sees as a dangling address) and its allocator opaque's
+    /// first-seen indices, its length, count, writability and whether it
+    /// has an opaque of its own.
+    type Got = (usize, Option<usize>, usize, i32, bool, bool);
+
+    /// Bytes a Rust allocator's buffer owns, counting their releases.
+    struct Counted(Vec<u8>, Arc<AtomicUsize>);
+
+    impl AsMut<[u8]> for Counted {
+        fn as_mut(&mut self) -> &mut [u8] {
+            &mut self.0
+        }
+    }
+
+    impl Drop for Counted {
+        fn drop(&mut self) {
+            self.1.fetch_add(1, Ordering::SeqCst);
+        }
+    }
+
+    /// C's allocator state: releases of its buffers.
+    struct CState {
+        frees: AtomicUsize,
+    }
+
+    /// The C allocator buffers' release: frees the data, counting; the
+    /// buffer's opaque is its data's address, so each one is distinct.
+    unsafe extern "C" fn c_free(opaque: *mut c_void, data: *mut u8) {
+        assert_eq!(opaque.cast::<u8>(), data);
+        // SAFETY: `data` is the block `c_alloc2` allocated; the state is the
+        // test's, live until after the pool is freed.
+        unsafe {
+            (*STATE.load(Ordering::SeqCst))
+                .frees
+                .fetch_add(1, Ordering::SeqCst);
+            ffi::av_free(data.cast());
+        }
+    }
+
+    /// The live `CState` of the running test (only one test uses it).
+    static STATE: core::sync::atomic::AtomicPtr<CState> =
+        core::sync::atomic::AtomicPtr::new(ptr::null_mut());
+
+    unsafe extern "C" fn c_alloc2(_: *mut c_void, size: usize) -> *mut ffi::AVBufferRef {
+        // SAFETY: a fresh block of `size` bytes, owned by the new buffer
+        // (released by `c_free`), or freed here when C cannot create it.
+        unsafe {
+            let data = ffi::av_malloc(size).cast::<u8>();
+            let buf = ffi::av_buffer_create(data, size, Some(c_free), data.cast(), 0);
+            if buf.is_null() {
+                ffi::av_free(data.cast());
+            }
+            buf
+        }
+    }
+
+    struct Rust {
+        pool: Option<BufferPoolBox>,
+        held: Vec<BufferReferenceBox>,
+        data: Vec<*const u8>,
+        opaques: Vec<usize>,
+    }
+
+    struct C {
+        pool: *mut ffi::AVBufferPool,
+        held: Vec<*mut ffi::AVBufferRef>,
+        data: Vec<*const u8>,
+        opaques: Vec<usize>,
+    }
+
+    impl Rust {
+        fn get(&mut self) -> Option<Got> {
+            let (u, opaque): (UninitBuffer, _) = self.pool.as_ref()?.as_ref().get_with_opaque()?;
+            let at = u.as_slice().as_ptr().cast::<u8>();
+            let buf = u.fill(0x3c);
+            let r = buf.as_ref();
+            let got = (
+                index(&mut self.data, at, r.is_empty()).unwrap_or(0),
+                index(&mut self.opaques, opaque as usize, opaque.is_null()),
+                r.len(),
+                r.ref_count() as i32,
+                r.is_writable(),
+                r.opaque().is_null(),
+            );
+            self.held.push(buf);
+            Some(got)
+        }
+    }
+
+    impl C {
+        fn get(&mut self) -> Option<Got> {
+            // SAFETY: a live pool; a non-NULL result is a pool buffer of
+            // `size` bytes, written whole before anything reads them.
+            unsafe {
+                let r = ffi::av_buffer_pool_get(self.pool);
+                if r.is_null() {
+                    return None;
+                }
+                let opaque = ffi::av_buffer_pool_buffer_get_opaque(r);
+                ptr::write_bytes((*r).data, 0x3c, (*r).size);
+                let got = (
+                    index(&mut self.data, (*r).data.cast_const(), (*r).size == 0).unwrap_or(0),
+                    index(&mut self.opaques, opaque as usize, opaque.is_null()),
+                    (*r).size,
+                    ffi::av_buffer_get_ref_count(r),
+                    ffi::av_buffer_is_writable(r) != 0,
+                    ffi::av_buffer_get_opaque(r).is_null(),
+                );
+                self.held.push(r);
+                Some(got)
+            }
+        }
+
+        fn drop_held(&mut self, k: usize) {
+            let mut r = self.held.swap_remove(k);
+            // SAFETY: this side's live reference, released once.
+            unsafe { ffi::av_buffer_unref(&mut r) };
+        }
+    }
+
+    fn run(
+        rust_pool: BufferPoolBox,
+        c_pool: *mut ffi::AVBufferPool,
+        seed: u64,
+        frees: &dyn Fn() -> (usize, usize),
+    ) {
+        let mut rust = Rust {
+            pool: Some(rust_pool),
+            held: Vec::new(),
+            data: Vec::new(),
+            opaques: Vec::new(),
+        };
+        let mut c = C {
+            pool: c_pool,
+            held: Vec::new(),
+            data: Vec::new(),
+            opaques: Vec::new(),
+        };
+        let mut x = seed | 1;
+        for i in 0..150 {
+            x ^= x << 13;
+            x ^= x >> 7;
+            x ^= x << 17;
+            if x % 5 < 3 || rust.held.is_empty() {
+                assert_eq!(rust.get(), c.get(), "step {i}");
+            } else {
+                let k = (x >> 8) as usize % rust.held.len();
+                drop(rust.held.swap_remove(k));
+                c.drop_held(k);
+            }
+            let (r, cf) = frees();
+            assert_eq!(r, cf, "step {i}");
+        }
+        drop(rust.pool.take());
+        // SAFETY: C's own pool reference, released once.
+        unsafe { ffi::av_buffer_pool_uninit(&mut c.pool) };
+        assert_eq!(frees().0, frees().1);
+        while !rust.held.is_empty() {
+            drop(rust.held.pop());
+            c.drop_held(c.held.len() - 1);
+            assert_eq!(frees().0, frees().1);
+        }
+    }
+
+    #[test]
+    fn default_pools_get_as_c_with_null_opaques() {
+        for size in [0, 3, 256] {
+            for seed in 1..=4u64 {
+                // SAFETY: a NULL allocator selects av_buffer_alloc.
+                let c_pool = unsafe { ffi::av_buffer_pool_init(size, None) };
+                assert!(!c_pool.is_null());
+                run(
+                    BufferPool::new(size).unwrap(),
+                    c_pool,
+                    seed * 31 + size as u64,
+                    &|| (0, 0),
+                );
+            }
+        }
+    }
+
+    #[test]
+    fn allocator_opaques_come_back_as_c() {
+        let state = Box::into_raw(Box::new(CState {
+            frees: AtomicUsize::new(0),
+        }));
+        STATE.store(state, Ordering::SeqCst);
+        for size in [0, 3, 256] {
+            for seed in 1..=4u64 {
+                let rust_frees = Arc::new(AtomicUsize::new(0));
+                let counter = rust_frees.clone();
+                // SAFETY: each buffer owns exactly `size` bytes from its start,
+                // and its release (`Counted`'s drop) never touches the pool.
+                let rust_pool = unsafe {
+                    BufferPool::with_allocator(size, move |n| {
+                        let owner = Counted(vec![0; n], counter.clone());
+                        UninitBuffer::try_from(BufferReference::from_owner(owner).ok()?).ok()
+                    })
+                }
+                .unwrap();
+                // SAFETY: `c_alloc2` returns NULL or a sole, writable
+                // `size`-byte reference; it uses no pool opaque.
+                let c_pool = unsafe {
+                    ffi::av_buffer_pool_init2(size, ptr::null_mut(), Some(c_alloc2), None)
+                };
+                assert!(!c_pool.is_null());
+                // SAFETY: the state lives until the end of the test.
+                let base = unsafe { (*state).frees.load(Ordering::SeqCst) };
+                let frees = || {
+                    // SAFETY: as above.
+                    let c = unsafe { (*state).frees.load(Ordering::SeqCst) };
+                    (rust_frees.load(Ordering::SeqCst), c - base)
+                };
+                run(rust_pool, c_pool, seed * 17 + size as u64, &frees);
+            }
+        }
+        STATE.store(ptr::null_mut(), Ordering::SeqCst);
+        // SAFETY: every C buffer was released, and no pool is left.
+        drop(unsafe { Box::from_raw(state) });
     }
 }

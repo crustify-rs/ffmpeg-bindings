@@ -1,0 +1,10 @@
+error[E0499]: cannot borrow `handle` as mutable more than once at a time
+ --> tests/ub_safe/compile_fail/buffer_make_mut_bytes_outlive_resize.rs
+  |
+  |     let bytes = handle.make_mut().unwrap();
+  |                 ------ first mutable borrow occurs here
+  |     // A resize may reallocate the bytes in place.
+  |     handle.resize(4096, 0).unwrap();
+  |     ^^^^^^ second mutable borrow occurs here
+  |     bytes[0] = 1;
+  |     -------- first borrow later used here

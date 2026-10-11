@@ -3182,6 +3182,205 @@
    ]
   },
   {
+   "name": "av_buffer_get_opaque",
+   "defined_in": "libavutil/buffer.c",
+   "ptr_args": [
+    {
+     "name": "buf",
+     "ptr": {
+      "scalar": {
+       "by_val": true
+      },
+      "array": null,
+      "string": false,
+      "owned": false,
+      "borrowed": {
+       "lifetime": "arg:buf"
+      },
+      "nullable": false,
+      "mutable": false,
+      "note": "A live reference, read only (buf->buffer->opaque); never NULL (dereferenced). Rust: BufferReferenceRef::opaque on the shared handle."
+     }
+    }
+   ],
+   "ptr_ret": {
+    "ptr": {
+     "scalar": {
+      "by_val": true
+     },
+     "array": null,
+     "string": false,
+     "owned": false,
+     "borrowed": {
+      "lifetime": "arg:buf"
+     },
+     "nullable": true,
+     "mutable": false,
+     "note": "The AVBuffer's opaque as stored: the creator's cookie passed to av_buffer_create (NULL for av_buffer_alloc/allocz/realloc), the pool's internal BufferPoolEntry for pool buffers (their allocator's opaque is av_buffer_pool_buffer_get_opaque's), or, for the Rust from_owner/from_read_only constructors, the leaked Box<T> their release drops. Not owned; valid while the buffer lives; never dereferenced here. Rust returns the raw cookie (*mut c_void): a typed &T over a Rust owner would read it through the box's root pointer and freeze (Tree Borrows) the data pointer the writable paths derive from it."
+    }
+   }
+  },
+  {
+   "name": "av_buffer_get_ref_count",
+   "defined_in": "libavutil/buffer.c",
+   "ptr_args": [
+    {
+     "name": "buf",
+     "ptr": {
+      "scalar": {
+       "by_val": true
+      },
+      "array": null,
+      "string": false,
+      "owned": false,
+      "borrowed": {
+       "lifetime": "arg:buf"
+      },
+      "nullable": false,
+      "mutable": false,
+      "note": "A live reference, read only: atomic load (seq_cst) of buf->buffer->refcount, an unsigned count returned as int (negative past INT_MAX). Never NULL. Rust: BufferReferenceRef::ref_count -> u32 (the count C converted), also the guard behind try_clone's and assign's MAX_REFERENCES check."
+     }
+    }
+   ]
+  },
+  {
+   "name": "av_buffer_is_writable",
+   "defined_in": "libavutil/buffer.c",
+   "ptr_args": [
+    {
+     "name": "buf",
+     "ptr": {
+      "scalar": {
+       "by_val": true
+      },
+      "array": null,
+      "string": false,
+      "owned": false,
+      "borrowed": {
+       "lifetime": "arg:buf"
+      },
+      "nullable": false,
+      "mutable": false,
+      "note": "A live reference, read only: 0 for AV_BUFFER_FLAG_READONLY buffers, else whether the atomic count is 1. Never NULL. A positive answer holds only while the caller keeps the reference from being cloned. Rust: BufferReferenceRef::is_writable; data_mut and UninitBuffer::try_from rely on it under an exclusive borrow."
+     }
+    }
+   ]
+  },
+  {
+   "name": "av_buffer_make_writable",
+   "defined_in": "libavutil/buffer.c",
+   "ptr_args": [
+    {
+     "name": "pbuf",
+     "ptr": {
+      "scalar": {
+       "by_ref": {
+        "owned": false,
+        "borrowed": {
+         "lifetime": "arg:pbuf"
+        }
+       }
+      },
+      "array": null,
+      "string": false,
+      "owned": false,
+      "borrowed": {
+       "lifetime": "arg:pbuf"
+      },
+      "nullable": false,
+      "mutable": true,
+      "note": "The caller's AVBufferRef * slot; *pbuf must be a live reference (dereferenced, never NULL). Writable: 0, untouched. Otherwise av_buffer_alloc(size) + memcpy of the window, then buffer_replace copies the new struct INTO *pbuf (the slot pointer never changes; the temporary struct is freed) and drops one count of the old buffer. ENOMEM leaves it untouched. The reference stays the caller's. Rust: BufferReferenceMut::make_mut -> Result<&mut [u8], i32>, the copied window initialised. A NULL window (size 0, from av_buffer_create(NULL, 0)) reaching the copy path makes C call memcpy(dst, NULL, 0), UB (UBSan nonnull-attribute, buffer.c:176/218); the Rust wrappers take that one case without C's memcpy."
+     }
+    }
+   ]
+  },
+  {
+   "name": "av_buffer_pool_buffer_get_opaque",
+   "defined_in": "libavutil/buffer.c",
+   "ptr_args": [
+    {
+     "name": "ref",
+     "ptr": {
+      "scalar": {
+       "by_val": true
+      },
+      "array": null,
+      "string": false,
+      "owned": false,
+      "borrowed": {
+       "lifetime": "arg:ref"
+      },
+      "nullable": false,
+      "mutable": false,
+      "note": "A live reference to a buffer av_buffer_pool_get returned: C reads ref->buffer->opaque as a BufferPoolEntry * (av_assert0 aborts on NULL; any other buffer's opaque is reinterpreted, UB). Never NULL. Rust: called only on the fresh reference inside BufferPoolRef::get_with_opaque, whose origin is the pool."
+     }
+    }
+   ],
+   "ptr_ret": {
+    "ptr": {
+     "scalar": {
+      "by_val": true
+     },
+     "array": null,
+     "string": false,
+     "owned": false,
+     "borrowed": {
+      "lifetime": "arg:ref"
+     },
+     "nullable": true,
+     "mutable": false,
+     "note": "The opaque the pool's allocator gave this buffer (entry->opaque, saved by pool_alloc_buffer before the pool took the AVBuffer's opaque/free over): NULL for av_buffer_alloc buffers. Not owned; lives as long as the pool entry, which an outstanding reference keeps out of the free list. Rust returns the raw cookie."
+    }
+   }
+  },
+  {
+   "name": "av_buffer_pool_get",
+   "defined_in": "libavutil/buffer.c",
+   "lifetime": {
+    "for": "return",
+    "is_dropper": false,
+    "is_disposer": false,
+    "is_cloner": null,
+    "is_constructor": {
+     "alloc": true,
+     "init": false
+    }
+   },
+   "ptr_args": [
+    {
+     "name": "pool",
+     "ptr": {
+      "scalar": {
+       "by_val": true
+      },
+      "array": null,
+      "string": false,
+      "owned": false,
+      "borrowed": {
+       "lifetime": "arg:pool"
+      },
+      "nullable": false,
+      "mutable": true,
+      "note": "A live pool (never NULL), shared: C locks pool->mutex around the free list and the allocator call, and bumps the atomic 32-bit pool refcount (relaxed, unchecked) per buffer handed out; each such count is backed by >= 112 bytes of live C heap (entry + AVBufferRef), so wrapping it takes ~480 GB of leaked buffers. Rust: BufferPoolRef::get / get_with_opaque on the shared handle (the pool is Sync)."
+     }
+    }
+   ],
+   "ptr_ret": {
+    "ptr": {
+     "scalar": {
+      "by_val": true
+     },
+     "array": null,
+     "string": false,
+     "owned": true,
+     "borrowed": null,
+     "nullable": true,
+     "mutable": true,
+     "note": "A new sole, writable reference (flags 0, count 1): a recycled entry's pool->size bytes (contents left by their previous user) or a fresh allocator buffer (av_buffer_alloc: uninitialised; init2 allocators: their reference as returned). Its release returns the entry to the pool (pool_release_buffer) and drops the pool count, freeing the pool after av_buffer_pool_uninit and the last return. NULL on allocator or entry/AVBufferRef allocation failure. Rust: UninitBuffer (released by av_buffer_unref)."
+    }
+   }
+  },
+  {
    "name": "av_buffer_pool_init",
    "defined_in": "libavutil/buffer.c",
    "lifetime": {
@@ -3341,6 +3540,44 @@
    ]
   },
   {
+   "name": "av_buffer_realloc",
+   "defined_in": "libavutil/buffer.c",
+   "lifetime": {
+    "for": "pbuf",
+    "is_dropper": false,
+    "is_disposer": false,
+    "is_cloner": null,
+    "is_constructor": {
+     "alloc": true,
+     "init": false
+    }
+   },
+   "ptr_args": [
+    {
+     "name": "pbuf",
+     "ptr": {
+      "scalar": {
+       "by_ref": {
+        "owned": true,
+        "borrowed": {
+         "lifetime": "arg:pbuf"
+        }
+       }
+      },
+      "array": null,
+      "string": false,
+      "owned": false,
+      "borrowed": {
+       "lifetime": "arg:pbuf"
+      },
+      "nullable": false,
+      "mutable": true,
+      "note": "The caller's AVBufferRef * slot (never NULL). *pbuf NULL: av_realloc(NULL, size) + av_buffer_create, flagged REALLOCATABLE, written to the slot and owned by the caller (bytes uninitialised). *pbuf live: an equal size is a no-op; a sole, writable, REALLOCATABLE reference whose window starts at its buffer's data is av_realloc'ed in place (buffer and window data/size updated); otherwise a new reallocatable buffer gets min(size, old) window bytes and replaces the reference in place via buffer_replace (slot pointer unchanged, old count dropped). Bytes past the old window are uninitialised. ENOMEM leaves *pbuf untouched. Rust: BufferReference::alloc_resizable (NULL slot), BufferReferenceMut::resize (fills the new tail), UninitBuffer::resize. A NULL window (size 0, from av_buffer_create(NULL, 0)) reaching the copy path makes C call memcpy(dst, NULL, 0), UB (UBSan nonnull-attribute, buffer.c:176/218); the Rust wrappers take that one case without C's memcpy."
+     }
+    }
+   ]
+  },
+  {
    "name": "av_buffer_ref",
    "defined_in": "libavutil/buffer.c",
    "lifetime": {
@@ -3386,6 +3623,61 @@
      "note": "A fresh av_mallocz'd AVBufferRef equal to *buf (same buffer, data, size), carrying the new counted reference; released by av_buffer_unref. NULL on allocation failure (count untouched). The struct is independent; the AVBuffer and its bytes are shared, writable by nobody while both references live (refcount >= 2). Rust: BufferUnref's CDupClone (BufferReferenceBox::clone/try_clone, BufferReferenceRef::try_clone), which refuses at a count of u32::MAX/2."
     }
    }
+  },
+  {
+   "name": "av_buffer_replace",
+   "defined_in": "libavutil/buffer.c",
+   "lifetime": {
+    "for": "src",
+    "is_dropper": false,
+    "is_disposer": false,
+    "is_cloner": {
+     "deep": false,
+     "upref": true
+    },
+    "is_constructor": null
+   },
+   "ptr_args": [
+    {
+     "name": "pdst",
+     "ptr": {
+      "scalar": {
+       "by_ref": {
+        "owned": true,
+        "borrowed": {
+         "lifetime": "arg:pdst"
+        }
+       }
+      },
+      "array": null,
+      "string": false,
+      "owned": false,
+      "borrowed": {
+       "lifetime": "arg:pdst"
+      },
+      "nullable": false,
+      "mutable": true,
+      "note": "The caller's AVBufferRef * slot (never NULL); *pdst NULL or live. src NULL: av_buffer_unref(pdst). Same buffer as src: only data/size copied in place. Otherwise av_buffer_ref(src) (ENOMEM leaves *pdst untouched), then the old reference is released and the slot gets the NEW struct pointer. Rust: buffer::assign over an Option<BufferReferenceBox> slot (C's call), and BufferReferenceMut::assign for a reference whose struct must stay in place (C's call on the same-buffer path, a guarded av_buffer_ref + swap otherwise)."
+     }
+    },
+    {
+     "name": "src",
+     "ptr": {
+      "scalar": {
+       "by_val": true
+      },
+      "array": null,
+      "string": false,
+      "owned": false,
+      "borrowed": {
+       "lifetime": "arg:src"
+      },
+      "nullable": true,
+      "mutable": false,
+      "note": "A live reference or NULL, read only: its struct is copied and its buffer's count bumped (relaxed, unchecked) when the buffers differ. Rust: Option<BufferReferenceRef>, refused before C adds a count at MAX_REFERENCES (may_add_reference)."
+     }
+    }
+   ]
   },
   {
    "name": "av_buffer_unref",
