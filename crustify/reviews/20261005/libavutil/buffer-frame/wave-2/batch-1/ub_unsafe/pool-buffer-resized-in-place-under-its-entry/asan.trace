@@ -1,0 +1,103 @@
+recycled buffer of 16 bytes; filling it
+=================================================================
+==1535206==ERROR: AddressSanitizer: heap-use-after-free on address 0x7091183e0030 at pc 0x5f547639ae24 bp 0x7fffb58cef90 sp 0x7fffb58ce760
+WRITE of size 16 at 0x7091183e0030 thread T0
+    #0 0x5f547639ae23 in __asan_memset (<target>/x86_64-unknown-linux-gnu/debug/pool-buffer-resized-in-place-under-its-entry+0x217e23)
+    #1 0x5f54763d4d46 in core::ptr::write_bytes::<core::mem::maybe_uninit::MaybeUninit<u8>> <rust>/library/core/src/ptr/mod.rs:736:9
+    #2 0x5f54763d4d46 in <ffmpeg::libavutil::buffer::UninitBuffer>::fill <wt>/crustify/rust/ffmpeg/libavutil/buffer.rs:1188:18
+    #3 0x5f54763d142a in pool_buffer_resized_in_place_under_its_entry::scenario <wt>/crustify/reviews/20261005/libavutil/buffer-frame/wave-2/batch-1/ub_unsafe/pool-buffer-resized-in-place-under-its-entry/src/main.rs:41:16
+    #4 0x5f54763d0ad0 in pool_buffer_resized_in_place_under_its_entry::main <wt>/crustify/reviews/20261005/libavutil/buffer-frame/wave-2/batch-1/ub_unsafe/pool-buffer-resized-in-place-under-its-entry/src/main.rs:48:9
+    #5 0x5f54763d023a in <fn() as core::ops::function::FnOnce<()>>::call_once <rust>/library/core/src/ops/function.rs:250:5
+    #6 0x5f54763d169d in std::sys::backtrace::__rust_begin_short_backtrace::<fn(), ()> <rust>/library/std/src/sys/backtrace.rs:166:18
+    #7 0x5f54763d0573 in std::rt::lang_start::<()>::{closure#0} <rust>/library/std/src/rt.rs:206:18
+    #8 0x5f5476458811 in <&dyn core::ops::function::Fn<(), Output = i32> + core::panic::unwind_safe::RefUnwindSafe + core::marker::Sync as core::ops::function::FnOnce<()>>::call_once <rust>/library/core/src/ops/function.rs:287:21
+    #9 0x5f547644fc6a in std::panicking::catch_unwind::do_call::<&dyn core::ops::function::Fn<(), Output = i32> + core::panic::unwind_safe::RefUnwindSafe + core::marker::Sync, i32> <rust>/library/std/src/panicking.rs:573:43
+    #10 0x5f547645d02a in __rust_try std.4ab26c9dab9163a9-cgu.02
+    #11 0x5f547644edeb in std::panicking::catch_unwind::<i32, &dyn core::ops::function::Fn<(), Output = i32> + core::panic::unwind_safe::RefUnwindSafe + core::marker::Sync> <rust>/library/std/src/panicking.rs:541:19
+    #12 0x5f5476585cea in std::panic::catch_unwind::<&dyn core::ops::function::Fn<(), Output = i32> + core::panic::unwind_safe::RefUnwindSafe + core::marker::Sync, i32> <rust>/library/std/src/panic.rs:359:14
+    #13 0x5f54763de023 in std::rt::lang_start_internal::{closure#0} <rust>/library/std/src/rt.rs:175:24
+    #14 0x5f547644fabe in std::panicking::catch_unwind::do_call::<std::rt::lang_start_internal::{closure#0}, isize> <rust>/library/std/src/panicking.rs:573:43
+    #15 0x5f547645d02a in __rust_try std.4ab26c9dab9163a9-cgu.02
+    #16 0x5f547644eb87 in std::panicking::catch_unwind::<isize, std::rt::lang_start_internal::{closure#0}> <rust>/library/std/src/panicking.rs:541:19
+    #17 0x5f5476585c5b in std::panic::catch_unwind::<std::rt::lang_start_internal::{closure#0}, isize> <rust>/library/std/src/panic.rs:359:14
+    #18 0x5f54763efdb2 in std::rt::lang_start_internal <rust>/library/std/src/rt.rs:171:5
+    #19 0x5f54763d04df in std::rt::lang_start::<()> <rust>/library/std/src/rt.rs:205:5
+    #20 0x5f54763d168d in main (<target>/x86_64-unknown-linux-gnu/debug/pool-buffer-resized-in-place-under-its-entry+0x24e68d)
+    #21 0x7471192f51c9 in __libc_start_call_main csu/../sysdeps/nptl/libc_start_call_main.h:58:16
+    #22 0x7471192f528a in __libc_start_main csu/../csu/libc-start.c:360:3
+    #23 0x5f5476306124 in _start (<target>/x86_64-unknown-linux-gnu/debug/pool-buffer-resized-in-place-under-its-entry+0x183124)
+
+0x7091183e0030 is located 0 bytes inside of 16-byte region [0x7091183e0030,0x7091183e0040)
+freed by thread T0 here:
+    #0 0x5f547639d7e1 in realloc (<target>/x86_64-unknown-linux-gnu/debug/pool-buffer-resized-in-place-under-its-entry+0x21a7e1)
+    #1 0x7471197dd77b in av_buffer_realloc /target/crustify/builds/asan-ubsan/src/libavutil/buffer.c:224:11
+    #2 0x5f54763d418b in <ffmpeg::libavutil::buffer::BufferReferenceMut>::realloc <wt>/crustify/rust/ffmpeg/libavutil/buffer.rs:1031:25
+    #3 0x5f54763d4fd0 in <ffmpeg::libavutil::buffer::UninitBuffer>::resize <wt>/crustify/rust/ffmpeg/libavutil/buffer.rs:1228:25
+    #4 0x5f54763d10e2 in pool_buffer_resized_in_place_under_its_entry::scenario <wt>/crustify/reviews/20261005/libavutil/buffer-frame/wave-2/batch-1/ub_unsafe/pool-buffer-resized-in-place-under-its-entry/src/main.rs:36:11
+    #5 0x5f54763d0ad0 in pool_buffer_resized_in_place_under_its_entry::main <wt>/crustify/reviews/20261005/libavutil/buffer-frame/wave-2/batch-1/ub_unsafe/pool-buffer-resized-in-place-under-its-entry/src/main.rs:48:9
+    #6 0x5f54763d023a in <fn() as core::ops::function::FnOnce<()>>::call_once <rust>/library/core/src/ops/function.rs:250:5
+    #7 0x5f5476585cea in std::panic::catch_unwind::<&dyn core::ops::function::Fn<(), Output = i32> + core::panic::unwind_safe::RefUnwindSafe + core::marker::Sync, i32> <rust>/library/std/src/panic.rs:359:14
+    #8 0x5f547644fabe in std::panicking::catch_unwind::do_call::<std::rt::lang_start_internal::{closure#0}, isize> <rust>/library/std/src/panicking.rs:573:43
+    #9 0x5f547645d02a in __rust_try std.4ab26c9dab9163a9-cgu.02
+    #10 0x5f5476585c5b in std::panic::catch_unwind::<std::rt::lang_start_internal::{closure#0}, isize> <rust>/library/std/src/panic.rs:359:14
+    #11 0x5f54763efdb2 in std::rt::lang_start_internal <rust>/library/std/src/rt.rs:171:5
+    #12 0x5f54763d04df in std::rt::lang_start::<()> <rust>/library/std/src/rt.rs:205:5
+    #13 0x5f54763d168d in main (<target>/x86_64-unknown-linux-gnu/debug/pool-buffer-resized-in-place-under-its-entry+0x24e68d)
+    #14 0x7471192f528a in __libc_start_main csu/../csu/libc-start.c:360:3
+    #15 0x5f5476306124 in _start (<target>/x86_64-unknown-linux-gnu/debug/pool-buffer-resized-in-place-under-its-entry+0x183124)
+
+previously allocated by thread T0 here:
+    #0 0x5f547639d7e1 in realloc (<target>/x86_64-unknown-linux-gnu/debug/pool-buffer-resized-in-place-under-its-entry+0x21a7e1)
+    #1 0x7471197dd59d in av_buffer_realloc /target/crustify/builds/asan-ubsan/src/libavutil/buffer.c:192:25
+    #2 0x5f54763d3ae1 in <ffmpeg::libavutil::buffer::BufferReference>::alloc_resizable <wt>/crustify/rust/ffmpeg/libavutil/buffer.rs:602:18
+    #3 0x5f54763d0368 in <<ffmpeg::libavutil::buffer::BufferReference>::alloc_resizable as core::ops::function::FnMut<(usize,)>>::call_mut <rust>/library/core/src/ops/function.rs:166:5
+    #4 0x7471197df861 in pool_alloc_buffer /target/crustify/builds/asan-ubsan/src/libavutil/buffer.c:368:26
+    #5 0x7471197df861 in av_buffer_pool_get /target/crustify/builds/asan-ubsan/src/libavutil/buffer.c:407:15
+    #6 0x5f54763d3746 in <ffmpeg::libavutil::buffer::BufferPoolRef>::get <wt>/crustify/rust/ffmpeg/libavutil/buffer.rs:323:55
+    #7 0x5f54763d1016 in pool_buffer_resized_in_place_under_its_entry::scenario <wt>/crustify/reviews/20261005/libavutil/buffer-frame/wave-2/batch-1/ub_unsafe/pool-buffer-resized-in-place-under-its-entry/src/main.rs:34:35
+    #8 0x5f54763d0ad0 in pool_buffer_resized_in_place_under_its_entry::main <wt>/crustify/reviews/20261005/libavutil/buffer-frame/wave-2/batch-1/ub_unsafe/pool-buffer-resized-in-place-under-its-entry/src/main.rs:48:9
+    #9 0x5f54763d023a in <fn() as core::ops::function::FnOnce<()>>::call_once <rust>/library/core/src/ops/function.rs:250:5
+    #10 0x5f5476585cea in std::panic::catch_unwind::<&dyn core::ops::function::Fn<(), Output = i32> + core::panic::unwind_safe::RefUnwindSafe + core::marker::Sync, i32> <rust>/library/std/src/panic.rs:359:14
+    #11 0x5f547644fabe in std::panicking::catch_unwind::do_call::<std::rt::lang_start_internal::{closure#0}, isize> <rust>/library/std/src/panicking.rs:573:43
+    #12 0x5f547645d02a in __rust_try std.4ab26c9dab9163a9-cgu.02
+    #13 0x5f5476585c5b in std::panic::catch_unwind::<std::rt::lang_start_internal::{closure#0}, isize> <rust>/library/std/src/panic.rs:359:14
+    #14 0x5f54763efdb2 in std::rt::lang_start_internal <rust>/library/std/src/rt.rs:171:5
+    #15 0x5f54763d04df in std::rt::lang_start::<()> <rust>/library/std/src/rt.rs:205:5
+    #16 0x5f54763d168d in main (<target>/x86_64-unknown-linux-gnu/debug/pool-buffer-resized-in-place-under-its-entry+0x24e68d)
+    #17 0x7471192f528a in __libc_start_main csu/../csu/libc-start.c:360:3
+    #18 0x5f5476306124 in _start (<target>/x86_64-unknown-linux-gnu/debug/pool-buffer-resized-in-place-under-its-entry+0x183124)
+
+SUMMARY: AddressSanitizer: heap-use-after-free (<target>/x86_64-unknown-linux-gnu/debug/pool-buffer-resized-in-place-under-its-entry+0x217e23) in __asan_memset
+Shadow bytes around the buggy address:
+  0x7091183dfd80: 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00
+  0x7091183dfe00: 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00
+  0x7091183dfe80: 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00
+  0x7091183dff00: 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00
+  0x7091183dff80: 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00
+=>0x7091183e0000: fa fa fd fa fa fa[fd]fd fa fa fa fa fa fa fa fa
+  0x7091183e0080: fa fa fa fa fa fa fa fa fa fa fa fa fa fa fa fa
+  0x7091183e0100: fa fa fa fa fa fa fa fa fa fa fa fa fa fa fa fa
+  0x7091183e0180: fa fa fa fa fa fa fa fa fa fa fa fa fa fa fa fa
+  0x7091183e0200: fa fa fa fa fa fa fa fa fa fa fa fa fa fa fa fa
+  0x7091183e0280: fa fa fa fa fa fa fa fa fa fa fa fa fa fa fa fa
+Shadow byte legend (one shadow byte represents 8 application bytes):
+  Addressable:           00
+  Partially addressable: 01 02 03 04 05 06 07 
+  Heap left redzone:       fa
+  Freed heap region:       fd
+  Stack left redzone:      f1
+  Stack mid redzone:       f2
+  Stack right redzone:     f3
+  Stack after return:      f5
+  Stack use after scope:   f8
+  Global redzone:          f9
+  Global init order:       f6
+  Poisoned by user:        f7
+  Container overflow:      fc
+  Array cookie:            ac
+  Intra object redzone:    bb
+  ASan internal:           fe
+  Left alloca redzone:     ca
+  Right alloca redzone:    cb
+==1535206==ABORTING
+exit=1

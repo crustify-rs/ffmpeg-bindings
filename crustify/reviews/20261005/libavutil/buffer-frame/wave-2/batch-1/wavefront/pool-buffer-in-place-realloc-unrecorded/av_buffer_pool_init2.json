@@ -1,0 +1,76 @@
+{
+ "ptr_args": {
+  "2": {
+   "ptr": {
+    "scalar": {
+     "by_val": true
+    },
+    "array": null,
+    "string": false,
+    "owned": false,
+    "borrowed": {
+     "lifetime": "static"
+    },
+    "nullable": true,
+    "mutable": false,
+    "note": "Allocator alloc2(opaque, size), called by av_buffer_pool_get under the pool mutex (serialized, any thread) whenever no free entry exists; NULL selects av_buffer_alloc. Results must be NULL or a sole, writable reference whose AVBuffer data holds at least size bytes, releasable by its own free callback on any thread. pool_alloc_buffer copies the result's data/opaque/free into the BufferPoolEntry but leaves its AVBuffer flags_internal, so a result that is BUFFER_FLAG_REALLOCATABLE (av_buffer_realloc of an empty slot, or a buffer av_buffer_realloc's copy path made) hands out a first pool buffer that av_buffer_realloc resizes IN PLACE: av_realloc frees or shrinks the block the entry still records, which the pool later recycles (use after free) and frees again at flush (double free). The C contract does not forbid such a result. Rust: BufferPool::with_allocator (FnMut(usize) -> Option<UninitBuffer>, allocator buffers from BufferReference::alloc/alloc_resizable or UninitBuffer::from_owner); its resize wrappers copy any buffer with an opaque, so pool buffers never reach the in-place path."
+   }
+  },
+  "1": {
+   "ptr": {
+    "scalar": {
+     "by_val": true
+    },
+    "array": null,
+    "string": false,
+    "owned": true,
+    "borrowed": {
+     "lifetime": "other"
+    },
+    "nullable": true,
+    "mutable": null,
+    "note": "User state stored in pool->opaque, passed to every alloc call and to pool_free(opaque) once the pool is actually freed (after av_buffer_pool_uninit and the return of every outstanding buffer). Ownership moves to the pool when pool_free is non-NULL and the call succeeds; on a NULL return pool_free is never called and the caller keeps it. Never dereferenced by C. Rust: a Box<F> leaked into the pool and dropped by the pool_free trampoline, or here when init2 fails."
+   }
+  },
+  "3": {
+   "ptr": {
+    "scalar": {
+     "by_val": true
+    },
+    "array": null,
+    "string": false,
+    "owned": false,
+    "borrowed": {
+     "lifetime": "static"
+    },
+    "nullable": true,
+    "mutable": false,
+    "note": "Opaque releaser, called exactly once by buffer_pool_free on the thread releasing the pool's last reference, after every entry was flushed; never called on a failed init. May be NULL."
+   }
+  }
+ },
+ "ptr_ret": {
+  "ptr": {
+   "scalar": {
+    "by_val": true
+   },
+   "array": null,
+   "string": false,
+   "owned": true,
+   "borrowed": null,
+   "nullable": true,
+   "mutable": true,
+   "note": "As av_buffer_pool_init: a fresh pool, refcount 1, released by av_buffer_pool_uninit; NULL on failure. Rust: BufferPoolBox."
+  }
+ },
+ "lifetime": {
+  "for": "return",
+  "is_dropper": false,
+  "is_disposer": false,
+  "is_cloner": null,
+  "is_constructor": {
+   "alloc": true,
+   "init": false
+  }
+ }
+}

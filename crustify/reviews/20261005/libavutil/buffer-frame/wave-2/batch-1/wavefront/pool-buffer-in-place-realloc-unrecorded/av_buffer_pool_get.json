@@ -1,0 +1,44 @@
+{
+ "ptr_args": {
+  "0": {
+   "ptr": {
+    "scalar": {
+     "by_val": true
+    },
+    "array": null,
+    "string": false,
+    "owned": false,
+    "borrowed": {
+     "lifetime": "arg:pool"
+    },
+    "nullable": false,
+    "mutable": true,
+    "note": "A live pool (never NULL), shared: C locks pool->mutex around the free list and the allocator call, and bumps the atomic 32-bit pool refcount (relaxed, unchecked) per buffer handed out; each such count is backed by >= 112 bytes of live C heap (entry + AVBufferRef), so wrapping it takes ~480 GB of leaked buffers. Rust: BufferPoolRef::get / get_with_opaque on the shared handle (the pool is Sync)."
+   }
+  }
+ },
+ "ptr_ret": {
+  "ptr": {
+   "scalar": {
+    "by_val": true
+   },
+   "array": null,
+   "string": false,
+   "owned": true,
+   "borrowed": null,
+   "nullable": true,
+   "mutable": true,
+   "note": "A new sole, writable reference (flags 0, count 1): a recycled entry's pool->size bytes (contents left by their previous user) or a fresh allocator buffer (av_buffer_alloc: uninitialised; custom allocators: their reference as returned, its AVBuffer's flags_internal included, so a first buffer from an allocator returning reallocatable buffers is itself BUFFER_FLAG_REALLOCATABLE; recycled entries are rebuilt with flags 0 and BUFFER_FLAG_NO_FREE). Its release returns the entry to the pool (pool_release_buffer) and drops the pool count, freeing the pool after av_buffer_pool_uninit and the last return. NULL on allocator or entry/AVBufferRef allocation failure. Rust: UninitBuffer (released by av_buffer_unref), built directly: the bytes are the allocator buffer's, which no release reads as initialised (av_buffer_alloc blocks or an allocator's own UninitBuffer)."
+  }
+ },
+ "lifetime": {
+  "for": "return",
+  "is_dropper": false,
+  "is_disposer": false,
+  "is_cloner": null,
+  "is_constructor": {
+   "alloc": true,
+   "init": false
+  }
+ }
+}

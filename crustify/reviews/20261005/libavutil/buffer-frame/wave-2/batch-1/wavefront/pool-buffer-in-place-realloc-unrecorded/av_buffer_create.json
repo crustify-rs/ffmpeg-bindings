@@ -1,0 +1,74 @@
+{
+ "ptr_args": {
+  "0": {
+   "ptr": {
+    "scalar": null,
+    "array": {
+     "by_val": true
+    },
+    "string": false,
+    "owned": true,
+    "borrowed": null,
+    "nullable": true,
+    "mutable": true,
+    "note": "size bytes whose ownership moves to the new AVBuffer on success (released by free(opaque, data), or av_free when free is NULL); untouched on failure (NULL return). Never dereferenced by av_buffer_create itself; NULL is stored as is (fine with size 0). Writes go through it later only while the reference is writable, so READONLY data is never written by C. Rust: a HeapVec<u8> (default free) or the slice of a boxed Rust owner T: AsMut<[u8]>/AsRef<[u8]> (+ Send + 'static), or T: AsMut<[MaybeUninit<u8>]> for UninitBuffer::from_owner, whose bytes may be left uninitialised (pool allocators); UninitBuffer::try_from refuses any buffer with an opaque, since an initialised owner's drop may read its bytes."
+   }
+  },
+  "2": {
+   "ptr": {
+    "scalar": {
+     "by_val": true
+    },
+    "array": null,
+    "string": false,
+    "owned": false,
+    "borrowed": {
+     "lifetime": "static"
+    },
+    "nullable": true,
+    "mutable": false,
+    "note": "free(opaque, data), stored in AVBuffer.free (NULL selects av_buffer_default_free) and called once by whichever thread drops the last reference (buffer_replace); for pool buffers, by buffer_pool_flush when the entry is flushed. Rust: NULL for HeapVec data, or release_owner::<T> (drops the Box<T> passed as opaque)."
+   }
+  },
+  "3": {
+   "ptr": {
+    "scalar": {
+     "by_val": true
+    },
+    "array": null,
+    "string": false,
+    "owned": true,
+    "borrowed": {
+     "lifetime": "other"
+    },
+    "nullable": true,
+    "mutable": null,
+    "note": "User state stored in AVBuffer.opaque, handed to free and returned by av_buffer_get_opaque; never dereferenced by C. Owned by the buffer when free releases it (Rust: the leaked Box<T>), else borrowed for the buffer's life. Untouched on failure."
+   }
+  }
+ },
+ "ptr_ret": {
+  "ptr": {
+   "scalar": {
+    "by_val": true
+   },
+   "array": null,
+   "string": false,
+   "owned": true,
+   "borrowed": null,
+   "nullable": true,
+   "mutable": true,
+   "note": "A new reference (refcount 1) to an av_mallocz'd AVBuffer over data, released by av_buffer_unref; NULL on allocation failure, with data, free and opaque untouched. Writable unless flags has AV_BUFFER_FLAG_READONLY. Rust: BufferReference::from_heap_vec / from_owner / from_read_only, UninitBuffer::from_owner."
+  }
+ },
+ "lifetime": {
+  "for": "return",
+  "is_dropper": false,
+  "is_disposer": false,
+  "is_cloner": null,
+  "is_constructor": {
+   "alloc": true,
+   "init": false
+  }
+ }
+}

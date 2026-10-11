@@ -1,0 +1,37 @@
+{
+  "fields": {
+    "alloc": {
+      "ptr": {
+        "scalar": {
+          "by_val": true
+        },
+        "array": null,
+        "string": false,
+        "owned": false,
+        "borrowed": {
+          "lifetime": "static"
+        },
+        "nullable": false,
+        "mutable": false,
+        "note": "av_buffer_pool_init's allocator, or av_buffer_alloc when NULL; init2 stores av_buffer_alloc as the fallback. Called by pool_alloc_buffer under the pool mutex with pool->size when alloc2 is NULL; its result must be a sole, writable reference whose AVBuffer data holds at least size bytes (recycled references reuse buffer->data with pool->size). The result's AVBuffer keeps its own free(opaque, data) callback in the BufferPoolEntry, and buffer_pool_flush calls it when the entry is flushed: under the pool mutex from av_buffer_pool_uninit, and unlocked from buffer_pool_free as the pool is freed; that callback must therefore not lock the pool either (no av_buffer_pool_get, no release of the last reference to one of its buffers, no av_buffer_pool_uninit), or the default, non-recursive mutex is locked twice on one thread. pool_alloc_buffer takes over the result's opaque/free but leaves its AVBuffer flags_internal, so a BUFFER_FLAG_REALLOCATABLE result (av_buffer_realloc of an empty slot, or a buffer its copy path made) makes the first pool buffer resizable in place: av_buffer_realloc then av_reallocs the block this entry still records (recycled later: use after free; freed again at flush: double free). Rust: BufferReferenceMut::realloc_by_copy copies every buffer with an opaque, so pool buffers never reach that branch."
+      }
+    },
+    "alloc2": {
+      "ptr": {
+        "scalar": {
+          "by_val": true
+        },
+        "array": null,
+        "string": false,
+        "owned": false,
+        "borrowed": {
+          "lifetime": "static"
+        },
+        "nullable": true,
+        "mutable": false,
+        "note": "av_buffer_pool_init2's allocator (NULL selects alloc = av_buffer_alloc); takes precedence over alloc. Called by pool_alloc_buffer under the pool mutex with (opaque, pool->size), with the same result contract as alloc. The result's AVBuffer keeps its own free(opaque, data) callback in the BufferPoolEntry, and buffer_pool_flush calls it when the entry is flushed: under the pool mutex from av_buffer_pool_uninit, and unlocked from buffer_pool_free as the pool is freed; that callback must therefore not lock the pool either (no av_buffer_pool_get, no release of the last reference to one of its buffers, no av_buffer_pool_uninit), or the default, non-recursive mutex is locked twice on one thread. pool_alloc_buffer takes over the result's opaque/free but leaves its AVBuffer flags_internal, so a BUFFER_FLAG_REALLOCATABLE result (av_buffer_realloc of an empty slot, or a buffer its copy path made) makes the first pool buffer resizable in place: av_buffer_realloc then av_reallocs the block this entry still records (recycled later: use after free; freed again at flush: double free). Rust: BufferReferenceMut::realloc_by_copy copies every buffer with an opaque, so pool buffers never reach that branch."
+      }
+    }
+  },
+  "_comment_agent": "Opaque in the public API. Constructed by av_buffer_pool_init(size, alloc) and av_buffer_pool_init2(size, opaque, alloc2, pool_free) (av_mallocz + ff_mutex_init, refcount 1 = the caller's reference; NULL on failure, in which case init2 never calls pool_free). The caller's reference is released by av_buffer_pool_uninit(&pool) (flushes free entries under the mutex, NULLs the slot, acq_rel decrement); every outstanding buffer from av_buffer_pool_get holds one more reference (relaxed increment), returned by pool_release_buffer, so the pool body, the mutex and the user opaque outlive the caller's handle until the last buffer comes back, then buffer_pool_free flushes, destroys the mutex, calls pool_free(opaque) and frees the body. There is no public up-ref or clone, so the caller's handle is a sole owner. Thread-safe by construction: the free-entry list is touched only under the mutex, refcount is atomic, size/alloc/alloc2/opaque/pool_free are written only by init before the pool is published; alloc/alloc2 run under the mutex (serialized, any thread), pool_free on whichever thread releases last. Rust (buffer-frame wave 0 batch 1): define_ctype!(BufferPool), Send + Sync, BufferPoolBox = CBox<BufferPool, BufferPoolUninit> (av_buffer_pool_uninit on a local slot), BufferPool::new = av_buffer_pool_init(size, NULL), unsafe BufferPool::with_allocator = av_buffer_pool_init2 with a boxed Rust FnMut + Send state as opaque and its drop as pool_free."
+}
