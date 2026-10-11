@@ -1,0 +1,61 @@
+{
+  "objective": "wrap",
+  "items": [
+    {
+      "name": "av_frame_side_data_add",
+      "defined_in": "libavutil/side_data.c",
+      "kind": "symbol",
+      "field_anchors": [],
+      "home": "crustify/rust/ffmpeg/libavutil/frame.rs"
+    },
+    {
+      "name": "av_frame_side_data_clone",
+      "defined_in": "libavutil/side_data.c",
+      "kind": "symbol",
+      "field_anchors": [],
+      "home": "crustify/rust/ffmpeg/libavutil/frame.rs"
+    },
+    {
+      "name": "av_frame_side_data_free",
+      "defined_in": "libavutil/side_data.c",
+      "kind": "symbol",
+      "field_anchors": [],
+      "home": "crustify/rust/ffmpeg/libavutil/frame.rs"
+    },
+    {
+      "name": "av_frame_side_data_get",
+      "defined_in": "libavutil/frame.h",
+      "kind": "symbol",
+      "field_anchors": [],
+      "home": "crustify/rust/ffmpeg/libavutil/frame.rs"
+    },
+    {
+      "name": "av_frame_side_data_get_c",
+      "defined_in": "libavutil/side_data.c",
+      "kind": "symbol",
+      "field_anchors": [],
+      "home": "crustify/rust/ffmpeg/libavutil/frame.rs"
+    },
+    {
+      "name": "av_frame_side_data_new",
+      "defined_in": "libavutil/side_data.c",
+      "kind": "symbol",
+      "field_anchors": [],
+      "home": "crustify/rust/ffmpeg/libavutil/frame.rs"
+    },
+    {
+      "name": "av_frame_side_data_remove",
+      "defined_in": "libavutil/side_data.c",
+      "kind": "symbol",
+      "field_anchors": [],
+      "home": "crustify/rust/ffmpeg/libavutil/frame.rs"
+    },
+    {
+      "name": "av_frame_side_data_remove_by_props",
+      "defined_in": "libavutil/side_data.c",
+      "kind": "symbol",
+      "field_anchors": [],
+      "home": "crustify/rust/ffmpeg/libavutil/frame.rs"
+    }
+  ]
+}
