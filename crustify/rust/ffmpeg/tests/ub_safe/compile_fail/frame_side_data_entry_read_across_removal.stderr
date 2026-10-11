@@ -1,0 +1,9 @@
+error[E0502]: cannot borrow `frame` as mutable because it is also borrowed as immutable
+ --> tests/ub_safe/compile_fail/frame_side_data_entry_read_across_removal.rs
+  |
+  |     let entry = frame.as_ref().find_side_data(SideDataType::AFD).unwrap();
+  |                 ----- immutable borrow occurs here
+  |     frame.as_mut().remove_side_data(SideDataType::AFD);
+  |     ^^^^^^^^^^^^^^ mutable borrow occurs here
+  |     assert_eq!(entry.data(), [1]);
+  |                ----- immutable borrow later used here

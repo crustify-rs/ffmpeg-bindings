@@ -655,6 +655,14 @@ pub fn linesize(format: PixelFormat, width: i32, plane: usize) -> Result<i32, i3
     status(unsafe { ffi::av_image_get_linesize(format.into_raw(), width, plane as c_int) })
 }
 
+/// Whether C's `av_image_get_linesize` overflows `int` (undefined) for
+/// plane `plane` of a `width` pixels wide image of `format`, which
+/// [`linesize`] refuses: C routines that compute row widths themselves
+/// (`av_image_copy2` for a frame's copy) must not be handed such a width.
+pub(crate) fn linesize_overflows(format: PixelFormat, width: i32, plane: usize) -> bool {
+    plane < 4 && Geometry::of(format).is_some_and(|g| g.linesize_overflows(width, plane))
+}
+
 /// Wraps: av_image_fill_linesizes
 ///
 /// The unpadded row width of each of the four planes of a `width` pixels

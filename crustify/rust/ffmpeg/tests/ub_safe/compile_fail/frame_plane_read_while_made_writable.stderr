@@ -1,0 +1,9 @@
+error[E0502]: cannot borrow `frame` as mutable because it is also borrowed as immutable
+ --> tests/ub_safe/compile_fail/frame_plane_read_while_made_writable.rs
+  |
+  |     let plane = frame.as_ref().plane(0).unwrap();
+  |                 ----- immutable borrow occurs here
+  |     frame.as_mut().make_writable().unwrap();
+  |     ^^^^^^^^^^^^^^ mutable borrow occurs here
+  |     assert_eq!(plane[0], 0);
+  |                -------- immutable borrow later used here

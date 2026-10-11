@@ -876,3 +876,16 @@ function ^av_frame_get_plane_buffer$
 var ^AV_FRAME_FLAG_.*
 var ^FF_DECODE_ERROR_.*
 var ^AV_NUM_DATA_POINTERS$
+
+# Buffer-frame wave 4, batch 0: the rest of AVFrame's routines frame.rs wraps
+# (av_frame_replace, av_frame_move_ref, av_frame_apply_cropping and its
+# AV_FRAME_CROP_* flags, av_frame_new_side_data_from_buf), av_frame_make_writable
+# as the C reference its Rust composition is compared against, and ENOSYS, the
+# code the Rust copies give hardware frames until hwcontext.h is wrapped.
+function ^av_frame_replace$
+function ^av_frame_move_ref$
+function ^av_frame_apply_cropping$
+function ^av_frame_make_writable$
+function ^av_frame_new_side_data_from_buf$
+var ^AV_FRAME_CROP_.*
+var ^ENOSYS$

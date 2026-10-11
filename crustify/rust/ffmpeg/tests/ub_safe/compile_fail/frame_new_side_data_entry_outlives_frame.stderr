@@ -1,0 +1,12 @@
+error[E0505]: cannot move out of `frame` because it is borrowed
+ --> tests/ub_safe/compile_fail/frame_new_side_data_entry_outlives_frame.rs
+  |
+  |     let mut frame = Frame::new().unwrap();
+  |         --------- binding `frame` declared here
+  |     let mut m = frame.as_mut();
+  |                 ----- borrow of `frame` occurs here
+  |     let entry = m.alloc_side_data_zeroed(SideDataType::AFD, 1).unwrap();
+  |     drop(frame);
+  |          ^^^^^ move out of `frame` occurs here
+  |     assert_eq!(entry.as_ref().data(), [0]);
+  |                ----- borrow later used here
