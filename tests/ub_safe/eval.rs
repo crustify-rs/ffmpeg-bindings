@@ -775,3 +775,166 @@ mod parse_with_context {
         });
     }
 }
+
+/// Options wave 1, batch 0: `Expression` and the tree counters through the
+/// safe API: evaluation of every builtin the parse admits with constant
+/// slices of every length the count allows (and a short one, which panics
+/// before C reads it), registers and random state kept across evaluations,
+/// opaque values of several types, counters of every size, and expressions
+/// moved to and evaluated on other threads.
+mod expression {
+    use core::ffi::{CStr, c_void};
+    use std::panic::{AssertUnwindSafe, catch_unwind};
+    use std::thread;
+
+    use ffmpeg::libavutil::eval::{Arity, BinaryFn, ExprBox, Expression, UnaryFn};
+
+    /// As the other modules: BSan misreports C's number parse.
+    fn under_bsan() -> bool {
+        std::env::var("CRUSTIFY_FFMPEG_VARIANT").as_deref() == Ok("bsan")
+    }
+
+    extern "C" fn plus_one(_: *mut c_void, x: f64) -> f64 {
+        x + 1.0
+    }
+
+    extern "C" fn mul(_: *mut c_void, a: f64, b: f64) -> f64 {
+        a * b
+    }
+
+    const NAMES: [&CStr; 4] = [c"A", c"B", c"C", c"D"];
+    const UNARY: [(&CStr, UnaryFn); 1] = [(c"inc", plus_one)];
+    const BINARY: [(&CStr, BinaryFn); 1] = [(c"mul", mul)];
+
+    fn parse(s: &CStr) -> Result<Expression, i32> {
+        Expression::parse(s, &NAMES, &UNARY, &BINARY, 40)
+    }
+
+    /// Expressions over every evaluator construct `Expression` accepts.
+    const CORPUS: [&CStr; 12] = [
+        c"A+B*C-D/2",
+        c"inc(A) + mul(B, inc(C))",
+        c"st(0, ld(0) + A); st(9, ld(9) - 1); ld(0) * ld(9)",
+        c"random(3) + randomi(4, -10, 10)",
+        c"while(lt(ld(1), 50), st(1, ld(1) + 1)) + ld(1)",
+        c"taylor(ld(0) * 0 + A, 0.5, 2) + root(ld(7) * 0 + B - 3, 8)",
+        c"gcd(48, 18) + bitand(12, 10) + bitor(1, 2) + print(A, 56)",
+        c"squish(A) + gauss(B) + hypot(C, D) + atan2(A, B) + lerp(A, B, C)",
+        c"if(gt(A, B), A, B) + ifnot(C, D) + between(A, 0, 1) + clip(A, B, C)",
+        c"isnan(A) + isinf(B) + not(C) + sgn(D) + floor(A) + ceil(B) + trunc(C) + round(D)",
+        c"exp(A) + log(abs(B)) + sqrt(abs(C)) + pow(abs(D), 0.5) + A^2",
+        c"(A)",
+    ];
+
+    const VALUES: [[f64; 5]; 4] = [
+        [1.0, 2.0, 3.0, 4.0, 5.0],
+        [0.0, -0.0, f64::NAN, f64::INFINITY, -1.0],
+        [1e300, -1e300, 1e-320, -5e-324, 0.5],
+        [f64::MAX, f64::MIN, f64::EPSILON, -2.5, 7.0],
+    ];
+
+    #[test]
+    fn every_construct_evaluates_again_and_again() {
+        if under_bsan() {
+            return;
+        }
+        for s in CORPUS {
+            let mut e = parse(s).unwrap_or_else(|err| panic!("{s:?}: {err}"));
+            assert_eq!(e.constant_count(), 4);
+            for values in &VALUES {
+                for len in [4, 5] {
+                    for _ in 0..3 {
+                        let _ = e.eval(&values[..len]);
+                    }
+                }
+                let mut token = [0u64; 4];
+                let _ = e.eval_with(values, &mut token);
+                let mut unit = ();
+                let _ = e.eval_with(values, &mut unit);
+            }
+            let short = catch_unwind(AssertUnwindSafe(|| e.eval(&VALUES[0][..3])));
+            assert!(short.is_err(), "{s:?}");
+            // The tree survives the panic and evaluates on.
+            let _ = e.eval(&VALUES[0]);
+        }
+    }
+
+    #[test]
+    fn refused_expressions_never_evaluate() {
+        for s in [
+            c"ld(A)",
+            c"st(1e300, 1)",
+            c"randomi(B, 0, 1)",
+            c"st(0,1);random(0)",
+            c"bitor(1e30, 1)",
+        ] {
+            assert_eq!(parse(s).err(), Some(-22), "{s:?}");
+        }
+    }
+
+    #[test]
+    fn counters_of_every_size() {
+        if under_bsan() {
+            return;
+        }
+        for s in CORPUS {
+            let e = parse(s).unwrap();
+            let t = e.as_ref();
+            for n in [0, 1, 2, 4, 100] {
+                let mut counts = vec![u32::MAX - 3; n];
+                let ok = t.count_constants(&mut counts).is_ok();
+                assert_eq!(ok, n > 0);
+                for arity in [Arity::Unary, Arity::Binary] {
+                    let mut counts = vec![0; n];
+                    assert_eq!(t.count_functions(arity, &mut counts).is_ok(), n > 0);
+                    assert!(counts.iter().skip(1).all(|&c| c == 0));
+                }
+            }
+        }
+    }
+
+    #[test]
+    fn expressions_move_between_threads() {
+        if under_bsan() {
+            return;
+        }
+        fn send<T: Send>() {}
+        send::<Expression>();
+        send::<Arity>();
+        let exprs: Vec<Expression> = CORPUS.iter().map(|s| parse(s).unwrap()).collect();
+        let back: Vec<Expression> = exprs
+            .into_iter()
+            .map(|mut e| {
+                thread::spawn(move || {
+                    for v in &VALUES {
+                        let _ = e.eval(v);
+                    }
+                    e
+                })
+            })
+            .map(|h| h.join().unwrap())
+            .collect();
+        // Trees given up for counting, released on yet another thread.
+        let trees: Vec<ExprBox> = back.into_iter().map(Expression::into_tree).collect();
+        thread::spawn(move || {
+            for t in &trees {
+                let mut c = [0; 4];
+                t.as_ref().count_constants(&mut c).unwrap();
+            }
+            drop(trees);
+        })
+        .join()
+        .unwrap();
+        // Parsing and evaluating on many threads at once.
+        thread::scope(|s| {
+            for i in 0..8 {
+                s.spawn(move || {
+                    let mut e = parse(CORPUS[i % CORPUS.len()]).unwrap();
+                    for v in &VALUES {
+                        let _ = e.eval(v);
+                    }
+                });
+            }
+        });
+    }
+}

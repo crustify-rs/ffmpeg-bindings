@@ -329,3 +329,116 @@ mod objects {
         assert_eq!(p.value.as_bytes(), b"1");
     }
 }
+
+/// Options wave 1, batch 0: the typed getters and `get_array` on the one
+/// object built without `unsafe`, a [`BareObject`], which find nothing and
+/// allocate no output; and the potential children of classes built without
+/// `unsafe`, which have no `child_class_iterate` callback. Objects with
+/// options need adopting from a raw pointer: their getters run under the
+/// sanitizers in the `equiv` suite and the crate's unit tests.
+mod getters {
+    use std::thread;
+
+    use ffmpeg::libavutil::channel_layout::ChannelLayoutVal;
+    use ffmpeg::libavutil::dict::Dict;
+    use ffmpeg::libavutil::log::{Class, ClassCategory};
+    use ffmpeg::libavutil::mem::HeapString;
+    use ffmpeg::libavutil::opt::{BareObject, ObjectRef, PotentialChildren, SearchFlags};
+    use ffmpeg::libavutil::pixfmt::PixelFormat;
+    use ffmpeg::libavutil::rational::Rational;
+    use ffmpeg::libavutil::samplefmt::SampleFormat;
+
+    static CLASS: Class = Class::new(c"crustify-opt-getters-ub", ClassCategory::NA);
+
+    const NOT_FOUND: i32 = -i32::from_le_bytes([0xF8, b'O', b'P', b'T']);
+
+    fn every_getter(r: ObjectRef<'_>, flags: SearchFlags) {
+        assert_eq!(r.get_rational(c"x", flags).err(), Some(NOT_FOUND));
+        assert_eq!(r.get_video_rate(c"x", flags).err(), Some(NOT_FOUND));
+        assert_eq!(r.get_pixel_format(c"x", flags).err(), Some(NOT_FOUND));
+        assert_eq!(r.get_sample_format(c"x", flags).err(), Some(NOT_FOUND));
+        assert_eq!(r.get_channel_layout(c"x", flags).err(), Some(NOT_FOUND));
+        assert_eq!(r.get_dict(c"", flags).err(), Some(NOT_FOUND));
+        for (start, count) in [(0, 0), (0, 1), (u32::MAX, u32::MAX)] {
+            assert_eq!(
+                r.get_array::<i32>(c"x", flags, start, count).err(),
+                Some(NOT_FOUND)
+            );
+            assert_eq!(
+                r.get_array::<i64>(c"x", flags, start, count).err(),
+                Some(NOT_FOUND)
+            );
+            assert_eq!(
+                r.get_array::<u32>(c"x", flags, start, count).err(),
+                Some(NOT_FOUND)
+            );
+            assert_eq!(
+                r.get_array::<u64>(c"x", flags, start, count).err(),
+                Some(NOT_FOUND)
+            );
+            assert_eq!(
+                r.get_array::<f32>(c"x", flags, start, count).err(),
+                Some(NOT_FOUND)
+            );
+            assert_eq!(
+                r.get_array::<f64>(c"x", flags, start, count).err(),
+                Some(NOT_FOUND)
+            );
+            assert_eq!(
+                r.get_array::<Rational>(c"x", flags, start, count).err(),
+                Some(NOT_FOUND)
+            );
+            let strings = r.get_array::<Option<HeapString>>(c"x", flags, start, count);
+            assert_eq!(strings.err(), Some(NOT_FOUND));
+            assert_eq!(
+                r.get_array::<PixelFormat>(c"x", flags, start, count).err(),
+                Some(NOT_FOUND)
+            );
+            assert_eq!(
+                r.get_array::<SampleFormat>(c"x", flags, start, count).err(),
+                Some(NOT_FOUND)
+            );
+            assert_eq!(
+                r.get_array::<Dict>(c"x", flags, start, count).err(),
+                Some(NOT_FOUND)
+            );
+            let layouts = r.get_array::<ChannelLayoutVal>(c"x", flags, start, count);
+            assert_eq!(layouts.err(), Some(NOT_FOUND));
+        }
+    }
+
+    #[test]
+    fn a_bare_object_reads_nothing() {
+        let mut a = BareObject::new(CLASS.as_ref()).unwrap();
+        for flags in [SearchFlags::NONE, SearchFlags::CHILDREN] {
+            every_getter(a.as_object(), flags);
+            every_getter(a.as_object_mut().as_ref(), flags);
+        }
+    }
+
+    #[test]
+    fn bare_objects_read_on_many_threads() {
+        let a = BareObject::new(CLASS.as_ref()).unwrap();
+        thread::scope(|s| {
+            for _ in 0..4 {
+                s.spawn(move || {
+                    let local = a;
+                    every_getter(local.as_object(), SearchFlags::CHILDREN);
+                });
+            }
+        });
+    }
+
+    #[test]
+    fn classes_without_a_callback_have_no_potential_children() {
+        let mut it: PotentialChildren<'_> = CLASS.as_ref().potential_children();
+        assert!(it.next().is_none() && it.next().is_none());
+        let local = Class::new(c"local", ClassCategory::FILTER);
+        let class = local.as_ref();
+        assert_eq!(class.potential_children().count(), 0);
+        assert_eq!(
+            class.potential_children().count(),
+            class.child_classes().count()
+        );
+    }
+}
