@@ -818,6 +818,12 @@ function ^av_buffer_ref$
 function ^av_buffer_get_ref_count$
 function ^av_buffer_is_writable$
 
+# buffer-frame wave 1, batch 0: AVBufferRef's zeroing constructor and the
+# read-only flag its av_buffer_create constructors pass (the rest of its
+# lifecycle, av_buffer_alloc/create/ref/unref, is in wave 0 batch 1's block).
+function ^av_buffer_allocz$
+var ^AV_BUFFER_FLAG_READONLY$
+
 # Buffer-frame wave 0, batch 5: the rest of the RefStruct reference lifecycle
 # (av_refstruct_allocz is static inline, compiled by bindgen's
 # wrap_static_fns; av_refstruct_ref, _unref and _exclusive are above). Batch

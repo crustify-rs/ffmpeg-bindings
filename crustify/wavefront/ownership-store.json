@@ -235,6 +235,49 @@
    ]
   },
   {
+   "name": "AVBufferRef",
+   "defined_in": "libavutil/buffer.h",
+   "_comment_agent": "One reference to an AVBuffer: a 24-byte struct the caller owns outright, holding one counted reference to the shared buffer plus a window (data, size) into the buffer's bytes. buffer.h says its size is not public ABI and it is never allocated directly: every instance comes from av_mallocz in buffer_create (av_buffer_create, and through it av_buffer_alloc/allocz/realloc(NULL)), av_buffer_ref (copies *buf into a fresh struct and does a relaxed atomic add on buffer->refcount) or av_buffer_pool_get (pool_alloc_buffer / a recycled entry). It is released by av_buffer_unref(&ref) -> buffer_replace: av_freep of the struct, acq_rel decrement of buffer->refcount, and on the last one buffer->free(opaque, data) and av_free of the AVBuffer body unless BUFFER_FLAG_NO_FREE (pool entries). av_buffer_make_writable/av_buffer_realloc/av_buffer_replace replace a reference in place (same slot, new struct). No field stores the reference count: it lives in AVBuffer.refcount (atomic_uint, 32-bit, unchecked: each av_buffer_ref adds one). Writability convention: the bytes may be written only while av_buffer_is_writable (refcount == 1 and not AV_BUFFER_FLAG_READONLY); C writes AVBuffer data in place only through av_buffer_realloc on a writable reference. Bytes from av_buffer_alloc and pool buffers are uninitialised; av_buffer_allocz zeroes them; av_buffer_create takes the caller's bytes as they are. Thread safety: buffer.h documents referencing/unreferencing as thread-safe; the struct itself is plain data owned by one holder, and shared readers only read it. Rust (buffer-frame wave 1 batch 0): define_ctype!(BufferReference) (the BufferRef/BufferMut names belong to AVBuffer's handles), BufferReferenceBox = CBox<BufferReference, BufferUnref> with av_buffer_unref on a local slot as c_drop and av_buffer_ref as c_dup (new struct, shared AVBuffer), which refuses once the 32-bit count reaches u32::MAX/2 so leaked clones cannot wrap it; constructors alloc (av_buffer_alloc -> UninitBuffer, a hand-written owner of uninitialised bytes), alloc_zeroed (av_buffer_allocz), from_heap_vec (av_buffer_create with the default free), from_owner/from_read_only (av_buffer_create with a Rust Box<T> as opaque, dropped by the free trampoline); getters data/len/buffer/try_clone on BufferReferenceRef, data_mut (writable only), advance/truncate (narrowing) and replace/set (whole-reference swap) on BufferReferenceMut.",
+   "fields": [
+    {
+     "name": "buffer",
+     "ptr": {
+      "scalar": {
+       "by_val": true
+      },
+      "array": null,
+      "string": false,
+      "owned": true,
+      "borrowed": null,
+      "nullable": false,
+      "mutable": true,
+      "note": "One counted reference to the shared AVBuffer body (the count is AVBuffer.refcount, not a field here). Set by buffer_create / copied by av_buffer_ref (with a relaxed atomic increment) / set by av_buffer_pool_get; released by buffer_replace on unref. Never NULL in a live reference (buffer_replace dereferences it unconditionally). The body is only read through it by av_buffer_is_writable/get_ref_count/get_opaque/pool_buffer_get_opaque/realloc and compared for identity (av_buffer_replace, h264 refs). Mutable: av_buffer_realloc writes buffer->data/size in place on a writable reference, and the count is written atomically by every ref/unref. Rust: BufferReferenceRef::buffer() lends a BufferRef handle for identity; the field is replaced only together with data/size, by swapping whole references (BufferReferenceMut::replace/set), and copied as a new counted reference by try_clone/Clone."
+     },
+     "refcount": false,
+     "locked_by": null
+    },
+    {
+     "name": "data",
+     "ptr": {
+      "scalar": null,
+      "array": {
+       "by_val": true
+      },
+      "string": false,
+      "owned": false,
+      "borrowed": {
+       "lifetime": "field:buffer"
+      },
+      "nullable": true,
+      "mutable": true,
+      "note": "Start of this reference's window into the buffer's bytes: size bytes inside [buffer->data, buffer->data + buffer->size). Borrowed from the AVBuffer the `buffer` field keeps alive (the AVBuffer's free callback owns the bytes). Two references to one buffer may describe different windows (callers advance data / shrink size themselves, e.g. packet parsers); av_buffer_replace re-syncs data/size from src. Writable only while the reference is the sole one and not READONLY (av_buffer_is_writable); av_buffer_realloc rewrites data in place. May be NULL when av_buffer_create was given NULL with size 0. Bytes may be uninitialised (av_buffer_alloc, pool buffers, realloc growth). Rust: &[u8] through BufferReferenceRef::data (initialised invariant on every BufferReferenceBox), Option<&mut [u8]> through data_mut (writable check), &mut [MaybeUninit<u8>] through UninitBuffer; narrowed only (advance), never widened, as the buffer's bounds are private."
+     },
+     "refcount": false,
+     "locked_by": null
+    }
+   ]
+  },
+  {
    "name": "AVCAMELLIA",
    "defined_in": "libavutil/camellia.c",
    "_comment_agent": "Opaque in public header; concrete body has only Kw[4], Ke[6], K[24] u64 arrays and key_bits int. av_camellia_alloc allocates full av_mallocz storage, freed by av_free, no nested allocations/copy/dispose primitives. init reads exactly 16/24/32 key bytes, stores schedule not pointer. computeSP unconditionally rewrites static SP on every init; all safe init and future crypt operations must share a Rust global lock, even on distinct contexts. Raw C accesses must exclude races.",
@@ -1260,6 +1303,43 @@
        "ff_mutex_unlock"
       ]
      }
+    }
+   ]
+  },
+  {
+   "name": "AVRegionOfInterest",
+   "defined_in": "libavutil/frame.h",
+   "_comment_agent": "Plain by-value struct (uint32_t self_size; int top, bottom, left, right; AVRational qoffset), no pointer field and no lifecycle routine of its own. It never stands alone in C: it is the element of AV_FRAME_DATA_REGIONS_OF_INTEREST side data, an array whose element count is the payload size over the first element's self_size and whose stride is self_size (vf_addroi writes elements with self_size = sizeof(AVRegionOfInterest); libx264/libx265/libvpxenc/vaapi/qsv/d3d12va encoders and vf_showinfo read them, rejecting self_size == 0 or not dividing the payload size, and qoffset.den == 0). Nothing allocates, frees or copies one except as side-data bytes, so all-zero is a valid value (consumers reject it with an error, not UB). No field is range-checked by libavutil. Wrapped (buffer-frame wave 1 batch 0) as the ffibox value type RegionOfInterest (CZeroable, Copy, Send + Sync as plain data): RegionOfInterest::new sets self_size to sizeof; RegionOfInterestRef getters for every field (qoffset as a RationalRef over the projected place), RegionOfInterestMut setters, qoffset_mut and whole-value set/get.",
+   "fields": [
+    {
+     "name": "bottom",
+     "refcount": false,
+     "locked_by": null
+    },
+    {
+     "name": "left",
+     "refcount": false,
+     "locked_by": null
+    },
+    {
+     "name": "qoffset",
+     "refcount": false,
+     "locked_by": null
+    },
+    {
+     "name": "right",
+     "refcount": false,
+     "locked_by": null
+    },
+    {
+     "name": "self_size",
+     "refcount": false,
+     "locked_by": null
+    },
+    {
+     "name": "top",
+     "refcount": false,
+     "locked_by": null
     }
    ]
   },
@@ -2922,6 +3002,141 @@
    "defined_in": "libavutil/bswap.h"
   },
   {
+   "name": "av_buffer_alloc",
+   "defined_in": "libavutil/buffer.c",
+   "lifetime": {
+    "for": "return",
+    "is_dropper": false,
+    "is_disposer": false,
+    "is_cloner": null,
+    "is_constructor": {
+     "alloc": true,
+     "init": false
+    }
+   },
+   "ptr_ret": {
+    "ptr": {
+     "scalar": {
+      "by_val": true
+     },
+     "array": null,
+     "string": false,
+     "owned": true,
+     "borrowed": null,
+     "nullable": true,
+     "mutable": true,
+     "note": "A new sole, writable reference to size av_malloc'd bytes, UNINITIALISED, freed with av_buffer_default_free (av_free) when the last reference goes; NULL when av_malloc fails (above av_max_alloc) or the AVBuffer/AVBufferRef allocation fails (data freed then). Rust: BufferReference::alloc -> UninitBuffer, a hand-written owner exposing &mut [MaybeUninit<u8>] until fill/copy_from_slice/assume_init."
+    }
+   }
+  },
+  {
+   "name": "av_buffer_allocz",
+   "defined_in": "libavutil/buffer.c",
+   "lifetime": {
+    "for": "return",
+    "is_dropper": false,
+    "is_disposer": false,
+    "is_cloner": null,
+    "is_constructor": {
+     "alloc": true,
+     "init": false
+    }
+   },
+   "ptr_ret": {
+    "ptr": {
+     "scalar": {
+      "by_val": true
+     },
+     "array": null,
+     "string": false,
+     "owned": true,
+     "borrowed": null,
+     "nullable": true,
+     "mutable": true,
+     "note": "av_buffer_alloc(size) then memset(data, 0, size): a new sole, writable reference to size zeroed av_malloc bytes, released by av_buffer_unref; NULL on failure. Rust: BufferReference::alloc_zeroed -> BufferReferenceBox."
+    }
+   }
+  },
+  {
+   "name": "av_buffer_create",
+   "defined_in": "libavutil/buffer.c",
+   "lifetime": {
+    "for": "return",
+    "is_dropper": false,
+    "is_disposer": false,
+    "is_cloner": null,
+    "is_constructor": {
+     "alloc": true,
+     "init": false
+    }
+   },
+   "ptr_args": [
+    {
+     "name": "data",
+     "ptr": {
+      "scalar": null,
+      "array": {
+       "by_val": true
+      },
+      "string": false,
+      "owned": true,
+      "borrowed": null,
+      "nullable": true,
+      "mutable": true,
+      "note": "size bytes whose ownership moves to the new AVBuffer on success (released by free(opaque, data), or av_free when free is NULL); untouched on failure (NULL return). Never dereferenced by av_buffer_create itself; NULL is stored as is (fine with size 0). Writes go through it later only while the reference is writable, so READONLY data is never written by C. Rust: a HeapVec<u8> (default free) or the slice of a boxed Rust owner T: AsMut<[u8]>/AsRef<[u8]> (+ Send + 'static)."
+     }
+    },
+    {
+     "name": "free",
+     "ptr": {
+      "scalar": {
+       "by_val": true
+      },
+      "array": null,
+      "string": false,
+      "owned": false,
+      "borrowed": {
+       "lifetime": "static"
+      },
+      "nullable": true,
+      "mutable": false,
+      "note": "free(opaque, data), stored in AVBuffer.free (NULL selects av_buffer_default_free) and called once by whichever thread drops the last reference (buffer_replace); for pool buffers, by buffer_pool_flush when the entry is flushed. Rust: NULL for HeapVec data, or release_owner::<T> (drops the Box<T> passed as opaque)."
+     }
+    },
+    {
+     "name": "opaque",
+     "ptr": {
+      "scalar": {
+       "by_val": true
+      },
+      "array": null,
+      "string": false,
+      "owned": true,
+      "borrowed": {
+       "lifetime": "other"
+      },
+      "nullable": true,
+      "mutable": null,
+      "note": "User state stored in AVBuffer.opaque, handed to free and returned by av_buffer_get_opaque; never dereferenced by C. Owned by the buffer when free releases it (Rust: the leaked Box<T>), else borrowed for the buffer's life. Untouched on failure."
+     }
+    }
+   ],
+   "ptr_ret": {
+    "ptr": {
+     "scalar": {
+      "by_val": true
+     },
+     "array": null,
+     "string": false,
+     "owned": true,
+     "borrowed": null,
+     "nullable": true,
+     "mutable": true,
+     "note": "A new reference (refcount 1) to an av_mallocz'd AVBuffer over data, released by av_buffer_unref; NULL on allocation failure, with data, free and opaque untouched. Writable unless flags has AV_BUFFER_FLAG_READONLY. Rust: BufferReference::from_heap_vec / from_owner / from_read_only."
+    }
+   }
+  },
+  {
    "name": "av_buffer_default_free",
    "defined_in": "libavutil/buffer.c",
    "lifetime": {
@@ -3121,6 +3336,84 @@
       "nullable": true,
       "mutable": true,
       "note": "The caller's AVBufferPool * slot (NULL slot and NULL pool are no-ops). Takes the caller's reference: NULLs the slot, flushes the free entries under the mutex, and drops one atomic reference; the pool body is freed (with pool_free(opaque)) now, or later by the last outstanding buffer's return. Rust: BufferPoolUninit's CDrop for BufferPoolBox passes a local slot holding the box's pointer."
+     }
+    }
+   ]
+  },
+  {
+   "name": "av_buffer_ref",
+   "defined_in": "libavutil/buffer.c",
+   "lifetime": {
+    "for": "buf",
+    "is_dropper": false,
+    "is_disposer": false,
+    "is_cloner": {
+     "deep": false,
+     "upref": true
+    },
+    "is_constructor": null
+   },
+   "ptr_args": [
+    {
+     "name": "buf",
+     "ptr": {
+      "scalar": {
+       "by_val": true
+      },
+      "array": null,
+      "string": false,
+      "owned": false,
+      "borrowed": {
+       "lifetime": "arg:buf"
+      },
+      "nullable": false,
+      "mutable": false,
+      "note": "A live reference, read only (struct copied by value); its AVBuffer's atomic_uint refcount is incremented (relaxed, unchecked: 2^32 leaked references wrap it). Never NULL: *buf is dereferenced."
+     }
+    }
+   ],
+   "ptr_ret": {
+    "ptr": {
+     "scalar": {
+      "by_val": true
+     },
+     "array": null,
+     "string": false,
+     "owned": true,
+     "borrowed": null,
+     "nullable": true,
+     "mutable": true,
+     "note": "A fresh av_mallocz'd AVBufferRef equal to *buf (same buffer, data, size), carrying the new counted reference; released by av_buffer_unref. NULL on allocation failure (count untouched). The struct is independent; the AVBuffer and its bytes are shared, writable by nobody while both references live (refcount >= 2). Rust: BufferUnref's CDupClone (BufferReferenceBox::clone/try_clone, BufferReferenceRef::try_clone), which refuses at a count of u32::MAX/2."
+    }
+   }
+  },
+  {
+   "name": "av_buffer_unref",
+   "defined_in": "libavutil/buffer.c",
+   "lifetime": {
+    "for": "buf",
+    "is_dropper": true,
+    "is_disposer": false,
+    "is_cloner": null,
+    "is_constructor": null
+   },
+   "ptr_args": [
+    {
+     "name": "buf",
+     "ptr": {
+      "scalar": {
+       "by_ref": {
+        "owned": true,
+        "borrowed": null
+       }
+      },
+      "array": null,
+      "string": false,
+      "owned": true,
+      "borrowed": null,
+      "nullable": true,
+      "mutable": true,
+      "note": "The caller's AVBufferRef * slot (NULL slot and NULL reference are no-ops). Consumes the reference: buffer_replace av_freep's the struct (NULLing the slot), then decrements AVBuffer.refcount (acq_rel); the last reference runs buffer->free(opaque, data) and av_free's the body unless BUFFER_FLAG_NO_FREE (pool entries, whose free is pool_release_buffer). Thread-safe per buffer.h. Rust: BufferUnref's CDrop for BufferReferenceBox passes a local slot holding the box's pointer."
      }
     }
    ]

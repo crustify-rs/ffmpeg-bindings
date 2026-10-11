@@ -7,6 +7,13 @@
 //! borrowed for the whole program. [`SideDataProps`] is `AVSideDataProps`, the
 //! set of property bits C stores in a descriptor's `props` and filters side
 //! data arrays by; it is a plain `Copy` value.
+//!
+//! [`RegionOfInterest`] is `AVRegionOfInterest`, one element of a
+//! `REGIONS_OF_INTEREST` side data array: a rectangle of the frame and the
+//! encoder quality to give it. Nothing allocates one on its own, so it is a
+//! value type, reached as a [`RegionOfInterestRef`] or
+//! [`RegionOfInterestMut`], its quantisation offset as a [`RationalRef`] or
+//! [`RationalMut`] over its own.
 
 use core::ffi::{CStr, c_uint};
 use core::fmt;
@@ -17,6 +24,7 @@ use core::ptr::{self, addr_of, addr_of_mut};
 use ffibox::{CPlainElem, CZeroable, define_ctype};
 
 use super::ffi;
+use super::rational::{Rational, RationalMut, RationalRef};
 
 /// Wraps: AVFrameSideDataType
 /// Handwritten
@@ -906,6 +914,331 @@ impl SideDataType {
     }
 }
 
+define_ctype!(
+    /// Wraps: AVRegionOfInterest
+    ///
+    /// A rectangle of a video frame and the encoder quality to give it: one
+    /// element of `REGIONS_OF_INTEREST` frame side data
+    /// ([`SideDataType::REGIONS_OF_INTEREST`]). Its getters are on
+    /// [`RegionOfInterestRef`] (`as_ref()`), its setters on
+    /// [`RegionOfInterestMut`] (`as_mut()`).
+    ///
+    /// The rectangle is given by the distances in pixels from the frame's top
+    /// edge to its top and bottom edges, and from the frame's left edge to its
+    /// left and right edges. The quantisation offset ranges from -1 (best
+    /// quality) to +1 (worst), 0 asking for no change.
+    ///
+    /// C stores these as an array in side data and nothing allocates, frees
+    /// or copies one on its own, so it is a value type with no owner. Each
+    /// element records its own size, `self_size`, which readers of the array
+    /// take as its stride and as the divisor of the payload size, and reject
+    /// when it is 0; [`new`](Self::new) sets it to the size of this struct.
+    /// No field is checked, by libavutil or here: encoders reject regions
+    /// they cannot use, such as a quantisation offset with a zero
+    /// denominator.
+    ///
+    /// The offset's exclusive handle freezes the region's while it lives:
+    ///
+    /// ```compile_fail,E0499
+    /// use ffmpeg::libavutil::frame::RegionOfInterest;
+    /// let mut roi = RegionOfInterest::default();
+    /// let mut region = roi.as_mut();
+    /// let mut offset = region.qoffset_mut();
+    /// region.set_top(1);
+    /// offset.set_num(1);
+    /// ```
+    #[derive(Clone, Copy)]
+    RegionOfInterest,
+    RegionOfInterestRef,
+    RegionOfInterestMut,
+    ffi::AVRegionOfInterest
+);
+
+// SAFETY: all-zero is an empty region with a `0/0` offset and a `self_size`
+// of 0, all plain integers every accessor reads as they are; the type has no
+// teardown to reject it, and C's readers of side data reject a zero
+// `self_size` with an error, not by misbehaving.
+unsafe impl CZeroable for RegionOfInterest {}
+
+// SAFETY: an `AVRegionOfInterest` is 28 bytes of plain data, a `uint32_t`
+// and six `int`s, with no pointer, sub-allocation or tie to the thread that
+// wrote them, so a value, or an exclusive handle to one, moves between
+// threads as a `(u32, [i32; 6])` does.
+unsafe impl Send for RegionOfInterest {}
+// SAFETY: as for `RegionOfInterest`: the handle is the only access to the
+// fields, and the offset handle it lends borrows it.
+unsafe impl Send for RegionOfInterestMut<'_> {}
+
+// SAFETY: nothing reachable through a shared handle writes:
+// `RegionOfInterestRef` has getters only, which lend a getter-only
+// `RationalRef`, and the struct has no interior mutability, so concurrent
+// shared access reads unchanging bytes, as through `&(u32, [i32; 6])`.
+unsafe impl Sync for RegionOfInterest {}
+// SAFETY: as for `Sync for RegionOfInterest`: copies of a shared handle only
+// read.
+unsafe impl Send for RegionOfInterestRef<'_> {}
+// SAFETY: as above.
+unsafe impl Sync for RegionOfInterestRef<'_> {}
+// SAFETY: `&RegionOfInterestMut` reaches the fields only through `as_ref`, a
+// shared handle; the setters and `qoffset_mut` need `&mut`.
+unsafe impl Sync for RegionOfInterestMut<'_> {}
+
+impl RegionOfInterest {
+    /// The `self_size` C requires of every element: the size of
+    /// `AVRegionOfInterest` in bytes.
+    pub const SELF_SIZE: u32 = size_of::<ffi::AVRegionOfInterest>() as u32;
+
+    /// The region whose edges lie `top`, `bottom`, `left` and `right` pixels
+    /// from the frame's top and left edges, encoded with the quantisation
+    /// offset `qoffset`; its `self_size` is [`SELF_SIZE`](Self::SELF_SIZE).
+    #[inline]
+    #[must_use]
+    pub const fn new(top: i32, bottom: i32, left: i32, right: i32, qoffset: Rational) -> Self {
+        Self::from_raw(ffi::AVRegionOfInterest {
+            self_size: Self::SELF_SIZE,
+            top,
+            bottom,
+            left,
+            right,
+            qoffset: qoffset.into_raw(),
+        })
+    }
+
+    /// The region C encodes as `raw`, whatever its fields.
+    #[inline]
+    #[must_use]
+    pub const fn from_raw(raw: ffi::AVRegionOfInterest) -> Self {
+        Self(raw, core::marker::PhantomData)
+    }
+
+    /// The C encoding of this region, for storing it in side data.
+    #[inline]
+    #[must_use]
+    pub const fn into_raw(self) -> ffi::AVRegionOfInterest {
+        self.0
+    }
+}
+
+/// An empty region at the frame's top left corner with no quality change (a
+/// `0/1` offset), and the `self_size` C requires.
+impl Default for RegionOfInterest {
+    #[inline]
+    fn default() -> Self {
+        Self::new(
+            0,
+            0,
+            0,
+            0,
+            Rational::from_raw(ffi::AVRational { num: 0, den: 1 }),
+        )
+    }
+}
+
+impl From<ffi::AVRegionOfInterest> for RegionOfInterest {
+    #[inline]
+    fn from(raw: ffi::AVRegionOfInterest) -> Self {
+        Self::from_raw(raw)
+    }
+}
+
+impl From<RegionOfInterest> for ffi::AVRegionOfInterest {
+    #[inline]
+    fn from(roi: RegionOfInterest) -> Self {
+        roi.into_raw()
+    }
+}
+
+/// Field by field, the offset by [`Rational`]'s value equality: `1/2` equals
+/// `2/4`, and a `0/0` offset equals nothing, itself included.
+impl PartialEq for RegionOfInterest {
+    fn eq(&self, other: &Self) -> bool {
+        let (a, b) = (self.as_ref(), other.as_ref());
+        a.edges() == b.edges() && a.qoffset().get() == b.qoffset().get()
+    }
+}
+
+impl fmt::Debug for RegionOfInterest {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        self.as_ref().fmt(f)
+    }
+}
+
+impl fmt::Debug for RegionOfInterestRef<'_> {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.debug_struct("RegionOfInterest")
+            .field("self_size", &self.self_size())
+            .field("top", &self.top())
+            .field("bottom", &self.bottom())
+            .field("left", &self.left())
+            .field("right", &self.right())
+            .field("qoffset", &self.qoffset())
+            .finish()
+    }
+}
+
+impl<'a> RegionOfInterestRef<'a> {
+    /// Field: AVRegionOfInterest.self_size
+    ///
+    /// The size this element claims, which readers of a side data array take
+    /// as its stride.
+    #[must_use]
+    pub fn self_size(&self) -> u32 {
+        // SAFETY: a read of the `self_size` field projected through the
+        // shared handle's pointer to a live, initialised
+        // `AVRegionOfInterest`.
+        unsafe { addr_of!((*self.as_ptr()).self_size).read() }
+    }
+
+    /// Field: AVRegionOfInterest.top
+    ///
+    /// The distance in pixels from the frame's top edge to the region's.
+    #[must_use]
+    pub fn top(&self) -> i32 {
+        // SAFETY: as in `self_size`, for the `top` field.
+        unsafe { addr_of!((*self.as_ptr()).top).read() }
+    }
+
+    /// Field: AVRegionOfInterest.bottom
+    ///
+    /// The distance in pixels from the frame's top edge to the region's
+    /// bottom edge.
+    #[must_use]
+    pub fn bottom(&self) -> i32 {
+        // SAFETY: as in `self_size`, for the `bottom` field.
+        unsafe { addr_of!((*self.as_ptr()).bottom).read() }
+    }
+
+    /// Field: AVRegionOfInterest.left
+    ///
+    /// The distance in pixels from the frame's left edge to the region's.
+    #[must_use]
+    pub fn left(&self) -> i32 {
+        // SAFETY: as in `self_size`, for the `left` field.
+        unsafe { addr_of!((*self.as_ptr()).left).read() }
+    }
+
+    /// Field: AVRegionOfInterest.right
+    ///
+    /// The distance in pixels from the frame's left edge to the region's
+    /// right edge.
+    #[must_use]
+    pub fn right(&self) -> i32 {
+        // SAFETY: as in `self_size`, for the `right` field.
+        unsafe { addr_of!((*self.as_ptr()).right).read() }
+    }
+
+    /// Field: AVRegionOfInterest.qoffset
+    ///
+    /// The quantisation offset, as a handle over it that lives as long as
+    /// this one.
+    #[must_use]
+    pub fn qoffset(&self) -> RationalRef<'a> {
+        // SAFETY: `qoffset` is projected through the shared handle's pointer
+        // to a live, initialised `AVRegionOfInterest`, so it is non-NULL,
+        // aligned and initialised; the struct stays live and unwritten for
+        // `'a`, which the returned getter-only handle cannot outlive.
+        unsafe { RationalRef::from_ptr(addr_of!((*self.as_ptr()).qoffset).cast_mut()) }
+            .expect("a field of a live struct is not NULL")
+    }
+
+    /// The integer fields in declaration order, for comparison.
+    fn edges(&self) -> (u32, i32, i32, i32, i32) {
+        (
+            self.self_size(),
+            self.top(),
+            self.bottom(),
+            self.left(),
+            self.right(),
+        )
+    }
+
+    /// A copy of the whole region, independent of the place it was read from.
+    #[must_use]
+    pub fn get(&self) -> RegionOfInterest {
+        // SAFETY: a read of the whole live, initialised `AVRegionOfInterest`
+        // through the shared handle's pointer; it is seven integers, so the
+        // byte copy is a complete, independent value.
+        RegionOfInterest::from_raw(unsafe { self.as_ptr().read() })
+    }
+}
+
+impl RegionOfInterestMut<'_> {
+    /// Field: AVRegionOfInterest.self_size
+    ///
+    /// Sets the size this element claims; C's readers need
+    /// [`RegionOfInterest::SELF_SIZE`].
+    pub fn set_self_size(&mut self, self_size: u32) {
+        // SAFETY: a write of the `self_size` field projected through the
+        // exclusive handle's pointer to a live `AVRegionOfInterest`; the old
+        // value owns nothing to leak.
+        unsafe { addr_of_mut!((*self.as_mut_ptr()).self_size).write(self_size) }
+    }
+
+    /// Field: AVRegionOfInterest.top
+    ///
+    /// Sets the distance from the frame's top edge to the region's.
+    pub fn set_top(&mut self, top: i32) {
+        // SAFETY: as in `set_self_size`, for the `top` field.
+        unsafe { addr_of_mut!((*self.as_mut_ptr()).top).write(top) }
+    }
+
+    /// Field: AVRegionOfInterest.bottom
+    ///
+    /// Sets the distance from the frame's top edge to the region's bottom
+    /// edge.
+    pub fn set_bottom(&mut self, bottom: i32) {
+        // SAFETY: as in `set_self_size`, for the `bottom` field.
+        unsafe { addr_of_mut!((*self.as_mut_ptr()).bottom).write(bottom) }
+    }
+
+    /// Field: AVRegionOfInterest.left
+    ///
+    /// Sets the distance from the frame's left edge to the region's.
+    pub fn set_left(&mut self, left: i32) {
+        // SAFETY: as in `set_self_size`, for the `left` field.
+        unsafe { addr_of_mut!((*self.as_mut_ptr()).left).write(left) }
+    }
+
+    /// Field: AVRegionOfInterest.right
+    ///
+    /// Sets the distance from the frame's left edge to the region's right
+    /// edge.
+    pub fn set_right(&mut self, right: i32) {
+        // SAFETY: as in `set_self_size`, for the `right` field.
+        unsafe { addr_of_mut!((*self.as_mut_ptr()).right).write(right) }
+    }
+
+    /// Field: AVRegionOfInterest.qoffset
+    ///
+    /// An exclusive handle over the quantisation offset, for writing its
+    /// parts; this handle is frozen while it lives.
+    #[must_use]
+    pub fn qoffset_mut(&mut self) -> RationalMut<'_> {
+        // SAFETY: `qoffset` is projected through the exclusive handle's
+        // pointer to a live `AVRegionOfInterest`, so it is non-NULL, aligned
+        // and initialised; the result borrows `self` exclusively, so it is
+        // the only access to the field while it lives.
+        unsafe { RationalMut::from_ptr(addr_of_mut!((*self.as_mut_ptr()).qoffset)) }
+            .expect("a field of a live struct is not NULL")
+    }
+
+    /// Field: AVRegionOfInterest.qoffset
+    ///
+    /// Sets the quantisation offset.
+    pub fn set_qoffset(&mut self, qoffset: Rational) {
+        // SAFETY: as in `set_self_size`, for the `qoffset` field.
+        unsafe { addr_of_mut!((*self.as_mut_ptr()).qoffset).write(qoffset.into_raw()) }
+    }
+
+    /// Overwrites every field with `roi`'s.
+    pub fn set(&mut self, roi: RegionOfInterest) {
+        // SAFETY: a write of the whole `AVRegionOfInterest` through the
+        // exclusive handle's pointer to a live one; the old value owns
+        // nothing to leak.
+        unsafe { self.as_mut_ptr().write(roi.into_raw()) }
+    }
+}
+
 #[cfg(test)]
 mod unit_tests {
     use super::*;
@@ -1354,5 +1687,150 @@ mod unit_tests {
             "SideDataDescriptor { name: Some(\"ICC profile\"), props: SideDataProps(GLOBAL | COLOR_DEPENDENT) }"
         );
         assert_eq!(format!("{:?}", d.as_ref()), format!("{d:?}"));
+    }
+
+    /// Buffer-frame wave 1, batch 0: `RegionOfInterest`. Tests without
+    /// `equality` in their name make no C call and also run under Miri.
+    #[test]
+    fn region_of_interest_layout_matches_c() {
+        type C = ffi::AVRegionOfInterest;
+        assert_eq!(size_of::<RegionOfInterest>(), size_of::<C>());
+        assert_eq!(align_of::<RegionOfInterest>(), align_of::<C>());
+        assert_eq!(size_of::<C>(), 28);
+        assert_eq!(RegionOfInterest::SELF_SIZE, 28);
+        assert_eq!(
+            [
+                offset_of!(C, self_size),
+                offset_of!(C, top),
+                offset_of!(C, bottom),
+                offset_of!(C, left),
+                offset_of!(C, right),
+                offset_of!(C, qoffset),
+            ],
+            [0, 4, 8, 12, 16, 20]
+        );
+        assert_eq!(size_of::<RegionOfInterestRef<'_>>(), size_of::<usize>());
+        assert_eq!(size_of::<RegionOfInterestMut<'_>>(), size_of::<usize>());
+        fn send_sync<T: Send + Sync>() {}
+        send_sync::<RegionOfInterest>();
+        send_sync::<RegionOfInterestRef<'_>>();
+        send_sync::<RegionOfInterestMut<'_>>();
+    }
+
+    fn q(num: i32, den: i32) -> Rational {
+        Rational::from_raw(ffi::AVRational { num, den })
+    }
+
+    /// Every field, `qoffset` as its parts.
+    fn region_fields(r: RegionOfInterestRef<'_>) -> [i64; 7] {
+        let o = r.qoffset();
+        [
+            r.self_size().into(),
+            r.top().into(),
+            r.bottom().into(),
+            r.left().into(),
+            r.right().into(),
+            o.num().into(),
+            o.den().into(),
+        ]
+    }
+
+    #[test]
+    fn region_of_interest_constructors_and_raw_round_trip() {
+        let r = RegionOfInterest::new(1, 2, 3, 4, q(-1, 10));
+        assert_eq!(region_fields(r.as_ref()), [28, 1, 2, 3, 4, -1, 10]);
+        assert_eq!(
+            region_fields(RegionOfInterest::default().as_ref()),
+            [28, 0, 0, 0, 0, 0, 1]
+        );
+        assert_eq!(region_fields(RegionOfInterest::zeroed().as_ref()), [0; 7]);
+        let raw = ffi::AVRegionOfInterest {
+            self_size: u32::MAX,
+            top: i32::MIN,
+            bottom: i32::MAX,
+            left: -1,
+            right: 0,
+            qoffset: ffi::AVRational {
+                num: i32::MAX,
+                den: i32::MIN,
+            },
+        };
+        let r = RegionOfInterest::from(raw);
+        let back: ffi::AVRegionOfInterest = r.into();
+        assert_eq!(
+            region_fields(r.as_ref()),
+            [
+                u32::MAX.into(),
+                i32::MIN.into(),
+                i32::MAX.into(),
+                -1,
+                0,
+                i32::MAX.into(),
+                i32::MIN.into()
+            ]
+        );
+        assert_eq!(
+            (back.self_size, back.top, back.bottom, back.left, back.right),
+            (raw.self_size, raw.top, raw.bottom, raw.left, raw.right)
+        );
+        assert_eq!((back.qoffset.num, back.qoffset.den), (i32::MAX, i32::MIN));
+        let copy = r.as_ref().get();
+        assert_eq!(region_fields(copy.as_ref()), region_fields(r.as_ref()));
+    }
+
+    #[test]
+    fn region_of_interest_setters_write_one_field_each() {
+        let mut r = RegionOfInterest::zeroed();
+        let mut m = r.as_mut();
+        m.set_self_size(RegionOfInterest::SELF_SIZE);
+        m.set_top(-5);
+        m.set_bottom(6);
+        m.set_left(i32::MIN);
+        m.set_right(i32::MAX);
+        m.set_qoffset(q(1, 3));
+        assert_eq!(
+            region_fields(m.as_ref()),
+            [28, -5, 6, i32::MIN.into(), i32::MAX.into(), 1, 3]
+        );
+        let mut o = m.qoffset_mut();
+        o.set_num(-2);
+        o.set_den(7);
+        assert_eq!(region_fields(r.as_ref())[5..], [-2, 7]);
+        r.as_mut().set(RegionOfInterest::new(9, 8, 7, 6, q(0, 1)));
+        assert_eq!(region_fields(r.as_ref()), [28, 9, 8, 7, 6, 0, 1]);
+    }
+
+    #[test]
+    fn region_of_interest_debug() {
+        assert_eq!(
+            format!("{:?}", RegionOfInterest::new(1, 2, 3, 4, q(-1, 10))),
+            "RegionOfInterest { self_size: 28, top: 1, bottom: 2, left: 3, right: 4, \
+             qoffset: Rational { num: -1, den: 10 } }"
+        );
+    }
+
+    #[test]
+    #[cfg_attr(miri, ignore)]
+    fn region_of_interest_equality_compares_offsets_by_value() {
+        let a = RegionOfInterest::new(1, 2, 3, 4, q(1, 2));
+        assert_eq!(a, RegionOfInterest::new(1, 2, 3, 4, q(2, 4)));
+        assert_ne!(a, RegionOfInterest::new(1, 2, 3, 4, q(1, 3)));
+        for field in 0..4 {
+            let mut b = a;
+            let mut m = b.as_mut();
+            match field {
+                0 => m.set_top(100),
+                1 => m.set_bottom(100),
+                2 => m.set_left(100),
+                _ => m.set_right(100),
+            }
+            assert_ne!(a, b, "field {field}");
+        }
+        let mut b = a;
+        b.as_mut().set_self_size(0);
+        assert_ne!(a, b);
+        // A `0/0` offset equals nothing, itself included.
+        let z = RegionOfInterest::zeroed();
+        assert_ne!(z, z);
     }
 }

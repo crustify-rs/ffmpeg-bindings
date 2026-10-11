@@ -542,3 +542,152 @@ mod side_data_lookups {
         }
     }
 }
+
+/// `RegionOfInterest`: inline values and `av_malloc`-family arrays of them
+/// (the shape of `REGIONS_OF_INTEREST` side data), every field at its edges,
+/// the offset's handles and their reborrows, copies outliving their source,
+/// and the asserted `Send` / `Sync`. Tests without `heap` in their name make
+/// no C call and also run under Miri (buffer-frame wave 1, batch 0).
+mod region_of_interest {
+    use std::thread;
+
+    use ffmpeg::libavutil::ffi;
+    use ffmpeg::libavutil::frame::{RegionOfInterest, RegionOfInterestMut, RegionOfInterestRef};
+    use ffmpeg::libavutil::mem::{HeapVec, alloc_cell_array_zeroed};
+    use ffmpeg::libavutil::rational::Rational;
+
+    const EDGES: [i32; 5] = [i32::MIN, -1, 0, 1, i32::MAX];
+
+    fn q(num: i32, den: i32) -> Rational {
+        Rational::from_raw(ffi::AVRational { num, den })
+    }
+
+    /// Everything the getters read.
+    fn snapshot(r: RegionOfInterestRef<'_>) -> (u32, [i32; 6]) {
+        let o = r.qoffset();
+        (
+            r.self_size(),
+            [r.top(), r.bottom(), r.left(), r.right(), o.num(), o.den()],
+        )
+    }
+
+    fn fill(m: &mut RegionOfInterestMut<'_>, k: usize) {
+        let e = |i: usize| EDGES[(k + i) % EDGES.len()];
+        m.set_self_size(e(0) as u32);
+        m.set_top(e(1));
+        m.set_bottom(e(2));
+        m.set_left(e(3));
+        m.set_right(e(4));
+        if k.is_multiple_of(2) {
+            m.set_qoffset(q(e(5), e(6)));
+        } else {
+            let mut o = m.qoffset_mut();
+            o.set_num(e(5));
+            o.set_den(e(6));
+        }
+    }
+
+    fn expected(k: usize) -> (u32, [i32; 6]) {
+        let e = |i: usize| EDGES[(k + i) % EDGES.len()];
+        (e(0) as u32, [e(1), e(2), e(3), e(4), e(5), e(6)])
+    }
+
+    #[test]
+    fn every_field_edge_builds_and_reads_back() {
+        for k in 0..2 * EDGES.len() {
+            let mut r = RegionOfInterest::new(1, 2, 3, 4, q(-1, 10));
+            fill(&mut r.as_mut(), k);
+            assert_eq!(snapshot(r.as_ref()), expected(k));
+            let copy = r.as_ref().get();
+            r.as_mut().set(RegionOfInterest::default());
+            assert_eq!(snapshot(copy.as_ref()), expected(k));
+            assert_eq!(
+                snapshot(r.as_ref()),
+                (RegionOfInterest::SELF_SIZE, [0, 0, 0, 0, 0, 1])
+            );
+            let raw = copy.into_raw();
+            assert_eq!(
+                snapshot(RegionOfInterest::from_raw(raw).as_ref()),
+                expected(k)
+            );
+        }
+    }
+
+    #[test]
+    fn offset_handles_reborrow_and_outlive_nothing() {
+        let mut r = RegionOfInterest::default();
+        let mut m = r.as_mut();
+        {
+            let mut again = m.as_mut();
+            let mut o = again.qoffset_mut();
+            let mut o2 = o.as_mut();
+            o2.set_num(3);
+            assert_eq!(o.as_ref().num(), 3);
+        }
+        let shared = m.as_ref();
+        let (o, copy) = (shared.qoffset(), shared);
+        assert_eq!((o.num(), copy.qoffset().den()), (3, 1));
+        // A getter's offset handle lives as long as the region's handle.
+        let o = r.as_ref().qoffset();
+        assert_eq!(o.num(), 3);
+    }
+
+    #[test]
+    fn values_and_handles_cross_threads() {
+        let regions: Vec<RegionOfInterest> = (0..8)
+            .map(|k| {
+                let mut r = RegionOfInterest::default();
+                fill(&mut r.as_mut(), k);
+                r
+            })
+            .collect();
+        thread::scope(|s| {
+            for (k, r) in regions.iter().enumerate() {
+                let h = r.as_ref();
+                s.spawn(move || assert_eq!(snapshot(h), expected(k)));
+            }
+        });
+        let mut moved = regions;
+        thread::scope(|s| {
+            for (k, r) in moved.iter_mut().enumerate() {
+                let mut h = r.as_mut();
+                s.spawn(move || {
+                    fill(&mut h, k + 1);
+                    assert_eq!(snapshot(h.as_ref()), expected(k + 1));
+                });
+            }
+        });
+        let handles: Vec<_> = moved
+            .into_iter()
+            .enumerate()
+            .map(|(k, r)| thread::spawn(move || assert_eq!(snapshot(r.as_ref()), expected(k + 1))))
+            .collect();
+        for h in handles {
+            h.join().unwrap();
+        }
+    }
+
+    #[test]
+    fn heap_arrays_of_regions_fill_and_read_element_by_element() {
+        for n in [0, 1, 7, 64] {
+            let mut array =
+                alloc_cell_array_zeroed::<RegionOfInterest>(n).unwrap_or_else(HeapVec::empty);
+            assert_eq!(array.len(), n);
+            let mut handles = array.as_handles_mut();
+            for k in 0..n {
+                assert_eq!(snapshot(handles.get(k).unwrap()), (0, [0; 6]));
+                fill(&mut handles.get_mut(k).unwrap(), k);
+            }
+            assert!(handles.get(n).is_none() && handles.get_mut(n).is_none());
+            for (k, r) in array.as_handles().iter().enumerate() {
+                assert_eq!(snapshot(r), expected(k));
+            }
+            let copies: Vec<RegionOfInterest> =
+                array.as_handles().iter().map(|r| r.get()).collect();
+            drop(array);
+            for (k, r) in copies.iter().enumerate() {
+                assert_eq!(snapshot(r.as_ref()), expected(k));
+            }
+        }
+    }
+}
