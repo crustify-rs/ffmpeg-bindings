@@ -150,7 +150,7 @@
       },
       "nullable": false,
       "mutable": false,
-      "note": "av_buffer_pool_init's allocator, or av_buffer_alloc when NULL; init2 stores av_buffer_alloc as the fallback. Called by pool_alloc_buffer under the pool mutex with pool->size when alloc2 is NULL; its result must be a sole, writable reference whose AVBuffer data holds at least size bytes (recycled references reuse buffer->data with pool->size). The result's AVBuffer keeps its own free(opaque, data) callback in the BufferPoolEntry, and buffer_pool_flush calls it when the entry is flushed: under the pool mutex from av_buffer_pool_uninit, and unlocked from buffer_pool_free as the pool is freed; that callback must therefore not lock the pool either (no av_buffer_pool_get, no release of the last reference to one of its buffers, no av_buffer_pool_uninit), or the default, non-recursive mutex is locked twice on one thread."
+      "note": "av_buffer_pool_init's allocator, or av_buffer_alloc when NULL; init2 stores av_buffer_alloc as the fallback. Called by pool_alloc_buffer under the pool mutex with pool->size when alloc2 is NULL; its result must be a sole, writable reference whose AVBuffer data holds at least size bytes (recycled references reuse buffer->data with pool->size). The result's AVBuffer keeps its own free(opaque, data) callback in the BufferPoolEntry, and buffer_pool_flush calls it when the entry is flushed: under the pool mutex from av_buffer_pool_uninit, and unlocked from buffer_pool_free as the pool is freed; that callback must therefore not lock the pool either (no av_buffer_pool_get, no release of the last reference to one of its buffers, no av_buffer_pool_uninit), or the default, non-recursive mutex is locked twice on one thread. pool_alloc_buffer takes over the result's opaque/free but leaves its AVBuffer flags_internal, so a BUFFER_FLAG_REALLOCATABLE result (av_buffer_realloc of an empty slot, or a buffer its copy path made) makes the first pool buffer resizable in place: av_buffer_realloc then av_reallocs the block this entry still records (recycled later: use after free; freed again at flush: double free). Rust: BufferReferenceMut::realloc_by_copy copies every buffer with an opaque, so pool buffers never reach that branch."
      }
     },
     {
@@ -167,7 +167,7 @@
       },
       "nullable": true,
       "mutable": false,
-      "note": "av_buffer_pool_init2's allocator (NULL selects alloc = av_buffer_alloc); takes precedence over alloc. Called by pool_alloc_buffer under the pool mutex with (opaque, pool->size), with the same result contract as alloc. The result's AVBuffer keeps its own free(opaque, data) callback in the BufferPoolEntry, and buffer_pool_flush calls it when the entry is flushed: under the pool mutex from av_buffer_pool_uninit, and unlocked from buffer_pool_free as the pool is freed; that callback must therefore not lock the pool either (no av_buffer_pool_get, no release of the last reference to one of its buffers, no av_buffer_pool_uninit), or the default, non-recursive mutex is locked twice on one thread."
+      "note": "av_buffer_pool_init2's allocator (NULL selects alloc = av_buffer_alloc); takes precedence over alloc. Called by pool_alloc_buffer under the pool mutex with (opaque, pool->size), with the same result contract as alloc. The result's AVBuffer keeps its own free(opaque, data) callback in the BufferPoolEntry, and buffer_pool_flush calls it when the entry is flushed: under the pool mutex from av_buffer_pool_uninit, and unlocked from buffer_pool_free as the pool is freed; that callback must therefore not lock the pool either (no av_buffer_pool_get, no release of the last reference to one of its buffers, no av_buffer_pool_uninit), or the default, non-recursive mutex is locked twice on one thread. pool_alloc_buffer takes over the result's opaque/free but leaves its AVBuffer flags_internal, so a BUFFER_FLAG_REALLOCATABLE result (av_buffer_realloc of an empty slot, or a buffer its copy path made) makes the first pool buffer resizable in place: av_buffer_realloc then av_reallocs the block this entry still records (recycled later: use after free; freed again at flush: double free). Rust: BufferReferenceMut::realloc_by_copy copies every buffer with an opaque, so pool buffers never reach that branch."
      }
     },
     {
@@ -3137,7 +3137,7 @@
       "borrowed": null,
       "nullable": true,
       "mutable": true,
-      "note": "size bytes whose ownership moves to the new AVBuffer on success (released by free(opaque, data), or av_free when free is NULL); untouched on failure (NULL return). Never dereferenced by av_buffer_create itself; NULL is stored as is (fine with size 0). Writes go through it later only while the reference is writable, so READONLY data is never written by C. Rust: a HeapVec<u8> (default free) or the slice of a boxed Rust owner T: AsMut<[u8]>/AsRef<[u8]> (+ Send + 'static)."
+      "note": "size bytes whose ownership moves to the new AVBuffer on success (released by free(opaque, data), or av_free when free is NULL); untouched on failure (NULL return). Never dereferenced by av_buffer_create itself; NULL is stored as is (fine with size 0). Writes go through it later only while the reference is writable, so READONLY data is never written by C. Rust: a HeapVec<u8> (default free) or the slice of a boxed Rust owner T: AsMut<[u8]>/AsRef<[u8]> (+ Send + 'static), or T: AsMut<[MaybeUninit<u8>]> for UninitBuffer::from_owner, whose bytes may be left uninitialised (pool allocators); UninitBuffer::try_from refuses any buffer with an opaque, since an initialised owner's drop may read its bytes."
      }
     },
     {
@@ -3186,7 +3186,7 @@
      "borrowed": null,
      "nullable": true,
      "mutable": true,
-     "note": "A new reference (refcount 1) to an av_mallocz'd AVBuffer over data, released by av_buffer_unref; NULL on allocation failure, with data, free and opaque untouched. Writable unless flags has AV_BUFFER_FLAG_READONLY. Rust: BufferReference::from_heap_vec / from_owner / from_read_only."
+     "note": "A new reference (refcount 1) to an av_mallocz'd AVBuffer over data, released by av_buffer_unref; NULL on allocation failure, with data, free and opaque untouched. Writable unless flags has AV_BUFFER_FLAG_READONLY. Rust: BufferReference::from_heap_vec / from_owner / from_read_only, UninitBuffer::from_owner."
     }
    }
   },
@@ -3430,7 +3430,7 @@
      "borrowed": null,
      "nullable": true,
      "mutable": true,
-     "note": "A new sole, writable reference (flags 0, count 1): a recycled entry's pool->size bytes (contents left by their previous user) or a fresh allocator buffer (av_buffer_alloc: uninitialised; init2 allocators: their reference as returned). Its release returns the entry to the pool (pool_release_buffer) and drops the pool count, freeing the pool after av_buffer_pool_uninit and the last return. NULL on allocator or entry/AVBufferRef allocation failure. Rust: UninitBuffer (released by av_buffer_unref)."
+     "note": "A new sole, writable reference (flags 0, count 1): a recycled entry's pool->size bytes (contents left by their previous user) or a fresh allocator buffer (av_buffer_alloc: uninitialised; custom allocators: their reference as returned, its AVBuffer's flags_internal included, so a first buffer from an allocator returning reallocatable buffers is itself BUFFER_FLAG_REALLOCATABLE; recycled entries are rebuilt with flags 0 and BUFFER_FLAG_NO_FREE). Its release returns the entry to the pool (pool_release_buffer) and drops the pool count, freeing the pool after av_buffer_pool_uninit and the last return. NULL on allocator or entry/AVBufferRef allocation failure. Rust: UninitBuffer (released by av_buffer_unref), built directly: the bytes are the allocator buffer's, which no release reads as initialised (av_buffer_alloc blocks or an allocator's own UninitBuffer)."
     }
    }
   },
@@ -3462,7 +3462,7 @@
       },
       "nullable": true,
       "mutable": false,
-      "note": "Allocator stored in pool->alloc (NULL selects av_buffer_alloc) and called later by av_buffer_pool_get, under the pool mutex, from any thread, until the pool is freed (possibly after av_buffer_pool_uninit). Each result must be NULL or a sole, writable reference whose AVBuffer data holds at least size bytes. Rust: BufferPool::new passes NULL; custom allocators go through av_buffer_pool_init2 (BufferPool::with_allocator)."
+      "note": "Allocator stored in pool->alloc (NULL selects av_buffer_alloc) and called later by av_buffer_pool_get, under the pool mutex, from any thread, until the pool is freed (possibly after av_buffer_pool_uninit). Each result must be NULL or a sole, writable reference whose AVBuffer data holds at least size bytes. pool_alloc_buffer copies the result's data/opaque/free into the BufferPoolEntry but leaves its AVBuffer flags_internal, so a result that is BUFFER_FLAG_REALLOCATABLE (av_buffer_realloc of an empty slot, or a buffer av_buffer_realloc's copy path made) hands out a first pool buffer that av_buffer_realloc resizes IN PLACE: av_realloc frees or shrinks the block the entry still records, which the pool later recycles (use after free) and frees again at flush (double free). The C contract does not forbid such a result. Rust: BufferPool::new passes NULL; custom allocators go through av_buffer_pool_init2 (BufferPool::with_allocator)."
      }
     }
    ],
@@ -3509,7 +3509,7 @@
       },
       "nullable": true,
       "mutable": false,
-      "note": "Allocator alloc2(opaque, size), called by av_buffer_pool_get under the pool mutex (serialized, any thread) whenever no free entry exists; NULL selects av_buffer_alloc. Results must be NULL or a sole, writable reference whose AVBuffer data holds at least size bytes, releasable by its own free callback on any thread."
+      "note": "Allocator alloc2(opaque, size), called by av_buffer_pool_get under the pool mutex (serialized, any thread) whenever no free entry exists; NULL selects av_buffer_alloc. Results must be NULL or a sole, writable reference whose AVBuffer data holds at least size bytes, releasable by its own free callback on any thread. pool_alloc_buffer copies the result's data/opaque/free into the BufferPoolEntry but leaves its AVBuffer flags_internal, so a result that is BUFFER_FLAG_REALLOCATABLE (av_buffer_realloc of an empty slot, or a buffer av_buffer_realloc's copy path made) hands out a first pool buffer that av_buffer_realloc resizes IN PLACE: av_realloc frees or shrinks the block the entry still records, which the pool later recycles (use after free) and frees again at flush (double free). The C contract does not forbid such a result. Rust: BufferPool::with_allocator (FnMut(usize) -> Option<UninitBuffer>, allocator buffers from BufferReference::alloc/alloc_resizable or UninitBuffer::from_owner); its resize wrappers copy any buffer with an opaque, so pool buffers never reach the in-place path."
      }
     },
     {
@@ -3626,7 +3626,7 @@
       },
       "nullable": false,
       "mutable": true,
-      "note": "The caller's AVBufferRef * slot (never NULL). *pbuf NULL: av_realloc(NULL, size) + av_buffer_create, flagged REALLOCATABLE, written to the slot and owned by the caller (bytes uninitialised). *pbuf live: an equal size is a no-op; a sole, writable, REALLOCATABLE reference whose window starts at its buffer's data is av_realloc'ed in place (buffer and window data/size updated); otherwise a new reallocatable buffer gets min(size, old) window bytes and replaces the reference in place via buffer_replace (slot pointer unchanged, old count dropped). Bytes past the old window are uninitialised. ENOMEM leaves *pbuf untouched. Rust: BufferReference::alloc_resizable (NULL slot), BufferReferenceMut::resize (fills the new tail), UninitBuffer::resize. A NULL window (size 0, from av_buffer_create(NULL, 0)) reaching the copy path makes C call memcpy(dst, NULL, 0), UB (UBSan nonnull-attribute, buffer.c:176/218); the Rust wrappers take that one case without C's memcpy."
+      "note": "The caller's AVBufferRef * slot (never NULL). *pbuf NULL: av_realloc(NULL, size) + av_buffer_create, flagged REALLOCATABLE, written to the slot and owned by the caller (bytes uninitialised). *pbuf live: an equal size is a no-op; a sole, writable, REALLOCATABLE reference whose window starts at its buffer's data is av_realloc'ed in place (buffer and window data/size updated), even when it is a pool buffer: only av_buffer_realloc of an empty slot sets the flag, but pool_alloc_buffer keeps it on an allocator's result while taking over its opaque/free, so the in-place av_realloc frees or shrinks the block its BufferPoolEntry still records (recycled later: use after free; freed again at flush: double free); otherwise a new reallocatable buffer gets min(size, old) window bytes and replaces the reference in place via buffer_replace (slot pointer unchanged, old count dropped). Bytes past the old window are uninitialised. ENOMEM leaves *pbuf untouched. Rust: BufferReference::alloc_resizable (NULL slot), BufferReferenceMut::resize (fills the new tail), UninitBuffer::resize. A NULL window (size 0, from av_buffer_create(NULL, 0)) reaching the copy path makes C call memcpy(dst, NULL, 0), UB (UBSan nonnull-attribute, buffer.c:176/218); the Rust wrappers take that one case without C's memcpy. They run C's copy path themselves (alloc_resizable + copy + swap into the same struct, BufferReferenceMut::realloc_by_copy) for a NULL window and for any buffer with an opaque (pool buffers: the opaque is their entry; reallocatable buffers C made have none), so a pool buffer is never resized in place."
      }
     }
    ]

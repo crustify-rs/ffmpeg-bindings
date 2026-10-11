@@ -7,6 +7,7 @@
 //! `get_with_opaque` (buffer-frame wave 2), then held as raw references.
 
 use core::ffi::c_void;
+use core::mem::MaybeUninit;
 use core::ptr;
 use core::sync::atomic::{AtomicUsize, Ordering};
 use std::sync::{Arc, Barrier, Mutex};
@@ -268,12 +269,12 @@ fn owner_and_last_buffer_released_on_other_threads() {
 
 /// Bytes a buffer owns, counting their releases.
 struct Counted {
-    bytes: Vec<u8>,
+    bytes: Vec<MaybeUninit<u8>>,
     frees: &'static AtomicUsize,
 }
 
-impl AsMut<[u8]> for Counted {
-    fn as_mut(&mut self) -> &mut [u8] {
+impl AsMut<[MaybeUninit<u8>]> for Counted {
+    fn as_mut(&mut self) -> &mut [MaybeUninit<u8>] {
         &mut self.bytes
     }
 }
@@ -293,10 +294,10 @@ fn custom_buffers_keep_their_opaque_and_release() {
     let pool = unsafe {
         BufferPool::with_allocator(24, |size| {
             let owner = Counted {
-                bytes: vec![0; size],
+                bytes: vec![MaybeUninit::uninit(); size],
                 frees: &FREES,
             };
-            UninitBuffer::try_from(BufferReference::from_owner(owner).ok()?).ok()
+            UninitBuffer::from_owner(owner).ok()
         })
     }
     .unwrap();
@@ -321,10 +322,10 @@ fn custom_buffers_keep_their_opaque_and_release() {
 static KEPT: Mutex<Option<Owned>> = Mutex::new(None);
 
 /// Bytes whose release also returns `KEPT` to its own pool.
-struct ReleasesKept(Vec<u8>);
+struct ReleasesKept(Vec<MaybeUninit<u8>>);
 
-impl AsMut<[u8]> for ReleasesKept {
-    fn as_mut(&mut self) -> &mut [u8] {
+impl AsMut<[MaybeUninit<u8>]> for ReleasesKept {
+    fn as_mut(&mut self) -> &mut [MaybeUninit<u8>] {
         &mut self.0
     }
 }
@@ -346,8 +347,8 @@ fn free_callbacks_may_release_buffers_of_other_pools() {
     // pool.
     let pool = unsafe {
         BufferPool::with_allocator(16, |size| {
-            let owner = ReleasesKept(vec![0; size]);
-            UninitBuffer::try_from(BufferReference::from_owner(owner).ok()?).ok()
+            let owner = ReleasesKept(vec![MaybeUninit::uninit(); size]);
+            UninitBuffer::from_owner(owner).ok()
         })
     }
     .unwrap();
@@ -369,16 +370,50 @@ fn free_callbacks_may_release_buffers_of_other_pools() {
     drop(again);
 }
 
+/// Review of buffer-frame wave 2 (`ub_unsafe/pool-buffer-resized-in-place-
+/// under-its-entry`): an allocator of resizable buffers keeps its contract,
+/// yet C leaves a pool buffer it took over flagged reallocatable. Resizing
+/// one, uninitialised or filled, larger or smaller, copies it instead of
+/// `av_realloc`ing the block its pool entry records: the original returns to
+/// the pool whole, is recycled at the same address and released once.
+#[test]
+fn resizable_allocator_buffers_resize_by_copy() {
+    // SAFETY: every buffer holds exactly `size` bytes from its start (a
+    // fresh resizable buffer's window is its data), and neither the
+    // allocator nor its buffers' release (`av_free`) calls into the pool.
+    let pool = unsafe { BufferPool::with_allocator(16, BufferReference::alloc_resizable) }.unwrap();
+    for len in [1 << 20, 4, 0, 17] {
+        let mut first = pool.as_ref().get().unwrap();
+        let at = first.as_slice().as_ptr();
+        first.resize(len).unwrap();
+        assert_eq!(first.len(), len);
+        assert_ne!(first.as_slice().as_ptr(), at);
+        assert!(first.fill(1).as_ref().data() == vec![1; len].as_slice());
+        let again = pool.as_ref().get().unwrap();
+        assert_eq!(again.as_slice().as_ptr(), at);
+        let mut filled = again.fill(3);
+        filled.as_mut().resize(len, 4).unwrap();
+        let mut want = vec![3; len.min(16)];
+        want.resize(len, 4);
+        assert!(filled.as_ref().data() == want.as_slice());
+    }
+    let last = pool.as_ref().get().unwrap();
+    drop(pool);
+    assert!(last.fill(5).as_ref().data() == [5; 16].as_slice());
+}
+
 /// Buffer-frame wave 1, batch 0: `UninitBuffer::assume_init`, each call
 /// after every byte was written: through `as_mut_slice` whole or in pieces,
 /// vacuously for an empty buffer, and by an earlier initialised owner the
 /// buffer was converted from; then the bytes read back exactly (ASan sees a
 /// read past them) and the result used as any reference.
 mod uninit_assume_init {
+    use core::mem::MaybeUninit;
     use core::ptr;
     use std::thread;
 
     use ffmpeg::libavutil::buffer::{BufferReference, UninitBuffer};
+    use ffmpeg::libavutil::mem::HeapVec;
 
     const SIZES: [usize; 5] = [0, 1, 15, 4096, 1 << 16];
 
@@ -445,7 +480,7 @@ mod uninit_assume_init {
             let bytes = vec![0x7e; size];
             for buf in [
                 BufferReference::alloc_zeroed(size).unwrap(),
-                BufferReference::from_owner(bytes.clone()).unwrap(),
+                BufferReference::from_heap_vec(HeapVec::from_slice(&bytes).unwrap()).unwrap(),
             ] {
                 let want = buf.as_ref().data().to_vec();
                 let u = UninitBuffer::try_from(buf).unwrap();
@@ -454,6 +489,20 @@ mod uninit_assume_init {
                 let buf = unsafe { u.assume_init() };
                 assert!(buf.as_ref().data() == want.as_slice());
             }
+        }
+    }
+
+    /// Review of buffer-frame wave 2: an `UninitBuffer::from_owner` owner
+    /// whose bytes it initialised itself.
+    #[test]
+    fn after_a_rust_owner_initialised_them() {
+        for size in SIZES {
+            let u = UninitBuffer::from_owner(vec![MaybeUninit::new(0x5d); size]).unwrap();
+            // SAFETY: the owner's every byte was initialised, and nothing
+            // wrote them since.
+            let buf = unsafe { u.assume_init() };
+            assert!(buf.as_ref().data() == vec![0x5d; size].as_slice());
+            assert!(!buf.as_ref().opaque().is_null());
         }
     }
 }

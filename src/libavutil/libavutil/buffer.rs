@@ -260,8 +260,8 @@ impl BufferPool {
     /// A buffer from [`BufferReference::alloc`] of at least `size` bytes
     /// does; one whose window was advanced past its start may not.
     ///
-    /// Neither `alloc` nor the release of a buffer it returns (the drop of a
-    /// [`from_owner`](BufferReference::from_owner) owner) may call into this
+    /// Neither `alloc` nor the release of a buffer it returns (the drop of an
+    /// [`UninitBuffer::from_owner`] owner) may call into this
     /// same pool: requesting one of its buffers, releasing the last reference
     /// to one, or dropping its owner all lock the pool mutex. C holds that
     /// mutex during every `alloc` call, and while dropping the owner hands
@@ -323,8 +323,10 @@ impl BufferPoolRef<'_> {
         let buf = unsafe { BufferReferenceBox::from_c(ffi::av_buffer_pool_get(pool)) }?;
         // A reference fresh from a pool is its buffer's only one, and C
         // creates recycled buffers writable; a first one is the allocator's,
-        // writable for the pools this crate builds.
-        UninitBuffer::try_from(buf).ok()
+        // writable for the pools this crate builds. Its bytes are those of
+        // the allocator's buffer, which no release reads as initialised: an
+        // `av_buffer_alloc` block, or an allocator's own `UninitBuffer`.
+        buf.as_ref().is_writable().then_some(UninitBuffer(buf))
     }
 
     /// Wraps: av_buffer_pool_buffer_get_opaque
@@ -337,7 +339,7 @@ impl BufferPoolRef<'_> {
     /// It is the allocator's address, handed back as the raw cookie it is:
     /// NULL for buffers from [`BufferPool::new`]'s allocator and from
     /// [`BufferReference::alloc`], and an address private to this crate for
-    /// [`BufferReference::from_owner`] buffers. Dereferencing it is the
+    /// [`UninitBuffer::from_owner`] buffers. Dereferencing it is the
     /// caller's `unsafe` business.
     #[must_use]
     pub fn get_with_opaque(&self) -> Option<(UninitBuffer, *mut c_void)> {
@@ -407,7 +409,9 @@ define_ctype!(
     /// Every reference a handle reaches holds one count of a live buffer and
     /// describes `len` initialised bytes inside that buffer's data (a NULL
     /// `data` only when `len` is 0), and its buffer's data release may run on
-    /// any thread. Bytes that are not yet initialised are held by an
+    /// any thread and, when the buffer has no opaque, never reads the bytes
+    /// ([`UninitBuffer`]'s conversion relies on it). Bytes that are not yet
+    /// initialised are held by an
     /// [`UninitBuffer`] instead. The bytes are written only through a
     /// reference that is the buffer's only one and not read-only
     /// ([`data_mut`](BufferReferenceMut::data_mut)), as C's own convention
@@ -592,7 +596,9 @@ impl BufferReference {
     /// them with `av_realloc` and marks the buffer for it, so that
     /// [`UninitBuffer::resize`] and [`BufferReferenceMut::resize`] resize it
     /// without a copy while this is its only reference and its window
-    /// starts at its data. `None` when C cannot allocate them.
+    /// starts at its data, unless a pool has taken it over from its
+    /// allocator ([`BufferPool::with_allocator`]). `None` when C cannot
+    /// allocate them.
     #[must_use]
     pub fn alloc_resizable(size: usize) -> Option<UninitBuffer> {
         let mut slot = ptr::null_mut();
@@ -695,8 +701,9 @@ impl BufferReference {
 type ReleaseFn = unsafe extern "C" fn(*mut c_void, *mut u8);
 
 /// The data release of a buffer over a Rust owner: drops the `Box<T>` that
-/// [`BufferReference::from_owner`] or
-/// [`from_read_only`](BufferReference::from_read_only) passed as its opaque.
+/// [`BufferReference::from_owner`],
+/// [`from_read_only`](BufferReference::from_read_only) or
+/// [`UninitBuffer::from_owner`] passed as its opaque.
 unsafe extern "C" fn release_owner<T>(opaque: *mut c_void, _data: *mut u8) {
     // SAFETY: C calls a buffer's release once, after its last reference is
     // gone (the acq_rel decrement orders every access to the bytes before
@@ -770,8 +777,9 @@ impl<'a> BufferReferenceRef<'a> {
     /// [`alloc_resizable`](BufferReference::alloc_resizable) and
     /// [`from_heap_vec`](BufferReference::from_heap_vec) build, and the copies
     /// [`BufferReferenceMut::make_mut`] and `resize` make; an address private
-    /// to this crate for [`from_owner`](BufferReference::from_owner) and
-    /// [`from_read_only`](BufferReference::from_read_only) buffers; and the
+    /// to this crate for [`from_owner`](BufferReference::from_owner),
+    /// [`from_read_only`](BufferReference::from_read_only) and
+    /// [`UninitBuffer::from_owner`] buffers; and the
     /// pool's own bookkeeping for a pool's buffers, whose allocator's opaque
     /// [`BufferPoolRef::get_with_opaque`] reads.
     #[must_use]
@@ -980,9 +988,10 @@ impl BufferReferenceMut<'_> {
     /// Resizes the window this reference describes to `len` bytes, as
     /// `Vec::resize`: its first bytes up to the shorter length are kept, and
     /// any new ones set to `value`. A buffer from
-    /// [`BufferReference::alloc_resizable`] that has this one reference and
-    /// whose window still starts at its data is resized in place
-    /// (`av_realloc`); any other is copied into a new resizable buffer of
+    /// [`BufferReference::alloc_resizable`] that has this one reference,
+    /// whose window still starts at its data and that no pool has taken over
+    /// is resized in place (`av_realloc`); any other is copied into a new
+    /// resizable buffer of
     /// `len` bytes, which this reference then counts instead, the old one's
     /// other references and bytes staying as they were. Nothing changes when
     /// `len` is the length already.
@@ -1011,13 +1020,8 @@ impl BufferReferenceMut<'_> {
     /// reference alone holds unless `len` was its length already.
     fn realloc(&mut self, len: usize) -> Result<(), c_int> {
         let shared = self.as_ref();
-        if shared.len() != len && shared.data_is_null() {
-            // C would copy the empty window into the new buffer with `memcpy`
-            // from NULL, which is UB even for 0 bytes: its copy of nothing is
-            // a new resizable buffer.
-            let fresh = BufferReference::alloc_resizable(len).ok_or(ENOMEM)?;
-            self.set(fresh.0);
-            return Ok(());
+        if shared.len() != len && (shared.data_is_null() || !shared.opaque().is_null()) {
+            return self.realloc_by_copy(len);
         }
         let mut slot = self.as_mut_ptr();
         // C keeps the reference, resizes its sole, writable, reallocatable
@@ -1026,9 +1030,35 @@ impl BufferReferenceMut<'_> {
         // place, freeing the temporary struct and one count of the old
         // buffer. On failure it changes nothing.
         // SAFETY: `slot` holds this live, exclusively borrowed reference,
-        // whose window is at a non-NULL address unless `len` is its length;
+        // whose window is at a non-NULL address unless `len` is its length,
+        // and whose buffer has no opaque, so no pool entry records its block;
         // C never writes the slot itself.
         status(unsafe { ffi::av_buffer_realloc(&mut slot, len) })
+    }
+
+    /// `av_buffer_realloc`'s copy path, taken here where C's own call would
+    /// be UB: the window's first bytes, up to `len`, go into a new resizable
+    /// buffer of `len` bytes (`av_buffer_realloc` of an empty slot), which
+    /// this reference then counts instead, the struct staying in place.
+    ///
+    /// C would copy a NULL window with `memcpy` from NULL, UB even for 0
+    /// bytes. And C resizes a pool buffer in place when its allocator handed
+    /// over a resizable one: `pool_alloc_buffer` keeps the buffer's
+    /// reallocatable flag, so `av_realloc` frees the block the pool entry
+    /// still records, which the pool then recycles and frees again. Only
+    /// `av_buffer_realloc` of an empty slot sets that flag, on a buffer
+    /// without an opaque; a pool gives each of its buffers one, its entry.
+    fn realloc_by_copy(&mut self, len: usize) -> Result<(), c_int> {
+        let (data, old) = self.as_ref().parts();
+        let mut fresh = BufferReference::alloc_resizable(len).ok_or(ENOMEM)?;
+        let to = fresh.as_mut_slice().as_mut_ptr().cast::<u8>();
+        // SAFETY: `data` addresses this reference's `old` bytes (dangling for
+        // 0), which nothing writes while it is borrowed exclusively, and `to`
+        // the `len` bytes of a new buffer, distinct from them; the copy is
+        // untyped, so bytes that are not initialised stay so.
+        unsafe { ptr::copy_nonoverlapping(data.as_ptr(), to, old.min(len)) };
+        self.set(fresh.0);
+        Ok(())
     }
 
     /// Wraps: av_buffer_replace
@@ -1148,6 +1178,56 @@ pub fn assign(
 pub struct UninitBuffer(BufferReferenceBox);
 
 impl UninitBuffer {
+    /// Wraps: av_buffer_create
+    ///
+    /// A reference to a new, writable buffer over the possibly uninitialised
+    /// bytes of `owner`, which the buffer then owns, as
+    /// [`BufferReference::from_owner`] does for initialised ones: `owner` is
+    /// dropped once the last reference is released, on the thread releasing
+    /// it, and comes back when C cannot allocate the buffer. The bytes stay
+    /// `MaybeUninit<u8>` to `owner`, so its drop never reads them as
+    /// initialised, whatever was written over them meanwhile.
+    ///
+    /// This is the buffer a pool allocator returns to give its buffers an
+    /// opaque of their own ([`BufferPoolRef::get_with_opaque`]): a pool
+    /// hands the same bytes to each user in turn as an [`UninitBuffer`].
+    ///
+    /// `as_mut` is called once, and the bytes it returns are the buffer's for
+    /// as long as `owner` lives, as for [`BufferReference::from_owner`].
+    ///
+    /// An owner of initialised bytes is rejected, as its drop could read
+    /// bytes a user left uninitialised:
+    ///
+    /// ```compile_fail,E0277
+    /// use ffmpeg::libavutil::buffer::UninitBuffer;
+    /// let _ = UninitBuffer::from_owner(vec![0u8; 4]);
+    /// ```
+    pub fn from_owner<T>(owner: T) -> Result<Self, T>
+    where
+        T: AsMut<[MaybeUninit<u8>]> + Send + 'static,
+    {
+        let owner = Box::into_raw(Box::new(owner));
+        // SAFETY: `owner` is the live box just leaked; nothing else uses it
+        // until `release_owner` or the failure path reclaims it, so these
+        // bytes stay exclusively the buffer's.
+        let bytes = unsafe { (*owner).as_mut() };
+        let (data, len) = (bytes.as_mut_ptr().cast::<u8>(), bytes.len());
+        let (free, opaque) = (Some(release_owner::<T> as ReleaseFn), owner.cast());
+        // SAFETY: `data` addresses `len` writable bytes that live, unmoved,
+        // as long as the leaked `owner`, which C keeps as the opaque of
+        // `release_owner::<T>`, or neither when it fails.
+        let buf = unsafe { ffi::av_buffer_create(data, len, free, opaque, 0) };
+        // SAFETY: NULL, or a fresh sole, writable reference whose release
+        // drops a `Send` owner, on any thread, without reading the bytes as
+        // initialised. They are not known to be, so the box goes straight
+        // into an `UninitBuffer`, which never lends its handles.
+        let buf = unsafe { BufferReferenceBox::from_c(buf) };
+        buf.map(Self).ok_or_else(|| {
+            // SAFETY: C failed before storing `owner`, so the box is ours.
+            *unsafe { Box::from_raw(owner) }
+        })
+    }
+
     /// The number of bytes the reference describes.
     #[must_use]
     pub fn len(&self) -> usize {
@@ -1215,9 +1295,10 @@ impl UninitBuffer {
     /// Resizes the bytes to `len`, keeping the first ones up to the shorter
     /// length; any new ones are uninitialised. A buffer from
     /// [`BufferReference::alloc_resizable`] whose window still starts at its
-    /// data is resized in place (`av_realloc`); any other is copied into a
-    /// new resizable buffer, the old one freed. Nothing changes when `len` is
-    /// the length already.
+    /// data and that no pool has taken over is resized in place
+    /// (`av_realloc`); any other is copied into a new resizable buffer, the
+    /// old one released (a pool's buffer returning to its pool). Nothing
+    /// changes when `len` is the length already.
     ///
     /// # Errors
     ///
@@ -1245,13 +1326,23 @@ impl UninitBuffer {
 }
 
 /// The reference, its bytes from then on seen as possibly uninitialised,
-/// when it is its buffer's only one and not read-only; otherwise it comes
-/// back.
+/// when it is its buffer's only one, not read-only and without an opaque;
+/// otherwise it comes back.
+///
+/// Uninitialised bytes may then be written over the buffer's, so its release
+/// must never read them. A buffer without an opaque releases its bytes
+/// unread, by [`BufferReference`]'s invariant: the `av_free` of an
+/// `av_malloc` block ([`BufferReference::alloc_zeroed`],
+/// [`from_heap_vec`](BufferReference::from_heap_vec), the copies `make_mut`
+/// and `resize` make). One with an opaque may drop a Rust owner that reads
+/// them as initialised ([`BufferReference::from_owner`]), or be a pool's,
+/// recycled into an owner's bytes; [`UninitBuffer::from_owner`] and
+/// [`BufferPoolRef::get`] build those as uninitialised from the start.
 impl TryFrom<BufferReferenceBox> for UninitBuffer {
     type Error = BufferReferenceBox;
 
     fn try_from(buf: BufferReferenceBox) -> Result<Self, Self::Error> {
-        if buf.as_ref().is_writable() {
+        if buf.as_ref().is_writable() && buf.as_ref().opaque().is_null() {
             Ok(Self(buf))
         } else {
             Err(buf)
@@ -1681,6 +1772,69 @@ mod unit_tests {
         assert_eq!(uninit.copy_from_slice(&[9; 4]).as_ref().data(), &[9; 4]);
     }
 
+    /// Review of buffer-frame wave 2 (`misc/uninit-view-over-initialised-
+    /// rust-owner`): a buffer with an opaque never becomes an `UninitBuffer`
+    /// by conversion, so no uninitialised byte reaches an initialised Rust
+    /// owner's drop; pools and `UninitBuffer::from_owner` build theirs
+    /// uninitialised from the start.
+    #[test]
+    #[cfg_attr(miri, ignore)]
+    fn uninit_conversion_refuses_buffers_with_an_opaque() {
+        let drops = Arc::new(AtomicUsize::new(0));
+        let owner = Owner {
+            bytes: vec![4; 6],
+            _drops: DropCount(drops.clone()),
+        };
+        let Ok(owned) = BufferReference::from_owner(owner) else {
+            panic!("a buffer over the owner");
+        };
+        assert!(owned.as_ref().is_writable() && !owned.as_ref().opaque().is_null());
+        let owned = UninitBuffer::try_from(owned).unwrap_err();
+        assert_eq!(owned.as_ref().data(), &[4; 6]);
+        drop(owned);
+        assert_eq!(drops.load(Ordering::SeqCst), 1);
+        let pool = BufferPool::new(8).unwrap();
+        let pooled = get(&pool).unwrap().fill(1);
+        assert!(pooled.as_ref().is_writable());
+        assert!(UninitBuffer::try_from(pooled).is_err());
+        let heap = HeapVec::from_slice(&[2u8; 3]).unwrap();
+        for buf in [
+            BufferReference::alloc_zeroed(3).unwrap(),
+            BufferReference::from_heap_vec(heap).unwrap(),
+        ] {
+            assert_eq!(UninitBuffer::try_from(buf).unwrap().len(), 3);
+        }
+        // An uninitialised owner: its bytes are the buffer's, written
+        // through the view and released with the owner.
+        struct Bytes {
+            bytes: Box<[MaybeUninit<u8>]>,
+            _drops: DropCount,
+        }
+        impl AsMut<[MaybeUninit<u8>]> for Bytes {
+            fn as_mut(&mut self) -> &mut [MaybeUninit<u8>] {
+                &mut self.bytes
+            }
+        }
+        let owner = Bytes {
+            bytes: Box::new_uninit_slice(5),
+            _drops: DropCount(drops.clone()),
+        };
+        let at = owner.bytes.as_ptr();
+        let Ok(mut u) = UninitBuffer::from_owner(owner) else {
+            panic!("a buffer over the owner");
+        };
+        assert_eq!((u.as_slice().as_ptr(), u.len()), (at, 5));
+        assert!(!u.0.as_ref().opaque().is_null());
+        u.as_mut_slice()[0] = MaybeUninit::uninit();
+        let buf = u.fill(6);
+        assert_eq!(buf.as_ref().data(), &[6; 5]);
+        assert!(UninitBuffer::try_from(buf.clone()).is_err());
+        drop(buf);
+        assert_eq!(drops.load(Ordering::SeqCst), 2);
+        let empty = UninitBuffer::from_owner(Vec::<MaybeUninit<u8>>::new()).unwrap();
+        assert!(empty.fill(0).as_ref().data().is_empty());
+    }
+
     /// `AVBuffer`'s private layout (`buffer_internal.h`), through which a
     /// test sets a count no number of live clones could reach.
     #[repr(C)]
@@ -1777,6 +1931,10 @@ mod unit_tests {
                 .map(drop)
                 .unwrap_err();
             assert_eq!(*read_only, [6]);
+            let uninit = Box::<[MaybeUninit<u8>]>::from(&[MaybeUninit::new(8); 2][..]);
+            let at = uninit.as_ptr();
+            let uninit = UninitBuffer::from_owner(uninit).map(drop).unwrap_err();
+            assert_eq!((uninit.as_ptr(), uninit.len()), (at, 2));
             // The 24-byte copy fits a 40-byte limit; a 16-byte one does not,
             // and the count stays.
             assert!(shared.try_clone().is_some());
