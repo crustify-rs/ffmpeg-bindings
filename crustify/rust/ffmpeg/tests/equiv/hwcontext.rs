@@ -2501,6 +2501,160 @@ mod frames_constraints {
         // allocated, which C frees.
         unsafe { ffi::av_hwframe_constraints_free(&mut c) };
     }
+
+    /// One step of a query sequence on one device.
+    #[derive(Clone, Copy, Debug)]
+    enum Step {
+        /// A query without a configuration.
+        Plain,
+        /// A query under the configuration, its hardware format first
+        /// rewritten to the one given, or left as it is.
+        Config(Option<ffi::AVPixelFormat>),
+        /// The backend's status for later queries.
+        Status(c_int),
+    }
+
+    fn steps() -> Vec<Step> {
+        use Step::*;
+        use ffi::AVPixelFormat as F;
+        vec![
+            Plain,
+            Config(None),
+            Config(Some(F::AV_PIX_FMT_CUDA)),
+            Plain,
+            Status(-12),
+            Plain,
+            Config(Some(F::AV_PIX_FMT_VULKAN)),
+            Status(5),
+            Config(Some(F::AV_PIX_FMT_NONE)),
+            Config(None),
+            Status(0),
+            Plain,
+        ]
+    }
+
+    /// Sets the status the fake backend behind `raw` returns from its
+    /// constraints callback.
+    fn set_status(raw: *mut ffi::AVBufferRef, ret: c_int) {
+        // SAFETY: a live fake device, used on this thread alone.
+        unsafe { (*hwdevice::hwctx(raw)).constraints_ret = ret };
+    }
+
+    /// Repeated queries of one device, with no configuration and under one
+    /// configuration rewritten between them, failing ones among them; every
+    /// result kept while later ones are made, the first edited apart from
+    /// the rest, the configuration and the device released before the
+    /// results, and those released in another order than made. Views, the
+    /// backend's events and the sizes it found are compared after each step.
+    #[test]
+    fn query_sequences_on_one_device_match_c() {
+        for nb_sw in [-1, 0, 4] {
+            let q = Query {
+                bare: false,
+                nb_sw,
+                ret: 0,
+                config: None,
+            };
+            let (ce, re) = (Arc::new(Events::default()), Arc::new(Events::default()));
+            let c_dev = c_device(q, &ce);
+            let mut rust_dev = rust_device(q, &re);
+            // SAFETY: an initialised fake device, whose backend has a
+            // configuration: C returns a zeroed block of its size.
+            let c_config = unsafe { ffi::av_hwdevice_hwconfig_alloc(c_dev) }.cast::<FakeConfig>();
+            assert!(!c_config.is_null());
+            let mut rust_config = rust_dev.as_ref().alloc_hw_config().unwrap();
+            let (mut c_results, mut rust_results) = (vec![], vec![]);
+            for (i, step) in steps().into_iter().enumerate() {
+                let (c, rust) = match step {
+                    Step::Status(ret) => {
+                        set_status(c_dev, ret);
+                        // The wrapper's device goes to C and back to set it.
+                        let raw = rust_dev.into_c();
+                        set_status(raw, ret);
+                        // SAFETY: the reference `into_c` gave up, to an
+                        // initialised context.
+                        rust_dev = unsafe { DeviceReferenceBox::from_c(raw) }.unwrap();
+                        continue;
+                    }
+                    Step::Plain => (
+                        // SAFETY: an initialised device; NULL asks for its
+                        // capabilities.
+                        unsafe { ffi::av_hwdevice_get_hwframe_constraints(c_dev, null()) },
+                        rust_dev.as_ref().frames_constraints(),
+                    ),
+                    Step::Config(format) => {
+                        if let Some(f) = format {
+                            // SAFETY: the fake backend's configurations, which
+                            // the test owns and no query runs on.
+                            unsafe {
+                                (*c_config).hw_format = f;
+                                (*rust_config.as_mut_ptr().cast::<FakeConfig>()).hw_format = f;
+                            }
+                        }
+                        (
+                            // SAFETY: an initialised device and its backend's
+                            // configuration, live for the call.
+                            unsafe {
+                                ffi::av_hwdevice_get_hwframe_constraints(
+                                    c_dev,
+                                    c_config.cast_const().cast(),
+                                )
+                            },
+                            rust_dev
+                                .as_ref()
+                                .frames_constraints_for_config(&rust_config),
+                        )
+                    }
+                };
+                assert_eq!(rust.is_some(), !c.is_null(), "{nb_sw} {i} {step:?}");
+                assert_eq!(ce.get(), re.get(), "{nb_sw} {i} {step:?}");
+                // SAFETY: the live fake hardware context.
+                let c_seen = unsafe { &(*hwdevice::hwctx(c_dev)).seen_sizes }
+                    .each_ref()
+                    .map(|a| a.load(Ordering::SeqCst));
+                // SAFETY: the fake backend's hardware context type, whose
+                // sizes are atomics.
+                let rust_hw = unsafe { rust_dev.as_ref().context().hwctx::<FakeHw>() };
+                assert_eq!(Some(c_seen), rust_hw.map(|h| h.seen_sizes()));
+                if let Some(rust) = rust {
+                    c_results.push(c);
+                    rust_results.push(rust);
+                }
+                for (c, rust) in c_results.iter().zip(&rust_results) {
+                    assert_eq!(rust_view(rust), c_view(*c), "{nb_sw} {i} {step:?}");
+                }
+            }
+            assert_eq!(ce.get(), (1, 0, 9));
+            assert_eq!(c_results.len(), 7);
+            // Edits of the first result leave the others as they were.
+            for e in edits() {
+                assert_eq!(
+                    rust_edit(&mut rust_results[0], &e),
+                    c_edit(c_results[0], &e)
+                );
+                for (c, rust) in c_results.iter().zip(&rust_results) {
+                    assert_eq!(rust_view(rust), c_view(*c), "{nb_sw} {e:?}");
+                }
+            }
+            // The configuration, then the device, go before the results.
+            // SAFETY: the block av_hwdevice_hwconfig_alloc returned, unused
+            // now.
+            unsafe { ffi::av_free(c_config.cast()) };
+            drop(rust_config);
+            c_unref(c_dev);
+            drop(rust_dev);
+            assert_eq!(ce.get(), re.get());
+            assert_eq!(ce.get(), (1, 1, 9));
+            while !c_results.is_empty() {
+                let at = c_results.len() / 2;
+                c_free(c_results.remove(at));
+                drop(rust_results.remove(at));
+                for (c, rust) in c_results.iter().zip(&rust_results) {
+                    assert_eq!(rust_view(rust), c_view(*c), "{nb_sw}");
+                }
+            }
+        }
+    }
 }
 
 /// [`FramesContext`]'s getters, setters and hooks, and initialisation and
