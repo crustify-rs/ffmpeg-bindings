@@ -34,8 +34,8 @@ Thin batches with `"objective": "review"`, LLM-as-a-Judge over each landed wave.
 - **`--max-loc`** — `500` (wave 0); unbounded from wave 1
 - **`--min-fields`** — `20`
 - **orchestrator parallelism** — up to `16` concurrent batch processes from `libavutil/options`; `10` before
-- **branch** — `crustify/reviews/20261005/libavutil/crypto/wave-1`, tip `b7201f7c3f`
-- **agents** — `37` (one stopped by the provider), over `15` wave(s)
+- **branch** — `crustify/reviews/20261005/libavutil/buffer-frame/wave-4`, tip `a7d919e1f2`
+- **agents** — `46` (one stopped by the provider), over `20` wave(s)
 
 `rv`-prefixed columns below carry the review pass; the unprefixed ones remain
 the campaign's.
@@ -145,8 +145,8 @@ in Notes.
 - **total symbols** — `1126`
 - **ported types** — `<n>`
 - **ported symbols** — `<n>`
-- **wrapped types** — `65` (`22.41`% of total types)
-- **wrapped symbols** — `440` (`39.08`% of total symbols)
+- **wrapped types** — `77` (`26.55`% of total types)
+- **wrapped symbols** — `498` (`44.23`% of total symbols)
 
 Implementation `openrouter/anthropic/claude-opus-5.5` via `claude` (`openrouter/openai/gpt-6.1-sol` via `codex` for `libavutil/crypto`); review
 `openrouter/anthropic/claude-opus-5.5` via `claude`.
@@ -159,6 +159,7 @@ Implementation `openrouter/anthropic/claude-opus-5.5` via `claude` (`openrouter/
 | `libavutil/formats` | `19` | `100` | `21h42m45s` | `$142.10` | `365.22M` | `$336.68` | `288.82M` | `$478.78` | `654.04M` | `$11.31` | `$2.64` |
 | `libavutil/options` | `6` | `78` | `6h15m34s` | `$122.01` | `366.96M` | `$63.52` | `181.86M` | `$185.53` | `548.82M` | `$6.15` | `$1.91` |
 | `libavutil/crypto` | `19` | `103` | `4h26m50s` | `$46.14` | `171.31M` | `$38.22` | `108.22M` | `$84.36` | `279.52M` | `$2.48` | `$0.36` |
+| `libavutil/buffer-frame` | `12` | `58` | `10h58m03s` | `$130.04` | `372.78M` | `$89.40` | `226.96M` | `$219.44` | `599.74M` | `$8.59` | `$2.01` |
 | `<link-unit>/<subsystem>` | `<n>` | `<n>` | `<n>h<n>m<n>s` | `$<n>` | `<n>M` | `$<n>` | `<n>M` | `$<n>` | `<n>M` | `$<n>` | `$<n>` |
 | orchestrator | `<n>` | `<n>` | — | — | — | — | — | `$<n>`+ | `<n>M`+ | — | — |
 | **Σ recorded agents** | **`<n>`** | **`<n>`** | **`<n>h<n>m`** | **`$<n>`** | **`<n>M`** | **`$<n>`** | **`<n>M`** | **`$<n>`** | **`<n>M`** | **`$<n>`** | **`$<n>`** |
@@ -434,7 +435,8 @@ Implementation `openrouter/anthropic/claude-opus-5.5` via `claude` (`openrouter/
 |`libavutil/buffer-frame`|`1`|`1`| wrap | `10` | `1437` |`+1437/-4`| `68.51`% / `98.11`% | `0` | `0` | `$9.19` | `23.99M` | `33m46s` | `$0.92` | `$0.006` |
 |`libavutil/buffer-frame`|`2`|`1`| wrap | `15` | `1322` |`+1322/-58`| `68.94`% / `98.17`% | `0` | `+2` | `$9.87` | `25.86M` | `33m05s` | `$0.66` | `$0.007` |
 |`libavutil/buffer-frame`|`3`|`1`| wrap | `8` | `949` |`+949/-31`| `69.46`% / `98.24`% | `0` | `0` | `$6.13` | `15.26M` | `28m18s` | `$0.77` | `$0.006` |
-| **Σ** |  |  |  | **`480`** | **`47629`** | **`+47629/-780`** | **`69.46`% / `98.24`%** | **`+25`** | **`+38`** | **`$380.04`** | **`1039.06M`** | — | **`$0.79`** | **`$0.008`** |
+|`libavutil/buffer-frame`|`4`|`0`| wrap | `18` | `2634` |`+2634/-29`| `72.39`% / `98.36`% | `0` | `0` | `$22.57` | `71.96M` | `63m09s` | `$1.25` | `$0.009` |
+| **Σ** |  |  |  | **`498`** | **`50263`** | **`+50263/-809`** | **`72.39`% / `98.36`%** | **`+25`** | **`+38`** | **`$402.61`** | **`1111.02M`** | — | **`$0.81`** | **`$0.008`** |
 
 ### Batches: tests
 
@@ -472,7 +474,8 @@ Implementation `openrouter/anthropic/claude-opus-5.5` via `claude` (`openrouter/
 |`libavutil/buffer-frame`|`1`|`1`|`+13` (`+0.57`/`+0.27` pp)|`+0` (`-0.02`/`-0.45` pp)|`+5` (`+0.00`/`-0.13` pp)|`+6` (`+0.00`/`-0.61` pp)|
 |`libavutil/buffer-frame`|`2`|`1`|`+11` (`+0.83`/`+0.13` pp)|`+0` (`+0.00`/`-0.01` pp)|`+3` (`+0.41`/`+0.21` pp)|`+4` (`+0.37`/`+0.18` pp)|
 |`libavutil/buffer-frame`|`3`|`1`|`+9` (`+0.43`/`+0.17` pp)|`+0` (`-0.02`/`-0.27` pp)|`+3` (`+0.13`/`+0.28` pp)|`+6` (`+0.38`/`+0.03` pp)|
-| **Σ** |  |  | **`+357` (`+41.17`/`+17.99` pp)** | **`+69` (`+21.51`/`+14.48` pp)** | **`+352` (`+36.17`/`+25.86` pp)** | **`+380` (`+23.60`/`-10.30` pp)** |
+|`libavutil/buffer-frame`|`4`|`0`|`+12` (`+1.38`/`+0.51` pp)|`+0` (`+0.00`/`-0.03` pp)|`+9` (`+1.18`/`+0.34` pp)|`+18` (`+1.31`/`+0.80` pp)|
+| **Σ** |  |  | **`+369` (`+42.55`/`+18.50` pp)** | **`+69` (`+21.51`/`+14.45` pp)** | **`+361` (`+37.35`/`+26.20` pp)** | **`+398` (`+24.91`/`-9.50` pp)** |
 
 ### Batches — review
 
@@ -501,7 +504,8 @@ Implementation `openrouter/anthropic/claude-opus-5.5` via `claude` (`openrouter/
 |`libavutil/buffer-frame`|`1`|`1`| `10` |`+137/-0`| `68.55`% / `98.16`% | `0` | `0` | `+193/-13` | `$8.21` | `21.17M` | `39m19s` | `$0.82` |
 |`libavutil/buffer-frame`|`2`|`1`| `15` |`+312/-26`| `69.34`% / `98.22`% | `0` | `0` | `+472/-48` | `$10.72` | `32.99M` | `32m58s` | `$0.71` |
 |`libavutil/buffer-frame`|`3`|`1`| `8` |`+194/-19`| `71.01`% / `98.31`% | `0` | `-1` | `+254/-27` | `$6.66` | `19.47M` | `20m44s` | `$0.83` |
-| **Σ** |  |  | **`480`** | **`+4592/-764`** | **`71.01`% / `98.31`%** | **`-2`** | **`-3`** | **`+6108/-1165`** | **`$409.57`** | **`598.47M`** | — | **`$0.85`** |
+|`libavutil/buffer-frame`|`4`|`0`| `18` |`+157/-22`| `72.39`% / `98.36`% | `0` | `0` | `+240/-39` | `$26.77` | `48.31M` | `211m34s` | `$1.49` |
+| **Σ** |  |  | **`498`** | **`+4749/-786`** | **`72.39`% / `98.36`%** | **`-2`** | **`-3`** | **`+6348/-1204`** | **`$436.34`** | **`646.78M`** | — | **`$0.88`** |
 
 ### Batches — review: tests
 
@@ -530,7 +534,8 @@ Implementation `openrouter/anthropic/claude-opus-5.5` via `claude` (`openrouter/
 |`libavutil/buffer-frame`|`1`|`1`|`+3` (`+0.00`/`+0.00` pp)|`+0` (`+0.02`/`+0.00` pp)|`+0` (`+0.00`/`+0.00` pp)|`+0` (`+0.00`/`+0.00` pp)|
 |`libavutil/buffer-frame`|`2`|`1`|`+3` (`+0.00`/`+0.00` pp)|`+2` (`+0.11`/`+0.46` pp)|`+1` (`+0.00`/`+0.06` pp)|`+1` (`+0.02`/`+0.06` pp)|
 |`libavutil/buffer-frame`|`3`|`1`|`+1` (`-0.03`/`+0.02` pp)|`+0` (`+0.00`/`-0.06` pp)|`+1` (`+0.00`/`+0.04` pp)|`+0` (`+0.00`/`-0.18` pp)|
-| **Σ** |  |  | **`+11` (`-0.03`/`+0.15` pp)** | **`+9` (`+0.52`/`+2.68` pp)** | **`+18` (`+0.74`/`+1.43` pp)** | **`+21` (`+0.65`/`+0.85` pp)** |
+|`libavutil/buffer-frame`|`4`|`0`|`+1` (`+0.02`/`+0.12` pp)|`+0` (`+0.02`/`+0.06` pp)|`+0` (`+0.00`/`-0.03` pp)|`+1` (`+0.00`/`+0.01` pp)|
+| **Σ** |  |  | **`+12` (`-0.01`/`+0.27` pp)** | **`+9` (`+0.54`/`+2.74` pp)** | **`+18` (`+0.74`/`+1.40` pp)** | **`+22` (`+0.65`/`+0.86` pp)** |
 
 ### Batches — review: PoC + reports
 
@@ -559,7 +564,8 @@ Implementation `openrouter/anthropic/claude-opus-5.5` via `claude` (`openrouter/
 | `libavutil/buffer-frame` | `1` | `1` | — | `+0` | `+0` | `+0` | `+0` | `+0` | `+1` | `+1` | `2` | `0` |
 | `libavutil/buffer-frame` | `2` | `1` | — | `+0` | `+0` | `+1` | `+0` | `+0` | `+0` | `+1` | `2` | `0` |
 | `libavutil/buffer-frame` | `3` | `1` | — | `+1` | `+1` | `+0` | `+0` | `+0` | `+0` | `+0` | `2` | `0` |
-| **Σ** |  |  | — | **`+5`** | **`+4`** | **`+6`** | **`+4`** | **`+1`** | **`+10`** | **`+16`** | **`46`** | **`0`** |
+| `libavutil/buffer-frame` | `4` | `0` | — | `+0` | `+1` | `+0` | `+0` | `+0` | `+0` | `+2` | `3` | `0` |
+| **Σ** |  |  | — | **`+5`** | **`+5`** | **`+6`** | **`+4`** | **`+1`** | **`+10`** | **`+18`** | **`49`** | **`0`** |
 
 ## Safety audit
 
@@ -1840,3 +1846,145 @@ wave wall time (09:39Z to 12:18Z) was 2h38m56s.
   `options`' end, with an unsafe-LoC ratio of 0.150 (0.129 at `options`' end). The union run
   covers 65.09% of libavutil's C and 98.05% of the authored Rust, with 763 unit, 650
   `ub_safe`, 107 `ub_unsafe` and 610 equivalence tests.
+
+### `libavutil/buffer-frame` wave 0
+
+`buffer-frame` is based on `309488f337`: the campaign tip `8da383c893` plus the `buffer`, `frame` and
+`refstruct` header modules. Translators and reviewers ran on `openrouter/anthropic/claude-opus-5.5`
+(api billing). The campaign branch was merged into the sub-campaign twice (`ddba6032bc`, `03e027355e`)
+to carry the campaign-wide scan and results structure commits, so its promotion stays a fast-forward.
+
+Wave 0 is 5 type batches (`AVBuffer`, `AVBufferPool`, `AVRefStructOpaque`, `AVRefStructPool`,
+`AVSideDataDescriptor`, `AVSideDataProps`, `AVFrameSideDataType`, `AVActiveFormatDescription`) and one
+batch of 7 symbols (the `av_refstruct_*` reference routines and `av_buffer_default_free`). It launched
+at 16:19Z on 2026-10-11, and all 6 batches landed by 17:13Z, ending at `2161c1d053`, with all 15
+items anchored. Translation cost `$38.93` for 106.5M tokens and 3h38m of agent wall time. Smells went
+from 35 to 36 `unsafe fn` and from 65 to 71 raw pointers.
+
+### `libavutil/buffer-frame` review wave 0
+
+Two `openrouter/anthropic/claude-opus-5.5` reviewers (8 types, 7 symbols) cost `$13.10` for 35.9M tokens.
+
+- **Symbols reviewer** (18m00s, `$5.52`): landed `121132ed95` and `e9a17781a4`.
+  `unsafe/refstruct-count-wrap-by-leaked-references`: C increments RefStruct's `uintptr_t` count
+  unchecked, and safe code can leak references with `mem::forget`, so on targets narrower than 64 bits
+  a loop of leaked clones wraps it and the next release frees a live object. Every counted up-ref now
+  gates on `COUNT_IS_WIDE`. `ub_unsafe/ffibox-crefclone-contract-allows-count-wrap`: ffibox's
+  `CRefClone` contract never forbade a wrapping count. Its pure-Rust reproducer, rerun by the
+  orchestrator, fails under Miri with a use after free after 255 leaked clones of an 8-bit count; the
+  contract fix was merged into ffibox `main` as `630f4a5`.
+- **Types reviewer** (30m49s, `$7.57`): landed `139f845860` and `a41e9e08ea`.
+  `unsafe/buffer-pool-allocator-free-callback-under-pool-lock`: `BufferPool::with_allocator`'s
+  `# Safety` let a buffer's free callback call into its own pool, which `av_buffer_pool_uninit` runs
+  under the pool mutex, so it self-deadlocked. The reproducer, rerun by the orchestrator, exits 1
+  through its watchdog on `2161c1d053`; it is a contract fix, so it still deadlocks afterwards by
+  design. Also one `wavefront` correction and one `conventions` fix.
+- Wave wall time (16:19Z to 17:46Z) was 1h26m51s.
+
+### `libavutil/buffer-frame` wave 1
+
+One type batch (`AVBufferRef`, `AVRegionOfInterest`) and one batch of 10 symbols (RefStruct allocators
+and pools, `av_buffer_pool_uninit`, side data name and descriptor lookups), based on `16af9594fc`.
+Both landed between 18:29Z and 18:45Z, all 12 items anchored, for `$23.55` (66.2M tokens, 1h25m).
+`AVBufferRef` is `BufferReferenceBox`; its `try_clone` refuses once `av_buffer_get_ref_count` reaches
+a limit, so `AVBuffer`'s unchecked `atomic_uint` cannot wrap either. Allocations that hand out
+uninitialised bytes return an `UninitBuffer`. `unsafe fn` went to 37.
+
+### `libavutil/buffer-frame` review wave 1
+
+Two reviewers (2 types, 10 symbols) cost `$15.35` for 41.3M tokens and found no code defect. The types
+reviewer documented `RegionOfInterest`'s `self_size` hazards: every C reader checks only that it is
+non-zero and divides the payload, so an undersized one reads past it (ASan in a C probe) and
+`vf_addroi` aborts on 0. No safe path hands a region payload to C yet. The symbols reviewer corrected
+the typed pools' zeroing argument and a `SAFETY` comment past the scanner's look-back. Wave wall time
+(17:55Z to 19:25Z) was 1h29m25s.
+
+### `libavutil/buffer-frame` wave 2
+
+One type batch (`AVFrameSideData`) and one batch of 15 `av_buffer_*` symbols, based on `03e027355e`.
+Both landed by 20:11Z, all 16 items anchored, for `$19.64` (53.1M tokens, 1h11m). Raw pointers went
+from 71 to 78.
+
+### `libavutil/buffer-frame` review wave 2
+
+Two reviewers (1 type, 15 symbols) cost `$17.10` for 51.1M tokens.
+`ub_unsafe/pool-buffer-resized-in-place-under-its-entry`: a pool built with
+`BufferPool::with_allocator(n, alloc_resizable)` hands out buffers C keeps
+`BUFFER_FLAG_REALLOCATABLE`, so the safe resize let `av_buffer_realloc` move one under its pool entry
+and the pool recycled the freed block. Rerun by the orchestrator, the reproducer exits 1 on
+`13730d672b` (ASan heap-use-after-free) and 0 on `c09d4fd353`, so it is accepted; buffers with an
+opaque now resize by copy. `misc/uninit-view-over-initialised-rust-owner`: `UninitBuffer::try_from`
+exposed an owner's initialised bytes as uninitialised; it now refuses buffers with an opaque, and
+`UninitBuffer::from_owner` covers pool allocators. The types reviewer submitted `AVFrameSideData`'s
+missing lifecycle roles. Wave wall time (19:33Z to 20:43Z) was 1h09m52s.
+
+### `libavutil/buffer-frame` wave 3
+
+One type batch (`AVFrame`, 40 fields) and one batch of 8 `av_frame_side_data_*` symbols, based on
+`41c360ce53`. Both landed by 21:53Z, all 9 items anchored, for `$25.35` (75.0M tokens, 1h32m). The
+largest smell move of the sub-campaign: 37 to 42 `unsafe fn` and 78 to 95 raw pointers, mostly the
+`AVFrame` batch's public `set_data_ptr` / `set_extended_data_ptr` / `replace_hw_frames_context` and
+private layout projections.
+
+### `libavutil/buffer-frame` review wave 3
+
+Two reviewers (1 type, 8 symbols) cost `$17.08` for 50.4M tokens. The types reviewer judged the three
+new public `unsafe fn` legitimate (lent planes on a `'static` owner cannot carry a lifetime; the third
+waits on hwcontext) and found two of their contracts breakable. All three reproducers were rerun by
+the orchestrator and accepted:
+
+- `ub_unsafe/clone-reads-planar-channels-past-data`: planar audio with more than 8 lent channels and
+  `extended_data` still `data` made `try_clone`'s `av_frame_copy` read past `data[8]` (ASan SEGV at
+  `0x40` on `e14aea15ed`, exit 0 on `39f7f8db25`). `try_clone` now refuses such frames.
+- `ub_unsafe/extended-data-keeps-a-replaced-external-plane`: `alloc_extended_data` copied lent planes,
+  so a replaced and freed plane stayed and a clone read it (heap-use-after-free on `e14aea15ed`, exit 0
+  on `39f7f8db25`).
+- `ub_safe/side-data-clone-replace-leaks-partial-metadata`: `add_clone` with REPLACE leaked C's partial
+  metadata copy when `av_dict_copy` failed after its first entry (LSan, 36 bytes, on `2a232726c8`; exit
+  0 on `533a33baa6`). Rust now runs that path itself and frees the partial copy.
+
+`replace_hw_frames_context`'s contract was also tightened, and a private raw-pointer return removed
+(94 raw pointers after review). Wave wall time (20:52Z to 22:31Z) was 1h39m00s.
+
+### `libavutil/buffer-frame` wave 4
+
+Wave 4, the sub-campaign's last, is one batch of 18 `av_frame_*` routines, based on `6eadfd2e74`. It
+landed `c6e25ecf93` at 23:43Z, all 18 items anchored, for `$22.57` (72.0M tokens, 1h03m). Neither
+smell moved.
+
+### `libavutil/buffer-frame` review wave 4
+
+One reviewer for the 18 symbols (3h31m34s, `$26.77`, 48.3M tokens; most of the wall time was the BSan
+gate) landed `07a094b840` and `a7d919e1f2`.
+`ub_safe/audio-copy-sample-count-rounding-overflow`: `alloc_buffers` guarded C's
+`FFALIGN(nb_samples, 32)` overflow at `INT_MAX - 31` samples, but `make_writable`, `try_clone` and
+`try_clone_from` reached it through the `av_frame_get_buffer` call inside `av_frame_ref` and the
+wrapper's copy helper. Rerun by the orchestrator, the reproducer exits 1 on `c6e25ecf93` (UBSan
+`samplefmt.c:137`, `2147483616 + 32 cannot be represented in type 'int'`) and 0 on `a7d919e1f2`, so it
+is accepted. One `misc` doc fix and four `wavefront` corrections.
+
+As the sub-campaign's last wave, this reviewer ran the workspace BSan gate covering all of
+`buffer-frame`, with the 48 known `strto*` skips. No BSan report on either tree. On the wave tip
+`equiv` reached its two-hour limit with 655 of 656 tests passed: the one still running was wave 2's
+`buffer::mutation::sequences_mutate_count_and_release_as_c`, about 13 minutes per seed under BSan over
+16 seeds (`misc/bsan-gate-equiv-buffer-mutation-sequences-outrun-the-limit`); it now runs one seed
+under BSan. On the landed tree every binary passed (`equiv` 656 in 4127 s, `ub_safe` in 3426 s).
+Wave wall time (22:40Z to 03:16Z on 2026-10-12) was 4h36m16s.
+
+### `libavutil/buffer-frame` sub-campaign totals
+
+- The Overview row counts 12 types and 58 symbols over 5 waves. `$/type` and `$/sym` divide each
+  kind's translation and review cost by its units: types `$103.02` over 12, symbols `$116.42` over 58.
+- Review cost 0.69× translation (`$89.40` against `$130.04`).
+- Eight reproducers held, every one in the ownership and lifetime layer this subsystem is: a
+  refcount wrap through leaked clones (and the same gap in ffibox's contract), a pool callback
+  deadlock, a pool buffer resized under its entry, two plane-array reads past or after their memory,
+  a metadata leak, and a sample-count `int` overflow. Two are reachable from safe code (the metadata
+  leak and the overflow).
+- `sub-campaign wall` runs from the scaffold (16:18Z on 2026-10-11) to the last review landing
+  (03:16Z on 2026-10-12), 10h58m03s, with no pauses. Agent wall time sums to 16h10m: 8h51m
+  translating and 7h19m reviewing.
+- At the end the unseeded scan reads 42 `unsafe fn` and 94 raw-pointer smells (35 and 65 at
+  `crypto`'s end), with an unsafe-LoC ratio of 0.157. The union run covers 72.39% of libavutil's C and
+  98.36% of the authored Rust, with 884 unit, 790 `ub_safe`, 141 `ub_unsafe` and 675 equivalence
+  tests.
