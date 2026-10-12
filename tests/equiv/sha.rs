@@ -61,6 +61,7 @@ fn probe(owner: &mut ShaBox, reference: &mut Reference, chunks: &[&[u8]]) -> [u8
 }
 
 #[test]
+#[cfg_attr(miri, ignore = "calls C")]
 fn initialized_and_reinitialized_state_matches_c() {
     let data: Vec<u8> = (0..4097).map(|i| (i * 17) as u8).collect();
     let mut reference = Reference::new();
@@ -82,6 +83,7 @@ fn initialized_and_reinitialized_state_matches_c() {
 }
 
 #[test]
+#[cfg_attr(miri, ignore = "calls C")]
 fn constructors_choose_the_expected_digest() {
     let mut reference = Reference::new();
     {
@@ -129,6 +131,7 @@ fn constructors_choose_the_expected_digest() {
 use ffmpeg::libavutil::sha;
 
 #[test]
+#[cfg_attr(miri, ignore = "reads a C global")]
 fn batch10_size_is_the_c_global() {
     for _ in 0..4 {
         // SAFETY: this global is an immutable const int with static lifetime.

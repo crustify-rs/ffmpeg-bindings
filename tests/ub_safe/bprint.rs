@@ -239,6 +239,7 @@ mod owners {
     }
 
     #[test]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn every_init_shape_reads_empty_and_drops() {
         for size_max in SIZE_MAX {
             for size_init in SIZE_INIT {
@@ -266,6 +267,7 @@ mod owners {
     /// Descriptor allocation fails before C sees the caller buffer. The
     /// limit is process-wide, so run this case in an isolated child.
     #[test]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn descriptor_allocation_failure_leaves_caller_storage_untouched() {
         const CHILD: &str = "CRUSTIFY_BPRINT_ALLOCATION_FAILURE_CHILD";
         if std::env::var_os(CHILD).is_none() {
@@ -305,6 +307,7 @@ mod owners {
     }
 
     #[test]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn each_finalizer_hands_out_the_empty_string() {
         for size_max in SIZE_MAX {
             for size_init in [0, 4096] {
@@ -317,6 +320,7 @@ mod owners {
     }
 
     #[test]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn caller_buffers_of_every_length_hold_an_empty_string() {
         for len in [0, 1, 2, 3, 1024, 70_000] {
             let mut out = vec![0xa5_u8; len];
@@ -338,6 +342,7 @@ mod owners {
     /// cost nothing until touched; skipped under BSan, whose shadow does not
     /// scale to them.
     #[test]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn a_caller_buffer_beyond_u32_is_clamped() {
         if under_bsan() {
             return;
@@ -350,6 +355,7 @@ mod owners {
     }
 
     #[test]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn owners_and_handles_cross_threads() {
         let mut boxes: Vec<BPrintBox> = (0..4)
             .map(|i| BPrint::new(i * 2000, BPrint::SIZE_UNLIMITED).unwrap())
@@ -494,6 +500,7 @@ mod appenders {
     }
 
     #[test]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn every_appender_on_every_shape_keeps_the_invariants() {
         let tm = some_time();
         for size_max in SIZE_MAX {
@@ -542,6 +549,7 @@ mod appenders {
     /// unsigned arithmetic would otherwise wrap; nothing is stored or
     /// allocated for it.
     #[test]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn counts_stop_at_their_cap() {
         let mut storage = [0_u8; 4];
         let mut on = BPrint::for_buffer(&mut storage).unwrap();
@@ -575,6 +583,7 @@ mod appenders {
     /// and odd formats (lone `%`, modifiers, unknown conversions) give
     /// unspecified characters, never out-of-bounds access.
     #[test]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn strftime_over_extreme_fields_and_odd_formats() {
         const INTS: [c_int; 7] = [c_int::MIN, -1_000_000, -1, 0, 12, 400, c_int::MAX];
         const OFFSETS: [c_long; 4] = [c_long::MIN, -1, 0, c_long::MAX];
@@ -629,6 +638,7 @@ mod appenders {
     /// structure; a closure may write nothing, refuse with a panic, or panic
     /// itself, and the buffer stays readable.
     #[test]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn storage_handed_out_is_written_in_full_or_abandoned() {
         let mut auto = BPrint::new(0, BPrint::SIZE_AUTOMATIC).unwrap();
         let mut limited = BPrint::new(0, 2500).unwrap();
@@ -683,6 +693,7 @@ mod appenders {
     /// Owners append on the threads they move to, exclusive handles on
     /// scoped threads, and times are formatted from many threads at once.
     #[test]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn appenders_run_on_other_threads() {
         let tm = some_time();
         let joins: Vec<_> = SIZE_MAX

@@ -23,6 +23,7 @@ fn algorithms_and_unknown_values_are_plain_values() {
 use ffmpeg::libavutil::hmac::Hmac;
 
 #[test]
+#[cfg_attr(miri, ignore = "calls C")]
 fn keyed_owners_and_reborrows() {
     for algorithm in [
         HmacType::MD5,
@@ -46,6 +47,7 @@ fn keyed_owners_and_reborrows() {
 }
 
 #[test]
+#[cfg_attr(miri, ignore = "calls C")]
 fn repeated_construction_and_destruction() {
     for _ in 0..128 {
         let mut owner = Hmac::new(HmacType::SHA256, &[7; 256]).unwrap();
@@ -54,6 +56,7 @@ fn repeated_construction_and_destruction() {
 }
 
 #[test]
+#[cfg_attr(miri, ignore = "calls C")]
 fn independent_contexts_on_threads() {
     let threads: Vec<_> = (0..4)
         .map(|_| {
@@ -80,6 +83,7 @@ fn independent_contexts_on_threads() {
 }
 
 #[test]
+#[cfg_attr(miri, ignore = "calls C")]
 fn allocation_failures_clean_up() {
     const CHILD: &str = "CRUSTIFY_CRYPTO_B3_ALLOC_FAILURE_CHILD";
     if std::env::var_os(CHILD).is_some() {
@@ -113,6 +117,7 @@ fn allocation_failures_clean_up() {
 }
 
 #[test]
+#[cfg_attr(miri, ignore = "calls C")]
 fn hashing_foreign_writes_and_reborrows() {
     for algorithm in [
         HmacType::MD5,

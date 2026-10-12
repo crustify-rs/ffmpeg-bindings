@@ -198,7 +198,7 @@ mod unit_tests {
     use super::*;
 
     #[test]
-    #[cfg(not(miri))]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn rejected_lengths_preserve_stream() {
         let mut owner = AesCtr::new(&[0; 16]).unwrap();
         let mut data = [9; 17];
@@ -234,7 +234,7 @@ mod unit_tests {
     }
 
     #[test]
-    #[cfg(not(miri))]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn raw_roundtrip_and_construction_phase_drop() {
         let owner = AesCtr::new(&[0; 16]).unwrap();
         let ptr = owner.into_c();

@@ -61,6 +61,7 @@ mod helpers {
     }
 
     #[test]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn copies_and_appends_stay_inside_every_buffer_size() {
         let long = CString::new(vec![b'q'; 4000]).unwrap();
         for src in [c"", c"abc", long.as_c_str()] {
@@ -86,6 +87,7 @@ mod helpers {
     }
 
     #[test]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn appends_need_a_nul_inside_the_slice() {
         // The NUL lies just past the slice handed over, where C must not look.
         let mut buf = exact(b"abcd\0");
@@ -96,6 +98,7 @@ mod helpers {
     }
 
     #[test]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn find_and_strnlen_read_only_the_slice() {
         let hay = exact(b"abcabcd");
         for len in 0..=hay.len() {
@@ -113,6 +116,7 @@ mod helpers {
     }
 
     #[test]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn prefixes_and_comparisons_read_only_the_strings() {
         let s = CString::new("Prefix-rest").unwrap();
         let rest = strip_prefix(&s, c"Prefix-").unwrap();
@@ -134,6 +138,7 @@ mod helpers {
     }
 
     #[test]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn tokens_write_only_inside_the_string() {
         for input in [&b"\0"[..], b",\0", b"a,b,,c\0tail", b"abc\0", b",,,x,,,\0"] {
             let mut buf = exact(input);
@@ -147,6 +152,7 @@ mod helpers {
     }
 
     #[test]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn tokens_outlive_the_iterator_and_later_tokens() {
         let mut buf = exact(b"x y z\0");
         let mut it = tokens(&mut buf, c" ").unwrap();
@@ -160,6 +166,7 @@ mod helpers {
     }
 
     #[test]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn an_abandoned_iterator_leaves_the_buffer_usable() {
         let mut buf = exact(b"a b c\0");
         assert_eq!(tokens(&mut buf, c" ").unwrap().next(), Some(c"a"));
@@ -169,6 +176,7 @@ mod helpers {
     }
 
     #[test]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn utf8_decode_reads_only_the_slice() {
         let mut samples: Vec<Vec<u8>> = (0..=255u8).map(|b| vec![b]).collect();
         for lead in [0xc2u8, 0xe0, 0xed, 0xef, 0xf0, 0xf4, 0xf8, 0xfc, 0xfd] {
@@ -195,6 +203,7 @@ mod helpers {
     }
 
     #[test]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn case_mapping_accepts_any_int() {
         for c in [
             c_int::MIN,
@@ -219,6 +228,7 @@ mod helpers {
     }
 
     #[test]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn helpers_run_on_many_threads_at_once() {
         let workers: Vec<_> = (0..8)
             .map(|i| {
@@ -267,6 +277,7 @@ mod paths_and_format {
     }
 
     #[test]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn basename_views_stay_inside_their_path() {
         let paths = [
             long_path(1),
@@ -289,6 +300,7 @@ mod paths_and_format {
     }
 
     #[test]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn joins_of_long_and_edge_paths_are_owned_and_bounded() {
         let parts = [
             long_path(3),
@@ -309,6 +321,7 @@ mod paths_and_format {
     }
 
     #[test]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn format_handles_long_text_and_nuls_anywhere() {
         let long = "x".repeat(1000);
         let s = format(format_args!("{long}{}", 7)).unwrap();
@@ -334,6 +347,7 @@ mod paths_and_format {
     }
 
     #[test]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn a_panicking_display_unwinds_before_c_allocates() {
         for n in [0, 1, 100] {
             let r = catch_unwind(AssertUnwindSafe(|| {
@@ -346,6 +360,7 @@ mod paths_and_format {
     }
 
     #[test]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn owned_results_move_and_drop_on_other_threads() {
         let made: Vec<HeapString> = (0..64)
             .map(|i| match i % 2 {
@@ -364,6 +379,7 @@ mod paths_and_format {
     }
 
     #[test]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn builders_run_concurrently() {
         std::thread::scope(|s| {
             for t in 0..4 {
@@ -387,6 +403,7 @@ mod paths_and_tokens {
     use ffmpeg::libavutil::avstring::{dirname, get_token, is_ascii_digit};
 
     #[test]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn dirname_takes_any_buffer() {
         let long: Vec<u8> = b"d/"
             .iter()
@@ -416,6 +433,7 @@ mod paths_and_tokens {
     }
 
     #[test]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn dirname_walks_up_to_the_root() {
         let mut buf = b"/a/bb/ccc/dddd\0".to_vec();
         let mut seen = 0;
@@ -431,6 +449,7 @@ mod paths_and_tokens {
     }
 
     #[test]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn get_token_consumes_any_input_to_its_end() {
         let long = std::ffi::CString::new("x\\,y 'q,q' , ".repeat(60)).unwrap();
         let inputs = [
@@ -462,6 +481,7 @@ mod paths_and_tokens {
     }
 
     #[test]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn tokens_outlive_their_input_and_cross_threads() {
         let tokens = {
             let input = std::ffi::CString::new("one,two,three").unwrap();
@@ -489,6 +509,7 @@ mod paths_and_tokens {
     }
 
     #[test]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn is_digit_takes_every_int_edge() {
         for c in [i32::MIN, -129, -1, 0, 47, 48, 57, 58, 255, 256, i32::MAX] {
             assert_eq!(is_ascii_digit(c), (48..=57).contains(&c));
@@ -507,6 +528,7 @@ mod search_and_scan {
     };
 
     #[test]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn matches_stay_inside_their_haystack() {
         // Heap strings of exact length, so ASan sees any read past them.
         for h in ["", "a", "Ab", "xxAbAB", "\u{e9}\u{e9}"] {
@@ -525,6 +547,7 @@ mod search_and_scan {
     }
 
     #[test]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn replacements_of_every_shape_are_sound() {
         let long = CString::new("aB".repeat(2000)).unwrap();
         for (s, from, to) in [
@@ -542,6 +565,7 @@ mod search_and_scan {
     }
 
     #[test]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn scans_fill_exact_buffers_without_overrun() {
         let input = CString::new("x".repeat(5000)).unwrap();
         for width in 1..=32usize {
@@ -560,6 +584,7 @@ mod search_and_scan {
     }
 
     #[test]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn hostile_inputs_and_formats_are_sound() {
         let mut i = 0i32;
         let mut l = 0i64;
@@ -601,6 +626,7 @@ mod search_and_scan {
     }
 
     #[test]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn the_destination_limit_is_enforced() {
         let mut many = [0i32; SCAN_MAX_ARGS + 1];
         let input = CString::new("1 ".repeat(SCAN_MAX_ARGS + 1)).unwrap();
@@ -624,6 +650,7 @@ mod search_and_scan {
     }
 
     #[test]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn concurrent_calls_do_not_race() {
         std::thread::scope(|scope| {
             for t in 0..8 {
@@ -648,6 +675,7 @@ mod search_and_scan {
 }
 
 #[test]
+#[cfg_attr(miri, ignore = "calls C")]
 fn character_classes_take_any_int() {
     for c in (-300..=300).chain([c_int::MIN, c_int::MIN + 1, c_int::MAX - 1, c_int::MAX]) {
         let _ = (is_graph(c), is_space(c), is_xdigit(c));
@@ -681,6 +709,7 @@ fn strings() -> Vec<CString> {
 }
 
 #[test]
+#[cfg_attr(miri, ignore = "calls C")]
 fn match_name_stays_inside_its_strings() {
     let all = strings();
     for name in all.iter().step_by(5) {
@@ -691,6 +720,7 @@ fn match_name_stays_inside_its_strings() {
 }
 
 #[test]
+#[cfg_attr(miri, ignore = "calls C")]
 fn match_list_stays_inside_its_strings_for_every_separator() {
     let all = strings();
     let short: Vec<&CStr> = all.iter().take(43).map(CString::as_c_str).collect();
@@ -715,6 +745,7 @@ fn match_list_stays_inside_its_strings_for_every_separator() {
 }
 
 #[test]
+#[cfg_attr(miri, ignore = "calls C")]
 fn matching_runs_concurrently() {
     let handles: Vec<_> = (0..4)
         .map(|t| {
@@ -762,6 +793,7 @@ mod escaping {
     }
 
     #[test]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn every_byte_in_every_mode() {
         let all: Vec<u8> = (1..=255).collect();
         let src = CString::new(all).unwrap();
@@ -777,6 +809,7 @@ mod escaping {
     }
 
     #[test]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn worst_case_growth_stays_in_bounds() {
         // XML turns `&` into five bytes; quoting turns `'` into four.
         for (byte, mode, factor) in [
@@ -793,6 +826,7 @@ mod escaping {
     }
 
     #[test]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn results_outlive_their_inputs() {
         let kept: Vec<HeapString> = (0..32)
             .map(|i| {
@@ -807,6 +841,7 @@ mod escaping {
     }
 
     #[test]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn escapes_run_on_many_threads_at_once() {
         let workers: Vec<_> = (0..8)
             .map(|t| {

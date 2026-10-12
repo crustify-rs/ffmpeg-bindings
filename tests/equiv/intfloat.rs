@@ -70,6 +70,7 @@ fn layout_matches_the_c_union() {
 }
 
 #[test]
+#[cfg_attr(miri, ignore = "calls C")]
 fn integer_member_reads_as_c_int2double() {
     for bits in BITS {
         let v = IntFloat64::from_bits(bits);
@@ -83,6 +84,7 @@ fn integer_member_reads_as_c_int2double() {
 }
 
 #[test]
+#[cfg_attr(miri, ignore = "calls C")]
 fn double_member_reads_as_c_double2int() {
     for bits in BITS {
         let value = c_int2double(bits);
@@ -93,6 +95,7 @@ fn double_member_reads_as_c_double2int() {
 }
 
 #[test]
+#[cfg_attr(miri, ignore = "calls C")]
 fn zeroed_union_matches_c_zero_initialiser() {
     let c = ffi::av_intfloat64::default();
     // SAFETY: `default` zero-fills the union; `i` covers all of it.
@@ -143,6 +146,7 @@ fn compare(r: IntFloat64Ref<'_>, c: &ffi::av_intfloat64, step: Step) {
 }
 
 #[test]
+#[cfg_attr(miri, ignore = "calls C")]
 fn write_sequences_on_an_inline_value_track_a_c_union() {
     let mut v = IntFloat64::zeroed();
     let mut c = ffi::av_intfloat64::default();
@@ -155,6 +159,7 @@ fn write_sequences_on_an_inline_value_track_a_c_union() {
 }
 
 #[test]
+#[cfg_attr(miri, ignore = "calls C")]
 fn write_sequences_on_a_heap_box_track_a_c_union() {
     let mut b = HeapBox::<IntFloat64>::new_zeroed().unwrap();
     let mut c = ffi::av_intfloat64::default();
@@ -169,6 +174,7 @@ fn write_sequences_on_a_heap_box_track_a_c_union() {
 }
 
 #[test]
+#[cfg_attr(miri, ignore = "calls C")]
 fn heap_array_elements_track_c_unions() {
     let mut a = alloc_cell_array_zeroed::<IntFloat64>(BITS.len()).unwrap();
     let mut c = [ffi::av_intfloat64::default(); BITS.len()];
@@ -186,6 +192,7 @@ fn heap_array_elements_track_c_unions() {
 }
 
 #[test]
+#[cfg_attr(miri, ignore = "calls C")]
 fn copies_diverge_as_c_copies_do() {
     let mut a = IntFloat64::from_bits(BITS[7]);
     let mut ca = ffi::av_intfloat64 { i: BITS[7] };
@@ -248,6 +255,7 @@ fn intfloat32_layout_matches_the_c_union() {
 }
 
 #[test]
+#[cfg_attr(miri, ignore = "calls C")]
 fn intfloat32_bits_read_as_float_match_av_int2float() {
     for bits in inputs32() {
         let rust = IntFloat32::from_bits(bits).as_ref().float().to_bits();
@@ -256,6 +264,7 @@ fn intfloat32_bits_read_as_float_match_av_int2float() {
 }
 
 #[test]
+#[cfg_attr(miri, ignore = "calls C")]
 fn intfloat32_float_read_as_bits_matches_av_float2int() {
     for bits in inputs32() {
         let f = f32::from_bits(bits);
@@ -265,6 +274,7 @@ fn intfloat32_float_read_as_bits_matches_av_float2int() {
 }
 
 #[test]
+#[cfg_attr(miri, ignore = "calls C")]
 fn intfloat32_alternating_writes_match_c_after_each_step() {
     // One Rust value written through alternating members, against the same
     // chain of C reinterpretations, compared after every step.
@@ -294,6 +304,7 @@ fn intfloat32_alternating_writes_match_c_after_each_step() {
 }
 
 #[test]
+#[cfg_attr(miri, ignore = "calls C")]
 fn double_conversions_match_c_on_every_class() {
     for bits in BITS {
         assert_eq!(
@@ -308,6 +319,7 @@ fn double_conversions_match_c_on_every_class() {
 }
 
 #[test]
+#[cfg_attr(miri, ignore = "calls C")]
 fn float_conversions_match_c_on_every_class() {
     for bits in inputs32() {
         assert_eq!(
@@ -322,6 +334,7 @@ fn float_conversions_match_c_on_every_class() {
 }
 
 #[test]
+#[cfg_attr(miri, ignore = "calls C")]
 fn conversions_agree_with_the_unions() {
     for bits in BITS {
         assert_eq!(
@@ -344,6 +357,7 @@ fn conversions_agree_with_the_unions() {
 /// write step, the Rust clone holds the same words as a C `av_memdup` of the
 /// C array, element by element.
 #[test]
+#[cfg_attr(miri, ignore = "calls C")]
 fn heap_array_clone_matches_c_memdup_after_each_step() {
     let mut a = alloc_cell_array_zeroed::<IntFloat64>(BITS.len()).unwrap();
     let mut c = [ffi::av_intfloat64::default(); BITS.len()];

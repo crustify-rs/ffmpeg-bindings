@@ -2,6 +2,7 @@
 use ffmpeg::libavutil::md5::{Md5, Md5Box, Md5Mut, Md5Ref};
 
 #[test]
+#[cfg_attr(miri, ignore = "calls C")]
 fn lifecycle_and_foreign_writes() {
     let mut context = Md5::new().unwrap();
     let shared: Md5Ref<'_> = context.as_ref();
@@ -41,6 +42,7 @@ fn lifecycle_and_foreign_writes() {
 }
 
 #[test]
+#[cfg_attr(miri, ignore = "calls C")]
 fn block_edges_and_drop_without_finalizing() {
     for len in 0..=192 {
         let data: Vec<_> = (0..len).map(|i| i as u8).collect();
@@ -60,6 +62,7 @@ fn block_edges_and_drop_without_finalizing() {
 use ffmpeg::libavutil::md5::context_size;
 
 #[test]
+#[cfg_attr(miri, ignore = "reads a C global")]
 fn batch10_immutable_size_across_threads() {
     let size: &'static i32 = context_size();
     assert!(*size > 0);
@@ -78,6 +81,7 @@ fn batch10_immutable_size_across_threads() {
 }
 
 #[test]
+#[cfg_attr(miri, ignore = "calls C")]
 fn batch10_digest_boundary_lengths() {
     use ffmpeg::libavutil::md5::sum;
     let data: Vec<_> = (0..2049).map(|i| i as u8).collect();

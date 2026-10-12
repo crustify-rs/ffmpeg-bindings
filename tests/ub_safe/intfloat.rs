@@ -86,6 +86,7 @@ fn copies_are_independent_values() {
 }
 
 #[test]
+#[cfg_attr(miri, ignore = "calls C")]
 fn heap_box_owner_lives_reads_writes_clones_and_frees() {
     let mut a = HeapBox::<IntFloat64>::new_zeroed().unwrap();
     for bits in BITS {
@@ -102,6 +103,7 @@ fn heap_box_owner_lives_reads_writes_clones_and_frees() {
 }
 
 #[test]
+#[cfg_attr(miri, ignore = "calls C")]
 fn heap_array_handles_stay_in_bounds() {
     let mut a = alloc_cell_array_zeroed::<IntFloat64>(BITS.len()).unwrap();
     {
@@ -118,6 +120,7 @@ fn heap_array_handles_stay_in_bounds() {
 }
 
 #[test]
+#[cfg_attr(miri, ignore = "calls C")]
 fn values_and_owners_move_across_threads() {
     let v = IntFloat64::from_float(2.0);
     let b = HeapBox::<IntFloat64>::new_zeroed().unwrap();
@@ -134,6 +137,7 @@ fn values_and_owners_move_across_threads() {
 }
 
 #[test]
+#[cfg_attr(miri, ignore = "calls C")]
 fn shared_handles_read_concurrently() {
     let v = IntFloat64::from_bits(0x4009_21fb_5444_2d18);
     let boxed = HeapBox::<IntFloat64>::new_zeroed().unwrap();
@@ -151,6 +155,7 @@ fn shared_handles_read_concurrently() {
 }
 
 #[test]
+#[cfg_attr(miri, ignore = "calls C")]
 fn exclusive_handles_write_on_other_threads() {
     let mut values = [IntFloat64::zeroed(); 4];
     let mut boxed = HeapBox::<IntFloat64>::new_zeroed().unwrap();
@@ -189,6 +194,7 @@ fn intfloat32_value_takes_every_member() {
 }
 
 #[test]
+#[cfg_attr(miri, ignore = "calls C")]
 fn intfloat32_heap_box_takes_every_member_and_clones() {
     let mut b = HeapBox::<IntFloat32>::new_zeroed().unwrap();
     assert_eq!(b.as_ref().float(), 0.0);
@@ -201,6 +207,7 @@ fn intfloat32_heap_box_takes_every_member_and_clones() {
 }
 
 #[test]
+#[cfg_attr(miri, ignore = "calls C")]
 fn intfloat32_heap_array_elements_stay_in_bounds() {
     let mut v = alloc_cell_array_zeroed::<IntFloat32>(3).unwrap();
     {
@@ -216,6 +223,7 @@ fn intfloat32_heap_array_elements_stay_in_bounds() {
 }
 
 #[test]
+#[cfg_attr(miri, ignore = "calls C")]
 fn intfloat32_handles_and_owners_cross_threads() {
     let a = IntFloat32::from_float(0.5);
     let mut b = HeapBox::<IntFloat32>::new_zeroed().unwrap();
@@ -233,6 +241,7 @@ fn intfloat32_handles_and_owners_cross_threads() {
 }
 
 #[test]
+#[cfg_attr(miri, ignore = "calls C")]
 fn conversions_take_every_class_edge() {
     for bits in BITS {
         assert_eq!(double_to_bits(double_from_bits(bits)), bits);
@@ -262,6 +271,7 @@ fn conversions_take_every_class_edge() {
 /// The array owner's clone is `av_memdup` of the whole block: every word is
 /// copied, each copy frees its own block, and they go in any order.
 #[test]
+#[cfg_attr(miri, ignore = "calls C")]
 fn heap_array_of_words_clones_and_outlives_its_source() {
     let mut a = alloc_cell_array_zeroed::<IntFloat64>(BITS.len()).unwrap();
     for (mut h, bits) in a.as_handles_mut().iter_mut().zip(BITS) {
@@ -287,6 +297,7 @@ fn heap_array_of_words_clones_and_outlives_its_source() {
 /// disjoint exclusive halves are written by two threads, while the owner
 /// stays on this one.
 #[test]
+#[cfg_attr(miri, ignore = "calls C")]
 fn array_views_cross_threads() {
     let mut a = alloc_cell_array_zeroed::<IntFloat64>(BITS.len()).unwrap();
     for (mut h, bits) in a.as_handles_mut().iter_mut().zip(BITS) {

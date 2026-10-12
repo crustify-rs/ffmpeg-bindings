@@ -290,7 +290,7 @@ mod unit_tests {
     use super::*;
 
     #[test]
-    #[cfg(not(miri))]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn software_fallback_processing() {
         // Isolate CPU dispatch changes before the child uses any C facility.
         const CHILD: &str = "CRUSTIFY_CRYPTO_W1_B0_SOFTWARE";
@@ -387,7 +387,7 @@ mod unit_tests {
     }
 
     #[test]
-    #[cfg(not(miri))]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn rejected_buffers_preserve_context_output_and_iv() {
         let mut owner = Aes::new(&[0; 16], Direction::Encrypt).unwrap();
         let mut output = [9; 32];
@@ -459,7 +459,7 @@ mod unit_tests {
     }
 
     #[test]
-    #[cfg(not(miri))]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn allocation_failure_is_reported() {
         // Isolate the process-global allocation limit from every other test.
         const MARKER: &str = "CRUSTIFY_AES_ALLOC_FAILURE_CHILD";
@@ -487,7 +487,7 @@ mod unit_tests {
     }
 
     #[test]
-    #[cfg(not(miri))]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn invalid_reinit_preserves_schedule() {
         let mut owner = Aes::new(&[0; 16], Direction::Encrypt).unwrap();
         let input = [0; 16];
@@ -513,7 +513,7 @@ mod unit_tests {
     }
 
     #[test]
-    #[cfg(not(miri))]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn raw_roundtrip_and_construction_phase_drop() {
         let owner = Aes::new(&[0; 16], Direction::Encrypt).unwrap();
         let ptr = owner.into_c();

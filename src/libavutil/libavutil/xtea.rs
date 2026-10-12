@@ -379,6 +379,7 @@ mod unit_tests {
     }
 
     #[test]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn raw_owner_roundtrip() {
         let owner = XteaBox::new().unwrap();
         let ptr = owner.into_c();
@@ -390,6 +391,7 @@ mod unit_tests {
     }
 
     #[test]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn allocation_failure_returns_none() {
         const MARKER: &str = "CRUSTIFY_XTEA_ALLOC_FAILURE_CHILD";
         if std::env::var_os(MARKER).is_none() {

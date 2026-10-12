@@ -43,6 +43,7 @@ fn c_align() -> usize {
 /// The CPU count override is process-global, so this test sets it only in a
 /// child process running nothing else.
 #[test]
+#[cfg_attr(miri, ignore = "calls C")]
 fn forced_counts_set_by_either_side_read_the_same() {
     if !isolated("cpu::forced_counts_set_by_either_side_read_the_same") {
         return;
@@ -66,6 +67,7 @@ fn forced_counts_set_by_either_side_read_the_same() {
 /// The CPU flags mask is process-global, so this test forces it only in a
 /// child process running nothing else.
 #[test]
+#[cfg_attr(miri, ignore = "calls C")]
 fn max_align_follows_the_forced_cpu_flags() {
     if !isolated("cpu::max_align_follows_the_forced_cpu_flags") {
         return;
@@ -110,6 +112,7 @@ fn detected_flags() -> c_int {
 /// The CPU flags are process-global, so the flag tests force them only in a
 /// child process running nothing else.
 #[test]
+#[cfg_attr(miri, ignore = "calls C")]
 fn detected_flags_read_alike() {
     if !isolated("cpu::detected_flags_read_alike") {
         return;
@@ -120,6 +123,7 @@ fn detected_flags_read_alike() {
 }
 
 #[test]
+#[cfg_attr(miri, ignore = "calls C")]
 fn forced_flag_subsets_read_alike_after_every_step() {
     if !isolated("cpu::forced_flag_subsets_read_alike_after_every_step") {
         return;
@@ -148,6 +152,7 @@ fn forced_flag_subsets_read_alike_after_every_step() {
 }
 
 #[test]
+#[cfg_attr(miri, ignore = "calls C")]
 fn mmx_is_implied_alike() {
     if !isolated("cpu::mmx_is_implied_alike") {
         return;
@@ -219,6 +224,7 @@ mod parse_caps {
     ];
 
     #[test]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn single_strings_match_c_from_several_starting_words() {
         for start in [0, 1, 0x10, 0xFFFF, u32::MAX] {
             for s in STRINGS {
@@ -231,6 +237,7 @@ mod parse_caps {
     }
 
     #[test]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn sequences_match_c_after_each_step() {
         for rotate in 0..STRINGS.len() {
             let (mut c, mut r) = (0x5a5a, 0x5a5a);
@@ -282,6 +289,7 @@ mod parse_caps {
     ];
 
     #[test]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn fractional_wide_and_named_operands_match_c() {
         for start in [0, 1, 0x55, 0xFFFF, u32::MAX] {
             for s in OPERANDS {
@@ -306,6 +314,7 @@ mod parse_caps {
     }
 
     #[test]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn operand_sequences_match_c_after_each_step() {
         for rotate in 0..OPERANDS.len() {
             let (mut c, mut r) = (0xA5A5, 0xA5A5);
@@ -318,6 +327,7 @@ mod parse_caps {
     }
 
     #[test]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn long_tokens_split_as_in_c() {
         for len in [254, 255, 256, 300, 511, 600] {
             for fill in ["0", "9"] {

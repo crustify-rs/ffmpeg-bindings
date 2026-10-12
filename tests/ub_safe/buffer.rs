@@ -13,6 +13,7 @@ const SIZES: [usize; 7] = [0, 1, 63, 4096, 1 << 30, usize::MAX / 2, usize::MAX];
 fn take<T>(_: T) {}
 
 #[test]
+#[cfg_attr(miri, ignore = "calls C")]
 fn every_size_builds_and_releases_a_pool() {
     for size in SIZES {
         for _ in 0..4 {
@@ -23,6 +24,7 @@ fn every_size_builds_and_releases_a_pool() {
 }
 
 #[test]
+#[cfg_attr(miri, ignore = "calls C")]
 fn shared_handles_and_exclusive_reborrows() {
     let mut pool = BufferPool::new(64).unwrap();
     let shared = pool.as_ref();
@@ -50,6 +52,7 @@ fn shared_handles_and_exclusive_reborrows() {
 }
 
 #[test]
+#[cfg_attr(miri, ignore = "calls C")]
 fn owners_move_to_and_drop_on_other_threads() {
     let pools: Vec<BufferPoolBox> = (0..8).map(|i| BufferPool::new(i * 32).unwrap()).collect();
     let handles: Vec<_> = pools
@@ -72,6 +75,7 @@ fn owners_move_to_and_drop_on_other_threads() {
 }
 
 #[test]
+#[cfg_attr(miri, ignore = "calls C")]
 fn shared_handles_cross_threads_while_the_owner_lives() {
     let pool = BufferPool::new(128).unwrap();
     let barrier = Barrier::new(8);
@@ -90,6 +94,7 @@ fn shared_handles_cross_threads_while_the_owner_lives() {
 }
 
 #[test]
+#[cfg_attr(miri, ignore = "calls C")]
 fn concurrent_construction_and_release() {
     let barrier = Barrier::new(8);
     thread::scope(|s| {
@@ -116,6 +121,7 @@ mod default_release {
     use ffmpeg::libavutil::mem::{HeapVec, alloc_array, alloc_array_zeroed};
 
     #[test]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn default_free_releases_every_array_shape() {
         let filled = HeapVec::from_slice(&[0xa5u8; 4096]).unwrap();
         assert_eq!(filled.as_slice()[4095], 0xa5);
@@ -130,6 +136,7 @@ mod default_release {
     }
 
     #[test]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn default_free_releases_on_another_thread() {
         let arrays: Vec<_> = (1..64)
             .map(|n| HeapVec::from_slice(&vec![n as u8; n]).unwrap())
@@ -259,6 +266,7 @@ mod reference {
     }
 
     #[test]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn every_constructor_reads_exactly_its_bytes() {
         for size in SIZES {
             for (buf, want, _) in every_constructor(size) {
@@ -280,6 +288,7 @@ mod reference {
     }
 
     #[test]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn writes_only_through_a_sole_writable_reference() {
         for size in SIZES {
             for (mut buf, _, writable) in every_constructor(size) {
@@ -310,6 +319,7 @@ mod reference {
     }
 
     #[test]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn clones_outlive_the_original_on_other_threads() {
         for size in [0, 3, 4097] {
             for (buf, want, _) in every_constructor(size) {
@@ -334,6 +344,7 @@ mod reference {
     }
 
     #[test]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn concurrent_clones_reads_and_releases_of_shared_references() {
         const THREADS: usize = 8;
         let mut buf = BufferReference::from_owner(pattern(256, 9)).unwrap();
@@ -365,6 +376,7 @@ mod reference {
     }
 
     #[test]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn rust_owners_are_released_once_by_the_last_reference() {
         for read_only in [false, true] {
             let drops = Arc::new(AtomicUsize::new(0));
@@ -392,6 +404,7 @@ mod reference {
     }
 
     #[test]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn narrowed_windows_stay_inside_their_bytes() {
         for size in [0, 1, 9, 4097] {
             for (mut buf, want, _) in every_constructor(size) {
@@ -423,6 +436,7 @@ mod reference {
     }
 
     #[test]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn replaced_references_move_whole() {
         let drops = Arc::new(AtomicUsize::new(0));
         let counted = |seed| Counted {
@@ -450,6 +464,7 @@ mod reference {
     }
 
     #[test]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn uninitialised_buffers_fill_in_place() {
         for size in SIZES {
             let mut u = BufferReference::alloc(size).unwrap();
@@ -476,6 +491,7 @@ mod reference {
     }
 
     #[test]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn handles_reborrow_and_cross_threads() {
         let mut buf = BufferReference::alloc_zeroed(32).unwrap();
         let shared = buf.as_ref();
@@ -515,6 +531,7 @@ mod reference {
     /// the bytes' pointer, swaps nothing but frees the struct, and releases the
     /// bytes: `av_free` for heap data, a Rust drop for owners).
     #[test]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn foreign_pointers_across_rust_reborrows() {
         let drops = Arc::new(AtomicUsize::new(0));
         let owner = Counted {
@@ -574,6 +591,7 @@ mod mutation {
     }
 
     #[test]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn pool_buffers_at_every_size_fill_and_read_exactly() {
         for size in SIZES {
             let pool = BufferPool::new(size).unwrap();
@@ -611,6 +629,7 @@ mod mutation {
     }
 
     #[test]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn pool_buffers_cross_threads_and_outlive_the_owner() {
         const THREADS: usize = 8;
         let pool = BufferPool::new(96).unwrap();
@@ -660,6 +679,7 @@ mod mutation {
     }
 
     #[test]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn counts_writability_and_opaques_read_while_others_clone() {
         const THREADS: usize = 6;
         for (buf, want, writable) in every_constructor(33) {
@@ -693,6 +713,7 @@ mod mutation {
     }
 
     #[test]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn make_mut_copies_only_what_others_can_see() {
         for size in SIZES {
             for (mut buf, want, writable) in every_constructor(size) {
@@ -735,6 +756,7 @@ mod mutation {
     }
 
     #[test]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn resize_keeps_the_prefix_and_fills_the_tail() {
         for size in [0, 1, 7, 64, 4097] {
             for (buf, want, _) in every_constructor(size) {
@@ -762,6 +784,7 @@ mod mutation {
     }
 
     #[test]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn resizable_buffers_resize_while_sole_and_copy_when_shared() {
         for size in SIZES {
             let mut buf = BufferReference::alloc_resizable(size)
@@ -799,6 +822,7 @@ mod mutation {
     /// Sizes C's allocator refuses (above `av_max_alloc`'s default) fail
     /// every resizing path cleanly, leaving the reference as it was.
     #[test]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn unallocatable_sizes_leave_references_as_they_were() {
         for huge in [usize::MAX, usize::MAX / 2, i32::MAX as usize + 1] {
             assert!(BufferReference::alloc_resizable(huge).is_none());
@@ -816,6 +840,7 @@ mod mutation {
     }
 
     #[test]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn uninitialised_buffers_resize_before_they_are_filled() {
         for size in SIZES {
             for mut u in [
@@ -834,6 +859,7 @@ mod mutation {
     }
 
     #[test]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn assignments_move_windows_and_counts() {
         for size in [0, 1, 64, 4097] {
             for (src, want, _) in every_constructor(size) {
@@ -894,6 +920,7 @@ mod mutation {
     }
 
     #[test]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn assignments_race_with_clones_and_releases_of_their_source() {
         const THREADS: usize = 6;
         let drops = Arc::new(AtomicUsize::new(0));
@@ -933,6 +960,7 @@ mod mutation {
     /// allocations (`av_buffer_make_writable`'s memcpy, `av_buffer_realloc`'s
     /// in-place `av_realloc` and copy, `av_buffer_replace`'s window copy).
     #[test]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn foreign_mutations_across_rust_reborrows() {
         let mut buf = BufferReference::alloc_resizable(512).unwrap().fill(1);
         buf.as_mut().data_mut().unwrap()[..256].copy_from_slice(&[0xab; 256]);
@@ -1000,6 +1028,7 @@ mod uninit_owner {
     }
 
     #[test]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn every_owner_shape_views_exactly_its_bytes() {
         for size in SIZES {
             let want = pattern(size, 3);
@@ -1020,6 +1049,7 @@ mod uninit_owner {
     }
 
     #[test]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn owners_resize_by_copy_and_release_once_anywhere() {
         for size in SIZES {
             let drops = Arc::new(AtomicUsize::new(0));
@@ -1065,6 +1095,7 @@ mod uninit_owner {
     }
 
     #[test]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn initialised_owners_never_convert() {
         let mut buf = BufferReference::from_owner(vec![5u8; 12]).unwrap();
         assert!(buf.as_mut().data_mut().is_some());

@@ -107,6 +107,7 @@ const COLORS: &[&CStr] = &[
 ];
 
 #[test]
+#[cfg_attr(miri, ignore = "calls C")]
 fn every_table_name_agrees_in_any_case() {
     let names = color_names();
     assert!(names.len() > 100);
@@ -125,6 +126,7 @@ fn every_table_name_agrees_in_any_case() {
 }
 
 #[test]
+#[cfg_attr(miri, ignore = "calls C")]
 fn colors_agree_whole() {
     for &color in COLORS {
         assert_eq!(parse_color(color), c_color(color, -1), "{color:?}");
@@ -134,6 +136,7 @@ fn colors_agree_whole() {
 /// Every prefix length C handles (from the end of the marker), and lengths
 /// past the string and past C's 127-byte copy.
 #[test]
+#[cfg_attr(miri, ignore = "calls C")]
 fn colors_agree_at_every_prefix() {
     let long = CString::new(format!("#{}@0x80", "a".repeat(140))).unwrap();
     let long_valid = CString::new(format!("ff0000{}", " ".repeat(130))).unwrap();
@@ -177,6 +180,7 @@ fn nan_opacity(color: &CStr, len: usize) -> bool {
 /// `random` and `bikeshed` agree in success and in the alpha the specifier
 /// sets; the color itself is random on both sides.
 #[test]
+#[cfg_attr(miri, ignore = "calls C")]
 fn random_colors_agree_in_alpha() {
     for color in [
         c"random@0.5",
@@ -195,6 +199,7 @@ fn random_colors_agree_in_alpha() {
 /// Rust returns, after every successful call of a sequence; failures in
 /// between leave partial writes in C's buffer only.
 #[test]
+#[cfg_attr(miri, ignore = "calls C")]
 fn sequences_agree_after_every_success() {
     let mut buf = [0u8; 4];
     for (step, &color) in COLORS.iter().cycle().take(COLORS.len() * 3).enumerate() {
@@ -310,6 +315,7 @@ static CLASS: Class = Class(ffi::AVClass {
 });
 
 #[test]
+#[cfg_attr(miri, ignore = "calls C")]
 fn failure_messages_agree() {
     if !isolated("parseutils::failure_messages_agree") {
         return;
@@ -413,6 +419,7 @@ const ABBREVIATIONS: [&CStr; 55] = [
 ];
 
 #[test]
+#[cfg_attr(miri, ignore = "calls C")]
 fn video_sizes_agree() {
     for size in ABBREVIATIONS {
         assert!(parse_video_size(size).is_ok(), "{size:?}");
@@ -510,6 +517,7 @@ const DURATIONS: &[&CStr] = &[
 ];
 
 #[test]
+#[cfg_attr(miri, ignore = "calls C")]
 fn durations_agree() {
     for &d in DURATIONS {
         assert_eq!(parse_duration(d), c_time(d, true), "{d:?}");
@@ -561,6 +569,7 @@ const DATES: &[&CStr] = &[
 ];
 
 #[test]
+#[cfg_attr(miri, ignore = "calls C")]
 fn dates_agree() {
     let _t = local_time();
     for &d in DATES {
@@ -572,6 +581,7 @@ fn dates_agree() {
 /// C's before and after it (equal, unless the clock crosses a second, or
 /// midnight, in between).
 #[test]
+#[cfg_attr(miri, ignore = "calls C")]
 fn current_dates_agree() {
     let _t = local_time();
     for d in [
@@ -624,6 +634,7 @@ mod info_tags_and_colors {
     }
 
     #[test]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn tags_are_found_and_written_as_in_c() {
         let long = format!("?{}={}&b=2", "t".repeat(200), "v".repeat(300));
         let infos = [
@@ -659,6 +670,7 @@ mod info_tags_and_colors {
     }
 
     #[test]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn the_color_table_reads_as_in_c() {
         for i in (0..=200).chain([i32::MAX as usize]) {
             let mut rgb = ptr::null();
@@ -803,6 +815,7 @@ mod ratios_and_dates {
     }
 
     #[test]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn ratios_agree_at_every_bound() {
         let _s = LogState::lock();
         for s in RATIOS {
@@ -814,6 +827,7 @@ mod ratios_and_dates {
     }
 
     #[test]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn video_rates_agree() {
         for s in RATES {
             assert_eq!(parse_video_rate(s).map(pair), c_rate(s), "{s:?}");
@@ -825,6 +839,7 @@ mod ratios_and_dates {
 
     /// Random `num:den` strings, and decimals evaluated as expressions.
     #[test]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn random_ratios_agree() {
         let mut state = 0x0bad_c0de_1234_5678u64;
         let mut next = move || {
@@ -854,6 +869,7 @@ mod ratios_and_dates {
     /// The evaluator's messages: logged with the offset, in an `Eval`
     /// context whose parent is the given one.
     #[test]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn ratio_messages_agree() {
         if !isolated("parseutils::ratios_and_dates::ratio_messages_agree") {
             return;
@@ -987,6 +1003,7 @@ mod ratios_and_dates {
     }
 
     #[test]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn strptime_agrees_on_every_input_and_format() {
         for fmt in FORMATS {
             for s in INPUTS {
@@ -1005,6 +1022,7 @@ mod ratios_and_dates {
     /// Calls in sequence on the same `struct tm`: fields a call does not
     /// read keep their values, and a failed call keeps what it stored.
     #[test]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn strptime_sequences_agree_after_every_call() {
         let (mut c, mut r) = (
             ffi::tm {
@@ -1048,6 +1066,7 @@ mod ratios_and_dates {
     }
 
     #[test]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn utc_times_agree_wherever_c_is_defined() {
         let edges = [
             i32::MIN,

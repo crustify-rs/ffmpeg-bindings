@@ -5,6 +5,7 @@ use std::thread;
 use ffmpeg::libavutil::random_seed::get;
 
 #[test]
+#[cfg_attr(miri, ignore = "calls C")]
 fn seeds_are_drawn_concurrently() {
     let handles: Vec<_> = (0..8)
         .map(|_| thread::spawn(|| (0..16).map(|_| get()).fold(0u32, |a, s| a ^ s)))
@@ -25,6 +26,7 @@ mod bytes {
     use ffmpeg::libavutil::random_seed::{random_bytes, random_bytes_uninit};
 
     #[test]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn exact_buffers_stay_in_bounds() {
         for len in (0..=64).chain([4095, 4096, 65536]) {
             let mut buf = vec![0u8; len].into_boxed_slice();
@@ -38,6 +40,7 @@ mod bytes {
     }
 
     #[test]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn uninit_view_writes_through_to_the_buffer() {
         let mut buf = [MaybeUninit::<u8>::uninit(); 32];
         let view = random_bytes_uninit(&mut buf).unwrap();
@@ -46,6 +49,7 @@ mod bytes {
     }
 
     #[test]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn concurrent_draws_do_not_race() {
         std::thread::scope(|scope| {
             for _ in 0..8 {

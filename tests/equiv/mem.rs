@@ -74,6 +74,7 @@ const COUNTS: [usize; 8] = [
 ];
 
 #[test]
+#[cfg_attr(miri, ignore = "calls C")]
 fn alloc_array_fails_exactly_when_av_malloc_array_does() {
     fn check<T>() {
         for n in COUNTS {
@@ -104,6 +105,7 @@ fn alloc_array_fails_exactly_when_av_malloc_array_does() {
 }
 
 #[test]
+#[cfg_attr(miri, ignore = "calls C")]
 fn alloc_array_zeroed_matches_av_calloc() {
     fn check<T: ffibox::CPlainElem>() {
         for n in COUNTS {
@@ -129,6 +131,7 @@ fn alloc_array_zeroed_matches_av_calloc() {
 }
 
 #[test]
+#[cfg_attr(miri, ignore = "calls C")]
 fn cell_array_zeroed_matches_av_calloc() {
     for n in [0, 1, 7, usize::MAX / 8 + 1] {
         // SAFETY: `av_calloc` has no preconditions.
@@ -144,6 +147,7 @@ fn cell_array_zeroed_matches_av_calloc() {
 }
 
 #[test]
+#[cfg_attr(miri, ignore = "calls C")]
 fn alloc_array_from_fn_matches_a_filled_c_array() {
     let n = 100;
     // SAFETY: `av_malloc_array` has no preconditions.
@@ -158,6 +162,7 @@ fn alloc_array_from_fn_matches_a_filled_c_array() {
 }
 
 #[test]
+#[cfg_attr(miri, ignore = "calls C")]
 fn from_slice_and_clone_match_av_memdup_step_by_step() {
     let mut src: Vec<u16> = (0..513).collect();
     let len = src.len() * 2;
@@ -192,6 +197,7 @@ fn from_slice_and_clone_match_av_memdup_step_by_step() {
 }
 
 #[test]
+#[cfg_attr(miri, ignore = "calls C")]
 fn empty_copies_match_av_memdup_null_and_zero_length() {
     // SAFETY: NULL is accepted and yields NULL.
     assert!(unsafe { ffi::av_memdup(core::ptr::null(), 4) }.is_null());
@@ -205,6 +211,7 @@ fn empty_copies_match_av_memdup_null_and_zero_length() {
 }
 
 #[test]
+#[cfg_attr(miri, ignore = "calls C")]
 fn new_zeroed_box_matches_av_mallocz() {
     // SAFETY: `av_mallocz` has no preconditions.
     let c = CBlock(unsafe { ffi::av_mallocz(size_of::<ffi::AVRational>()) });
@@ -217,6 +224,7 @@ fn new_zeroed_box_matches_av_mallocz() {
 }
 
 #[test]
+#[cfg_attr(miri, ignore = "calls C")]
 fn new_uninit_box_matches_av_malloc_and_fills_in_place() {
     // SAFETY: `av_malloc` has no preconditions.
     let c = CBlock(unsafe { ffi::av_malloc(size_of::<ffi::AVRational>()) });
@@ -236,6 +244,7 @@ fn new_uninit_box_matches_av_malloc_and_fills_in_place() {
 }
 
 #[test]
+#[cfg_attr(miri, ignore = "calls C")]
 fn box_clone_matches_av_memdup_step_by_step() {
     let size = size_of::<ffi::AVRational>();
     let value = ffi::AVRational { num: 7, den: -9 };
@@ -283,6 +292,7 @@ fn box_clone_matches_av_memdup_step_by_step() {
 }
 
 #[test]
+#[cfg_attr(miri, ignore = "calls C")]
 fn ownership_crosses_both_ways_between_av_free_and_drop() {
     // A Rust-built array released by C.
     let r = alloc_array_from_fn(16, |i| i as u8).unwrap();
@@ -339,6 +349,7 @@ fn string_samples() -> Vec<Vec<u8>> {
 }
 
 #[test]
+#[cfg_attr(miri, ignore = "calls C")]
 fn string_from_c_str_matches_av_strdup() {
     for sample in string_samples() {
         let src = CStr::from_bytes_until_nul(&sample)
@@ -354,6 +365,7 @@ fn string_from_c_str_matches_av_strdup() {
 }
 
 #[test]
+#[cfg_attr(miri, ignore = "calls C")]
 fn string_from_bytes_until_nul_matches_av_strndup_at_every_length() {
     for sample in string_samples() {
         // Every length up to and including a terminating NUL; the ends only
@@ -376,6 +388,7 @@ fn string_from_bytes_until_nul_matches_av_strndup_at_every_length() {
 }
 
 #[test]
+#[cfg_attr(miri, ignore = "calls C")]
 fn string_prefixes_of_a_c_string_match_av_strndup() {
     let src = c"0123456789";
     for n in 0..=src.count_bytes() + 3 {
@@ -389,6 +402,7 @@ fn string_prefixes_of_a_c_string_match_av_strndup() {
 }
 
 #[test]
+#[cfg_attr(miri, ignore = "calls C")]
 fn string_clone_matches_av_strdup_step_by_step() {
     // Step 1: one source each.
     // SAFETY: a literal is a live NUL-terminated string.
@@ -421,6 +435,7 @@ fn string_clone_matches_av_strdup_step_by_step() {
 }
 
 #[test]
+#[cfg_attr(miri, ignore = "calls C")]
 fn null_sources_are_c_only() {
     // C maps a NULL source to NULL; the safe API takes no NULL, so there is
     // nothing to compare on the Rust side.
@@ -431,6 +446,7 @@ fn null_sources_are_c_only() {
 }
 
 #[test]
+#[cfg_attr(miri, ignore = "calls C")]
 fn string_ownership_crosses_both_ways_between_av_free_and_drop() {
     // A Rust-built string released by C.
     let r = string_from_bytes_until_nul(b"to C").unwrap();
@@ -454,6 +470,7 @@ const ISOLATED: &str = "CRUSTIFY_EQUIV_ISOLATED";
 /// The `av_max_alloc` limit is process-global, so this test lowers it only in
 /// a child process running nothing else, and passes when the child does.
 #[test]
+#[cfg_attr(miri, ignore = "calls C")]
 fn string_failure_at_the_av_max_alloc_limit_matches_c() {
     if std::env::var_os(ISOLATED).is_none() {
         let status = std::process::Command::new(std::env::current_exe().unwrap())
@@ -584,6 +601,7 @@ fn dyn_bytes<T: ffibox::CPlainElem>(a: &DynArray<T>) -> &[u8] {
 }
 
 #[test]
+#[cfg_attr(miri, ignore = "calls C")]
 fn value_pushes_match_av_dynarray2_add_after_every_step() {
     fn check<T: ffibox::CPlainElem + Copy>(make: impl Fn(usize) -> T) {
         let (mut r, mut c) = (DynArray::<T>::new(), CDyn::<T>::new());
@@ -602,6 +620,7 @@ fn value_pushes_match_av_dynarray2_add_after_every_step() {
 }
 
 #[test]
+#[cfg_attr(miri, ignore = "calls C")]
 fn cell_value_pushes_match_av_dynarray2_add() {
     let (mut r, mut c) = (DynArray::<Rational>::new(), CDyn::<ffi::AVRational>::new());
     for i in 0..70 {
@@ -632,6 +651,7 @@ fn status(k: c_int) -> Result<(), c_int> {
 }
 
 #[test]
+#[cfg_attr(miri, ignore = "calls C")]
 fn pointer_pushes_match_av_dynarray_add_after_every_step() {
     let targets = [0u16; 40];
     let (mut r, mut c) = (DynArray::<*const u16>::new(), CDyn::<*const u16>::new());
@@ -654,6 +674,7 @@ fn pointer_pushes_match_av_dynarray_add_after_every_step() {
 }
 
 #[test]
+#[cfg_attr(miri, ignore = "calls C")]
 fn dynarray_ownership_moves_into_a_heap_vec() {
     let mut r = DynArray::<u64>::new();
     for i in 0..5 {
@@ -672,6 +693,7 @@ fn dynarray_ownership_moves_into_a_heap_vec() {
 /// The `av_max_alloc` limit is process-global, so this test lowers it only in
 /// a child process running nothing else, and passes when the child does.
 #[test]
+#[cfg_attr(miri, ignore = "calls C")]
 fn dynarray_failure_at_the_av_max_alloc_limit_matches_c() {
     if std::env::var_os(ISOLATED).is_none() {
         let status = std::process::Command::new(std::env::current_exe().unwrap())
@@ -803,6 +825,7 @@ const FAST_SIZES: [usize; 13] = [
 ];
 
 #[test]
+#[cfg_attr(miri, ignore = "calls C")]
 fn reserve_matches_av_fast_realloc_after_every_step() {
     let (mut r, mut c) = (FastBuffer::new(), CFast::new());
     for (step, min) in FAST_SIZES.into_iter().enumerate() {
@@ -843,6 +866,7 @@ fn reserve_matches_av_fast_realloc_after_every_step() {
 }
 
 #[test]
+#[cfg_attr(miri, ignore = "calls C")]
 fn reserve_discarding_matches_av_fast_malloc_after_every_step() {
     let (mut r, mut c) = (FastBuffer::new(), CFast::new());
     for (step, min) in FAST_SIZES.into_iter().enumerate() {
@@ -870,6 +894,7 @@ fn reserve_discarding_matches_av_fast_malloc_after_every_step() {
 }
 
 #[test]
+#[cfg_attr(miri, ignore = "calls C")]
 fn zeroed_reserve_matches_av_fast_mallocz_after_every_step() {
     let (mut r, mut c) = (ZeroedFastBuffer::new(), CFast::new());
     for (step, min) in FAST_SIZES.into_iter().enumerate() {
@@ -895,6 +920,7 @@ fn zeroed_reserve_matches_av_fast_mallocz_after_every_step() {
 /// sanitizer runtimes reserve shadow memory far beyond any such limit and
 /// abort on a refused allocation, so those variants skip it.
 #[test]
+#[cfg_attr(miri, ignore = "calls C")]
 fn fast_buffer_failure_without_address_space_matches_c() {
     const NAME: &str = "mem::fast_buffer_failure_without_address_space_matches_c";
     if std::env::var_os(ISOLATED).is_none() {
@@ -1041,6 +1067,7 @@ mod realloc {
     }
 
     #[test]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn realloc_bytes_matches_av_realloc_step_by_step() {
         let (mut c, mut r) = filled(16, 3);
         let mut kept = 16;
@@ -1067,6 +1094,7 @@ mod realloc {
     }
 
     #[test]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn realloc_array_matches_av_realloc_array() {
         fn check<T>() {
             for n in LENS {
@@ -1096,6 +1124,7 @@ mod realloc {
     }
 
     #[test]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn resize_array_with_keeps_what_av_realloc_array_keeps() {
         let mut r = alloc_array_from_fn(4, |i| i as u32 * 10).unwrap();
         // SAFETY: `av_malloc_array` has no preconditions.
@@ -1132,6 +1161,7 @@ mod realloc {
     }
 
     #[test]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn realloc_array_or_free_matches_av_realloc_f() {
         for n in LENS {
             let (c, r) = filled(8, 1);
@@ -1163,6 +1193,7 @@ mod realloc {
     }
 
     #[test]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn realloc_bytes_in_place_matches_av_reallocp() {
         let mut cslot: *mut c_void = core::ptr::null_mut();
         let mut r = HeapVec::<MaybeUninit<u8>>::empty();
@@ -1192,6 +1223,7 @@ mod realloc {
     }
 
     #[test]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn realloc_array_in_place_matches_av_reallocp_array() {
         fn check<T>() {
             let mut cslot: *mut c_void = core::ptr::null_mut();
@@ -1219,6 +1251,7 @@ mod realloc {
     }
 
     #[test]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn size_mult_matches_av_size_mult() {
         let v = [
             0,
@@ -1264,6 +1297,7 @@ fn backref_pattern(len: usize) -> Vec<u8> {
 }
 
 #[test]
+#[cfg_attr(miri, ignore = "calls C")]
 fn back_reference_matches_av_memcpy_backptr() {
     for back in 0..=40 {
         for len in (0..=70).chain([127, 128, 129, 255, 1000]) {
@@ -1282,6 +1316,7 @@ fn back_reference_matches_av_memcpy_backptr() {
 }
 
 #[test]
+#[cfg_attr(miri, ignore = "calls C")]
 fn chained_back_references_agree_after_every_step() {
     // An LZ77 decode: literals, then back-references into what came before.
     let steps = [(3, 9), (1, 4), (7, 20), (2, 2), (16, 33), (5, 0), (40, 64)];
@@ -1316,6 +1351,7 @@ fn rejected_back_references_leave_the_buffer_alone() {
 /// `av_max_alloc` does. The limit is process-global, so this runs in a child
 /// process running nothing else, and passes when the child does.
 #[test]
+#[cfg_attr(miri, ignore = "calls C")]
 fn set_max_alloc_moves_the_limit_as_av_max_alloc() {
     const NAME: &str = "mem::set_max_alloc_moves_the_limit_as_av_max_alloc";
     if std::env::var_os(ISOLATED).is_none() {

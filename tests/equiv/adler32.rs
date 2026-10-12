@@ -1,6 +1,7 @@
 use ffmpeg::libavutil::{adler32, ffi};
 
 #[test]
+#[cfg_attr(miri, ignore = "calls C")]
 fn batch10_stream_sequences_match_c() {
     let data: Vec<_> = (0..4097).map(|i| (i * 41) as u8).collect();
     for initial in [0, 1, 0xabcdef01, u32::MAX] {

@@ -1306,6 +1306,7 @@ mod unit_tests {
     }
 
     #[test]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn trc_handles_call_the_c_function() {
         let fns = trc_functions();
         // 16 + 1 forward and 16 + 1 inverse functions, less the
@@ -1321,6 +1322,7 @@ mod unit_tests {
     }
 
     #[test]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn eotf_handles_call_the_c_function_in_place() {
         let fns = eotf_functions();
         assert!(fns.len() >= 24, "{}", fns.len());
@@ -1357,6 +1359,7 @@ mod unit_tests {
     }
 
     #[test]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn handles_cross_threads() {
         let (trc, eotf) = (trc_functions()[0].0, eotf_functions()[0].0);
         let expect = (trc.call(0.5), {
@@ -1434,6 +1437,7 @@ mod unit_tests {
     }
 
     #[test]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn cie_xy_equality_is_by_value_per_coordinate() {
         let v = |a, b, c, d| {
             CieXy::from_raw(ffi::AVCIExy {
@@ -1621,6 +1625,7 @@ mod unit_tests {
     }
 
     #[test]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn luma_coefficients_equality_is_by_value() {
         let a = LumaCoefficients::from_raw(luma_raw([1, 2, 1, 3, 1, 6]));
         let b = LumaCoefficients::from_raw(luma_raw([2, 4, 3, 9, 5, 30]));
@@ -1675,6 +1680,7 @@ mod unit_tests {
     }
 
     #[test]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn getters_hand_out_cs_functions() {
         let addr = |f: Option<unsafe extern "C" fn(f64) -> f64>| f.map(|f| f as usize);
         let eaddr = |f: Option<unsafe extern "C" fn(f64, f64, *mut f64)>| f.map(|f| f as usize);
@@ -1698,6 +1704,7 @@ mod unit_tests {
     }
 
     #[test]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn approximate_gammas_follow_cs_tables() {
         assert_eq!(ColorTransfer::BT709.approximate_trc_gamma(), Some(1.961));
         assert_eq!(ColorTransfer::BT709.approximate_eotf_gamma(), Some(2.2));
@@ -1879,6 +1886,7 @@ mod unit_tests {
     }
 
     #[test]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn primary_coefficients_equality_is_by_value() {
         let a = PrimaryCoefficients::from_raw(primaries_raw([1, 2, 1, 3, 1, 4, 1, 5, 1, 6, 1, 7]));
         let b =
@@ -2082,6 +2090,7 @@ mod unit_tests {
     }
 
     #[test]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn color_primaries_descriptor_equality_is_by_value() {
         let base = [1, 3, 1, 3, 1, 2, 1, 3, 1, 4, 1, 5, 1, 6, 1, 7];
         let mut scaled = base;
@@ -2180,6 +2189,7 @@ mod unit_tests {
     }
 
     #[test]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn identify_corrects_c_matching_unordered_differences_as_bt709() {
         let bt709 = ffi::AVColorPrimaries::AVCOL_PRI_BT709;
         // The all-zero description: C sums `0/0` differences, which

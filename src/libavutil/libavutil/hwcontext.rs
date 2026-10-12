@@ -3592,6 +3592,7 @@ mod unit_tests {
     }
 
     #[test]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn device_type_arrays_are_plain_elements() {
         let zeroed = alloc_array_zeroed::<DeviceType>(4).unwrap();
         assert!(zeroed.as_slice().iter().all(|&t| t == DeviceType::NONE));
@@ -3736,6 +3737,7 @@ mod unit_tests {
     const GRAY8: PixelFormat = PixelFormat::GRAY8;
 
     #[test]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn holds_image_accepts_buffers_allocated_at_the_size() {
         let f = software(YUV420P, 16, 8);
         assert!(holds_image(f.as_ref(), YUV420P, 16, 8, false));
@@ -3748,6 +3750,7 @@ mod unit_tests {
     }
 
     #[test]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn holds_image_refuses_images_past_the_buffers() {
         let f = software(YUV420P, 16, 8);
         // av_frame_get_buffer pads the height to 32 rows: past that, and
@@ -3757,6 +3760,7 @@ mod unit_tests {
     }
 
     #[test]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn holds_image_refuses_shared_planes_for_writes_only() {
         let f = software(YUV420P, 16, 8);
         let copy = f.as_ref().try_clone().unwrap();
@@ -3767,6 +3771,7 @@ mod unit_tests {
     }
 
     #[test]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn holds_image_refuses_unusable_line_sizes_and_planes() {
         let base = software(YUV420P, 16, 8);
         let ls = base.as_ref().linesizes();
@@ -3785,6 +3790,7 @@ mod unit_tests {
     }
 
     #[test]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn holds_image_refuses_unknown_and_hardware_formats() {
         let f = software(YUV420P, 16, 8);
         for format in [
@@ -3797,6 +3803,7 @@ mod unit_tests {
     }
 
     #[test]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn holds_image_checks_a_palette() {
         let f = software(PixelFormat::PAL8, 16, 8);
         assert!(holds_image(f.as_ref(), PixelFormat::PAL8, 16, 8, true));
@@ -3806,6 +3813,7 @@ mod unit_tests {
     }
 
     #[test]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn holds_image_trusts_planes_vouched_for() {
         let mut f = Frame::new().unwrap();
         let mut mem = vec![0u8; 16];
@@ -3819,6 +3827,7 @@ mod unit_tests {
     }
 
     #[test]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn fits_surfaces_bounds_both_dimensions() {
         let g = FramesGeometry {
             sw_format: YUV420P,
@@ -3843,6 +3852,7 @@ mod unit_tests {
     }
 
     #[test]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn hw_frames_reads_the_context_geometry() {
         let ctx = hw::context(&hw::YUV, 32, 18);
         let frame = hw::hw_frame(&ctx, 1);
@@ -3859,6 +3869,7 @@ mod unit_tests {
     }
 
     #[test]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn hw_frames_adopts_listings() {
         let ctx = hw::context(&hw::YUV, 16, 8);
         let hw = HwFrames(ctx.as_ref());
@@ -3899,6 +3910,7 @@ mod unit_tests {
     }
 
     #[test]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn software_transfer_refusal_checks_sizes_formats_and_planes() {
         let ctx = hw::context(&hw::YUV, 16, 8);
         let hw_frame = hw::hw_frame(&ctx, 2);
@@ -3970,6 +3982,7 @@ mod unit_tests {
     }
 
     #[test]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn transfer_without_contexts_is_refused_by_c() {
         let mut clean = Frame::new().unwrap();
         let counted = software(GRAY8, 4, 4);
@@ -3997,6 +4010,7 @@ mod unit_tests {
     /// bytes around the copied lines uninitialised; the Rust composition
     /// releases it (LeakSanitizer sees no leak) and zeroes them.
     #[test]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn download_into_new_buffers_releases_the_old_contents_and_zeroes_padding() {
         let ctx = hw::context(&hw::YUV, 16, 8);
         let mut src = hw::hw_frame(&ctx, 3);
@@ -4034,6 +4048,7 @@ mod unit_tests {
     }
 
     #[test]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn download_into_new_buffers_picks_the_format_as_c_does() {
         let ctx = hw::context(&hw::GRAY_FIRST, 16, 8);
         let src = hw::hw_frame(&ctx, 4);
@@ -4050,6 +4065,7 @@ mod unit_tests {
     }
 
     #[test]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn download_into_new_buffers_leaves_the_frame_on_error() {
         for (behaviour, format, err) in [
             (&hw::EMPTY, PixelFormat::NONE, EINVAL),
@@ -4092,6 +4108,7 @@ mod unit_tests {
     /// transfer fails with `AVERROR(ENOMEM)` as C's does, and the frame is
     /// left as it was.
     #[test]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn download_into_new_buffers_out_of_memory() {
         if !hwcontext_isolated(
             "libavutil::hwcontext::unit_tests::download_into_new_buffers_out_of_memory",
@@ -4121,6 +4138,7 @@ mod unit_tests {
     }
 
     #[test]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn inert_backends_are_refused_before_c_calls_their_null_transfers() {
         let inert = hw::inert_context();
         let src = hw::hw_frame(&inert, 6);
@@ -4233,6 +4251,7 @@ mod unit_tests {
         }
 
         #[test]
+        #[cfg_attr(miri, ignore = "calls C")]
         fn names_round_trip_and_unknown_names_are_none() {
             for (t, _) in NAMED {
                 match t.name() {
@@ -4252,6 +4271,7 @@ mod unit_tests {
         /// The campaign builds compile no backend: the walk is empty, and
         /// stays so.
         #[test]
+        #[cfg_attr(miri, ignore = "calls C")]
         fn no_backend_is_supported_in_this_build() {
             let mut types = DeviceType::supported();
             assert_eq!(types.next(), None);
@@ -4285,6 +4305,7 @@ mod unit_tests {
         }
 
         #[test]
+        #[cfg_attr(miri, ignore = "calls C")]
         fn uninit_device_inits_once_and_releases_on_drop() {
             assert!(
                 // SAFETY: NULL adopts nothing.
@@ -4317,6 +4338,7 @@ mod unit_tests {
         }
 
         #[test]
+        #[cfg_attr(miri, ignore = "calls C")]
         fn failed_device_init_releases_the_context() {
             let mut uninit = uninit_device(Kind::B);
             let ctx = uninit.context_mut().as_mut_ptr();
@@ -4335,6 +4357,7 @@ mod unit_tests {
         }
 
         #[test]
+        #[cfg_attr(miri, ignore = "calls C")]
         fn device_clones_share_the_context_and_stop_at_the_limit() {
             let a = device(Kind::A);
             let b = a.clone();
@@ -4374,6 +4397,7 @@ mod unit_tests {
         /// in its chain; any other type needs a backend, which this build
         /// lacks.
         #[test]
+        #[cfg_attr(miri, ignore = "calls C")]
         fn derive_returns_the_device_of_the_type_in_the_chain() {
             let a = device(Kind::A);
             let b = device(Kind::B);
@@ -4409,6 +4433,7 @@ mod unit_tests {
         }
 
         #[test]
+        #[cfg_attr(miri, ignore = "calls C")]
         fn hw_configs_follow_the_backend() {
             let a = device(Kind::A);
             let mut config = a.as_ref().alloc_hw_config().unwrap();
@@ -4431,6 +4456,7 @@ mod unit_tests {
         }
 
         #[test]
+        #[cfg_attr(miri, ignore = "calls C")]
         fn frames_init_checks_format_size_and_backend() {
             let a = device(Kind::A);
             fx::take_events();
@@ -4495,6 +4521,7 @@ mod unit_tests {
         }
 
         #[test]
+        #[cfg_attr(miri, ignore = "calls C")]
         fn hardware_frames_hold_their_context_and_outlive_its_box() {
             let a = device(Kind::A);
             let frames = frames(&a, Kind::A);
@@ -4533,6 +4560,7 @@ mod unit_tests {
         }
 
         #[test]
+        #[cfg_attr(miri, ignore = "calls C")]
         fn get_buffer_reports_c_failures() {
             let a = device(Kind::A);
             let failing = FramesHwctx {
@@ -4556,6 +4584,7 @@ mod unit_tests {
         }
 
         #[test]
+        #[cfg_attr(miri, ignore = "calls C")]
         fn maps_to_memory_hold_the_source_frame() {
             let a = device(Kind::A);
             let frames = frames(&a, Kind::A);
@@ -4596,6 +4625,7 @@ mod unit_tests {
         }
 
         #[test]
+        #[cfg_attr(miri, ignore = "calls C")]
         fn maps_refuse_the_own_context_and_wrapping_counts() {
             let a = device(Kind::A);
             let frames = frames(&a, Kind::A);
@@ -4641,6 +4671,7 @@ mod unit_tests {
         }
 
         #[test]
+        #[cfg_attr(miri, ignore = "calls C")]
         fn maps_into_another_context_and_back() {
             let a = device(Kind::A);
             let b = device(Kind::B);
@@ -4690,6 +4721,7 @@ mod unit_tests {
         }
 
         #[test]
+        #[cfg_attr(miri, ignore = "calls C")]
         fn derived_frames_map_their_allocations_and_unmap() {
             let a = device(Kind::A);
             let b = device(Kind::B);
@@ -4755,6 +4787,7 @@ mod unit_tests {
         }
 
         #[test]
+        #[cfg_attr(miri, ignore = "calls C")]
         fn frames_derivations_fall_back_and_fail_as_the_backends_say() {
             let a = device(Kind::A);
             let b = device(Kind::B);
@@ -4823,6 +4856,7 @@ mod unit_tests {
         /// C runs a `free` C code filled in (through the raw seam) once,
         /// after the backend's uninit, when the last reference goes.
         #[test]
+        #[cfg_attr(miri, ignore = "calls C")]
         fn frames_free_callbacks_run_at_the_last_release() {
             let a = device(Kind::A);
             let mut uninit = a.as_ref().alloc_frames().unwrap();
@@ -4848,6 +4882,7 @@ mod unit_tests {
         /// A derived context reports its source's allocation failure, and
         /// a target backend's mapping failure ends the mapping.
         #[test]
+        #[cfg_attr(miri, ignore = "calls C")]
         fn derived_allocations_and_target_mappings_report_failures() {
             let a = device(Kind::A);
             let b = device(Kind::B);
@@ -4891,6 +4926,7 @@ mod unit_tests {
         }
 
         #[test]
+        #[cfg_attr(miri, ignore = "calls C")]
         fn name_lookups_take_any_c_string() {
             let long = std::ffi::CString::new("x".repeat(4096)).unwrap();
             assert_eq!(DeviceType::from_name(&long), None);
@@ -4950,6 +4986,7 @@ mod unit_tests {
         }
 
         #[test]
+        #[cfg_attr(miri, ignore = "calls C")]
         fn frames_list_their_backends_transfer_formats() {
             let (a, b) = (device(Kind::A), device(Kind::B));
             let (fa, fb) = (frames(&a, Kind::A), frames(&b, Kind::B));
@@ -4966,6 +5003,7 @@ mod unit_tests {
         }
 
         #[test]
+        #[cfg_attr(miri, ignore = "calls C")]
         fn hardware_frames_upload_download_and_copy() {
             let a = device(Kind::A);
             let fa = frames(&a, Kind::A);
@@ -5006,6 +5044,7 @@ mod unit_tests {
         }
 
         #[test]
+        #[cfg_attr(miri, ignore = "calls C")]
         fn hardware_frame_transfers_refuse_before_c() {
             let (a, b) = (device(Kind::A), device(Kind::B));
             let (fa, fb) = (frames(&a, Kind::A), frames(&b, Kind::B));
@@ -5070,6 +5109,7 @@ mod unit_tests {
         }
 
         #[test]
+        #[cfg_attr(miri, ignore = "calls C")]
         fn frames_clones_stop_at_the_limit() {
             let a = device(Kind::A);
             let fa = frames(&a, Kind::A);
@@ -5085,6 +5125,7 @@ mod unit_tests {
         }
 
         #[test]
+        #[cfg_attr(miri, ignore = "calls C")]
         fn unmapping_returns_the_mapped_frame_in_its_own_context() {
             let (a, b) = (device(Kind::A), device(Kind::B));
             let (fa, other) = (frames(&a, Kind::A), frames(&a, Kind::A));
@@ -5119,6 +5160,7 @@ mod unit_tests {
         /// surface: kind B has no transfer routine (a NULL call, as
         /// MediaCodec's), kind A would read the frame's NULL planes as one.
         #[test]
+        #[cfg_attr(miri, ignore = "calls C")]
         fn frame_hw_frames_contexts_are_typed_and_uncounted_copies_refused() {
             for kind in [Kind::A, Kind::B] {
                 let d = device(kind);
@@ -5242,6 +5284,7 @@ mod unit_tests {
         }
 
         #[test]
+        #[cfg_attr(miri, ignore = "calls C")]
         fn builder_getters_read_the_allocated_fields() {
             let events = Arc::new(Events::default());
             let b = builder(&events);
@@ -5265,6 +5308,7 @@ mod unit_tests {
         }
 
         #[test]
+        #[cfg_attr(miri, ignore = "calls C")]
         fn bare_backend_has_no_hardware_context() {
             let raw =
                 hwdevice::fake_device_of(&BARE_TYPE, ffi::AVHWDeviceType::AV_HWDEVICE_TYPE_DRM);
@@ -5289,6 +5333,7 @@ mod unit_tests {
         }
 
         #[test]
+        #[cfg_attr(miri, ignore = "calls C")]
         fn user_data_is_typed_replaced_and_taken() {
             let events = Arc::new(Events::default());
             let mut b = builder(&events);
@@ -5316,6 +5361,7 @@ mod unit_tests {
         }
 
         #[test]
+        #[cfg_attr(miri, ignore = "calls C")]
         fn free_callback_runs_once_after_uninit_and_sees_the_data() {
             let events = Arc::new(Events::default());
             let mut b = builder(&events);
@@ -5353,6 +5399,7 @@ mod unit_tests {
         }
 
         #[test]
+        #[cfg_attr(miri, ignore = "calls C")]
         fn a_callback_may_take_or_replace_everything() {
             let events = Arc::new(Events::default());
             let mut b = builder(&events);
@@ -5387,6 +5434,7 @@ mod unit_tests {
         }
 
         #[test]
+        #[cfg_attr(miri, ignore = "calls C")]
         fn replaced_and_taken_callbacks_are_not_called() {
             let events = Arc::new(Events::default());
             let mut b = builder(&events);
@@ -5417,6 +5465,7 @@ mod unit_tests {
         }
 
         #[test]
+        #[cfg_attr(miri, ignore = "calls C")]
         fn foreign_hooks_are_neither_read_nor_replaced() {
             let freed = AtomicUsize::new(0);
             let raw = hwdevice::fake_device();
@@ -5457,6 +5506,7 @@ mod unit_tests {
         }
 
         #[test]
+        #[cfg_attr(miri, ignore = "calls C")]
         fn a_backend_free_alone_is_neither_read_nor_replaced() {
             let raw = hwdevice::fake_device();
             // SAFETY: a write of the fresh context's `free`, as
@@ -5521,6 +5571,7 @@ mod unit_tests {
         }
 
         #[test]
+        #[cfg_attr(miri, ignore = "calls C")]
         fn release_hooks_tolerates_a_cleared_cookie() {
             let raw = hwdevice::fake_device();
             // SAFETY: the only reference to a fresh fake context: a `free`
@@ -5533,6 +5584,7 @@ mod unit_tests {
         }
 
         #[test]
+        #[cfg_attr(miri, ignore = "calls C")]
         fn init_reports_failure_and_releases_the_context() {
             let events = Arc::new(Events::default());
             let mut b = builder(&events);
@@ -5555,6 +5607,7 @@ mod unit_tests {
         }
 
         #[test]
+        #[cfg_attr(miri, ignore = "calls C")]
         fn arcs_share_one_context_and_hand_it_back_to_c() {
             let events = Arc::new(Events::default());
             let mut b = builder(&events);
@@ -5593,6 +5646,7 @@ mod unit_tests {
         }
 
         #[test]
+        #[cfg_attr(miri, ignore = "calls C")]
         fn device_constraints_come_from_the_backend() {
             let events = Arc::new(Events::default());
             for nb_sw in [-1, 0, 2, 4] {
@@ -5638,6 +5692,7 @@ mod unit_tests {
         }
 
         #[test]
+        #[cfg_attr(miri, ignore = "calls C")]
         fn configurations_of_another_device_type_are_refused() {
             let events = Arc::new(Events::default());
             // SAFETY: the fake backend's `device_init` accepts any payload.
@@ -5672,6 +5727,7 @@ mod unit_tests {
         }
 
         #[test]
+        #[cfg_attr(miri, ignore = "calls C")]
         fn failing_backend_constraints_are_none() {
             let events = Arc::new(Events::default());
             let mut b = builder(&events);
@@ -5689,6 +5745,7 @@ mod unit_tests {
         }
 
         #[test]
+        #[cfg_attr(miri, ignore = "calls C")]
         fn new_constraints_start_as_c_does() {
             let c = FramesConstraints::new().unwrap();
             let r = c.as_ref();
@@ -5700,6 +5757,7 @@ mod unit_tests {
         }
 
         #[test]
+        #[cfg_attr(miri, ignore = "calls C")]
         fn constraint_setters_copy_terminate_and_free() {
             let mut c = FramesConstraints::new().unwrap();
             let mut m = c.as_mut();
@@ -5773,6 +5831,7 @@ mod unit_tests {
         }
 
         #[test]
+        #[cfg_attr(miri, ignore = "calls C")]
         fn constraints_keep_what_they_have_on_enomem() {
             if !isolated(
                 "libavutil::hwcontext::unit_tests::device_context::constraints_keep_what_they_have_on_enomem",
@@ -5878,6 +5937,7 @@ mod unit_tests {
         }
 
         #[test]
+        #[cfg_attr(miri, ignore = "calls C")]
         fn allocated_fields_read_as_c_set_them() {
             let a = device(Kind::A);
             let mut u = a.as_ref().alloc_frames().unwrap();
@@ -5913,6 +5973,7 @@ mod unit_tests {
         }
 
         #[test]
+        #[cfg_attr(miri, ignore = "calls C")]
         fn setters_reach_c_and_the_initialised_context() {
             let a = device(Kind::A);
             let mut u = a.as_ref().alloc_frames().unwrap();
@@ -5956,6 +6017,7 @@ mod unit_tests {
         }
 
         #[test]
+        #[cfg_attr(miri, ignore = "calls C")]
         fn create_frames_builds_initialised_contexts() {
             let a = device(Kind::A);
             let frames = a
@@ -5994,6 +6056,7 @@ mod unit_tests {
         }
 
         #[test]
+        #[cfg_attr(miri, ignore = "calls C")]
         fn user_data_is_typed_replaced_and_taken() {
             let a = device(Kind::B);
             let mut u = a.as_ref().alloc_frames().unwrap();
@@ -6019,6 +6082,7 @@ mod unit_tests {
         }
 
         #[test]
+        #[cfg_attr(miri, ignore = "calls C")]
         fn free_callback_runs_once_after_uninit_and_the_pool() {
             let a = device(Kind::A);
             let (allocs, pool_drops) = (Arc::default(), Arc::new(AtomicUsize::new(0)));
@@ -6075,6 +6139,7 @@ mod unit_tests {
         }
 
         #[test]
+        #[cfg_attr(miri, ignore = "calls C")]
         fn rust_pools_are_replaced_and_taken() {
             let a = device(Kind::A);
             let allocs = Arc::new(AtomicUsize::new(0));
@@ -6116,6 +6181,7 @@ mod unit_tests {
         /// the setters refuse and give the value back, and nothing is read
         /// as Rust's.
         #[test]
+        #[cfg_attr(miri, ignore = "calls C")]
         fn foreign_hooks_and_pools_are_neither_read_nor_replaced() {
             unsafe extern "C" fn foreign_free(_: *mut ffi::AVHWFramesContext) {}
             let a = device(Kind::A);
@@ -6175,6 +6241,7 @@ mod unit_tests {
         }
 
         #[test]
+        #[cfg_attr(miri, ignore = "calls C")]
         fn a_callback_may_take_or_replace_everything() {
             let a = device(Kind::B);
             let calls = Arc::new(AtomicUsize::new(0));
@@ -6211,6 +6278,7 @@ mod unit_tests {
         }
 
         #[test]
+        #[cfg_attr(miri, ignore = "calls C")]
         fn init_failures_run_the_hooks_once() {
             let a = device(Kind::A);
             let calls = Arc::new(AtomicUsize::new(0));
@@ -6258,6 +6326,7 @@ mod unit_tests {
         /// its `ret` of 0 there; the context then works, and its release
         /// runs the hooks once and drops their pool.
         #[test]
+        #[cfg_attr(miri, ignore = "calls C")]
         fn preallocation_out_of_memory_is_ignored_as_in_c() {
             if !hwcontext_isolated(
                 "libavutil::hwcontext::unit_tests::frames_context::\
@@ -6299,6 +6368,7 @@ mod unit_tests {
         }
 
         #[test]
+        #[cfg_attr(miri, ignore = "calls C")]
         fn release_frames_hooks_tolerates_a_cleared_cookie() {
             let a = device(Kind::B);
             let mut u = a.as_ref().alloc_frames().unwrap();
@@ -6376,6 +6446,7 @@ mod unit_tests {
         /// The hooks on a context in Rust storage, released by calling the
         /// trampoline as `hwframe_ctx_free` would, without C.
         #[test]
+        #[cfg_attr(miri, ignore = "calls C")]
         fn hooks_on_rust_storage_without_c() {
             let drops = Arc::new(AtomicUsize::new(0));
             let calls = Arc::new(AtomicUsize::new(0));
@@ -6469,6 +6540,7 @@ mod unit_tests {
         /// after the context itself: C frees the context and takes no
         /// reference to the device, and both constructors report it.
         #[test]
+        #[cfg_attr(miri, ignore = "calls C")]
         fn alloc_fails_whole_when_the_backend_struct_does_not_fit() {
             if !hwcontext_isolated(
                 "libavutil::hwcontext::unit_tests::frames_context::alloc_fails_whole_when_the_backend_struct_does_not_fit",

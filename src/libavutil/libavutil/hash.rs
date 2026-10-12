@@ -248,6 +248,7 @@ mod unit_tests {
     use super::*;
 
     #[test]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn output_lengths_and_rejected_text_capacities() {
         assert_eq!(c_capacity(0), 0);
         assert_eq!(c_capacity(i32::MAX as usize), i32::MAX);
@@ -264,6 +265,7 @@ mod unit_tests {
     }
 
     #[test]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn unknown_names_are_errors() {
         for name in [c"", c"not a hash", c"SHA999", c"\xff"] {
             assert_eq!(HashContext::new(name).err(), Some(-(ffi::EINVAL as c_int)));
@@ -271,6 +273,7 @@ mod unit_tests {
     }
 
     #[test]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn owner_round_trip_and_null_adoption() {
         // SAFETY: NULL adopts no allocation and must return None.
         assert!(unsafe { HashContextBox::from_c(ptr::null_mut()) }.is_none());

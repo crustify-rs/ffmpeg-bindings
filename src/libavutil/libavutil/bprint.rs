@@ -1359,6 +1359,7 @@ mod unit_tests {
     /// `av_malloc(0)` block that holds no NUL, which read as a string is
     /// out of bounds; `into_string` hands back an empty string instead.
     #[test]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn a_count_only_buffer_finalizes_into_an_empty_string() {
         let mut buf = BPrint::new(0, BPrint::SIZE_COUNT_ONLY).unwrap();
         chars(&mut buf.as_mut(), b'x', 10);
@@ -1374,6 +1375,7 @@ mod unit_tests {
     /// The finalizing policy releases a grown string with the structure;
     /// LeakSanitizer reports either one left behind.
     #[test]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn dropping_a_grown_buffer_frees_its_string() {
         let mut buf = BPrint::new(0, BPrint::SIZE_UNLIMITED).unwrap();
         chars(&mut buf.as_mut(), b'y', 5000);
@@ -1390,6 +1392,7 @@ mod unit_tests {
     /// The buffer policy frees only the structure: AddressSanitizer reports
     /// a free of the caller's (Rust) buffer, which then stays readable.
     #[test]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn dropping_a_buffer_on_a_caller_buffer_leaves_it_alone() {
         let mut out = vec![0xaa_u8; 8];
         let mut buf = BPrint::for_buffer(&mut out).unwrap();
@@ -1401,6 +1404,7 @@ mod unit_tests {
     }
 
     #[test]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn truncate_moves_the_terminator_within_the_string() {
         let mut out = [0xaa_u8; 8];
         let mut buf = BPrint::for_buffer(&mut out).unwrap();
@@ -1420,6 +1424,7 @@ mod unit_tests {
     }
 
     #[test]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn a_count_only_buffer_stores_nothing_and_truncates_without_writing() {
         let mut buf = BPrint::for_buffer(&mut []).unwrap();
         chars(&mut buf.as_mut(), b'q', 7);
@@ -1435,6 +1440,7 @@ mod unit_tests {
     /// The guard puts the NUL back at `min(len, size - 1)`, however its
     /// owner leaves, and writes nothing into a count-only buffer.
     #[test]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn terminate_reterminates_the_buffer_on_drop() {
         let mut out = [0xa5_u8; 4];
         let mut buf = BPrint::for_buffer(&mut out).unwrap();
@@ -1469,6 +1475,7 @@ mod unit_tests {
     /// A closure claiming more than it got panics before anything is
     /// committed, and the terminator it wrote over comes back.
     #[test]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn append_with_rejects_an_overlong_count_and_restores_the_buffer() {
         let mut buf = BPrint::new(0, BPrint::SIZE_UNLIMITED).unwrap();
         buf.as_mut().append_bytes(b"ab");
@@ -1495,6 +1502,7 @@ mod unit_tests {
 
     /// A closure that panics after writing leaves the old text, terminated.
     #[test]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn append_with_restores_the_terminator_when_its_closure_panics() {
         let mut out = [0xa5_u8; 8];
         let mut buf = BPrint::for_buffer(&mut out).unwrap();
@@ -1516,6 +1524,7 @@ mod unit_tests {
     /// The storage is at most `size` bytes, zeroed, and stops short of the
     /// last byte; the count written is what is committed.
     #[test]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn append_with_hands_out_zeroed_storage_short_of_the_last_byte() {
         let mut out = [0xa5_u8; 8];
         let mut buf = BPrint::for_buffer(&mut out).unwrap();
@@ -1540,6 +1549,7 @@ mod unit_tests {
     }
 
     #[test]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn write_keeps_nuls_where_append_fmt_stops() {
         use core::fmt::Write;
         let mut buf = BPrint::new(0, BPrint::SIZE_UNLIMITED).unwrap();

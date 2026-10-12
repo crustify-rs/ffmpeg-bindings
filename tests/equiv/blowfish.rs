@@ -2,6 +2,7 @@ use core::ptr::{addr_of, addr_of_mut};
 use ffmpeg::libavutil::{blowfish::Blowfish, ffi};
 
 #[test]
+#[cfg_attr(miri, ignore = "calls C")]
 fn lifecycle_and_field_sequences_match_c() {
     let mut safe = Blowfish::new_boxed(b"initial").unwrap();
     let mut reference = ffi::AVBlowfish::default();
@@ -60,6 +61,7 @@ fn lifecycle_and_field_sequences_match_c() {
 use ffmpeg::libavutil::aes::Direction;
 
 #[test]
+#[cfg_attr(miri, ignore = "calls C")]
 fn buffer_sequences_match_c() {
     for key_len in [1, 8, 56] {
         for direction in [Direction::Encrypt, Direction::Decrypt] {

@@ -56,6 +56,7 @@ fn empty_dictionary_has_no_object() {
 }
 
 #[test]
+#[cfg_attr(miri, ignore = "calls C")]
 fn every_entry_shape_builds_copies_and_frees() {
     for (n, len) in [(1, 0), (1, 1), (3, 17), (64, 5), (2000, 2), (8, 4096)] {
         let d = dict(&pairs(n, len));
@@ -70,6 +71,7 @@ fn every_entry_shape_builds_copies_and_frees() {
 }
 
 #[test]
+#[cfg_attr(miri, ignore = "calls C")]
 fn copies_outlive_their_sources() {
     let p = pairs(40, 33);
     let first = dict(&p);
@@ -87,6 +89,7 @@ fn copies_outlive_their_sources() {
 }
 
 #[test]
+#[cfg_attr(miri, ignore = "calls C")]
 fn conversions_move_the_dictionary_without_copying() {
     let mut d = dict(&pairs(5, 3));
     let b = d.take().unwrap();
@@ -102,6 +105,7 @@ fn conversions_move_the_dictionary_without_copying() {
 }
 
 #[test]
+#[cfg_attr(miri, ignore = "calls C")]
 fn handles_borrow_for_their_owner() {
     let mut d = dict(&pairs(3, 3));
     {
@@ -117,6 +121,7 @@ fn handles_borrow_for_their_owner() {
 }
 
 #[test]
+#[cfg_attr(miri, ignore = "calls C")]
 fn owners_move_between_threads() {
     let d = dict(&pairs(30, 9));
     let b = dict(&pairs(7, 2)).take().unwrap();
@@ -127,6 +132,7 @@ fn owners_move_between_threads() {
 }
 
 #[test]
+#[cfg_attr(miri, ignore = "calls C")]
 fn shared_dictionaries_copy_concurrently() {
     let d = dict(&pairs(50, 12));
     let b = dict(&pairs(20, 3)).take().unwrap();
@@ -198,6 +204,7 @@ mod readers_and_writers {
     }
 
     #[test]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn every_write_and_flag_on_every_size() {
         let long = CString::new(vec![b'q'; 4096]).unwrap();
         let keys = [c"", c"a", c"A", c"ab", long.as_c_str()];
@@ -228,6 +235,7 @@ mod readers_and_writers {
     }
 
     #[test]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn large_dictionaries_grow_and_shrink() {
         let mut d = Dict::new();
         for i in 0..3000 {
@@ -250,6 +258,7 @@ mod readers_and_writers {
     }
 
     #[test]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn malformed_and_separator_heavy_strings_parse_without_overreading() {
         for s in [
             c"",
@@ -286,6 +295,7 @@ mod readers_and_writers {
     }
 
     #[test]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn entries_and_iterators_live_until_the_next_write() {
         let mut d = Dict::from_entries([(c"a", c"1"), (c"b", c"2"), (c"A", c"3")]).unwrap();
         let held: Vec<DictionaryEntryRef<'_>> = d.get_all(c"a", Flags::NONE).collect();
@@ -310,6 +320,7 @@ mod readers_and_writers {
     }
 
     #[test]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn readers_share_one_dictionary_across_threads() {
         fn send_sync<T: Send + Sync>() {}
         send_sync::<Flags>();

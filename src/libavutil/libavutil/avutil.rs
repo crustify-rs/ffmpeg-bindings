@@ -487,6 +487,7 @@ mod unit_tests {
     }
 
     #[test]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn x_if_null_picks_the_first_present_borrow() {
         let (a, b) = (1u64, 2u64);
         assert_eq!(x_if_null(Some(&a), Some(&b)), Some(&1));
@@ -497,6 +498,7 @@ mod unit_tests {
     }
 
     #[test]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn x_if_null_mut_hands_back_a_writable_borrow() {
         let (mut a, mut b) = ([0u8; 3], [0u8; 3]);
         x_if_null_mut(Some(&mut a), Some(&mut b)).unwrap()[0] = 7;
@@ -508,6 +510,7 @@ mod unit_tests {
     }
 
     #[test]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn version_packs_the_built_parts() {
         let v = version();
         assert_eq!(v >> 16, ffi::LIBAVUTIL_VERSION_MAJOR);
@@ -516,6 +519,7 @@ mod unit_tests {
     }
 
     #[test]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn media_type_names_are_cs() {
         assert_eq!(MediaType::VIDEO.as_str(), Some("video"));
         assert_eq!(MediaType::ATTACHMENT.as_str(), Some("attachment"));
@@ -524,6 +528,7 @@ mod unit_tests {
     }
 
     #[test]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn picture_type_letters_are_cs() {
         assert_eq!(PictureType::I.to_char(), 'I');
         assert_eq!(PictureType::SI.to_char(), 'i');
@@ -533,6 +538,7 @@ mod unit_tests {
     }
 
     #[test]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn time_base_is_one_microsecond() {
         let tb = time_base();
         assert_eq!((tb.as_ref().num(), tb.as_ref().den()), (1, 1_000_000));

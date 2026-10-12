@@ -1,6 +1,7 @@
 use ffmpeg::libavutil::twofish::context_size;
 
 #[test]
+#[cfg_attr(miri, ignore = "reads a C global")]
 fn batch10_immutable_size_across_threads() {
     let size: &'static i32 = context_size();
     assert!(*size > 0);
@@ -22,6 +23,7 @@ use ffmpeg::libavutil::aes::Direction::{Decrypt, Encrypt};
 use ffmpeg::libavutil::twofish::{InitError, InitStatus, Twofish};
 
 #[test]
+#[cfg_attr(miri, ignore = "calls C")]
 fn constructors_and_exclusive_reinitialization() {
     let mut owner = {
         let key = [42; 32];
@@ -89,6 +91,7 @@ fn constructors_and_exclusive_reinitialization() {
 }
 
 #[test]
+#[cfg_attr(miri, ignore = "calls C")]
 pub(super) fn batch2_foreign_writes_across_reborrows() {
     let mut owner = Twofish::new(&[7; 16], 128).unwrap().0;
     for cbc in [false, true] {
@@ -145,6 +148,7 @@ pub(super) fn batch2_foreign_writes_across_reborrows() {
 }
 
 #[test]
+#[cfg_attr(miri, ignore = "calls C")]
 fn batch2_copied_shared_key_schedule() {
     let owner = Twofish::new(&[9; 16], 128).unwrap().0;
     let shared = owner.as_ref();

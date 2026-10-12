@@ -2,6 +2,7 @@
 use ffmpeg::libavutil::murmur3::{Murmur3, Murmur3Box, Murmur3Mut, Murmur3Ref};
 
 #[test]
+#[cfg_attr(miri, ignore = "calls C")]
 fn lifecycle_and_foreign_writes() {
     let mut context = Murmur3::with_seed(u64::MAX).unwrap();
     let shared: Murmur3Ref<'_> = context.as_ref();
@@ -31,6 +32,7 @@ fn lifecycle_and_foreign_writes() {
 }
 
 #[test]
+#[cfg_attr(miri, ignore = "calls C")]
 fn block_edges_and_drop_without_finalizing() {
     for len in 0..=96 {
         let data: Vec<_> = (0..len).map(|i| i as u8).collect();

@@ -242,6 +242,7 @@ mod unit_tests {
     }
 
     #[test]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn owner_raw_round_trip() {
         let owner = Sha512::new(Algorithm::Sha512).unwrap();
         let ptr = owner.into_c();

@@ -2,6 +2,7 @@ use ffibox::CZeroable;
 use ffmpeg::libavutil::rc4::{Rc4, Rc4Box};
 
 #[test]
+#[cfg_attr(miri, ignore = "calls C")]
 fn inline_and_heap_reborrows() {
     let mut inline = Rc4::from_key(&[0]).unwrap();
     let mut boxed = Rc4::new(b"a nonempty key").unwrap();
@@ -32,6 +33,7 @@ fn inline_and_heap_reborrows() {
 }
 
 #[test]
+#[cfg_attr(miri, ignore = "calls C")]
 fn every_rc4_owner_and_copy_is_independent() {
     for _ in 0..32 {
         let mut original = Rc4::new(&[255]).unwrap();
@@ -56,6 +58,7 @@ fn every_rc4_owner_and_copy_is_independent() {
 }
 
 #[test]
+#[cfg_attr(miri, ignore = "calls C")]
 fn allocation_failure_is_contained_in_a_child_process() {
     const CHILD: &str = "CRUSTIFY_CRYPTO_BATCH6_ALLOC_CHILD";
     if std::env::var_os(CHILD).is_some() {
@@ -111,6 +114,7 @@ fn zeroed_inline_field_projection_without_ffi() {
 }
 
 #[test]
+#[cfg_attr(miri, ignore = "calls C")]
 fn independent_thread_local_contexts_do_not_share_state() {
     use ffmpeg::libavutil::ripemd::{DigestBits, Ripemd};
     let threads: Vec<_> = (0..8u8)
@@ -136,6 +140,7 @@ fn independent_thread_local_contexts_do_not_share_state() {
 }
 
 #[test]
+#[cfg_attr(miri, ignore = "calls C")]
 pub(super) fn batch2_foreign_writes_across_reborrows() {
     let mut inline = Rc4::from_key(b"key").unwrap();
     let mut heap = Rc4::new(b"key").unwrap();
@@ -158,6 +163,7 @@ pub(super) fn batch2_foreign_writes_across_reborrows() {
 }
 
 #[test]
+#[cfg_attr(miri, ignore = "calls C")]
 fn batch2_independent_thread_local_crypto_operations() {
     let threads: Vec<_> = (0..4)
         .map(|_| {

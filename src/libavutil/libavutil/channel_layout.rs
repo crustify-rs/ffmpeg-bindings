@@ -3360,6 +3360,7 @@ mod unit_tests {
     }
 
     #[test]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn channel_names_and_descriptions_cover_each_id_class() {
         let cases = [
             (Channel::FRONT_LEFT, c"FL", c"front left"),
@@ -3391,6 +3392,7 @@ mod unit_tests {
     }
 
     #[test]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn write_name_truncates_and_reports_the_whole_size() {
         let ch = Channel::LOW_FREQUENCY_2;
         let mut buf = [0xAAu8; 8];
@@ -3406,6 +3408,7 @@ mod unit_tests {
     }
 
     #[test]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn from_name_reads_cs_none_as_not_found() {
         assert_eq!(Channel::from_name(c"FC"), Some(Channel::FRONT_CENTER));
         assert_eq!(Channel::from_name(c"AMBI2"), Channel::ambisonic(2));
@@ -3478,6 +3481,7 @@ mod unit_tests {
     }
 
     #[test]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn channel_layout_unspecified_and_zeroed_hold_only_a_count() {
         assert_eq!(layout_raw(ChannelLayout::zeroed().as_ref()), (0, 0, 0, 0));
         for n in [0, 1, 7, -1, i32::MIN, i32::MAX] {
@@ -3491,6 +3495,7 @@ mod unit_tests {
     }
 
     #[test]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn channel_layout_debug_names_every_field_and_variant() {
         let mut l = ChannelLayout::unspecified(2);
         assert_eq!(
@@ -3528,6 +3533,7 @@ mod unit_tests {
     }
 
     #[test]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn channel_layout_custom_map_setter_refuses_an_empty_map_untouched() {
         let mut l = ChannelLayout::unspecified(3);
         l.as_mut().set_opaque(cookie(8));
@@ -3538,6 +3544,7 @@ mod unit_tests {
     }
 
     #[test]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn channel_layout_custom_map_moves_in_and_out_keeping_the_user_pointer() {
         let ids = [
             Channel::FRONT_LEFT,
@@ -3568,6 +3575,7 @@ mod unit_tests {
     }
 
     #[test]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn channel_layout_order_setters_keep_the_user_pointer_and_free_the_map() {
         let mut l = ChannelLayout::from_custom_map(named_map(&[Channel::BACK_LEFT; 4])).unwrap();
         l.as_mut().set_opaque(cookie(24));
@@ -3592,6 +3600,7 @@ mod unit_tests {
     }
 
     #[test]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn channel_layout_ambisonic_setter_bounds_the_count_as_cs_parser() {
         let mut l = ChannelLayout::unspecified(1);
         assert_eq!(l.as_mut().set_ambisonic(0, 0), Ok(()));
@@ -3607,6 +3616,7 @@ mod unit_tests {
     }
 
     #[test]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn channel_layout_replace_take_and_set_move_whole_layouts() {
         let mut a = ChannelLayout::from_custom_map(named_map(&[Channel::FRONT_CENTER])).unwrap();
         a.as_mut().set_opaque(cookie(32));
@@ -3625,6 +3635,7 @@ mod unit_tests {
     }
 
     #[test]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn channel_layout_copies_are_deep_and_independent() {
         let mut src =
             ChannelLayout::from_custom_map(named_map(&[Channel::SIDE_LEFT, Channel::SIDE_RIGHT]))
@@ -3663,6 +3674,7 @@ mod unit_tests {
     /// A custom layout C left without its map, as `av_channel_layout_copy`
     /// does when the allocation fails: the readers must not follow it.
     #[test]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn channel_layout_mapless_custom_state_is_read_as_empty_and_not_copied() {
         let mut raw = ffi::AVChannelLayout {
             order: ffi::AVChannelOrder::AV_CHANNEL_ORDER_CUSTOM,
@@ -3694,6 +3706,7 @@ mod unit_tests {
 
     /// A custom count C stored negative reads as an empty map.
     #[test]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn channel_layout_negative_custom_count_reads_as_empty() {
         let mut map = named_map(&[Channel::FRONT_LEFT]);
         let mut raw = ffi::AVChannelLayout {
@@ -3714,6 +3727,7 @@ mod unit_tests {
     }
 
     #[test]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn channel_layout_c_initialisers_fill_a_fresh_layout() {
         let l = ChannelLayout::from_mask(0x60f).unwrap();
         assert_eq!(layout_raw(l.as_ref()), (1, 6, 0x60f, 0));
@@ -3748,6 +3762,7 @@ mod unit_tests {
     /// Allocation failures, under a process-wide `av_max_alloc` limit, so in
     /// an isolated child.
     #[test]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn channel_layout_allocation_failures_leave_valid_layouts() {
         const CHILD: &str = "CRUSTIFY_CHANNEL_LAYOUT_ALLOCATION_FAILURE_CHILD";
         if std::env::var_os(CHILD).is_none() {
@@ -3863,6 +3878,7 @@ mod unit_tests {
     }
 
     #[test]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn standard_layouts_are_native_over_their_masks() {
         for (name, layout, mask) in [
             ("MONO", ChannelLayout::MONO, masks::MONO),
@@ -3936,6 +3952,7 @@ mod unit_tests {
     /// subset query answers before C walks the NULL map, and C's retype
     /// refuses it untouched.
     #[test]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn subset_and_retype_refuse_a_mapless_custom_layout() {
         let raw = ffi::AVChannelLayout {
             order: ChannelOrder::CUSTOM.into_raw(),
@@ -3963,6 +3980,7 @@ mod unit_tests {
     }
 
     #[test]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn standard_layouts_iterator_is_fused_and_copies_resume_independently() {
         let mut it = standard_layouts();
         assert_eq!(format!("{it:?}"), "StandardLayouts { next: 0 }");
@@ -4007,6 +4025,7 @@ mod unit_tests {
     /// C would compare an `unsigned` index with: the readers answer before C
     /// reads through the NULL map or past the real one.
     #[test]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn readers_refuse_custom_layouts_c_cannot_walk() {
         let mapless = raw_layout(ChannelOrder::CUSTOM, 3, 0);
         assert_refused(mapless.as_ref());
@@ -4032,6 +4051,7 @@ mod unit_tests {
     /// what C answers where C's `int` arithmetic does not overflow, and
     /// refuse where it would.
     #[test]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn readers_keep_cs_int_arithmetic_in_range() {
         let ambi = |n| raw_layout(ChannelOrder::AMBISONIC, n, 0);
         // `highest_ambi` at the limit's edges: 46339 squares within `int`.
@@ -4073,6 +4093,7 @@ mod unit_tests {
     /// reading out of bounds (the index walk runs off the mask's 64 bits to
     /// `AV_CHAN_NONE`; a negative component count lets every index through).
     #[test]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn inconsistent_native_and_ambisonic_counts_read_as_c_reads_them() {
         let user50 = Channel::from_raw(ffi::AVChannel(50));
         let wide = raw_layout(ChannelOrder::NATIVE, 3, 1 | 1 << 50);
@@ -4116,6 +4137,7 @@ mod unit_tests {
 
     /// A name with no NUL is refused only where C reads it as a string.
     #[test]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn unterminated_names_refuse_only_string_readers() {
         let mut map = named_map(&[Channel::FRONT_LEFT, Channel::LOW_FREQUENCY]);
         map.as_handles_mut()
@@ -4193,6 +4215,7 @@ mod unit_tests {
     /// on fixed spellings and on random strings over the characters it
     /// reads.
     #[test]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn c_strtol_matches_libc_strtol() {
         unsafe extern "C" {
             fn strtol(s: *const c_char, end: *mut *mut c_char, base: c_int) -> c_long;
@@ -4309,6 +4332,7 @@ mod unit_tests {
     /// `parse` refuses the orders C would overflow on and passes their
     /// neighbours to C, which answers for them as the mirror predicts.
     #[test]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn parse_refuses_the_ambisonic_order_c_adds_one_to_at_int_max() {
         for s in [
             c"ambisonic 2147483647",

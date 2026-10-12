@@ -108,6 +108,7 @@ mod cie_xy {
     }
 
     #[test]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn copies_outlive_and_are_independent_of_their_source() {
         let copy = {
             let mut boxed = HeapBox::<CieXy>::new_zeroed().unwrap();
@@ -129,6 +130,7 @@ mod cie_xy {
     }
 
     #[test]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn heap_box_owner_lives_reads_writes_clones_and_frees() {
         let mut a = HeapBox::<CieXy>::new_zeroed().unwrap();
         assert_eq!(parts(a.as_ref()), [0; 4]);
@@ -147,6 +149,7 @@ mod cie_xy {
     }
 
     #[test]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn heap_array_handles_stay_in_bounds() {
         let mut a = alloc_cell_array_zeroed::<CieXy>(PARTS.len()).unwrap();
         assert!(a.as_handles().iter().all(|h| parts(h) == [0; 4]));
@@ -170,6 +173,7 @@ mod cie_xy {
     }
 
     #[test]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn values_and_owners_move_across_threads() {
         let v = xy(PARTS[2]);
         let b = HeapBox::<CieXy>::new_zeroed().unwrap();
@@ -186,6 +190,7 @@ mod cie_xy {
     }
 
     #[test]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn shared_handles_read_concurrently() {
         let v = xy(PARTS[1]);
         let boxed = HeapBox::<CieXy>::new_zeroed().unwrap();
@@ -205,6 +210,7 @@ mod cie_xy {
     }
 
     #[test]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn exclusive_handles_write_on_other_threads() {
         let mut values = [CieXy::default(); 4];
         let mut boxed = HeapBox::<CieXy>::new_zeroed().unwrap();
@@ -234,6 +240,7 @@ mod cie_xy {
     }
 
     #[test]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn heap_array_elements_written_from_separate_threads() {
         let mut a = alloc_cell_array_zeroed::<CieXy>(4).unwrap();
         let mut handles = a.as_handles_mut();
@@ -249,6 +256,7 @@ mod cie_xy {
     }
 
     #[test]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn equality_compares_without_touching_memory_out_of_place() {
         // `==` calls C's `av_cmp_q` on copies of each coordinate.
         let boxed = {
@@ -360,6 +368,7 @@ mod luma_coefficients {
     }
 
     #[test]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn copies_outlive_and_are_independent_of_their_source() {
         let (copy, cg) = {
             let mut boxed = HeapBox::<LumaCoefficients>::new_zeroed().unwrap();
@@ -381,6 +390,7 @@ mod luma_coefficients {
     }
 
     #[test]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn heap_box_owner_lives_reads_writes_clones_and_frees() {
         let mut a = HeapBox::<LumaCoefficients>::new_zeroed().unwrap();
         assert_eq!(fields(a.as_ref()), [0; 6]);
@@ -398,6 +408,7 @@ mod luma_coefficients {
     }
 
     #[test]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn heap_array_handles_stay_in_bounds() {
         let mut a = alloc_cell_array_zeroed::<LumaCoefficients>(FIELDS.len()).unwrap();
         {
@@ -419,6 +430,7 @@ mod luma_coefficients {
     }
 
     #[test]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn values_and_owners_move_across_threads() {
         let v = c(FIELDS[1]);
         let b = HeapBox::<LumaCoefficients>::new_zeroed().unwrap();
@@ -434,6 +446,7 @@ mod luma_coefficients {
     }
 
     #[test]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn shared_handles_and_field_handles_read_concurrently() {
         let v = c(FIELDS[1]);
         let boxed = HeapBox::<LumaCoefficients>::new_zeroed().unwrap();
@@ -453,6 +466,7 @@ mod luma_coefficients {
     }
 
     #[test]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn exclusive_handles_write_on_other_threads() {
         let mut values = [LumaCoefficients::default(); 4];
         let mut boxed = HeapBox::<LumaCoefficients>::new_zeroed().unwrap();
@@ -484,6 +498,7 @@ mod luma_coefficients {
     }
 
     #[test]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn heap_array_elements_written_from_separate_threads() {
         let mut a = alloc_cell_array_zeroed::<LumaCoefficients>(4).unwrap();
         let mut handles = a.as_handles_mut();
@@ -615,6 +630,7 @@ mod primary_coefficients {
     }
 
     #[test]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn copies_outlive_and_are_independent_of_their_source() {
         let (copy, g) = {
             let mut boxed = HeapBox::<PrimaryCoefficients>::new_zeroed().unwrap();
@@ -636,6 +652,7 @@ mod primary_coefficients {
     }
 
     #[test]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn heap_box_owner_lives_reads_writes_clones_and_frees() {
         let mut a = HeapBox::<PrimaryCoefficients>::new_zeroed().unwrap();
         assert_eq!(fields(a.as_ref()), [0; 12]);
@@ -653,6 +670,7 @@ mod primary_coefficients {
     }
 
     #[test]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn heap_array_handles_stay_in_bounds() {
         let mut a = alloc_cell_array_zeroed::<PrimaryCoefficients>(FIELDS.len()).unwrap();
         {
@@ -677,6 +695,7 @@ mod primary_coefficients {
     }
 
     #[test]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn values_and_owners_move_across_threads() {
         let v = p(FIELDS[1]);
         let b = HeapBox::<PrimaryCoefficients>::new_zeroed().unwrap();
@@ -692,6 +711,7 @@ mod primary_coefficients {
     }
 
     #[test]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn shared_handles_and_primary_handles_read_concurrently() {
         let v = p(FIELDS[1]);
         let boxed = HeapBox::<PrimaryCoefficients>::new_zeroed().unwrap();
@@ -711,6 +731,7 @@ mod primary_coefficients {
     }
 
     #[test]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn exclusive_handles_write_on_other_threads() {
         let mut values = [PrimaryCoefficients::default(); 4];
         let mut boxed = HeapBox::<PrimaryCoefficients>::new_zeroed().unwrap();
@@ -744,6 +765,7 @@ mod primary_coefficients {
     }
 
     #[test]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn heap_array_elements_written_from_separate_threads() {
         let mut a = alloc_cell_array_zeroed::<PrimaryCoefficients>(4).unwrap();
         let mut handles = a.as_handles_mut();
@@ -809,6 +831,7 @@ mod color_transfer {
     }
 
     #[test]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn getters_accept_every_value() {
         for t in transfers() {
             for g in [t.approximate_trc_gamma(), t.approximate_eotf_gamma()]
@@ -823,6 +846,7 @@ mod color_transfer {
     }
 
     #[test]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn handles_run_on_every_input_in_bounds() {
         let (trc, eotf) = handles();
         for f in &trc {
@@ -846,6 +870,7 @@ mod color_transfer {
     }
 
     #[test]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn handles_outlive_the_getters_and_cross_threads() {
         let (trc, eotf) = handles();
         let expect: Vec<u64> = trc.iter().map(|f| f.call(0.5).to_bits()).collect();
@@ -888,6 +913,7 @@ mod luma_lookup {
     }
 
     #[test]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn every_value_looks_up_and_handles_cross_threads() {
         static KEPT: OnceLock<Vec<LumaCoefficientsRef<'static>>> = OnceLock::new();
         let kept = KEPT.get_or_init(|| {
@@ -1075,6 +1101,7 @@ mod color_primaries_descriptor {
     }
 
     #[test]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn copies_outlive_and_are_independent_of_their_source() {
         let (copy, wp, prim) = {
             let mut boxed = HeapBox::<ColorPrimariesDescriptor>::new_zeroed().unwrap();
@@ -1099,6 +1126,7 @@ mod color_primaries_descriptor {
     }
 
     #[test]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn heap_box_owner_lives_reads_writes_clones_and_frees() {
         let mut a = HeapBox::<ColorPrimariesDescriptor>::new_zeroed().unwrap();
         assert_eq!(fields(a.as_ref()), [0; 16]);
@@ -1116,6 +1144,7 @@ mod color_primaries_descriptor {
     }
 
     #[test]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn heap_array_handles_stay_in_bounds() {
         let mut a = alloc_cell_array_zeroed::<ColorPrimariesDescriptor>(FIELDS.len()).unwrap();
         {
@@ -1140,6 +1169,7 @@ mod color_primaries_descriptor {
     }
 
     #[test]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn values_and_owners_move_across_threads() {
         let v = d(FIELDS[1]);
         let b = HeapBox::<ColorPrimariesDescriptor>::new_zeroed().unwrap();
@@ -1155,6 +1185,7 @@ mod color_primaries_descriptor {
     }
 
     #[test]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn shared_handles_and_field_handles_read_concurrently() {
         let v = d(FIELDS[1]);
         let boxed = HeapBox::<ColorPrimariesDescriptor>::new_zeroed().unwrap();
@@ -1174,6 +1205,7 @@ mod color_primaries_descriptor {
     }
 
     #[test]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn exclusive_handles_write_on_other_threads() {
         let mut values = [ColorPrimariesDescriptor::default(); 4];
         let mut boxed = HeapBox::<ColorPrimariesDescriptor>::new_zeroed().unwrap();
@@ -1216,6 +1248,7 @@ mod color_primaries_descriptor {
     }
 
     #[test]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn heap_array_elements_written_from_separate_threads() {
         let mut a = alloc_cell_array_zeroed::<ColorPrimariesDescriptor>(4).unwrap();
         let mut handles = a.as_handles_mut();
@@ -1321,6 +1354,7 @@ mod primaries_lookup {
     }
 
     #[test]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn every_value_looks_up_and_identifies_across_threads() {
         let kept = kept();
         assert!(kept.len() >= 12, "{}", kept.len());
@@ -1345,6 +1379,7 @@ mod primaries_lookup {
     }
 
     #[test]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn edge_descriptions_identify_in_every_owner_form() {
         let all = edge_descriptions();
         let mut boxed = HeapBox::<ColorPrimariesDescriptor>::new_zeroed().unwrap();
@@ -1386,6 +1421,7 @@ mod primaries_lookup {
     }
 
     #[test]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn identify_through_reborrows_and_after_writes() {
         let reference = ColorPrimaries::SMPTE431.descriptor().unwrap();
         let mut value = reference.get();
@@ -1408,6 +1444,7 @@ mod primaries_lookup {
     }
 
     #[test]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn shared_owners_identify_concurrently() {
         let all = edge_descriptions();
         let mut boxed = HeapBox::<ColorPrimariesDescriptor>::new_zeroed().unwrap();

@@ -34,6 +34,7 @@ fn digest(context: &RipemdBox, bits: DigestBits) -> Vec<u8> {
 }
 
 #[test]
+#[cfg_attr(miri, ignore = "calls C")]
 fn construction_reset_and_each_hash_checkpoint_match_c() {
     let sizes = [
         DigestBits::Bits128,
@@ -86,6 +87,7 @@ fn construction_reset_and_each_hash_checkpoint_match_c() {
 }
 
 #[test]
+#[cfg_attr(miri, ignore = "calls C")]
 fn rejected_digest_sizes_match_c_errors_without_publishing_invalid_state() {
     for bits in [i32::MIN, -1, 0, 127, 129, 512, i32::MAX] {
         // Give up the valid owner before calling C with unsupported bits:
@@ -102,6 +104,7 @@ fn rejected_digest_sizes_match_c_errors_without_publishing_invalid_state() {
 }
 
 #[test]
+#[cfg_attr(miri, ignore = "reads a C global")]
 fn batch10_size_is_the_c_global() {
     for _ in 0..4 {
         // SAFETY: this global is an immutable const int with static lifetime.

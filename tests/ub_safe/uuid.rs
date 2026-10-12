@@ -1,6 +1,7 @@
 use ffmpeg::libavutil::uuid;
 
 #[test]
+#[cfg_attr(miri, ignore = "calls C")]
 fn batch10_copy_nil_equality_parse_and_reborrow() {
     let mut output = [0; 37];
     for i in 0..=255 {
@@ -21,6 +22,7 @@ fn batch10_copy_nil_equality_parse_and_reborrow() {
 }
 
 #[test]
+#[cfg_attr(miri, ignore = "calls C")]
 fn batch10_parse_invalid_lengths_bytes_and_prefixes() {
     for len in 0..100 {
         if len != 36 {

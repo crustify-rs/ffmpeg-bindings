@@ -48,6 +48,7 @@ mod color_space_and_transfer {
     }
 
     #[test]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn color_space_arrays_fill_clone_and_free() {
         let values = space_sample();
         let mut a = alloc_array_zeroed::<ColorSpace>(values.len()).unwrap();
@@ -70,6 +71,7 @@ mod color_space_and_transfer {
     }
 
     #[test]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn color_transfer_arrays_fill_clone_and_free() {
         let values = transfer_sample();
         let mut a = alloc_array_zeroed::<ColorTransfer>(values.len()).unwrap();
@@ -92,6 +94,7 @@ mod color_space_and_transfer {
     }
 
     #[test]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn arrays_cross_and_are_shared_between_threads() {
         let spaces = HeapVec::from_slice(&space_sample()).unwrap();
         let transfers = HeapVec::from_slice(&transfer_sample()).unwrap();
@@ -146,6 +149,7 @@ mod alpha_mode {
     }
 
     #[test]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn alpha_mode_arrays_fill_clone_and_free() {
         let values = alpha_mode_sample();
         let mut a = alloc_array_zeroed::<AlphaMode>(values.len()).unwrap();
@@ -168,6 +172,7 @@ mod alpha_mode {
     }
 
     #[test]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn alpha_mode_arrays_cross_and_are_shared_between_threads() {
         let values = alpha_mode_sample();
         let a = HeapVec::from_slice(&values).unwrap();
@@ -240,6 +245,7 @@ mod pixel_format {
     }
 
     #[test]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn arrays_fill_clone_and_free() {
         let values = sample();
         let mut a = alloc_array_zeroed::<PixelFormat>(values.len()).unwrap();
@@ -262,6 +268,7 @@ mod pixel_format {
     }
 
     #[test]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn arrays_cross_and_are_shared_between_threads() {
         let values = sample();
         let a = HeapVec::from_slice(&values).unwrap();
@@ -331,6 +338,7 @@ mod color_primaries_and_range {
     }
 
     #[test]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn primaries_arrays_fill_clone_and_free() {
         let values = primaries_sample();
         let mut a = alloc_array_zeroed::<ColorPrimaries>(values.len()).unwrap();
@@ -353,6 +361,7 @@ mod color_primaries_and_range {
     }
 
     #[test]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn range_arrays_fill_clone_and_free() {
         let values = range_sample();
         let mut a = alloc_array_zeroed::<ColorRange>(values.len()).unwrap();
@@ -375,6 +384,7 @@ mod color_primaries_and_range {
     }
 
     #[test]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn arrays_cross_and_are_shared_between_threads() {
         let primaries = primaries_sample();
         let ranges = range_sample();
@@ -431,6 +441,7 @@ mod chroma_location {
     }
 
     #[test]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn zeroed_array_reads_default_and_takes_every_value() {
         let values = sample();
         let mut a = alloc_array_zeroed::<ChromaLocation>(values.len()).unwrap();
@@ -441,6 +452,7 @@ mod chroma_location {
     }
 
     #[test]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn uninit_and_from_fn_arrays_fill_end_to_end() {
         let values = sample();
         let mut u = alloc_array::<ChromaLocation>(values.len()).unwrap();
@@ -453,6 +465,7 @@ mod chroma_location {
     }
 
     #[test]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn clone_is_independent_of_its_source() {
         let values = sample();
         let mut a = HeapVec::from_slice(&values).unwrap();
@@ -463,12 +476,14 @@ mod chroma_location {
     }
 
     #[test]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn empty_arrays_allocate_and_free() {
         drop(alloc_array_zeroed::<ChromaLocation>(0).unwrap());
         drop(HeapVec::<ChromaLocation>::from_slice(&[]).unwrap());
     }
 
     #[test]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn arrays_cross_and_are_shared_between_threads() {
         let values = sample();
         let a = HeapVec::from_slice(&values).unwrap();

@@ -4393,6 +4393,7 @@ mod unit_tests {
     }
 
     #[test]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn handles_from_av_opt_next_and_av_opt_find_are_the_table_entries() {
         let mut prev = core::ptr::null();
         let mut seen = 0;
@@ -4484,6 +4485,7 @@ mod unit_tests {
     /// Every value `av_opt_set_defaults` stores follows from the variant
     /// `default_value` returns.
     #[test]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn defaults_agree_with_av_opt_set_defaults() {
         let d = Defaults::new(0);
         let ctx = &d.0;
@@ -4521,6 +4523,7 @@ mod unit_tests {
     /// As above, for the options whose defaults C builds by growing an
     /// `av_realloc` block.
     #[test]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn grown_defaults_agree_with_av_opt_set_defaults() {
         let d = Defaults::new(fixture::GROWS);
         let ctx = &d.0;
@@ -4598,6 +4601,7 @@ mod unit_tests {
     }
 
     #[test]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn raw_query_result_adopts_and_returns_to_c() {
         let mut raw = core::ptr::null_mut();
         let flags = ffi::AV_OPT_SEARCH_FAKE_OBJ as i32;
@@ -4841,6 +4845,7 @@ mod unit_tests {
     }
 
     #[test]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn range_label_is_replaced_taken_and_released() {
         let mut l = Local::new(1, 1, None);
         let mut m = l.handle_mut();
@@ -5157,6 +5162,7 @@ mod unit_tests {
         }
 
         #[test]
+        #[cfg_attr(miri, ignore = "calls C")]
         fn adoption_refuses_null_objects_and_classes() {
             // SAFETY: NULL is accepted.
             assert!(unsafe { ObjectRef::from_ptr(ptr::null_mut()) }.is_none());
@@ -5175,6 +5181,7 @@ mod unit_tests {
         }
 
         #[test]
+        #[cfg_attr(miri, ignore = "calls C")]
         fn free_options_resets_binary_lengths() {
             let o = Owned::new();
             let mut obj = object(&o);
@@ -5205,6 +5212,7 @@ mod unit_tests {
         }
 
         #[test]
+        #[cfg_attr(miri, ignore = "calls C")]
         fn flag_is_set_sees_bits_above_31() {
             let o = Owned::new();
             let mut obj = object(&o);
@@ -5223,6 +5231,7 @@ mod unit_tests {
         }
 
         #[test]
+        #[cfg_attr(miri, ignore = "calls C")]
         fn flag_is_set_reads_an_unconvertible_field_as_unset() {
             let o = Owned::new();
             let mut obj = object(&o);
@@ -5233,6 +5242,7 @@ mod unit_tests {
         }
 
         #[test]
+        #[cfg_attr(miri, ignore = "calls C")]
         fn get_int_refuses_unconvertible_values() {
             let o = Owned::new();
             let mut obj = object(&o);
@@ -5259,6 +5269,7 @@ mod unit_tests {
         }
 
         #[test]
+        #[cfg_attr(miri, ignore = "calls C")]
         fn values_reaching_unchecked_conversions_are_refused() {
             let o = Owned::with_child();
             for (name, val, err) in [
@@ -5307,6 +5318,7 @@ mod unit_tests {
         }
 
         #[test]
+        #[cfg_attr(miri, ignore = "calls C")]
         fn failed_color_and_size_parses_keep_the_value() {
             // BSan reports C's reads through the end pointers glibc's uninstrumented
             // `strtod` / `strtol` / `strtoul` store (`eval.c:120`, `parseutils.c:391`)
@@ -5332,6 +5344,7 @@ mod unit_tests {
         }
 
         #[test]
+        #[cfg_attr(miri, ignore = "calls C")]
         fn array_elements_split_as_c_splits_them() {
             let o = Owned::new();
             // An escaped separator stays in its element.
@@ -5346,6 +5359,7 @@ mod unit_tests {
         }
 
         #[test]
+        #[cfg_attr(miri, ignore = "calls C")]
         fn scalar_stores_into_arrays_and_rationals_are_refused() {
             let o = Owned::new();
             let obj = object(&o);
@@ -5372,6 +5386,7 @@ mod unit_tests {
         }
 
         #[test]
+        #[cfg_attr(miri, ignore = "calls C")]
         fn a_refused_pair_sets_nothing() {
             let o = Owned::new();
             let mut obj = object(&o);
@@ -5397,6 +5412,7 @@ mod unit_tests {
         }
 
         #[test]
+        #[cfg_attr(miri, ignore = "calls C")]
         fn flags_expose_their_bits_and_children_end() {
             assert_eq!(SearchFlags::NONE.bits(), 0);
             assert_eq!(
@@ -5413,6 +5429,7 @@ mod unit_tests {
         }
 
         #[test]
+        #[cfg_attr(miri, ignore = "calls C")]
         fn arrays_without_a_definition_split_at_commas() {
             let o = Owned::new();
             assert_eq!(refusal(&o, c"empty", c"1,ld(1e300)"), Some(EINVAL));
@@ -5426,6 +5443,7 @@ mod unit_tests {
         }
 
         #[test]
+        #[cfg_attr(miri, ignore = "calls C")]
         fn child_constants_are_looked_up_in_children() {
             let o = Owned::with_child();
             assert_eq!(refusal(&o, c"cflags", c"+one+1e30"), Some(ERANGE));
@@ -5436,6 +5454,7 @@ mod unit_tests {
         }
 
         #[test]
+        #[cfg_attr(miri, ignore = "calls C")]
         fn too_many_unit_constants_fail_as_in_c() {
             // A flags option whose unit has 59 named constants: C's
             // expression table has room for 58 (`AVERROR_PATCHWELCOME`).
@@ -5485,6 +5504,7 @@ mod unit_tests {
         }
 
         #[test]
+        #[cfg_attr(miri, ignore = "calls C")]
         fn quiet_evaluation_uses_the_unit_constants() {
             let o = Owned::new();
             let obj = object(&o);
@@ -5505,6 +5525,7 @@ mod unit_tests {
         /// Options wave 0, batch-1 review: `time()` makes C's own evaluation
         /// of a previewed operand differ from the preview.
         #[test]
+        #[cfg_attr(miri, ignore = "calls C")]
         fn quiet_evaluation_refuses_the_clock() {
             let o = Owned::new();
             let obj = object(&o);
@@ -5533,6 +5554,7 @@ mod unit_tests {
         /// `default_val.dbl`, the bits of its definition's address, as
         /// `default`; none reads as 0.
         #[test]
+        #[cfg_attr(miri, ignore = "calls C")]
         fn array_defaults_read_the_definition_address() {
             let o = Owned::new();
             let obj = object(&o);
@@ -5551,6 +5573,7 @@ mod unit_tests {
         /// `set_options_string` are read as C's `parse_key_value_pair` reads
         /// them, in the object and its children.
         #[test]
+        #[cfg_attr(miri, ignore = "calls C")]
         fn option_lists_are_refused_pair_by_pair() {
             let o = Owned::with_child();
             let obj = object(&o);
@@ -5570,6 +5593,7 @@ mod unit_tests {
         }
 
         #[test]
+        #[cfg_attr(miri, ignore = "calls C")]
         fn bare_objects_need_a_class_without_options() {
             static BARE: Class = Class::new(c"bare", crate::libavutil::log::ClassCategory::NA);
             let mut bare = BareObject::new(BARE.as_ref()).unwrap();
@@ -5593,7 +5617,9 @@ mod unit_tests {
             // SAFETY: a copy of the live static class.
             let mut c = unsafe { BARE.as_ref().as_ptr().read() };
             for (item_name, get_category, bare) in [
-                (Some(ffi::av_default_item_name as ItemName), None, true),
+                // Recognised by address, which Miri does not keep stable: there
+                // it reads as another callback and is refused (the safe side).
+                (Some(ffi::av_default_item_name as ItemName), None, cfg!(not(miri))),
                 (None, None, true),
                 (Some(name as ItemName), None, false),
                 (None, Some(category as GetCategory), false),
@@ -5641,6 +5667,7 @@ mod unit_tests {
         }
 
         #[test]
+        #[cfg_attr(miri, ignore = "calls C")]
         fn the_fixture_arrays_hold_their_defaults() {
             let o = ArrOwned::new();
             let r = obj(o.as_obj());
@@ -5655,6 +5682,7 @@ mod unit_tests {
         }
 
         #[test]
+        #[cfg_attr(miri, ignore = "calls C")]
         fn arrays_read_as_their_own_type() {
             let o = ArrOwned::new();
             let r = obj(o.as_obj());
@@ -5729,6 +5757,7 @@ mod unit_tests {
         }
 
         #[test]
+        #[cfg_attr(miri, ignore = "calls C")]
         fn arrays_convert_as_c_converts_them() {
             let o = ArrOwned::new();
             let r = obj(o.as_obj());
@@ -5751,6 +5780,7 @@ mod unit_tests {
         }
 
         #[test]
+        #[cfg_attr(miri, ignore = "calls C")]
         fn ranges_outside_the_array_and_missing_options_fail_before_any_output() {
             let o = ArrOwned::new();
             let r = obj(o.as_obj());
@@ -5773,6 +5803,7 @@ mod unit_tests {
         /// undefined, so it is refused with `ERANGE` after a `double`
         /// preview, whose values C computes the same way.
         #[test]
+        #[cfg_attr(miri, ignore = "calls C")]
         fn out_of_range_int64_conversions_are_refused() {
             let o = ArrOwned::new();
             let r = obj(o.as_obj());
@@ -5808,6 +5839,7 @@ mod unit_tests {
         /// C reads a binary element's length past it, out of the array for
         /// the last one: refused before C runs.
         #[test]
+        #[cfg_attr(miri, ignore = "calls C")]
         fn binary_arrays_are_refused_before_c() {
             let o = ArrOwned::new();
             // SAFETY: an `av_mallocz` array of two NULL buffers, which the
@@ -5847,6 +5879,7 @@ mod unit_tests {
         /// `av_max_alloc` limit: C releases the elements it wrote (as
         /// LeakSanitizer checks) and the read fails with `ENOMEM`.
         #[test]
+        #[cfg_attr(miri, ignore = "calls C")]
         fn allocation_failures_release_the_elements_written() {
             if !isolated("libavutil::opt::unit_tests::getters::allocation_failures_release_the_elements_written") {
                 return;
@@ -5875,6 +5908,7 @@ mod unit_tests {
         }
 
         #[test]
+        #[cfg_attr(miri, ignore = "calls C")]
         fn element_plumbing() {
             assert_eq!(<i32 as Element>::zero(), 0);
             assert!(<Option<HeapString> as Element>::zero().is_null());
@@ -5912,6 +5946,7 @@ mod unit_tests {
         /// `av_opt_get_q`, which has no reader for a video rate option and
         /// fails with `EINVAL`; the wrapper reads the stored rate instead.
         #[test]
+        #[cfg_attr(miri, ignore = "calls C")]
         fn video_rates_read_back_where_c_fails() {
             let o = Owned::new();
             let r = obj(o.as_obj());
@@ -5952,6 +5987,7 @@ mod unit_tests {
         }
 
         #[test]
+        #[cfg_attr(miri, ignore = "calls C")]
         fn potential_children_follow_the_class_callback() {
             let arr = class(&ARR_CLASS);
             let children: Vec<_> = arr.potential_children().collect();
@@ -6104,6 +6140,7 @@ mod unit_tests {
         }
 
         #[test]
+        #[cfg_attr(miri, ignore = "calls C")]
         fn borrowed_elements_point_into_their_values() {
             use array_input::Sealed;
             let d = Dict::from_entries([(c"k", c"v")]).unwrap();
@@ -6119,6 +6156,7 @@ mod unit_tests {
         }
 
         #[test]
+        #[cfg_attr(miri, ignore = "calls C")]
         fn binary_arrays_are_refused_before_c_overruns_them() {
             let o = OwnedArrays::new();
             let mut obj = arrays(&o);
@@ -6147,6 +6185,7 @@ mod unit_tests {
         }
 
         #[test]
+        #[cfg_attr(miri, ignore = "calls C")]
         fn array_values_reaching_undefined_conversions_are_refused() {
             let o = OwnedArrays::new();
             let obj = arrays(&o);
@@ -6191,6 +6230,7 @@ mod unit_tests {
         }
 
         #[test]
+        #[cfg_attr(miri, ignore = "calls C")]
         fn refused_edits_leave_the_array() {
             let o = OwnedArrays::new();
             let mut obj = arrays(&o);
@@ -6234,6 +6274,7 @@ mod unit_tests {
         }
 
         #[test]
+        #[cfg_attr(miri, ignore = "calls C")]
         fn unreadable_layouts_are_refused() {
             let o = Owned::new();
             let mut obj = object(&o);
@@ -6262,6 +6303,7 @@ mod unit_tests {
         }
 
         #[test]
+        #[cfg_attr(miri, ignore = "calls C")]
         fn layouts_left_without_a_map_are_reset() {
             let o = Owned::with_child();
             let p = o.ptr();
@@ -6304,6 +6346,7 @@ mod unit_tests {
         /// the NULL pointer; the wrapper leaves the empty layout. Runs alone
         /// in a child: the allocation limit is process-wide.
         #[test]
+        #[cfg_attr(miri, ignore = "calls C")]
         fn failed_layout_copies_leave_the_empty_layout() {
             const KEY: &str = "CRUSTIFY_OPT_UNIT_LAYOUT_ENOMEM";
             if std::env::var_os(KEY).is_none() {
@@ -6352,6 +6395,7 @@ mod unit_tests {
         /// wrapper writes the new count back. Runs alone in a child: the
         /// allocation limit is process-wide.
         #[test]
+        #[cfg_attr(miri, ignore = "calls C")]
         fn failed_shrinks_store_the_new_count() {
             const KEY: &str = "CRUSTIFY_OPT_UNIT_SHRINK_ENOMEM";
             if std::env::var_os(KEY).is_none() {
@@ -6395,6 +6439,7 @@ mod unit_tests {
         }
 
         #[test]
+        #[cfg_attr(miri, ignore = "calls C")]
         fn refused_dictionary_entries_set_nothing() {
             let o = Owned::new();
             let mut obj = object(&o);
@@ -6471,6 +6516,7 @@ mod unit_tests {
         }
 
         #[test]
+        #[cfg_attr(miri, ignore = "calls C")]
         fn foreign_options_are_refused_and_child_options_checked_on_the_child() {
             let o = Owned::with_child();
             let obj = shared(&o);
@@ -6486,6 +6532,7 @@ mod unit_tests {
         }
 
         #[test]
+        #[cfg_attr(miri, ignore = "calls C")]
         fn class_contexts_that_log_through_an_object_are_refused() {
             let flags = option(c"flags");
             let cflags = option(c"cflags");
@@ -6536,6 +6583,7 @@ mod unit_tests {
         }
 
         #[test]
+        #[cfg_attr(miri, ignore = "calls C")]
         fn values_reaching_unchecked_conversions_are_refused_before_c() {
             let o = Owned::with_child();
             let obj = shared(&o);
@@ -6578,6 +6626,7 @@ mod unit_tests {
         }
 
         #[test]
+        #[cfg_attr(miri, ignore = "calls C")]
         fn evaluators_read_constants_and_bounds_of_the_context() {
             let o = Owned::with_child();
             let obj = shared(&o);
@@ -6622,6 +6671,7 @@ mod unit_tests {
         }
 
         #[test]
+        #[cfg_attr(miri, ignore = "calls C")]
         fn absent_defaults_and_deprecated_constants() {
             use core::mem::offset_of;
             let opt =
@@ -6705,6 +6755,7 @@ mod unit_tests {
         }
 
         #[test]
+        #[cfg_attr(miri, ignore = "calls C")]
         fn options_walk_ends_and_stays_ended() {
             let o = Owned::new();
             let obj = shared(&o);

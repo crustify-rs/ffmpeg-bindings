@@ -1792,6 +1792,7 @@ mod unit_tests {
     }
 
     #[test]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn copy_rows_matches_c_plain_path() {
         for (dl, sl, w, h) in [
             (7isize, 9isize, 5usize, 4usize),
@@ -1832,6 +1833,7 @@ mod unit_tests {
     /// such planes on SSE4.1 CPUs; the wrapper copies them as C's plain path
     /// does.
     #[test]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn misaligned_fast_planes_copy_as_the_plain_path() {
         let src = Aligned::<1024>(core::array::from_fn(|i| (i * 7 % 251) as u8));
         for (dst_off, dl, src_off, sl, w, h) in [
@@ -1903,6 +1905,7 @@ mod unit_tests {
     }
 
     #[test]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn overflowing_log_offsets_are_rejected_before_c() {
         let max = c_int::MAX - ffi::AV_LOG_ERROR as c_int;
         // SAFETY: a NULL log context.
@@ -1936,6 +1939,7 @@ mod unit_tests {
     /// Without SSE4.1, C copies even fast-path planes on its plain path:
     /// `bytewidth` bytes a row, as `av_image_copy_plane` does.
     #[test]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn uncacheable_copy_without_sse4_is_the_plain_copy() {
         if !isolated(
             "libavutil::imgutils::unit_tests::uncacheable_copy_without_sse4_is_the_plain_copy",
@@ -1981,6 +1985,7 @@ mod unit_tests {
     }
 
     #[test]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn geometry_reads_the_descriptor() {
         let g = Geometry::of(PixelFormat::YUV420P).unwrap();
         assert_eq!(g.planes(), 3);
@@ -2001,6 +2006,7 @@ mod unit_tests {
     }
 
     #[test]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn linesize_overflow_is_found_exactly_where_c_overflows() {
         let mono = Geometry::of(PixelFormat::MONOBLACK).unwrap();
         assert!(!mono.linesize_overflows(c_int::MAX - 7, 0));
@@ -2025,6 +2031,7 @@ mod unit_tests {
     }
 
     #[test]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn overflowing_or_out_of_range_linesizes_are_refused_before_c() {
         assert_eq!(linesize(PixelFormat::YUV420P, 16, 4), Err(AVERROR_EINVAL));
         assert_eq!(
@@ -2089,6 +2096,7 @@ mod unit_tests {
     }
 
     #[test]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn image_alloc_zero_fills_and_matches_its_layout() {
         let mut img = Image::alloc(33, 17, PixelFormat::YUV420P, 16).unwrap();
         assert_eq!(img.linesizes(), [48, 32, 32, 0]);
@@ -2142,6 +2150,7 @@ mod unit_tests {
     }
 
     #[test]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn copy_plans_follow_the_format() {
         let p = CopyPlan::new(PixelFormat::YUV420P, 5, 3).unwrap();
         assert_eq!(p.extents, [Some((5, 3)), Some((3, 2)), Some((3, 2)), None]);
@@ -2190,6 +2199,7 @@ mod unit_tests {
     }
 
     #[test]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn short_palettes_and_wide_linesizes_are_refused() {
         let src_buf = [9u8; 2048];
         let mut dst_buf = [0u8; 2048];
@@ -2246,6 +2256,7 @@ mod unit_tests {
     /// misaligned planes on SSE4.1 CPUs; such images are copied plane by
     /// plane as C's plain path does, matching `av_image_copy`.
     #[test]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn misaligned_uncacheable_images_copy_as_the_plain_copy() {
         let mut src = Image::alloc(70, 9, PixelFormat::YUV420P, 64).unwrap();
         for (i, p) in src.planes_mut().data.iter_mut().enumerate() {
@@ -2277,6 +2288,7 @@ mod unit_tests {
     }
 
     #[test]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn uncacheable_linesizes_c_cannot_negate_are_refused() {
         let src = [7u8; 8];
         let mut dst = [0u8; 8];
@@ -2313,6 +2325,7 @@ mod unit_tests {
     /// A palettized image C's SSE4 path cannot take (a misaligned plane, or
     /// no pixels) still gets its palette, as `av_image_copy` copies it.
     #[test]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn uncacheable_palettes_copy_on_the_plain_path() {
         let pal = PixelFormat::PAL8;
         let mut src = Image::alloc(70, 3, pal, 64).unwrap();
@@ -2366,6 +2379,7 @@ mod unit_tests {
     }
 
     #[test]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn geometry_reads_steps_through_the_safe_descriptor() {
         // nv12: Y in plane 0, interleaved U and V in plane 1.
         let g = Geometry::of(PixelFormat::NV12).unwrap();

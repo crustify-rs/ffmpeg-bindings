@@ -43,6 +43,7 @@ fn observe_safe(
 }
 
 #[test]
+#[cfg_attr(miri, ignore = "calls C")]
 fn constructors_and_reset_partial_block_match_c() {
     let reference = Reference::new();
     let mut key = [0x42; 16];
@@ -78,6 +79,7 @@ fn constructors_and_reset_partial_block_match_c() {
 }
 
 #[test]
+#[cfg_attr(miri, ignore = "calls C")]
 fn stream_and_iv_transitions_match_c() {
     let mut actual = AesCtr::new(&[0xa7; 16]).unwrap();
     let reference = AesCtr::new(&[0xa7; 16]).unwrap();

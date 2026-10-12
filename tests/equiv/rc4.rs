@@ -7,6 +7,7 @@ fn check(raw: &ffi::AVRC4, wrapped: ffmpeg::libavutil::rc4::Rc4Ref<'_>) {
 }
 
 #[test]
+#[cfg_attr(miri, ignore = "calls C")]
 fn init_fields_reset_and_stream_checkpoints_match_c() {
     let mut wrapped = Rc4::new(b"key").unwrap();
     let mut raw = ffi::AVRC4::default();
@@ -55,6 +56,7 @@ fn init_fields_reset_and_stream_checkpoints_match_c() {
 }
 
 #[test]
+#[cfg_attr(miri, ignore = "calls C")]
 fn inline_and_c_allocated_construction_have_identical_fields() {
     let inline = Rc4::from_key(b"inline").unwrap();
     let boxed = Rc4::new(b"inline").unwrap();
@@ -67,6 +69,7 @@ fn inline_and_c_allocated_construction_have_identical_fields() {
 }
 
 #[test]
+#[cfg_attr(miri, ignore = "calls C")]
 fn batch2_all_stream_contracts_match_c_after_each_call() {
     let mut owner = Rc4::new(b"stream").unwrap();
     let mut raw = ffi::AVRC4::default();

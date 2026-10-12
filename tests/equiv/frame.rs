@@ -152,6 +152,7 @@ mod side_data_type {
     }
 
     #[test]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn constants_are_the_c_enumerators() {
         for (t, c) in NAMED {
             assert_eq!(t.into_raw(), c);
@@ -163,6 +164,7 @@ mod side_data_type {
     }
 
     #[test]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn the_wrapper_names_exactly_what_c_names() {
         for raw in (0..=96).chain(UNNAMED) {
             let t = SideDataType::from_raw(C(raw));
@@ -247,6 +249,7 @@ mod side_data_type {
     }
 
     #[test]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn frame_side_data_lists_store_find_and_remove_rust_values_as_c() {
         let values: Vec<SideDataType> = NAMED
             .iter()
@@ -288,6 +291,7 @@ mod side_data_type {
     }
 
     #[test]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn values_c_stores_read_back_through_rust_arrays() {
         // The path a field accessor over a C array of the enum takes: a
         // zeroed `av_malloc`-family array reads as C's zero, `PAN_SCAN`,
@@ -434,6 +438,7 @@ mod active_format_description {
     }
 
     #[test]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn named_constants_round_trip_through_c_side_data() {
         for (afd, c) in NAMED {
             let mut frame = CFrame::new();
@@ -450,6 +455,7 @@ mod active_format_description {
     /// through a sequence of C stores, lookups and copies, comparing Rust's
     /// view with C's after each step.
     #[test]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn every_payload_byte_reads_as_c_reads_it() {
         for byte in 0..=u8::MAX {
             let mut frame = CFrame::new();
@@ -542,6 +548,7 @@ mod side_data_descriptor {
     }
 
     #[test]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn getters_read_what_c_stores_for_every_type() {
         let n = described();
         assert_eq!(
@@ -570,6 +577,7 @@ mod side_data_descriptor {
     }
 
     #[test]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn descriptors_rebuilt_through_setters_encode_as_c_s_entries() {
         for t in 0..described() {
             let c = c_entry(t).unwrap();
@@ -678,6 +686,7 @@ mod side_data_descriptor {
     }
 
     #[test]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn every_mask_removes_what_the_rust_props_intersect() {
         let masks = (0..=SideDataProps::all().bits())
             .map(SideDataProps::from_bits_retain)
@@ -696,6 +705,7 @@ mod side_data_descriptor {
     }
 
     #[test]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn removal_sequences_match_after_each_step() {
         let steps = [
             SideDataProps::empty(),
@@ -735,6 +745,7 @@ mod side_data_descriptor {
     }
 
     #[test]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn multi_decides_whether_c_appends_a_second_entry() {
         let mut multi = 0;
         for t in types() {
@@ -779,6 +790,7 @@ mod side_data_lookups {
     }
 
     #[test]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn descriptors_are_cs_table_entries() {
         let mut named = 0;
         for raw in values() {
@@ -804,6 +816,7 @@ mod side_data_lookups {
     }
 
     #[test]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn names_are_cs_strings() {
         for raw in values() {
             let t = ffi::AVFrameSideDataType(raw);
@@ -936,6 +949,7 @@ mod region_of_interest {
     }
 
     #[test]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn side_data_arrays_count_and_read_as_c_readers_do() {
         let mut x = 0xa11ce_u64;
         for n in [1usize, 2, 7, 33] {
@@ -1064,6 +1078,7 @@ mod region_of_interest {
     }
 
     #[test]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn equality_agrees_with_av_cmp_q_on_offsets() {
         let mut x = 0xe0_u64;
         let small = |x: &mut u64| (xorshift(x) % 7) as i32 - 3;
@@ -1569,6 +1584,7 @@ mod side_data {
     }
 
     #[test]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn random_sequences_match_c_after_every_step() {
         for seed in 1..=40u64 {
             run(seed.wrapping_mul(0x9e37_79b9_7f4a_7c15), 120);
@@ -1578,6 +1594,7 @@ mod side_data {
     /// The sample entries built through the safe API read, look up and clone
     /// as the same entries C builds and fills.
     #[test]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn safely_built_entries_read_as_c_built_ones() {
         let mut r = super::side_data_fixture::sample();
         let mut c = CArray::new();
@@ -1611,6 +1628,7 @@ mod side_data {
     /// C's own adders, given the Rust array, change it as they change C's,
     /// and its release frees what they left.
     #[test]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn c_adders_on_the_rust_array_match_c_arrays() {
         let mut r = super::side_data_fixture::sample();
         let mut c = CArray::new();
@@ -1937,6 +1955,7 @@ mod side_data_array_routines {
     }
 
     #[test]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn random_sequences_match_c_after_every_step() {
         for seed in 1..=40u64 {
             run(seed.wrapping_mul(0x2545_f491_4f6c_dd1d), 120);
@@ -1967,6 +1986,7 @@ mod side_data_array_routines {
     /// the payload of an allocation. Both sides fail alike, with the arrays
     /// compared once the limit is lifted.
     #[test]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn failures_at_the_av_max_alloc_limit_match_c() {
         let name = "frame::side_data_array_routines::failures_at_the_av_max_alloc_limit_match_c";
         if !isolated(name) {
@@ -2068,6 +2088,7 @@ mod side_data_array_routines {
     /// (one entry once merged), so that both fail at the metadata copy or
     /// the new reference alike.
     #[test]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn in_place_clones_match_c() {
         let sources: [&[(&core::ffi::CStr, &core::ffi::CStr)]; 5] = [
             &[],
@@ -2177,6 +2198,7 @@ mod side_data_array_routines {
     /// that holds an entry of every kind the sequences use, each with
     /// metadata, against the same calls in C.
     #[test]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn every_flag_over_present_kinds_matches_c() {
         let all = [
             SideDataFlags::NONE,
@@ -2751,6 +2773,7 @@ mod frame_type {
     }
 
     #[test]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn new_frames_match_av_frame_alloc() {
         let r = Frame::new().unwrap();
         let c = CFrame::new();
@@ -3158,6 +3181,7 @@ mod frame_type {
     }
 
     #[test]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn random_sequences_read_alike_after_every_step() {
         // How many steps saw planes placed in buffers, and clones made, so
         // that the sequences are known to reach both.
@@ -3209,6 +3233,7 @@ mod frame_type {
     /// Frames whose plane is external memory: both clones copy it into
     /// buffers of their own, alike.
     #[test]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn clones_copy_external_planes_alike() {
         for (w, h) in [(1, 1), (7, 3), (32, 32)] {
             let mut mem = pattern((w * h) as usize, 5);
@@ -3264,6 +3289,7 @@ mod frame_type {
     /// pointers past `data`, and the Rust clone is refused: see
     /// `ub_unsafe/frame.rs::frame_type::clones_refuse_channels_past_data`.)
     #[test]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn clones_copy_external_channels_alike() {
         use ffmpeg::libavutil::samplefmt::SampleFormat;
         for channels in [1usize, 2, NUM_DATA_POINTERS, NUM_DATA_POINTERS + 1, 13] {
@@ -3520,6 +3546,7 @@ mod frame_routines {
     ];
 
     #[test]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn allocations_match_av_frame_get_buffer() {
         let mut n = 0;
         for format in VIDEO {
@@ -3578,6 +3605,7 @@ mod frame_routines {
     }
 
     #[test]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn plane_copies_match_av_frame_copy() {
         let mut pairs = Vec::new();
         for format in VIDEO {
@@ -3708,6 +3736,7 @@ mod frame_routines {
     }
 
     #[test]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn property_copies_match_av_frame_copy_props() {
         let mut src = Pair::video(PixelFormat::GRAY8, 4, 4);
         props(&mut src, 7);
@@ -3753,6 +3782,7 @@ mod frame_routines {
     }
 
     #[test]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn references_replacements_and_moves_match_c() {
         let mut a = Pair::video(PixelFormat::YUV420P, 6, 4);
         a.allocated(0);
@@ -3818,6 +3848,7 @@ mod frame_routines {
     }
 
     #[test]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn replacements_of_extra_references_match_c() {
         let mut src = Pair::audio(SampleFormat::U8P, 10, 4);
         src.allocated(0);
@@ -3899,6 +3930,7 @@ mod frame_routines {
     }
 
     #[test]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn make_writable_matches_av_frame_make_writable() {
         for format in [PixelFormat::GRAY8, PixelFormat::YUV420P, PixelFormat::RGB24] {
             let mut p = Pair::video(format, 9, 5);
@@ -3957,6 +3989,7 @@ mod frame_routines {
     }
 
     #[test]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn cropping_matches_av_frame_apply_cropping() {
         let crops = [
             (0, 0, 0, 0),
@@ -4004,6 +4037,7 @@ mod frame_routines {
     }
 
     #[test]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn lookups_and_writability_match_c() {
         let mut cases = [
             Pair::video(PixelFormat::YUV420P, 8, 8),
@@ -4050,6 +4084,7 @@ mod frame_routines {
     }
 
     #[test]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn side_data_routines_match_c() {
         let mut p = Pair::new();
         let kinds = [

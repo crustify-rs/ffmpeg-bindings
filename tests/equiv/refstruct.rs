@@ -113,6 +113,7 @@ mod pool_and_opaque {
     }
 
     #[test]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn pool_entries_follow_the_flags_as_c() {
         for flags in flag_sets() {
             let rust = RefStructPool::new(SIZE, flags).expect("pool");
@@ -128,6 +129,7 @@ mod pool_and_opaque {
     /// The counted references after every step of the same sequence, as
     /// `av_refstruct_exclusive` reports them on each side.
     #[test]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn reference_counts_follow_c_step_by_step() {
         let rust = RefStructPool::new(SIZE, PoolFlags::NONE).expect("pool");
         let c = c_alloc(PoolFlags::NONE);
@@ -166,6 +168,7 @@ mod pool_and_opaque {
     /// usable; the last one returned frees the pool (LSan otherwise reports
     /// it, ASan any use after free).
     #[test]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn entries_outlive_the_last_reference_as_in_c() {
         let rust = RefStructPool::new(SIZE, PoolFlags::ZERO_EVERY_TIME).expect("pool");
         let c = c_alloc(PoolFlags::ZERO_EVERY_TIME);
@@ -187,6 +190,7 @@ mod pool_and_opaque {
     /// Clones on other threads get and return entries while the owning
     /// thread drops its reference first (TSan checks the hand-offs).
     #[test]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn references_and_entries_cross_threads() {
         const THREADS: usize = 6;
         let pool = RefStructPool::new(SIZE, PoolFlags::NONE).expect("pool");
@@ -273,6 +277,7 @@ mod pool_and_opaque {
     }
 
     #[test]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn objects_hand_back_the_opaque_c_builds() {
         for a in ADDRS {
             let reference = c_object_with(ptr::without_provenance_mut(a));
@@ -303,6 +308,7 @@ mod pool_and_opaque {
     }
 
     #[test]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn pool_callbacks_receive_the_opaque_c_builds() {
         for a in ADDRS {
             // SAFETY: callbacks that only record their opaque, called on
@@ -356,6 +362,7 @@ mod pool_and_opaque {
     /// error flags: what each pool's callbacks see, and that no entry comes
     /// out, from `PoolFlags` and a Rust opaque as from C's own.
     #[test]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn failing_init_follows_the_error_flags_as_c() {
         let errors = [
             PoolFlags::NONE,
@@ -413,6 +420,7 @@ mod pool_and_opaque {
     /// entry's, both pools build and refuse entries. The limit is
     /// process-global, so this runs in a child process running nothing else.
     #[test]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn allocation_failures_match_c() {
         const NAME: &str = "refstruct::pool_and_opaque::allocation_failures_match_c";
         if std::env::var_os(ISOLATED).is_none() {
@@ -470,6 +478,7 @@ mod pool_and_opaque {
     /// writes through it from the free callback: the retained pointer stays
     /// valid across those reborrows (BSan) because it points into a `Cell`.
     #[test]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn retained_opaque_survives_rust_reborrows() {
         let counter = Cell::new(40u64);
         let opaque = RefStructOpaque::new(counter.as_ptr().cast());
@@ -494,6 +503,7 @@ mod pool_and_opaque {
     /// C writes into pool entries (its zeroing on every get) between Rust
     /// views of the same bytes; each view is taken fresh after C's call.
     #[test]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn c_rewrites_entries_between_rust_views() {
         let pool = RefStructPool::new(SIZE, PoolFlags::ZERO_EVERY_TIME).expect("pool");
         let e = get(pool.as_c_ptr());
@@ -743,6 +753,7 @@ mod counted_references {
     }
 
     #[test]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn reference_sequences_follow_c() {
         // BSan retags every handle and slot the state checks touch: a few
         // seeds there take minutes, all of them hours.
@@ -763,6 +774,7 @@ mod counted_references {
     }
 
     #[test]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn zeroed_payloads_match_c_byte_for_byte() {
         let size = size_of::<ffi::AVColorPrimariesDesc>();
         // SAFETY: an allocation by size, then a read of its `size` zeroed bytes
@@ -785,6 +797,7 @@ mod counted_references {
     }
 
     #[test]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn replace_of_the_last_reference_releases_like_c() {
         // C: the slot's object goes when replaced by another, as the Rust slot's.
         // SAFETY: two fresh objects, each reference released exactly once.
@@ -898,6 +911,7 @@ mod releases_and_typed_pools {
     }
 
     #[test]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn release_runs_where_cs_free_callback_runs() {
         let mut rng = XorShift(0x9e37_79b9_7f4a_7c15);
         for _ in 0..300 {
@@ -1224,6 +1238,7 @@ mod releases_and_typed_pools {
     /// release with entries out, then their return, for every flag set and
     /// every callback subset.
     #[test]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn typed_pools_follow_c_pools_step_by_step() {
         let mut rng = XorShift(0x2545_f491_4f6c_dd1d);
         for flags in flag_sets() {
@@ -1278,6 +1293,7 @@ mod releases_and_typed_pools {
     /// spelled out: the most recently returned entry comes back first, as
     /// it was left, or zeroed under `ZERO_EVERY_TIME`.
     #[test]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn reuse_order_and_contents_match_c() {
         for flags in [PoolFlags::NONE, PoolFlags::ZERO_EVERY_TIME] {
             let mut run = Run::new(flags, Kind::Plain);

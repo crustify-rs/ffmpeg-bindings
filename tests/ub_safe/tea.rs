@@ -1,6 +1,7 @@
 use ffmpeg::libavutil::tea::context_size;
 
 #[test]
+#[cfg_attr(miri, ignore = "reads a C global")]
 fn batch10_immutable_size_across_threads() {
     let size: &'static i32 = context_size();
     assert!(*size > 0);
@@ -22,6 +23,7 @@ use ffmpeg::libavutil::aes::Direction::{Decrypt, Encrypt};
 use ffmpeg::libavutil::tea::Tea;
 
 #[test]
+#[cfg_attr(miri, ignore = "calls C")]
 fn constructors_and_exclusive_reinitialization() {
     for rounds in [i32::MIN, -1, 0, 1, 16, 63, 64, i32::MAX] {
         let mut owner = Tea::new(&[0; 16], rounds).unwrap();
@@ -48,6 +50,7 @@ fn constructors_and_exclusive_reinitialization() {
 }
 
 #[test]
+#[cfg_attr(miri, ignore = "calls C")]
 pub(super) fn batch2_foreign_writes_across_reborrows() {
     let mut owner = Tea::new(&[7; 16], 64).unwrap();
     for cbc in [false, true] {
@@ -104,6 +107,7 @@ pub(super) fn batch2_foreign_writes_across_reborrows() {
 }
 
 #[test]
+#[cfg_attr(miri, ignore = "calls C")]
 fn batch2_copied_shared_key_schedule() {
     let owner = Tea::new(&[9; 16], 64).unwrap();
     let shared = owner.as_ref();

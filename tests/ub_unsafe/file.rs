@@ -47,6 +47,7 @@ fn missing() -> CString {
 }
 
 #[test]
+#[cfg_attr(miri, ignore = "calls C")]
 fn mappings_of_every_size_are_read_and_written_end_to_end() {
     for len in [0usize, 1, 4095, 4096, 4097] {
         let contents: Vec<u8> = (0..len).map(|i| (i % 253) as u8).collect();
@@ -63,6 +64,7 @@ fn mappings_of_every_size_are_read_and_written_end_to_end() {
 }
 
 #[test]
+#[cfg_attr(miri, ignore = "calls C")]
 fn mappings_cross_and_share_threads() {
     let contents = vec![7u8; 3000];
     let f = TempFile::new("threads", &contents);
@@ -82,12 +84,14 @@ fn mappings_cross_and_share_threads() {
 }
 
 #[test]
+#[cfg_attr(miri, ignore = "calls C")]
 fn failures_leave_nothing_mapped() {
     assert_eq!(map_plain(&missing()).unwrap_err(), ENOENT);
     assert!(map_plain(c"").is_err());
 }
 
 #[test]
+#[cfg_attr(miri, ignore = "calls C")]
 fn log_offsets_at_every_edge() {
     let name = missing();
     for offset in [c_int::MIN, -16, 0, 8, c_int::MAX - 16] {
@@ -104,6 +108,7 @@ fn log_offsets_at_every_edge() {
 }
 
 #[test]
+#[cfg_attr(miri, ignore = "calls C")]
 fn parent_log_context_led_by_a_null_class() {
     /// A log context: its first member is the (NULL) `const AVClass *`.
     #[repr(C)]

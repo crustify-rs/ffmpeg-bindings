@@ -112,6 +112,7 @@ mod unit_tests {
     }
 
     #[test]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn overflowing_log_offsets_are_rejected_before_c() {
         let f = TempFile::new("offsets", b"data");
         for offset in [c_int::MAX, c_int::MAX - 15] {
@@ -128,6 +129,7 @@ mod unit_tests {
     }
 
     #[test]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn unmap_policy_releases_a_surrendered_mapping() {
         let f = TempFile::new("surrendered", &[3; 5000]);
         // SAFETY: the file is not written while the mapping lives.
@@ -145,6 +147,7 @@ mod unit_tests {
     }
 
     #[test]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn empty_files_map_to_a_null_buffer() {
         let f = TempFile::new("empty", b"");
         // SAFETY: the file is not written while the mapping lives.

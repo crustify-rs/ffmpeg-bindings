@@ -1,6 +1,7 @@
 use ffmpeg::libavutil::{ffi, uuid};
 
 #[test]
+#[cfg_attr(miri, ignore = "calls C")]
 fn batch10_mutation_and_format_sequences_match_c() {
     let mut safe = [0; 16];
     let mut raw = [0; 16];
@@ -31,6 +32,7 @@ fn batch10_mutation_and_format_sequences_match_c() {
 }
 
 #[test]
+#[cfg_attr(miri, ignore = "calls C")]
 fn batch10_parsers_match_c_including_skipped_separators() {
     let mut inputs: Vec<_> = [
         "",

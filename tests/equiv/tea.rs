@@ -1,6 +1,7 @@
 use ffmpeg::libavutil::tea;
 
 #[test]
+#[cfg_attr(miri, ignore = "reads a C global")]
 fn batch10_size_is_the_c_global() {
     for _ in 0..4 {
         // SAFETY: this global is an immutable const int with static lifetime.
@@ -24,6 +25,7 @@ fn direction(decrypt: bool) -> Direction {
 }
 
 #[test]
+#[cfg_attr(miri, ignore = "calls C")]
 fn lifecycle_and_rekey_match_c() {
     let key = [3; 16];
     let mut owner = Tea::new(&key, 64).unwrap();
@@ -102,6 +104,7 @@ fn lifecycle_and_rekey_match_c() {
 }
 
 #[test]
+#[cfg_attr(miri, ignore = "calls C")]
 fn batch2_in_place_multi_call_buffers_and_iv_match_c() {
     let mut owner = Tea::new(&[0x5b; 16], 64).unwrap();
     let reference = Tea::new(&[0x5b; 16], 64).unwrap();

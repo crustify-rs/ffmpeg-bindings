@@ -115,6 +115,7 @@ fn rust_names(t: DeviceType) -> bool {
 }
 
 #[test]
+#[cfg_attr(miri, ignore = "calls C")]
 fn constants_are_the_c_enumerators() {
     for (t, c, name) in NAMED {
         assert_eq!(t.into_raw(), c);
@@ -128,6 +129,7 @@ fn constants_are_the_c_enumerators() {
 }
 
 #[test]
+#[cfg_attr(miri, ignore = "calls C")]
 fn the_wrapper_names_exactly_what_c_names_and_none() {
     for raw in (0..=48).chain(UNNAMED) {
         let t = DeviceType::from_raw(C(raw));
@@ -138,6 +140,7 @@ fn the_wrapper_names_exactly_what_c_names_and_none() {
 }
 
 #[test]
+#[cfg_attr(miri, ignore = "calls C")]
 fn c_name_lookups_round_trip_through_the_constants() {
     for (t, _, name) in NAMED {
         let Some(name) = name else { continue };
@@ -155,6 +158,7 @@ fn c_name_lookups_round_trip_through_the_constants() {
 }
 
 #[test]
+#[cfg_attr(miri, ignore = "calls C")]
 fn backend_walk_agrees_for_rust_and_c_encodings() {
     // Start from every named and unnamed value, then follow C's walk from
     // the Rust side until it reports NONE; every step must be a type the
@@ -225,6 +229,7 @@ fn rust_as_c(a: &HeapVec<DeviceType>) -> Vec<C> {
 }
 
 #[test]
+#[cfg_attr(miri, ignore = "calls C")]
 fn storage_holds_the_same_values_and_names_after_each_write() {
     let values: Vec<C> = NAMED
         .iter()
@@ -490,6 +495,7 @@ mod transfer {
     const DIRS: [TransferDirection; 2] = [TransferDirection::From, TransferDirection::To];
 
     #[test]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn format_listings_match_c() {
         for behaviour in [&YUV, &GRAY_FIRST, &EMPTY, &LISTING_FAILS, &TRANSFER_FAILS] {
             let ctx = contexts(behaviour, W, H);
@@ -511,6 +517,7 @@ mod transfer {
     }
 
     #[test]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn downloads_match_c() {
         for (format, w, h) in [
             (Fmt::AV_PIX_FMT_YUV420P, W, H),
@@ -541,6 +548,7 @@ mod transfer {
     }
 
     #[test]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn uploads_match_c() {
         for (w, h) in [(W, H), (9, 3), (0, 0)] {
             let ctx = contexts(&YUV, W, H);
@@ -561,6 +569,7 @@ mod transfer {
     }
 
     #[test]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn uploads_from_planes_lent_to_a_frame_match_c() {
         let ctx = contexts(&YUV, W, H);
         let mut dst = hw_frames(&ctx, 0);
@@ -600,6 +609,7 @@ mod transfer {
     }
 
     #[test]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn hardware_to_hardware_copies_match_c() {
         for (src_behaviour, dst_behaviour) in [
             (&YUV, &YUV),
@@ -618,6 +628,7 @@ mod transfer {
     }
 
     #[test]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn derived_contexts_are_refused_between_hardware_frames_as_c_does() {
         for derived_side in [0, 1] {
             let (sc, dc) = (contexts(&YUV, W, H), contexts(&YUV, W, H));
@@ -637,6 +648,7 @@ mod transfer {
     }
 
     #[test]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn downloads_into_new_buffers_match_c() {
         for (behaviour, format, w, h) in [
             (&YUV, Fmt::AV_PIX_FMT_NONE, W, H),
@@ -678,6 +690,7 @@ mod transfer {
     }
 
     #[test]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn refusals_without_contexts_match_c() {
         let mut clean = (
             // SAFETY: a fresh frame.
@@ -693,6 +706,7 @@ mod transfer {
     }
 
     #[test]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn transfer_errors_match_c() {
         let ctx = contexts(&TRANSFER_FAILS, W, H);
         let src = hw_frames(&ctx, 8);
@@ -709,6 +723,7 @@ mod transfer {
     /// hardware frames and download into existing buffers, comparing after
     /// each step.
     #[test]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn transfer_sequences_match_c() {
         let (a, b) = (contexts(&YUV, W, H), contexts(&YUV, W, H));
         let mut ha = hw_frames(&a, 0);
@@ -928,6 +943,7 @@ mod contexts {
     }
 
     #[test]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn names_and_lookups_match_c() {
         for raw in (0..=48).chain(UNNAMED) {
             let t = DeviceType::from_raw(C(raw));
@@ -948,6 +964,7 @@ mod contexts {
     }
 
     #[test]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn supported_types_are_cs_walk() {
         let mut c = Vec::new();
         let mut prev = DeviceType::NONE;
@@ -963,6 +980,7 @@ mod contexts {
     }
 
     #[test]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn allocation_and_creation_fail_as_in_c() {
         let options = Dict::from_entries([(c"connect", c"1")]).unwrap();
         let types = NAMED
@@ -1017,6 +1035,7 @@ mod contexts {
     }
 
     #[test]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn derivations_walk_the_chain_as_in_c() {
         let options = Dict::from_entries([(c"k", c"v")]).unwrap();
         let (ca, cb) = (c_device(Kind::A), c_device(Kind::B));
@@ -1108,6 +1127,7 @@ mod contexts {
     }
 
     #[test]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn frames_allocation_matches_c() {
         let c_dev = c_device(Kind::A);
         let r_dev = rust_device(Kind::A);
@@ -1149,6 +1169,7 @@ mod contexts {
     }
 
     #[test]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn frames_init_and_allocation_match_c() {
         let sizes = [
             (64, 32),
@@ -1233,6 +1254,7 @@ mod contexts {
     }
 
     #[test]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn mappings_to_memory_match_c() {
         let flag_sets = [
             MapFlags::empty(),
@@ -1300,6 +1322,7 @@ mod contexts {
     }
 
     #[test]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn mappings_between_contexts_and_derivations_match_c() {
         let flags = MapFlags::READ;
         let configs = [
@@ -1433,6 +1456,7 @@ mod contexts {
     /// context's software format and read the pool's buffer as a mapping
     /// descriptor. With the hardware format, C maps it like any other.
     #[test]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn mapping_into_the_own_context_is_refused() {
         let ca = c_device(Kind::A);
         let ra = rust_device(Kind::A);
@@ -1462,6 +1486,7 @@ mod contexts {
     }
 
     #[test]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn hw_configs_match_c() {
         for kind in [Kind::A, Kind::B] {
             let c_dev = c_device(kind);
@@ -1707,6 +1732,7 @@ mod hardware_frame_transfers {
     }
 
     #[test]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn format_listings_match_c() {
         for kind in [Kind::A, Kind::B] {
             let ctx = Contexts::new(kind, FramesHwctx::default());
@@ -1745,6 +1771,7 @@ mod hardware_frame_transfers {
     }
 
     #[test]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn transfer_sequences_match_c() {
         let ctx = Contexts::new(Kind::A, FramesHwctx::default());
         let (c_hw, mut r_hw) = ctx.get_buffer();
@@ -1795,6 +1822,7 @@ mod hardware_frame_transfers {
     }
 
     #[test]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn backend_failures_and_derived_copies_match_c() {
         let failing = FramesHwctx {
             transfer_ret: -12345,
@@ -1939,6 +1967,7 @@ mod device_context {
     }
 
     #[test]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn init_results_and_lifecycle_match_c() {
         for init_ret in [0, 1, 7, -1, -22, c_int::MIN] {
             let (ce, re) = (Arc::new(Events::default()), Arc::new(Events::default()));
@@ -1981,6 +2010,7 @@ mod device_context {
     }
 
     #[test]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn getters_read_what_c_stores() {
         for (backend, t) in [
             (
@@ -2034,6 +2064,7 @@ mod device_context {
     }
 
     #[test]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn hooks_run_where_cs_free_callback_runs() {
         let (ce, re) = (Arc::new(Events::default()), Arc::new(Events::default()));
         let c_slot = Mutex::new(None);
@@ -2086,6 +2117,7 @@ mod device_context {
     }
 
     #[test]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn taking_the_hooks_leaves_what_c_starts_with() {
         let events = Arc::new(Events::default());
         let mut rust = rust_device(&events, 0, 0);
@@ -2394,6 +2426,7 @@ mod frames_constraints {
     }
 
     #[test]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn device_queries_and_edits_match_c() {
         for q in queries() {
             let (ce, re) = (Arc::new(Events::default()), Arc::new(Events::default()));
@@ -2459,6 +2492,7 @@ mod frames_constraints {
     }
 
     #[test]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn new_constraints_are_cs_starting_point() {
         let q = Query {
             bare: false,
@@ -2487,6 +2521,7 @@ mod frames_constraints {
     }
 
     #[test]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn edited_constraints_are_freed_by_c() {
         let mut rust = FramesConstraints::new().unwrap();
         for e in edits() {
@@ -2547,6 +2582,7 @@ mod frames_constraints {
     /// results, and those released in another order than made. Views, the
     /// backend's events and the sizes it found are compared after each step.
     #[test]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn query_sequences_on_one_device_match_c() {
         for nb_sw in [-1, 0, 4] {
             let q = Query {
@@ -2818,6 +2854,7 @@ mod frames_context {
     }
 
     #[test]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn fields_and_init_results_match_c_after_each_step() {
         let kind = Kind::A;
         let other = Fill {
@@ -2929,6 +2966,7 @@ mod frames_context {
     }
 
     #[test]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn create_frames_matches_c() {
         let kind = Kind::A;
         let (c_dev, r_dev) = devices(kind);
@@ -2981,6 +3019,7 @@ mod frames_context {
     }
 
     #[test]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn the_fixed_fields_read_what_c_stores() {
         for kind in [Kind::A, Kind::B] {
             let (c_dev, r_dev) = devices(kind);
@@ -3050,6 +3089,7 @@ mod frames_context {
     }
 
     #[test]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn free_callbacks_run_as_cs() {
         let kind = Kind::A;
         let (c_dev, r_dev) = devices(kind);
@@ -3152,6 +3192,7 @@ mod frames_context {
     }
 
     #[test]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn caller_pools_serve_the_frames_as_in_c() {
         for kind in [Kind::A, Kind::B] {
             let (c_dev, r_dev) = devices(kind);
@@ -3297,6 +3338,7 @@ mod frame_hw_frames_context {
     }
 
     #[test]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn references_follow_c_through_copies_takes_and_releases() {
         for kind in [Kind::A, Kind::B] {
             let c_dev = fx::device(kind);

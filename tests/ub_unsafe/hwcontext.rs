@@ -108,6 +108,7 @@ mod frame_ref_transfer_formats {
     const DIRS: [TransferDirection; 2] = [TransferDirection::From, TransferDirection::To];
 
     #[test]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn lists_outlive_the_frame_and_context() {
         let ctx = context(&YUV);
         let frame = hw_frame(&ctx, 0);
@@ -121,6 +122,7 @@ mod frame_ref_transfer_formats {
     }
 
     #[test]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn every_frame_of_a_context_lists_alike() {
         let ctx = context(&GRAY_FIRST);
         let frame = hw_frame(&ctx, 0);
@@ -139,6 +141,7 @@ mod frame_ref_transfer_formats {
     }
 
     #[test]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn failures_and_empty_lists_free_nothing_twice() {
         let (empty, failing, inert) = (context(&EMPTY), context(&LISTING_FAILS), inert_context());
         let frames = [
@@ -158,6 +161,7 @@ mod frame_ref_transfer_formats {
     }
 
     #[test]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn lists_on_many_threads() {
         let ctx = context(&YUV);
         let (frame, other) = (hw_frame(&ctx, 0), hw_frame(&ctx, 1));
@@ -229,6 +233,7 @@ mod frame_mut_transfer_data_from {
     const EXACT: usize = (W * H + W * H / 2) as usize;
 
     #[test]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn planes_one_byte_short_of_the_image_are_refused_both_ways() {
         let ctx = context(&YUV);
         let mut hw = hw_frame(&ctx, 1);
@@ -242,6 +247,7 @@ mod frame_mut_transfer_data_from {
     }
 
     #[test]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn line_sizes_reaching_past_the_buffer_are_refused() {
         let ctx = context(&YUV);
         let mut hw = hw_frame(&ctx, 2);
@@ -261,6 +267,7 @@ mod frame_mut_transfer_data_from {
     }
 
     #[test]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn missing_planes_are_refused() {
         let ctx = context(&YUV);
         let hw = hw_frame(&ctx, 3);
@@ -272,6 +279,7 @@ mod frame_mut_transfer_data_from {
     }
 
     #[test]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn shared_and_read_only_destinations_are_refused_and_left_alone() {
         let ctx = context(&YUV);
         let hw = hw_frame(&ctx, 4);
@@ -300,6 +308,7 @@ mod frame_mut_transfer_data_from {
     }
 
     #[test]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn display_sizes_past_the_surfaces_are_refused() {
         let ctx = context(&YUV);
         for (w, h) in [
@@ -331,6 +340,7 @@ mod frame_mut_transfer_data_from {
     }
 
     #[test]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn unlisted_and_unknown_formats_are_refused() {
         let ctx = context(&YUV);
         let mut hw = hw_frame(&ctx, 9);
@@ -365,6 +375,7 @@ mod frame_mut_transfer_data_from {
     }
 
     #[test]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn backends_without_transfers_are_refused() {
         let inert = inert_context();
         let ctx = context(&YUV);
@@ -381,6 +392,7 @@ mod frame_mut_transfer_data_from {
     }
 
     #[test]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn new_buffers_outlive_the_source_and_its_context() {
         let ctx = context(&YUV);
         let mut hw = hw_frame(&ctx, 10);
@@ -403,6 +415,7 @@ mod frame_mut_transfer_data_from {
     }
 
     #[test]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn new_buffers_release_what_the_frame_held() {
         let ctx = context(&YUV);
         let hw = hw_frame(&ctx, 11);
@@ -428,6 +441,7 @@ mod frame_mut_transfer_data_from {
     }
 
     #[test]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn contexts_dropped_before_their_frames() {
         let ctx = context(&YUV);
         let mut a = hw_frame(&ctx, 12);
@@ -443,6 +457,7 @@ mod frame_mut_transfer_data_from {
     }
 
     #[test]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn transfers_on_many_threads() {
         let ctx = context(&YUV);
         let src = hw_frame(&ctx, 14);
@@ -467,6 +482,7 @@ mod frame_mut_transfer_data_from {
     /// BSan: C reads the source's planes through pointers Rust handed out
     /// while a Rust view of them is alive.
     #[test]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn upload_reads_planes_rust_is_viewing() {
         let ctx = context(&YUV);
         let mut hw = hw_frame(&ctx, 0);
@@ -480,6 +496,7 @@ mod frame_mut_transfer_data_from {
 
     /// BSan: Rust reborrows planes C has just written, between writes.
     #[test]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn download_writes_then_rust_reads_and_writes_again() {
         let ctx = context(&YUV);
         let a = hw_frame(&ctx, 20);
@@ -579,6 +596,7 @@ mod device_context {
         use super::*;
 
         #[test]
+        #[cfg_attr(miri, ignore = "calls C")]
         fn adopted_contexts_release_once() {
             let events = Arc::new(Events::default());
             for _ in 0..16 {
@@ -596,6 +614,7 @@ mod device_context {
         }
 
         #[test]
+        #[cfg_attr(miri, ignore = "calls C")]
         fn round_trips_through_c_keep_the_hooks() {
             let events = Arc::new(Events::default());
             let drops = Arc::new(AtomicUsize::new(0));
@@ -616,6 +635,7 @@ mod device_context {
         }
 
         #[test]
+        #[cfg_attr(miri, ignore = "calls C")]
         fn backend_hooks_stay_the_backends() {
             let freed = AtomicUsize::new(0);
             let raw = hwdevice::fake_device();
@@ -632,6 +652,7 @@ mod device_context {
         }
 
         #[test]
+        #[cfg_attr(miri, ignore = "calls C")]
         fn bare_contexts_have_no_hardware_context() {
             let raw =
                 hwdevice::fake_device_of(&BARE_TYPE, ffi::AVHWDeviceType::AV_HWDEVICE_TYPE_CUDA);
@@ -652,6 +673,7 @@ mod device_context {
         use super::*;
 
         #[test]
+        #[cfg_attr(miri, ignore = "calls C")]
         fn success_shares_the_filled_context() {
             let events = Arc::new(Events::default());
             let device = device(&events, 9);
@@ -665,6 +687,7 @@ mod device_context {
         }
 
         #[test]
+        #[cfg_attr(miri, ignore = "calls C")]
         fn failure_releases_the_context_and_its_hooks() {
             let events = Arc::new(Events::default());
             let drops = Arc::new(AtomicUsize::new(0));
@@ -693,6 +716,7 @@ mod device_context {
         }
 
         #[test]
+        #[cfg_attr(miri, ignore = "calls C")]
         fn bare_contexts_initialise_without_a_backend_call() {
             let raw =
                 hwdevice::fake_device_of(&BARE_TYPE, ffi::AVHWDeviceType::AV_HWDEVICE_TYPE_DRM);
@@ -704,6 +728,7 @@ mod device_context {
         }
 
         #[test]
+        #[cfg_attr(miri, ignore = "calls C")]
         fn hooks_run_once_when_c_drops_the_last_references_elsewhere() {
             let events = Arc::new(Events::default());
             for _ in 0..8 {
@@ -740,6 +765,7 @@ mod device_context {
         }
 
         #[test]
+        #[cfg_attr(miri, ignore = "calls C")]
         fn constraints_outlive_the_device() {
             let events = Arc::new(Events::default());
             let device = device(&events, 0);
@@ -774,6 +800,7 @@ mod device_context {
         use super::*;
 
         #[test]
+        #[cfg_attr(miri, ignore = "calls C")]
         fn reads_follow_the_owner() {
             let events = Arc::new(Events::default());
             let u = uninit(&events);
@@ -791,6 +818,7 @@ mod device_context {
         }
 
         #[test]
+        #[cfg_attr(miri, ignore = "calls C")]
         fn bare_contexts_read_none() {
             let raw =
                 hwdevice::fake_device_of(&BARE_TYPE, ffi::AVHWDeviceType::AV_HWDEVICE_TYPE_QSV);
@@ -809,6 +837,7 @@ mod device_context {
         use super::*;
 
         #[test]
+        #[cfg_attr(miri, ignore = "calls C")]
         fn writes_reach_the_backend() {
             let events = Arc::new(Events::default());
             let mut u = uninit(&events);
@@ -831,6 +860,7 @@ mod device_context {
         }
 
         #[test]
+        #[cfg_attr(miri, ignore = "calls C")]
         fn the_free_callback_reaches_the_hardware_context() {
             let events = Arc::new(Events::default());
             let seen = Arc::new(Mutex::new(None));
@@ -967,6 +997,7 @@ mod frames_context {
         use super::*;
 
         #[test]
+        #[cfg_attr(miri, ignore = "calls C")]
         fn reads_follow_the_owner_and_outlive_no_reference() {
             let a = device(Kind::A);
             let u = uninit(&a, Kind::A, 0);
@@ -993,6 +1024,7 @@ mod frames_context {
         }
 
         #[test]
+        #[cfg_attr(miri, ignore = "calls C")]
         fn reads_on_the_free_callback() {
             let a = device(Kind::B);
             let seen = Arc::new(Mutex::new(None));
@@ -1029,6 +1061,7 @@ mod frames_context {
         use super::*;
 
         #[test]
+        #[cfg_attr(miri, ignore = "calls C")]
         fn writes_reach_the_backend() {
             let a = device(Kind::A);
             for ret in [-1, -22, c_int::MIN, 0] {
@@ -1055,6 +1088,7 @@ mod frames_context {
         }
 
         #[test]
+        #[cfg_attr(miri, ignore = "calls C")]
         fn the_free_callback_writes_the_frames_struct() {
             let a = device(Kind::A);
             let mut u = uninit(&a, Kind::A, 1);
@@ -1096,6 +1130,7 @@ mod frames_context {
         use super::*;
 
         #[test]
+        #[cfg_attr(miri, ignore = "calls C")]
         fn frames_come_from_the_pool_and_outlive_the_context() {
             let a = device(Kind::A);
             let (allocs, drops) = (Arc::default(), Arc::new(AtomicUsize::new(0)));
@@ -1122,6 +1157,7 @@ mod frames_context {
         }
 
         #[test]
+        #[cfg_attr(miri, ignore = "calls C")]
         fn replaced_taken_and_refused_pools_are_each_released_once() {
             let a = device(Kind::B);
             let (allocs, drops) = (Arc::default(), Arc::new(AtomicUsize::new(0)));
@@ -1148,6 +1184,7 @@ mod frames_context {
         }
 
         #[test]
+        #[cfg_attr(miri, ignore = "calls C")]
         fn the_last_release_on_other_threads_drops_the_pool_before_the_callback() {
             let a = device(Kind::A);
             for _ in 0..8 {
@@ -1188,6 +1225,7 @@ mod frames_context {
         use super::*;
 
         #[test]
+        #[cfg_attr(miri, ignore = "calls C")]
         fn the_backends_pool_lends_bytes_until_the_last_reference() {
             let a = device(Kind::A);
             let frames = uninit(&a, Kind::A, 1).init().unwrap();
@@ -1212,6 +1250,7 @@ mod frames_context {
         }
 
         #[test]
+        #[cfg_attr(miri, ignore = "calls C")]
         fn a_rust_pool_is_lent_before_and_after_init() {
             let a = device(Kind::B);
             let (allocs, drops) = (Arc::default(), Arc::new(AtomicUsize::new(0)));
@@ -1239,6 +1278,7 @@ mod frames_context {
         }
 
         #[test]
+        #[cfg_attr(miri, ignore = "calls C")]
         fn contexts_without_a_pool_lend_none() {
             let a = device(Kind::A);
             let u = uninit(&a, Kind::A, 0);

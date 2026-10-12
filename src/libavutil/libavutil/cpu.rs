@@ -250,6 +250,7 @@ mod unit_tests {
     /// One test owns the process-wide override, so no other test observes a
     /// forced count.
     #[test]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn forced_count_overrides_detection_until_reset() {
         let detected = cpu_count();
         assert!(detected >= 1);
@@ -265,6 +266,7 @@ mod unit_tests {
     }
 
     #[test]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn max_align_is_a_power_of_two_of_at_least_8() {
         let a = cpu_max_align();
         assert!(a.is_power_of_two() && (8..=64).contains(&a), "{a}");
@@ -288,6 +290,7 @@ mod unit_tests {
     }
 
     #[test]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn earlier_tokens_stay_applied_on_failure() {
         let mut flags = 0;
         assert_eq!(parse_cpu_caps(&mut flags, c"0x10+(1)"), Err(EINVAL));
@@ -298,6 +301,7 @@ mod unit_tests {
     }
 
     #[test]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn out_of_range_operands_fail_without_reaching_c_overflow() {
         // Operands C converts to `int64_t` out of range: undefined behaviour
         // there, `ERANGE` here, as for the in-range operands whose
@@ -327,6 +331,7 @@ mod unit_tests {
     }
 
     #[test]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn prefixed_operands_truncate_as_c_does() {
         // Rounding the operand, as C's unprefixed evaluation does, would
         // change other bits than C's truncation.
@@ -362,6 +367,7 @@ mod unit_tests {
     }
 
     #[test]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn expression_values_follow_av_strtod_and_the_evaluators_constants() {
         assert_eq!(expression_value(b"1.5"), Some(1.5));
         assert_eq!(expression_value(b"0x10"), Some(16.0));
@@ -377,6 +383,7 @@ mod unit_tests {
     }
 
     #[test]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn numeric_tokens_set_and_clear_bits() {
         let mut flags = 0;
         parse_cpu_caps(&mut flags, c"0x11+0x100-0x1").unwrap();
@@ -388,6 +395,7 @@ mod unit_tests {
     }
 
     #[test]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn long_tokens_split_at_c_bound() {
         // 255 digits then 1: C evaluates the 255-digit piece (out of range)
         // first, as the wrapper does.

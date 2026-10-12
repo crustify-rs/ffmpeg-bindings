@@ -75,6 +75,7 @@ mod unit_tests {
     const EOF: i32 = -(i32::from_le_bytes(*b"EOF "));
 
     #[test]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn describes_ffmpeg_and_system_codes() {
         let mut buf = [0xAAu8; 64];
         assert_eq!(describe(EOF, &mut buf), Ok(c"End of file"));
@@ -82,6 +83,7 @@ mod unit_tests {
     }
 
     #[test]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn unknown_codes_get_the_generic_text() {
         let mut buf = [0u8; 64];
         assert_eq!(
@@ -91,6 +93,7 @@ mod unit_tests {
     }
 
     #[test]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn truncates_to_the_buffer() {
         let mut buf = [0xAAu8; 4];
         assert_eq!(describe(EOF, &mut buf), Ok(c"End"));
@@ -99,12 +102,14 @@ mod unit_tests {
     }
 
     #[test]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn system_text_that_does_not_fit_is_the_generic_text() {
         let mut buf = [0xAAu8; 8];
         assert_eq!(describe(ENOMEM, &mut buf), Err(c"Error n"));
     }
 
     #[test]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn empty_buffer_keeps_the_status() {
         assert_eq!(describe(EOF, &mut []), Ok(c""));
         assert_eq!(describe(ENOMEM, &mut []), Err(c""));
@@ -112,12 +117,14 @@ mod unit_tests {
     }
 
     #[test]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn make_error_string_describes_ffmpeg_codes() {
         let mut buf = [0xaa; MAX_STRING_SIZE];
         assert_eq!(make_error_string(EOF, &mut buf), c"End of file");
     }
 
     #[test]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn make_error_string_truncates_to_the_buffer() {
         let mut buf = [0xaa; 4];
         assert_eq!(make_error_string(EOF, &mut buf), c"End");
@@ -131,6 +138,7 @@ mod unit_tests {
     }
 
     #[test]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn make_error_string_reports_unknown_codes_by_number() {
         let mut buf = [0; MAX_STRING_SIZE];
         let s = make_error_string(i32::MIN, &mut buf).to_str().unwrap();

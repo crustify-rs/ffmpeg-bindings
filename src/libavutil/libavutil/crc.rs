@@ -247,6 +247,7 @@ mod unit_tests {
     }
 
     #[test]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn invalid_parameters_are_errors() {
         for bits in [0, 7, 33, 255] {
             assert!(Table::new(false, bits, 1, TableSize::Compact).is_err());
@@ -255,6 +256,7 @@ mod unit_tests {
     }
 
     #[test]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn table_traits_and_debug() {
         let size = TableSize::Fast;
         assert_eq!(size, TableSize::Fast);

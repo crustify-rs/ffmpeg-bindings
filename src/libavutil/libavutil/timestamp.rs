@@ -93,6 +93,7 @@ mod unit_tests {
     use super::*;
 
     #[test]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn make_string_overwrites_a_dirty_buffer() {
         let mut buf = [b'x'; ffi::AV_TS_MAX_STRING_SIZE as usize];
         assert_eq!(make_string(&mut buf, 0), c"0");
@@ -103,6 +104,7 @@ mod unit_tests {
     }
 
     #[test]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn make_time_string_overwrites_a_dirty_buffer() {
         let mut buf = [b'x'; ffi::AV_TS_MAX_STRING_SIZE as usize];
         let ms = Rational::new(1, 1000);
@@ -115,6 +117,7 @@ mod unit_tests {
     }
 
     #[test]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn make_time_string_trims_as_documented() {
         let mut buf = [0; ffi::AV_TS_MAX_STRING_SIZE as usize];
         let cases: [(i64, i32, i32, &CStr); 12] = [
@@ -145,6 +148,7 @@ mod unit_tests {
     }
 
     #[test]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn make_time_string_by_ref_trims_seconds() {
         let mut buf = [b'x'; ffi::AV_TS_MAX_STRING_SIZE as usize];
         let ms = Rational::new(1, 1000);

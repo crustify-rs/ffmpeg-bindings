@@ -1164,6 +1164,7 @@ mod unit_tests {
     }
 
     #[test]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn back_reference_expands_byte_by_byte() {
         // Every fill path: memset, the 2-, 3- and 4-byte periods, and the
         // short and doubling block copies.
@@ -1213,6 +1214,7 @@ mod unit_tests {
     }
 
     #[test]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn back_reference_fills_at_both_buffer_edges() {
         let mut buf = [1, 2, 3, 4, 0, 0, 0, 0];
         copy_back_reference(&mut buf, 4, 4, 4).unwrap();
@@ -1279,6 +1281,7 @@ mod unit_tests {
     }
 
     #[test]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn back_references_in_short_runs_expand_byte_by_byte() {
         // Every run bound down to one byte, over every fill path, against
         // the one-call expansion.
@@ -1333,6 +1336,7 @@ mod unit_tests {
     }
 
     #[test]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn new_zeroed_box_reads_zero_and_takes_writes() {
         let mut b = HeapBox::<Cell>::new_zeroed().unwrap();
         assert_eq!(b.as_ptr() as usize % ALIGN, 0);
@@ -1342,6 +1346,7 @@ mod unit_tests {
     }
 
     #[test]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn new_uninit_box_frees_unfilled_or_promoted() {
         drop(HeapBox::<Cell>::new_uninit().unwrap());
 
@@ -1355,6 +1360,7 @@ mod unit_tests {
     }
 
     #[test]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn box_clone_is_an_independent_aligned_av_memdup_copy() {
         let mut a = HeapBox::<Plain>::new_zeroed().unwrap();
         a.as_mut().set(3, 4);
@@ -1374,6 +1380,7 @@ mod unit_tests {
     }
 
     #[test]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn policy_plumbing_duplicates_one_object() {
         let src = Plain::zeroed();
         // SAFETY: `src` is a live `Plain`, only read.
@@ -1387,6 +1394,7 @@ mod unit_tests {
     }
 
     #[test]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn adopted_av_malloc_block_frees_through_policy() {
         // SAFETY: `av_malloc` has no preconditions.
         let p = unsafe { ffi::av_malloc(size_of::<ffi::AVRational>()) }.cast::<ffi::AVRational>();
@@ -1416,6 +1424,7 @@ mod unit_tests {
     }
 
     #[test]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn policy_plumbing_copies_and_frees() {
         let src = [1u8, 2, 3, 4, 5];
         // SAFETY: `src` is 5 readable bytes, only read.
@@ -1434,6 +1443,7 @@ mod unit_tests {
     }
 
     #[test]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn alloc_array_rejects_overflow_and_limit() {
         assert!(alloc_array::<u64>(usize::MAX).is_none());
         assert!(alloc_array::<u8>(i32::MAX as usize + 1).is_none());
@@ -1442,6 +1452,7 @@ mod unit_tests {
     }
 
     #[test]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn empty_and_zero_sized_arrays_still_allocate() {
         // `av_malloc(0)` hands back a 1-byte block, so these own a pointer.
         let a = alloc_array::<u32>(0).unwrap();
@@ -1452,6 +1463,7 @@ mod unit_tests {
     }
 
     #[test]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn alloc_array_from_fn_frees_on_panic() {
         let r = std::panic::catch_unwind(|| {
             alloc_array_from_fn(8, |i| if i == 5 { panic!("stop") } else { i as u32 })
@@ -1462,6 +1474,7 @@ mod unit_tests {
     }
 
     #[test]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn cell_array_handles_read_zero() {
         let mut a = alloc_cell_array_zeroed::<Cell>(3).unwrap();
         assert!(a.as_handles().iter().all(|c| c.num() == 0));
@@ -1482,6 +1495,7 @@ mod unit_tests {
     }
 
     #[test]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn string_policy_plumbing_copies_and_frees() {
         let src = c"policy";
         // SAFETY: `src` is a live NUL-terminated string, only read.
@@ -1494,6 +1508,7 @@ mod unit_tests {
     }
 
     #[test]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn adopted_c_strings_free_through_policy() {
         // SAFETY: a literal is a live NUL-terminated string.
         let p = unsafe { ffi::av_strdup(c"adopted".as_ptr()) };
@@ -1523,6 +1538,7 @@ mod unit_tests {
     }
 
     #[test]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn owned_string_moves_into_c_and_back() {
         let s = string_from_c_str(c"handover").unwrap();
         let raw = s.into_raw();
@@ -1532,6 +1548,7 @@ mod unit_tests {
     }
 
     #[test]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn bytes_constructor_stops_at_the_first_nul() {
         let s = string_from_bytes_until_nul(b"ab\0cd").unwrap();
         assert_eq!(s.as_bytes(), b"ab");
@@ -1553,6 +1570,7 @@ mod unit_tests {
     }
 
     #[test]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn dynarray_frees_its_block_through_av_freep() {
         let mut a = DynArray::<u16>::default();
         assert!(a.tab.is_null() && a.is_empty());
@@ -1570,6 +1588,7 @@ mod unit_tests {
     }
 
     #[test]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn dynarray_hands_its_block_to_a_heap_vec() {
         let mut a = DynArray::<u32>::new();
         for i in 0..5 {
@@ -1582,6 +1601,7 @@ mod unit_tests {
     }
 
     #[test]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn dynptr_keeps_the_address() {
         let x = 5u8;
         let p: *const u8 = &x;
@@ -1594,6 +1614,7 @@ mod unit_tests {
     }
 
     #[test]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn fast_parts_takes_the_block_and_leaves_the_vec_empty() {
         let mut v = alloc_array_zeroed::<u8>(40).unwrap();
         let ptr = v.as_ptr();
@@ -1605,6 +1626,7 @@ mod unit_tests {
     }
 
     #[test]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn failed_reserve_keeps_the_block_c_leaves_to_its_caller() {
         let mut b = FastBuffer::new();
         assert!(b.reserve(10));
@@ -1623,6 +1645,7 @@ mod unit_tests {
     }
 
     #[test]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn failed_discarding_reserve_empties_the_buffer() {
         let mut b = ZeroedFastBuffer::new();
         assert!(b.reserve_discarding(1));
@@ -1635,6 +1658,7 @@ mod unit_tests {
     }
 
     #[test]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn adopt_realloc_owns_the_block() {
         // SAFETY: `av_realloc(NULL, n)` allocates and has no preconditions.
         let p = unsafe { ffi::av_realloc(core::ptr::null_mut(), 12) };
@@ -1651,6 +1675,7 @@ mod unit_tests {
     }
 
     #[test]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn resized_arrays_keep_their_prefix() {
         let a = alloc_array_from_fn(4, |i| i as u16).unwrap();
         let a = resize_array_with(a, 6, |i| 100 + i as u16).unwrap();
@@ -1665,6 +1690,7 @@ mod unit_tests {
     }
 
     #[test]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn failed_resizes_hand_the_array_back_or_free_it() {
         let a = alloc_array_from_fn(2, |i| i as u64).unwrap();
         let p = a.as_ptr();
@@ -1678,6 +1704,7 @@ mod unit_tests {
     }
 
     #[test]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn in_place_resizes_empty_the_slot_on_zero_or_failure() {
         let mut slot = HeapVec::<MaybeUninit<u8>>::empty();
         realloc_bytes_in_place(&mut slot, 5).unwrap();
@@ -1698,6 +1725,7 @@ mod unit_tests {
     }
 
     #[test]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn size_mult_is_checked_mul() {
         for (a, b) in [
             (0, usize::MAX),

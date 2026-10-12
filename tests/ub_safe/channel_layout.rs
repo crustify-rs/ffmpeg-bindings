@@ -15,6 +15,7 @@ mod parser_inputs;
 /// The BSan input filter keeps exactly the descriptions C matches by name or
 /// accepts as a channel list, and skips every other spelling.
 #[test]
+#[cfg_attr(miri, ignore = "calls C")]
 fn parser_input_filter_classifies_cs_paths() {
     use parser_inputs::parsed_before_strtol;
     for s in [
@@ -116,6 +117,7 @@ fn ambisonic_accepts_every_acn() {
 }
 
 #[test]
+#[cfg_attr(miri, ignore = "calls C")]
 fn channel_arrays_fill_clone_and_free() {
     let values = channel_sample();
     let mut a = alloc_array_zeroed::<Channel>(values.len()).unwrap();
@@ -139,6 +141,7 @@ fn channel_arrays_fill_clone_and_free() {
 }
 
 #[test]
+#[cfg_attr(miri, ignore = "calls C")]
 fn channel_arrays_cross_and_are_shared_between_threads() {
     let values = channel_sample();
     let a = HeapVec::from_slice(&values).unwrap();
@@ -193,6 +196,7 @@ mod matrix_encoding {
     }
 
     #[test]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn heap_arrays_read_any_stored_value() {
         let named = alloc_array_from_fn(MatrixEncoding::COUNT, |i| {
             MatrixEncoding::from_raw(ffi::AVMatrixEncoding(i as u32))
@@ -261,6 +265,7 @@ mod channel_order {
     }
 
     #[test]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn zeroed_array_reads_default_and_takes_every_value() {
         let values = sample();
         let mut a = alloc_array_zeroed::<ChannelOrder>(values.len()).unwrap();
@@ -271,6 +276,7 @@ mod channel_order {
     }
 
     #[test]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn uninit_and_from_fn_arrays_fill_end_to_end() {
         let values = sample();
         let mut u = alloc_array::<ChannelOrder>(values.len()).unwrap();
@@ -283,6 +289,7 @@ mod channel_order {
     }
 
     #[test]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn clone_is_independent_of_its_source() {
         let values = sample();
         let mut a = HeapVec::from_slice(&values).unwrap();
@@ -293,12 +300,14 @@ mod channel_order {
     }
 
     #[test]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn empty_arrays_allocate_and_free() {
         drop(alloc_array_zeroed::<ChannelOrder>(0).unwrap());
         drop(HeapVec::<ChannelOrder>::from_slice(&[]).unwrap());
     }
 
     #[test]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn arrays_cross_and_are_shared_between_threads() {
         let values = sample();
         let a = HeapVec::from_slice(&values).unwrap();
@@ -358,6 +367,7 @@ mod channel_custom {
     }
 
     #[test]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn names_of_every_length_stay_in_the_field() {
         let mut boxed = HeapBox::<ChannelCustom>::new_zeroed().unwrap();
         let mut value = ChannelCustom::default();
@@ -383,6 +393,7 @@ mod channel_custom {
     }
 
     #[test]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn unterminated_name_fields_read_within_the_field() {
         let raw = ffi::AVChannelCustom {
             id: ffi::AVChannel(i32::MIN),
@@ -450,6 +461,7 @@ mod channel_custom {
     }
 
     #[test]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn copies_outlive_and_are_independent_of_their_source() {
         let (copy, name) = {
             let mut boxed = HeapBox::<ChannelCustom>::new_zeroed().unwrap();
@@ -469,6 +481,7 @@ mod channel_custom {
     }
 
     #[test]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn heap_box_owner_lives_reads_writes_clones_and_frees() {
         let mut a = HeapBox::<ChannelCustom>::new_zeroed().unwrap();
         assert_eq!(a.as_ref().id(), Channel::FRONT_LEFT);
@@ -483,6 +496,7 @@ mod channel_custom {
     }
 
     #[test]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn heap_array_handles_stay_in_bounds() {
         const N: usize = 5;
         let mut a = alloc_cell_array_zeroed::<ChannelCustom>(N).unwrap();
@@ -507,6 +521,7 @@ mod channel_custom {
     }
 
     #[test]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn values_and_owners_move_across_threads() {
         let mut v = ChannelCustom::new(Channel::TOP_CENTER);
         v.as_mut().set_opaque(dangling(0x1000));
@@ -525,6 +540,7 @@ mod channel_custom {
     }
 
     #[test]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn shared_handles_read_concurrently() {
         let mut v = ChannelCustom::new(Channel::WIDE_LEFT);
         v.as_mut().set_name(c"wide").unwrap();
@@ -544,6 +560,7 @@ mod channel_custom {
     }
 
     #[test]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn exclusive_handles_write_on_other_threads() {
         let mut values = [ChannelCustom::default(); 4];
         let mut boxed = HeapBox::<ChannelCustom>::new_zeroed().unwrap();
@@ -573,6 +590,7 @@ mod channel_custom {
     }
 
     #[test]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn heap_array_elements_written_from_separate_threads() {
         let mut a = alloc_cell_array_zeroed::<ChannelCustom>(4).unwrap();
         let mut handles = a.as_handles_mut();
@@ -609,6 +627,7 @@ mod channel_names {
     }
 
     #[test]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn writers_stay_inside_every_buffer_length() {
         type Write = fn(Channel, &mut [u8]) -> Result<usize, i32>;
         for write in [Channel::write_name as Write, Channel::write_description] {
@@ -630,6 +649,7 @@ mod channel_names {
     }
 
     #[test]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn owned_strings_have_the_measured_length() {
         for ch in ids() {
             let name = ch.name();
@@ -646,6 +666,7 @@ mod channel_names {
     }
 
     #[test]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn lookups_read_names_of_every_shape_in_bounds() {
         let mut names: Vec<Vec<u8>> = [
             "", "A", "AMBI", "USR", "AMBI-", "USR-", "USR0x", "AMBI0x", "\u{ff}",
@@ -669,6 +690,7 @@ mod channel_names {
     }
 
     #[test]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn calls_run_on_many_threads() {
         let ids = ids();
         let expect: Vec<_> = ids.iter().map(|c| (c.name(), c.description())).collect();
@@ -708,6 +730,7 @@ mod name_appenders {
     }
 
     #[test]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn every_owner_takes_every_channel() {
         for size_max in [
             BPrint::SIZE_UNLIMITED,
@@ -730,6 +753,7 @@ mod name_appenders {
     }
 
     #[test]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn exactly_sized_caller_buffers_truncate_in_bounds() {
         for len in 1..24 {
             for ch in channel_sample() {
@@ -745,6 +769,7 @@ mod name_appenders {
     }
 
     #[test]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn buffers_on_many_threads_at_once() {
         thread::scope(|s| {
             for t in 0..4 {
@@ -882,6 +907,7 @@ mod layout {
     }
 
     #[test]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn every_initialiser_accepts_edge_inputs() {
         for mask in [0, 1, 0x3, 1 << 63, u64::MAX, 0x8000_0000_0000_0001] {
             match ChannelLayout::from_mask(mask) {
@@ -932,6 +958,7 @@ mod layout {
     /// channels; wave-3 batch-1 review, `ub_safe/parse-ambisonic-int-max-
     /// order-overflow`). Its neighbours still go to C.
     #[test]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn parse_refuses_the_ambisonic_order_c_cannot_add_one_to() {
         for s in [
             c"ambisonic 2147483647",
@@ -966,6 +993,7 @@ mod layout {
     }
 
     #[test]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn custom_map_handles_stay_in_bounds() {
         let mut l = ChannelLayout::parse(c"FL@0123456789abcde+FR+LFE@lfe").unwrap();
         {
@@ -998,6 +1026,7 @@ mod layout {
     /// An `av_dynarray2_add` map may hold spare capacity past the count;
     /// taking it over and freeing it frees the whole block.
     #[test]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn parsed_maps_with_spare_capacity_move_out_and_free() {
         let mut l = ChannelLayout::parse(c"FL@a+FR@b+FC@c").unwrap();
         let taken = l.as_mut().take_custom_map().unwrap();
@@ -1059,6 +1088,7 @@ mod layout {
     }
 
     #[test]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn setter_sequences_free_every_map_once() {
         let mut x = 0x9e37_79b9_7f4a_7c15u64;
         let mut next = move || {
@@ -1081,6 +1111,7 @@ mod layout {
     /// `ChannelCustom::from_raw` can carry a name with no NUL into a map;
     /// the getters read it within its field, and copies copy it as is.
     #[test]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn unterminated_names_in_a_map_are_read_within_the_field() {
         let raw = ffi::AVChannelCustom {
             id: ffi::AVChannel(3),
@@ -1102,6 +1133,7 @@ mod layout {
     }
 
     #[test]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn user_pointers_are_stored_never_followed() {
         let mut l = ChannelLayout::parse(c"FL@a+FR").unwrap();
         for addr in [1, 0x1000, usize::MAX] {
@@ -1120,6 +1152,7 @@ mod layout {
     }
 
     #[test]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn bare_values_rewrap_and_handles_reborrow() {
         let l = ChannelLayout::parse(c"FL@a+FR@b").unwrap();
         // Given up for disposal, the value is a plain layout held inline.
@@ -1142,6 +1175,7 @@ mod layout {
     }
 
     #[test]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn owners_move_and_drop_across_threads() {
         let layouts: Vec<ChannelLayoutVal> = allowed(&DESCRIPTIONS)
             .filter_map(|s| ChannelLayout::parse(s).ok())
@@ -1161,6 +1195,7 @@ mod layout {
     }
 
     #[test]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn shared_views_read_and_copy_concurrently() {
         let l = ChannelLayout::parse(c"FL@front+FR@right+LFE+USR40@u").unwrap();
         let r = l.as_ref();
@@ -1181,6 +1216,7 @@ mod layout {
     }
 
     #[test]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn exclusive_handles_and_map_views_write_on_other_threads() {
         let mut layouts: Vec<ChannelLayoutVal> =
             (1..=4).map(|n| ChannelLayout::custom(n).unwrap()).collect();
@@ -1217,6 +1253,7 @@ mod layout {
     /// `Channel::mask` at every id class, and the mask constants as inputs
     /// to every mask-taking path.
     #[test]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn masks_and_bits_feed_every_mask_path() {
         for raw in [
             i32::MIN,
@@ -1259,6 +1296,7 @@ mod layout {
     /// Every standard layout is read, copied, owned, overwritten, moved
     /// across threads and dropped without touching anything it does not own.
     #[test]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn standard_layouts_are_plain_values() {
         for (name, layout) in STANDARD_LAYOUTS {
             assert_eq!(walk(layout.as_ref()), 0, "{name}");
@@ -1393,6 +1431,7 @@ mod layout {
         }
 
         #[test]
+        #[cfg_attr(miri, ignore = "calls C")]
         fn every_conversion_frees_and_allocates_maps_once() {
             let mut converted = 0;
             for start in starts() {
@@ -1433,6 +1472,7 @@ mod layout {
         }
 
         #[test]
+        #[cfg_attr(miri, ignore = "calls C")]
         fn conversions_interleave_with_every_setter() {
             let mut x = 0x2545_f491_4f6c_dd1du64;
             let mut next = move || {
@@ -1473,6 +1513,7 @@ mod layout {
         /// A name with no NUL is only tested for emptiness by the
         /// conversion and never read by the subset query.
         #[test]
+        #[cfg_attr(miri, ignore = "calls C")]
         fn unterminated_names_are_read_within_the_field() {
             for ids in [&[0, 1][..], &[0x400, 0x401, 0x402, 0x403, 5]] {
                 let mut l = ChannelLayout::from_custom_map(unterminated_map(ids)).unwrap();
@@ -1492,6 +1533,7 @@ mod layout {
         }
 
         #[test]
+        #[cfg_attr(miri, ignore = "calls C")]
         fn subset_reads_every_map_size_in_bounds() {
             for n in [1, 2, 63, 64, 65, 300] {
                 let l = ChannelLayout::from_custom_map(map(n)).unwrap();
@@ -1510,6 +1552,7 @@ mod layout {
         }
 
         #[test]
+        #[cfg_attr(miri, ignore = "calls C")]
         fn standard_layouts_outlive_their_iterator_and_copies() {
             // The handles are the table's, not the iterator's, which the
             // walk consumes.
@@ -1544,6 +1587,7 @@ mod layout {
         }
 
         #[test]
+        #[cfg_attr(miri, ignore = "calls C")]
         fn standard_layouts_are_walked_and_shared_across_threads() {
             let kept: Vec<_> = standard_layouts().collect();
             thread::scope(|s| {
@@ -1571,6 +1615,7 @@ mod layout {
         }
 
         #[test]
+        #[cfg_attr(miri, ignore = "calls C")]
         fn owners_convert_on_other_threads() {
             let mut layouts = starts();
             thread::scope(|s| {
@@ -1746,6 +1791,7 @@ mod layout {
         }
 
         #[test]
+        #[cfg_attr(miri, ignore = "calls C")]
         fn every_reader_reads_every_start_in_bounds() {
             let mut described = 0;
             for l in starts() {
@@ -1788,6 +1834,7 @@ mod layout {
         }
 
         #[test]
+        #[cfg_attr(miri, ignore = "calls C")]
         fn unterminated_names_are_never_read_as_strings() {
             for ids in [&[0, 1][..], &[1][..], &[0x400, 0x401, 0x402, 0x403, 5]] {
                 let l = unterminated_at_block_end(ids);
@@ -1822,6 +1869,7 @@ mod layout {
         }
 
         #[test]
+        #[cfg_attr(miri, ignore = "calls C")]
         fn layouts_compare_with_every_start() {
             let all = starts();
             for (i, a) in all.iter().enumerate() {
@@ -1838,6 +1886,7 @@ mod layout {
         }
 
         #[test]
+        #[cfg_attr(miri, ignore = "calls C")]
         fn readers_interleave_with_every_setter() {
             let mut x = 0x5851_f42d_4c95_7f2du64;
             let mut next = move || {
@@ -1868,6 +1917,7 @@ mod layout {
         }
 
         #[test]
+        #[cfg_attr(miri, ignore = "calls C")]
         fn shared_handles_read_on_many_threads() {
             let layouts: Vec<ChannelLayoutVal> = [
                 c"FL@front+FR@right+LFE+USR40@u",

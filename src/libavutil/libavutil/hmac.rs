@@ -236,6 +236,7 @@ mod unit_tests {
     use super::*;
 
     #[test]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn short_final_preserves_state_and_output() {
         let mut owner = Hmac::new(HmacType::MD5, b"key").unwrap();
         owner.as_mut().update(b"message").unwrap();
@@ -281,6 +282,7 @@ mod unit_tests {
     }
 
     #[test]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn rejects_unknown_algorithm_and_raw_adoption_roundtrips() {
         assert!(matches!(
             Hmac::new(HmacType::from_raw(ffi::AVHMACType(u32::MAX)), b"key"),

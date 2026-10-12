@@ -66,6 +66,7 @@ fn row(buf: &[u8], linesize: isize, w: usize, h: usize, r: usize) -> &[u8] {
 }
 
 #[test]
+#[cfg_attr(miri, ignore = "calls C")]
 fn check_size_accepts_and_rejects_edge_dimensions() {
     assert_eq!(check_size(1, 1), Ok(()));
     assert_eq!(check_size(1920, 1080), Ok(()));
@@ -83,6 +84,7 @@ fn check_size_accepts_and_rejects_edge_dimensions() {
 }
 
 #[test]
+#[cfg_attr(miri, ignore = "calls C")]
 fn exact_planes_copy_in_every_orientation() {
     for (dl, sl, w, h) in [
         (8i32, 8i32, 8usize, 5usize),
@@ -250,6 +252,7 @@ fn oversized_arguments_are_refused() {
 /// cover the 64-byte-rounded width): aligned ones, and misaligned rows,
 /// pointers and short last rows, which fault or overrun in C.
 #[test]
+#[cfg_attr(miri, ignore = "calls C")]
 fn uncacheable_fast_path_planes_never_fault_or_overrun() {
     for (dl, sl, w, h, doff, soff, dshort, sshort) in [
         (
@@ -300,6 +303,7 @@ fn uncacheable_fast_path_planes_never_fault_or_overrun() {
 }
 
 #[test]
+#[cfg_attr(miri, ignore = "calls C")]
 fn planes_copy_on_many_threads() {
     let src = plane(span(48, 40, 32), 5);
     thread::scope(|s| {
@@ -447,6 +451,7 @@ mod images {
     }
 
     #[test]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn exact_planes_of_every_format_copy_and_fill() {
         for format in sweep_formats().into_iter().filter(|&f| copyable(f)) {
             for (w, h) in [(1, 1), (7, 5), (16, 3)] {
@@ -494,6 +499,7 @@ mod images {
     }
 
     #[test]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn one_byte_short_planes_are_refused_untouched() {
         for format in [
             PixelFormat::YUV420P,
@@ -569,6 +575,7 @@ mod images {
     }
 
     #[test]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn rows_wider_than_a_linesize_are_refused_instead_of_aborting() {
         let format = PixelFormat::GRAY8;
         let src = plane(64, 1);
@@ -596,6 +603,7 @@ mod images {
     }
 
     #[test]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn inputs_c_mishandles_are_refused_before_c() {
         let i32_max = i32::MAX;
         // `int` overflow rounding a bitstream row up to bytes.
@@ -739,6 +747,7 @@ mod images {
     }
 
     #[test]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn layouts_hand_out_disjoint_exact_planes() {
         for format in formats().filter(|&f| copyable(f)) {
             let Ok(size) = buffer_size(format, 13, 7, 4) else {
@@ -767,6 +776,7 @@ mod images {
     }
 
     #[test]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn misaligned_uncacheable_images_never_fault_or_overrun() {
         let format = PixelFormat::YUV420P;
         let (w, h) = (100, 6);
@@ -805,6 +815,7 @@ mod images {
     }
 
     #[test]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn images_live_and_die_on_many_threads() {
         let format = PixelFormat::YUV420P;
         let mut src = Image::alloc(40, 30, format, 32).unwrap();
@@ -852,6 +863,7 @@ mod pixel_steps {
     use ffmpeg::libavutil::pixfmt::PixelFormat;
 
     #[test]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn every_table_entry_has_steps() {
         for raw in 0..ffi::AVPixelFormat::AV_PIX_FMT_NB.0 {
             let d = PixelFormat::from_raw(ffi::AVPixelFormat(raw))
@@ -864,6 +876,7 @@ mod pixel_steps {
     }
 
     #[test]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn edge_planes_are_refused_and_the_rest_accepted() {
         let planes = [i32::MIN, -1, 0, 1, 2, 3, 4, 5, i32::MAX];
         for (slot, plane) in (0..4).flat_map(|s| planes.map(|p| (s, p))) {

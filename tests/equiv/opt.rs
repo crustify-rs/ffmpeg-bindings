@@ -208,6 +208,7 @@ fn both(via: Via, on: On, key: &CStr, flags: RangeFlags) -> (CList, Option<Optio
 }
 
 #[test]
+#[cfg_attr(miri, ignore = "calls C")]
 fn every_key_and_flag_agrees_on_a_class() {
     for via in [Via::Callback, Via::Default] {
         for key in all_keys() {
@@ -220,6 +221,7 @@ fn every_key_and_flag_agrees_on_a_class() {
 
 /// On objects of `OBJ_CLASS`, with and without a child to search.
 #[test]
+#[cfg_attr(miri, ignore = "calls C")]
 fn every_key_agrees_on_a_real_object() {
     let keys: Vec<&CStr> = fixture::OBJ_OPTIONS.0[..fixture::OBJ_OPTIONS.0.len() - 1]
         .iter()
@@ -239,6 +241,7 @@ fn every_key_agrees_on_a_real_object() {
 }
 
 #[test]
+#[cfg_attr(miri, ignore = "calls C")]
 fn class_callback_lists_agree() {
     for key in all_keys() {
         for flags in [NONE, MULTI, CHILDREN] {
@@ -266,6 +269,7 @@ const ISOLATED: &str = "CRUSTIFY_EQUIV_ISOLATED";
 /// sizes. The limit is process-global, so this lowers it only in a child
 /// process running nothing else, and passes when the child does.
 #[test]
+#[cfg_attr(miri, ignore = "calls C")]
 fn allocation_failure_at_the_av_max_alloc_limit_agrees() {
     if std::env::var_os(ISOLATED).is_none() {
         let status = std::process::Command::new(std::env::current_exe().unwrap())
@@ -321,6 +325,7 @@ fn allocation_failure_at_the_av_max_alloc_limit_agrees() {
 /// Lists stay independent: each later query, and each drop, leaves every live
 /// list of either side as it was.
 #[test]
+#[cfg_attr(miri, ignore = "calls C")]
 fn query_sequences_keep_lists_independent() {
     let o = Owned::new();
     let obj = On::Object(o.as_obj());
@@ -462,6 +467,7 @@ const WRITES: [Write; 14] = [
 /// equal after every step, including the strings each `take` hands back;
 /// the drops then release each side's strings once (LeakSanitizer, ASan).
 #[test]
+#[cfg_attr(miri, ignore = "calls C")]
 fn writes_agree_after_every_step() {
     let cases: [(&'static FakeObj, &CStr, RangeFlags); 4] = [
         (&CB_FAKE, c"size", MULTI),
@@ -564,6 +570,7 @@ mod option_type {
     }
 
     #[test]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn fixture_types_read_as_c_stores_them() {
         let _s = LogState::lock();
         let mut fake = Fake(FAKE.0);
@@ -576,6 +583,7 @@ mod option_type {
     }
 
     #[test]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn iamf_types_read_as_c_stores_them() {
         let _s = LogState::lock();
         let getters: [unsafe extern "C" fn() -> *const ffi::AVClass; 3] = [
@@ -600,6 +608,7 @@ mod option_type {
     /// `av_opt_get_array_size` succeeds for exactly the options whose type
     /// `is_array`, and rejects the others with `AVERROR(EINVAL)`.
     #[test]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn array_flag_agrees_with_av_opt_get_array_size() {
         let _s = LogState::lock();
         let mut ctx = Ctx::new(&CLASS);
@@ -780,6 +789,7 @@ mod set_options_string {
     ];
 
     #[test]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn sequences_agree_after_every_call() {
         if under_bsan() {
             return;
@@ -817,6 +827,7 @@ mod set_options_string {
     /// the field when the value does not parse, so only the error and the
     /// other options compare after one.
     #[test]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn failed_image_sizes_agree_but_for_the_size() {
         if under_bsan() {
             return;
@@ -840,6 +851,7 @@ mod set_options_string {
     }
 
     #[test]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn errors_agree() {
         if under_bsan() {
             return;
@@ -869,6 +881,7 @@ mod set_options_string {
     /// process-global, so this lowers it only in a child process running
     /// nothing else, and passes when the child does.
     #[test]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn allocation_failure_at_the_av_max_alloc_limit_agrees() {
         if under_bsan() {
             return;
@@ -912,6 +925,7 @@ mod set_options_string {
     /// On an object without options every key is not found, and an empty
     /// list sets nothing.
     #[test]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn bare_objects_agree() {
         static CLASS: Class = Class::new(c"crustify-opt-bare-list", ClassCategory::NA);
         let mut bare = BareObject::new(CLASS.as_ref()).unwrap();
@@ -1044,6 +1058,7 @@ mod array_def {
     }
 
     #[test]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn edits_read_alike_by_c_and_by_the_getters() {
         use Edit::*;
         let steps: [(Edit, &[&str]); 25] = [
@@ -1115,6 +1130,7 @@ mod array_def {
     }
 
     #[test]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn a_missing_definition_reads_as_the_new_one() {
         let d = OptionArrayDef::new();
         // SAFETY: NULL, and a live definition with no default.
@@ -1688,6 +1704,7 @@ mod objects {
     }
 
     #[test]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn every_corpus_value_sets_as_in_c() {
         // BSan reports C's reads through the end pointers glibc's uninstrumented
         // `strtod` / `strtol` / `strtoul` store (`eval.c:120`, `parseutils.c:391`)
@@ -1703,6 +1720,7 @@ mod objects {
     }
 
     #[test]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn typed_setters_defaults_free_and_copies_agree() {
         // BSan reports C's reads through the end pointers glibc's uninstrumented
         // `strtod` / `strtol` / `strtoul` store (`eval.c:120`, `parseutils.c:391`)
@@ -1744,6 +1762,7 @@ mod objects {
     }
 
     #[test]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn random_sequences_agree() {
         // BSan reports C's reads through the end pointers glibc's uninstrumented
         // `strtod` / `strtol` / `strtoul` store (`eval.c:120`, `parseutils.c:391`)
@@ -1767,6 +1786,7 @@ mod objects {
     }
 
     #[test]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn children_are_listed_as_c_lists_them() {
         let o = Owned::with_child();
         // SAFETY: a live object and a NULL cursor.
@@ -1795,6 +1815,7 @@ mod objects {
     }
 
     #[test]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn key_values_parse_as_in_c() {
         for opts in [
             c"a=1:b=2",
@@ -1924,6 +1945,7 @@ mod objects {
     /// result, which `av_opt_set_defaults` stores whole (documented on
     /// `ObjectMut::set_defaults`).
     #[test]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn allocation_failures_agree() {
         // BSan reports C's reads through the end pointers glibc's uninstrumented
         // `strtod` / `strtol` / `strtoul` store (`eval.c:120`, `parseutils.c:391`)
@@ -2032,6 +2054,7 @@ mod objects {
     /// printers spell out, from C and through `ObjectRef::show`, and compares
     /// the lines.
     #[test]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn listings_of_every_type_and_extreme_log_as_c() {
         if under_bsan() {
             return;
@@ -2344,6 +2367,7 @@ mod objects {
     }
 
     #[test]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn listings_and_errors_log_as_c() {
         // BSan reports C's reads through the end pointers glibc's uninstrumented
         // `strtod` / `strtol` / `strtoul` store (`eval.c:120`, `parseutils.c:391`)
@@ -2672,6 +2696,7 @@ mod getters {
     ];
 
     #[test]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn scalar_getters_agree_after_every_write() {
         if under_bsan() {
             return;
@@ -2905,6 +2930,7 @@ mod getters {
     }
 
     #[test]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn array_reads_agree_for_every_type_and_range() {
         if under_bsan() {
             return;
@@ -2924,6 +2950,7 @@ mod getters {
     /// Arrays rewritten through C's own setter on both objects, one array at
     /// a time, compared after each write.
     #[test]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn array_reads_agree_after_every_write() {
         if under_bsan() {
             return;
@@ -2967,6 +2994,7 @@ mod getters {
     }
 
     #[test]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn potential_children_agree() {
         let arr = ArrOwned::new();
         let plain = Owned::zeroed();
@@ -3566,6 +3594,7 @@ mod typed_setters {
     }
 
     #[test]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn scalar_setters_and_dictionaries_agree() {
         // BSan reports C's reads through the end pointers glibc's uninstrumented
         // `strtod` / `strtol` / `strtoul` store (`eval.c:120`, `parseutils.c:391`)
@@ -3713,6 +3742,7 @@ mod typed_setters {
     }
 
     #[test]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn array_edits_agree() {
         // BSan: as above, C's string parses reach the glibc end pointers.
         if under_bsan() {
@@ -3731,6 +3761,7 @@ mod typed_setters {
     /// BorrowSanitizer runs them without C's evaluator (whose `av_strtod`
     /// end pointers it misreports).
     #[test]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn random_array_edits_agree() {
         let mut state = 0xfeed_face_0123_4567u64;
         let mut next = move || {
@@ -3787,6 +3818,7 @@ mod typed_setters {
     /// see `ub_unsafe/opt.rs::remove_array_shrink_failure`), which is
     /// compared once its count is repaired as the wrapper repairs it.
     #[test]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn allocation_failures_agree() {
         const KEY: &str = "CRUSTIFY_EQUIV_OPT_TYPED_ISOLATED";
         if under_bsan() {
@@ -3954,6 +3986,7 @@ mod rational_array_conversion {
     }
 
     #[test]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn rationals_into_integer_arrays_and_options_convert_as_c() {
         let (c, r) = (
             OwnedArrays::zeroed_with_child(),
@@ -4136,6 +4169,7 @@ mod lookups {
     }
 
     #[test]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn finds_agree_on_objects_and_classes() {
         let fake = Fake::new();
         for o in [Owned::new(), parent_and_child()] {
@@ -4187,6 +4221,7 @@ mod lookups {
     /// itself, so only names `OBJ_CLASS` has are looked up with children (C
     /// would recurse into `ARR_CLASS` again for any other).
     #[test]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn class_finds_search_potential_children_as_c() {
         let o = super::fixture::ArrOwned::new();
         // SAFETY: a live, defaulted object of the well-formed `ARR_CLASS`.
@@ -4222,6 +4257,7 @@ mod lookups {
     }
 
     #[test]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn options_walk_agrees_with_av_opt_next() {
         let o = Owned::new();
         let fake = Fake::new();
@@ -4276,6 +4312,7 @@ mod lookups {
     /// `is_option_set_to_default` and `av_opt_is_set_to_default` on every
     /// entry of the parent and of its child, after each step.
     #[test]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn defaults_agree_after_every_step() {
         let o = parent_and_child();
         let check = |step: &str| {
@@ -4443,6 +4480,7 @@ mod lookups {
     }
 
     #[test]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn evaluators_agree_on_objects_and_classes() {
         let o = parent_and_child();
         let obj = shared(&o);
@@ -4478,6 +4516,7 @@ mod lookups {
     /// Flag tokens applied one call after another to one value on each side,
     /// compared after every step, failing tokens' partial writes included.
     #[test]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn flag_sequences_agree_after_every_step() {
         let o = parent_and_child();
         let obj = shared(&o);
@@ -4532,6 +4571,7 @@ mod lookups {
     /// (options wave-2 review,
     /// `ub_safe/eval-flags-token-split-hides-evaluator-call`).
     #[test]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn long_flag_values_are_cut_and_refused_as_tokens() {
         // BSan misreads C's reads through glibc `strtod` / `strtol` end
         // pointers (`eval.c:120`, `parseutils.c:166`) in these evaluations
@@ -4597,6 +4637,7 @@ mod lookups {
     /// value): both default checks fail with C's `av_dict_parse_string`
     /// error, before and after a value is set.
     #[test]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn unparsable_dictionary_defaults_fail_as_c() {
         use super::fixture::{Class, Table};
 

@@ -1,6 +1,7 @@
 use ffmpeg::libavutil::ripemd::{DigestBits, Ripemd, context_size};
 
 #[test]
+#[cfg_attr(miri, ignore = "calls C")]
 fn all_digest_forms_construct_reborrow_reset_and_drop() {
     let sizes = [
         DigestBits::Bits128,
@@ -24,6 +25,7 @@ fn all_digest_forms_construct_reborrow_reset_and_drop() {
 }
 
 #[test]
+#[cfg_attr(miri, ignore = "reads a C global")]
 fn batch10_immutable_size_across_threads() {
     let size: &'static i32 = context_size();
     assert!(*size > 0);
@@ -42,6 +44,7 @@ fn batch10_immutable_size_across_threads() {
 }
 
 #[test]
+#[cfg_attr(miri, ignore = "calls C")]
 pub(super) fn batch2_foreign_writes_across_reborrows() {
     let data: Vec<u8> = (0..1025).map(|i| i as u8).collect();
     for algorithm in [

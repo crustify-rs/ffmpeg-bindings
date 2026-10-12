@@ -33,6 +33,7 @@ mod pool_and_opaque {
     }
 
     #[test]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn every_size_and_flag_set_builds_and_releases() {
         for size in SIZES {
             for flags in every_flag_set() {
@@ -47,6 +48,7 @@ mod pool_and_opaque {
 
     /// Every drop order of four references, the constructor's included.
     #[test]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn every_drop_order() {
         let orders = [[0, 1, 2, 3], [3, 2, 1, 0], [1, 3, 0, 2], [2, 0, 3, 1]];
         for order in orders {
@@ -69,6 +71,7 @@ mod pool_and_opaque {
 
     /// The owner never yields its exclusive handle, alone or shared.
     #[test]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn owner_never_hands_out_the_exclusive_handle() {
         let mut a = RefStructPool::new(8, PoolFlags::ZERO_EVERY_TIME).expect("pool");
         assert!(a.get_mut().is_none());
@@ -85,6 +88,7 @@ mod pool_and_opaque {
     /// Clones made, moved and dropped on many threads at once, the first
     /// owner dropped while they run, and shared handles read concurrently.
     #[test]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn references_cross_threads() {
         const THREADS: usize = 8;
         let pool = RefStructPool::new(32, PoolFlags::NONE).expect("pool");
@@ -118,6 +122,7 @@ mod pool_and_opaque {
 
     /// The last reference is dropped on a thread other than the creator's.
     #[test]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn last_reference_released_elsewhere() {
         let pool = RefStructPool::new(4, PoolFlags::NO_ZEROING).expect("pool");
         let other = pool.clone();
@@ -189,6 +194,7 @@ mod counted_references {
     };
 
     #[test]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn zeroed_payloads_are_written_and_read_end_to_end() {
         let mut a = RefStructArc::<ColorPrimariesDescriptor>::new_zeroed().unwrap();
         assert_eq!(a.as_ref().primaries().b().y().den(), 0);
@@ -210,6 +216,7 @@ mod counted_references {
     }
 
     #[test]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn clones_share_one_object_and_outlive_the_first_reference() {
         let mut a = RefStructArc::<IntFloat64>::new_zeroed().unwrap();
         a.get_mut().unwrap().set_bits(0x0123_4567_89ab_cdef);
@@ -226,6 +233,7 @@ mod counted_references {
     }
 
     #[test]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn exclusive_handle_only_for_the_sole_reference() {
         let mut a = RefStructArc::<IntFloat64>::new_zeroed().unwrap();
         assert!(is_exclusive(&a));
@@ -242,6 +250,7 @@ mod counted_references {
     }
 
     #[test]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn sole_references_convert_to_and_from_the_box() {
         let a = RefStructArc::<IntFloat64>::new_zeroed().unwrap();
         let b = a.clone();
@@ -255,6 +264,7 @@ mod counted_references {
     }
 
     #[test]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn const_references_never_hand_out_the_exclusive_handle() {
         let mut a = RefStructArc::<IntFloat64>::new_zeroed().unwrap();
         a.get_mut().unwrap().set_bits(5);
@@ -275,6 +285,7 @@ mod counted_references {
     }
 
     #[test]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn replace_covers_every_slot_transition() {
         let mut x = RefStructArc::<IntFloat64>::new_zeroed().unwrap();
         x.get_mut().unwrap().set_bits(1);
@@ -314,6 +325,7 @@ mod counted_references {
     }
 
     #[test]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn references_are_counted_across_threads() {
         let mut a = RefStructArc::<IntFloat64>::new_zeroed().unwrap();
         a.get_mut().unwrap().set_bits(77);
@@ -351,6 +363,7 @@ mod counted_references {
     }
 
     #[test]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn last_release_on_another_thread_happens_before_the_exclusive_write() {
         for _ in 0..64 {
             let mut a = RefStructArc::<IntFloat64>::new_zeroed().unwrap();
@@ -376,6 +389,7 @@ mod counted_references {
     }
 
     #[test]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn objects_freed_on_the_thread_holding_the_last_reference() {
         let objects: Vec<_> = (0..32)
             .map(|i| {
@@ -396,6 +410,7 @@ mod counted_references {
     }
 
     #[test]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn allocation_failure_returns_no_owner() {
         // Isolate the process-wide allocator limit from every other test.
         const ISOLATED: &str = "CRUSTIFY_UB_SAFE_REFSTRUCT_ALLOC_FAILURE_CHILD";
@@ -430,6 +445,7 @@ mod counted_references {
     /// Rust reads and writes of the payload interleaved with C's header-only
     /// count updates through retained pointers, across reborrows of the handles.
     #[test]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn foreign_count_updates_across_payload_reborrows() {
         let mut a = RefStructArc::<ColorPrimariesDescriptor>::new_zeroed().unwrap();
         for i in 1..8 {
@@ -498,6 +514,7 @@ mod releases_and_typed_pools {
     }
 
     #[test]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn release_runs_once_through_every_owner_form() {
         let runs = Arc::new(AtomicUsize::new(0));
         let seen = Arc::new(AtomicU64::new(0));
@@ -555,6 +572,7 @@ mod releases_and_typed_pools {
     /// The release of a 64-byte payload writes its last field, on the thread
     /// that drops the last of many references spread over threads.
     #[test]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn release_runs_on_the_thread_dropping_the_last_reference() {
         for round in 0..16 {
             let (tx, rx) = std::sync::mpsc::channel();
@@ -592,6 +610,7 @@ mod releases_and_typed_pools {
     }
 
     #[test]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn typed_pool_entries_are_valid_under_every_flag_set() {
         for flags in every_flag_set() {
             let pool = TypedRefStructPool::<ColorPrimariesDescriptor>::new(flags).unwrap();
@@ -621,6 +640,7 @@ mod releases_and_typed_pools {
     /// entries it holds; each one returned later is freed then, and the
     /// last of them frees the pool and drops its state.
     #[test]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn entries_outlive_their_pool_in_every_order() {
         for order in 0..3 {
             let freed = Arc::new(AtomicUsize::new(0));
@@ -704,6 +724,7 @@ mod releases_and_typed_pools {
     /// `None`, the entry is freed (LSan reports otherwise), and the error
     /// callbacks C selects run on it.
     #[test]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn failing_init_under_every_flag_set_and_callback_subset() {
         for flags in every_flag_set() {
             for mask in 0..8u8 {
@@ -742,6 +763,7 @@ mod releases_and_typed_pools {
     /// `init` sees zeroes under `ZERO_EVERY_TIME`, where C does not zero a
     /// new entry, even when the allocator hands back dirty memory.
     #[test]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn init_sees_zeroed_entries_where_c_leaves_them_dirty() {
         for flags in [
             PoolFlags::ZERO_EVERY_TIME,
@@ -778,6 +800,7 @@ mod releases_and_typed_pools {
     /// them: neither holds the pool's lock. The state's pool reference is a
     /// cycle, broken before the end so the pool is freed (LSan checks).
     #[test]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn callbacks_reenter_their_pool() {
         #[derive(Default)]
         struct Reentrant {
@@ -823,6 +846,7 @@ mod releases_and_typed_pools {
     /// last reference dropped while entries are out (TSan checks the C
     /// synchronization and the shared state).
     #[test]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn concurrent_gets_and_returns_across_threads() {
         let counts = Arc::new(Counts::default());
         let pool =
@@ -875,6 +899,7 @@ mod releases_and_typed_pools {
     /// boxes `get` hands out, and the release's write through C's pointer
     /// after Rust reborrows of the payload: BSan's foreign-write checks.
     #[test]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn foreign_writes_between_rust_views_of_entries() {
         let counts = Arc::new(Counts::default());
         let pool =
@@ -906,6 +931,7 @@ mod releases_and_typed_pools {
     /// Every way to hold a typed pool: fallible and infallible clones, the
     /// shared handle, identity and `Debug`, each outliving the original.
     #[test]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn pool_references_clone_compare_and_format() {
         let pool = TypedRefStructPool::<IntFloat64>::new(PoolFlags::NONE).unwrap();
         let other = TypedRefStructPool::<IntFloat64>::new(PoolFlags::NONE).unwrap();
@@ -934,6 +960,7 @@ mod releases_and_typed_pools {
     /// still hands out the entries it holds. The limit is process-wide, so
     /// this runs alone in a child process.
     #[test]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn allocation_failure_drops_closures_and_state_unrun() {
         const ISOLATED: &str = "CRUSTIFY_UB_SAFE_REFSTRUCT_RELEASE_ALLOC_FAILURE_CHILD";
         if std::env::var_os(ISOLATED).is_none() {
@@ -1054,6 +1081,7 @@ mod pool_teardown_in_callbacks {
     }
 
     #[test]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn reset_drops_the_last_pool_reference() {
         for flags in [PoolFlags::NONE, PoolFlags::ZERO_EVERY_TIME] {
             let owner = Arc::new(Owner::default());
@@ -1088,6 +1116,7 @@ mod pool_teardown_in_callbacks {
     }
 
     #[test]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn free_entry_releases_entries_of_its_own_pool() {
         let owner = Arc::new(Owner::default());
         let callbacks = PoolCallbacks::<IntFloat64, _>::new(State(Arc::clone(&owner)))
@@ -1122,6 +1151,7 @@ mod pool_teardown_in_callbacks {
     }
 
     #[test]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn init_releases_pool_references_and_entries() {
         let owner = Arc::new(Owner::default());
         let callbacks = PoolCallbacks::<IntFloat64, _>::new(State(Arc::clone(&owner)))

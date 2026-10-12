@@ -1,6 +1,7 @@
 use ffmpeg::libavutil::{base64, ffi};
 
 #[test]
+#[cfg_attr(miri, ignore = "calls C")]
 fn batch10_encode_buffers_match_c_after_each_call() {
     let data: Vec<_> = (0..160).map(|i| (i * 83) as u8).collect();
     let mut safe = [0xAA; 220];
@@ -28,6 +29,7 @@ fn batch10_encode_buffers_match_c_after_each_call() {
 }
 
 #[test]
+#[cfg_attr(miri, ignore = "calls C")]
 fn batch10_decode_errors_lengths_and_all_buffer_bytes_match_c() {
     let texts: Vec<_> = [
         "",
@@ -100,6 +102,7 @@ mod beyond_int_max {
     }
 
     #[test]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn encodes_and_decodes_into_outputs_beyond_int_max_as_c() {
         if under_bsan() {
             return;
@@ -136,6 +139,7 @@ mod beyond_int_max {
     }
 
     #[test]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn exact_and_short_outputs_still_follow_c() {
         let text: &CStr = c"Y3J1c3RpZnk=";
         for capacity in [0, 1, 7, 8, 9] {

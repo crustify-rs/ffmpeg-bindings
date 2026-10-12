@@ -841,6 +841,7 @@ mod unit_tests {
     }
 
     #[test]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn suffixes_scale_the_value() {
         assert_eq!(parse_number(c"2k"), (2000.0, c""));
         assert_eq!(parse_number(c"2K"), (2000.0, c""));
@@ -859,6 +860,7 @@ mod unit_tests {
     }
 
     #[test]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn nothing_parsed_returns_the_whole_string() {
         for s in [c"", c"   ", c"x", c"-", c"k", c"B", c"dB"] {
             assert_eq!(parse_number(s), (0.0, s), "{s:?}");
@@ -872,6 +874,7 @@ mod unit_tests {
 
     /// The rest borrows `numstr` itself, at the byte C stopped at.
     #[test]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn the_rest_is_a_suffix_of_the_input() {
         let s = c"  -1.25e1Mi tail";
         let (value, rest) = parse_number(s);
@@ -931,6 +934,7 @@ mod unit_tests {
     }
 
     #[test]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn names_reach_c_in_order_and_aligned_with_their_functions() {
         if under_bsan() {
             return;
@@ -958,6 +962,7 @@ mod unit_tests {
     }
 
     #[test]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn parse_builds_an_evaluable_tree() {
         if under_bsan() {
             return;
@@ -975,6 +980,7 @@ mod unit_tests {
     }
 
     #[test]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn a_log_offset_overflowing_the_error_level_is_rejected_before_c() {
         if under_bsan() {
             return;
@@ -999,6 +1005,7 @@ mod unit_tests {
     }
 
     #[test]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn adopted_trees_are_released_by_av_expr_free() {
         if under_bsan() {
             return;
@@ -1196,6 +1203,7 @@ mod unit_tests {
         }
 
         #[test]
+        #[cfg_attr(miri, ignore = "calls C")]
         fn evaluation_needs_a_value_per_constant() {
             if under_bsan() {
                 return;
@@ -1211,6 +1219,7 @@ mod unit_tests {
         }
 
         #[test]
+        #[cfg_attr(miri, ignore = "calls C")]
         fn eval_with_hands_each_function_the_opaque_value() {
             // BSan trips `av_strtod`'s end-pointer false positive here too
             // (`eval.c:429`, the `next` glibc's `strtod` wrote).
@@ -1228,6 +1237,7 @@ mod unit_tests {
         }
 
         #[test]
+        #[cfg_attr(miri, ignore = "calls C")]
         fn registers_persist_across_evaluations() {
             if under_bsan() {
                 return;
@@ -1241,6 +1251,7 @@ mod unit_tests {
         }
 
         #[test]
+        #[cfg_attr(miri, ignore = "calls C")]
         fn counters_reject_an_empty_slice_as_c() {
             if under_bsan() {
                 return;

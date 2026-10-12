@@ -1,6 +1,7 @@
 use ffmpeg::libavutil::twofish;
 
 #[test]
+#[cfg_attr(miri, ignore = "reads a C global")]
 fn batch10_size_is_the_c_global() {
     for _ in 0..4 {
         // SAFETY: this global is an immutable const int with static lifetime.
@@ -24,6 +25,7 @@ fn direction(decrypt: bool) -> Direction {
 }
 
 #[test]
+#[cfg_attr(miri, ignore = "calls C")]
 fn lifecycle_status_and_rekey_match_c() {
     let (mut owner, _) = Twofish::new(&[], 0).unwrap();
     // SAFETY: the allocator yields an independently owned full C context.
@@ -157,6 +159,7 @@ fn lifecycle_status_and_rekey_match_c() {
 }
 
 #[test]
+#[cfg_attr(miri, ignore = "calls C")]
 fn batch2_in_place_multi_call_buffers_and_iv_match_c() {
     let mut owner = Twofish::new(&[0x5b; 16], 128).unwrap().0;
     let reference = Twofish::new(&[0x5b; 16], 128).unwrap().0;

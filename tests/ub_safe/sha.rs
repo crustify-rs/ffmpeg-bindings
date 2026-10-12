@@ -4,6 +4,7 @@ use ffmpeg::libavutil::sha::{Algorithm, Sha, ShaBox};
 const ALGORITHMS: [Algorithm; 3] = [Algorithm::Sha1, Algorithm::Sha224, Algorithm::Sha256];
 
 #[test]
+#[cfg_attr(miri, ignore = "calls C")]
 fn owners_and_reborrows() {
     for algorithm in ALGORITHMS {
         for _ in 0..32 {
@@ -25,6 +26,7 @@ fn owners_and_reborrows() {
 }
 
 #[test]
+#[cfg_attr(miri, ignore = "calls C")]
 fn allocation_failure() {
     // The allocator limit is global. Isolate the failure in a child process,
     // so other tests' live contexts and allocations are unaffected.
@@ -46,6 +48,7 @@ fn allocation_failure() {
 use ffmpeg::libavutil::sha::context_size;
 
 #[test]
+#[cfg_attr(miri, ignore = "reads a C global")]
 fn batch10_immutable_size_across_threads() {
     let size: &'static i32 = context_size();
     assert!(*size > 0);
@@ -64,6 +67,7 @@ fn batch10_immutable_size_across_threads() {
 }
 
 #[test]
+#[cfg_attr(miri, ignore = "calls C")]
 pub(super) fn batch2_foreign_writes_across_reborrows() {
     let data: Vec<u8> = (0..1025).map(|i| i as u8).collect();
     for algorithm in ALGORITHMS {

@@ -326,6 +326,7 @@ mod unit_tests {
     }
 
     #[test]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn layout_matches_and_raw_adoption_roundtrips() {
         assert_eq!(
             core::mem::size_of::<Des>(),
@@ -359,6 +360,7 @@ mod unit_tests {
     }
 
     #[test]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn boxed_clones_are_independent_allocations() {
         let mut original = Des::new_boxed(&[0x5A; 24], false).unwrap();
         let clone = original.clone();

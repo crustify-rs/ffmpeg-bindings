@@ -1434,7 +1434,7 @@ pub(crate) mod unit_tests {
     }
 
     #[test]
-    #[cfg_attr(miri, ignore)]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn buffer_identity_follows_shared_references() {
         // SAFETY: av_buffer_alloc has no preconditions; NULL is checked.
         let a = unsafe { ffi::av_buffer_alloc(16) };
@@ -1461,7 +1461,7 @@ pub(crate) mod unit_tests {
     }
 
     #[test]
-    #[cfg_attr(miri, ignore)]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn owner_round_trip_and_null_adoption() {
         let pool = BufferPool::new(32).unwrap();
         let ptr = pool.into_c();
@@ -1476,7 +1476,7 @@ pub(crate) mod unit_tests {
     }
 
     #[test]
-    #[cfg_attr(miri, ignore)]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn release_policy_frees_free_buffers_and_defers_outstanding_ones() {
         let pool = BufferPool::new(8).unwrap();
         let (a, b) = (get(&pool).unwrap(), get(&pool).unwrap());
@@ -1488,7 +1488,7 @@ pub(crate) mod unit_tests {
     }
 
     #[test]
-    #[cfg_attr(miri, ignore)]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn allocator_state_is_dropped_once_after_the_last_buffer() {
         let drops = Arc::new(AtomicUsize::new(0));
         let guard = DropCount(drops.clone());
@@ -1514,7 +1514,7 @@ pub(crate) mod unit_tests {
     }
 
     #[test]
-    #[cfg_attr(miri, ignore)]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn construction_failure_drops_the_allocator() {
         const FLAG: &str = "CRUSTIFY_BUFFER_POOL_FAILURE_CHILD";
         if std::env::var_os(FLAG).is_some() {
@@ -1550,7 +1550,7 @@ pub(crate) mod unit_tests {
     }
 
     #[test]
-    #[cfg_attr(miri, ignore)]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn entry_allocation_failure_releases_the_new_buffer() {
         const FLAG: &str = "CRUSTIFY_BUFFER_POOL_ENTRY_FAILURE_CHILD";
         if std::env::var_os(FLAG).is_some() {
@@ -1597,7 +1597,7 @@ pub(crate) mod unit_tests {
     }
 
     #[test]
-    #[cfg_attr(miri, ignore)]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn recycled_entry_stays_free_when_its_reference_cannot_be_allocated() {
         const FLAG: &str = "CRUSTIFY_BUFFER_POOL_RECYCLE_FAILURE_CHILD";
         if std::env::var_os(FLAG).is_some() {
@@ -1740,7 +1740,7 @@ pub(crate) mod unit_tests {
     }
 
     #[test]
-    #[cfg_attr(miri, ignore)]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn reference_adoption_round_trips_and_rejects_null() {
         let buf = BufferReference::alloc(32).unwrap();
         let raw = buf.into_c();
@@ -1760,7 +1760,7 @@ pub(crate) mod unit_tests {
     }
 
     #[test]
-    #[cfg_attr(miri, ignore)]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn uninit_conversion_takes_only_sole_writable_references() {
         let sole = BufferReference::alloc_zeroed(4).unwrap();
         let copy = sole.clone();
@@ -1781,7 +1781,7 @@ pub(crate) mod unit_tests {
     /// owner's drop; pools and `UninitBuffer::from_owner` build theirs
     /// uninitialised from the start.
     #[test]
-    #[cfg_attr(miri, ignore)]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn uninit_conversion_refuses_buffers_with_an_opaque() {
         let drops = Arc::new(AtomicUsize::new(0));
         let owner = Owner {
@@ -1873,7 +1873,7 @@ pub(crate) mod unit_tests {
     /// The copy refuses at `MAX_REFERENCES` without calling `av_buffer_ref`,
     /// through the handle and the box alike, and leaves the count.
     #[test]
-    #[cfg_attr(miri, ignore)]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn copies_stop_at_the_reference_limit() {
         assert_eq!(size_of::<BufferBody>(), 48);
         let mut buf = BufferReference::alloc_zeroed(8).unwrap();
@@ -1903,7 +1903,7 @@ pub(crate) mod unit_tests {
     /// The constructors' and the copy's failure paths: inputs come back
     /// untouched and unreleased, counts are unchanged.
     #[test]
-    #[cfg_attr(miri, ignore)]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn reference_failures_return_their_inputs() {
         const FLAG: &str = "CRUSTIFY_BUFFER_REFERENCE_FAILURE_CHILD";
         if std::env::var_os(FLAG).is_some() {
@@ -1984,7 +1984,7 @@ pub(crate) mod unit_tests {
     /// wrappers take a fresh buffer there instead, C's copy of nothing; an
     /// asan-ubsan run of this test prints no `runtime error:`.
     #[test]
-    #[cfg_attr(miri, ignore)]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn null_windows_are_copied_without_cs_memcpy() {
         let null = || BufferReference::from_heap_vec(HeapVec::empty()).unwrap();
         let mut a = null();
@@ -2020,7 +2020,7 @@ pub(crate) mod unit_tests {
     /// and leave their destination; the same buffer adds none, so it
     /// passes, and `None` releases.
     #[test]
-    #[cfg_attr(miri, ignore)]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn assignments_stop_at_the_reference_limit() {
         let src = BufferReference::alloc_zeroed(8).unwrap();
         let mut dst = BufferReference::alloc_zeroed(4).unwrap();
@@ -2054,7 +2054,7 @@ pub(crate) mod unit_tests {
     /// Every mutator's allocation failure leaves the reference as it was
     /// and reports `AVERROR(ENOMEM)`; what needs no allocation still works.
     #[test]
-    #[cfg_attr(miri, ignore)]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn mutations_fail_cleanly_without_memory() {
         const FLAG: &str = "CRUSTIFY_BUFFER_MUTATION_FAILURE_CHILD";
         if std::env::var_os(FLAG).is_some() {

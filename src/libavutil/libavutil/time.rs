@@ -52,6 +52,7 @@ mod unit_tests {
     use std::time::{Duration, Instant};
 
     #[test]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn usleep_sleeps_at_least_the_duration() {
         let start = Instant::now();
         assert_eq!(usleep(2_000), Ok(()));

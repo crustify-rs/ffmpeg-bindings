@@ -28,6 +28,7 @@ fn ffi_free_inline_shared_and_exclusive_reborrows() {
 }
 
 #[test]
+#[cfg_attr(miri, ignore = "calls C")]
 fn initialization_and_foreign_writes_across_reborrows() {
     let mut value = Xtea::new(&KEY);
     let expected_be = [0x00010203, 0x04050607, 0x80fffefd, 0xfcfbfaf9];
@@ -49,6 +50,7 @@ fn initialization_and_foreign_writes_across_reborrows() {
 }
 
 #[test]
+#[cfg_attr(miri, ignore = "calls C")]
 fn heap_lifecycle_independent_clones_and_parent_drop() {
     let mut owner = XteaBox::new().unwrap();
     assert_eq!(owner.as_ref().key(), [0; 16]);
@@ -67,6 +69,7 @@ fn heap_lifecycle_independent_clones_and_parent_drop() {
 }
 
 #[test]
+#[cfg_attr(miri, ignore = "calls C")]
 fn arrays_and_borrowed_elements() {
     let mut array = alloc_cell_array_zeroed::<Xtea>(3).unwrap();
     {
@@ -142,6 +145,7 @@ fn exercise_cipher(view: ffmpeg::libavutil::xtea::XteaRef<'_>) {
 }
 
 #[test]
+#[cfg_attr(miri, ignore = "calls C")]
 fn cipher_inline_shared_handles_and_foreign_buffer_reborrows() {
     let mut inline = Xtea::new(&KEY);
     exercise_cipher(inline.as_ref());
@@ -150,6 +154,7 @@ fn cipher_inline_shared_handles_and_foreign_buffer_reborrows() {
 }
 
 #[test]
+#[cfg_attr(miri, ignore = "calls C")]
 fn cipher_heap_array_and_clone_keepalive() {
     let mut owner = XteaBox::new().unwrap();
     owner.as_mut().init(&KEY);

@@ -9,6 +9,7 @@ use ffmpeg::libavutil::timestamp::make_string;
 const SIZE: usize = ffi::AV_TS_MAX_STRING_SIZE as usize;
 
 #[test]
+#[cfg_attr(miri, ignore = "calls C")]
 fn extreme_stamps_fit_a_heap_buffer() {
     let mut buf = Box::new([0xffu8; SIZE]);
     for ts in [i64::MIN, i64::MIN + 1, -1, 0, 1, i64::MAX] {
@@ -18,6 +19,7 @@ fn extreme_stamps_fit_a_heap_buffer() {
 }
 
 #[test]
+#[cfg_attr(miri, ignore = "calls C")]
 fn stamps_format_on_many_threads_at_once() {
     let workers: Vec<_> = (0..8i64)
         .map(|i| {
@@ -72,6 +74,7 @@ mod time_string {
     ];
 
     #[test]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn every_stamp_and_base_fits_a_heap_buffer() {
         // An exact-size heap block: ASan reports any byte written past it.
         let mut buf = Box::new([0xffu8; SIZE]);
@@ -87,6 +90,7 @@ mod time_string {
     }
 
     #[test]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn text_borrowed_from_one_buffer_survives_writes_to_another() {
         let mut a = Box::new([0u8; SIZE]);
         let mut b = Box::new([0u8; SIZE]);
@@ -99,6 +103,7 @@ mod time_string {
     }
 
     #[test]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn stamps_and_plain_strings_share_one_buffer() {
         let mut buf = Box::new([0u8; SIZE]);
         for ts in STAMPS {
@@ -110,6 +115,7 @@ mod time_string {
     }
 
     #[test]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn time_strings_format_on_many_threads_at_once() {
         let base = Rational::new(1001, 30_000);
         let workers: Vec<_> = (0..8i64)
@@ -145,6 +151,7 @@ mod time_string_by_ref {
     const STAMPS: [i64; 8] = [i64::MIN, i64::MIN + 1, -1, 0, 1, 3, 1 << 40, i64::MAX];
 
     #[test]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn every_time_base_fits_a_heap_buffer() {
         let mut buf = Box::new([0xffu8; SIZE]);
         for num in PARTS {
@@ -159,6 +166,7 @@ mod time_string_by_ref {
     }
 
     #[test]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn tiny_values_print_long_and_are_cut() {
         // `1 / i32::MAX` seconds asks `printf` for 15 decimals, and the
         // smallest products for hundreds; C cuts them at the buffer.
@@ -171,6 +179,7 @@ mod time_string_by_ref {
     }
 
     #[test]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn time_strings_format_on_many_threads_at_once() {
         let tb = Rational::new(1, 90_000);
         let workers: Vec<_> = (0..8i64)

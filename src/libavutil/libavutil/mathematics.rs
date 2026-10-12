@@ -508,6 +508,7 @@ mod unit_tests {
     }
 
     #[test]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn compare_mod_orders_wrapped_residues() {
         assert!(compare_mod(0x11, 0x02, 0x10) < 0);
         assert!(compare_mod(0x11, 0x02, 0x20) > 0);
@@ -522,6 +523,7 @@ mod unit_tests {
     }
 
     #[test]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn bessel_i0_is_even_and_grows() {
         assert_eq!(bessel_i0(0.0), 1.0);
         assert_eq!(bessel_i0(-0.0), 1.0);
@@ -560,6 +562,7 @@ mod unit_tests {
     }
 
     #[test]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn rescale_rounded_rounds_and_passes_through() {
         assert_eq!(rescale_rounded(7, 1, 2, Rounding::ZERO), Some(3));
         assert_eq!(rescale_rounded(7, 1, 2, Rounding::INF), Some(4));
@@ -580,6 +583,7 @@ mod unit_tests {
     }
 
     #[test]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn rescale_rational_converts_time_bases() {
         assert_eq!(
             rescale_rational(90_000, q(1, 90_000), q(1, 1000)),
@@ -608,6 +612,7 @@ mod unit_tests {
     }
 
     #[test]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn compare_timestamps_orders_across_time_bases() {
         let (ms, us) = (q(1, 1000), q(1, 1_000_000));
         assert_eq!(compare_timestamps(1, ms, 1000, us), Ordering::Equal);
@@ -621,6 +626,7 @@ mod unit_tests {
     }
 
     #[test]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn rescale_delta_rejects_what_c_aborts_on() {
         let mut last = 77;
         let tb = q(1, 44_100);
@@ -630,6 +636,7 @@ mod unit_tests {
     }
 
     #[test]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn rescale_delta_rejects_overflowing_steps() {
         let (coarse, fine) = (q(1, 1000), q(1, 48_000));
         // Rounding is needed (`in_tb` coarser than `out_tb`, `last` set): C
@@ -679,6 +686,7 @@ mod unit_tests {
     }
 
     #[test]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn rescale_delta_follows_known_durations() {
         // 1024-sample packets at 44.1 kHz, stamped in milliseconds.
         let (ms, sr) = (q(1, 1000), q(1, 44_100));
@@ -694,6 +702,7 @@ mod unit_tests {
     }
 
     #[test]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn add_stable_accumulates_no_error() {
         let (ts_tb, inc_tb) = (q(1, 1000), q(1, 44_100));
         let mut ts = 0;
@@ -709,6 +718,7 @@ mod unit_tests {
     }
 
     #[test]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn add_stable_rejects_what_c_overflows_on() {
         let tb = q(1, 1000);
         assert_eq!(add_stable(tb, 0, tb, i64::from(i32::MAX) + 1), None);

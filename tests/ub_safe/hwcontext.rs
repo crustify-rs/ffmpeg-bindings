@@ -50,6 +50,7 @@ mod device_type {
     }
 
     #[test]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn zeroed_array_reads_none_and_takes_every_value() {
         let values = sample();
         let mut a = alloc_array_zeroed::<DeviceType>(values.len()).unwrap();
@@ -60,6 +61,7 @@ mod device_type {
     }
 
     #[test]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn uninit_from_fn_and_cloned_arrays_are_independent() {
         let values = sample();
         let mut u = alloc_array::<DeviceType>(values.len()).unwrap();
@@ -79,6 +81,7 @@ mod device_type {
     }
 
     #[test]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn values_and_arrays_cross_and_are_shared_between_threads() {
         let values = sample();
         let a = HeapVec::from_slice(&values).unwrap();
@@ -193,6 +196,7 @@ mod frame_ref_transfer_formats {
     }
 
     #[test]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn software_frames_have_no_formats_to_list() {
         for frame in frames() {
             for dir in DIRS {
@@ -205,6 +209,7 @@ mod frame_ref_transfer_formats {
     }
 
     #[test]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn listing_through_shared_handles_on_many_threads() {
         let frames = frames();
         thread::scope(|s| {
@@ -244,6 +249,7 @@ mod contexts {
     }
 
     #[test]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn names_of_every_value_are_static_strings_that_round_trip() {
         for t in types() {
             if let Some(name) = t.name() {
@@ -257,6 +263,7 @@ mod contexts {
     /// heap copies so a read past the NUL would be caught, and bytes outside
     /// ASCII.
     #[test]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn lookups_read_only_their_string() {
         let names = types().filter_map(|t| t.name()).collect::<Vec<_>>();
         for len in 0..16 {
@@ -278,6 +285,7 @@ mod contexts {
     }
 
     #[test]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn the_backend_walk_ends_and_stays_ended() {
         let mut supported = DeviceType::supported();
         let walked: Vec<DeviceType> = supported.by_ref().collect();
@@ -293,6 +301,7 @@ mod contexts {
     }
 
     #[test]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn constructors_fail_cleanly_for_every_value() {
         let options = Dict::from_entries([(c"a", c"1"), (c"b", c"")]).unwrap();
         for t in types() {
@@ -310,6 +319,7 @@ mod contexts {
     /// The name lookups and the backend walk read static tables only, so
     /// any number of threads may run them.
     #[test]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn lookups_and_walks_from_many_threads() {
         let handles: Vec<_> = (0..8)
             .map(|i| {
@@ -387,6 +397,7 @@ mod frames_constraints {
     }
 
     #[test]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn lists_are_copied_replaced_and_taken() {
         let mut c = FramesConstraints::new().unwrap();
         for list in lists() {
@@ -411,6 +422,7 @@ mod frames_constraints {
     }
 
     #[test]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn unknown_lists_and_sizes_round_trip() {
         let mut c = FramesConstraints::new().unwrap();
         let r = c.as_ref();
@@ -439,6 +451,7 @@ mod frames_constraints {
     }
 
     #[test]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn many_boxes_drop_in_any_order() {
         let mut boxes: Vec<_> = lists()
             .iter()
@@ -459,6 +472,7 @@ mod frames_constraints {
     }
 
     #[test]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn boxes_and_handles_cross_threads() {
         let mut c = FramesConstraints::new().unwrap();
         c.as_mut()

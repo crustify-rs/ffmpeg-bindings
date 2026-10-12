@@ -22,6 +22,7 @@ fn ints() -> impl Iterator<Item = i32> {
 }
 
 #[test]
+#[cfg_attr(miri, ignore = "calls C")]
 fn integer_clamps_stay_in_range_for_every_input() {
     for a in ints() {
         assert!((0..=255).contains(&i32::from(clamp_to_u8(a))));
@@ -44,6 +45,7 @@ fn integer_clamps_stay_in_range_for_every_input() {
 }
 
 #[test]
+#[cfg_attr(miri, ignore = "calls C")]
 fn power_of_two_clamps_are_defined_at_every_accepted_position() {
     for p in 0..=31u32 {
         let hi = (1i64 << p) - 1;
@@ -67,6 +69,7 @@ fn power_of_two_clamps_reject_positions_beyond_31() {
 }
 
 #[test]
+#[cfg_attr(miri, ignore = "calls C")]
 fn float_clamps_accept_every_special_value() {
     let specials = [
         0.0,
@@ -90,6 +93,7 @@ fn float_clamps_accept_every_special_value() {
 }
 
 #[test]
+#[cfg_attr(miri, ignore = "calls C")]
 fn zero_extend_is_defined_at_every_position() {
     for p in (0..=100).chain([u32::MAX - 1, u32::MAX]) {
         for a in [0, 1, u32::MAX] {
@@ -163,6 +167,7 @@ mod count_and_saturate {
 }
 
 #[test]
+#[cfg_attr(miri, ignore = "calls C")]
 fn log2_16bit_takes_every_value_of_its_domain() {
     for v in 0..=u16::MAX {
         assert!(log2_16bit(v) < 16);
@@ -170,6 +175,7 @@ fn log2_16bit_takes_every_value_of_its_domain() {
 }
 
 #[test]
+#[cfg_attr(miri, ignore = "calls C")]
 fn log2_and_parity_take_every_bit_boundary() {
     for bit in 0..32 {
         for v in [(1u32 << bit) - 1, 1 << bit, (1 << bit) | 1, !(1u32 << bit)] {
@@ -181,6 +187,7 @@ fn log2_and_parity_take_every_bit_boundary() {
 }
 
 #[test]
+#[cfg_attr(miri, ignore = "calls C")]
 fn helpers_run_concurrently() {
     let handles: Vec<_> = (0..4u32)
         .map(|t| {

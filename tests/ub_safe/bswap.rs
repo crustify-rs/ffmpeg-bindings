@@ -4,6 +4,7 @@
 use ffmpeg::libavutil::bswap::{swap16, swap32, swap64};
 
 #[test]
+#[cfg_attr(miri, ignore = "calls C")]
 fn every_bit_moves_to_its_mirrored_byte() {
     for b in 0..64u32 {
         let w = 1u64 << b;
@@ -20,6 +21,7 @@ fn every_bit_moves_to_its_mirrored_byte() {
 }
 
 #[test]
+#[cfg_attr(miri, ignore = "calls C")]
 fn swaps_run_concurrently() {
     let workers: Vec<_> = (0..4u64)
         .map(|t| {

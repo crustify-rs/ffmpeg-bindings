@@ -121,6 +121,7 @@ mod component_descriptor {
     }
 
     #[test]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn getters_read_what_c_stores_for_every_component() {
         let table = c_table();
         assert!(table.len() > 200, "C has {} descriptors", table.len());
@@ -140,6 +141,7 @@ mod component_descriptor {
     }
 
     #[test]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn components_written_through_setters_read_like_c_s_table() {
         let img = image();
         let mut observed_reads = 0;
@@ -354,6 +356,7 @@ mod color_names {
     }
 
     #[test]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn lookups_match_c_for_every_candidate() {
         for name in candidates() {
             for (i, (rust, c)) in lookups(&name).into_iter().enumerate() {
@@ -363,6 +366,7 @@ mod color_names {
     }
 
     #[test]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn every_table_name_is_found() {
         let tables: [&[&str]; 5] = [&RANGES, &PRIMARIES, &TRANSFERS[..19], &SPACES, &LOCATIONS];
         for (i, table) in tables.into_iter().enumerate() {
@@ -378,6 +382,7 @@ mod color_names {
     }
 
     #[test]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn repeated_interleaved_lookups_match_c() {
         let names = candidates();
         let first: Vec<_> = names.iter().map(|n| lookups(n)).collect();
@@ -389,6 +394,7 @@ mod color_names {
     }
 
     #[test]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn shared_names_resolve_as_c_does() {
         // `reserved` names two primaries and two transfers: both sides take the
         // first, value 0.
@@ -443,6 +449,7 @@ mod swap_endianness {
     }
 
     #[test]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn every_value_swaps_as_c_swaps_it() {
         let mut swapped = 0;
         for raw in candidates() {
@@ -455,6 +462,7 @@ mod swap_endianness {
     }
 
     #[test]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn swapping_twice_returns_where_c_returns() {
         for raw in candidates() {
             let (c1, r1) = (c_swap(raw), rust_swap(raw));
@@ -544,6 +552,7 @@ mod property_names {
     }
 
     #[test]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn names_match_c_for_every_value() {
         let mut named = [0usize; 6];
         for raw in raws() {
@@ -595,6 +604,7 @@ mod property_names {
     }
 
     #[test]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn names_map_back_through_both_lookups() {
         for raw in raws() {
             for (i, (name, _)) in names(raw).into_iter().enumerate() {
@@ -625,6 +635,7 @@ mod property_names {
     }
 
     #[test]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn alpha_mode_from_name_matches_c() {
         let mut found = 0;
         for name in alpha_candidates() {
@@ -636,6 +647,7 @@ mod property_names {
     }
 
     #[test]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn repeated_interleaved_calls_match_c() {
         let names_: Vec<CString> = alpha_candidates();
         let values = raws();
@@ -705,6 +717,7 @@ mod chroma_positions {
     }
 
     #[test]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn position_matches_c_for_every_value() {
         let mut found = 0;
         for raw in raws() {
@@ -716,6 +729,7 @@ mod chroma_positions {
     }
 
     #[test]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn from_position_matches_c_on_and_around_the_grid() {
         let mut found = 0;
         for x in COORDS {
@@ -732,6 +746,7 @@ mod chroma_positions {
     }
 
     #[test]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn positions_round_trip_on_both_sides() {
         for raw in raws() {
             let loc = ChromaLocation::from_raw(ffi::AVChromaLocation(raw));
@@ -788,6 +803,7 @@ mod pixel_format_names {
     }
 
     #[test]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn name_matches_c_for_every_value() {
         let mut named = 0;
         for raw in raws() {
@@ -839,6 +855,7 @@ mod pixel_format_names {
     }
 
     #[test]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn from_name_matches_c_for_every_candidate() {
         let mut found = 0;
         for name in candidates() {
@@ -850,6 +867,7 @@ mod pixel_format_names {
     }
 
     #[test]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn names_map_back_on_both_sides() {
         for raw in 0..nb() {
             let f = PixelFormat::from_raw(ffi::AVPixelFormat(raw));
@@ -860,6 +878,7 @@ mod pixel_format_names {
     }
 
     #[test]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn native_endian_names_resolve_as_c_does() {
         assert_eq!(lookups(c"gray16").0, PixelFormat::GRAY16.into_raw().0);
         assert_eq!(lookups(c"rgb32").0, PixelFormat::RGB32.into_raw().0);
@@ -871,6 +890,7 @@ mod pixel_format_names {
     }
 
     #[test]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn repeated_interleaved_calls_match_c() {
         let names = candidates();
         let values: Vec<c_int> = raws().collect();
@@ -979,6 +999,7 @@ mod pixel_format_loss {
     }
 
     #[test]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn conversion_loss_matches_c_for_every_pair() {
         let raws = raws();
         let (mut ok, mut errs) = (0, [0usize; 4]);
@@ -1005,6 +1026,7 @@ mod pixel_format_loss {
     }
 
     #[test]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn best_of_two_matches_c_for_every_source() {
         let raws = raws();
         let mut next = xorshift(0x9e37_79b9);
@@ -1026,6 +1048,7 @@ mod pixel_format_loss {
     }
 
     #[test]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn best_of_two_with_loss_matches_c_under_every_ignore_set() {
         let raws = raws();
         let all = (0..8).fold(Loss::empty(), |acc, i| acc | Loss::from_bits_retain(1 << i));
@@ -1062,6 +1085,7 @@ mod pixel_format_loss {
     }
 
     #[test]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn chained_choices_match_c_step_by_step() {
         // Pick the best of every format for a few sources, carrying the
         // answer and its loss into the next call on both sides.
@@ -1307,6 +1331,7 @@ mod pixel_format_descriptor {
     }
 
     #[test]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn getters_read_what_c_stores_and_reports_for_every_entry() {
         let mut empty = 0;
         let mut aliases = 0;
@@ -1507,6 +1532,7 @@ mod pixel_format_descriptor {
     }
 
     #[test]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn descriptors_rebuilt_through_setters_read_like_c_s_table() {
         let img = image();
         let (mut rebuilt, mut read, mut written) = (0, 0, 0);
@@ -1533,6 +1559,7 @@ mod pixel_format_descriptor {
     }
 
     #[test]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn a_heap_array_of_descriptors_set_whole_reads_like_c_s_table() {
         let img = image();
         let named: Vec<c_int> = (0..NB).filter(|&f| !c_name(f).is_null()).collect();
@@ -1622,6 +1649,7 @@ mod pixel_format_queries {
     }
 
     #[test]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn describe_writes_what_c_writes() {
         for raw in (-3..NB).chain([c_int::MIN]) {
             let mut rust_buf = [b'#'; 40];
@@ -1649,6 +1677,7 @@ mod pixel_format_queries {
     }
 
     #[test]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn plane_count_matches_c() {
         for raw in (-3..NB + 3).chain([c_int::MIN, c_int::MAX]) {
             // SAFETY: by value; C looks the value up through a range check.
@@ -1659,6 +1688,7 @@ mod pixel_format_queries {
     }
 
     #[test]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn chroma_subsampling_matches_c() {
         for raw in (-3..NB + 3).chain([c_int::MIN, c_int::MAX]) {
             let (mut h, mut v) = (-7, -7);
@@ -1724,6 +1754,7 @@ mod descriptor_table {
     }
 
     #[test]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn descriptor_is_cs_table_entry() {
         for raw in values() {
             let d = format(raw).descriptor();
@@ -1736,6 +1767,7 @@ mod descriptor_table {
     }
 
     #[test]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn pixel_format_matches_c_for_every_entry_and_for_copies() {
         for raw in 0..NB {
             let d = format(raw).descriptor().unwrap();
@@ -1755,6 +1787,7 @@ mod descriptor_table {
     }
 
     #[test]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn iteration_follows_cs_walk_step_by_step() {
         let mut rust = descriptors();
         // SAFETY: NULL starts C's iteration.
@@ -1778,6 +1811,7 @@ mod descriptor_table {
     }
 
     #[test]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn next_in_table_from_every_entry_matches_c() {
         for raw in 0..NB {
             let p = c_get(raw);
@@ -1789,6 +1823,7 @@ mod descriptor_table {
     }
 
     #[test]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn bit_counts_match_c_for_every_entry() {
         for raw in 0..NB {
             let p = c_get(raw);
@@ -1818,6 +1853,7 @@ mod descriptor_table {
     const EDGES: [c_int; 9] = [-1, 0, 1, 7, 8, 1 << 20, (1 << 27) - 1, 1 << 28, c_int::MAX];
 
     #[test]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn bit_counts_of_rust_built_descriptors_match_c_where_accepted() {
         let (mut accepted, mut refused) = (0, 0);
         for (count, log2) in [
@@ -2044,6 +2080,7 @@ mod image_lines {
     }
 
     #[test]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn reads_match_c_for_every_format_component_and_line() {
         let img = image();
         for (raw, d) in formats() {
@@ -2108,6 +2145,7 @@ mod image_lines {
     }
 
     #[test]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn write_sequences_match_c_after_every_step() {
         for (raw, d) in formats() {
             for flipped in [false, true] {
@@ -2171,6 +2209,7 @@ mod image_lines {
     }
 
     #[test]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn pal8_reads_its_palette_like_c() {
         let d = PixelFormat::PAL8.descriptor().unwrap();
         let mut img = image();
@@ -2483,6 +2522,7 @@ mod random_lines {
     }
 
     #[test]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn lines_are_accepted_exactly_where_c_is_defined_and_in_bounds() {
         let bsan = std::env::var("CRUSTIFY_FFMPEG_VARIANT").as_deref() == Ok("bsan");
         let rounds = if bsan { 500 } else { 40_000 };

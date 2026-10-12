@@ -66,6 +66,7 @@ fn rust_values_are_the_c_values() {
 }
 
 #[test]
+#[cfg_attr(miri, ignore = "calls C")]
 fn rust_accepts_exactly_what_c_accepts() {
     // Every value up to past the flag, then the high bits.
     let raws = (0..=8192 + 64).chain([
@@ -89,6 +90,7 @@ fn rust_accepts_exactly_what_c_accepts() {
 }
 
 #[test]
+#[cfg_attr(miri, ignore = "calls C")]
 fn rescales_agree_on_every_input() {
     for (c, r) in roundings() {
         for &(b, cc) in &BC {
@@ -104,6 +106,7 @@ fn rescales_agree_on_every_input() {
 }
 
 #[test]
+#[cfg_attr(miri, ignore = "calls C")]
 fn chained_rescales_agree_after_every_step() {
     for (c, r) in roundings() {
         let (mut via_c, mut via_rust) = (987_654_321_i64, 987_654_321_i64);
@@ -116,6 +119,7 @@ fn chained_rescales_agree_after_every_step() {
 }
 
 #[test]
+#[cfg_attr(miri, ignore = "calls C")]
 fn pass_min_max_is_what_c_passes_through() {
     for (_, r) in roundings() {
         for extreme in [i64::MIN, i64::MAX] {
@@ -126,6 +130,7 @@ fn pass_min_max_is_what_c_passes_through() {
 }
 
 #[test]
+#[cfg_attr(miri, ignore = "calls C")]
 fn method_rounds_as_c_without_the_flag() {
     for (c, r) in roundings() {
         let method = r.method();
@@ -144,6 +149,7 @@ fn method_rounds_as_c_without_the_flag() {
 }
 
 #[test]
+#[cfg_attr(miri, ignore = "calls C")]
 fn methods_round_halves_as_c_documents() {
     // 5/2 and -5/2 under each method, as in `mathematics.h`.
     let expect = [
@@ -184,6 +190,7 @@ mod numeric {
     ];
 
     #[test]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn compare_mod_matches_c_for_every_modulus_shape() {
         // Every power of two, then zero and moduli that are not powers of two,
         // which C accepts with a defined result.
@@ -201,6 +208,7 @@ mod numeric {
     }
 
     #[test]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn bessel_i0_matches_c_bit_for_bit() {
         let mut xs = vec![
             0.0,
@@ -261,6 +269,7 @@ mod greatest_common_divisor {
     ];
 
     #[test]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn gcd_matches_av_gcd_on_every_pair() {
         for a in GCD {
             for b in GCD {
@@ -272,6 +281,7 @@ mod greatest_common_divisor {
     }
 
     #[test]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn chained_gcds_agree_after_every_step() {
         let (mut rust, mut c) = (0i64, 0i64);
         for x in GCD.iter().rev().chain(&[360, 84, 18, 7]) {
@@ -286,6 +296,7 @@ mod greatest_common_divisor {
 // ---- av_rescale ----
 
 #[test]
+#[cfg_attr(miri, ignore = "calls C")]
 fn rescale_matches_av_rescale_on_every_class() {
     use ffmpeg::libavutil::mathematics::rescale as rescale_near;
     let bc = BC.into_iter().chain([
@@ -365,6 +376,7 @@ mod timestamps {
     }
 
     #[test]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn rescale_rounded_is_av_rescale_rnd() {
         let more_bc = BC
             .into_iter()
@@ -385,6 +397,7 @@ mod timestamps {
     }
 
     #[test]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn rescale_rational_is_av_rescale_q() {
         for bq in TBS {
             for cq in TBS {
@@ -414,6 +427,7 @@ mod timestamps {
     }
 
     #[test]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn compare_timestamps_is_av_compare_ts() {
         for ta in TBS {
             for tb in TBS {
@@ -491,6 +505,7 @@ mod timestamps {
     }
 
     #[test]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn rescale_delta_tracks_av_rescale_delta_over_streams() {
         for (n, s) in streams().into_iter().enumerate() {
             let (mut mine, mut theirs) = (i64::MIN, i64::MIN);
@@ -511,6 +526,7 @@ mod timestamps {
     }
 
     #[test]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn unrepresentable_results_update_the_state_as_c_does() {
         // `2^61` ms is beyond `i64` in 1/90000 units, while the state in
         // seconds is not.
@@ -529,6 +545,7 @@ mod timestamps {
     }
 
     #[test]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn rescale_delta_restarts_from_a_reset_state() {
         let s = &streams()[0];
         let (mut mine, mut theirs) = (i64::MIN, i64::MIN);
@@ -546,6 +563,7 @@ mod timestamps {
     }
 
     #[test]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn add_stable_tracks_av_add_stable_over_sequences() {
         let cases = [
             ((1, 1000), (1, 44100), 1024),
@@ -578,6 +596,7 @@ mod timestamps {
     }
 
     #[test]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn add_stable_agrees_on_c_s_defined_edges() {
         for ts_tb in TBS {
             for inc_tb in TBS {
@@ -597,6 +616,7 @@ mod timestamps {
     }
 
     #[test]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn pass_through_survives_a_round_trip() {
         let pass = Rounding::NEAR_INF.pass_min_max();
         let there = rescale_rational_rounded(i64::MIN, q((1, 1000)), q((1, 90000)), pass);

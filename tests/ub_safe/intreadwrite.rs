@@ -145,6 +145,7 @@ fn shared_value_is_read_concurrently() {
 }
 
 #[test]
+#[cfg_attr(miri, ignore = "calls C")]
 fn heap_windows_over_c_memory_stay_in_bounds() {
     // An `av_malloc` block, so ASan bounds-checks C's allocation itself.
     let mut a = alloc_array_zeroed::<u8>(17).unwrap();
@@ -157,6 +158,7 @@ fn heap_windows_over_c_memory_stay_in_bounds() {
 }
 
 #[test]
+#[cfg_attr(miri, ignore = "calls C")]
 fn heap_boxed_values_are_built_cloned_and_freed() {
     let mut a = HeapBox::<Unaligned64>::new_zeroed().unwrap();
     assert_eq!(a.as_ref().value(), 0);
@@ -172,6 +174,7 @@ fn heap_boxed_values_are_built_cloned_and_freed() {
 }
 
 #[test]
+#[cfg_attr(miri, ignore = "calls C")]
 fn heap_value_arrays_are_written_through_handles() {
     let mut a = alloc_cell_array_zeroed::<Unaligned64>(5).unwrap();
     assert!(a.as_handles().iter().all(|v| v.value() == 0));
@@ -260,6 +263,7 @@ fn constructed_values_are_fully_initialised() {
 }
 
 #[test]
+#[cfg_attr(miri, ignore = "calls C")]
 fn heap_boxes_read_and_write_c_storage() {
     let mut a = HeapBox::<Alias16>::new_zeroed().unwrap();
     assert_eq!(a.as_ref().u16(), 0);
@@ -281,6 +285,7 @@ fn heap_boxes_read_and_write_c_storage() {
 }
 
 #[test]
+#[cfg_attr(miri, ignore = "calls C")]
 fn heap_arrays_reach_each_element_through_handles() {
     let mut v = alloc_cell_array_zeroed::<Alias32>(3).unwrap();
     for (i, mut m) in v.as_handles_mut().iter_mut().enumerate() {
@@ -325,6 +330,7 @@ fn alias_values_cross_threads() {
 }
 
 #[test]
+#[cfg_attr(miri, ignore = "calls C")]
 fn heap_owners_move_across_threads() {
     let a = Alias32::from_u32(7);
     let b = HeapBox::<Alias16>::new_zeroed().unwrap();
@@ -339,6 +345,7 @@ fn heap_owners_move_across_threads() {
 }
 
 #[test]
+#[cfg_attr(miri, ignore = "calls C")]
 fn heap_shared_handles_read_concurrently() {
     let mut boxed = HeapBox::<Alias32>::new_zeroed().unwrap();
     boxed.as_mut().set_f32(2.5);
@@ -358,6 +365,7 @@ fn heap_shared_handles_read_concurrently() {
 }
 
 #[test]
+#[cfg_attr(miri, ignore = "calls C")]
 fn heap_exclusive_handles_write_on_another_thread() {
     let mut a = Alias32::zeroed();
     let mut b = HeapBox::<Alias16>::new_zeroed().unwrap();
@@ -416,6 +424,7 @@ fn byte_views_stay_in_bounds_of_an_exact_rust_buffer() {
 }
 
 #[test]
+#[cfg_attr(miri, ignore = "calls C")]
 fn heap_byte_views_stay_in_bounds_of_an_exact_c_buffer() {
     for len in [4, 5, 7, 8, 13] {
         let mut buf = alloc_array_zeroed::<u8>(len).unwrap();
@@ -463,6 +472,7 @@ fn inline_values_at_odd_offsets_read_and_write_unaligned() {
 }
 
 #[test]
+#[cfg_attr(miri, ignore = "calls C")]
 fn heap_boxes_allocate_clone_and_free() {
     let mut a = HeapBox::<Unaligned16>::new_zeroed().unwrap();
     assert_eq!(a.as_ref().value(), 0);
@@ -480,6 +490,7 @@ fn heap_boxes_allocate_clone_and_free() {
 }
 
 #[test]
+#[cfg_attr(miri, ignore = "calls C")]
 fn heap_arrays_hand_out_handles_in_bounds() {
     let mut a = alloc_cell_array_zeroed::<Unaligned32>(5).unwrap();
     let mut h = a.as_handles_mut();
@@ -580,6 +591,7 @@ fn values_and_their_handles_move_between_threads() {
 }
 
 #[test]
+#[cfg_attr(miri, ignore = "calls C")]
 fn heap_boxes_cross_threads() {
     let mut b = HeapBox::<Unaligned32>::new_zeroed().unwrap();
     b.as_mut().set_value(42);
@@ -629,6 +641,7 @@ fn alias64_value_takes_every_member() {
 }
 
 #[test]
+#[cfg_attr(miri, ignore = "calls C")]
 fn heap_alias64_box_takes_every_member_and_clones() {
     let mut b = HeapBox::<Alias64>::new_zeroed().unwrap();
     assert_eq!(b.as_ref().u8x8(), [0; 8]);
@@ -642,6 +655,7 @@ fn heap_alias64_box_takes_every_member_and_clones() {
 }
 
 #[test]
+#[cfg_attr(miri, ignore = "calls C")]
 fn heap_alias64_array_elements_stay_in_bounds() {
     let mut v = alloc_cell_array_zeroed::<Alias64>(5).unwrap();
     {
@@ -658,6 +672,7 @@ fn heap_alias64_array_elements_stay_in_bounds() {
 }
 
 #[test]
+#[cfg_attr(miri, ignore = "calls C")]
 fn heap_alias64_handles_read_concurrently() {
     let a = Alias64::from_u64(42);
     let b = HeapBox::<Alias64>::new_zeroed().unwrap();
@@ -676,6 +691,7 @@ fn heap_alias64_handles_read_concurrently() {
 }
 
 #[test]
+#[cfg_attr(miri, ignore = "calls C")]
 fn heap_alias64_handles_and_owners_move_across_threads() {
     let mut a = Alias64::default();
     let mut b = HeapBox::<Alias64>::new_zeroed().unwrap();
@@ -753,6 +769,7 @@ fn alias_byte_views_stay_in_bounds_of_exact_rust_buffers() {
 }
 
 #[test]
+#[cfg_attr(miri, ignore = "calls C")]
 fn heap_alias_byte_views_stay_in_bounds_of_exact_c_buffers() {
     for len in [4usize, 9, 32] {
         let mut bytes = alloc_array_zeroed::<u8>(len).unwrap();

@@ -203,6 +203,7 @@ mod pixel_format_descriptor_from_raw {
     }
 
     #[test]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn c_table_entries_adopt_and_read_back() {
         let nb = ffi::AVPixelFormat::AV_PIX_FMT_NB.0;
         let mut empty = 0;

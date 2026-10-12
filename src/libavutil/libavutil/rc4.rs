@@ -238,6 +238,7 @@ mod unit_tests {
     }
 
     #[test]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn short_output_leaves_stream_unchanged() {
         let mut context = Rc4::from_key(b"key").unwrap();
         let mut reference = context;
@@ -287,6 +288,7 @@ mod unit_tests {
     }
 
     #[test]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn raw_adoption_round_trip_uses_the_same_heap_policy() {
         let original = Rc4::new(b"key").unwrap();
         let ptr = original.into_c();

@@ -20,6 +20,7 @@ fn detected() -> c_int {
 }
 
 #[test]
+#[cfg_attr(miri, ignore = "calls C")]
 fn every_subset_of_the_detected_cpu_flags() {
     let _g = FORCED.lock().unwrap();
     let d = detected();
@@ -36,6 +37,7 @@ fn every_subset_of_the_detected_cpu_flags() {
 }
 
 #[test]
+#[cfg_attr(miri, ignore = "calls C")]
 fn concurrent_forcing_and_reading() {
     let _g = FORCED.lock().unwrap();
     let d = detected();

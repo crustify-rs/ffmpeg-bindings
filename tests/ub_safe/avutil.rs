@@ -29,6 +29,7 @@ fn index_and_debug_accept_every_value() {
 }
 
 #[test]
+#[cfg_attr(miri, ignore = "calls C")]
 fn zeroed_array_reads_video_and_takes_every_value() {
     let values = sample();
     let mut a = alloc_array_zeroed::<MediaType>(values.len()).unwrap();
@@ -39,6 +40,7 @@ fn zeroed_array_reads_video_and_takes_every_value() {
 }
 
 #[test]
+#[cfg_attr(miri, ignore = "calls C")]
 fn uninit_and_from_fn_arrays_fill_end_to_end() {
     let values = sample();
     let mut u = alloc_array::<MediaType>(values.len()).unwrap();
@@ -51,6 +53,7 @@ fn uninit_and_from_fn_arrays_fill_end_to_end() {
 }
 
 #[test]
+#[cfg_attr(miri, ignore = "calls C")]
 fn clone_is_independent_of_its_source() {
     let values = sample();
     let mut a = HeapVec::from_slice(&values).unwrap();
@@ -61,12 +64,14 @@ fn clone_is_independent_of_its_source() {
 }
 
 #[test]
+#[cfg_attr(miri, ignore = "calls C")]
 fn empty_arrays_allocate_and_free() {
     drop(alloc_array_zeroed::<MediaType>(0).unwrap());
     drop(HeapVec::<MediaType>::from_slice(&[]).unwrap());
 }
 
 #[test]
+#[cfg_attr(miri, ignore = "calls C")]
 fn arrays_cross_and_are_shared_between_threads() {
     let values = sample();
     let a = HeapVec::from_slice(&values).unwrap();
@@ -104,6 +109,7 @@ fn picture_type_debug_and_conversions_accept_every_value() {
 }
 
 #[test]
+#[cfg_attr(miri, ignore = "calls C")]
 fn picture_type_arrays_fill_clone_and_free() {
     let values = picture_sample();
     let mut a = alloc_array_zeroed::<PictureType>(values.len()).unwrap();
@@ -125,6 +131,7 @@ fn picture_type_arrays_fill_clone_and_free() {
 }
 
 #[test]
+#[cfg_attr(miri, ignore = "calls C")]
 fn picture_type_arrays_cross_and_are_shared_between_threads() {
     let values = picture_sample();
     let a = HeapVec::from_slice(&values).unwrap();
@@ -152,6 +159,7 @@ mod version_and_x_if_null {
     };
 
     #[test]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn static_strings_read_whole_and_cross_threads() {
         let lens = |_| {
             (
@@ -169,6 +177,7 @@ mod version_and_x_if_null {
     }
 
     #[test]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn x_if_null_results_borrow_their_sources() {
         let a = Box::new([1u64; 4]);
         let b = Box::new([2u64; 4]);
@@ -180,6 +189,7 @@ mod version_and_x_if_null {
     }
 
     #[test]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn x_if_null_mut_results_write_their_source_only() {
         let mut a = Box::new([0u8; 8]);
         let mut b = Box::new([0u8; 8]);
@@ -199,6 +209,7 @@ mod fourcc {
     use ffmpeg::libavutil::avutil::fourcc_string;
 
     #[test]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn fourcc_strings_fit_their_buffer() {
         let mut buf = [0u8; 32];
         // The longest: four bracketed three-digit bytes.
@@ -213,6 +224,7 @@ mod fourcc {
     }
 
     #[test]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn fourcc_strings_on_many_threads() {
         let handles: Vec<_> = (0..8u32)
             .map(|t| {
@@ -257,6 +269,7 @@ mod names {
     ];
 
     #[test]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn every_value_names_and_letters() {
         for v in VALUES {
             let name = MediaType::from_raw(ffi::AVMediaType(v as i32)).as_str();
@@ -268,6 +281,7 @@ mod names {
     }
 
     #[test]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn names_outlive_any_value_and_cross_threads() {
         let names: Vec<&'static str> = thread::scope(|s| {
             let workers: Vec<_> = (0..4)

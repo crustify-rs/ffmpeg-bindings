@@ -193,7 +193,7 @@ mod unit_tests {
     use super::*;
 
     #[test]
-    #[cfg(not(miri))]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn rejected_buffers_are_atomic() {
         let key = [0; 16];
         let context = Camellia::new(&key).unwrap();
@@ -239,6 +239,7 @@ mod unit_tests {
     }
 
     #[test]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn raw_owner_round_trip() {
         let context = Camellia::new(&[0; 16]).unwrap();
         let ptr = context.into_c();

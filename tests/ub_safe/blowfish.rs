@@ -1,6 +1,7 @@
 use ffmpeg::libavutil::blowfish::{Blowfish, BlowfishBox};
 
 #[test]
+#[cfg_attr(miri, ignore = "calls C")]
 fn foreign_initialization_across_reborrows() {
     for len in [1, 2, 8, 24, 56, 72, 128] {
         let key = vec![0x5a; len].into_boxed_slice();
@@ -37,6 +38,7 @@ fn foreign_initialization_across_reborrows() {
 }
 
 #[test]
+#[cfg_attr(miri, ignore = "calls C")]
 fn allocation_failure_is_reported_without_leaking() {
     use ffmpeg::libavutil::{blowfish, camellia, mem};
     const CHILD: &str = "CRUSTIFY_CRYPTO_BATCH1_ALLOC_FAILURE_CHILD";
@@ -71,6 +73,7 @@ fn allocation_failure_is_reported_without_leaking() {
 use ffmpeg::libavutil::aes::Direction;
 
 #[test]
+#[cfg_attr(miri, ignore = "calls C")]
 fn processing_across_reborrows_and_unaligned_buffers() {
     for key_len in [1, 8, 56] {
         for direction in [Direction::Encrypt, Direction::Decrypt] {

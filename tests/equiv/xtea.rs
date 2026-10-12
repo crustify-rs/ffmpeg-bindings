@@ -17,6 +17,7 @@ const KEYS: [[u8; 16]; 4] = [
 ];
 
 #[test]
+#[cfg_attr(miri, ignore = "calls C")]
 fn allocation_and_reinitialization_preserve_the_full_public_array() {
     let reference = XteaBox::new().unwrap();
     let mut wrapped = XteaBox::new().unwrap();
@@ -93,6 +94,7 @@ unsafe fn observe_c(ctx: *mut ffi::AVXTEA, le: bool, cbc: bool) -> ([u8; 24], [u
 }
 
 #[test]
+#[cfg_attr(miri, ignore = "calls C")]
 fn c_cipher_observes_setters_and_initialization_identically() {
     for key in KEYS {
         for le in [false, true] {
@@ -199,6 +201,7 @@ fn reference_call(
 }
 
 #[test]
+#[cfg_attr(miri, ignore = "calls C")]
 fn cipher_matrix_and_multicall_cbc_state_match_c() {
     for key in KEYS {
         for key_le in [false, true] {

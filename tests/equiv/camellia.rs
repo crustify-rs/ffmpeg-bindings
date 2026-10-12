@@ -4,6 +4,7 @@ use ffmpeg::libavutil::{
 };
 
 #[test]
+#[cfg_attr(miri, ignore = "calls C")]
 fn lifecycle_sequences_match_c() {
     let _serial = TEST_LOCK.lock().unwrap();
     // SAFETY: C returns a fresh zero-filled full-sized context, or NULL.
@@ -81,6 +82,7 @@ fn lifecycle_sequences_match_c() {
 }
 
 #[test]
+#[cfg_attr(miri, ignore = "reads a C global")]
 fn batch10_size_is_the_c_global() {
     for _ in 0..4 {
         // SAFETY: this global is an immutable const int with static lifetime.
@@ -95,6 +97,7 @@ static TEST_LOCK: std::sync::Mutex<()> = std::sync::Mutex::new(());
 use ffmpeg::libavutil::aes::Direction;
 
 #[test]
+#[cfg_attr(miri, ignore = "calls C")]
 fn buffer_sequences_match_c() {
     let _serial = TEST_LOCK.lock().unwrap();
     for key_len in [16, 24, 32] {

@@ -9,6 +9,7 @@ use ffmpeg::libavutil::cpu::{cpu_count, cpu_flags, cpu_max_align, force_cpu_coun
 /// The only test touching the process-global override, so the sequential
 /// checks see no other writer.
 #[test]
+#[cfg_attr(miri, ignore = "calls C")]
 fn override_is_shared_soundly_across_threads() {
     let detected = cpu_count();
     assert!(detected >= 1);
@@ -42,6 +43,7 @@ fn override_is_shared_soundly_across_threads() {
 }
 
 #[test]
+#[cfg_attr(miri, ignore = "calls C")]
 fn cpu_flags_read_concurrently_agree() {
     let reads: Vec<_> = (0..8)
         .map(|_| std::thread::spawn(|| (0..1000).map(|_| cpu_flags()).collect::<Vec<_>>()))
@@ -85,6 +87,7 @@ mod parse_caps {
     ];
 
     #[test]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn hostile_strings_fail_without_ub() {
         for s in HOSTILE {
             let mut flags = 0x10;
@@ -93,6 +96,7 @@ mod parse_caps {
     }
 
     #[test]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn token_edges_and_lengths_are_sound() {
         for len in [0, 1, 254, 255, 256, 1000] {
             for fill in ["9", "a", ".", "+", "-", "+a", "1-"] {
@@ -117,6 +121,7 @@ mod parse_caps {
     }
 
     #[test]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn concurrent_parses_do_not_race() {
         std::thread::scope(|scope| {
             for hostile in HOSTILE.into_iter().take(8) {

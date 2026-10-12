@@ -48,6 +48,7 @@ mod side_data_type {
     }
 
     #[test]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn zeroed_array_reads_pan_scan_and_takes_every_value() {
         let values = sample();
         let mut a = alloc_array_zeroed::<SideDataType>(values.len()).unwrap();
@@ -58,6 +59,7 @@ mod side_data_type {
     }
 
     #[test]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn uninit_from_fn_and_cloned_arrays_are_independent() {
         let values = sample();
         let mut u = alloc_array::<SideDataType>(values.len()).unwrap();
@@ -77,6 +79,7 @@ mod side_data_type {
     }
 
     #[test]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn values_and_arrays_cross_and_are_shared_between_threads() {
         let values = sample();
         let a = HeapVec::from_slice(&values).unwrap();
@@ -140,6 +143,7 @@ mod active_format_description {
     }
 
     #[test]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn heap_arrays_read_any_stored_value() {
         let bytes = alloc_array_from_fn(256, |i| Afd::from_byte(i as u8)).unwrap();
         let back: Vec<Option<u8>> = bytes.as_slice().iter().map(|a| a.to_byte()).collect();
@@ -333,6 +337,7 @@ mod side_data_descriptor {
     }
 
     #[test]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn heap_box_owner_lives_reads_writes_clones_and_frees() {
         let mut a = HeapBox::<SideDataDescriptor>::new_zeroed().unwrap();
         assert_eq!(
@@ -362,6 +367,7 @@ mod side_data_descriptor {
     }
 
     #[test]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn heap_array_handles_stay_in_bounds() {
         let n = 5;
         let mut arr = alloc_cell_array_zeroed::<SideDataDescriptor>(n).unwrap();
@@ -391,6 +397,7 @@ mod side_data_descriptor {
     }
 
     #[test]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn heap_values_and_owners_move_across_threads() {
         let v = SideDataDescriptor::named(leaked(b"View ID"), SideDataProps::MULTI);
         let b = HeapBox::<SideDataDescriptor>::new_zeroed().unwrap();
@@ -424,6 +431,7 @@ mod side_data_descriptor {
     }
 
     #[test]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn heap_shared_handles_read_concurrently() {
         let mut b = HeapBox::<SideDataDescriptor>::new_zeroed().unwrap();
         fill(&mut b.as_mut(), Some(c"ICC profile"), 1);
@@ -492,6 +500,7 @@ mod side_data_lookups {
     }
 
     #[test]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn every_value_looks_up_without_reading_past_the_table() {
         for t in every_value() {
             let d = t.descriptor();
@@ -508,6 +517,7 @@ mod side_data_lookups {
     /// The `'static` results outlive the value they came from, and cross
     /// threads both ways.
     #[test]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn static_results_outlive_their_value_and_cross_threads() {
         let found: Vec<(SideDataDescriptorRef<'static>, &'static CStr)> = {
             let values: Vec<SideDataType> = every_value().collect();
@@ -668,6 +678,7 @@ mod region_of_interest {
     }
 
     #[test]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn heap_arrays_of_regions_fill_and_read_element_by_element() {
         for n in [0, 1, 7, 64] {
             let mut array =
@@ -746,6 +757,7 @@ mod side_data {
     }
 
     #[test]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn getters_read_exactly_sized_payloads() {
         let a = sample();
         check(&a, &SAMPLE);
@@ -760,6 +772,7 @@ mod side_data {
     }
 
     #[test]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn empty_arrays_lend_nothing() {
         let mut a = SideDataArray::new();
         assert!(a.is_empty() && a.as_ref().is_empty() && a.as_mut().is_empty());
@@ -775,6 +788,7 @@ mod side_data {
     }
 
     #[test]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn iterators_walk_both_ends_and_report_their_length() {
         let mut a = sample();
         let kinds: Vec<_> = SAMPLE.iter().map(|s| s.kind).collect();
@@ -809,6 +823,7 @@ mod side_data {
     }
 
     #[test]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn sole_payloads_are_written_in_full_and_read_back() {
         let mut a = sample();
         for (i, mut e) in a.as_mut().iter_mut().enumerate() {
@@ -822,6 +837,7 @@ mod side_data {
     }
 
     #[test]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn shared_and_read_only_buffers_refuse_writes() {
         let mut a = sample();
         let mut entries = a.as_mut();
@@ -839,6 +855,7 @@ mod side_data {
     }
 
     #[test]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn replaced_buffers_outlive_the_array() {
         let mut a = sample();
         let mut old = Vec::new();
@@ -865,6 +882,7 @@ mod side_data {
     }
 
     #[test]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn metadata_moves_in_and_out_and_outlives_the_array() {
         let mut a = sample();
         let mut entries = a.as_mut();
@@ -886,6 +904,7 @@ mod side_data {
     }
 
     #[test]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn additions_with_every_flag_keep_or_return_the_buffer() {
         let flags = [
             SideDataFlags::NONE,
@@ -937,6 +956,7 @@ mod side_data {
     }
 
     #[test]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn owner_additions_lend_the_entry_until_the_next_use() {
         let mut a = SideDataArray::new();
         for i in 0..20u8 {
@@ -975,6 +995,7 @@ mod side_data {
     }
 
     #[test]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn kinds_take_any_value() {
         let mut a = sample();
         for raw in [0, 1, 37, 38, 1 << 31, u32::MAX] {
@@ -987,6 +1008,7 @@ mod side_data {
     }
 
     #[test]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn big_and_many_entries() {
         let page = vec![0x5a; 1 << 16];
         let specs: Vec<Spec<'_>> = (0..200)
@@ -1000,6 +1022,7 @@ mod side_data {
     /// `try_clone`, the new buffer's window in `set_buffer`), alternated with
     /// Rust views that end before C runs again.
     #[test]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn payload_writes_through_rust_reach_c_readers() {
         let mut a = array(&SAMPLE[2..4]);
         for round in 0..4u8 {
@@ -1021,6 +1044,7 @@ mod side_data {
     }
 
     #[test]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn shared_arrays_read_and_clone_buffers_on_many_threads() {
         let a = Arc::new(sample());
         let workers: Vec<_> = (0..8)
@@ -1052,6 +1076,7 @@ mod side_data {
     }
 
     #[test]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn entries_are_written_on_scoped_threads_and_arrays_dropped_on_others() {
         let mut a = sample();
         let mut entries = a.as_mut();
@@ -1119,6 +1144,7 @@ mod side_data_array_routines {
     const SIZES: [usize; 5] = [0, 1, 7, 64, 4096];
 
     #[test]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn allocated_payloads_are_initialised_and_exactly_sized() {
         let mut a = SideDataArray::new();
         let multi = SideDataType::SEI_UNREGISTERED;
@@ -1146,6 +1172,7 @@ mod side_data_array_routines {
     }
 
     #[test]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn failed_allocations_leave_the_array_readable() {
         let mut a = sample();
         let afd = SideDataType::AFD;
@@ -1181,6 +1208,7 @@ mod side_data_array_routines {
     }
 
     #[test]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn replacements_free_what_they_replace() {
         let mut a = sample();
         let icc = SideDataType::ICC_PROFILE;
@@ -1203,6 +1231,7 @@ mod side_data_array_routines {
     }
 
     #[test]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn clones_outlive_their_source() {
         let mut src = sample();
         let mut dst = SideDataArray::new();
@@ -1229,6 +1258,7 @@ mod side_data_array_routines {
     }
 
     #[test]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn clones_replacing_entries_free_their_buffer_and_metadata() {
         let src = array(&[SAMPLE[1]]);
         let mut dst = sample();
@@ -1253,6 +1283,7 @@ mod side_data_array_routines {
     }
 
     #[test]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn removals_keep_the_rest_and_what_the_caller_holds() {
         let mut a = sample();
         let held: Vec<BufferReferenceBox> = a
@@ -1296,6 +1327,7 @@ mod side_data_array_routines {
     }
 
     #[test]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn lookups_find_the_first_entry_of_a_kind() {
         let mut a = sample();
         for (i, spec) in SAMPLE.iter().enumerate() {
@@ -1319,6 +1351,7 @@ mod side_data_array_routines {
     }
 
     #[test]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn clones_and_lookups_cross_threads() {
         let src = sample();
         let r = src.as_ref();
@@ -1361,6 +1394,7 @@ mod side_data_array_routines {
     /// entry as it was (buffer-frame wave-3 symbol review,
     /// `ub_safe/side-data-clone-replace-leaks-partial-metadata`).
     #[test]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn in_place_clones_free_a_partial_metadata_copy() {
         let name = "frame::side_data_array_routines::in_place_clones_free_a_partial_metadata_copy";
         if !crate::log::isolated(name) {
@@ -1412,6 +1446,7 @@ mod side_data_array_routines {
     /// Rust took before are re-derived after each call (the BSan target of
     /// this batch).
     #[test]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn foreign_writes_across_reborrows() {
         let mut src = sample();
         let mut a = SideDataArray::new();
@@ -1505,6 +1540,7 @@ mod frame_type {
     }
 
     #[test]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn new_frames_read_cs_defaults_everywhere() {
         let f = Frame::new().unwrap();
         let r = f.as_ref();
@@ -1552,6 +1588,7 @@ mod frame_type {
     }
 
     #[test]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn scalar_setters_round_trip_their_edges() {
         let mut f = Frame::new().unwrap();
         for v in [i32::MIN, -1, 0, 1, i32::MAX] {
@@ -1646,6 +1683,7 @@ mod frame_type {
     }
 
     #[test]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn planes_read_exactly_to_their_buffers_end() {
         for len in [1usize, 4, 7, 64, 4096] {
             let mut f = Frame::new().unwrap();
@@ -1679,6 +1717,7 @@ mod frame_type {
     }
 
     #[test]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn sole_planes_are_written_in_full() {
         let mut f = planar(64);
         let mut m = f.as_mut();
@@ -1698,6 +1737,7 @@ mod frame_type {
     }
 
     #[test]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn shared_and_read_only_buffers_refuse_writes() {
         let mut f = planar(32);
         let copy = f.as_ref().buffer(0).unwrap().try_clone().unwrap();
@@ -1717,6 +1757,7 @@ mod frame_type {
     }
 
     #[test]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn removed_buffers_outlive_the_frame_and_take_their_planes() {
         let mut f = planar(48);
         let old = f.as_mut().replace_buffer(0, Some(bytes(8))).unwrap();
@@ -1734,6 +1775,7 @@ mod frame_type {
     }
 
     #[test]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn extra_buffers_back_planes_of_many_channels() {
         let mut f = Frame::new().unwrap();
         let mut m = f.as_mut();
@@ -1804,6 +1846,7 @@ mod frame_type {
     }
 
     #[test]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn side_data_metadata_and_user_data_outlive_the_frame() {
         let mut f = planar(16);
         let mut m = f.as_mut();
@@ -1851,6 +1894,7 @@ mod frame_type {
     }
 
     #[test]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn channel_layouts_change_in_place_and_by_value() {
         let mut f = Frame::new().unwrap();
         f.as_mut()
@@ -1874,6 +1918,7 @@ mod frame_type {
     }
 
     #[test]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn clones_of_counted_frames_outlive_their_source() {
         let mut f = planar(64);
         f.as_mut().set_pts(11);
@@ -1894,6 +1939,7 @@ mod frame_type {
     }
 
     #[test]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn frames_without_planes_do_not_clone() {
         let f = Frame::new().unwrap();
         assert!(f.as_ref().try_clone().is_none());
@@ -1919,6 +1965,7 @@ mod frame_type {
     }
 
     #[test]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn reset_releases_everything_and_restores_defaults() {
         let mut f = planar(16);
         f.as_mut()
@@ -1937,6 +1984,7 @@ mod frame_type {
     }
 
     #[test]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn frames_cross_threads() {
         let f = Arc::new(planar(256));
         let barrier = Arc::new(Barrier::new(4));
@@ -1981,6 +2029,7 @@ mod frame_type {
     /// typed them: the only value this build reaches without a backend is
     /// none, on the frame's thread and another.
     #[test]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn hw_frames_context_round_trips_none() {
         let mut f = Frame::new().unwrap();
         let old = f.as_mut().replace_hw_frames_context(None);
@@ -2073,6 +2122,7 @@ mod frame_routines {
     /// Allocated planes read as zeroes, every row of every plane inside the
     /// buffer holding it, and are writable whole.
     #[test]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn allocated_video_planes_are_zeroed_and_writable() {
         for format in FORMATS {
             for (w, h) in [(1, 1), (7, 3), (33, 17)] {
@@ -2107,6 +2157,7 @@ mod frame_routines {
     /// Audio planes likewise, with an `extended_data` array and extra
     /// buffers for more than 8 planar channels.
     #[test]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn allocated_audio_planes_are_zeroed_and_writable() {
         let formats = [
             SampleFormat::U8,
@@ -2156,6 +2207,7 @@ mod frame_routines {
     /// C, and the frame keeps what it held; allocations C refuses leave the
     /// frame without planes, and nothing leaks.
     #[test]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn allocations_refuse_bad_alignments_and_geometry() {
         let mut f = video(PixelFormat::GRAY8, 8, 8, 0);
         for align in [3, 48, (1 << 27) + 1, 1 << 28, usize::MAX] {
@@ -2208,6 +2260,7 @@ mod frame_routines {
     /// Copies between allocated frames move every row, and leave padding
     /// and the other frame's buffers alone.
     #[test]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn copies_move_every_row() {
         for format in FORMATS {
             let mut src = video(format, 9, 5, 0);
@@ -2262,6 +2315,7 @@ mod frame_routines {
     /// `extended_data`, or abort on are refused, writing nothing; C's own
     /// refusals come back as C's errors.
     #[test]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn copies_refuse_what_c_must_not_reach() {
         let src = video(PixelFormat::GRAY8, 8, 4, 0);
         let mut dst = video(PixelFormat::GRAY8, 8, 4096, 0);
@@ -2337,6 +2391,7 @@ mod frame_routines {
     /// buffers of the frame's own, keeps writable ones, and refuses frames
     /// whose geometry describes rows outside their buffers.
     #[test]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn make_writable_copies_only_shared_planes() {
         let mut f = video(PixelFormat::YUV420P, 9, 5, 0);
         f.as_mut().plane_mut(0).unwrap().fill(4);
@@ -2392,6 +2447,7 @@ mod frame_routines {
     /// References share buffers and copy properties; replacements keep
     /// shared buffers; moves leave defaults; all release what they replace.
     #[test]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn references_replacements_and_moves_release_what_they_replace() {
         let mut src = video(PixelFormat::YUV420P, 6, 4, 0);
         src.as_mut().set_pts(42);
@@ -2458,6 +2514,7 @@ mod frame_routines {
     /// Properties copy into any frame: metadata merges, side data appends
     /// with new payloads; entries at a NULL window are refused.
     #[test]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn property_copies_append_and_refuse_null_payloads() {
         let mut src = Frame::new().unwrap();
         let mut m = src.as_mut();
@@ -2501,6 +2558,7 @@ mod frame_routines {
     /// crops C cannot compute, or that would leave a buffer, are refused
     /// with the frame unchanged.
     #[test]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn cropping_stays_inside_the_buffers() {
         for format in FORMATS {
             for flags in [CropFlags::empty(), CropFlags::UNALIGNED] {
@@ -2590,6 +2648,7 @@ mod frame_routines {
     /// Plane buffer lookups never read past the `extended_data` entries a
     /// frame holds.
     #[test]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn plane_buffer_lookups_stay_inside_extended_data() {
         let mut v = video(PixelFormat::YUV420P, 4, 4, 0);
         v.as_mut()
@@ -2612,6 +2671,7 @@ mod frame_routines {
 
     /// Side data appends (even repeated kinds), lookups and removals.
     #[test]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn side_data_appends_finds_and_removes() {
         let mut f = Frame::new().unwrap();
         let mut m = f.as_mut();
@@ -2702,6 +2762,7 @@ mod frame_routines {
     /// and `make_writable` and `alloc_buffers` hand C the line size it would
     /// compute, which it then cannot allocate.
     #[test]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn copies_at_a_sample_count_c_cannot_round_stay_defined() {
         const NAME: &str =
             "frame::frame_routines::copies_at_a_sample_count_c_cannot_round_stay_defined";
@@ -2764,6 +2825,7 @@ mod frame_routines {
     /// on many threads at once, while each thread makes its own reference
     /// writable.
     #[test]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn frames_serve_routines_across_threads() {
         let mut src = video(PixelFormat::YUV420P, 16, 8, 0);
         src.as_mut().plane_mut(0).unwrap().fill(8);
