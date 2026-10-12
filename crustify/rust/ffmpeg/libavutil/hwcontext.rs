@@ -1990,9 +1990,10 @@ impl<'a> DeviceContextRef<'a> {
 
     /// Field: AVHWDeviceContext.free
     ///
-    /// Whether something runs when the context's last reference is released:
-    /// a callback [`set_free_callback`](DeviceContextMut::set_free_callback)
-    /// installed, or one the backend's device creation did.
+    /// Whether a free callback runs when the context's last reference is
+    /// released: one [`set_free_callback`](DeviceContextMut::set_free_callback)
+    /// installed, or the backend's own, which its device creation set. User
+    /// data alone is not one, though it is dropped then.
     #[must_use]
     pub fn has_free_callback(&self) -> bool {
         match self.hooks() {
@@ -2079,8 +2080,10 @@ impl<'a> DeviceContextMut<'a> {
     /// a callback it sets is dropped uncalled. A panic in it aborts the
     /// process.
     ///
-    /// Refused, giving `f` back, when the context's `free` and `user_opaque`
-    /// are someone else's: a backend's device creation sets them.
+    /// Refused, giving `f` back, when the context's `free` or `user_opaque`
+    /// is someone else's, either one alone: a backend's device creation sets
+    /// `free`, and most backends `user_opaque` with it (DRM, OpenCL, D3D12VA
+    /// and Vulkan set `free` only).
     ///
     /// The callback may run on another thread, so it must be `Send`:
     ///
@@ -2123,8 +2126,8 @@ impl<'a> DeviceContextMut<'a> {
     /// included), and is dropped on the thread releasing the context's last
     /// reference, hence `Send + Sync`.
     ///
-    /// Refused, giving `data` back, when the context's `free` and
-    /// `user_opaque` are someone else's, as for
+    /// Refused, giving `data` back, when the context's `free` or
+    /// `user_opaque` is someone else's, as for
     /// [`set_free_callback`](Self::set_free_callback).
     ///
     /// Every thread holding the context may read it, so it must be `Sync`:
@@ -2160,7 +2163,7 @@ impl<'a> DeviceContextMut<'a> {
     }
 
     /// The context's Rust hooks, installed first when `free` and
-    /// `user_opaque` are both unset; `None` when they are someone else's.
+    /// `user_opaque` are both unset; `None` when either is someone else's.
     fn hooks_mut(&mut self) -> Option<&mut Hooks> {
         if self.as_ref().hooks().is_none() {
             let p = self.as_mut_ptr();
@@ -4283,6 +4286,35 @@ mod unit_tests {
             let mut b = unsafe { UninitDevice::from_c(raw) }.unwrap();
             assert!(b.context_mut().set_user_data(1u8).is_err());
             assert!(!b.context().has_free_callback());
+        }
+
+        /// How many times [`backend_free_alone`] ran.
+        static FREED_ALONE: AtomicUsize = AtomicUsize::new(0);
+
+        /// A backend's `free` that keeps nothing in `user_opaque`, as DRM's,
+        /// OpenCL's, D3D12VA's and Vulkan's device creation install.
+        unsafe extern "C" fn backend_free_alone(ctx: *mut ffi::AVHWDeviceContext) {
+            // SAFETY: C passes the live context it releases.
+            assert!(unsafe { (*ctx).user_opaque.is_null() });
+            FREED_ALONE.fetch_add(1, Ordering::SeqCst);
+        }
+
+        #[test]
+        fn a_backend_free_alone_is_neither_read_nor_replaced() {
+            let raw = hwdevice::fake_device();
+            // SAFETY: a write of the fresh context's `free`, as
+            // drm_device_create does, leaving `user_opaque` NULL.
+            unsafe { (*hwdevice::context(raw)).free = Some(backend_free_alone) };
+            // SAFETY: as in `builder`; the callback is a backend's.
+            let mut b = unsafe { UninitDevice::from_c(raw) }.unwrap();
+            assert!(b.context().has_free_callback());
+            assert_eq!(b.context_mut().set_user_data(5u16), Err(5));
+            assert!(b.context_mut().set_free_callback(|_| ()).is_err());
+            assert!(b.context_mut().take_user_data().is_none());
+            assert!(b.context_mut().take_free_callback().is_none());
+            assert_eq!(raw_hooks(&b), (true, false));
+            drop(b);
+            assert_eq!(FREED_ALONE.load(Ordering::SeqCst), 1);
         }
 
         /// The hooks over a context in Rust storage, with no C call, so that
