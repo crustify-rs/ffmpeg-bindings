@@ -9,7 +9,9 @@ against the FFmpeg release both target, with the `libavutil`-only view
 `results.md`.
 
 Measured `2026-10-12`. **ftt** — `ffmpeg-the-third`. **next** — `ffmpeg-next`.
-Figures in backticks; LoC excludes blank and `//` lines.
+Figures in backticks; LoC excludes blank and `//` lines. Coverage is measured
+as the campaign measures its own crates: Rust without test code, C with gcov
+over a gcc `--coverage` build (section 2).
 
 ## 0. Subjects
 
@@ -40,7 +42,9 @@ configure --prefix=/ff/prefix --cc=/usr/lib/llvm-23/bin/clang \
 ```
 
 Every native component stays at its default; `--disable-autodetect` keeps out
-every external library (zlib, libvpx, …) and every hardware backend.
+every external library (zlib, libvpx, …) and every hardware backend. This build
+serves the tests, the Rust coverage and the scans. The C coverage comes from a
+second build of the same tree with gcc's `--toolchain=gcov` (section 2).
 
 Both sys crates were pointed at it with `PKG_CONFIG_PATH=/ff/prefix/lib/pkgconfig`
 and the `static` feature, not their vendored `build` feature. The image has no
@@ -84,66 +88,107 @@ either crate.
 
 ## 2. Test coverage
 
-One instrumented run of each crate's whole suite. Rust and C share one profile:
-rustc's `-Cinstrument-coverage` and clang's `-fprofile-instr-generate
--fcoverage-mapping` both emit LLVM 23 source-based coverage, the C objects link
-into the test binaries, and one profiling runtime writes both into the same
-`.profraw`. That the merged profile carries both was checked directly: C files
-appear in the report with non-zero counts (for example next's `libavformat`, at
-`5,425` covered lines).
+Measured the way the campaign measures its own crates (`results.md`, "How the
+rows were measured"), so the two are like for like:
+
+- **Rust** is line and function coverage from `-C instrument-coverage` over the
+  crate's own `src/`, excluding every line inside a `#[cfg(test)]` item, so the
+  inline unit tests are not counted as code they cover themselves.
+- **C** is `gcov` line coverage from a gcc `--coverage` build of the target —
+  FFmpeg's `--toolchain=gcov`, as in the campaign's `coverage` prebuild — with a
+  zero baseline from every `.gcno`, so a TU no test reaches still counts.
+
+The two come from separate runs of the same whole suite, because the Rust side
+needs LLVM's instrumentation and the C side gcc's.
+
+### Rust, the crate's own `src/`, test code excluded
+
+One LLVM-instrumented run (lib + `tests/`; doctests are not instrumented by
+stable `cargo llvm-cov`, which leaves out ftt's `2`), exported as LCOV, then
+every line inside a `#[cfg(test)]` item removed (brace-matched; the git2
+baseline's `lcov_nontest.py`, with the source root as a parameter):
 
 ```sh
-export PKG_CONFIG_PATH=/ff/prefix/lib/pkgconfig
-cargo llvm-cov --no-report --features static --no-fail-fast  # lib + tests/, no doctests
-cargo llvm-cov report --json                                 # Rust, and the C linked in
-llvm-cov export -summary-only -instr-profile <crate>.profdata \
-  -object <each test binary> -object <every .o under /ff/build/lib*>   # whole C libraries
+export PKG_CONFIG_PATH=/ff/prefix/lib/pkgconfig      # the clang-built n9.0 below
+cargo llvm-cov --no-report --features static --no-fail-fast
+cargo llvm-cov report --lcov --output-path rust-<crate>.lcov
+python3 lcov_nontest.py rust-<crate>.lcov src=<crate>/src/ util=<crate>/src/util/
 ```
 
-Doctests are not in the coverage run: `cargo llvm-cov` instruments them only on
-nightly. That leaves out ftt's `2` doctests; next has none.
-
-### Rust, the crate's own `src/`
-
-| crate | scope | files (`0%`) | LoC | block | function |
+| crate | scope | files (`0%`) | test lines removed | LoC | function |
 |---|---|---:|---:|---:|---:|
-| ftt | `src/` | `115` (`80`) | `15.66%` (`1300`/`8299`) | `18.77%` (`1839`/`9798`) | `16.27%` (`185`/`1137`) |
-| ftt | `src/util/` | `35` (`18`) | `28.65%` (`836`/`2918`) | `31.17%` (`1126`/`3612`) | `26.14%` (`92`/`352`) |
-| next | `src/` | `108` (`71`) | `19.23%` (`1634`/`8498`) | `19.88%` (`1953`/`9825`) | `21.72%` (`242`/`1114`) |
-| next | `src/util/` | `32` (`15`) | `28.54%` (`790`/`2768`) | `27.84%` (`908`/`3262`) | `33.93%` (`113`/`333`) |
+| ftt | `src/` | `115` (`80`) | `459` | **`10.93%`** (`854`/`7813`) | `13.38%` (`147`/`1099`) |
+| ftt | `src/util/` | `35` (`18`) | `332` | **`19.59%`** (`506`/`2583`) | `20.49%` (`67`/`327`) |
+| next | `src/` | `108` (`71`) | `51` | **`18.76%`** (`1580`/`8421`) | `21.16%` (`234`/`1106`) |
+| next | `src/util/` | `32` (`15`) | `11` | **`28.32%`** (`779`/`2751`) | `33.53%` (`111`/`331`) |
 
-LoC is llvm-cov `Lines`, block is `Regions`, function is `Functions`, as in
-`ffmpeg-wrap/crustify/baseline.md`.
+LoC is LCOV line coverage, function is LCOV function coverage. LCOV carries no
+regions, so there is no block figure after the cut.
 
-### C, per FFmpeg library
+The cut matters for ftt, which keeps all its tests inline: `459` of its
+instrumented `src/` lines are test code, nearly all of it executed by the tests
+it contains. With them counted, ftt read `15.66%` over `src/` and `28.65%` over
+`src/util/`; next, whose tests are almost all in `tests/`, read `19.23%` and
+`28.54%`. ftt's whole-file figures are exactly what `ffmpeg-wrap/crustify/baseline.md`
+reported; whole-file figures overstate both crates, ftt most.
 
-Denominator: the whole library, every object file the build produced, whether
-the test binaries linked it or not. Static linking pulls in only referenced
-objects, but FFmpeg's codec, format and filter registration tables reference
-nearly all of them: the linked view's C total is `617,081` lines for ftt and
-`620,012` for next, against `621,915` here, so the two views differ by under
-`1%`. Headers compiled into a library count with it.
+### C, per FFmpeg library, gcov
 
-| library | lines | ftt LoC | ftt function | next LoC | next function |
-|---|---:|---:|---:|---:|---:|
-| `libavutil` | `18,710` | `6.68%` (`1249`) | `8.47%` (`96`/`1133`) | `10.02%` (`1875`) | `15.53%` (`176`/`1133`) |
-| `libavcodec` | `328,425` | `0.18%` (`575`) | `0.50%` (`53`/`10524`) | `0.32%` (`1041`) | `0.93%` (`98`/`10524`) |
-| `libavformat` | `144,102` | `0.02%` (`28`) | `0.04%` (`2`/`4644`) | `3.76%` (`5425`) | `10.92%` (`507`/`4644`) |
-| `libavfilter` | `103,965` | `0.02%` (`25`) | `0.12%` (`5`/`4346`) | `1.87%` (`1942`) | `3.87%` (`168`/`4346`) |
-| `libavdevice` | `1,940` | `0.00%` (`0`) | `0.00%` (`0`/`79`) | `0.36%` (`7`) | `2.53%` (`2`/`79`) |
-| `libswscale` | `22,375` | `0.00%` (`0`) | `0.00%` (`0`/`950`) | `0.00%` (`0`) | `0.00%` (`0`/`950`) |
-| `libswresample` | `2,398` | `0.00%` (`0`) | `0.00%` (`0`/`78`) | `0.00%` (`0`) | `0.00%` (`0`/`78`) |
-| **Σ** | **`621,915`** | **`0.30%`** (`1877`) | **`0.72%`** (`156`/`21754`) | **`1.65%`** (`10290`) | **`4.37%`** (`951`/`21754`) |
+A second build of the same `n9.0` tree with gcc `13.3.0` and FFmpeg's gcov
+toolchain, otherwise configured as the clang build:
 
-Block coverage follows the same shape: `0.25%` for ftt and `1.75%` for next over
-all seven libraries, and `4.45%` and `6.31%` over `libavutil`.
+```sh
+configure --prefix=/ff/prefix-gcov --toolchain=gcov \
+  --disable-autodetect --disable-programs --disable-doc \
+  --enable-static --disable-shared --enable-pic
+lcov --capture --initial -d /ff/build-gcov -o base.info      # zero baseline, every .gcno
+lcov --zerocounters -d /ff/build-gcov
+PKG_CONFIG_PATH=/ff/prefix-gcov/lib/pkgconfig \
+RUSTFLAGS="-C link-arg=$(gcc -print-file-name=libgcov.a)" \
+RUSTDOCFLAGS="-C link-arg=$(gcc -print-file-name=libgcov.a)" \
+  cargo test --features static --no-fail-fast                # lib + tests/ + doctests
+lcov --capture -d /ff/build-gcov -o run.info
+lcov -a base.info -a run.info -o <crate>.info
+```
+
+The Rust side is uninstrumented here; `libgcov.a` is linked by path because the
+link driver is clang, whose `--coverage` would bring LLVM's runtime instead. The
+suites ran as in section 1: ftt `43` + `1` doctest pass with the same three
+encoder failures, next `48` pass. Each library's denominator is the lines of its
+compiled `.c` TUs, `2,112` across the seven (headers inlined into them reported
+apart below):
+
+| library | TUs | lines | ftt LoC (TUs at `0%`) | next LoC (TUs at `0%`) |
+|---|---:|---:|---:|---:|
+| `libavutil` | `99` | `13,626` | **`6.95%`** (`947`; `84`) | **`10.74%`** (`1464`; `73`) |
+| `libavcodec` | `1,006` | `243,125` | `0.19%` (`462`; `994`) | `0.28%` (`674`; `990`) |
+| `libavformat` | `523` | `110,740` | `0.02%` (`22`; `522`) | `3.70%` (`4094`; `243`) |
+| `libavfilter` | `416` | `77,902` | `0.02%` (`17`; `414`) | `2.00%` (`1560`; `406`) |
+| `libavdevice` | `15` | `1,449` | `0.00%` (`0`; `15`) | `0.35%` (`5`; `13`) |
+| `libswscale` | `38` | `15,255` | `0.00%` (`0`; `38`) | `0.00%` (`0`; `38`) |
+| `libswresample` | `15` | `1,927` | `0.00%` (`0`; `15`) | `0.00%` (`0`; `15`) |
+| **Σ** | **`2,112`** | **`464,024`** | **`0.31%`** (`1448`) | **`1.68%`** (`7797`) |
+
+Counting the header lines inlined into those TUs as well (`469,767` lines over
+`2,305` files) moves the totals to `0.31%` and `1.70%`, and `libavutil` to
+`6.86%` and `10.70%`.
 
 The difference between the crates follows where their tests sit. All of ftt's
 are lib unit tests, `30` of them under `util::`. next's integration tests
 include `tests/stream_io.rs`, which exercises custom stream I/O through format
 contexts, and `tests/buffersink_reuse.rs`, a filter-graph test. Those are the
-tests that can reach `libavformat` (`10.92%` of its functions) and `libavfilter`.
-Neither crate's tests reach `libswscale` or `libswresample` at all.
+tests that can reach `libavformat` and `libavfilter`. Neither crate's tests
+reach `libswscale` or `libswresample` at all.
+
+### Superseded: LLVM source-based C coverage
+
+The first measurement read the C from the same LLVM run as the Rust, with the
+clang build instrumented by `-fprofile-instr-generate -fcoverage-mapping` and
+`llvm-cov` over every object file. It counts lines differently from gcov (any
+line a mapped region touches, headers included), so it is not comparable with
+the campaign. For the record it gave ftt / next `6.68%` / `10.02%` over
+`libavutil` (`18,710` lines) and `0.30%` / `1.65%` over all seven libraries
+(`621,915` lines); gcov puts them at `6.95%` / `10.74%` and `0.31%` / `1.68%`.
 
 ## 3. API coverage
 
@@ -343,8 +388,8 @@ columns here are the `libavutil` ones.
 |---|---:|---:|---:|
 | tests | `1,028` (UB `334`, equiv `177`, unit `517`) | `47` (`30` lib tests in `util::`) | `48` (`2` lib tests in `util::`) |
 | tests under any sanitizer | UB tests | `0` | `0` |
-| C LoC coverage, `libavutil` | `53.25%` (all tests) | `6.68%` | `10.02%` |
-| Rust LoC coverage | `93.19%` (all tests) | `28.65%` (`src/util/`) | `28.54%` (`src/util/`) |
+| C LoC coverage, `libavutil` (gcov) | `53.25%` (all tests) | `6.95%` | `10.74%` |
+| Rust LoC coverage, test code excluded | `93.19%` (all tests) | `19.59%` (`src/util/`) | `28.32%` (`src/util/`) |
 | wrapped / covered types | `101` of `181` (`56%`) | `23` of `182` (`12.6%`) | `26` of `182` (`14.3%`) |
 | wrapped / covered symbols | `335` of `671` (`50%`) | `91` of `669` (`13.6%`) | `74` of `669` (`11.1%`) |
 | `code_lines` | `10,616` | `10,988` (whole crate) | `12,122` (whole crate) |
@@ -356,8 +401,12 @@ How to read it:
 
 - The baselines' unsafe surface is the whole crate, across seven libraries;
   the campaign's is `libavutil` alone.
-- The campaign's C coverage denominator is its coverage prebuild of
-  `libavutil`'s TUs, not this `n9.0` build's `18,710` lines.
+- Both C figures are gcov line coverage over `libavutil`'s compiled TUs with a
+  zero baseline, but over different builds: the campaign's `coverage` prebuild
+  of `8.0-dev` (shared, `--enable-zlib`; `94` TUs, `12,558` lines) and this
+  static `n9.0` build (`99` TUs, `13,626` lines).
+- Both Rust figures exclude `#[cfg(test)]` code; the campaign's also excludes
+  `tests/`, which these crates' `src/` scope already leaves out.
 - The campaign's safety-audit figures come from an earlier driver that did not
   yet count raw-pointer fields, so args + rets is the comparable raw-pointer
   figure.
@@ -373,20 +422,26 @@ How to read it:
     configure).
   - Here next is at `9b9c0b9` (`9.0.1`), FFmpeg is one shared `n9.0` build with
     `--disable-autodetect`, and both crates link it statically.
-  - ftt's revision is unchanged, and its Rust figures reproduce
+  - ftt's revision is unchanged, and its whole-file Rust figures reproduce
     `ffmpeg-wrap/crustify/baseline.md`'s vendored-`9.0` row exactly (`15.66%` LoC, `18.77%` block,
-    `16.27%` function).
-  - next's moved from `16.26%` to `19.23%` LoC, with `12` more tests (`36` →
-    `48`) and its `src/util/` LoC coverage moving from `20.70%` to `28.54%`.
+    `16.27%` function). That file counted test code; without it ftt is at
+    `10.93%` (section 2).
+  - next's whole-file figure moved from `16.26%` to `19.23%` LoC, with `12`
+    more tests (`36` → `48`) and its `src/util/` LoC coverage moving from
+    `20.70%` to `28.54%` (`18.76%` and `28.32%` without test code).
     The ten commits between the two revisions (`v9.0.0..9b9c0b9`) add the
     Stereo3D/Spherical wrappers, extradata and video accessors, and soundness
     fixes; this file does not attribute the change to any one of them.
-- **The coverage runs leave out doctests.** That is ftt's `2`.
+- **The Rust coverage run leaves out doctests**, ftt's `2`; stable
+  `cargo llvm-cov` does not instrument them. The gcov run includes them.
 - **`--disable-autodetect` costs ftt three test results.** It removes the VP9
   and PNG encoders that ftt's three failing tests expect.
-- **Mismatched profile data.** `llvm-cov export` over the whole-library object
-  set warned that `19` functions in next's profile had mismatched data, so they
-  went uncounted. That is negligible against `21,754` functions.
+- **C coverage builds differ from the test build.** The C figures come from the
+  gcc build, the Rust ones and the test results from the clang build; both are
+  the same `n9.0` tree and configure options, and the suites gave the same
+  results under both.
+- **The `.c`-only C denominator.** Lines of headers inlined into a TU are
+  reported apart; counting them changes no figure by more than `0.1`pp.
 - **API coverage is an upper bound** (see section 3), and its denominator sees
   only compiled code.
 - **Tests are not split into UB / equiv / unit.** Neither crate is laid out in
