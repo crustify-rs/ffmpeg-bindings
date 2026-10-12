@@ -285,9 +285,9 @@ impl<'a> HwFrames<'a> {
     /// frame.
     fn of(frame: FrameRef<'a>) -> Option<Self> {
         // `Frame`'s invariant: a non-NULL `hw_frames_ctx` references an
-        // initialised hardware frames context, whose bytes nothing writes
-        // while the frame holds it.
-        frame.hw_frames_context().map(Self)
+        // initialised hardware frames context, whose public fields nothing
+        // writes.
+        frame.hw_frames_context().map(|frames| frames.hw_frames())
     }
 
     /// The context's allocated surface size and software format.
@@ -4150,7 +4150,7 @@ mod unit_tests {
         use core::ffi::CStr;
         use core::ptr::{addr_of, addr_of_mut};
 
-        use crate::libavutil::buffer::{BufferReferenceBox, MAX_REFERENCES};
+        use crate::libavutil::buffer::MAX_REFERENCES;
         use crate::libavutil::dict::Dict;
         use crate::libavutil::hwcontext::backend::{
             self as fx, Event, FramesHw, FramesHwctx, HWCONFIG_SIZE, Kind, averror,
@@ -5014,12 +5014,11 @@ mod unit_tests {
             fx::take_events();
             // A frame holding a frames context is no software frame.
             let mut holder = nv12(64, 32, 0);
-            // SAFETY: a live frames context reference; C returns NULL or a
-            // new reference to the same initialised context.
-            let ctx = unsafe { BufferReferenceBox::from_c(ffi::av_buffer_ref(fa.as_c_ptr())) };
-            // SAFETY: a reference to an initialised frames context, whose
-            // bytes nothing writes.
-            drop(unsafe { holder.as_mut().replace_hw_frames_context(ctx) });
+            drop(
+                holder
+                    .as_mut()
+                    .replace_hw_frames_context(fa.as_ref().try_clone()),
+            );
             assert_eq!(hw.download_to(holder.as_mut()), Err(EINVAL_));
             assert_eq!(hw.upload_from(holder.as_ref()), Err(EINVAL_));
             // Unlisted formats, display sizes past the surfaces, a shared
@@ -5110,6 +5109,92 @@ mod unit_tests {
             assert!(own_back.frames().ptr_eq(fa.as_ref()));
             drop((own_back, own, back, mapped, x, derived, other, fa, a, b));
             fx::take_events();
+        }
+
+        /// A frame's hardware frames context, typed since the frames context
+        /// was wrapped: set and taken safely, counted as C counts it, and
+        /// copied by reference with a reference counted frame. A frame that
+        /// is not reference counted is refused before C copies it, which
+        /// `av_frame_copy` would do through the context's backend as from a
+        /// surface: kind B has no transfer routine (a NULL call, as
+        /// MediaCodec's), kind A would read the frame's NULL planes as one.
+        #[test]
+        fn frame_hw_frames_contexts_are_typed_and_uncounted_copies_refused() {
+            for kind in [Kind::A, Kind::B] {
+                let d = device(kind);
+                let fr = frames(&d, kind);
+                let mut f = Frame::new().unwrap();
+                let mut m = f.as_mut();
+                m.set_pixel_format(PixelFormat::NV12);
+                m.set_width(64);
+                m.set_height(32);
+                assert!(
+                    m.replace_hw_frames_context(fr.as_ref().try_clone())
+                        .is_none()
+                );
+                assert_eq!(fr.as_ref().ref_count(), 2);
+                let held = f.as_ref().hw_frames_context().unwrap();
+                assert!(held.ptr_eq(fr.as_ref()));
+                assert_eq!(held.context().width(), 64);
+                // Not reference counted: every copy is refused, before C.
+                assert!(f.as_ref().try_clone().is_none());
+                let mut dst = Frame::new().unwrap();
+                assert_eq!(dst.as_mut().try_clone_from(f.as_ref()), Err(ENOSYS));
+                let mut mem = [0u8; 64 * 48];
+                // SAFETY: `mem` holds a 64 x 32 NV12 image at line size 64
+                // and outlives every use of the plane pointers below.
+                unsafe {
+                    f.as_mut().set_data_ptr(0, mem.as_mut_ptr());
+                    f.as_mut().set_data_ptr(1, mem.as_mut_ptr().add(64 * 32));
+                }
+                f.as_mut().set_linesize(0, 64);
+                f.as_mut().set_linesize(1, 64);
+                assert_eq!(dst.as_mut().assign(f.as_ref()), Err(ENOSYS));
+                assert!(f.as_ref().try_clone().is_none());
+                assert_eq!(fx::take_events(), []);
+                // Without planes, `assign` copies no data: it takes the
+                // properties and a reference to the context, as C does.
+                // SAFETY: NULL planes are always allowed.
+                unsafe {
+                    f.as_mut().set_data_ptr(0, ptr::null_mut());
+                    f.as_mut().set_data_ptr(1, ptr::null_mut());
+                }
+                dst.as_mut().assign(f.as_ref()).unwrap();
+                assert!(
+                    dst.as_ref()
+                        .hw_frames_context()
+                        .unwrap()
+                        .ptr_eq(fr.as_ref())
+                );
+                assert_eq!(fr.as_ref().ref_count(), 3);
+                // Reference counted: copied by reference, the context too.
+                f.as_mut()
+                    .set_buffer(0, Some(BufferReference::alloc_zeroed(64).unwrap()));
+                let copy = f.as_ref().try_clone().unwrap();
+                assert!(
+                    copy.as_ref()
+                        .hw_frames_context()
+                        .unwrap()
+                        .ptr_eq(fr.as_ref())
+                );
+                assert_eq!(fr.as_ref().ref_count(), 4);
+                // The routines C would run through the context refuse it.
+                let mut sw = nv12(64, 32, 1);
+                assert_eq!(sw.as_mut().copy_data_from(f.as_ref()), Err(ENOSYS));
+                assert_eq!(f.as_mut().make_writable(), Err(ENOSYS));
+                // Taken out, the reference is the caller's; replaced, the
+                // old one comes back.
+                let taken = f.as_mut().take_hw_frames_context().unwrap();
+                assert!(taken.as_ref().ptr_eq(fr.as_ref()));
+                assert!(f.as_ref().hw_frames_context().is_none());
+                let back = dst.as_mut().replace_hw_frames_context(Some(taken)).unwrap();
+                assert_eq!(fr.as_ref().ref_count(), 4);
+                drop((back, copy, dst, f));
+                assert_eq!(fr.as_ref().ref_count(), 1);
+                assert_eq!(fx::take_events(), []);
+                drop((fr, d));
+                fx::take_events();
+            }
         }
     }
 
@@ -5698,7 +5783,12 @@ mod unit_tests {
             c.as_mut()
                 .set_valid_sw_formats(Some(&[PixelFormat::NV12]))
                 .unwrap();
-            let big = vec![PixelFormat::YUV420P; 1 << 16];
+            // 2 KiB of formats against a 1 KiB limit: enough to fail, and
+            // small enough for BorrowSanitizer, which retags every element
+            // the list's scan for its terminator visits (64 Ki of them ran
+            // away past half an hour and 40 GB there).
+            let big = vec![PixelFormat::YUV420P; 1 << 9];
+            assert!(size_of_val(&big[..]) > 1 << 10);
             crate::libavutil::mem::set_max_alloc(1 << 10);
             let ret = c.as_mut().set_valid_sw_formats(Some(&big));
             crate::libavutil::mem::set_max_alloc(i32::MAX as usize);
@@ -6326,6 +6416,89 @@ mod unit_tests {
             assert_eq!(drops.load(Ordering::SeqCst), 3);
             // SAFETY: the box leaked above, with no hooks left.
             drop(unsafe { Box::from_raw(ctx) });
+        }
+
+        /// Backend B's routines, none of which run here, with a frames
+        /// struct of 4 KiB, larger than the frames context itself (as
+        /// Vulkan's private one is), and no device struct.
+        static BIG_FRAMES_STRUCT: fx::Shared<fx::HwContextType> = fx::Shared(fx::HwContextType {
+            device_hwctx_size: 0,
+            frames_hwctx_size: 4096,
+            device_init: None,
+            device_uninit: None,
+            frames_init: None,
+            frames_uninit: None,
+            ..fx::BACKEND_B.0
+        });
+
+        /// The release of a [`big_struct_device`].
+        unsafe extern "C" fn free_big_struct_device(_opaque: *mut c_void, data: *mut u8) {
+            // SAFETY: the private context `big_struct_device` allocated, at
+            // its last reference; it holds nothing else.
+            unsafe { ffi::av_free(data.cast()) }
+        }
+
+        /// An initialised device of [`BIG_FRAMES_STRUCT`], built as
+        /// `av_hwdevice_ctx_alloc` builds one; its backend has no routine
+        /// for C to call at init or release.
+        fn big_struct_device() -> DeviceReferenceBox {
+            // SAFETY: `av_hwdevice_ctx_alloc`'s steps over a zeroed
+            // allocation (no device struct: its size is 0), then C's init,
+            // which calls no backend routine, and the only reference.
+            unsafe {
+                let ctxi =
+                    ffi::av_mallocz(size_of::<fx::DeviceInternal>()).cast::<fx::DeviceInternal>();
+                assert!(!ctxi.is_null());
+                let buf = ffi::av_buffer_create(
+                    ctxi.cast(),
+                    size_of::<ffi::AVHWDeviceContext>(),
+                    Some(free_big_struct_device),
+                    ptr::null_mut(),
+                    ffi::AV_BUFFER_FLAG_READONLY as c_int,
+                );
+                assert!(!buf.is_null());
+                (*ctxi).p.type_ = ffi::AVHWDeviceType::AV_HWDEVICE_TYPE_DRM;
+                (*ctxi).p.av_class = &raw const fx::DEVICE_CLASS.0;
+                (*ctxi).hw_type = &raw const BIG_FRAMES_STRUCT.0;
+                assert_eq!(ffi::av_hwdevice_ctx_init(buf), 0);
+                DeviceReferenceBox::from_c(buf).unwrap()
+            }
+        }
+
+        /// `av_hwframe_ctx_alloc` failing on the backend's frames struct,
+        /// after the context itself: C frees the context and takes no
+        /// reference to the device, and both constructors report it.
+        #[test]
+        fn alloc_fails_whole_when_the_backend_struct_does_not_fit() {
+            if !hwcontext_isolated(
+                "libavutil::hwcontext::unit_tests::frames_context::alloc_fails_whole_when_the_backend_struct_does_not_fit",
+            ) {
+                return;
+            }
+            let d = big_struct_device();
+            // The context, its reference and the device's fit; the struct not.
+            assert!(size_of::<fx::FramesInternal>() < 1024);
+            crate::libavutil::mem::set_max_alloc(1024);
+            let alloc = d.as_ref().alloc_frames();
+            let created =
+                d.as_ref()
+                    .create_frames(PixelFormat::DRM_PRIME, PixelFormat::NV12, 64, 32, 0);
+            crate::libavutil::mem::set_max_alloc(c_int::MAX as usize);
+            assert!(alloc.is_none());
+            assert_eq!(created.unwrap_err(), ENOMEM);
+            // SAFETY: a live reference; C atomically loads its count.
+            assert_eq!(unsafe { ffi::av_buffer_get_ref_count(d.as_c_ptr()) }, 1);
+            // Without the limit the struct is there, zeroed.
+            let u = d.as_ref().alloc_frames().unwrap();
+            // SAFETY: a read of the live context `u` holds.
+            let hwctx = unsafe { (*u.context().as_ptr()).hwctx };
+            assert!(!hwctx.is_null());
+            // SAFETY: C's `av_mallocz` block of the backend's 4096 bytes.
+            let bytes = unsafe { core::slice::from_raw_parts(hwctx.cast::<u8>(), 4096) };
+            assert!(bytes == [0u8; 4096].as_slice());
+            drop(u);
+            // SAFETY: as above.
+            assert_eq!(unsafe { ffi::av_buffer_get_ref_count(d.as_c_ptr()) }, 1);
         }
     }
 }

@@ -411,17 +411,15 @@ mod side_data_array_from_raw_parts {
     }
 }
 
-/// `FrameMut::set_data_ptr`, `set_extended_data_ptr` and
-/// `replace_hw_frames_context` (buffer-frame wave 3, batch 0): planes of
-/// frames that are not reference counted over exactly sized Rust memory
-/// that outlives them (so that a read past a plane is an ASan report),
-/// read by C through `try_clone`'s copy; pointers into a frame's own
-/// buffers; NULL; the planes a later buffer at index 0 clears; and the
-/// hardware frames context seam, whose only value this build can produce
-/// (it has no hardware device type) is none.
+/// `FrameMut::set_data_ptr` and `set_extended_data_ptr` (buffer-frame
+/// wave 3, batch 0): planes of frames that are not reference counted over
+/// exactly sized Rust memory that outlives them (so that a read past a
+/// plane is an ASan report), read by C through `try_clone`'s copy; pointers
+/// into a frame's own buffers; NULL; the planes a later buffer at index 0
+/// clears. (`replace_hw_frames_context`, an unsafe seam until hwcontext
+/// wave 2 wrapped `AVHWFramesContext`, is safe now: `ub_safe/frame.rs`.)
 mod frame_type {
     use core::ptr;
-    use std::thread;
 
     use ffmpeg::libavutil::buffer::BufferReference;
     use ffmpeg::libavutil::channel_layout::ChannelLayout;
@@ -682,22 +680,5 @@ mod frame_type {
         let r = copy.as_ref();
         assert_eq!(&r.extended_plane(0).unwrap()[..SAMPLES], &new_left[..]);
         assert_eq!(&r.extended_plane(1).unwrap()[..SAMPLES], &right[..]);
-    }
-
-    #[test]
-    fn hw_frames_context_round_trips_none() {
-        let mut f = Frame::new().unwrap();
-        // SAFETY: `None` is always allowed.
-        let old = unsafe { f.as_mut().replace_hw_frames_context(None) };
-        assert!(old.is_none() && f.as_ref().hw_frames_context().is_none());
-        assert!(f.as_mut().take_hw_frames_context().is_none());
-        // The frame and the empty seam cross threads.
-        thread::spawn(move || {
-            // SAFETY: as above.
-            let old = unsafe { f.as_mut().replace_hw_frames_context(None) };
-            assert!(old.is_none());
-        })
-        .join()
-        .unwrap();
     }
 }

@@ -192,6 +192,7 @@ mod frame_mut_transfer_data_from {
     use ffmpeg::libavutil::buffer::BufferReference;
     use ffmpeg::libavutil::dict::Dict;
     use ffmpeg::libavutil::frame::{Frame, FrameBox};
+    use ffmpeg::libavutil::hwcontext::FramesReferenceBox;
     use ffmpeg::libavutil::pixfmt::PixelFormat;
 
     use super::ffi;
@@ -412,9 +413,12 @@ mod frame_mut_transfer_data_from {
         m.set_metadata(dict);
         m.set_opaque_ref(Some(BufferReference::alloc_zeroed(64).unwrap()));
         m.set_pixel_format(PixelFormat::YUV420P);
-        // SAFETY: the reference is one to a fake context; the frame holds no
-        // buffers, so it is no hardware frame C would read.
-        let old = unsafe { m.replace_hw_frames_context(Some(ctx.as_ref().try_clone().unwrap())) };
+        let reference = ctx.as_ref().try_clone().unwrap().into_c();
+        // SAFETY: a new reference to the fixture's fake frames context,
+        // handed over; the frame only stores it (it holds no buffers, so it
+        // is no hardware frame C would read), and the download replaces it.
+        let held = unsafe { FramesReferenceBox::from_c(reference) };
+        let old = m.replace_hw_frames_context(held);
         assert!(old.is_none());
         transfer(&mut dst, &hw).unwrap();
         let r = dst.as_ref();

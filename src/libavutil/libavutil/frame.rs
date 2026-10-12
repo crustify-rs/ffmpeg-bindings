@@ -64,6 +64,7 @@ use super::buffer::{
 use super::channel_layout::{ChannelLayout, ChannelLayoutMut, ChannelLayoutRef, ChannelLayoutVal};
 use super::dict::{Dict, DictionaryBox, DictionaryRef};
 use super::ffi;
+use super::hwcontext::{FramesReferenceBox, FramesReferenceRef};
 use super::imgutils;
 use super::pixdesc::{PixelFormatDescriptorRef, PixelFormatFlags};
 use super::pixfmt::{
@@ -2779,7 +2780,9 @@ define_ctype!(
     ///
     /// - each non-NULL `buf[i]`, `hw_frames_ctx` and `opaque_ref` is a
     ///   reference satisfying [`BufferReference`](super::buffer::BufferReference)'s invariant, and
-    ///   `hw_frames_ctx` one to a hardware frames context;
+    ///   `hw_frames_ctx` one satisfying [`FramesReference`](super::hwcontext::FramesReference)'s,
+    ///   to an initialised hardware frames context (which says nothing of
+    ///   the frame's buffers: they need not be its surfaces);
     /// - `extended_buf` is NULL with a zero `nb_extended_buf`, or an
     ///   `av_malloc`-family block of `nb_extended_buf` such references,
     ///   none NULL;
@@ -3479,19 +3482,32 @@ impl<'a> FrameRef<'a> {
 
     /// Field: AVFrame.hw_frames_ctx
     ///
-    /// The reference to the hardware frames context of a hardware frame,
-    /// borrowed from the frame; `None` for a software frame. Its bytes are
-    /// the context's `AVHWFramesContext` struct.
-    // A typed handle replaces this byte view once hwcontext.h's
-    // AVHWFramesContext is wrapped.
+    /// The hardware frames context of a hardware frame, through the
+    /// reference the frame owns, borrowed from the frame; `None` for a
+    /// software frame. [`try_clone`](FramesReferenceRef::try_clone) it for a
+    /// reference of the caller's own.
+    ///
+    /// The reference says which context the frame claims to belong to, not
+    /// that its buffers are that context's surfaces: see
+    /// [`FrameMut::replace_hw_frames_context`].
     #[must_use]
-    pub fn hw_frames_context(&self) -> Option<BufferReferenceRef<'a>> {
+    pub fn hw_frames_context(&self) -> Option<FramesReferenceRef<'a>> {
         // SAFETY: a read of the `hw_frames_ctx` pointer projected through the
         // shared handle's pointer to a live, initialised `AVFrame`.
         let buf = unsafe { addr_of!((*self.as_ptr()).hw_frames_ctx).read() };
         // SAFETY: by the type's invariant, NULL or a live reference the frame
-        // owns, which nothing releases or replaces while the frame is
-        // borrowed shared.
+        // owns to an initialised hardware frames context, which nothing
+        // releases or replaces while the frame is borrowed shared.
+        unsafe { FramesReferenceRef::from_ptr(buf) }
+    }
+
+    /// The frame's hardware frames context reference as the buffer
+    /// reference it also is, for its count.
+    fn hw_frames_buffer(&self) -> Option<BufferReferenceRef<'a>> {
+        // SAFETY: as in `hw_frames_context`.
+        let buf = unsafe { addr_of!((*self.as_ptr()).hw_frames_ctx).read() };
+        // SAFETY: as in `hw_frames_context`; the reference also satisfies
+        // `BufferReference`'s invariant, and the view is only counted.
         unsafe { BufferReferenceRef::from_ptr(buf) }
     }
 
@@ -3603,7 +3619,7 @@ impl<'a> FrameRef<'a> {
         let wide = !self.has_private_ref() || refstruct::COUNT_IS_WIDE;
         let mut refs = self
             .buffers()
-            .chain(self.hw_frames_context())
+            .chain(self.hw_frames_buffer())
             .chain(self.opaque_ref())
             .chain(self.side_data().iter().map(|e| e.buffer()));
         wide && refs.all(|buf| may_add_reference(buf.ref_count()))
@@ -3626,10 +3642,19 @@ impl<'a> FrameRef<'a> {
     /// it would read the planes past `extended_data`
     /// ([`copy_reads_past_extended_data`](Self::copy_reads_past_extended_data)),
     /// or overflow an `int` allocating the copy's buffers
-    /// ([`sample_rounding_overflows`](Self::sample_rounding_overflows)).
+    /// ([`sample_rounding_overflows`](Self::sample_rounding_overflows)):
     /// `AVERROR(EINVAL)`, which C also returns after that overflow unless it
-    /// can allocate the whole copy.
+    /// can allocate the whole copy. Or the frame holds a hardware frames
+    /// context: `av_frame_copy` then hands it to `av_hwframe_transfer_data`
+    /// as a hardware frame, whose backend calls a transfer routine some
+    /// backends lack (MediaCodec's, OpenHarmony's: a NULL call) and the
+    /// others read the planes of as surfaces, which nothing vouches the
+    /// frame's are (and a frame that is not reference counted has none):
+    /// `AVERROR(ENOSYS)`, as for [`FrameMut::copy_data_from`].
     fn copy_refusal(&self) -> Option<c_int> {
+        if self.hw_frames_buffer().is_some() {
+            return Some(ENOSYS);
+        }
         (self.copy_reads_past_extended_data() || self.sample_rounding_overflows()).then_some(EINVAL)
     }
 
@@ -3652,9 +3677,10 @@ impl<'a> FrameRef<'a> {
     /// buffers' counts would near wrapping, and for a frame that is not
     /// reference counted whose data C would read past its `extended_data`
     /// (planar audio of more channels than [`NUM_DATA_POINTERS`] needs an
-    /// array of its own, [`FrameMut::alloc_extended_data`]) or whose
+    /// array of its own, [`FrameMut::alloc_extended_data`]), whose
     /// buffers C cannot allocate without overflowing an `int` (audio of
-    /// `INT_MAX - 31` samples).
+    /// `INT_MAX - 31` samples), or which holds a hardware frames context
+    /// (C would copy it through the context's backend, as from a surface).
     #[must_use]
     pub fn try_clone(&self) -> Option<FrameBox> {
         if !self.may_clone() || (!self.is_counted() && self.copy_refusal().is_some()) {
@@ -4620,8 +4646,9 @@ impl FrameMut<'_> {
 
     /// Makes `with` the frame's reference in `field` (none for `None`), and
     /// returns the one it held. For [`ReferenceField::HwFramesContext`],
-    /// `with` must be a hardware frames context reference, which this
-    /// private helper leaves to its callers.
+    /// `with` must be a reference to an initialised hardware frames context
+    /// ([`replace_hw_frames_context`](Self::replace_hw_frames_context) takes
+    /// only those), which this private helper leaves to its callers.
     fn replace_reference(
         &mut self,
         field: ReferenceField,
@@ -4649,26 +4676,36 @@ impl FrameMut<'_> {
     /// Makes `with` the frame's hardware frames context reference (none for
     /// `None`) and returns the one it held.
     ///
-    /// # Safety
-    ///
-    /// `with` must be `None`, or a reference to a hardware frames context
-    /// (one `av_hwframe_ctx_alloc` made, or a reference to it), whose bytes C
-    /// reads as an `AVHWFramesContext` (`av_frame_make_writable`,
-    /// `av_frame_copy`, the `av_hwframe_*` routines, hardware decoders,
-    /// filters and encoders). The context must be initialised
-    /// (`av_hwframe_ctx_init` succeeded) and nothing may write its bytes
-    /// while the frame, or a copy of it, holds the reference:
-    /// [`FrameRef::hw_frames_context`] lends them to safe code as a
-    /// `&[u8]`, through [`BufferReferenceRef::data`].
-    // A safe setter taking a typed frames context replaces this seam once
-    // hwcontext.h's AVHWFramesContext is wrapped.
+    /// The reference names the context the frame claims to belong to; it
+    /// does not make the frame's buffers that context's surfaces, which C
+    /// would read through its backend. So the routines here that C would
+    /// run through the context refuse a frame holding one:
+    /// [`copy_data_from`](Self::copy_data_from) and
+    /// [`make_writable`](Self::make_writable) with `AVERROR(ENOSYS)`,
+    /// copies of a frame that is not reference counted
+    /// ([`FrameRef::try_clone`], [`try_clone_from`](Self::try_clone_from),
+    /// [`assign`](Self::assign)) too, and the safe hardware transfers
+    /// ([`HardwareFrame::download_to`](super::hwcontext::HardwareFrame::download_to),
+    /// [`upload_from`](super::hwcontext::HardwareFrame::upload_from)) refuse
+    /// it as no software frame; [`HardwareFrame`](super::hwcontext::HardwareFrame)
+    /// holds the hardware frames C makes. A reference counted frame holding
+    /// a reference to a context is copied with a new reference to it.
     #[must_use = "dropping the old reference releases it"]
-    pub unsafe fn replace_hw_frames_context(
+    pub fn replace_hw_frames_context(
         &mut self,
-        with: Option<BufferReferenceBox>,
-    ) -> Option<BufferReferenceBox> {
-        // The caller vouches for `with`.
-        self.replace_reference(ReferenceField::HwFramesContext, with)
+        with: Option<FramesReferenceBox>,
+    ) -> Option<FramesReferenceBox> {
+        let with = with.map(|frames| {
+            // SAFETY: a frames context reference handed over: an `AVBufferRef`
+            // satisfying `BufferReference`'s invariant, whose data is an
+            // initialised frames context, as the field takes it.
+            unsafe { BufferReferenceBox::from_c(frames.into_c()) }
+                .expect("a frames context reference is not NULL")
+        });
+        let old = self.replace_reference(ReferenceField::HwFramesContext, with)?;
+        // SAFETY: by the type's invariant, the reference to an initialised
+        // hardware frames context the frame owned, handed over.
+        unsafe { FramesReferenceBox::from_c(old.into_c()) }
     }
 
     /// Field: AVFrame.hw_frames_ctx
@@ -4676,8 +4713,8 @@ impl FrameMut<'_> {
     /// Takes the frame's hardware frames context reference out, leaving it
     /// none; `None` when it held none.
     #[must_use]
-    pub fn take_hw_frames_context(&mut self) -> Option<BufferReferenceBox> {
-        self.replace_reference(ReferenceField::HwFramesContext, None)
+    pub fn take_hw_frames_context(&mut self) -> Option<FramesReferenceBox> {
+        self.replace_hw_frames_context(None)
     }
 
     /// Field: AVFrame.opaque_ref
@@ -5416,9 +5453,10 @@ impl FrameMut<'_> {
     /// The frame is reset on every error. `AVERROR(ENOMEM)` when C cannot
     /// allocate or a buffer's count would near wrapping; for a `src` that is
     /// not reference counted, C's error copying its data (`AVERROR(EINVAL)`
-    /// for one without planes, such as a new frame), and `AVERROR(EINVAL)`
+    /// for one without planes, such as a new frame), `AVERROR(EINVAL)`
     /// when C would read its planes past its `extended_data` or overflow an
-    /// `int` allocating its buffers, as [`try_clone`](FrameRef::try_clone)
+    /// `int` allocating its buffers, and `AVERROR(ENOSYS)` when it holds a
+    /// hardware frames context, as [`try_clone`](FrameRef::try_clone)
     /// refuses.
     ///
     /// ```
@@ -5478,7 +5516,8 @@ impl FrameMut<'_> {
     /// `AVERROR(ENOMEM)` when a buffer's count would near wrapping, and
     /// `AVERROR(EINVAL)` when C, copying `src`'s data, would read its planes
     /// past its `extended_data` or overflow an `int` allocating the copy's
-    /// buffers, as [`try_clone_from`](Self::try_clone_from) refuses: the
+    /// buffers, or `AVERROR(ENOSYS)` when that `src` holds a hardware frames
+    /// context, as [`try_clone_from`](Self::try_clone_from) refuses: the
     /// frame is then left as it was. Otherwise C's
     /// errors (memory, a failed copy), on which the frame is reset.
     pub fn assign(&mut self, src: FrameRef<'_>) -> Result<(), c_int> {
