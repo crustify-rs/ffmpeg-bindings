@@ -1,0 +1,15 @@
+{
+  "method": {
+    "rust": "RUSTFLAGS=-C instrument-coverage; cargo +nightly test -p ffmpeg --lib --tests -- hwcontext --skip compile_fail; nightly llvm-profdata merge + llvm-cov report over the four test binaries, for libavutil/hwcontext.rs",
+    "c": "none: the workset is two C enums with no C routine of their own; their C readers are hwcontext wave-1 symbols",
+    "note": "The review changed only rustdoc, so the wave tip and the fixed tree measure the same. Environment-dependent: av_hwdevice_iterate_types' loop body and every backend path (hw_table is empty under --disable-autodetect), and TransferDirection's only C reader, av_hwframe_transfer_get_formats, which needs a frames context."
+  },
+  "rust": {
+    "libavutil/hwcontext.rs": {
+      "regions": {"count": 163, "percent": 100.0},
+      "functions": {"count": 21, "percent": 100.0},
+      "lines": {"count": 117, "percent": 100.0}
+    }
+  },
+  "c": {}
+}
