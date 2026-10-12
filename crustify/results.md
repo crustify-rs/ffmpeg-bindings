@@ -1988,3 +1988,9 @@ Wave wall time (22:40Z to 03:16Z on 2026-10-12) was 4h36m16s.
   `crypto`'s end), with an unsafe-LoC ratio of 0.157. The union run covers 72.39% of libavutil's C and
   98.36% of the authored Rust, with 884 unit, 790 `ub_safe`, 141 `ub_unsafe` and 675 equivalence
   tests.
+- After the review, at the user's request, the orchestrator moved `refstruct.rs`'s four typed-pool and
+  release trampolines off their one-element-slice workaround (`CSliceMut::from_raw_parts(p, 1)`) onto
+  `T::mut_from_void_ptr` / `T::mut_from_ptr`, the generic handle constructors ffibox `5a98173` gave
+  `CCell` (`7fd89a4fc6`). It was validated with clippy, the whole plain suite, and the refstruct tests
+  under ASan/UBSan, TSan and BSan; no smell moved. The sub-campaign and campaign-wide scans were taken
+  on that tree.
