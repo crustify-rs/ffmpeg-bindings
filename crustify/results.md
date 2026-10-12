@@ -135,11 +135,11 @@ in Notes.
 
 - **Rust LoC, non-test** — `<n>`
 - **Rust LoC, tests** — `<n>`
-- **UB safe tests** — `<count of #[test]>` (`<n>`% C LoC coverage, `<n>`% Rust LoC coverage)
-- **UB unsafe tests** — `<count of #[test]>` (`<n>`% C LoC coverage, `<n>`% Rust LoC coverage)
-- **Equiv tests** — `<count of #[test]>` (`<n>`% C LoC coverage, `<n>`% Rust LoC coverage)
-- **Unit tests** — `<count of #[test]>` (`<n>`% C LoC coverage, `<n>`% Rust LoC coverage)
-- **Total tests** — `<sum of the three counts>` (`<n>`% C LoC coverage, `<n>`% Rust LoC coverage)
+- **UB safe tests** — `809` (`58.78`% C LoC coverage, `74.73`% Rust LoC coverage)
+- **UB unsafe tests** — `181` (`29.85`% C LoC coverage, `27.61`% Rust LoC coverage)
+- **Equiv tests** — `718` (`74.02`% C LoC coverage, `80.25`% Rust LoC coverage)
+- **Unit tests** — `968` (`47.65`% C LoC coverage, `84.17`% Rust LoC coverage)
+- **Total tests** — `2676` (`75.12`% C LoC coverage, `97.79`% Rust LoC coverage)
 - **C LoC** — `<n>`
 - **total types** — `290`
 - **total symbols** — `1126`
