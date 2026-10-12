@@ -74,7 +74,7 @@ use core::ops::{BitOr, BitOrAssign};
 use core::ptr::{self, NonNull, addr_of, addr_of_mut};
 
 use ffibox::{
-    CAlloc, CAllocZeroed, CArc, CBox, CCell, CDrop, CRefClone, CSliceMut, CZeroable, define_ctype,
+    CAlloc, CAllocZeroed, CArc, CBox, CCell, CDrop, CRefClone, CZeroable, define_ctype,
 };
 
 use super::ffi;
@@ -887,15 +887,11 @@ where
     // opaque `alloc_with_release` stored: the `Box<F>` it leaked for this
     // call alone.
     let release = unsafe { Box::from_raw(state.cast::<F>()) };
-    if let Some(payload) = NonNull::new(obj.cast::<T>()) {
-        // SAFETY: `obj` is the payload whose last reference has just gone, so
-        // nothing else reaches it until C frees the block after this
-        // returns; it holds a `T`, zeroed and then written only through its
-        // safe handles.
-        let payload = unsafe { CSliceMut::from_raw_parts(payload, 1) };
-        if let Some(last) = payload.into_mut(0) {
-            release(last);
-        }
+    // SAFETY: `obj` is the payload whose last reference has just gone, so
+    // nothing else reaches it until C frees the block after this returns; it
+    // holds a `T`, zeroed and then written only through its safe handles.
+    if let Some(last) = unsafe { T::mut_from_void_ptr(obj) } {
+        release(last);
     }
 }
 
@@ -1253,7 +1249,7 @@ unsafe extern "C" fn init_with<T: CCell + 'static, S>(
     }
     // SAFETY: a new entry, zeroed by C or above, which `T: CZeroable` (the
     // pool's bound) makes a valid `T`, handed to nobody until this returns.
-    let entry = unsafe { CSliceMut::from_raw_parts(obj, 1) }.into_mut(0);
+    let entry = unsafe { T::mut_from_ptr(obj.as_ptr().cast::<T::C>()) };
     let ready = match (&state.callbacks.init, entry) {
         (Some(init), Some(entry)) => init(&state.callbacks.state, entry),
         _ => true,
@@ -1273,12 +1269,9 @@ unsafe extern "C" fn reset_with<T: CCell + 'static, S>(
     let Some(state) = (unsafe { state.as_ref() }) else {
         return;
     };
-    let Some(obj) = NonNull::new(obj.cast::<T>()) else {
-        return;
-    };
     // SAFETY: an entry whose last reference has gone, or one a failed init
     // left; either way a valid `T` nothing else reaches until this returns.
-    let entry = unsafe { CSliceMut::from_raw_parts(obj, 1) }.into_mut(0);
+    let entry = unsafe { T::mut_from_void_ptr(obj) };
     if let (Some(reset), Some(entry)) = (&state.callbacks.reset, entry) {
         reset(&state.callbacks.state, entry);
     }
@@ -1296,12 +1289,9 @@ unsafe extern "C" fn free_entry_with<T: CCell + 'static, S>(
     let Some(state) = (unsafe { state.as_ref() }) else {
         return;
     };
-    let Some(obj) = NonNull::new(obj.cast::<T>()) else {
-        return;
-    };
     // SAFETY: an entry C is about to free, taken off the free list or
     // returned, or one a failed init left: a valid `T` nothing else reaches.
-    let entry = unsafe { CSliceMut::from_raw_parts(obj, 1) }.into_mut(0);
+    let entry = unsafe { T::mut_from_void_ptr(obj) };
     if let (Some(free_entry), Some(entry)) = (&state.callbacks.free_entry, entry) {
         free_entry(&state.callbacks.state, entry);
     }
