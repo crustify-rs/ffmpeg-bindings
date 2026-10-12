@@ -1,0 +1,21 @@
+{
+ "lifetime": null,
+ "ptr_args": {
+  "0": {
+   "ptr": {
+    "scalar": {
+     "by_val": true
+    },
+    "array": null,
+    "string": false,
+    "owned": false,
+    "borrowed": {
+     "lifetime": "arg:frame"
+    },
+    "nullable": false,
+    "mutable": true,
+    "note": "The frame, borrowed: when any buffer is shared or read-only C allocates a frame of its geometry (av_frame_get_buffer, or av_hwframe_get_buffer for hw frames), av_frame_copy's the planes (reads through the frame's untrusted geometry), av_frame_copy_props's (side data memcpy), unrefs the frame and moves the copy in (uninitialised padding). A failing get_buffer returns without freeing the copied ch_layout (leaks a CUSTOM map). Rust: FrameMut::make_writable composes the same C steps over zeroed buffers. Its av_frame_get_buffer(&tmp, 0) overflows int for audio of INT_MAX - 31 samples (av_samples_get_buffer_size's FFALIGN rounding); Rust's copy hands C the line size it would round to."
+   }
+  }
+ }
+}

@@ -1,0 +1,48 @@
+{
+  "method": {
+    "rust": "RUSTFLAGS=-C instrument-coverage; cargo +nightly test -p ffmpeg --lib --tests -- frame --skip compile_fail (with CRUSTIFY_FFMPEG_VARIANT=coverage), empty profraw dir; nightly llvm-profdata merge + llvm-cov report/show over the lib, equiv, ub_safe and ub_unsafe binaries, for libavutil/frame.rs whole and for its wave-4 region (lines 4831-5977 of the fixed tree: ENOSYS through remove_side_data, every workset wrapper and its private models)",
+    "c": "the same run, GCOV_PREFIX into a private dir; gcov 13 -b -c -f over libavutil/frame.c (gcc 14 build)",
+    "note": "measured on the fixed tree. Rust: frame.rs 99.61% of lines (3878 of 3893), every function run; the wave-4 region 549 of 553 lines. Its 4 misses: video_copy_is_sound's skip of a NULL plane past the format's own planes and crop_is_sound's failed recount after rounding (both unreachable: C checks those planes first, and the recount sees the planes the first count accepted), and zero_copied_buffers' failure arm, which, like try_clone's, needs the second of two equal allocations to fail after the first succeeded; no av_max_alloc limit separates them. The review's new lines (sample_rounding_overflows, default_sample_linesize and its error, copy_refusal, the preset line size in copy_into_zeroed_buffers, the refusals in try_clone, try_clone_from and assign) all run. C: frame.c 96.46% of 480 lines. Misses: the hardware paths (av_hwframe_get_buffer, av_hwframe_transfer_data, hw_frames_ctx references; no hardware context is wrapped yet), av_frame_make_writable's own failure returns (the wrapper composes C's steps; the C routine runs only as the equivalence reference), and allocation failures inside av_frame_ref/av_frame_replace/get_*_buffer that no av_max_alloc limit isolates."
+  },
+  "rust": {
+    "libavutil/frame.rs": {
+      "lines": {"count": 3893, "percent": 99.61},
+      "functions": {"count": 506, "percent": 100.0}
+    },
+    "libavutil/frame.rs:4831-5977": {
+      "lines": {"count": 553, "percent": 99.28}
+    }
+  },
+  "c": {
+    "libavutil/frame.c": {
+      "lines": {"count": 480, "percent": 96.46},
+      "functions": {
+        "av_frame_alloc": 100.0,
+        "av_frame_free": 100.0,
+        "get_frame_defaults": 100.0,
+        "get_video_buffer": 97.67,
+        "get_audio_buffer": 94.74,
+        "av_frame_get_buffer": 100.0,
+        "frame_copy_props": 100.0,
+        "av_frame_ref": 90.0,
+        "av_frame_replace": 97.22,
+        "av_frame_clone": 100.0,
+        "av_frame_unref": 100.0,
+        "av_frame_move_ref": 100.0,
+        "av_frame_is_writable": 100.0,
+        "av_frame_make_writable": 83.87,
+        "av_frame_copy_props": 100.0,
+        "av_frame_get_plane_buffer": 100.0,
+        "av_frame_new_side_data_from_buf": 100.0,
+        "av_frame_new_side_data": 100.0,
+        "av_frame_get_side_data": 100.0,
+        "frame_copy_video": 93.33,
+        "frame_copy_audio": 100.0,
+        "av_frame_copy": 100.0,
+        "av_frame_remove_side_data": 100.0,
+        "calc_cropping_offsets": 100.0,
+        "av_frame_apply_cropping": 100.0
+      }
+    }
+  }
+}

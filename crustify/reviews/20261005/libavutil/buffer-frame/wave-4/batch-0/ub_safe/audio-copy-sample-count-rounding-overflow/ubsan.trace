@@ -1,0 +1,30 @@
+src/libavutil/samplefmt.c:137:22: runtime error: signed integer overflow: 2147483616 + 32 cannot be represented in type 'int'
+    #0 0x7eb4836d6b7d in av_samples_get_buffer_size /target/crustify/builds/asan-ubsan/src/libavutil/samplefmt.c:137:22
+    #1 0x7eb4835e62c7 in get_audio_buffer /target/crustify/builds/asan-ubsan/src/libavutil/frame.c:156:15
+    #2 0x7eb4835e62c7 in av_frame_get_buffer /target/crustify/builds/asan-ubsan/src/libavutil/frame.c:215:16
+    #3 0x5e7fa8969b5f in <ffmpeg::libavutil::frame::FrameRef>::copy_into_zeroed_buffers /target/crustify/.worktrees/crustify/review-batches/20261005/libavutil/buffer-frame/wave-4/batch-0/crustify/rust/ffmpeg/libavutil/frame.rs:3709:23
+    #4 0x5e7fa896c377 in <ffmpeg::libavutil::frame::FrameMut>::make_writable /target/crustify/.worktrees/crustify/review-batches/20261005/libavutil/buffer-frame/wave-4/batch-0/crustify/rust/ffmpeg/libavutil/frame.rs:5720:31
+    #5 0x5e7fa895aec5 in audio_copy_sample_count_rounding_overflow::scenario /target/crustify/.worktrees/crustify/review-batches/20261005/libavutil/buffer-frame/wave-4/batch-0/crustify/reviews/20261005/libavutil/buffer-frame/wave-4/batch-0/ub_safe/audio-copy-sample-count-rounding-overflow/src/main.rs:36:17
+    #6 0x5e7fa895a9d7 in audio_copy_sample_count_rounding_overflow::main /target/crustify/.worktrees/crustify/review-batches/20261005/libavutil/buffer-frame/wave-4/batch-0/crustify/reviews/20261005/libavutil/buffer-frame/wave-4/batch-0/ub_safe/audio-copy-sample-count-rounding-overflow/src/main.rs:42:9
+    #7 0x5e7fa895a4da in <fn() as core::ops::function::FnOnce<()>>::call_once /root/.rustup/toolchains/nightly-x86_64-unknown-linux-gnu/lib/rustlib/src/rust/library/core/src/ops/function.rs:250:5
+    #8 0x5e7fa8959e3d in std::sys::backtrace::__rust_begin_short_backtrace::<fn(), ()> /root/.rustup/toolchains/nightly-x86_64-unknown-linux-gnu/lib/rustlib/src/rust/library/std/src/sys/backtrace.rs:166:18
+    #9 0x5e7fa8958fe3 in std::rt::lang_start::<()>::{closure#0} /root/.rustup/toolchains/nightly-x86_64-unknown-linux-gnu/lib/rustlib/src/rust/library/std/src/rt.rs:206:18
+    #10 0x5e7fa89f57a1 in <&dyn core::ops::function::Fn<(), Output = i32> + core::panic::unwind_safe::RefUnwindSafe + core::marker::Sync as core::ops::function::FnOnce<()>>::call_once /root/.rustup/toolchains/nightly-x86_64-unknown-linux-gnu/lib/rustlib/src/rust/library/core/src/ops/function.rs:287:21
+    #11 0x5e7fa89ecbfa in std::panicking::catch_unwind::do_call::<&dyn core::ops::function::Fn<(), Output = i32> + core::panic::unwind_safe::RefUnwindSafe + core::marker::Sync, i32> /root/.rustup/toolchains/nightly-x86_64-unknown-linux-gnu/lib/rustlib/src/rust/library/std/src/panicking.rs:573:43
+    #12 0x5e7fa89f9fba in __rust_try std.4ab26c9dab9163a9-cgu.02
+    #13 0x5e7fa89ebd7b in std::panicking::catch_unwind::<i32, &dyn core::ops::function::Fn<(), Output = i32> + core::panic::unwind_safe::RefUnwindSafe + core::marker::Sync> /root/.rustup/toolchains/nightly-x86_64-unknown-linux-gnu/lib/rustlib/src/rust/library/std/src/panicking.rs:541:19
+    #14 0x5e7fa8b22d8a in std::panic::catch_unwind::<&dyn core::ops::function::Fn<(), Output = i32> + core::panic::unwind_safe::RefUnwindSafe + core::marker::Sync, i32> /root/.rustup/toolchains/nightly-x86_64-unknown-linux-gnu/lib/rustlib/src/rust/library/std/src/panic.rs:359:14
+    #15 0x5e7fa897afb3 in std::rt::lang_start_internal::{closure#0} /root/.rustup/toolchains/nightly-x86_64-unknown-linux-gnu/lib/rustlib/src/rust/library/std/src/rt.rs:175:24
+    #16 0x5e7fa89eca4e in std::panicking::catch_unwind::do_call::<std::rt::lang_start_internal::{closure#0}, isize> /root/.rustup/toolchains/nightly-x86_64-unknown-linux-gnu/lib/rustlib/src/rust/library/std/src/panicking.rs:573:43
+    #17 0x5e7fa89f9fba in __rust_try std.4ab26c9dab9163a9-cgu.02
+    #18 0x5e7fa89ebb17 in std::panicking::catch_unwind::<isize, std::rt::lang_start_internal::{closure#0}> /root/.rustup/toolchains/nightly-x86_64-unknown-linux-gnu/lib/rustlib/src/rust/library/std/src/panicking.rs:541:19
+    #19 0x5e7fa8b22cfb in std::panic::catch_unwind::<std::rt::lang_start_internal::{closure#0}, isize> /root/.rustup/toolchains/nightly-x86_64-unknown-linux-gnu/lib/rustlib/src/rust/library/std/src/panic.rs:359:14
+    #20 0x5e7fa898cd42 in std::rt::lang_start_internal /root/.rustup/toolchains/nightly-x86_64-unknown-linux-gnu/lib/rustlib/src/rust/library/std/src/rt.rs:171:5
+    #21 0x5e7fa8958f4f in std::rt::lang_start::<()> /root/.rustup/toolchains/nightly-x86_64-unknown-linux-gnu/lib/rustlib/src/rust/library/std/src/rt.rs:205:5
+    #22 0x5e7fa895b08d in main (/tmp/bf-w4-rev/repro-asan/x86_64-unknown-linux-gnu/debug/audio-copy-sample-count-rounding-overflow+0x25908d) (BuildId: 853c0916dc60d06d18f4141e41ba17c7436a8864)
+    #23 0x7eb4830901c9 in __libc_start_call_main csu/../sysdeps/nptl/libc_start_call_main.h:58:16
+    #24 0x7eb48309028a in __libc_start_main csu/../csu/libc-start.c:360:3
+    #25 0x5e7fa888fb94 in _start (/tmp/bf-w4-rev/repro-asan/x86_64-unknown-linux-gnu/debug/audio-copy-sample-count-rounding-overflow+0x18db94) (BuildId: 853c0916dc60d06d18f4141e41ba17c7436a8864)
+
+SUMMARY: UndefinedBehaviorSanitizer: undefined-behavior src/libavutil/samplefmt.c:137:22 
+exit=1
