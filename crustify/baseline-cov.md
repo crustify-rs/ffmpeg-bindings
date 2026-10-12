@@ -278,7 +278,7 @@ HDR side-data family stay untouched.
 
 ## 4. Unsafe surface
 
-`crustify scan-unsafe`'s rustc driver at crustify `c1e054a`, which counts only
+`crustify scan-unsafe`'s rustc driver at crustify `c2c4425`, which counts only
 what the scanned crate defines, by rustc's effective visibility (reachable from
 outside the crate) and, for fn signatures, by safety; methods implementing
 another crate's trait are left out, since that crate fixed their signature.
@@ -291,15 +291,15 @@ emitted.
 | metric | ftt | next |
 |---|---:|---:|
 | `code_lines` | `10,988` | `12,122` |
-| fns, pub / private | `1,684` / `745` | `1,441` / `604` |
+| `safe_fns_pub` / `safe_fns_priv` | `1,254` / `472` | `1,049` / `387` |
 | **`unsafe_fns_pub`** (public unsafe surface) | **`82`** | **`111`** |
 | `unsafe_fns_priv` | `13` | `7` |
-| `raw_ptr` | `162` | `178` |
-| ↳ `raw_ptr_type_pub` / `_type_priv` (fields) | **`41`** / `0` | **`49`** / `0` |
+| raw-pointer positions, all six counters | `162` | `178` |
+| ↳ `raw_ptr_ty_pub` / `_ty_priv` (fields) | **`41`** / `0` | **`49`** / `0` |
 | ↳ `raw_ptr_fn_pub_safe` / `_fn_pub_unsafe` | **`43`** / `66` | **`20`** / `96` |
 | ↳ `raw_ptr_fn_priv_safe` / `_fn_priv_unsafe` | `8` / `4` | `4` / `9` |
-| **raw pointers on the safe public interface** (`_type_pub` + `_fn_pub_safe`) | **`84`** | **`69`** |
-| `void_ptr`: type pub / fn pub safe / fn pub unsafe / private | `4`: `3` / `0` / `0` / `1` | `11`: `1` / `2` / `0` / `8` |
+| **raw pointers on the safe public interface** (`_ty_pub` + `_fn_pub_safe`) | **`84`** | **`69`** |
+| `*c_void` positions: `void_ptr_ty_pub` / `_fn_pub_safe` / `_fn_pub_unsafe` / private (`_ty_priv` + `_fn_priv_*`) | `3` / `0` / `0` / `1` | `1` / `2` / `0` / `8` |
 | `unsafe` blocks | `667` | `633` |
 | `unsafe impl` | `58` | `67` |
 | calls to C | `264` | `304` |
@@ -378,9 +378,9 @@ columns here are the `libavutil` ones.
 | wrapped / covered symbols | `335` of `671` (`50%`) | `91` of `669` (`13.6%`) | `74` of `669` (`11.1%`) |
 | `code_lines` | `10,616` | `10,988` (whole crate) | `12,122` (whole crate) |
 | public `unsafe fn` (`unsafe_fns_pub`)¹ | `32` | `82` | `111` |
-| raw pointers on the safe public interface (`raw_ptr_type_pub` + `raw_ptr_fn_pub_safe`)¹ | `32` (`12` + `20`) | `84` (`41` + `43`) | `69` (`49` + `20`) |
+| raw pointers on the safe public interface (`raw_ptr_ty_pub` + `raw_ptr_fn_pub_safe`)¹ | `32` (`12` + `20`) | `84` (`41` + `43`) | `69` (`49` + `20`) |
 | raw pointers in public `unsafe fn`s¹ | `19` | `66` | `96` |
-| all raw-pointer positions (`raw_ptr`)¹ | `538` | `162` | `178` |
+| all raw-pointer positions (sum of the six `raw_ptr_*` partitions)¹ | `538` | `162` | `178` |
 | calls to C | `374` | `264` | `304` |
 
 How to read it:
@@ -394,7 +394,7 @@ How to read it:
 - Both Rust figures exclude `#[cfg(test)]` code; the campaign's also excludes
   `tests/`, which these crates' `src/` scope already leaves out.
 - ¹ The unsafe-surface rows are not restated: all three are fresh scans with
-  the same driver (crustify `c1e054a`), the campaign's at the active campaign's
+  the same driver (crustify `c2c4425`), the campaign's at the active campaign's
   tip (`ffmpeg-wrap-20261005`, `crustify/campaigns/20261005` at `1a441943aa`,
   `crustify/campaigns/20261005/scan-unsafe.json`). They count only what each
   crate defines, so ffibox's own conversions and the `pub(crate)` constructors
