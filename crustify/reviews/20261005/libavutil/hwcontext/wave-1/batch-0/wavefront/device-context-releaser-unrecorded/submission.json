@@ -1,0 +1,35 @@
+{
+  "ptr_args": {
+    "0": {
+      "ptr": {
+        "scalar": {"by_val": true},
+        "array": null,
+        "string": false,
+        "owned": false,
+        "borrowed": {"lifetime": "call"},
+        "nullable": true,
+        "mutable": null,
+        "note": "The AVBuffer's opaque, which av_hwdevice_ctx_alloc passes as NULL to av_buffer_create; never read."
+      }
+    },
+    "1": {
+      "ptr": {
+        "scalar": {"by_val": true},
+        "array": null,
+        "string": false,
+        "owned": true,
+        "borrowed": null,
+        "nullable": false,
+        "mutable": true,
+        "note": "The buffer's data: the FFHWDeviceContext (public AVHWDeviceContext first) av_hwdevice_ctx_alloc av_mallocz'd and handed to av_buffer_create as a READONLY buffer whose free callback this is. av_buffer_unref calls it once, with the last reference gone. It runs the backend's device_uninit, then ctx->free (the caller's or a backend's callback; Rust's release_hooks trampoline when the hooks are installed), unrefs source_device, and av_freep's hwctx and the context itself. This is AVHWDeviceContext's only releaser: no symbol takes an AVHWDeviceContext * to free it, so the lifecycle is reached through the AVBufferRef (Rust: ContextUnref = av_buffer_unref on DeviceReferenceBox/UninitDevice)."
+      }
+    }
+  },
+  "lifetime": {
+    "for": "data",
+    "is_dropper": true,
+    "is_disposer": false,
+    "is_cloner": null,
+    "is_constructor": null
+  }
+}
