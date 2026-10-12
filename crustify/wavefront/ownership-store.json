@@ -1051,7 +1051,7 @@
   {
    "name": "AVHWDeviceContext",
    "defined_in": "libavutil/hwcontext.h",
-   "_comment_agent": "hwcontext wave-1 batch-0 (wrap). AVHWDeviceContext is only ever reached through the data of an AVBufferRef: av_hwdevice_ctx_alloc av_mallocz's an FFHWDeviceContext (public struct first), wraps it in a READONLY AVBuffer whose release is hwdevice_ctx_free, and returns the reference; av_hwdevice_ctx_create / create_derived(_opts) build on it. Clone = av_buffer_ref (one more counted reference to the same context), drop = av_buffer_unref; the last one runs hwdevice_ctx_free: backend device_uninit, then ctx->free(ctx), then source_device unref, av_freep(hwctx), av_freep(ctx). No symbol takes or returns AVHWDeviceContext* directly (only AVBufferRef* / uint8_t*), so `query symbols --lifetime-for AVHWDeviceContext` stays empty: the lifecycle lives on AVBufferRef. Construction phase: alloc -> caller fills hwctx/free/user_opaque -> av_hwdevice_ctx_init (backend device_init reads the caller-filled hwctx without checks, e.g. d3d11va derefs device). After init the caller must not modify the struct; av_hwdevice_ctx_create sets free/user_opaque itself (vaapi/qsv/dxva2/vdpau backends store a priv in user_opaque and free it from their free callback). `type` is set once by alloc and never written again; av_class is the static hwdevice_ctx_class. Rust: DeviceContext{,Ref,Mut} layout over the public struct; its owners are batch 1's AVBufferRef owners: UninitDevice (sole, uninitialised) lends DeviceContextRef/DeviceContextMut through context()/context_mut(), and init is unsafe because backends' device_init dereference caller-filled hwctx handles unchecked (d3d11va calls through hwctx->device); DeviceReferenceRef::context() lends a read-only DeviceContextRef of an initialised one. free/user_opaque hold Rust hooks (a Box with Send+Sync user data and a Send FnOnce free closure, released by a trampoline) installed only when both are unset.",
+   "_comment_agent": "hwcontext wave-1 batch-0 (wrap). AVHWDeviceContext is only ever reached through the data of an AVBufferRef: av_hwdevice_ctx_alloc av_mallocz's an FFHWDeviceContext (public struct first), wraps it in a READONLY AVBuffer whose release is hwdevice_ctx_free, and returns the reference; av_hwdevice_ctx_create / create_derived(_opts) build on it. Clone = av_buffer_ref (one more counted reference to the same context), drop = av_buffer_unref; the last one runs hwdevice_ctx_free: backend device_uninit, then ctx->free(ctx), then source_device unref, av_freep(hwctx), av_freep(ctx). No symbol takes or returns AVHWDeviceContext* directly (only AVBufferRef* / uint8_t*), so `query symbols --lifetime-for AVHWDeviceContext` stays empty: the lifecycle lives on AVBufferRef. Construction phase: alloc -> caller fills hwctx/free/user_opaque -> av_hwdevice_ctx_init (backend device_init reads the caller-filled hwctx without checks, e.g. d3d11va derefs device). After init the caller must not modify the struct; av_hwdevice_ctx_create sets free/user_opaque itself (vaapi/qsv/dxva2/vdpau backends store a priv in user_opaque and free it from their free callback; drm/opencl/d3d12va/vulkan set free alone). `type` is set once by alloc and never written again; av_class is the static hwdevice_ctx_class. Rust: DeviceContext{,Ref,Mut} layout over the public struct; its owners are batch 1's AVBufferRef owners: UninitDevice (sole, uninitialised) lends DeviceContextRef/DeviceContextMut through context()/context_mut(), and init is unsafe because backends' device_init dereference caller-filled hwctx handles unchecked (d3d11va calls through hwctx->device); DeviceReferenceRef::context() lends a read-only DeviceContextRef of an initialised one. free/user_opaque hold Rust hooks (a Box with Send+Sync user data and a Send FnOnce free closure, released by a trampoline) installed only when both are unset. Corrected by the hwcontext wave-1 type review: the `free` note said every backend that sets `free` also sets `user_opaque`; drm, opencl, d3d12va and vulkan set `free` alone (from device_create, and opencl/vulkan from device_derive too, through their *_device_create_internal), which is why the Rust hooks refuse a context where either field is set. The review also recorded hwdevice_ctx_free (static, the AVBuffer free callback av_hwdevice_ctx_alloc installs) as the context's dropper on its uint8_t *data argument; `--lifetime-for AVHWDeviceContext` still cannot show it, since it matches the declared argument type.",
    "fields": [
     {
      "name": "av_class",
@@ -1084,7 +1084,7 @@
       },
       "nullable": true,
       "mutable": false,
-      "note": "Function pointer called once by hwdevice_ctx_free (last av_buffer_unref), after the backend's device_uninit and before hwctx and the context are freed, with the context. NULL unless the caller sets it before av_hwdevice_ctx_init or a backend's device_create/device_derive sets it together with user_opaque (vaapi, qsv, dxva2, vdpau, drm, opencl, d3d12va)."
+      "note": "Function pointer called once by hwdevice_ctx_free (last av_buffer_unref), after the backend's device_uninit and before hwctx and the context are freed, with the context. NULL unless the caller sets it before av_hwdevice_ctx_init, or a backend's device_create/device_derive sets it: together with user_opaque (a private struct its free callback releases) in vaapi (create, derive), qsv (create, derive), dxva2 and vdpau; alone, with user_opaque left NULL, in drm (drm_device_create), opencl and vulkan (opencl_/vulkan_device_create_internal, reached from create and derive) and d3d12va (d3d12va_device_create). So neither field being set tells whether the other is: a wrapper that claims the pair must find both unset."
      }
     },
     {
@@ -19494,6 +19494,51 @@
   {
    "name": "avutil_version",
    "defined_in": "libavutil/version.c"
+  },
+  {
+   "name": "hwdevice_ctx_free",
+   "defined_in": "libavutil/hwcontext.c",
+   "lifetime": {
+    "for": "data",
+    "is_dropper": true,
+    "is_disposer": false,
+    "is_cloner": null,
+    "is_constructor": null
+   },
+   "ptr_args": [
+    {
+     "name": "data",
+     "ptr": {
+      "scalar": {
+       "by_val": true
+      },
+      "array": null,
+      "string": false,
+      "owned": true,
+      "borrowed": null,
+      "nullable": false,
+      "mutable": true,
+      "note": "The buffer's data: the FFHWDeviceContext (public AVHWDeviceContext first) av_hwdevice_ctx_alloc av_mallocz'd and handed to av_buffer_create as a READONLY buffer whose free callback this is. av_buffer_unref calls it once, with the last reference gone. It runs the backend's device_uninit, then ctx->free (the caller's or a backend's callback; Rust's release_hooks trampoline when the hooks are installed), unrefs source_device, and av_freep's hwctx and the context itself. This is AVHWDeviceContext's only releaser: no symbol takes an AVHWDeviceContext * to free it, so the lifecycle is reached through the AVBufferRef (Rust: ContextUnref = av_buffer_unref on DeviceReferenceBox/UninitDevice)."
+     }
+    },
+    {
+     "name": "opaque",
+     "ptr": {
+      "scalar": {
+       "by_val": true
+      },
+      "array": null,
+      "string": false,
+      "owned": false,
+      "borrowed": {
+       "lifetime": "call"
+      },
+      "nullable": true,
+      "mutable": null,
+      "note": "The AVBuffer's opaque, which av_hwdevice_ctx_alloc passes as NULL to av_buffer_create; never read."
+     }
+    }
+   ]
   }
  ]
 }
