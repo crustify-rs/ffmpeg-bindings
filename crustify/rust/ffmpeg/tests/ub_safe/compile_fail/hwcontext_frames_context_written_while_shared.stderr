@@ -1,0 +1,9 @@
+error[E0502]: cannot borrow `frames` as mutable because it is also borrowed as immutable
+ --> tests/ub_safe/compile_fail/hwcontext_frames_context_written_while_shared.rs
+  |
+  |     let shared = frames.context();
+  |                  ------ immutable borrow occurs here
+  |     frames.context_mut().set_width(16);
+  |     ^^^^^^^^^^^^^^^^^^^^ mutable borrow occurs here
+  |     let _ = shared.width();
+  |             ------ immutable borrow later used here

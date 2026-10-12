@@ -1,0 +1,16 @@
+error[E0505]: cannot move out of `frames` because it is borrowed
+ --> tests/ub_safe/compile_fail/hwcontext_frames_context_outlives_reference.rs
+  |
+  | fn view(frames: FramesReferenceBox) {
+  |         ------ binding `frames` declared here
+  |     let ctx = frames.as_ref().context();
+  |               ------ borrow of `frames` occurs here
+  |     drop(frames);
+  |          ^^^^^^ move out of `frames` occurs here
+  |     let _ = ctx.format();
+  |             --- borrow later used here
+  |
+help: consider cloning the value if the performance cost is acceptable
+  |
+4 |     let ctx = frames.clone().as_ref().context();
+  |                     ++++++++

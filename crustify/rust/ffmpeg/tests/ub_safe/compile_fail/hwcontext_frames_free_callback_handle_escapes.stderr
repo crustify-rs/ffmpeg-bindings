@@ -1,0 +1,10 @@
+error[E0521]: borrowed data escapes outside of closure
+ --> tests/ub_safe/compile_fail/hwcontext_frames_free_callback_handle_escapes.rs
+  |
+  |         .set_free_callback(|ctx: FramesContextMut<'_>| KEPT.with(|k| *k.borrow_mut() = Some(ctx)));
+  |                             ---                        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  |                             |                          |
+  |                             |                          `ctx` escapes the closure body here
+  |                             |                          argument requires that `'1` must outlive `'static`
+  |                             `ctx` is a reference that is only valid in the closure body
+  |                             has type `FramesContextMut<'1>`

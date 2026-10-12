@@ -33,7 +33,9 @@
 //! [`DeviceReferenceRef::context`] once initialised and
 //! [`UninitDevice::context_mut`] while it is filled in; its constraints on
 //! frames are a [`FramesConstraintsBox`]
-//! ([`DeviceReferenceRef::frames_constraints`]).
+//! ([`DeviceReferenceRef::frames_constraints`]). A frames context's own
+//! fields are [`FramesContext`]'s, reached likewise through
+//! [`FramesReferenceRef::context`] and [`UninitFrames::context_mut`].
 
 use core::any::Any;
 use core::ffi::{CStr, c_int, c_uint, c_void};
@@ -45,7 +47,9 @@ use core::ptr::{self, NonNull, addr_of, addr_of_mut};
 
 use ffibox::{CBox, CCell, CDrop, CDupClone, CNew, CPlainElem, CSlice, define_ctype};
 
-use super::buffer::{BufferReferenceRef, ENOMEM, MAX_REFERENCES, may_add_reference};
+use super::buffer::{
+    BufferPoolBox, BufferPoolRef, BufferReferenceRef, ENOMEM, MAX_REFERENCES, may_add_reference,
+};
 use super::dict::Dict;
 use super::ffi;
 use super::frame::{
@@ -288,17 +292,17 @@ impl<'a> HwFrames<'a> {
 
     /// The context's allocated surface size and software format.
     fn geometry(self) -> FramesGeometry {
-        let ctx = self.0.parts().0.as_ptr().cast::<ffi::AVHWFramesContext>();
+        let data = self.0.parts().0.as_ptr();
         // SAFETY: by the type's invariant the reference's data is a live,
         // initialised `AVHWFramesContext` (C allocates it as the leading
-        // member of its private context, aligned by `av_mallocz`); three
-        // plain fields are read through raw places, without a reference.
-        unsafe {
-            FramesGeometry {
-                sw_format: PixelFormat::from_raw(addr_of!((*ctx).sw_format).read()),
-                width: addr_of!((*ctx).width).read(),
-                height: addr_of!((*ctx).height).read(),
-            }
+        // member of its private context, aligned by `av_mallocz`), which
+        // nothing writes while the reference is borrowed.
+        let ctx = unsafe { FramesContextRef::from_ptr(data.cast()) }
+            .expect("a frames context reference has data");
+        FramesGeometry {
+            sw_format: ctx.sw_format(),
+            width: ctx.width(),
+            height: ctx.height(),
         }
     }
 
@@ -1331,17 +1335,6 @@ impl<'a> FramesReferenceRef<'a> {
         unsafe { addr_of!((*self.as_ptr()).data).read() }.addr()
     }
 
-    /// The context's hardware pixel format, which its frames have.
-    // The public getter is AVHWFramesContext's.
-    fn hw_format(&self) -> ffi::AVPixelFormat {
-        // SAFETY: a read of the `data` field of a live reference.
-        let data = unsafe { addr_of!((*self.as_ptr()).data).read() };
-        let ctx = data.cast::<ffi::AVHWFramesContext>();
-        // SAFETY: by the type's invariant, `data` is the initialised
-        // context's public struct, which nothing writes any more.
-        unsafe { addr_of!((*ctx).format).read() }
-    }
-
     /// The number of references to the frames context, as C reads it.
     fn ref_count(&self) -> c_int {
         // SAFETY: a live reference; C atomically loads its buffer's count.
@@ -1488,12 +1481,22 @@ impl<'a> FramesReferenceRef<'a> {
 /// A frames context that is allocated but not yet initialised, from
 /// [`DeviceReferenceRef::alloc_frames`]: the only reference to it. Fill in
 /// its hardware and software formats, size and, optionally, initial pool
-/// size, pool, `hwctx` (the backend's frames struct), `free` and
-/// `user_opaque` through [`as_mut_ptr`](Self::as_mut_ptr), then
-/// [`init`](Self::init) it.
+/// size, pool, `hwctx` (the backend's frames struct), free callback and
+/// user data through [`context_mut`](Self::context_mut)
+/// ([`FramesContextMut`]), then [`init`](Self::init) it.
 ///
-/// Hand-written, as [`UninitDevice`] is. Dropping it releases the context.
-/// Neither `Send` nor `Sync`, as [`FramesReference`].
+/// Hand-written, as [`UninitDevice`] is: a [`FramesReferenceBox`] that lends
+/// no reference handle until the context is initialised, only the
+/// context's own handles. Dropping it releases the context. Neither `Send`
+/// nor `Sync`, as [`FramesReference`]:
+///
+/// ```compile_fail,E0277
+/// use ffmpeg::libavutil::hwcontext::UninitFrames;
+/// fn send<T: Send>(_: T) {}
+/// fn move_away(frames: UninitFrames) {
+///     send(frames);
+/// }
+/// ```
 pub struct UninitFrames(FramesReferenceBox);
 
 impl UninitFrames {
@@ -1504,35 +1507,37 @@ impl UninitFrames {
     ///
     /// `ptr` must be NULL or a reference the caller owns and hands over, to
     /// a frames context `av_hwframe_ctx_alloc` allocated that has no other
-    /// reference and was not initialised.
+    /// reference and was not initialised, and whose `free`, `user_opaque`,
+    /// `pool` and backend struct are as allocated, this crate's, or C's
+    /// under the rules of `hwcontext.h` and the backend's header.
     pub(crate) unsafe fn from_c(ptr: *mut ffi::AVBufferRef) -> Option<Self> {
         // SAFETY: by the caller's contract; the box lends no handle to the
         // context until `init` initialised it.
         unsafe { FramesReferenceBox::from_c(ptr) }.map(Self)
     }
 
-    /// The context's `AVHWFramesContext`, for filling in its formats, size,
-    /// pool and backend struct before [`init`](Self::init), as
-    /// `hwcontext.h` and the backend's header ask.
-    ///
-    /// A raw seam until hwcontext.h's `AVHWFramesContext` is wrapped.
-    /// Writes through it must keep `av_class`, `device_ref`, `device_ctx`
-    /// and the `hwctx` pointer as C set them; may fill the backend's `hwctx`
-    /// struct only with what its `hwcontext_<api>.h` allows (its
-    /// `frames_init` uses the surfaces or textures a caller provides there,
-    /// and its `frames_uninit` releases what it finds, whether the context
-    /// was initialised or not); and must leave `pool` NULL or a pool of
-    /// buffers the backend can use as its surfaces, and `free` NULL or a
-    /// function C may call with the context, and `user_opaque` as written,
-    /// at its last release. C never releases a pool the caller set (only the
-    /// one the backend makes): the caller's `free` must uninit it, or it
-    /// leaks. [`init`](Self::init), a safe call, relies on all of this. The
-    /// pointer is valid while `self` lives.
+    /// The context, shared.
     #[must_use]
-    pub fn as_mut_ptr(&mut self) -> *mut ffi::AVHWFramesContext {
+    pub fn context(&self) -> FramesContextRef<'_> {
         // SAFETY: a read of the `data` field of the live reference the box
         // holds; its data is the context's public struct.
-        unsafe { addr_of!((*self.0.as_c_ptr()).data).read() }.cast()
+        let ctx = unsafe { addr_of!((*self.0.as_c_ptr()).data).read() };
+        // SAFETY: the reference keeps the context live for the borrow, and
+        // nothing writes it except through `context_mut`, which the shared
+        // borrow excludes.
+        unsafe { FramesContextRef::from_ptr(ctx.cast()) }
+            .expect("a frames context reference has data")
+    }
+
+    /// The context, exclusively, to fill in before [`init`](Self::init).
+    #[must_use]
+    pub fn context_mut(&mut self) -> FramesContextMut<'_> {
+        // SAFETY: as in `context`.
+        let ctx = unsafe { addr_of!((*self.0.as_c_ptr()).data).read() };
+        // SAFETY: the box holds the context's only reference, so nothing else
+        // reaches the context for the borrow.
+        unsafe { FramesContextMut::from_ptr(ctx.cast()) }
+            .expect("a frames context reference has data")
     }
 
     /// Wraps: av_hwframe_ctx_init
@@ -1548,13 +1553,16 @@ impl UninitFrames {
     /// # Errors
     ///
     /// C's error, as above, or the backend's or allocation's; the context
-    /// is released then.
+    /// is released then. C does not count running out of memory for a
+    /// preallocated frame's own `AVFrame` as one: it stops preallocating
+    /// and succeeds.
     pub fn init(self) -> Result<FramesReferenceBox, c_int> {
+        // C validates the format and size, runs the backend's `frames_init`
+        // and preallocates frames through `av_hwframe_get_buffer`.
         // SAFETY: the only reference to an allocated frames context, never
-        // initialised before (`init` consumes it), whose fields the caller
-        // wrote through `as_mut_ptr` under its contract; C validates the
-        // format and size, runs the backend's `frames_init` and
-        // preallocates frames through `av_hwframe_get_buffer`.
+        // initialised before (`init` consumes it), written only through
+        // `FramesContextMut`: plain values C validates or takes as they are,
+        // Rust hooks, and a pool and backend struct their callers vouch for.
         let ret = unsafe { ffi::av_hwframe_ctx_init(self.0.as_c_ptr()) };
         status(ret)?;
         Ok(self.0)
@@ -1750,12 +1758,12 @@ impl HardwareFrame {
         }
         let target = frames.try_clone().ok_or(ENOMEM)?;
         let dst = Frame::new().ok_or(ENOMEM)?;
-        let p = dst.as_c_ptr();
+        let (p, format) = (dst.as_c_ptr(), frames.context().format());
         // SAFETY: writes of two fields of the fresh frame `dst` owns, which
         // nothing else reaches: the format, and its frames context
         // reference, which the frame then owns and releases.
         unsafe {
-            addr_of_mut!((*p).format).write(frames.hw_format().0);
+            addr_of_mut!((*p).format).write(format.into_raw().0);
             addr_of_mut!((*p).hw_frames_ctx).write(target.into_c());
         }
         // The contexts differ, so C unmaps only when this frame's context
@@ -2735,6 +2743,750 @@ impl fmt::Debug for FramesConstraintsMut<'_> {
     }
 }
 
+define_ctype!(
+    /// Wraps: AVHWFramesContext
+    ///
+    /// The state a hardware API keeps for a pool of interchangeable frames on
+    /// one device: their hardware and software pixel formats, their size, and
+    /// the pool they come from. Its getters are on [`FramesContextRef`]; its
+    /// setters, which only a context under construction or being freed
+    /// lends, on [`FramesContextMut`].
+    ///
+    /// C reaches a context only through the data of an `AVBufferRef`, as a
+    /// device context: each reference is one counted share of it, and the
+    /// last one released uninitialises the pool the backend made, runs the
+    /// backend's `frames_uninit`, then the context's
+    /// [free callback](FramesContextMut::set_free_callback), and releases the
+    /// context it was derived from, its device reference, the hardware
+    /// context and the struct. So nothing here owns a `FramesContext`
+    /// directly: a context under construction is lent by the
+    /// [`UninitFrames`] holding its only reference
+    /// ([`context`](UninitFrames::context),
+    /// [`context_mut`](UninitFrames::context_mut)); an initialised one, shared
+    /// read-only, by any [`FramesReferenceRef`]
+    /// ([`context`](FramesReferenceRef::context)).
+    ///
+    /// Its fields are:
+    ///
+    /// - `av_class`, the logging class C's allocator sets
+    ///   ([`class`](FramesContextRef::class), no setter);
+    /// - `device_ref` and `device_ctx`, the reference to the device the
+    ///   context was allocated on, which the context owns, and that device's
+    ///   context, both set by the allocator and never changed: the backend
+    ///   and the hardware context were chosen by that device
+    ///   ([`device`](FramesContextRef::device),
+    ///   [`device_context`](FramesContextRef::device_context), no setters;
+    ///   `device().try_clone()` is an owned reference);
+    /// - `hwctx`, the device type's own frames context (an
+    ///   `AVVAAPIFramesContext` for VAAPI, and so on), allocated and freed
+    ///   with the context, which the caller may fill before initialisation:
+    ///   typed by the caller ([`hwctx`](FramesContextRef::hwctx),
+    ///   [`into_hwctx`](FramesContextMut::into_hwctx), both `unsafe`);
+    /// - `free` and `user_opaque`, a callback C runs at the last release and
+    ///   the data it is meant for, which Rust fills with a closure
+    ///   ([`set_free_callback`](FramesContextMut::set_free_callback)) and any
+    ///   `Send + Sync` value ([`set_user_data`](FramesContextMut::set_user_data));
+    /// - `pool`, where `av_hwframe_get_buffer` takes the surfaces from: one
+    ///   the caller sets before initialisation, which the context then owns
+    ///   ([`set_pool`](FramesContextMut::set_pool), `unsafe`), or else the one
+    ///   the backend makes and C releases
+    ///   ([`has_pool`](FramesContextRef::has_pool),
+    ///   [`pool`](FramesContextRef::pool), `unsafe`);
+    /// - `initial_pool_size`, `format`, `sw_format`, `width` and `height`,
+    ///   plain values the caller sets before initialisation, which C checks
+    ///   (a hardware format the backend lists, a valid image size) and the
+    ///   backend uses ([`format`](FramesContextRef::format),
+    ///   [`set_format`](FramesContextMut::set_format), and so on).
+    ///
+    /// Neither `Send` nor `Sync`, as [`FramesReference`]; the user data, free
+    /// callback and pool are `Send` (and the data `Sync`) all the same, since
+    /// C may release the last reference on any thread (a codec's frame
+    /// threads hold some).
+    FramesContext,
+    FramesContextRef,
+    FramesContextMut,
+    ffi::AVHWFramesContext
+);
+
+/// A frames context's free callback, as
+/// [`take_free_callback`](FramesContextMut::take_free_callback) hands it back:
+/// called once, with the context, when its last reference is released.
+pub type FramesFreeCallback = Box<dyn for<'c> FnOnce(FramesContextMut<'c>) + Send>;
+
+/// The Rust state a frames context keeps in its `user_opaque` while its
+/// `free` is [`release_frames_hooks`]: the caller's data, free callback and
+/// pool, whose surfaces `pool` points at while it is set.
+struct FramesHooks {
+    data: Option<Box<dyn Any + Send + Sync>>,
+    on_free: Option<FramesFreeCallback>,
+    pool: Option<BufferPoolBox>,
+}
+
+impl FramesHooks {
+    fn is_empty(&self) -> bool {
+        self.data.is_none() && self.on_free.is_none() && self.pool.is_none()
+    }
+}
+
+/// [`release_frames_hooks`] as the one function pointer value the setters
+/// store in `free` and [`is_release_frames_hooks`] compares with, as
+/// [`RELEASE_HOOKS`] is for device contexts.
+static RELEASE_FRAMES_HOOKS: unsafe extern "C" fn(*mut ffi::AVHWFramesContext) =
+    release_frames_hooks;
+
+/// Whether `free` is [`RELEASE_FRAMES_HOOKS`], the mark of a `user_opaque`
+/// holding [`FramesHooks`].
+fn is_release_frames_hooks(
+    free: Option<unsafe extern "C" fn(*mut ffi::AVHWFramesContext)>,
+) -> bool {
+    free.is_some_and(|f| ptr::fn_addr_eq(f, RELEASE_FRAMES_HOOKS))
+}
+
+/// A frames context's `free` while Rust's [`FramesHooks`] are installed:
+/// releases the hooks' pool and clears `pool` (which may still point at the
+/// backend's pool, which C uninitialised before), so that the callback finds
+/// none, as `hwcontext.h` promises it; then runs the free callback with the
+/// context, drops the hooks, the user data with them, and clears `free` and
+/// `user_opaque`. A panic in any of them aborts the process.
+unsafe extern "C" fn release_frames_hooks(ctx: *mut ffi::AVHWFramesContext) {
+    // SAFETY: hwframe_ctx_free calls `free` once, with the live context whose
+    // last reference is gone, so nothing else reaches it; it reads `pool` no
+    // more. This function is its `free` only while `user_opaque` holds the
+    // `Box<FramesHooks>` the setters leaked, read here without a reference
+    // to the context.
+    let hooks = unsafe {
+        addr_of_mut!((*ctx).pool).write(ptr::null_mut());
+        addr_of!((*ctx).user_opaque).read()
+    }
+    .cast::<FramesHooks>();
+    if hooks.is_null() {
+        return;
+    }
+    // SAFETY: a live `FramesHooks` only this call reaches; each borrow ends
+    // before the callback runs, which may reach it again through its handle.
+    let pool = unsafe { (*hooks).pool.take() };
+    // No frame of the context is left to use a surface: each holds a
+    // reference to the context. The pool goes before the callback, as the
+    // header promises.
+    drop(pool);
+    // SAFETY: as above.
+    let on_free = unsafe { (*hooks).on_free.take() };
+    if let Some(on_free) = on_free {
+        // SAFETY: the context is live and exclusively this call's until it
+        // returns; the handle cannot outlive the callback (`for<'c>`).
+        if let Some(ctx) = unsafe { FramesContextMut::from_ptr(ctx) } {
+            on_free(ctx);
+        }
+    }
+    // The callback may have taken the hooks out, or installed new ones.
+    // SAFETY: as above, the callback's handle is gone.
+    let free = unsafe { addr_of_mut!((*ctx).free).replace(None) };
+    // SAFETY: as above.
+    let hooks = unsafe { addr_of_mut!((*ctx).user_opaque).replace(ptr::null_mut()) };
+    // SAFETY: as above; a pool the callback set goes with its hooks.
+    unsafe { addr_of_mut!((*ctx).pool).write(ptr::null_mut()) };
+    if is_release_frames_hooks(free) && !hooks.is_null() {
+        // SAFETY: `free` marks `user_opaque` as the `Box<FramesHooks>` a
+        // setter leaked, now detached from the context.
+        drop(unsafe { Box::from_raw(hooks.cast::<FramesHooks>()) });
+    }
+}
+
+impl<'a> FramesContextRef<'a> {
+    /// Field: AVHWFramesContext.av_class
+    ///
+    /// The context's logging class, which C's allocator sets
+    /// (`AVHWFramesContext`); `None` only for a context C did not allocate
+    /// and left without one.
+    #[must_use]
+    pub fn class(&self) -> Option<ClassRef<'a>> {
+        // SAFETY: a read of the `av_class` field projected through the shared
+        // handle's pointer to a live context; nothing writes it after
+        // allocation.
+        let class = unsafe { addr_of!((*self.as_ptr()).av_class).read() };
+        // SAFETY: NULL, or a well-formed class that outlives the context:
+        // `av_hwframe_ctx_alloc` stores its static `hwframe_ctx_class`.
+        unsafe { ClassRef::from_ptr(class.cast_mut()) }
+    }
+
+    /// Field: AVHWFramesContext.device_ref
+    ///
+    /// The device the context was allocated on, through the reference the
+    /// context owns and releases with its last one; the device lives at
+    /// least as long. [`try_clone`](DeviceReferenceRef::try_clone) it for a
+    /// reference of the caller's own.
+    #[must_use]
+    pub fn device(&self) -> DeviceReferenceRef<'a> {
+        // SAFETY: as in `class`, for the `device_ref` field, which C sets at
+        // allocation and releases only after the context's free callback.
+        let device = unsafe { addr_of!((*self.as_ptr()).device_ref).read() };
+        // SAFETY: a live reference the context owns, to the initialised
+        // device context `av_hwframe_ctx_alloc` was given (only initialised
+        // devices lend the reference handle that allocates frames contexts,
+        // and C's callers allocate them on initialised devices).
+        unsafe { DeviceReferenceRef::from_ptr(device) }.expect("a frames context holds its device")
+    }
+
+    /// Field: AVHWFramesContext.device_ctx
+    ///
+    /// The context of the device the context was allocated on, shared: the
+    /// data of [`device`](Self::device).
+    #[must_use]
+    pub fn device_context(&self) -> DeviceContextRef<'a> {
+        // SAFETY: as in `class`, for the `device_ctx` field, which C sets at
+        // allocation to the data of `device_ref`.
+        let ctx = unsafe { addr_of!((*self.as_ptr()).device_ctx).read() };
+        // SAFETY: the initialised device context the context's `device_ref`
+        // keeps live for `'a`; nothing writes an initialised device context
+        // while it is shared.
+        unsafe { DeviceContextRef::from_ptr(ctx) }.expect("a frames context has a device context")
+    }
+
+    /// Field: AVHWFramesContext.hwctx
+    ///
+    /// The device type's frames context, as a `T`; `None` when the device
+    /// type has none.
+    ///
+    /// # Safety
+    ///
+    /// `T::C` must be the public frames context type of the device's
+    /// [`device_type`](DeviceContextRef::device_type), as its
+    /// `hwcontext_<type>.h` declares it (`AVVAAPIFramesContext` for
+    /// [`DeviceType::VAAPI`], ...): C allocates the backend's size, and
+    /// nothing records the type. Nothing may write the fields read through
+    /// the result while it lives: some backends do so as they allocate
+    /// frames (D3D11VA records its textures), which an initialised context
+    /// does through any reference.
+    #[must_use]
+    pub unsafe fn hwctx<T: CCell + 'a>(&self) -> Option<T::Ref<'a>> {
+        // SAFETY: as in `class`, for the `hwctx` pointer, which C never
+        // replaces.
+        let hwctx = unsafe { addr_of!((*self.as_ptr()).hwctx).read() };
+        // SAFETY: NULL, or the context's frames struct, live as long as the
+        // context; the caller vouches for its type and for writers.
+        unsafe { T::ref_from_void_ptr(hwctx) }
+    }
+
+    /// Field: AVHWFramesContext.free
+    ///
+    /// Whether a free callback runs when the context's last reference is
+    /// released: one [`set_free_callback`](FramesContextMut::set_free_callback)
+    /// installed, or one C code set (a hardware decoder's). User data and a
+    /// pool alone are not one, though they are dropped then.
+    #[must_use]
+    pub fn has_free_callback(&self) -> bool {
+        match self.hooks() {
+            Some(hooks) => hooks.on_free.is_some(),
+            // SAFETY: as in `class`, for the `free` field.
+            None => unsafe { addr_of!((*self.as_ptr()).free).read() }.is_some(),
+        }
+    }
+
+    /// Field: AVHWFramesContext.user_opaque
+    ///
+    /// The value [`set_user_data`](FramesContextMut::set_user_data) stored,
+    /// borrowed from the context; `None` when it stored none, or one of
+    /// another type. The data C code keeps there for its own free callback
+    /// is not readable.
+    #[must_use]
+    pub fn user_data<T: Any>(&self) -> Option<&'a T> {
+        self.hooks()?.data.as_deref()?.downcast_ref()
+    }
+
+    /// Field: AVHWFramesContext.pool
+    ///
+    /// Whether the context has a pool: one [`set_pool`](FramesContextMut::set_pool)
+    /// or C code set, or, once initialised, the one its backend made.
+    #[must_use]
+    pub fn has_pool(&self) -> bool {
+        // SAFETY: as in `class`, for the `pool` field.
+        !unsafe { addr_of!((*self.as_ptr()).pool).read() }.is_null()
+    }
+
+    /// Field: AVHWFramesContext.pool
+    ///
+    /// The pool the context's frames come from, shared; `None` when it has
+    /// none ([`has_pool`](Self::has_pool)). It lives as long as the context:
+    /// the backend's is released with it, and one
+    /// [`set_pool`](FramesContextMut::set_pool) set is the context's.
+    ///
+    /// # Safety
+    ///
+    /// The pool's buffers must be bytes, as a [`BufferPoolRef`] hands them
+    /// out (a writable [`UninitBuffer`](super::buffer::UninitBuffer) of the
+    /// pool's size from [`get`](BufferPoolRef::get)): most backends' pools
+    /// hold surface handles in place of data pointers (VA-API's are surface
+    /// IDs, D3D11VA's descriptors), which only a pool of bytes given to
+    /// [`set_pool`](FramesContextMut::set_pool), or a backend whose surfaces
+    /// are bytes, is not. The pool's allocator, which C may then call on any
+    /// thread the handle reaches, must allow that, and a pool C code set must
+    /// stay live as long as the context.
+    #[must_use]
+    pub unsafe fn pool(&self) -> Option<BufferPoolRef<'a>> {
+        // SAFETY: as in `class`, for the `pool` field.
+        let pool = unsafe { addr_of!((*self.as_ptr()).pool).read() };
+        // SAFETY: NULL, or a pool live as long as the context: the backend's
+        // (released by the context's last release, before which the field
+        // is not cleared while shared), the hooks' (dropped there too), or
+        // C code's, as the caller vouches; the caller vouches for its
+        // buffers being bytes.
+        unsafe { BufferPoolRef::from_ptr(pool) }
+    }
+
+    /// Field: AVHWFramesContext.initial_pool_size
+    ///
+    /// How many frames initialisation allocates (and releases) to fill the
+    /// pool; for backends whose pools cannot grow, also how many frames the
+    /// pool holds at most. Zero or less preallocates nothing.
+    #[must_use]
+    pub fn initial_pool_size(&self) -> i32 {
+        // SAFETY: as in `class`, for the `initial_pool_size` field.
+        unsafe { addr_of!((*self.as_ptr()).initial_pool_size).read() }
+    }
+
+    /// Field: AVHWFramesContext.format
+    ///
+    /// The hardware pixel format of the context's surfaces, the format of its
+    /// frames; [`PixelFormat::NONE`] until set.
+    #[must_use]
+    pub fn format(&self) -> PixelFormat {
+        // SAFETY: as in `class`, for the `format` field.
+        PixelFormat::from_raw(unsafe { addr_of!((*self.as_ptr()).format).read() })
+    }
+
+    /// Field: AVHWFramesContext.sw_format
+    ///
+    /// The pixel format of the data the surfaces hold, as the backend lays
+    /// it out (or the fully planar format of its depth and subsampling, where
+    /// the hardware API does not say); [`PixelFormat::NONE`] until set.
+    #[must_use]
+    pub fn sw_format(&self) -> PixelFormat {
+        // SAFETY: as in `class`, for the `sw_format` field.
+        PixelFormat::from_raw(unsafe { addr_of!((*self.as_ptr()).sw_format).read() })
+    }
+
+    /// Field: AVHWFramesContext.width
+    ///
+    /// The allocated width of the surfaces, in pixels.
+    #[must_use]
+    pub fn width(&self) -> i32 {
+        // SAFETY: as in `class`, for the `width` field.
+        unsafe { addr_of!((*self.as_ptr()).width).read() }
+    }
+
+    /// Field: AVHWFramesContext.height
+    ///
+    /// The allocated height of the surfaces, in pixels.
+    #[must_use]
+    pub fn height(&self) -> i32 {
+        // SAFETY: as in `class`, for the `height` field.
+        unsafe { addr_of!((*self.as_ptr()).height).read() }
+    }
+
+    /// The Rust hooks the context's `user_opaque` holds, if any.
+    fn hooks(&self) -> Option<&'a FramesHooks> {
+        let p = self.as_ptr();
+        // SAFETY: as in `class`, for the `free` and `user_opaque` fields.
+        let (free, opaque) = unsafe {
+            (
+                addr_of!((*p).free).read(),
+                addr_of!((*p).user_opaque).read(),
+            )
+        };
+        if !is_release_frames_hooks(free) {
+            return None;
+        }
+        // SAFETY: `release_frames_hooks` as `free` marks `user_opaque` as NULL
+        // or the `Box<FramesHooks>` a setter leaked; only a
+        // `FramesContextMut` replaces or frees it, and none exists while this
+        // shared borrow lives.
+        unsafe { opaque.cast::<FramesHooks>().as_ref() }
+    }
+}
+
+impl fmt::Debug for FramesContextRef<'_> {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.debug_struct("FramesContext")
+            .field("format", &self.format())
+            .field("sw_format", &self.sw_format())
+            .field("width", &self.width())
+            .field("height", &self.height())
+            .field("initial_pool_size", &self.initial_pool_size())
+            .field("has_pool", &self.has_pool())
+            .field("has_free_callback", &self.has_free_callback())
+            .finish_non_exhaustive()
+    }
+}
+
+impl<'a> FramesContextMut<'a> {
+    /// Field: AVHWFramesContext.hwctx
+    ///
+    /// The device type's frames context, as a `T`, to fill before
+    /// [`UninitFrames::init`], borrowed for as long as this handle (reborrow
+    /// with `as_mut()` to keep it); `None` when the device type has none.
+    ///
+    /// # Safety
+    ///
+    /// `T::C` must be the context's frames context type, as for
+    /// [`FramesContextRef::hwctx`]. Whatever is written must be what the
+    /// device type's header allows: the backend's `frames_init` uses the
+    /// surfaces or textures a caller provides there, and its
+    /// `frames_uninit` releases what it finds whether the context was
+    /// initialised or not.
+    #[must_use]
+    pub unsafe fn into_hwctx<T: CCell + 'a>(mut self) -> Option<T::Mut<'a>> {
+        // SAFETY: a read of the `hwctx` pointer projected through the
+        // exclusive handle's pointer to a live context.
+        let hwctx = unsafe { addr_of!((*self.as_mut_ptr()).hwctx).read() };
+        // SAFETY: NULL, or the context's frames struct, which this exclusive
+        // borrow, consumed here, reaches alone for `'a`; the caller vouches
+        // for its type.
+        unsafe { T::mut_from_void_ptr(hwctx) }
+    }
+
+    /// Field: AVHWFramesContext.free
+    ///
+    /// Makes `f` the context's free callback, dropping the one this set
+    /// before: C calls it once, on the thread releasing the context's last
+    /// reference, after the backend's `frames_uninit` and the release of the
+    /// context's pool, and before its device reference, frames struct and
+    /// the struct itself are released. Its handle reaches the
+    /// [user data](Self::set_user_data), which is dropped after it returns;
+    /// a callback or pool it sets is dropped unused. A panic in it aborts the
+    /// process.
+    ///
+    /// Refused, giving `f` back, when the context's `free` or `user_opaque`
+    /// is someone else's, either one alone: hardware decoders set `free`
+    /// alone (NVDEC, to uninitialise the pool it set) or with `user_opaque`
+    /// (Vulkan).
+    ///
+    /// The callback may run on another thread, so it must be `Send`:
+    ///
+    /// ```compile_fail,E0277
+    /// use std::rc::Rc;
+    /// use ffmpeg::libavutil::hwcontext::UninitFrames;
+    /// fn local(mut frames: UninitFrames) {
+    ///     let local = Rc::new(1);
+    ///     let _ = frames.context_mut().set_free_callback(move |_| drop(local));
+    /// }
+    /// ```
+    pub fn set_free_callback<F>(&mut self, f: F) -> Result<(), F>
+    where
+        F: FnOnce(FramesContextMut<'_>) + Send + 'static,
+    {
+        match self.hooks_mut() {
+            Some(hooks) => {
+                hooks.on_free = Some(Box::new(f));
+                Ok(())
+            }
+            None => Err(f),
+        }
+    }
+
+    /// Field: AVHWFramesContext.free
+    ///
+    /// Takes the free callback [`set_free_callback`](Self::set_free_callback)
+    /// installed out, uncalled; `None` when it installed none.
+    #[must_use]
+    pub fn take_free_callback(&mut self) -> Option<FramesFreeCallback> {
+        let on_free = self.hooks_mut_if_installed()?.on_free.take();
+        self.release_empty_hooks();
+        on_free
+    }
+
+    /// Field: AVHWFramesContext.user_opaque
+    ///
+    /// Makes `data` the context's user data, dropping the value this set
+    /// before. It lives as long as the context, readable through
+    /// [`FramesContextRef::user_data`] (the free callback's handle
+    /// included), and is dropped on the thread releasing the context's last
+    /// reference, hence `Send + Sync`.
+    ///
+    /// Refused, giving `data` back, when the context's `free` or
+    /// `user_opaque` is someone else's, as for
+    /// [`set_free_callback`](Self::set_free_callback).
+    ///
+    /// Every thread holding the context may read it, so it must be `Sync`:
+    ///
+    /// ```compile_fail,E0277
+    /// use std::cell::Cell;
+    /// use ffmpeg::libavutil::hwcontext::UninitFrames;
+    /// fn local(mut frames: UninitFrames) {
+    ///     let _ = frames.context_mut().set_user_data(Cell::new(1));
+    /// }
+    /// ```
+    pub fn set_user_data<T>(&mut self, data: T) -> Result<(), T>
+    where
+        T: Any + Send + Sync,
+    {
+        match self.hooks_mut() {
+            Some(hooks) => {
+                hooks.data = Some(Box::new(data));
+                Ok(())
+            }
+            None => Err(data),
+        }
+    }
+
+    /// Field: AVHWFramesContext.user_opaque
+    ///
+    /// Takes the user data [`set_user_data`](Self::set_user_data) stored out;
+    /// `None` when it stored none.
+    #[must_use]
+    pub fn take_user_data(&mut self) -> Option<Box<dyn Any + Send + Sync>> {
+        let data = self.hooks_mut_if_installed()?.data.take();
+        self.release_empty_hooks();
+        data
+    }
+
+    /// Field: AVHWFramesContext.pool
+    ///
+    /// Makes `pool` the one `av_hwframe_get_buffer` takes the context's
+    /// surfaces from, in place of the one the backend would make, dropping
+    /// the pool this set before. The context owns it from then on: it is
+    /// dropped (its free buffers released, and the rest as they come back)
+    /// when the context's last reference is released, before the free
+    /// callback runs.
+    ///
+    /// Refused, giving `pool` back, when the context's `free` or
+    /// `user_opaque` is someone else's, as for
+    /// [`set_free_callback`](Self::set_free_callback), or its `pool` is (C
+    /// code's, which C never releases).
+    ///
+    /// # Safety
+    ///
+    /// Every buffer `pool` hands out must be a surface of the context's
+    /// backend, as its `hwcontext_<api>.h` describes the buffers of
+    /// `AVHWFramesContext.pool` (VA-API: a `VASurfaceID` as the data
+    /// pointer; D3D11VA: an `AVD3D11FrameDescriptor`; CUDA: device memory
+    /// for a frame of the context's size): the backend takes one for each
+    /// frame and hands it to the hardware API, and to its transfers and
+    /// mappings, unchecked. A pool of plain bytes ([`BufferPool::new`]) is
+    /// one only for a backend whose surfaces are bytes.
+    ///
+    /// [`BufferPool::new`]: super::buffer::BufferPool::new
+    pub unsafe fn set_pool(&mut self, pool: BufferPoolBox) -> Result<(), BufferPoolBox> {
+        let p = self.as_mut_ptr();
+        // SAFETY: a read of the `pool` field projected through the exclusive
+        // handle's pointer to a live context.
+        let current = unsafe { addr_of!((*p).pool).read() };
+        let owned = self
+            .hooks_mut_if_installed()
+            .and_then(|h| h.pool.as_ref())
+            .map(|own| own.as_c_ptr());
+        if !current.is_null() && owned != Some(current) {
+            return Err(pool);
+        }
+        let new = pool.as_c_ptr();
+        match self.hooks_mut() {
+            Some(hooks) => {
+                let old = hooks.pool.replace(pool);
+                // SAFETY: as above, a write of the field; the hooks own the
+                // pool it points at until they drop it, after clearing it.
+                unsafe { addr_of_mut!((*self.as_mut_ptr()).pool).write(new) };
+                drop(old);
+                Ok(())
+            }
+            None => Err(pool),
+        }
+    }
+
+    /// Field: AVHWFramesContext.pool
+    ///
+    /// Takes the pool [`set_pool`](Self::set_pool) set out, leaving the
+    /// context without one, as allocated: initialisation then has the backend
+    /// make its own. `None` when it set none (the backend's, or C code's,
+    /// pool is not the caller's to take).
+    #[must_use]
+    pub fn take_pool(&mut self) -> Option<BufferPoolBox> {
+        let pool = self.hooks_mut_if_installed()?.pool.take()?;
+        // SAFETY: a write of the `pool` field projected through the exclusive
+        // handle's pointer to a live context, which pointed at the hooks'
+        // pool.
+        unsafe { addr_of_mut!((*self.as_mut_ptr()).pool).write(ptr::null_mut()) };
+        self.release_empty_hooks();
+        Some(pool)
+    }
+
+    /// Field: AVHWFramesContext.initial_pool_size
+    ///
+    /// Sets how many frames initialisation preallocates, as for
+    /// [`FramesContextRef::initial_pool_size`]. Backends whose pools cannot
+    /// grow need it set to at least the frames used at once (a codec's
+    /// reference frames and more) when the context has no pool of the
+    /// caller's.
+    pub fn set_initial_pool_size(&mut self, size: i32) {
+        // SAFETY: a write of the `initial_pool_size` field projected through
+        // the exclusive handle's pointer to a live context; any value is one
+        // C and the backends take (zero or less preallocates nothing).
+        unsafe { addr_of_mut!((*self.as_mut_ptr()).initial_pool_size).write(size) }
+    }
+
+    /// Field: AVHWFramesContext.format
+    ///
+    /// Sets the hardware pixel format of the context's surfaces: one the
+    /// device's backend lists, or [`UninitFrames::init`] fails with
+    /// `AVERROR(ENOSYS)`.
+    pub fn set_format(&mut self, format: PixelFormat) {
+        // SAFETY: as in `set_initial_pool_size`, for the `format` field;
+        // `av_hwframe_ctx_init` checks it against the backend's list.
+        unsafe { addr_of_mut!((*self.as_mut_ptr()).format).write(format.into_raw()) }
+    }
+
+    /// Field: AVHWFramesContext.sw_format
+    ///
+    /// Sets the pixel format of the data the surfaces hold, as for
+    /// [`FramesContextRef::sw_format`]: one the backend supports, or its
+    /// initialisation fails.
+    pub fn set_sw_format(&mut self, format: PixelFormat) {
+        // SAFETY: as in `set_initial_pool_size`, for the `sw_format` field;
+        // backends check it in `frames_init`, and the transfer wrappers
+        // check software frames against it.
+        unsafe { addr_of_mut!((*self.as_mut_ptr()).sw_format).write(format.into_raw()) }
+    }
+
+    /// Field: AVHWFramesContext.width
+    ///
+    /// Sets the allocated width of the surfaces, in pixels: a size
+    /// `av_image_check_size` accepts with the height, or
+    /// [`UninitFrames::init`] fails with `AVERROR(EINVAL)`.
+    pub fn set_width(&mut self, width: i32) {
+        // SAFETY: as in `set_initial_pool_size`, for the `width` field;
+        // `av_hwframe_ctx_init` checks the size.
+        unsafe { addr_of_mut!((*self.as_mut_ptr()).width).write(width) }
+    }
+
+    /// Field: AVHWFramesContext.height
+    ///
+    /// Sets the allocated height of the surfaces, in pixels, as for
+    /// [`set_width`](Self::set_width).
+    pub fn set_height(&mut self, height: i32) {
+        // SAFETY: as in `set_width`, for the `height` field.
+        unsafe { addr_of_mut!((*self.as_mut_ptr()).height).write(height) }
+    }
+
+    /// The context's Rust hooks, installed first when `free` and
+    /// `user_opaque` are both unset; `None` when either is someone else's.
+    fn hooks_mut(&mut self) -> Option<&mut FramesHooks> {
+        if self.as_ref().hooks().is_none() {
+            let p = self.as_mut_ptr();
+            // SAFETY: reads of the `free` and `user_opaque` fields projected
+            // through the exclusive handle's pointer to a live context.
+            let unset = unsafe {
+                addr_of!((*p).free).read().is_none() && addr_of!((*p).user_opaque).read().is_null()
+            };
+            if !unset {
+                return None;
+            }
+            let hooks = Box::into_raw(Box::new(FramesHooks {
+                data: None,
+                on_free: None,
+                pool: None,
+            }));
+            // SAFETY: writes of both fields through the exclusive handle;
+            // neither held anything to release, and C reads them only in
+            // hwframe_ctx_free, which then calls `release_frames_hooks` to
+            // free the box.
+            unsafe {
+                addr_of_mut!((*p).user_opaque).write(hooks.cast());
+                addr_of_mut!((*p).free).write(Some(RELEASE_FRAMES_HOOKS));
+            }
+        }
+        self.hooks_mut_if_installed()
+    }
+
+    /// The context's Rust hooks, if `user_opaque` holds them.
+    fn hooks_mut_if_installed(&mut self) -> Option<&mut FramesHooks> {
+        let p = self.as_mut_ptr();
+        // SAFETY: as in `hooks_mut`, for both fields.
+        let (free, opaque) = unsafe {
+            (
+                addr_of!((*p).free).read(),
+                addr_of!((*p).user_opaque).read(),
+            )
+        };
+        if !is_release_frames_hooks(free) {
+            return None;
+        }
+        // SAFETY: `release_frames_hooks` as `free` marks `user_opaque` as NULL
+        // or the `Box<FramesHooks>` a setter leaked, which the exclusive
+        // borrow reaches alone.
+        unsafe { opaque.cast::<FramesHooks>().as_mut() }
+    }
+
+    /// Frees the context's Rust hooks and clears `free` and `user_opaque`
+    /// once the hooks hold nothing.
+    fn release_empty_hooks(&mut self) {
+        let empty = self.hooks_mut_if_installed().is_some_and(|h| h.is_empty());
+        if !empty {
+            return;
+        }
+        let p = self.as_mut_ptr();
+        // SAFETY: writes of both fields through the exclusive handle; the
+        // hooks were installed, so `user_opaque` held their box.
+        let hooks = unsafe {
+            addr_of_mut!((*p).free).write(None);
+            addr_of_mut!((*p).user_opaque).replace(ptr::null_mut())
+        };
+        // SAFETY: the empty `Box<FramesHooks>` a setter leaked, now detached.
+        drop(unsafe { Box::from_raw(hooks.cast::<FramesHooks>()) });
+    }
+}
+
+impl fmt::Debug for FramesContextMut<'_> {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        self.as_ref().fmt(f)
+    }
+}
+
+impl DeviceReferenceRef<'_> {
+    /// A new, initialised frames context on this device, of hardware format
+    /// `format` holding data of `sw_format`, at `width` x `height`, with
+    /// `initial_pool_size` frames preallocated in the pool its backend makes:
+    /// [`alloc_frames`](Self::alloc_frames), the fields set through
+    /// [`FramesContextMut`], then [`init`](UninitFrames::init). Fill an
+    /// [`UninitFrames`] by hand for anything more (a pool, the backend's
+    /// frames struct, hooks).
+    ///
+    /// # Errors
+    ///
+    /// [`UninitFrames::init`]'s; `AVERROR(ENOMEM)` where
+    /// [`alloc_frames`](Self::alloc_frames) returns `None`.
+    pub fn create_frames(
+        &self,
+        format: PixelFormat,
+        sw_format: PixelFormat,
+        width: i32,
+        height: i32,
+        initial_pool_size: i32,
+    ) -> Result<FramesReferenceBox, c_int> {
+        let mut frames = self.alloc_frames().ok_or(ENOMEM)?;
+        let mut ctx = frames.context_mut();
+        ctx.set_format(format);
+        ctx.set_sw_format(sw_format);
+        ctx.set_width(width);
+        ctx.set_height(height);
+        ctx.set_initial_pool_size(initial_pool_size);
+        frames.init()
+    }
+}
+
+impl<'a> FramesReferenceRef<'a> {
+    /// The frames context the reference keeps alive, shared: its formats,
+    /// size, pool, device and user data. An initialised context is not
+    /// written through any reference, so there is no exclusive form.
+    #[must_use]
+    pub fn context(&self) -> FramesContextRef<'a> {
+        // SAFETY: a read of the `data` field of the live reference, which by
+        // the type's invariant is an initialised context's public struct.
+        let ctx = unsafe { addr_of!((*self.as_ptr()).data).read() };
+        // SAFETY: the reference keeps the context live for `'a`, and nothing
+        // writes an initialised context's fields while it is shared.
+        unsafe { FramesContextRef::from_ptr(ctx.cast()) }
+            .expect("a frames context reference has data")
+    }
+}
+
 #[cfg(test)]
 #[path = "../tests/common/hwdevice.rs"]
 pub(crate) mod hwdevice;
@@ -3401,7 +4153,7 @@ mod unit_tests {
         use crate::libavutil::buffer::{BufferReferenceBox, MAX_REFERENCES};
         use crate::libavutil::dict::Dict;
         use crate::libavutil::hwcontext::backend::{
-            self as fx, Event, FramesHwctx, HWCONFIG_SIZE, Kind, averror,
+            self as fx, Event, FramesHw, FramesHwctx, HWCONFIG_SIZE, Kind, averror,
         };
 
         const ENOSYS: c_int = averror(ffi::ENOSYS);
@@ -3447,8 +4199,17 @@ mod unit_tests {
             unsafe { UninitDevice::from_c(fx::alloc_device(kind)) }.unwrap()
         }
 
-        /// A frames context of `kind` on `device`, filled with
-        /// `fx::fill_frames` and `hwctx`, initialised through the wrapper.
+        /// Fills a frames context for `kind`, as `fx::fill_frames` does.
+        fn fill(mut ctx: FramesContextMut<'_>, kind: Kind, w: c_int, h: c_int, pool: c_int) {
+            ctx.set_format(PixelFormat::from_raw(kind.format()));
+            ctx.set_sw_format(PixelFormat::NV12);
+            ctx.set_width(w);
+            ctx.set_height(h);
+            ctx.set_initial_pool_size(pool);
+        }
+
+        /// A frames context of `kind` on `device`, filled with [`fill`] and
+        /// `hwctx`, initialised through the wrapper.
         fn frames_with(
             device: &DeviceReferenceBox,
             kind: Kind,
@@ -3456,12 +4217,12 @@ mod unit_tests {
             pool: c_int,
         ) -> Result<FramesReferenceBox, c_int> {
             let mut frames = device.as_ref().alloc_frames().unwrap();
-            let p = frames.as_mut_ptr();
-            // SAFETY: the uninitialised context `frames` owns.
-            unsafe {
-                fx::fill_frames(p, kind, 64, 32, pool);
-                fx::set_frames_hwctx(p, hwctx);
-            }
+            fill(frames.context_mut(), kind, 64, 32, pool);
+            // SAFETY: the test backends' frames struct is a `FramesHwctx`,
+            // any of whose results they take.
+            unsafe { frames.context_mut().into_hwctx::<FramesHw>() }
+                .unwrap()
+                .set(hwctx);
             frames.init()
         }
 
@@ -3683,13 +4444,11 @@ mod unit_tests {
             assert_eq!(fx::take_events(), [Event::FramesUninit(Kind::A)]);
             // Another backend's format.
             let mut uninit = a.as_ref().alloc_frames().unwrap();
-            // SAFETY: the uninitialised context `uninit` owns.
-            unsafe { fx::fill_frames(uninit.as_mut_ptr(), Kind::B, 8, 8, 0) };
+            fill(uninit.context_mut(), Kind::B, 8, 8, 0);
             assert_eq!(uninit.init().err(), Some(ENOSYS));
             // A size C refuses.
             let mut uninit = a.as_ref().alloc_frames().unwrap();
-            // SAFETY: as above.
-            unsafe { fx::fill_frames(uninit.as_mut_ptr(), Kind::A, 0, 8, 0) };
+            fill(uninit.context_mut(), Kind::A, 0, 8, 0);
             assert_eq!(uninit.init().err(), Some(EINVAL_));
             assert_eq!(
                 fx::take_events(),
@@ -4061,13 +4820,13 @@ mod unit_tests {
             FREED.with(|f| f.set(f.get() + 1));
         }
 
-        /// C runs the `free` filled in through the seam once, after the
-        /// backend's uninit, when the last reference goes.
+        /// C runs a `free` C code filled in (through the raw seam) once,
+        /// after the backend's uninit, when the last reference goes.
         #[test]
         fn frames_free_callbacks_run_at_the_last_release() {
             let a = device(Kind::A);
             let mut uninit = a.as_ref().alloc_frames().unwrap();
-            let p = uninit.as_mut_ptr();
+            let p = uninit.context_mut().as_mut_ptr();
             // SAFETY: the uninitialised context `uninit` owns.
             unsafe {
                 fx::fill_frames(p, Kind::A, 4, 4, 0);
@@ -4956,6 +5715,617 @@ mod unit_tests {
             crate::libavutil::mem::set_max_alloc(i32::MAX as usize);
             assert!(new.is_none() && queried.is_none());
             assert_eq!(events.get().2, 0);
+        }
+    }
+
+    /// The frames context wrapper (hwcontext wave 2, batch 0) over the test
+    /// backends of `tests/common/hwbackend.rs`: its getters and setters, the
+    /// Rust hooks in `free`/`user_opaque` and the pool they own, and their
+    /// release.
+    mod frames_context {
+        use super::super::backend::{self as fx, Event, FramesHw, FramesHwctx, Kind};
+        use super::*;
+        use core::sync::atomic::{AtomicUsize, Ordering};
+        use std::sync::{Arc, Mutex};
+
+        use crate::libavutil::buffer::{BufferPool, BufferReference};
+
+        /// An initialised test device of `kind`, adopted as a box, with its
+        /// events taken.
+        fn device(kind: Kind) -> DeviceReferenceBox {
+            // SAFETY: the only reference to an initialised test device
+            // context, built as `av_hwdevice_ctx_alloc` builds one.
+            let device = unsafe { DeviceReferenceBox::from_c(fx::device(kind)) }.unwrap();
+            fx::take_events();
+            device
+        }
+
+        /// Fills `ctx` for an init of backend `kind` that succeeds.
+        fn fill(mut ctx: FramesContextMut<'_>, kind: Kind, pool_size: c_int) {
+            ctx.set_format(PixelFormat::from_raw(kind.format()));
+            ctx.set_sw_format(PixelFormat::NV12);
+            ctx.set_width(64);
+            ctx.set_height(32);
+            ctx.set_initial_pool_size(pool_size);
+        }
+
+        /// The C `free`, `user_opaque` and `pool` of the context behind `u`.
+        fn raw_fields(u: &UninitFrames) -> (bool, bool, bool) {
+            let p = u.context().as_ptr();
+            // SAFETY: reads of the live context `u` holds.
+            unsafe {
+                (
+                    (*p).free.is_some(),
+                    !(*p).user_opaque.is_null(),
+                    !(*p).pool.is_null(),
+                )
+            }
+        }
+
+        /// A value that counts its drops.
+        struct Dropped(Arc<AtomicUsize>);
+        impl Drop for Dropped {
+            fn drop(&mut self) {
+                self.0.fetch_add(1, Ordering::SeqCst);
+            }
+        }
+
+        /// A pool of surface-sized bytes counting its allocations into
+        /// `allocs`, whose allocator holds a [`Dropped`] counting into
+        /// `drops`: the pool is gone once that count moves.
+        fn counting_pool(allocs: &Arc<AtomicUsize>, drops: &Arc<AtomicUsize>) -> BufferPoolBox {
+            let (a, token) = (allocs.clone(), Dropped(drops.clone()));
+            // SAFETY: each buffer is a fresh `size`-byte allocation; the
+            // allocator never calls into the pool.
+            unsafe {
+                BufferPool::with_allocator(fx::SURFACE_SIZE, move |n| {
+                    let _ = &token;
+                    a.fetch_add(1, Ordering::SeqCst);
+                    BufferReference::alloc(n)
+                })
+            }
+            .unwrap()
+        }
+
+        #[test]
+        fn allocated_fields_read_as_c_set_them() {
+            let a = device(Kind::A);
+            let mut u = a.as_ref().alloc_frames().unwrap();
+            let ctx = u.context();
+            let class = ctx.class().unwrap().name().unwrap();
+            assert_eq!(class, c"AVHWFramesContext");
+            assert!(ctx.device().ptr_eq(a.as_ref()));
+            assert_eq!(ctx.device_context().device_type(), DeviceType::VAAPI);
+            assert_eq!(
+                (ctx.format(), ctx.sw_format()),
+                (PixelFormat::NONE, PixelFormat::NONE)
+            );
+            assert_eq!(
+                (ctx.width(), ctx.height(), ctx.initial_pool_size()),
+                (0, 0, 0)
+            );
+            assert!(!ctx.has_pool() && !ctx.has_free_callback());
+            // SAFETY: the context has no pool to read.
+            assert!(unsafe { ctx.pool() }.is_none());
+            assert!(ctx.user_data::<u8>().is_none());
+            // SAFETY: the test backends' frames struct is a `FramesHwctx`.
+            let hw = unsafe { ctx.hwctx::<FramesHw>() }.unwrap().get();
+            assert_eq!(hw.init_ret, 0);
+            assert_eq!(
+                format!("{ctx:?}"),
+                "FramesContext { format: NONE, sw_format: NONE, width: 0, height: 0, \
+                 initial_pool_size: 0, has_pool: false, has_free_callback: false, .. }"
+            );
+            assert!(format!("{:?}", u.context_mut()).starts_with("FramesContext { format: NONE"));
+            assert_eq!(raw_fields(&u), (false, false, false));
+            drop(u);
+            assert_eq!(fx::take_events(), [Event::FramesUninit(Kind::A)]);
+        }
+
+        #[test]
+        fn setters_reach_c_and_the_initialised_context() {
+            let a = device(Kind::A);
+            let mut u = a.as_ref().alloc_frames().unwrap();
+            fill(u.context_mut(), Kind::A, 2);
+            let p = u.context().as_ptr();
+            // SAFETY: reads of the live context `u` holds.
+            let raw = unsafe { ((*p).format, (*p).sw_format, (*p).width, (*p).height) };
+            assert_eq!(
+                raw,
+                (
+                    ffi::AVPixelFormat::AV_PIX_FMT_VAAPI,
+                    ffi::AVPixelFormat::AV_PIX_FMT_NV12,
+                    64,
+                    32
+                )
+            );
+            // SAFETY: as above.
+            assert_eq!(unsafe { (*p).initial_pool_size }, 2);
+            let frames = u.init().unwrap();
+            let ctx = frames.as_ref().context();
+            assert_eq!(
+                (ctx.format(), ctx.sw_format()),
+                (PixelFormat::VAAPI, PixelFormat::NV12)
+            );
+            assert_eq!(
+                (ctx.width(), ctx.height(), ctx.initial_pool_size()),
+                (64, 32, 2)
+            );
+            // C took the backend's pool.
+            assert!(ctx.has_pool());
+            assert!(ctx.device().ptr_eq(a.as_ref()));
+            let frame = frames.as_ref().get_buffer().unwrap();
+            assert_eq!(frame.frames().context().width(), 64);
+            // SAFETY: the test backends' pools hold zeroed bytes.
+            let pool = unsafe { ctx.pool() }.unwrap();
+            let buf = pool.get().unwrap();
+            assert_eq!(buf.len(), fx::SURFACE_SIZE);
+            drop((buf, frame, frames));
+            drop(a);
+            fx::take_events();
+        }
+
+        #[test]
+        fn create_frames_builds_initialised_contexts() {
+            let a = device(Kind::A);
+            let frames = a
+                .as_ref()
+                .create_frames(PixelFormat::VAAPI, PixelFormat::NV12, 32, 16, 2)
+                .unwrap();
+            let ctx = frames.as_ref().context();
+            assert_eq!(
+                (ctx.format(), ctx.sw_format()),
+                (PixelFormat::VAAPI, PixelFormat::NV12)
+            );
+            assert_eq!(
+                (ctx.width(), ctx.height(), ctx.initial_pool_size()),
+                (32, 16, 2)
+            );
+            assert!(ctx.has_pool() && !ctx.has_free_callback());
+            assert_eq!(
+                fx::take_events(),
+                [
+                    Event::FramesInit(Kind::A),
+                    Event::GetBuffer(Kind::A),
+                    Event::GetBuffer(Kind::A)
+                ]
+            );
+            let a_ = a.as_ref();
+            let refused = a_.create_frames(PixelFormat::DRM_PRIME, PixelFormat::NV12, 32, 16, 0);
+            assert_eq!(refused.err(), Some(-(ffi::ENOSYS as c_int)));
+            let refused = a_.create_frames(PixelFormat::VAAPI, PixelFormat::NV12, 0, 16, 0);
+            assert_eq!(refused.err(), Some(-(ffi::EINVAL as c_int)));
+            assert_eq!(
+                fx::take_events(),
+                [Event::FramesUninit(Kind::A), Event::FramesUninit(Kind::A)]
+            );
+            drop((frames, a));
+            fx::take_events();
+        }
+
+        #[test]
+        fn user_data_is_typed_replaced_and_taken() {
+            let a = device(Kind::B);
+            let mut u = a.as_ref().alloc_frames().unwrap();
+            let drops = Arc::new(AtomicUsize::new(0));
+            let mut m = u.context_mut();
+            m.set_user_data(Dropped(drops.clone())).ok().unwrap();
+            assert!(m.as_ref().user_data::<Dropped>().is_some());
+            assert!(m.as_ref().user_data::<u32>().is_none());
+            assert!(!m.as_ref().has_free_callback());
+            m.set_user_data(7u32).unwrap();
+            assert_eq!(drops.load(Ordering::SeqCst), 1);
+            assert_eq!(m.as_ref().user_data::<u32>(), Some(&7));
+            assert_eq!(raw_fields(&u), (true, true, false));
+            let taken = u.context_mut().take_user_data().unwrap();
+            assert_eq!(taken.downcast_ref::<u32>(), Some(&7));
+            // The empty hooks are gone, and the fields as allocated.
+            assert_eq!(raw_fields(&u), (false, false, false));
+            assert!(u.context_mut().take_user_data().is_none());
+            assert!(u.context_mut().take_free_callback().is_none());
+            assert!(u.context_mut().take_pool().is_none());
+            drop(u);
+            fx::take_events();
+        }
+
+        #[test]
+        fn free_callback_runs_once_after_uninit_and_the_pool() {
+            let a = device(Kind::A);
+            let (allocs, pool_drops) = (Arc::default(), Arc::new(AtomicUsize::new(0)));
+            let data_drops = Arc::new(AtomicUsize::new(0));
+            let seen = Arc::new(Mutex::new(None));
+            let mut u = a.as_ref().alloc_frames().unwrap();
+            fill(u.context_mut(), Kind::A, 2);
+            let mut m = u.context_mut();
+            // SAFETY: the test backends take any bytes for a surface.
+            unsafe { m.set_pool(counting_pool(&allocs, &pool_drops)) }
+                .ok()
+                .unwrap();
+            m.set_user_data(Dropped(data_drops.clone())).ok().unwrap();
+            let (s, pd, dd) = (seen.clone(), pool_drops.clone(), data_drops.clone());
+            m.set_free_callback(move |ctx: FramesContextMut<'_>| {
+                let c = ctx.as_ref();
+                *s.lock().unwrap() = Some((
+                    fx::take_events(),
+                    pd.load(Ordering::SeqCst),
+                    dd.load(Ordering::SeqCst),
+                    c.has_pool(),
+                    c.user_data::<Dropped>().is_some(),
+                    c.device().context().device_type(),
+                ));
+            })
+            .ok()
+            .unwrap();
+            assert!(m.as_ref().has_free_callback());
+            let frames = u.init().unwrap();
+            // The preallocation drew from the Rust pool.
+            assert_eq!(allocs.load(Ordering::SeqCst), 2);
+            let frame = frames.as_ref().get_buffer().unwrap();
+            assert_eq!(allocs.load(Ordering::SeqCst), 2);
+            assert!(frames.as_ref().context().has_free_callback());
+            fx::take_events();
+            drop(frames);
+            assert!(seen.lock().unwrap().is_none());
+            drop(frame);
+            let seen = seen.lock().unwrap().take().unwrap();
+            assert_eq!(
+                seen,
+                (
+                    vec![Event::FramesUninit(Kind::A)],
+                    1,
+                    0,
+                    false,
+                    true,
+                    DeviceType::VAAPI
+                )
+            );
+            assert_eq!(data_drops.load(Ordering::SeqCst), 1);
+            drop(a);
+            fx::take_events();
+        }
+
+        #[test]
+        fn rust_pools_are_replaced_and_taken() {
+            let a = device(Kind::A);
+            let allocs = Arc::new(AtomicUsize::new(0));
+            let drops = Arc::new(AtomicUsize::new(0));
+            let mut u = a.as_ref().alloc_frames().unwrap();
+            // SAFETY: the test backends take any bytes for a surface.
+            unsafe { u.context_mut().set_pool(counting_pool(&allocs, &drops)) }
+                .ok()
+                .unwrap();
+            assert_eq!(raw_fields(&u), (true, true, true));
+            // SAFETY: as above.
+            unsafe { u.context_mut().set_pool(counting_pool(&allocs, &drops)) }
+                .ok()
+                .unwrap();
+            assert_eq!(drops.load(Ordering::SeqCst), 1);
+            let ours = u.context().as_ptr();
+            // SAFETY: a read of the live context.
+            let field = unsafe { (*ours).pool };
+            // SAFETY: the pool holds bytes.
+            let lent = unsafe { u.context().pool() }.unwrap();
+            assert!(ptr::eq(lent.as_ptr(), field));
+            let pool = u.context_mut().take_pool().unwrap();
+            assert!(ptr::eq(pool.as_c_ptr(), field));
+            assert_eq!(raw_fields(&u), (false, false, false));
+            assert!(u.context_mut().take_pool().is_none());
+            // A taken pool still works, and the context makes its own.
+            drop(pool.as_ref().get().unwrap());
+            fill(u.context_mut(), Kind::A, 1);
+            let frames = u.init().unwrap();
+            assert!(frames.as_ref().context().has_pool());
+            assert_eq!(allocs.load(Ordering::SeqCst), 1);
+            drop((frames, pool));
+            assert_eq!(drops.load(Ordering::SeqCst), 2);
+            drop(a);
+            fx::take_events();
+        }
+
+        /// `free` set alone, `user_opaque` set alone, or a pool C code set:
+        /// the setters refuse and give the value back, and nothing is read
+        /// as Rust's.
+        #[test]
+        fn foreign_hooks_and_pools_are_neither_read_nor_replaced() {
+            unsafe extern "C" fn foreign_free(_: *mut ffi::AVHWFramesContext) {}
+            let a = device(Kind::A);
+            let allocs = Arc::new(AtomicUsize::new(0));
+            let drops = Arc::new(AtomicUsize::new(0));
+            for case in 0..2 {
+                let mut u = a.as_ref().alloc_frames().unwrap();
+                let p = u.context_mut().as_mut_ptr();
+                // SAFETY: writes to the context `u` alone holds, as C code
+                // makes them before init.
+                unsafe {
+                    if case == 0 {
+                        (*p).free = Some(foreign_free);
+                    } else {
+                        (*p).user_opaque = ptr::without_provenance_mut(0x5eed);
+                    }
+                }
+                let mut m = u.context_mut();
+                assert_eq!(m.set_user_data(3u8), Err(3));
+                assert!(m.set_free_callback(|_| {}).is_err());
+                // SAFETY: the test backends take any bytes for a surface.
+                let refused = unsafe { m.set_pool(counting_pool(&allocs, &drops)) };
+                drop(refused.unwrap_err());
+                assert!(m.take_user_data().is_none());
+                assert!(m.take_free_callback().is_none());
+                assert!(m.take_pool().is_none());
+                assert!(m.as_ref().user_data::<u8>().is_none());
+                assert_eq!(m.as_ref().has_free_callback(), case == 0);
+                // SAFETY: as above, restored before the release.
+                unsafe {
+                    (*p).free = None;
+                    (*p).user_opaque = ptr::null_mut();
+                }
+            }
+            assert_eq!(drops.load(Ordering::SeqCst), 2);
+            // A pool C code set, which C never releases.
+            let foreign = BufferPool::new(fx::SURFACE_SIZE).unwrap();
+            let mut u = a.as_ref().alloc_frames().unwrap();
+            let p = u.context_mut().as_mut_ptr();
+            // SAFETY: as above; `foreign` outlives the context.
+            unsafe { (*p).pool = foreign.as_c_ptr() };
+            assert!(u.context().has_pool());
+            // SAFETY: the test backends take any bytes for a surface.
+            let refused = unsafe { u.context_mut().set_pool(counting_pool(&allocs, &drops)) };
+            drop(refused.unwrap_err());
+            assert!(u.context_mut().take_pool().is_none());
+            u.context_mut().set_user_data(1u8).unwrap();
+            assert!(u.context_mut().take_pool().is_none());
+            fill(u.context_mut(), Kind::A, 1);
+            let frames = u.init().unwrap();
+            // SAFETY: the foreign pool holds bytes.
+            let lent = unsafe { frames.as_ref().context().pool() }.unwrap();
+            assert!(ptr::eq(lent.as_ptr(), foreign.as_c_ptr()));
+            drop(frames);
+            drop((foreign, a));
+            fx::take_events();
+        }
+
+        #[test]
+        fn a_callback_may_take_or_replace_everything() {
+            let a = device(Kind::B);
+            let calls = Arc::new(AtomicUsize::new(0));
+            let drops = Arc::new(AtomicUsize::new(0));
+            let allocs = Arc::new(AtomicUsize::new(0));
+            let mut u = a.as_ref().alloc_frames().unwrap();
+            let (c, d, al) = (calls.clone(), drops.clone(), allocs.clone());
+            let mut m = u.context_mut();
+            m.set_user_data(Dropped(drops.clone())).ok().unwrap();
+            m.set_free_callback(move |mut ctx: FramesContextMut<'_>| {
+                c.fetch_add(1, Ordering::SeqCst);
+                assert!(ctx.take_user_data().is_some());
+                ctx.set_user_data(Dropped(d.clone())).ok().unwrap();
+                let again = c.clone();
+                ctx.set_free_callback(move |_| {
+                    again.fetch_add(100, Ordering::SeqCst);
+                })
+                .ok()
+                .unwrap();
+                // SAFETY: the test backends take any bytes for a surface.
+                unsafe { ctx.set_pool(counting_pool(&al, &d)) }
+                    .ok()
+                    .unwrap();
+                assert!(ctx.as_ref().has_pool());
+            })
+            .ok()
+            .unwrap();
+            drop(u);
+            assert_eq!(calls.load(Ordering::SeqCst), 1);
+            // The first data, the second, and the pool's allocator.
+            assert_eq!(drops.load(Ordering::SeqCst), 3);
+            drop(a);
+            fx::take_events();
+        }
+
+        #[test]
+        fn init_failures_run_the_hooks_once() {
+            let a = device(Kind::A);
+            let calls = Arc::new(AtomicUsize::new(0));
+            let drops = Arc::new(AtomicUsize::new(0));
+            let allocs = Arc::new(AtomicUsize::new(0));
+            for failure in 0..2 {
+                let mut u = a.as_ref().alloc_frames().unwrap();
+                fill(u.context_mut(), Kind::A, 2);
+                let failing = if failure == 0 {
+                    FramesHwctx {
+                        init_ret: -9,
+                        ..FramesHwctx::default()
+                    }
+                } else {
+                    FramesHwctx {
+                        get_buffer_ret: -4,
+                        ..FramesHwctx::default()
+                    }
+                };
+                // SAFETY: the test backends' frames struct is a `FramesHwctx`.
+                unsafe { u.context_mut().into_hwctx::<FramesHw>() }
+                    .unwrap()
+                    .set(failing);
+                let c = calls.clone();
+                let mut m = u.context_mut();
+                // SAFETY: the test backends take any bytes for a surface.
+                unsafe { m.set_pool(counting_pool(&allocs, &drops)) }
+                    .ok()
+                    .unwrap();
+                m.set_free_callback(move |_| {
+                    c.fetch_add(1, Ordering::SeqCst);
+                })
+                .ok()
+                .unwrap();
+                assert!(u.init().is_err());
+            }
+            assert_eq!(calls.load(Ordering::SeqCst), 2);
+            assert_eq!(drops.load(Ordering::SeqCst), 2);
+            drop(a);
+            fx::take_events();
+        }
+
+        /// A preallocation that runs out of memory for C's `av_frame_alloc`
+        /// stops early but succeeds, as C's `hwframe_pool_prealloc` returns
+        /// its `ret` of 0 there; the context then works, and its release
+        /// runs the hooks once and drops their pool.
+        #[test]
+        fn preallocation_out_of_memory_is_ignored_as_in_c() {
+            if !hwcontext_isolated(
+                "libavutil::hwcontext::unit_tests::frames_context::\
+                 preallocation_out_of_memory_is_ignored_as_in_c",
+            ) {
+                return;
+            }
+            let a = device(Kind::A);
+            let (allocs, drops) = (Arc::default(), Arc::new(AtomicUsize::new(0)));
+            let calls = Arc::new(AtomicUsize::new(0));
+            let mut u = a.as_ref().alloc_frames().unwrap();
+            fill(u.context_mut(), Kind::A, 2);
+            let c = calls.clone();
+            let mut m = u.context_mut();
+            // SAFETY: the test backends take any bytes for a surface.
+            unsafe { m.set_pool(counting_pool(&allocs, &drops)) }
+                .ok()
+                .unwrap();
+            m.set_free_callback(move |_| {
+                c.fetch_add(1, Ordering::SeqCst);
+            })
+            .ok()
+            .unwrap();
+            // An `AVFrame` takes more than this; the backend's pool and the
+            // preallocation's array less.
+            assert!(size_of::<ffi::AVFrame>() > 256);
+            crate::libavutil::mem::set_max_alloc(256);
+            let ret = u.init();
+            crate::libavutil::mem::set_max_alloc(c_int::MAX as usize);
+            let frames = ret.unwrap();
+            assert_eq!(allocs.load(Ordering::SeqCst), 0);
+            assert_eq!(fx::take_events(), [Event::FramesInit(Kind::A)]);
+            drop(frames.as_ref().get_buffer().unwrap());
+            assert_eq!(allocs.load(Ordering::SeqCst), 1);
+            drop(frames);
+            assert_eq!(calls.load(Ordering::SeqCst), 1);
+            assert_eq!(drops.load(Ordering::SeqCst), 1);
+            drop(a);
+        }
+
+        #[test]
+        fn release_frames_hooks_tolerates_a_cleared_cookie() {
+            let a = device(Kind::B);
+            let mut u = a.as_ref().alloc_frames().unwrap();
+            let p = u.context_mut().as_mut_ptr();
+            // SAFETY: the context `u` alone holds: a `free` of
+            // `release_frames_hooks` with no cookie must do nothing.
+            unsafe { (*p).free = Some(RELEASE_FRAMES_HOOKS) };
+            assert!(u.context().user_data::<u8>().is_none());
+            assert!(u.context_mut().take_user_data().is_none());
+            drop(u);
+            drop(a);
+            fx::take_events();
+        }
+
+        /// The hooks without a pool on a context in Rust storage, released
+        /// by calling the trampoline as `hwframe_ctx_free` would: no C call
+        /// at all, for Miri.
+        #[test]
+        fn hooks_release_without_c_or_a_pool() {
+            let drops = Arc::new(AtomicUsize::new(0));
+            let calls = Arc::new(AtomicUsize::new(0));
+            // SAFETY: an all-zero `AVHWFramesContext` is the plain struct with
+            // NULL pointers, which the hooks and getters below accept.
+            let zeroed = unsafe { core::mem::zeroed::<ffi::AVHWFramesContext>() };
+            let ctx = Box::into_raw(Box::new(zeroed));
+            for round in 0..4 {
+                // SAFETY: the boxed context, which nothing else reaches.
+                let mut m = unsafe { FramesContextMut::from_ptr(ctx) }.unwrap();
+                m.set_user_data(Dropped(drops.clone())).ok().unwrap();
+                m.set_user_data(Dropped(drops.clone())).ok().unwrap();
+                let (c, d) = (calls.clone(), drops.clone());
+                m.set_free_callback(move |mut ctx: FramesContextMut<'_>| {
+                    assert!(ctx.as_ref().user_data::<Dropped>().is_some());
+                    c.fetch_add(1, Ordering::SeqCst);
+                    if round == 1 {
+                        // A callback the callback installs is dropped
+                        // uncalled, with new data.
+                        drop(ctx.take_user_data());
+                        ctx.set_user_data(Dropped(d)).ok().unwrap();
+                        ctx.set_free_callback(|_| unreachable!()).ok().unwrap();
+                    } else if round == 2 {
+                        // Taking the last of the hooks frees them early.
+                        drop(ctx.take_user_data());
+                    }
+                })
+                .ok()
+                .unwrap();
+                assert!(m.as_ref().has_free_callback());
+                assert!(!m.as_ref().has_pool());
+                assert_eq!(
+                    m.as_ref().format(),
+                    PixelFormat::from_raw(ffi::AVPixelFormat(0))
+                );
+                m.set_width(round);
+                assert_eq!(m.as_ref().width(), round);
+                if round == 3 {
+                    drop(m.take_free_callback());
+                    drop(m.take_user_data());
+                    // SAFETY: a read of the boxed context.
+                    assert!(unsafe { (*ctx).free.is_none() && (*ctx).user_opaque.is_null() });
+                    continue;
+                }
+                // SAFETY: as hwframe_ctx_free calls it, with the context
+                // nothing else reaches.
+                unsafe { release_frames_hooks(ctx) };
+                // SAFETY: a read of the boxed context.
+                assert!(unsafe { (*ctx).free.is_none() && (*ctx).user_opaque.is_null() });
+            }
+            assert_eq!(calls.load(Ordering::SeqCst), 3);
+            assert_eq!(drops.load(Ordering::SeqCst), 9);
+            // SAFETY: the box leaked above, with no hooks left.
+            drop(unsafe { Box::from_raw(ctx) });
+        }
+
+        /// The hooks on a context in Rust storage, released by calling the
+        /// trampoline as `hwframe_ctx_free` would, without C.
+        #[test]
+        fn hooks_on_rust_storage_without_c() {
+            let drops = Arc::new(AtomicUsize::new(0));
+            let calls = Arc::new(AtomicUsize::new(0));
+            // SAFETY: an all-zero `AVHWFramesContext` is the plain struct with
+            // NULL pointers, which the hooks and getters below accept.
+            let ctx = Box::into_raw(Box::new(unsafe {
+                core::mem::zeroed::<ffi::AVHWFramesContext>()
+            }));
+            for round in 0..3 {
+                // SAFETY: the boxed context, which nothing else reaches.
+                let mut m = unsafe { FramesContextMut::from_ptr(ctx) }.unwrap();
+                m.set_user_data(Dropped(drops.clone())).ok().unwrap();
+                let c = calls.clone();
+                m.set_free_callback(move |ctx: FramesContextMut<'_>| {
+                    assert!(!ctx.as_ref().has_pool());
+                    c.fetch_add(1, Ordering::SeqCst);
+                })
+                .ok()
+                .unwrap();
+                let pool = BufferPool::new(8).unwrap();
+                // SAFETY: no backend reads this context.
+                unsafe { m.set_pool(pool) }.ok().unwrap();
+                if round == 2 {
+                    drop(m.take_free_callback());
+                    drop(m.take_user_data());
+                    drop(m.take_pool());
+                    continue;
+                }
+                // SAFETY: as hwframe_ctx_free calls it, with the context
+                // nothing else reaches.
+                unsafe { release_frames_hooks(ctx) };
+                // SAFETY: reads of the boxed context.
+                assert!(unsafe {
+                    (*ctx).free.is_none() && (*ctx).user_opaque.is_null() && (*ctx).pool.is_null()
+                });
+            }
+            assert_eq!(calls.load(Ordering::SeqCst), 2);
+            assert_eq!(drops.load(Ordering::SeqCst), 3);
+            // SAFETY: the box leaked above, with no hooks left.
+            drop(unsafe { Box::from_raw(ctx) });
         }
     }
 }

@@ -775,7 +775,7 @@ mod contexts {
     };
     use ffmpeg::libavutil::pixfmt::PixelFormat;
 
-    use super::backend::{self as fx, Event, FramesHwctx, HWCONFIG_SIZE, Kind, averror};
+    use super::backend::{self as fx, Event, FramesHw, FramesHwctx, HWCONFIG_SIZE, Kind, averror};
     use super::{C, NAMED, UNNAMED, c_find, c_name, c_next};
 
     const ENOSYS: c_int = averror(ffi::ENOSYS);
@@ -847,7 +847,15 @@ mod contexts {
         hwctx: FramesHwctx,
     ) -> Result<FramesReferenceBox, c_int> {
         let mut frames = device.as_ref().alloc_frames().unwrap();
-        fill(frames.as_mut_ptr(), kind, size, pool, hwctx);
+        let mut ctx = frames.context_mut();
+        ctx.set_format(PixelFormat::from_raw(kind.format()));
+        ctx.set_sw_format(PixelFormat::NV12);
+        ctx.set_width(size.0);
+        ctx.set_height(size.1);
+        ctx.set_initial_pool_size(pool);
+        // SAFETY: the test backends' frames struct is a `FramesHwctx`, any
+        // of whose results they take.
+        unsafe { ctx.into_hwctx::<FramesHw>() }.unwrap().set(hwctx);
         frames.init()
     }
 
@@ -1105,22 +1113,28 @@ mod contexts {
         let r_dev = rust_device(Kind::A);
         // SAFETY: a live device reference.
         let c = unsafe { ffi::av_hwframe_ctx_alloc(c_dev) };
-        let mut rust = r_dev.as_ref().alloc_frames().unwrap();
+        let rust = r_dev.as_ref().alloc_frames().unwrap();
         assert_eq!(count(c_dev), count(r_dev.as_c_ptr()));
-        // SAFETY: the two fresh contexts' public structs.
-        let (cc, rc) = unsafe { (*fx::frames_ctx(c), *rust.as_mut_ptr()) };
-        assert_eq!((cc.format, cc.sw_format), (rc.format, rc.sw_format));
+        // SAFETY: the fresh context's public struct.
+        let cc = unsafe { *fx::frames_ctx(c) };
+        let rc = rust.context();
+        assert_eq!(
+            (cc.format, cc.sw_format),
+            (rc.format().into_raw(), rc.sw_format().into_raw())
+        );
         assert_eq!(
             (cc.width, cc.height, cc.initial_pool_size),
-            (rc.width, rc.height, rc.initial_pool_size)
+            (rc.width(), rc.height(), rc.initial_pool_size())
         );
-        assert!(cc.pool.is_null() && rc.pool.is_null());
-        assert!(!cc.hwctx.is_null() && !rc.hwctx.is_null());
+        assert!(cc.pool.is_null() && !rc.has_pool());
+        // SAFETY: the test backends' frames struct is a `FramesHwctx`.
+        let rust_hw = unsafe { rc.hwctx::<FramesHw>() }.map(|h| h.get());
+        assert!(!cc.hwctx.is_null() && rust_hw.is_some());
         assert_eq!(data(cc.device_ref), data(c_dev));
-        assert_eq!(data(rc.device_ref), data(r_dev.as_c_ptr()));
+        assert!(rc.device().ptr_eq(r_dev.as_ref()));
         assert_eq!(cc.device_ctx.cast_const().cast(), data(c_dev));
-        assert_eq!(rc.device_ctx.cast_const().cast(), data(r_dev.as_c_ptr()));
-        assert_eq!(cc.av_class.is_null(), rc.av_class.is_null());
+        assert_eq!(rc.device_context().device_type(), DeviceType::VAAPI);
+        assert_eq!(cc.av_class.is_null(), rc.class().is_none());
         // SAFETY: the reference C returned.
         unsafe { fx::unref(c) };
         let c_events = fx::take_events();
@@ -1504,7 +1518,7 @@ mod hardware_frame_transfers {
     };
     use ffmpeg::libavutil::pixfmt::PixelFormat;
 
-    use super::backend::{self as fx, Event, FramesHwctx, Kind, averror};
+    use super::backend::{self as fx, Event, FramesHw, FramesHwctx, Kind, averror};
 
     const W: c_int = 64;
     const H: c_int = 32;
@@ -1535,12 +1549,14 @@ mod hardware_frame_transfers {
                 c
             };
             let mut r = r_dev.as_ref().alloc_frames().unwrap();
-            let p = r.as_mut_ptr();
-            // SAFETY: the fresh, uninitialised context `r` owns.
-            unsafe {
-                fx::fill_frames(p, kind, W, H, 0);
-                fx::set_frames_hwctx(p, hwctx);
-            }
+            let mut ctx = r.context_mut();
+            ctx.set_format(PixelFormat::from_raw(kind.format()));
+            ctx.set_sw_format(PixelFormat::NV12);
+            ctx.set_width(W);
+            ctx.set_height(H);
+            // SAFETY: the test backends' frames struct is a `FramesHwctx`,
+            // any of whose results they take.
+            unsafe { ctx.into_hwctx::<FramesHw>() }.unwrap().set(hwctx);
             let r = r.init().unwrap();
             let events = fx::take_events();
             assert_eq!(events, [Event::FramesInit(kind), Event::FramesInit(kind)]);
@@ -2484,5 +2500,580 @@ mod frames_constraints {
         // SAFETY: the structure `into_c` gave up, with lists the setters
         // allocated, which C frees.
         unsafe { ffi::av_hwframe_constraints_free(&mut c) };
+    }
+}
+
+/// [`FramesContext`]'s getters, setters and hooks, and initialisation and
+/// release after filling it, against C's own routines and field reads on
+/// independent, equivalent contexts of the test backends of
+/// `tests/common/hwbackend.rs` (hwcontext wave 2, batch 0): C fills its
+/// context by hand, with a `free` callback and a caller pool as C code sets
+/// them (NVDEC's, which uninitialises the pool from `free`); Rust through
+/// [`FramesContextMut`], with its own hooks and an owned pool. Results,
+/// field reads, pool allocations and the backends' event logs are compared
+/// after each step.
+///
+/// [`FramesContext`]: ffmpeg::libavutil::hwcontext::FramesContext
+/// [`FramesContextMut`]: ffmpeg::libavutil::hwcontext::FramesContextMut
+mod frames_context {
+    use core::cell::RefCell;
+    use core::ffi::{c_int, c_void};
+    use core::ptr;
+    use core::sync::atomic::{AtomicUsize, Ordering};
+    use std::sync::Arc;
+
+    use ffmpeg::libavutil::buffer::{BufferPool, BufferPoolBox, BufferReference};
+    use ffmpeg::libavutil::ffi;
+    use ffmpeg::libavutil::hwcontext::{
+        DeviceReferenceBox, FramesContextMut, FramesContextRef, HardwareFrame, UninitFrames,
+    };
+    use ffmpeg::libavutil::pixfmt::PixelFormat;
+
+    use super::backend::{self as fx, Event, FramesHw, FramesHwctx, Kind};
+
+    /// The public fields both sides compare: formats, size, pool size,
+    /// whether a pool, a `free` and a frames struct are set.
+    type Fields = (c_int, c_int, c_int, c_int, c_int, bool, bool, bool);
+
+    fn c_fields(buf: *const ffi::AVBufferRef) -> Fields {
+        // SAFETY: callers pass live frames context references.
+        let c = unsafe { *fx::frames_ctx(buf) };
+        (
+            c.format.0,
+            c.sw_format.0,
+            c.width,
+            c.height,
+            c.initial_pool_size,
+            !c.pool.is_null(),
+            c.free.is_some(),
+            !c.hwctx.is_null(),
+        )
+    }
+
+    fn rust_fields(ctx: FramesContextRef<'_>) -> Fields {
+        // SAFETY: the test backends' frames struct is a `FramesHwctx`.
+        let hw = unsafe { ctx.hwctx::<FramesHw>() };
+        (
+            ctx.format().into_raw().0,
+            ctx.sw_format().into_raw().0,
+            ctx.width(),
+            ctx.height(),
+            ctx.initial_pool_size(),
+            ctx.has_pool(),
+            ctx.has_free_callback(),
+            hw.is_some(),
+        )
+    }
+
+    /// One way of filling a context: the formats, size, pool size and
+    /// backend results.
+    #[derive(Clone, Copy, Debug)]
+    struct Fill {
+        format: ffi::AVPixelFormat,
+        sw_format: ffi::AVPixelFormat,
+        width: c_int,
+        height: c_int,
+        pool: c_int,
+        hwctx: FramesHwctx,
+    }
+
+    impl Fill {
+        fn ok(kind: Kind, pool: c_int) -> Self {
+            Self {
+                format: kind.format(),
+                sw_format: ffi::AVPixelFormat::AV_PIX_FMT_NV12,
+                width: 64,
+                height: 32,
+                pool,
+                hwctx: FramesHwctx::default(),
+            }
+        }
+
+        fn c(self, buf: *mut ffi::AVBufferRef) {
+            // SAFETY: callers pass the only reference to an uninitialised
+            // test frames context.
+            unsafe {
+                let c = fx::frames_ctx(buf);
+                (*c).format = self.format;
+                (*c).sw_format = self.sw_format;
+                (*c).width = self.width;
+                (*c).height = self.height;
+                (*c).initial_pool_size = self.pool;
+                fx::set_frames_hwctx(c, self.hwctx);
+            }
+        }
+
+        fn rust(self, mut ctx: FramesContextMut<'_>) {
+            ctx.set_format(PixelFormat::from_raw(self.format));
+            ctx.set_sw_format(PixelFormat::from_raw(self.sw_format));
+            ctx.set_width(self.width);
+            ctx.set_height(self.height);
+            ctx.set_initial_pool_size(self.pool);
+            // SAFETY: the test backends' frames struct is a `FramesHwctx`, any
+            // of whose results they take.
+            unsafe { ctx.into_hwctx::<FramesHw>() }
+                .unwrap()
+                .set(self.hwctx);
+        }
+    }
+
+    /// A C-side and a Rust-side test device of `kind`, initialised.
+    fn devices(kind: Kind) -> (*mut ffi::AVBufferRef, DeviceReferenceBox) {
+        let c = fx::device(kind);
+        // SAFETY: the only reference to an initialised test device context,
+        // built as `av_hwdevice_ctx_alloc` builds one.
+        let r = unsafe { DeviceReferenceBox::from_c(fx::device(kind)) }.unwrap();
+        (c, r)
+    }
+
+    /// Fresh frames contexts on both sides, compared as allocated.
+    fn alloc(
+        c_dev: *mut ffi::AVBufferRef,
+        r_dev: &DeviceReferenceBox,
+    ) -> (*mut ffi::AVBufferRef, UninitFrames) {
+        // SAFETY: a live device reference.
+        let c = unsafe { ffi::av_hwframe_ctx_alloc(c_dev) };
+        assert!(!c.is_null());
+        let r = r_dev.as_ref().alloc_frames().unwrap();
+        assert_eq!(c_fields(c), rust_fields(r.context()));
+        (c, r)
+    }
+
+    /// C's `av_hwframe_ctx_init`, releasing a context that failed as the
+    /// wrapper does; the reference on success.
+    fn c_init(c: *mut ffi::AVBufferRef) -> Result<*mut ffi::AVBufferRef, c_int> {
+        // SAFETY: the only reference to a filled, uninitialised context.
+        let ret = unsafe { ffi::av_hwframe_ctx_init(c) };
+        if ret < 0 {
+            // SAFETY: the reference `c` holds.
+            unsafe { fx::unref(c) };
+            Err(ret)
+        } else {
+            Ok(c)
+        }
+    }
+
+    /// Both sides' events since the last call, equal.
+    fn same_events() -> Vec<Event> {
+        let events = fx::take_events();
+        let half = events.len() / 2;
+        assert_eq!(events.len() % 2, 0, "{events:?}");
+        let (a, b) = events.split_at(half);
+        assert_eq!(a, b);
+        a.to_vec()
+    }
+
+    #[test]
+    fn fields_and_init_results_match_c_after_each_step() {
+        let kind = Kind::A;
+        let other = Fill {
+            format: Kind::B.format(),
+            ..Fill::ok(kind, 0)
+        };
+        let fills = [
+            Fill::ok(kind, 0),
+            Fill::ok(kind, 3),
+            Fill::ok(kind, -7),
+            Fill {
+                width: 1,
+                height: 1,
+                ..Fill::ok(kind, 1)
+            },
+            Fill {
+                format: ffi::AVPixelFormat::AV_PIX_FMT_NONE,
+                ..Fill::ok(kind, 0)
+            },
+            other,
+            Fill {
+                width: 0,
+                ..Fill::ok(kind, 0)
+            },
+            Fill {
+                width: c_int::MAX,
+                height: c_int::MAX,
+                ..Fill::ok(kind, 0)
+            },
+            Fill {
+                height: -1,
+                ..Fill::ok(kind, 0)
+            },
+            Fill {
+                sw_format: ffi::AVPixelFormat(9999),
+                ..Fill::ok(kind, 0)
+            },
+            Fill {
+                hwctx: FramesHwctx {
+                    init_ret: -5,
+                    ..FramesHwctx::default()
+                },
+                ..Fill::ok(kind, 2)
+            },
+            Fill {
+                hwctx: FramesHwctx {
+                    get_buffer_ret: -12,
+                    ..FramesHwctx::default()
+                },
+                ..Fill::ok(kind, 2)
+            },
+            Fill {
+                hwctx: FramesHwctx {
+                    no_pool: 1,
+                    ..FramesHwctx::default()
+                },
+                ..Fill::ok(kind, 0)
+            },
+        ];
+        let (c_dev, r_dev) = devices(kind);
+        for (i, fill) in fills.iter().enumerate() {
+            let (c, mut r) = alloc(c_dev, &r_dev);
+            // Every fill over another first, to compare overwrites too.
+            let previous = fills[(i + 1) % fills.len()];
+            previous.c(c);
+            previous.rust(r.context_mut());
+            assert_eq!(c_fields(c), rust_fields(r.context()));
+            fill.c(c);
+            fill.rust(r.context_mut());
+            assert_eq!(c_fields(c), rust_fields(r.context()), "{fill:?}");
+            let (c, r) = (c_init(c), r.init());
+            assert_eq!(c.err(), r.as_ref().err().copied(), "{fill:?}");
+            same_events();
+            if let (Ok(c), Ok(r)) = (c, r) {
+                let ctx = r.as_ref().context();
+                assert_eq!(c_fields(c), rust_fields(ctx), "{fill:?}");
+                // SAFETY: both test backends' frames structs.
+                let rust_hw = unsafe { ctx.hwctx::<FramesHw>() }.unwrap().get();
+                // SAFETY: as above, read by hand.
+                let c_hw = unsafe { (*fx::frames_ctx(c)).hwctx.cast::<FramesHwctx>().read() };
+                assert_eq!(format!("{c_hw:?}"), format!("{rust_hw:?}"));
+                // SAFETY: a live frames context and a fresh frame.
+                let cf = unsafe {
+                    let f = ffi::av_frame_alloc();
+                    let ret = ffi::av_hwframe_get_buffer(c, f, 0);
+                    (f, ret)
+                };
+                let rf = r.as_ref().get_buffer();
+                assert_eq!(cf.1, rf.as_ref().err().copied().unwrap_or(0));
+                same_events();
+                if let Ok(rf) = &rf {
+                    // SAFETY: the frame C filled.
+                    let c_ctx = unsafe { (*cf.0).hw_frames_ctx };
+                    assert_eq!(c_fields(c_ctx), rust_fields(rf.frames().context()));
+                }
+                // SAFETY: the test's frame and reference.
+                unsafe {
+                    ffi::av_frame_free(&mut { cf.0 });
+                    fx::unref(c);
+                }
+                drop((rf, r));
+                same_events();
+            }
+        }
+        // SAFETY: the test's device reference.
+        unsafe { fx::unref(c_dev) };
+        drop(r_dev);
+        same_events();
+    }
+
+    #[test]
+    fn create_frames_matches_c() {
+        let kind = Kind::A;
+        let (c_dev, r_dev) = devices(kind);
+        for fill in [
+            Fill::ok(kind, 0),
+            Fill::ok(kind, 5),
+            Fill::ok(kind, i32::MIN),
+            Fill {
+                format: ffi::AVPixelFormat::AV_PIX_FMT_NONE,
+                ..Fill::ok(kind, 0)
+            },
+            Fill {
+                width: 1 << 20,
+                height: 1 << 20,
+                ..Fill::ok(kind, 0)
+            },
+            Fill {
+                width: 7,
+                height: 3,
+                sw_format: ffi::AVPixelFormat::AV_PIX_FMT_YUV420P,
+                ..Fill::ok(kind, 1)
+            },
+        ] {
+            // SAFETY: a live device reference.
+            let c = unsafe { ffi::av_hwframe_ctx_alloc(c_dev) };
+            assert!(!c.is_null());
+            fill.c(c);
+            let c = c_init(c);
+            let r = r_dev.as_ref().create_frames(
+                PixelFormat::from_raw(fill.format),
+                PixelFormat::from_raw(fill.sw_format),
+                fill.width,
+                fill.height,
+                fill.pool,
+            );
+            assert_eq!(c.err(), r.as_ref().err().copied(), "{fill:?}");
+            same_events();
+            if let (Ok(c), Ok(r)) = (c, r) {
+                assert_eq!(c_fields(c), rust_fields(r.as_ref().context()), "{fill:?}");
+                // SAFETY: the test's reference.
+                unsafe { fx::unref(c) };
+                drop(r);
+                same_events();
+            }
+        }
+        // SAFETY: the test's device reference.
+        unsafe { fx::unref(c_dev) };
+        drop(r_dev);
+        same_events();
+    }
+
+    #[test]
+    fn the_fixed_fields_read_what_c_stores() {
+        for kind in [Kind::A, Kind::B] {
+            let (c_dev, r_dev) = devices(kind);
+            let (c, r) = alloc(c_dev, &r_dev);
+            let ctx = r.context();
+            // SAFETY: a live frames context's public struct.
+            let cc = unsafe { *fx::frames_ctx(c) };
+            assert!(!cc.device_ref.is_null(), "C's allocator stores the device");
+            // SAFETY: both devices are live; C reads the device type.
+            let c_type = unsafe { (*cc.device_ctx).type_ };
+            assert_eq!(ctx.device_context().device_type().into_raw(), c_type);
+            assert_eq!(ctx.device().context().device_type().into_raw(), c_type);
+            assert!(ctx.device().ptr_eq(r_dev.as_ref()));
+            // SAFETY: C's class pointer is its static `hwframe_ctx_class`.
+            let c_class = unsafe { core::ffi::CStr::from_ptr((*cc.av_class).class_name) };
+            assert_eq!(ctx.class().unwrap().name(), Some(c_class));
+            // The frames context's own device reference.
+            let r_ref = r_dev.as_c_ptr();
+            // SAFETY: live references.
+            let counts = unsafe { (fx::ref_count(c_dev), fx::ref_count(r_ref)) };
+            assert_eq!(counts, (2, 2));
+            let copy = ctx.device().try_clone().unwrap();
+            // SAFETY: a live reference.
+            assert_eq!(unsafe { fx::ref_count(r_dev.as_c_ptr()) }, 3);
+            drop((copy, r));
+            // SAFETY: the test's references.
+            unsafe {
+                fx::unref(c);
+                assert_eq!(fx::ref_count(r_dev.as_c_ptr()), fx::ref_count(c_dev));
+            }
+            same_events();
+            // SAFETY: the test's device reference.
+            unsafe { fx::unref(c_dev) };
+            let c_events = fx::take_events();
+            drop(r_dev);
+            assert_eq!(fx::take_events(), c_events);
+        }
+    }
+
+    thread_local! {
+        /// What each `free` saw when C called it, in order: the backend
+        /// events before it, its user data's value and whether `pool` was
+        /// still set.
+        static FREED: RefCell<Vec<(Vec<Event>, usize, bool)>> = const { RefCell::new(Vec::new()) };
+    }
+
+    /// The C reference's `free`: records what it sees, as the Rust one does.
+    unsafe extern "C" fn c_free(ctx: *mut ffi::AVHWFramesContext) {
+        // SAFETY: C passes the live context it releases; `user_opaque` is a
+        // counter value, never dereferenced.
+        let (value, pool) = unsafe { ((*ctx).user_opaque.addr(), !(*ctx).pool.is_null()) };
+        FREED.with(|f| f.borrow_mut().push((fx::take_events(), value, pool)));
+    }
+
+    /// The Rust side's free callback, recording as [`c_free`].
+    fn rust_free(ctx: FramesContextMut<'_>) {
+        let c = ctx.as_ref();
+        let value = *c.user_data::<usize>().unwrap();
+        FREED.with(|f| {
+            f.borrow_mut()
+                .push((fx::take_events(), value, c.has_pool()))
+        });
+    }
+
+    fn take_freed() -> Vec<(Vec<Event>, usize, bool)> {
+        FREED.with(|f| f.take())
+    }
+
+    #[test]
+    fn free_callbacks_run_as_cs() {
+        let kind = Kind::A;
+        let (c_dev, r_dev) = devices(kind);
+        for (n, fill) in [
+            Fill::ok(kind, 2),
+            Fill {
+                width: 0,
+                ..Fill::ok(kind, 0)
+            },
+            Fill {
+                hwctx: FramesHwctx {
+                    init_ret: -3,
+                    ..FramesHwctx::default()
+                },
+                ..Fill::ok(kind, 0)
+            },
+        ]
+        .into_iter()
+        .enumerate()
+        {
+            let (c, mut r) = alloc(c_dev, &r_dev);
+            fill.c(c);
+            // SAFETY: the only reference to the uninitialised context, whose
+            // `free` C code may set before init.
+            unsafe {
+                let p = fx::frames_ctx(c);
+                (*p).free = Some(c_free);
+                (*p).user_opaque = ptr::without_provenance_mut(n + 1);
+            }
+            fill.rust(r.context_mut());
+            r.context_mut().set_user_data(n + 1).unwrap();
+            r.context_mut().set_free_callback(rust_free).ok().unwrap();
+            assert_eq!(c_fields(c), rust_fields(r.context()));
+            let (c, r) = (c_init(c), r.init());
+            assert_eq!(c.err(), r.as_ref().err().copied());
+            if let (Ok(c), Ok(r)) = (c, r) {
+                same_events();
+                // The last release by a frame, after the context's own.
+                // SAFETY: a live frames context and a fresh frame.
+                let mut cf = unsafe { ffi::av_frame_alloc() };
+                // SAFETY: as above.
+                assert_eq!(unsafe { ffi::av_hwframe_get_buffer(c, cf, 0) }, 0);
+                let rf: HardwareFrame = r.as_ref().get_buffer().unwrap();
+                same_events();
+                // SAFETY: the test's reference.
+                unsafe { fx::unref(c) };
+                drop(r);
+                assert!(take_freed().is_empty());
+                // SAFETY: the test's frame.
+                unsafe { ffi::av_frame_free(&mut cf) };
+                drop(rf);
+            }
+            let freed = take_freed();
+            assert_eq!(freed.len(), 2, "{fill:?}");
+            assert_eq!(freed[0].1, n + 1);
+            assert_eq!(freed[0].0, freed[1].0);
+            assert_eq!(freed[0].1, freed[1].1);
+            assert_eq!(freed[0].0.last(), Some(&Event::FramesUninit(kind)));
+            // C leaves `pool` pointing at the backend's freed pool there; the
+            // hooks clear it first.
+            assert!(!freed[1].2);
+            assert_eq!(freed[0].2, fill.width > 0 && fill.hwctx.init_ret == 0);
+        }
+        // SAFETY: the test's device reference.
+        unsafe { fx::unref(c_dev) };
+        drop(r_dev);
+        same_events();
+    }
+
+    /// `alloc2` for the C side's caller pool: counts into `opaque`.
+    unsafe extern "C" fn c_alloc_counted(
+        opaque: *mut c_void,
+        size: usize,
+    ) -> *mut ffi::AVBufferRef {
+        // SAFETY: `opaque` is the test's live counter.
+        unsafe { (*opaque.cast::<AtomicUsize>()).fetch_add(1, Ordering::SeqCst) };
+        // SAFETY: allocation.
+        unsafe { ffi::av_buffer_alloc(size) }
+    }
+
+    /// The C side's `free` for a caller pool, as NVDEC's: uninitialises it.
+    unsafe extern "C" fn c_free_pool(ctx: *mut ffi::AVHWFramesContext) {
+        // SAFETY: C passes the live context it releases, whose `pool` is the
+        // caller's.
+        unsafe { ffi::av_buffer_pool_uninit(&raw mut (*ctx).pool) };
+    }
+
+    /// The Rust side's pool, counting into `allocs`.
+    fn rust_pool(allocs: &Arc<AtomicUsize>) -> BufferPoolBox {
+        let a = allocs.clone();
+        // SAFETY: each buffer is a fresh `size`-byte allocation; the allocator
+        // never calls into the pool.
+        unsafe {
+            BufferPool::with_allocator(fx::SURFACE_SIZE, move |n| {
+                a.fetch_add(1, Ordering::SeqCst);
+                BufferReference::alloc(n)
+            })
+        }
+        .unwrap()
+    }
+
+    #[test]
+    fn caller_pools_serve_the_frames_as_in_c() {
+        for kind in [Kind::A, Kind::B] {
+            let (c_dev, r_dev) = devices(kind);
+            for prealloc in [0, 1, 4] {
+                let (c_allocs, r_allocs) =
+                    (Arc::new(AtomicUsize::new(0)), Arc::new(AtomicUsize::new(0)));
+                let (c, mut r) = alloc(c_dev, &r_dev);
+                Fill::ok(kind, prealloc).c(c);
+                // SAFETY: the only reference to the uninitialised context, and
+                // a fresh pool its `free` uninitialises; the counter outlives
+                // the pool.
+                unsafe {
+                    let p = fx::frames_ctx(c);
+                    (*p).pool = ffi::av_buffer_pool_init2(
+                        fx::SURFACE_SIZE,
+                        Arc::as_ptr(&c_allocs).cast_mut().cast(),
+                        Some(c_alloc_counted),
+                        None,
+                    );
+                    assert!(!(*p).pool.is_null());
+                    (*p).free = Some(c_free_pool);
+                }
+                Fill::ok(kind, prealloc).rust(r.context_mut());
+                // SAFETY: the test backends take any surface-sized bytes.
+                unsafe { r.context_mut().set_pool(rust_pool(&r_allocs)) }
+                    .ok()
+                    .unwrap();
+                let (cf, rf) = (c_fields(c), rust_fields(r.context()));
+                // C's `free` is set, Rust's hooks are not a callback.
+                assert_eq!((cf.6, rf.6), (true, false));
+                assert_eq!(cf.5, rf.5);
+                let c = c_init(c).unwrap();
+                let r = r.init().unwrap();
+                same_events();
+                let counts = || {
+                    (
+                        c_allocs.load(Ordering::SeqCst),
+                        r_allocs.load(Ordering::SeqCst),
+                    )
+                };
+                assert_eq!(counts(), (prealloc as usize, prealloc as usize));
+                // Frames held at once, then returned and taken again.
+                let mut held = Vec::new();
+                for round in 0..3 {
+                    for _ in 0..round + 2 {
+                        // SAFETY: a live frames context and a fresh frame.
+                        let cf = unsafe {
+                            let f = ffi::av_frame_alloc();
+                            assert_eq!(ffi::av_hwframe_get_buffer(c, f, 0), 0);
+                            f
+                        };
+                        let rf = r.as_ref().get_buffer().unwrap();
+                        // SAFETY: the frame C filled.
+                        let shape = unsafe { fx::shape(cf) };
+                        let dims = (rf.format().into_raw().0, rf.width(), rf.height());
+                        assert_eq!((shape.format, shape.width, shape.height), dims);
+                        held.push((cf, rf));
+                        let (ca, ra) = counts();
+                        assert_eq!(ca, ra);
+                    }
+                    same_events();
+                    for (mut cf, rf) in held.drain(..) {
+                        // SAFETY: the test's frame.
+                        unsafe { ffi::av_frame_free(&mut cf) };
+                        drop(rf);
+                    }
+                }
+                // SAFETY: the test's reference.
+                unsafe { fx::unref(c) };
+                drop(r);
+                same_events();
+            }
+            // SAFETY: the test's device reference.
+            unsafe { fx::unref(c_dev) };
+            drop(r_dev);
+            same_events();
+        }
     }
 }
