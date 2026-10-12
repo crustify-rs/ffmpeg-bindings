@@ -29,10 +29,10 @@
     "unsafe_impls": 404,
     "unsafe_traits": 1,
     "ty_wrapper_newtypes": 59,
-    "ty_wrapper_ref_handles": 0,
-    "ty_wrapper_refs_sanctioned": 217,
-    "ty_wrapper_refs_smell": 1,
-    "ty_wrapper_refs_body_smell": 0,
+    "ty_wrapper_borrow_handles": 0,
+    "ty_wrapper_borrow_sanctioned": 217,
+    "ty_wrapper_borrow_smell": 1,
+    "ty_wrapper_borrow_body_smell": 0,
     "raw_ptr_ty_pub_fields_pub": 0,
     "raw_ptr_ty_pub_fields_priv": 12,
     "raw_ptr_ty_priv": 0,
@@ -52,35 +52,40 @@
     "void_ptr_fn_priv_unsafe": 69,
     "ty_field_proj_wrapped": 500,
     "ty_field_proj_outside_impl": 8,
-    "ty_field_ref_wrapped": 0,
+    "ty_field_borrow_wrapped": 0,
     "deref_impl_on_wrapper": 0,
     "ffi_calls": 594
   },
   "counts_unavailable": null,
   "ffibox": {
     "counts": {
-      "fn_sig_ffibox_owners_pub": 165,
-      "fn_sig_ffibox_owners_priv": 20,
-      "fn_sig_ffibox_handles_pub": 1106,
-      "fn_sig_ffibox_handles_priv": 537,
+      "fn_sig_ffibox_owner_pub": 165,
+      "fn_sig_ffibox_owner_priv": 20,
+      "fn_sig_ffibox_handle_pub": 1106,
+      "fn_sig_ffibox_handle_priv": 537,
       "fn_sig_non_ffibox_owner_pub": 5,
       "fn_sig_non_ffibox_owner_priv": 0,
-      "fn_sig_non_ffibox_borrow_pub": 165,
-      "fn_sig_non_ffibox_borrow_priv": 51,
+      "fn_sig_non_ffibox_wrapper_borrow_pub": 37,
+      "fn_sig_non_ffibox_wrapper_borrow_priv": 15,
+      "fn_sig_non_ffibox_non_wrapper_borrow_pub": 128,
+      "fn_sig_non_ffibox_non_wrapper_borrow_priv": 36,
       "fn_sig_std_ty_borrow_pub": 409,
       "fn_sig_std_ty_borrow_priv": 115,
-      "ty_pub_fields_pub_ffibox_owners": 2,
-      "ty_pub_fields_priv_ffibox_owners": 14,
-      "ty_priv_ffibox_owners": 1,
-      "ty_pub_fields_pub_ffibox_handles": 3,
-      "ty_pub_fields_priv_ffibox_handles": 128,
-      "ty_priv_ffibox_handles": 4,
+      "ty_pub_fields_pub_ffibox_owner": 2,
+      "ty_pub_fields_priv_ffibox_owner": 14,
+      "ty_priv_ffibox_owner": 1,
+      "ty_pub_fields_pub_ffibox_handle": 3,
+      "ty_pub_fields_priv_ffibox_handle": 128,
+      "ty_priv_ffibox_handle": 4,
       "ty_pub_fields_pub_non_ffibox_owner": 0,
       "ty_pub_fields_priv_non_ffibox_owner": 0,
       "ty_priv_non_ffibox_owner": 0,
-      "ty_pub_fields_pub_non_ffibox_borrow": 1,
-      "ty_pub_fields_priv_non_ffibox_borrow": 5,
-      "ty_priv_non_ffibox_borrow": 1,
+      "ty_pub_fields_pub_non_ffibox_wrapper_borrow": 0,
+      "ty_pub_fields_priv_non_ffibox_wrapper_borrow": 2,
+      "ty_priv_non_ffibox_wrapper_borrow": 0,
+      "ty_pub_fields_pub_non_ffibox_non_wrapper_borrow": 1,
+      "ty_pub_fields_priv_non_ffibox_non_wrapper_borrow": 3,
+      "ty_priv_non_ffibox_non_wrapper_borrow": 1,
       "ty_pub_fields_pub_std_ty_borrow": 5,
       "ty_pub_fields_priv_std_ty_borrow": 6,
       "ty_priv_std_ty_borrow": 4,
@@ -94,26 +99,26 @@
       "clone_impl": 1
     },
     "by": {
-      "fn_sig_ffibox_owners_pub": {
+      "fn_sig_ffibox_owner_pub": {
         "CArc": 8,
         "CBox": 89,
         "CStrBox": 17,
         "CVal": 17,
         "CVec": 34
       },
-      "fn_sig_ffibox_owners_priv": {
+      "fn_sig_ffibox_owner_priv": {
         "CBox": 12,
         "CStrBox": 2,
         "CVal": 1,
         "CVec": 5
       },
-      "fn_sig_ffibox_handles_pub": {
+      "fn_sig_ffibox_handle_pub": {
         "CSlice": 6,
         "CSliceMut": 6,
         "Mut": 584,
         "Ref": 510
       },
-      "fn_sig_ffibox_handles_priv": {
+      "fn_sig_ffibox_handle_priv": {
         "CSlice": 2,
         "Mut": 204,
         "Ref": 331
@@ -124,22 +129,33 @@
         "libavutil::mem::DynArray": 1
       },
       "fn_sig_non_ffibox_owner_priv": {},
-      "fn_sig_non_ffibox_borrow_pub": {
+      "fn_sig_non_ffibox_wrapper_borrow_pub": {
+        "libavutil::frame::SideDataArrayMut": 16,
+        "libavutil::frame::SideDataArrayRef": 8,
+        "libavutil::log::ChildClasses": 1,
+        "libavutil::log::Record": 8,
+        "libavutil::opt::BareObject": 3,
+        "libavutil::opt::RangeIter": 1
+      },
+      "fn_sig_non_ffibox_wrapper_borrow_priv": {
+        "libavutil::frame::SideDataArrayMut": 3,
+        "libavutil::frame::SideDataArrayRef": 3,
+        "libavutil::hwcontext::HwFrames": 6,
+        "libavutil::log::Record": 1,
+        "libavutil::opt::EvalContext": 1,
+        "libavutil::opt::RangeTarget": 1
+      },
+      "fn_sig_non_ffibox_non_wrapper_borrow_pub": {
         "libavutil::avstring::ScanArg": 1,
         "libavutil::avstring::Tokens": 1,
         "libavutil::bprint::BufferStorage": 1,
         "libavutil::channel_layout::LayoutDetails": 1,
         "libavutil::dict::Iter": 2,
         "libavutil::dict::Matches": 2,
-        "libavutil::frame::SideDataArrayMut": 16,
-        "libavutil::frame::SideDataArrayRef": 8,
         "libavutil::frame::SideDataIter": 1,
         "libavutil::frame::SideDataIterMut": 1,
         "libavutil::imgutils::Planes": 9,
         "libavutil::imgutils::PlanesMut": 14,
-        "libavutil::log::ChildClasses": 1,
-        "libavutil::log::Record": 8,
-        "libavutil::opt::BareObject": 3,
         "libavutil::opt::Children": 1,
         "libavutil::opt::ChildrenMut": 2,
         "libavutil::opt::KeyValue": 1,
@@ -148,27 +164,20 @@
         "libavutil::opt::OptionDefault": 1,
         "libavutil::opt::Options": 1,
         "libavutil::opt::PotentialChildren": 1,
-        "libavutil::opt::RangeIter": 1,
         "libavutil::samplefmt::SamplesMut": 11,
         "libavutil::samplefmt::SamplesRef": 12
       },
-      "fn_sig_non_ffibox_borrow_priv": {
+      "fn_sig_non_ffibox_non_wrapper_borrow_priv": {
         "libavutil::avstring::ScanArg": 3,
         "libavutil::crc::TableView": 1,
         "libavutil::dict::Iter": 1,
         "libavutil::dict::Matches": 1,
         "libavutil::eval::Funcs": 1,
-        "libavutil::frame::SideDataArrayMut": 3,
-        "libavutil::frame::SideDataArrayRef": 3,
         "libavutil::frame::SideDataIterMut": 1,
-        "libavutil::hwcontext::HwFrames": 6,
         "libavutil::imgutils::Planes": 4,
         "libavutil::imgutils::PlanesMut": 5,
-        "libavutil::log::Record": 1,
-        "libavutil::opt::EvalContext": 1,
         "libavutil::opt::ObjectMut": 4,
-        "libavutil::opt::ObjectRef": 15,
-        "libavutil::opt::RangeTarget": 1
+        "libavutil::opt::ObjectRef": 15
       },
       "fn_sig_std_ty_borrow_pub": {
         "&CStr": 227,
@@ -186,26 +195,26 @@
         "&mut [T]": 1,
         "&str": 17
       },
-      "ty_pub_fields_pub_ffibox_owners": {
+      "ty_pub_fields_pub_ffibox_owner": {
         "CStrBox": 2
       },
-      "ty_pub_fields_priv_ffibox_owners": {
+      "ty_pub_fields_priv_ffibox_owner": {
         "CArc": 2,
         "CBox": 7,
         "CVec": 5
       },
-      "ty_priv_ffibox_owners": {
+      "ty_priv_ffibox_owner": {
         "CBox": 1
       },
-      "ty_pub_fields_pub_ffibox_handles": {
+      "ty_pub_fields_pub_ffibox_handle": {
         "CSlice": 1,
         "Ref": 2
       },
-      "ty_pub_fields_priv_ffibox_handles": {
+      "ty_pub_fields_priv_ffibox_handle": {
         "CBorrowedPtr": 59,
         "Ref": 69
       },
-      "ty_priv_ffibox_handles": {
+      "ty_priv_ffibox_handle": {
         "CSlice": 1,
         "Mut": 1,
         "Ref": 2
@@ -213,14 +222,18 @@
       "ty_pub_fields_pub_non_ffibox_owner": {},
       "ty_pub_fields_priv_non_ffibox_owner": {},
       "ty_priv_non_ffibox_owner": {},
-      "ty_pub_fields_pub_non_ffibox_borrow": {
+      "ty_pub_fields_pub_non_ffibox_wrapper_borrow": {},
+      "ty_pub_fields_priv_non_ffibox_wrapper_borrow": {
+        "libavutil::frame::SideDataArrayRef": 2
+      },
+      "ty_priv_non_ffibox_wrapper_borrow": {},
+      "ty_pub_fields_pub_non_ffibox_non_wrapper_borrow": {
         "libavutil::opt::ObjectRef": 1
       },
-      "ty_pub_fields_priv_non_ffibox_borrow": {
-        "libavutil::frame::SideDataArrayRef": 2,
+      "ty_pub_fields_priv_non_ffibox_non_wrapper_borrow": {
         "libavutil::opt::ObjectRef": 3
       },
-      "ty_priv_non_ffibox_borrow": {
+      "ty_priv_non_ffibox_non_wrapper_borrow": {
         "libavutil::opt::ObjectRef": 1
       },
       "ty_pub_fields_pub_std_ty_borrow": {
