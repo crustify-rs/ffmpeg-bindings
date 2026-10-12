@@ -1,0 +1,34 @@
+{
+  "method": {
+    "rust": "RUSTFLAGS=-C instrument-coverage CRUSTIFY_FFMPEG_VARIANT=coverage; cargo +nightly test -p ffmpeg --lib --tests -- hwcontext --skip compile_fail; nightly llvm-profdata merge + llvm-cov report/show over the four test binaries, for libavutil/hwcontext.rs (the workset's items are its lines 1836-2636: DeviceContext, its hooks, DeviceReferenceRef::context/frames_constraints*, FramesConstraints and FramesConstraintsFree)",
+    "c": "the same run with GCOV_PREFIX into a private dir; gcov 13 -b -c -f over src/libavutil/hwcontext.c with the coverage build's .gcno",
+    "note": "Whole-file numbers include the wave's symbol items. Inside the workset's range the only line never run is the trampoline's NULL-handle branch (release_hooks, hwcontext.rs:1928): hwdevice_ctx_free always passes the live context, so it is unreachable. hwcontext.c stays at 78.04% of 428 lines on both trees. The lines it misses are backend paths: hw_table is empty under --disable-autodetect, so av_hwdevice_ctx_create's device_create path and av_hwdevice_iterate_types' loop body never run, and those depend on the build environment."
+  },
+  "rust": {
+    "libavutil/hwcontext.rs": {
+      "base b9dbecd340": {
+        "regions": {"count": 2988, "missed": 29, "percent": 99.03},
+        "functions": {"count": 244, "missed": 5, "percent": 97.95},
+        "lines": {"count": 2208, "missed": 14, "percent": 99.37}
+      },
+      "fixed": {
+        "regions": {"count": 3017, "missed": 29, "percent": 99.04},
+        "functions": {"count": 246, "missed": 5, "percent": 97.97},
+        "lines": {"count": 2225, "missed": 14, "percent": 99.37}
+      },
+      "workset_lines_missed": [1928]
+    }
+  },
+  "c": {
+    "libavutil/hwcontext.c": {
+      "file_lines_percent": 78.04,
+      "functions_lines_percent": {
+        "av_hwdevice_ctx_alloc": 100.0,
+        "av_hwdevice_ctx_init": 100.0,
+        "av_hwdevice_hwconfig_alloc": 100.0,
+        "av_hwdevice_get_hwframe_constraints": 100.0,
+        "av_hwframe_constraints_free": 100.0
+      }
+    }
+  }
+}
