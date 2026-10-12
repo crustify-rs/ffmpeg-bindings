@@ -1,53 +1,5 @@
 {
   "crate_path": "/target/crustify/rust",
-  "seam_fns": {
-    "files": [
-      "/opt/venv/share/ffibox/seams.txt",
-      "/opt/crustify/docs/translate/seams.txt"
-    ],
-    "names": [
-      "as_ptr",
-      "as_mut_ptr",
-      "as_c_ptr",
-      "as_non_null",
-      "as_elem_ptr",
-      "as_mut_elem_ptr",
-      "as_void_ptr",
-      "as_mut_void_ptr",
-      "from_ptr",
-      "from_void_ptr",
-      "ref_from_ptr",
-      "mut_from_ptr",
-      "ref_from_void_ptr",
-      "mut_from_void_ptr",
-      "from_raw",
-      "from_raw_with",
-      "from_raw_parts",
-      "from_raw_parts_with",
-      "from_raw_parts_or_empty",
-      "from_raw_parts_or_empty_with",
-      "from_c",
-      "from_c_with",
-      "into_raw",
-      "into_raw_with",
-      "into_raw_parts",
-      "into_raw_parts_with",
-      "into_c",
-      "c_alloc",
-      "c_alloc_zeroed",
-      "c_new",
-      "c_drop",
-      "c_drop_len",
-      "c_dup",
-      "c_clone_len",
-      "c_up_ref",
-      "c_is_sole_owner",
-      "c_lock",
-      "c_unlock",
-      "c_dispose",
-      "to_raw"
-    ]
-  },
   "counts": {
     "unsafe_blocks": 1733,
     "unsafe_block_stmts": 100,
@@ -55,12 +7,9 @@
     "unsafe_block_code_lines": 2885,
     "unsafe_blocks_wrapper_impl": 1078,
     "unsafe_blocks_ffi_export": 29,
-    "unsafe_fns": 292,
-    "unsafe_fns_seam": 243,
-    "unsafe_fns_pub_seam": 51,
-    "unsafe_fns_priv_seam": 192,
-    "unsafe_fns_pub_smell": 26,
-    "unsafe_fns_priv_smell": 23,
+    "unsafe_fns": 247,
+    "unsafe_fns_pub": 32,
+    "unsafe_fns_priv": 215,
     "fns_pub": 1758,
     "fns_priv": 774,
     "unsafe_impls": 404,
@@ -70,27 +19,31 @@
     "wrapper_newtypes_declared": 59,
     "wrapper_declared_nonconformant": 0,
     "wrapper_newtypes_undeclared": 0,
-    "raw_ptr_args": 245,
+    "raw_ptr": 538,
+    "raw_ptr_args": 242,
     "raw_ptr_rets": 284,
-    "raw_ptr_seam": 447,
-    "raw_ptr_wrapped": 13,
-    "raw_ptr_pub_smell": 30,
-    "raw_ptr_priv_smell": 64,
-    "raw_ptr_pub_seam": 12,
-    "raw_ptr_priv_seam": 435,
-    "raw_ptr_pub": 42,
-    "raw_ptr_priv": 499,
+    "raw_ptr_type_pub": 12,
+    "raw_ptr_type_priv": 0,
+    "raw_ptr_fn_pub_safe": 20,
+    "raw_ptr_fn_pub_unsafe": 19,
+    "raw_ptr_fn_priv_safe": 279,
+    "raw_ptr_fn_priv_unsafe": 208,
+    "raw_ptr_wrapped": 257,
     "ref_to_type_wrapper_sanctioned": 217,
     "ref_to_type_wrapper_smell": 1,
     "ref_to_type_wrapper_body_smell": 0,
     "deref_impl_on_wrapper": 0,
     "raw_ptr_fields": 12,
-    "field_ref_wrapped": 0,
     "field_proj_wrapped": 500,
     "field_proj_outside_impl": 8,
-    "void_ptr_seam": 194,
-    "void_ptr_pub_smell": 28,
-    "void_ptr_priv_smell": 8,
+    "field_ref_wrapped": 0,
+    "void_ptr": 230,
+    "void_ptr_type_pub": 3,
+    "void_ptr_type_priv": 0,
+    "void_ptr_fn_pub_safe": 17,
+    "void_ptr_fn_pub_unsafe": 15,
+    "void_ptr_fn_priv_safe": 126,
+    "void_ptr_fn_priv_unsafe": 69,
     "raw_ptr_derefs": 512,
     "raw_ptr_derefs_outside_impl": 12,
     "total_stmts": 3839,
@@ -99,26 +52,26 @@
   "counts_unavailable": null,
   "ffibox": {
     "counts": {
-      "ffibox_sig_owners_pub": 165,
-      "ffibox_sig_owners_pub_seam": 0,
-      "ffibox_sig_owners_priv": 20,
-      "ffibox_sig_owners_priv_seam": 0,
-      "ffibox_sig_handles_pub": 752,
-      "ffibox_sig_handles_pub_seam": 354,
-      "ffibox_sig_handles_priv": 124,
-      "ffibox_sig_handles_priv_seam": 413,
-      "non_ffibox_sig_owner_pub": 4,
-      "non_ffibox_sig_owner_pub_seam": 1,
-      "non_ffibox_sig_owner_priv": 0,
-      "non_ffibox_sig_owner_priv_seam": 0,
-      "non_ffibox_sig_borrow_pub": 163,
-      "non_ffibox_sig_borrow_pub_seam": 2,
-      "non_ffibox_sig_borrow_priv": 47,
-      "non_ffibox_sig_borrow_priv_seam": 4,
-      "std_sig_borrow_pub": 409,
-      "std_sig_borrow_pub_seam": 0,
-      "std_sig_borrow_priv": 115,
-      "std_sig_borrow_priv_seam": 0,
+      "ffibox_fn_owners_pub": 165,
+      "ffibox_fn_owners_priv": 20,
+      "ffibox_fn_handles_pub": 1106,
+      "ffibox_fn_handles_priv": 537,
+      "non_ffibox_fn_owner_pub": 5,
+      "non_ffibox_fn_owner_priv": 0,
+      "non_ffibox_fn_borrow_pub": 165,
+      "non_ffibox_fn_borrow_priv": 51,
+      "std_fn_borrow_pub": 409,
+      "std_fn_borrow_priv": 115,
+      "ffibox_ty_owners_pub": 16,
+      "ffibox_ty_owners_priv": 1,
+      "ffibox_ty_handles_pub": 131,
+      "ffibox_ty_handles_priv": 4,
+      "non_ffibox_ty_owner_pub": 0,
+      "non_ffibox_ty_owner_priv": 0,
+      "non_ffibox_ty_borrow_pub": 6,
+      "non_ffibox_ty_borrow_priv": 1,
+      "std_ty_borrow_pub": 11,
+      "std_ty_borrow_priv": 4,
       "ffibox_impl_macro": 70,
       "ffibox_impl_manual": 86,
       "ffibox_define_ctype_macro": 59,
@@ -127,51 +80,37 @@
       "clone_impl": 1
     },
     "by": {
-      "ffibox_sig_owners_pub": {
+      "ffibox_fn_owners_pub": {
         "CArc": 8,
         "CBox": 89,
         "CStrBox": 17,
         "CVal": 17,
         "CVec": 34
       },
-      "ffibox_sig_owners_pub_seam": {},
-      "ffibox_sig_owners_priv": {
+      "ffibox_fn_owners_priv": {
         "CBox": 12,
         "CStrBox": 2,
         "CVal": 1,
         "CVec": 5
       },
-      "ffibox_sig_owners_priv_seam": {},
-      "ffibox_sig_handles_pub": {
+      "ffibox_fn_handles_pub": {
         "CSlice": 6,
         "CSliceMut": 6,
-        "Mut": 348,
-        "Ref": 392
+        "Mut": 584,
+        "Ref": 510
       },
-      "ffibox_sig_handles_pub_seam": {
-        "Mut": 236,
-        "Ref": 118
-      },
-      "ffibox_sig_handles_priv": {
+      "ffibox_fn_handles_priv": {
         "CSlice": 2,
-        "Mut": 27,
-        "Ref": 95
+        "Mut": 204,
+        "Ref": 331
       },
-      "ffibox_sig_handles_priv_seam": {
-        "Mut": 177,
-        "Ref": 236
-      },
-      "non_ffibox_sig_owner_pub": {
-        "libavutil::frame::SideDataArray": 1,
+      "non_ffibox_fn_owner_pub": {
+        "libavutil::frame::SideDataArray": 2,
         "libavutil::hwcontext::HwConfig": 2,
         "libavutil::mem::DynArray": 1
       },
-      "non_ffibox_sig_owner_pub_seam": {
-        "libavutil::frame::SideDataArray": 1
-      },
-      "non_ffibox_sig_owner_priv": {},
-      "non_ffibox_sig_owner_priv_seam": {},
-      "non_ffibox_sig_borrow_pub": {
+      "non_ffibox_fn_owner_priv": {},
+      "non_ffibox_fn_borrow_pub": {
         "libavutil::avstring::ScanArg": 1,
         "libavutil::avstring::Tokens": 1,
         "libavutil::bprint::BufferStorage": 1,
@@ -190,8 +129,8 @@
         "libavutil::opt::Children": 1,
         "libavutil::opt::ChildrenMut": 2,
         "libavutil::opt::KeyValue": 1,
-        "libavutil::opt::ObjectMut": 28,
-        "libavutil::opt::ObjectRef": 35,
+        "libavutil::opt::ObjectMut": 29,
+        "libavutil::opt::ObjectRef": 36,
         "libavutil::opt::OptionDefault": 1,
         "libavutil::opt::Options": 1,
         "libavutil::opt::PotentialChildren": 1,
@@ -199,35 +138,25 @@
         "libavutil::samplefmt::SamplesMut": 11,
         "libavutil::samplefmt::SamplesRef": 12
       },
-      "non_ffibox_sig_borrow_pub_seam": {
-        "libavutil::opt::ObjectMut": 1,
-        "libavutil::opt::ObjectRef": 1
-      },
-      "non_ffibox_sig_borrow_priv": {
-        "libavutil::avstring::ScanArg": 2,
+      "non_ffibox_fn_borrow_priv": {
+        "libavutil::avstring::ScanArg": 3,
         "libavutil::crc::TableView": 1,
         "libavutil::dict::Iter": 1,
         "libavutil::dict::Matches": 1,
         "libavutil::eval::Funcs": 1,
         "libavutil::frame::SideDataArrayMut": 3,
-        "libavutil::frame::SideDataArrayRef": 2,
+        "libavutil::frame::SideDataArrayRef": 3,
         "libavutil::frame::SideDataIterMut": 1,
         "libavutil::hwcontext::HwFrames": 6,
         "libavutil::imgutils::Planes": 4,
         "libavutil::imgutils::PlanesMut": 5,
         "libavutil::log::Record": 1,
         "libavutil::opt::EvalContext": 1,
-        "libavutil::opt::ObjectMut": 3,
-        "libavutil::opt::ObjectRef": 14,
+        "libavutil::opt::ObjectMut": 4,
+        "libavutil::opt::ObjectRef": 15,
         "libavutil::opt::RangeTarget": 1
       },
-      "non_ffibox_sig_borrow_priv_seam": {
-        "libavutil::avstring::ScanArg": 1,
-        "libavutil::frame::SideDataArrayRef": 1,
-        "libavutil::opt::ObjectMut": 1,
-        "libavutil::opt::ObjectRef": 1
-      },
-      "std_sig_borrow_pub": {
+      "std_fn_borrow_pub": {
         "&CStr": 227,
         "&[CPlainElem]": 81,
         "&[T]": 21,
@@ -235,8 +164,7 @@
         "&mut [T]": 3,
         "&str": 5
       },
-      "std_sig_borrow_pub_seam": {},
-      "std_sig_borrow_priv": {
+      "std_fn_borrow_priv": {
         "&CStr": 39,
         "&[CPlainElem]": 42,
         "&[T]": 3,
@@ -244,7 +172,43 @@
         "&mut [T]": 1,
         "&str": 17
       },
-      "std_sig_borrow_priv_seam": {},
+      "ffibox_ty_owners_pub": {
+        "CArc": 2,
+        "CBox": 7,
+        "CStrBox": 2,
+        "CVec": 5
+      },
+      "ffibox_ty_owners_priv": {
+        "CBox": 1
+      },
+      "ffibox_ty_handles_pub": {
+        "CBorrowedPtr": 59,
+        "CSlice": 1,
+        "Ref": 71
+      },
+      "ffibox_ty_handles_priv": {
+        "CSlice": 1,
+        "Mut": 1,
+        "Ref": 2
+      },
+      "non_ffibox_ty_owner_pub": {},
+      "non_ffibox_ty_owner_priv": {},
+      "non_ffibox_ty_borrow_pub": {
+        "libavutil::frame::SideDataArrayRef": 2,
+        "libavutil::opt::ObjectRef": 4
+      },
+      "non_ffibox_ty_borrow_priv": {
+        "libavutil::opt::ObjectRef": 1
+      },
+      "std_ty_borrow_pub": {
+        "&CStr": 4,
+        "&[CPlainElem]": 2,
+        "&mut [CPlainElem]": 5
+      },
+      "std_ty_borrow_priv": {
+        "&CStr": 2,
+        "&[T]": 2
+      },
       "ffibox_impl_macro": {
         "CCell": 59,
         "CDispose": 1,
@@ -363,10 +327,9 @@
     }
   },
   "derived": {
-    "unsafe_fn_pub_ratio": 0.089,
-    "unsafe_fn_smell": 49,
-    "raw_ptr_smell": 94,
-    "raw_ptr_seam_ratio": 0.8262,
+    "unsafe_fn_pub_ratio": 0.1296,
+    "unsafe_fn_share_of_pub_fns": 0.0182,
+    "raw_ptr_pub": 51,
     "unsafe_loc_ratio": 0.1616,
     "loc_per_unsafe_block": 10.3
   }

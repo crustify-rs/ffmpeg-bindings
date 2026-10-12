@@ -278,76 +278,60 @@ HDR side-data family stay untouched.
 
 ## 4. Unsafe surface
 
-`crustify scan-unsafe`'s rustc driver (crustify working tree, `2026-10-12`),
-default features. `scan-unsafe` sums every emitted crate except names ending in
-`_sys`, and ftt's sys crate is `ffmpeg_sys_the_third`, which that rule misses.
-So the driver was run exactly as `driver.measure` runs it (same toolchain,
-`RUSTC`, `SYSROOT` and cache bust) and only the safe crate's emission was kept.
-In both runs the safe crate was the only crate that emitted, so no sys-crate
-figure can be in these totals.
+`crustify scan-unsafe`'s rustc driver at crustify `c1e054a`, which counts only
+what the scanned crate defines, by rustc's effective visibility (reachable from
+outside the crate) and, for fn signatures, by safety; methods implementing
+another crate's trait are left out, since that crate fixed their signature.
+Run with the `static` feature against the FFmpeg n9.0 prefix, keeping only the
+safe crate's emission (`/data/marius.momeu/baseline-cov/scan_surface.py`):
+`scan-unsafe` skips only crates named `*_sys`, and ftt's sys crate is
+`ffmpeg_sys_the_third`. In both runs the safe crate was the only crate that
+emitted.
 
 | metric | ftt | next |
 |---|---:|---:|
 | `code_lines` | `10,988` | `12,122` |
+| fns, pub / private | `1,684` / `745` | `1,441` / `604` |
+| **`unsafe_fns_pub`** (public unsafe surface) | **`82`** | **`111`** |
+| `unsafe_fns_priv` | `13` | `7` |
+| `raw_ptr` | `162` | `178` |
+| ↳ `raw_ptr_type_pub` / `_type_priv` (fields) | **`41`** / `0` | **`49`** / `0` |
+| ↳ `raw_ptr_fn_pub_safe` / `_fn_pub_unsafe` | **`43`** / `66` | **`20`** / `96` |
+| ↳ `raw_ptr_fn_priv_safe` / `_fn_priv_unsafe` | `8` / `4` | `4` / `9` |
+| **raw pointers on the safe public interface** (`_type_pub` + `_fn_pub_safe`) | **`84`** | **`69`** |
+| `void_ptr`: type pub / fn pub safe / fn pub unsafe / private | `4`: `3` / `0` / `0` / `1` | `11`: `1` / `2` / `0` / `8` |
 | `unsafe` blocks | `667` | `633` |
 | `unsafe impl` | `58` | `67` |
-| fns, pub / private | `1,684` / `745` | `1,441` / `604` |
-| **`unsafe fn`, pub** | **`82`** | **`111`** |
-| `unsafe fn`, private | `13` | `7` |
-| raw-pointer positions, args / rets / fields | `47` / `74` / `41` | `63` / `66` / `49` |
-| **raw-pointer positions, pub** | **`109`** | **`116`** |
-| raw-pointer positions, private | `53` | `62` |
-| `*c_void` positions | `4` | `11` |
 | calls to C | `264` | `304` |
 
-"pub" is rustc's effective visibility: reachable from outside the crate. A
-position is every raw pointer in a parameter, return or field type, nested ones
-included. Doc-hidden items count like any other.
+What the public figures are made of, by name:
 
-The totals above do not depend on any naming; the `static` feature runs used
-for the split below reproduce them exactly.
+- **`unsafe_fns_pub`** — ftt: `wrap` `22`, `as_ptr` `19`, `as_mut_ptr` `18`,
+  `from_raw` `12`, then `is_empty`, `from_ptr`, `new`, `alloc` (`2` each),
+  `empty`, and `Frame::as_ref` / `as_mut`, which hand out `&AVFrame` /
+  `&mut AVFrame`, a reference into C memory. next: `wrap` `38`, `as_ptr`
+  `29`, `as_mut_ptr` `26`, `new` `4`, `wrap_with_*` `5`, `is_empty` `2`,
+  `alloc` `2`, `own`, `disown`, `destructor`, `new_with_interrupt`, `empty`.
+  Both crates mark the pointer accessors `as_ptr` / `as_mut_ptr` `unsafe`,
+  which std does not (`Vec::as_ptr` is safe): over half of each figure is
+  accessors that hand out a pointer rather than take one.
+- **raw pointers on the safe public interface** — fields: the pointer each
+  public wrapper or iterator holds (ftt `41` over `31` types, next `49` over
+  `34`; `Context` holds `5` in both). Safe fn signatures: ftt `43` (`as_ptr`
+  `24`, `as_mut_ptr` `12` on types that also have the `unsafe` ones, `new` `4`,
+  `from_av_rects` `2`, `into_raw` `1`), next `20` (`new` `11`, `as_ptr` `6`,
+  `as_mut_ptr` `3`). The safe `pub fn new(ptr: *const ...)` constructors take
+  an FFmpeg pointer without `unsafe` — the iterators over codec profiles,
+  filter pads, packet side data and dictionaries in both, plus in next those
+  over subtitle rects, sample rates, sample formats, channel layouts, frame
+  rates and pixel formats — and so does ftt's `from_av_rects(&[*mut
+  AVSubtitleRect])`. A caller reaches them from safe code with any pointer:
+  the soundness-relevant part of each surface.
+- **`raw_ptr_fn_pub_unsafe`** — the parameters and returns of `wrap`,
+  `from_raw` and the `unsafe` `as_ptr` / `as_mut_ptr` (ftt `66`, next `96`).
 
-### Seam and smell, by each crate's own conventions
-
-The seam/smell split rests on the seam names the scan is given
-(`scan-unsafe --seams`); the scanner assumes none. These are each crate's own,
-read off its code: every exported `unsafe fn` and raw-pointer position was
-listed by name from a scan with no seam file, and the names that convert
-between a safe wrapper and an FFmpeg pointer were kept. One name per line in
-`/data/marius.momeu/baseline-cov/seams/ffmpeg-the-third.txt` and
-`.../ffmpeg-next.txt`:
-
-| crate | seam fns |
-|---|---|
-| ftt | `wrap`, `from_raw`, `from_ptr` (adopt); `as_ptr`, `as_mut_ptr`, `into_raw` (expose / surrender); `str_from_c_ptr`, `optional_str_from_c_ptr` (C string to `&str`) |
-| next | `wrap`, `wrap_with_interrupt`, `wrap_with_custom_io`, `wrap_with_custom_io_and_interrupt` (adopt); `as_ptr`, `as_mut_ptr` (expose); `own`, `disown` (hand ownership over / back) |
-
-`new` is deliberately not a seam name, although some `new`s adopt a pointer
-(`Destructor::new`): the name is too generic to sanction by, and several are
-the safe constructors below. The C-ABI gateway is seam by structure.
-
-| | ftt | next |
-|---|---:|---:|
-| exported `unsafe fn`: seam / smell | `73` / **`9`** | `100` / **`11`** |
-| private `unsafe fn`: seam / smell | `10` / `3` | `3` / `4` |
-| exported raw-pointer positions: seam / smell | `102` / **`7`** | `103` / **`13`** |
-| private raw-pointer positions: seam / smell | `3` / `50` | `6` / `56` |
-
-The exported smell, by fn:
-
-- **`unsafe fn`** — ftt: `is_empty` ×2, `new` ×2, `alloc` ×2, `empty`, and
-  `Frame::as_ref` / `as_mut`, which hand out `&AVFrame` / `&mut AVFrame`, a
-  reference into C memory; next: `new` ×4, `is_empty` ×2, `alloc` ×2,
-  `destructor`, `new_with_interrupt`, `empty`. Mostly constructors over
-  uninitialised frames and packets whose validity the caller must establish.
-- **raw-pointer positions** — **safe** `pub fn new(ptr: *const ...)`
-  constructors, which take an FFmpeg pointer without `unsafe`: the iterators
-  over codec profiles, filter pads, packet side data and dictionaries in both,
-  plus in next those over subtitle rects, sample rates, sample formats,
-  channel layouts, frame rates and pixel formats (ftt `5`, next `12`), plus ftt's safe
-  `from_av_rects(&[*mut AVSubtitleRect])` (`2`) and next's
-  `new_with_interrupt` (`1`). A caller can reach these from safe code with any
-  pointer, so this is the soundness-relevant part of each crate's surface.
+The scan is name-blind: these are read off the `--sites` of the counters, not
+used to classify.
 
 ## 5. Sanitizers
 
@@ -393,8 +377,10 @@ columns here are the `libavutil` ones.
 | wrapped / covered types | `101` of `181` (`56%`) | `23` of `182` (`12.6%`) | `26` of `182` (`14.3%`) |
 | wrapped / covered symbols | `335` of `671` (`50%`) | `91` of `669` (`13.6%`) | `74` of `669` (`11.1%`) |
 | `code_lines` | `10,616` | `10,988` (whole crate) | `12,122` (whole crate) |
-| `unsafe fn` (pub) | `429` (`425`) | `95` (`82`) | `118` (`111`) |
-| raw-pointer positions, args + rets | `491` | `121` | `129` |
+| public `unsafe fn` (`unsafe_fns_pub`)¹ | `32` | `82` | `111` |
+| raw pointers on the safe public interface (`raw_ptr_type_pub` + `raw_ptr_fn_pub_safe`)¹ | `32` (`12` + `20`) | `84` (`41` + `43`) | `69` (`49` + `20`) |
+| raw pointers in public `unsafe fn`s¹ | `19` | `66` | `96` |
+| all raw-pointer positions (`raw_ptr`)¹ | `538` | `162` | `178` |
 | calls to C | `374` | `264` | `304` |
 
 How to read it:
@@ -407,11 +393,14 @@ How to read it:
   static `n9.0` build (`99` TUs, `13,626` lines).
 - Both Rust figures exclude `#[cfg(test)]` code; the campaign's also excludes
   `tests/`, which these crates' `src/` scope already leaves out.
-- The campaign's safety-audit figures come from an earlier driver that did not
-  yet count raw-pointer fields, so args + rets is the comparable raw-pointer
-  figure.
-- The campaign's `unsafe fn` count is high by design: every `from_ptr` /
-  `from_raw` seam on every wrapped type is an `unsafe fn`.
+- ¹ The unsafe-surface rows are not restated: all three are fresh scans with
+  the same driver (crustify `c1e054a`), the campaign's at the active campaign's
+  tip (`ffmpeg-wrap-20261005`, `crustify/campaigns/20261005` at `1a441943aa`,
+  `crustify/campaigns/20261005/scan-unsafe.json`). They count only what each
+  crate defines, so ffibox's own conversions and the `pub(crate)` constructors
+  `define_ctype!` emits are outside the campaign's public figures by
+  construction, while the baselines' own `wrap` / `from_raw` / `as_ptr` are
+  inside theirs.
 
 ## 7. Notes and limitations
 
