@@ -204,6 +204,7 @@ mod objects {
     const EINVAL: i32 = -22;
 
     #[test]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn a_bare_object_has_no_options() {
         let mut a = BareObject::new(CLASS.as_ref()).unwrap();
         let b = a;
@@ -262,6 +263,7 @@ mod objects {
     }
 
     #[test]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn bare_objects_on_many_threads() {
         std::thread::scope(|s| {
             for _ in 0..4 {
@@ -300,6 +302,7 @@ mod objects {
     }
 
     #[test]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn key_values_with_and_without_keys() {
         for implicit in [false, true] {
             for (opts, kv, pairs) in [
@@ -408,6 +411,7 @@ mod getters {
     }
 
     #[test]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn a_bare_object_reads_nothing() {
         let mut a = BareObject::new(CLASS.as_ref()).unwrap();
         for flags in [SearchFlags::NONE, SearchFlags::CHILDREN] {
@@ -417,6 +421,7 @@ mod getters {
     }
 
     #[test]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn bare_objects_read_on_many_threads() {
         let a = BareObject::new(CLASS.as_ref()).unwrap();
         thread::scope(|s| {
@@ -430,6 +435,7 @@ mod getters {
     }
 
     #[test]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn classes_without_a_callback_have_no_potential_children() {
         let mut it: PotentialChildren<'_> = CLASS.as_ref().potential_children();
         assert!(it.next().is_none() && it.next().is_none());
@@ -461,6 +467,7 @@ mod typed_setters {
     const NOT_FOUND: i32 = -i32::from_le_bytes([0xF8, b'O', b'P', b'T']);
 
     #[test]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn a_bare_object_finds_no_option_for_any_value() {
         let mut o = BareObject::new(CLASS.as_ref()).unwrap();
         let layout = ChannelLayout::parse(c"FL@a+FR@b").unwrap();
@@ -544,6 +551,7 @@ mod typed_setters {
     }
 
     #[test]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn unknown_entries_come_back_in_order() {
         let mut o = BareObject::new(CLASS.as_ref()).unwrap();
         let pairs = [(c"b", c"2"), (c"a", c"1"), (c"b", c"3"), (c"long key", c"")];
@@ -564,6 +572,7 @@ mod typed_setters {
     }
 
     #[test]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn distinct_objects_on_many_threads() {
         std::thread::scope(|s| {
             for _ in 0..4 {
@@ -619,6 +628,7 @@ mod lookups {
     }
 
     #[test]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn bare_objects_and_classes_find_nothing() {
         let bare = BareObject::new(CLASS.as_ref()).unwrap();
         let obj = bare.as_object();
@@ -733,6 +743,7 @@ mod lookups {
     }
 
     #[test]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn cpuflags_class_lookups_and_evaluations_agree_with_parse_cpu_caps() {
         if !isolated(
             "opt::lookups::cpuflags_class_lookups_and_evaluations_agree_with_parse_cpu_caps",
@@ -839,6 +850,7 @@ mod flag_token_split {
     }
 
     #[test]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn cut_tokens_are_refused_on_their_own() {
         if !isolated("opt::flag_token_split::cut_tokens_are_refused_on_their_own") {
             return;

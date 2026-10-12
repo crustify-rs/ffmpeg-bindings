@@ -428,6 +428,7 @@ mod unit_tests {
     }
 
     #[test]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn heap_boxed_union_reads_writes_and_clones() {
         let mut a = HeapBox::<IntFloat64>::new_zeroed().unwrap();
         assert_eq!(a.as_ref().bits(), 0);

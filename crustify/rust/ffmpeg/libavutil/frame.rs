@@ -6387,7 +6387,9 @@ mod unit_tests {
         assert_eq!(STEREO.as_ref().name(), Some(c"Stereo 3D"));
         assert_eq!(STEREO.as_ref().props(), SideDataProps::GLOBAL);
         let raw: ffi::AVSideDataDescriptor = STEREO.into();
-        assert_eq!(raw.name, c"Stereo 3D".as_ptr());
+        // By contents: two uses of one literal need not share an address.
+        // SAFETY: `raw.name` is the descriptor's `'static` literal.
+        assert_eq!(unsafe { CStr::from_ptr(raw.name) }, c"Stereo 3D");
         assert_eq!(raw.props, 1);
     }
 
@@ -6591,7 +6593,7 @@ mod unit_tests {
     }
 
     #[test]
-    #[cfg_attr(miri, ignore)]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn region_of_interest_equality_compares_offsets_by_value() {
         let a = RegionOfInterest::new(1, 2, 3, 4, q(1, 2));
         assert_eq!(a, RegionOfInterest::new(1, 2, 3, 4, q(2, 4)));
@@ -6634,7 +6636,7 @@ mod unit_tests {
     }
 
     #[test]
-    #[cfg_attr(miri, ignore)]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn side_data_parts_read_a_null_payload_as_empty() {
         let a = side_data_array(&[b"abc"]);
         let buf = a.as_ref().get(0).unwrap().buffer().as_ptr().cast_mut();
@@ -6666,7 +6668,7 @@ mod unit_tests {
     }
 
     #[test]
-    #[cfg_attr(miri, ignore)]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn side_data_array_round_trips_through_raw_parts() {
         let a = side_data_array(&[b"x", b"", b"yz"]);
         let (sd, nb) = a.into_raw_parts();
@@ -6678,7 +6680,7 @@ mod unit_tests {
     }
 
     #[test]
-    #[cfg_attr(miri, ignore)]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn side_data_takes_the_window_of_its_new_reference() {
         let mut a = side_data_array(&[b"old"]);
         let mut buf = crate::libavutil::buffer::BufferReference::alloc(8)
@@ -6697,7 +6699,7 @@ mod unit_tests {
     }
 
     #[test]
-    #[cfg_attr(miri, ignore)]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn side_data_array_drop_releases_every_reference_and_dictionary() {
         let mut a = side_data_array(&[b"a", b"bb"]);
         let copies: Vec<BufferReferenceBox> = a
@@ -6715,7 +6717,7 @@ mod unit_tests {
     }
 
     #[test]
-    #[cfg_attr(miri, ignore)]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn side_data_debug_names_the_kind_and_sizes() {
         let mut a = side_data_array(&[b"abcd"]);
         a.as_mut()
@@ -6803,7 +6805,7 @@ mod unit_tests {
     /// NULL buffer (`replace_side_data_from_buf`), so the wrapper allocates
     /// first (a deliberate correction of C).
     #[test]
-    #[cfg_attr(miri, ignore)]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn side_data_alloc_replacing_with_a_failed_allocation_keeps_the_entry() {
         let mut a = SideDataArray::new();
         let mut e = a
@@ -6844,7 +6846,7 @@ mod unit_tests {
     /// with a buffer it filled: the entry keeps its place and kind, takes the
     /// new payload, loses its metadata and releases its old reference.
     #[test]
-    #[cfg_attr(miri, ignore)]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn side_data_alloc_replacing_takes_a_filled_buffer() {
         let mut a = side_data_array(&[b"m"]);
         let mut e = a
@@ -6872,7 +6874,7 @@ mod unit_tests {
     /// `add_clone` refuses at `MAX_REFERENCES` without calling C, leaving
     /// the count and the array, and clones one below it.
     #[test]
-    #[cfg_attr(miri, ignore)]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn side_data_clones_stop_at_the_reference_limit() {
         use crate::libavutil::buffer::MAX_REFERENCES;
         use crate::libavutil::buffer::unit_tests::{counts, set_count};
@@ -6899,7 +6901,7 @@ mod unit_tests {
     /// `find` on a handle whose count C stored negative reads no pointer,
     /// as C's loop does not.
     #[test]
-    #[cfg_attr(miri, ignore)]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn side_data_find_reads_negative_counts_as_empty() {
         // SAFETY: a dangling, never-read block, and a negative count that
         // the handle reads as empty.
@@ -7059,7 +7061,7 @@ mod unit_tests {
     /// A plane pointer at the end of its buffer's window is inside none, as
     /// for C's `av_frame_get_plane_buffer`; the one before it is.
     #[test]
-    #[cfg_attr(miri, ignore)]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn frame_locate_bounds_planes_by_the_window() {
         let mut f = frame_with_buffer(16);
         let (start, len) = f.as_ref().buffer(0).unwrap().parts();
@@ -7082,7 +7084,7 @@ mod unit_tests {
     /// Buffer changes clear exactly the plane pointers no reference holds
     /// any more, and every one once `buf[0]` is gone.
     #[test]
-    #[cfg_attr(miri, ignore)]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn frame_buffer_changes_prune_stale_planes() {
         let mut f = frame_with_buffer(32);
         f.as_mut()
@@ -7119,7 +7121,7 @@ mod unit_tests {
     /// and freed by `reset_extended_data` and by the frame's drop (a leak
     /// otherwise).
     #[test]
-    #[cfg_attr(miri, ignore)]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn frame_extended_arrays_are_pruned_and_freed() {
         let mut f = frame_with_buffer(64);
         f.as_mut()
@@ -7157,7 +7159,7 @@ mod unit_tests {
     /// `try_clone`'s guard: only planar audio whose channels outnumber
     /// the `extended_data` entries makes C's copy read past them.
     #[test]
-    #[cfg_attr(miri, ignore)]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn frame_copies_reading_past_extended_data() {
         let mut f = Frame::new().unwrap();
         let reads_past = |f: &FrameBox| f.as_ref().copy_reads_past_extended_data();
@@ -7196,7 +7198,7 @@ mod unit_tests {
     /// `alloc_extended_data` copies `data` into the array only while the
     /// frame is reference counted, whose planes buffer changes prune.
     #[test]
-    #[cfg_attr(miri, ignore)]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn frame_extended_arrays_copy_only_counted_planes() {
         let mut lent = [0u8; 4];
         let mut f = Frame::new().unwrap();
@@ -7226,7 +7228,7 @@ mod unit_tests {
     }
 
     #[test]
-    #[cfg_attr(miri, ignore)]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn frame_extended_arrays_need_a_channel() {
         let mut f = Frame::new().unwrap();
         assert_eq!(f.as_mut().alloc_extended_data(), Err(EINVAL));
@@ -7255,7 +7257,7 @@ mod unit_tests {
     /// The extra buffer block grows, shrinks and goes with its last entry,
     /// keeping `extended_buf` NULL exactly when the count is 0.
     #[test]
-    #[cfg_attr(miri, ignore)]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn frame_extended_buffer_block_tracks_its_count() {
         let mut f = Frame::new().unwrap();
         let parts = |f: &FrameBox| f.as_ref().extended_buffer_parts();
@@ -7286,7 +7288,7 @@ mod unit_tests {
     /// `try_clone` counts every reference `av_frame_clone` would add, and
     /// refuses before C is called when one buffer is at the limit.
     #[test]
-    #[cfg_attr(miri, ignore)]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn frame_clones_stop_at_the_reference_limit() {
         let mut f = frame_with_buffer(8);
         f.as_mut().set_plane(0, 0, 0).unwrap();
@@ -7324,7 +7326,7 @@ mod unit_tests {
     /// A private RefStruct reference, which only C code sets, is shared by a
     /// clone and released by `reset` and by the frame's drop.
     #[test]
-    #[cfg_attr(miri, ignore)]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn frame_private_refs_are_shared_and_released() {
         // SAFETY: a zeroed 16-byte RefStruct object, or NULL.
         let obj = unsafe { ffi::av_refstruct_allocz(16) };
@@ -7352,7 +7354,7 @@ mod unit_tests {
     /// writes the defaults back over everything (ASan and LSan check the
     /// release).
     #[test]
-    #[cfg_attr(miri, ignore)]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn frame_reset_releases_owned_arrays() {
         let mut f = frame_with_buffer(32);
         f.as_mut()
@@ -7376,7 +7378,7 @@ mod unit_tests {
     }
 
     #[test]
-    #[cfg_attr(miri, ignore)]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn frame_debug_names_the_shape() {
         let mut f = frame_with_buffer(4);
         f.as_mut().set_pts(5);
@@ -7485,7 +7487,7 @@ mod unit_tests {
     /// `alloc_extended_data` and `push_extended_buffer` fail cleanly:
     /// nothing leaks (LSan), and the frames keep what they held.
     #[test]
-    #[cfg_attr(miri, ignore)]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn frame_allocation_failures_leave_frames_whole() {
         if !frame_isolated(
             "libavutil::frame::unit_tests::frame_allocation_failures_leave_frames_whole",
@@ -7560,7 +7562,7 @@ mod unit_tests {
     /// `extended_data` copy, and, for a frame that is not reference
     /// counted, `get_audio_buffer`'s array and plane buffer.
     #[test]
-    #[cfg_attr(miri, ignore)]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn frame_clone_failures_one_allocation_at_a_time() {
         if !frame_isolated(
             "libavutil::frame::unit_tests::frame_clone_failures_one_allocation_at_a_time",
@@ -7661,7 +7663,7 @@ mod unit_tests {
     /// the palette, the planes C stops before, and the inputs whose
     /// arithmetic C cannot do.
     #[test]
-    #[cfg_attr(miri, ignore)]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn frame_image_reach_follows_c() {
         let r = image_reach(PixelFormat::YUV420P, 5, 3).unwrap();
         assert_eq!(r.planes, [Some((5, 3)), Some((3, 2)), Some((3, 2)), None]);
@@ -7708,7 +7710,7 @@ mod unit_tests {
     /// destinations, short palettes and audio planes C reads past
     /// `extended_data` or sizes it overflows.
     #[test]
-    #[cfg_attr(miri, ignore)]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn frame_copy_soundness_bounds_every_row() {
         let (mut dst, src) = (frame_gray(8, 4), frame_gray(8, 4));
         assert!(copy_is_sound(dst.as_ref(), src.as_ref()));
@@ -7803,7 +7805,7 @@ mod unit_tests {
     /// palette, offsets and edges `ff_ctz` truncates to zero, rounding shifts
     /// past 30, and moves out of a buffer or of lent memory.
     #[test]
-    #[cfg_attr(miri, ignore)]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn frame_crop_soundness_mirrors_c() {
         let mut f = frame_gray(64, 8);
         f.as_mut().set_crop_top(2);
@@ -7879,7 +7881,7 @@ mod unit_tests {
     /// Properties are not copied from entries at a NULL window (unless C
     /// skips them) or past a reference limit.
     #[test]
-    #[cfg_attr(miri, ignore)]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn frame_props_copy_refusals() {
         let mut f = frame_gray(4, 4);
         assert_eq!(f.as_ref().props_copy_refusal(4, 4), None);
@@ -7910,7 +7912,7 @@ mod unit_tests {
     /// `release_planes` repairs what failing `av_frame_get_buffer` calls
     /// leave: NULL `extended_buf` entries counted after a refused line size.
     #[test]
-    #[cfg_attr(miri, ignore)]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn frame_release_planes_repairs_failed_audio_allocations() {
         let mut f = Frame::new().unwrap();
         let mut m = f.as_mut();
@@ -7947,7 +7949,7 @@ mod unit_tests {
     /// hands C the line size it would compute, and C then fails to allocate
     /// it past `av_max_alloc`'s default.
     #[test]
-    #[cfg_attr(miri, ignore)]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn frame_alloc_buffers_at_the_rounding_boundary() {
         let mut f = Frame::new().unwrap();
         let mut m = f.as_mut();
@@ -7965,7 +7967,7 @@ mod unit_tests {
     /// path refuses (when C would allocate it) or allocates with the line
     /// size C would round to.
     #[test]
-    #[cfg_attr(miri, ignore)]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn frame_copies_at_a_sample_count_c_cannot_round() {
         let shaped = |format: SampleFormat, channels: c_int, samples: c_int| {
             let mut f = Frame::new().unwrap();
@@ -8021,7 +8023,7 @@ mod unit_tests {
     /// `assign` and `make_writable`; `assign` from a frame whose only lent
     /// planes are past the first four takes none of them.
     #[test]
-    #[cfg_attr(miri, ignore)]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn frame_lent_planes_are_copied_or_dropped() {
         let mut mem = vec![7u8; 5 * 3];
         let mut lent = Frame::new().unwrap();
@@ -8067,7 +8069,7 @@ mod unit_tests {
     /// `try_clone_from` fail cleanly: nothing leaks (LSan), and the frames
     /// keep their invariant.
     #[test]
-    #[cfg_attr(miri, ignore)]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn frame_routine_allocation_failures() {
         if !frame_isolated("libavutil::frame::unit_tests::frame_routine_allocation_failures") {
             return;
@@ -8133,7 +8135,7 @@ mod unit_tests {
     /// `make_writable` of a frame C cannot allocate a copy for leaks nothing,
     /// where C's own routine leaks its copied custom layout.
     #[test]
-    #[cfg_attr(miri, ignore)]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn frame_make_writable_failures_leak_nothing() {
         let mut f = frame_with_buffer(8);
         f.as_mut().set_plane(0, 0, 0).unwrap();
@@ -8153,7 +8155,7 @@ mod unit_tests {
     /// `extended_buf` (`av_frame_unref` here) follows through NULL;
     /// `assign` releases them first and keeps the count 0.
     #[test]
-    #[cfg_attr(miri, ignore)]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn frame_assign_from_a_frame_without_extra_references_keeps_no_count() {
         let wide = || {
             let mut f = Frame::new().unwrap();
@@ -8198,7 +8200,7 @@ mod unit_tests {
     /// Frames holding a hardware frames context are refused before C, whose
     /// copies would go through `av_hwframe_transfer_data`.
     #[test]
-    #[cfg_attr(miri, ignore)]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn frame_hardware_copies_are_refused() {
         let mut hw = Frame::new().unwrap();
         let ctx = BufferReference::alloc_zeroed(8).unwrap();
@@ -8220,7 +8222,7 @@ mod unit_tests {
     /// when the left edge is not cropped, and follows C's rounding of the
     /// left edge to the alignment it keeps.
     #[test]
-    #[cfg_attr(miri, ignore)]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn frame_crop_offsets_follow_cs_alignment() {
         let mut f = frame_gray(64, 8);
         let mut m = f.as_mut();
@@ -8259,7 +8261,7 @@ mod unit_tests {
     /// references leave the frame reset, and a failed property copy leaves
     /// it without side data, as documented.
     #[test]
-    #[cfg_attr(miri, ignore)]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn frame_routine_failures_under_allocation_limits() {
         if !frame_isolated(
             "libavutil::frame::unit_tests::frame_routine_failures_under_allocation_limits",
@@ -8392,7 +8394,7 @@ mod unit_tests {
     /// own paths: the extra references beyond `src`'s are released, and C
     /// refuses the channelless array, resetting the frame.
     #[test]
-    #[cfg_attr(miri, ignore)]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn frame_replacements_shrink_extra_references() {
         let planar = |channels| {
             let mut f = Frame::new().unwrap();
@@ -8429,7 +8431,7 @@ mod unit_tests {
     /// limit, or whose lent planes C would read past its `extended_data`,
     /// before C is called.
     #[test]
-    #[cfg_attr(miri, ignore)]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn frame_references_refuse_before_c() {
         let src = frame_gray(4, 4);
         let mut dst = frame_gray(2, 2);
@@ -8463,7 +8465,7 @@ mod unit_tests {
     /// Cropping a format C has no descriptor for, or planes the format has
     /// no component in, is C's `AVERROR_BUG`, reached without a move.
     #[test]
-    #[cfg_attr(miri, ignore)]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn frame_crops_of_unknown_planes_are_cs_bugs() {
         let mut f = frame_gray(8, 8);
         f.as_mut().set_crop_top(1);

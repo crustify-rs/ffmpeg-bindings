@@ -170,6 +170,7 @@ fn values() -> Vec<ffi::AVChannel> {
 }
 
 #[test]
+#[cfg_attr(miri, ignore = "calls C")]
 fn channel_constants_are_the_c_enumerators() {
     for (ch, c, name) in CHANNEL_NAMED {
         assert_eq!(ch.into_raw(), c);
@@ -182,6 +183,7 @@ fn channel_constants_are_the_c_enumerators() {
 }
 
 #[test]
+#[cfg_attr(miri, ignore = "calls C")]
 fn channel_default_is_what_c_returns_for_an_unknown_channel() {
     // `av_channel_from_string` answers a name it cannot parse, a negative
     // user id, or an out-of-range Ambisonic index with `AV_CHAN_NONE`.
@@ -197,6 +199,7 @@ fn channel_default_is_what_c_returns_for_an_unknown_channel() {
 }
 
 #[test]
+#[cfg_attr(miri, ignore = "calls C")]
 fn channel_unnamed_values_are_held_unchanged() {
     for raw in CHANNEL_UNNAMED {
         let ch = Channel::from_raw(ffi::AVChannel(raw));
@@ -213,6 +216,7 @@ fn channel_unnamed_values_are_held_unchanged() {
 }
 
 #[test]
+#[cfg_attr(miri, ignore = "calls C")]
 fn ambisonic_is_cs_ambi_mapping() {
     for acn in 0..=1023u16 {
         let ch = Channel::ambisonic(acn).unwrap();
@@ -232,6 +236,7 @@ fn ambisonic_is_cs_ambi_mapping() {
 }
 
 #[test]
+#[cfg_attr(miri, ignore = "calls C")]
 fn ambisonic_index_is_some_exactly_where_c_names_an_ambi() {
     let probes = values().into_iter().chain((-3..=0x900).map(ffi::AVChannel));
     for c in probes {
@@ -285,6 +290,7 @@ impl Drop for CChannels {
 }
 
 #[test]
+#[cfg_attr(miri, ignore = "calls C")]
 fn channel_zeroed_storage_reads_as_c_zeroed_storage() {
     const LEN: usize = 8;
     let rust = alloc_array_zeroed::<Channel>(LEN).unwrap();
@@ -298,6 +304,7 @@ fn channel_zeroed_storage_reads_as_c_zeroed_storage() {
 }
 
 #[test]
+#[cfg_attr(miri, ignore = "calls C")]
 fn channel_writes_through_each_side_agree_after_every_step() {
     let values = values();
     let len = values.len();
@@ -326,6 +333,7 @@ fn channel_writes_through_each_side_agree_after_every_step() {
 }
 
 #[test]
+#[cfg_attr(miri, ignore = "calls C")]
 fn channel_values_c_writes_are_read_back_unchanged() {
     let values = values();
     let mut c = CChannels::zeroed(values.len());
@@ -385,6 +393,7 @@ mod matrix_encoding {
     }
 
     #[test]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn option_default_and_range_span_the_named_values() {
         let (default, min, max) = swr_option(c"matrix_encoding", None);
         let default = MatrixEncoding::from_raw(ffi::AVMatrixEncoding(default as u32));
@@ -402,6 +411,7 @@ mod matrix_encoding {
     }
 
     #[test]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn named_constants_match_c_s_values_and_names() {
         let named = [
             (c"none", MatrixEncoding::NONE),
@@ -540,6 +550,7 @@ mod channel_order {
     }
 
     #[test]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn constants_are_the_c_enumerators() {
         for (order, c) in NAMED {
             assert_eq!(order.into_raw(), c);
@@ -556,6 +567,7 @@ mod channel_order {
     }
 
     #[test]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn debug_names_exactly_the_orders_c_accepts() {
         for c in values() {
             let order = ChannelOrder::from(c);
@@ -565,6 +577,7 @@ mod channel_order {
     }
 
     #[test]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn orders_c_constructors_write_read_as_the_constants() {
         for (s, want) in [
             (c"2C", ChannelOrder::UNSPEC),
@@ -588,6 +601,7 @@ mod channel_order {
     }
 
     #[test]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn writes_through_each_side_agree_after_every_step() {
         // One C layout and one Rust value, stepped together: C's constructors
         // and `av_channel_layout_uninit` write the order, and Rust writes it
@@ -676,6 +690,7 @@ mod channel_order {
     }
 
     #[test]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn arrays_agree_with_c_blocks_after_every_step() {
         let values = values();
         let len = values.len();
@@ -711,6 +726,7 @@ mod channel_order {
     }
 
     #[test]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn values_c_writes_are_read_back_unchanged() {
         let values = values();
         let mut c = COrders::zeroed(values.len());
@@ -992,6 +1008,7 @@ mod channel_custom {
     }
 
     #[test]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn getters_read_what_c_parses() {
         let layouts = [
             c"FL@front+FR@right+LFE",
@@ -1015,6 +1032,7 @@ mod channel_custom {
     }
 
     #[test]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn twin_maps_written_by_c_and_the_setters_read_alike() {
         let mut cookies = [0u8; 4];
         let base = cookies.as_mut_ptr();
@@ -1093,6 +1111,7 @@ mod channel_custom {
     }
 
     #[test]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn a_map_built_in_rust_is_read_and_freed_by_c() {
         let reference = Layout::parse(c"FL@a+FR@bb+LFE@0123456789abcde+USR42");
         for _ in 0..3 {
@@ -1120,6 +1139,7 @@ mod channel_custom {
     }
 
     #[test]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn values_moved_in_and_out_of_c_maps_read_alike() {
         let src = Layout::parse(c"BL@left+BR@right+USR7@seven");
         let values: Vec<ChannelCustom> = src.handles().iter().map(|h| h.get()).collect();
@@ -1204,6 +1224,7 @@ mod channel_names {
     }
 
     #[test]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn writers_match_c_for_every_id_and_buffer_size() {
         let writers: [(Writer, RustWriter); 2] = [
             (ffi::av_channel_name, Channel::write_name),
@@ -1223,6 +1244,7 @@ mod channel_names {
     }
 
     #[test]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn whole_strings_match_c() {
         let mut longest = (0, 0);
         for id in ids() {
@@ -1252,6 +1274,7 @@ mod channel_names {
     }
 
     #[test]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn names_map_back_on_both_sides() {
         for id in ids() {
             let name = ch(id).name();
@@ -1319,6 +1342,7 @@ mod channel_names {
     }
 
     #[test]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn from_name_matches_c_for_every_candidate() {
         for name in candidates() {
             let (rust, c) = lookups(&name);
@@ -1331,6 +1355,7 @@ mod channel_names {
     }
 
     #[test]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn repeated_interleaved_calls_match_c() {
         let names = candidates();
         let ids = ids();
@@ -1436,6 +1461,7 @@ mod name_appenders {
     }
 
     #[test]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn appending_sequences_match_c_after_every_step() {
         for (i, chunk) in ids().chunks(16).enumerate() {
             let mut rust = BPrint::new(0, BPrint::SIZE_UNLIMITED).unwrap();
@@ -1451,6 +1477,7 @@ mod name_appenders {
     }
 
     #[test]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn appending_to_small_caller_buffers_truncates_like_c() {
         for size in [1, 2, 5, 16] {
             for &id in &[0, 3, 1024, 2047, -1, i32::MIN, 100] {
@@ -1471,6 +1498,7 @@ mod name_appenders {
     }
 
     #[test]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn appended_names_are_the_channel_names() {
         for id in ids() {
             let ch = Channel::from_raw(ffi::AVChannel(id));
@@ -1772,6 +1800,7 @@ mod layout {
     }
 
     #[test]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn initialisers_match_c_for_every_input() {
         for mask in [0, 1, 0x3, 0x60f, 1 << 63, u64::MAX] {
             let r = ChannelLayout::from_mask(mask);
@@ -1816,6 +1845,7 @@ mod layout {
     }
 
     #[test]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn copies_match_c_copy_over_every_destination() {
         let sources: Vec<&CStr> = allowed(&DESCRIPTIONS)
             .filter(|s| c_parse(s).0 == 0)
@@ -2029,6 +2059,7 @@ mod layout {
     const MAP_C: &[(c_int, &CStr)] = &[(0, c""), (1, c""), (2, c""), (3, c"")];
 
     #[test]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn setter_sequences_match_c_writes_after_every_step() {
         use Op::*;
         let steps = [
@@ -2082,6 +2113,7 @@ mod layout {
     }
 
     #[test]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn maps_built_in_rust_read_like_c_parsed_ones() {
         for s in [
             c"FL@front+FR@right+LFE@lfe",
@@ -2106,6 +2138,7 @@ mod layout {
     }
 
     #[test]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn native_and_ambisonic_setters_match_cs_initialisers() {
         for mask in [1, 0x3, 0x60f, 1 << 63, u64::MAX] {
             let mut r = ChannelLayout::parse(c"FL@a+FR").unwrap();
@@ -2175,6 +2208,7 @@ mod layout {
     /// `ChannelLayout::mask` is every `AV_CH_<name>` macro, and C's native
     /// bit of every id below 64.
     #[test]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn channel_bits_match_the_c_av_ch_macros() {
         // SAFETY: `name` is a valid slot for the shim's output.
         let table = c_table(|i, name| unsafe { ffi::crustify_AV_CH(i, name) });
@@ -2202,6 +2236,7 @@ mod layout {
     /// `masks::*` are the `AV_CH_LAYOUT_<name>` macros, which C's
     /// `av_channel_layout_from_mask` accepts as the standard layouts.
     #[test]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn layout_masks_match_the_c_av_ch_layout_macros() {
         // SAFETY: `name` is a valid slot for the shim's output.
         let table = c_table(|i, name| unsafe { ffi::crustify_AV_CH_LAYOUT(i, name) });
@@ -2223,6 +2258,7 @@ mod layout {
     /// literal, as C's readers see it, and describes as the standard name
     /// C parses back into the same layout.
     #[test]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn standard_layouts_match_the_c_av_channel_layout_macros() {
         let table = c_table(|i, name| {
             let mut c = CLayout::zeroed();
@@ -2264,6 +2300,7 @@ mod layout {
     /// `ChannelLayout::native(m)` is `AV_CHANNEL_LAYOUT_MASK(popcount(m), m)`,
     /// the empty mask included, and `av_channel_layout_from_mask` otherwise.
     #[test]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn native_matches_the_c_av_channel_layout_mask_macro() {
         for mask in [0, 1, 0x3, 0x60f, 1 << 63, u64::MAX, 0x8000_0000_0000_0001] {
             let r = ChannelLayoutVal::from(ChannelLayout::native(mask));
@@ -2431,6 +2468,7 @@ mod layout {
         }
 
         #[test]
+        #[cfg_attr(miri, ignore = "calls C")]
         fn retype_matches_c_for_every_start_order_and_flag() {
             let mut outcomes = [0usize; 4];
             for ops in starts() {
@@ -2456,6 +2494,7 @@ mod layout {
         }
 
         #[test]
+        #[cfg_attr(miri, ignore = "calls C")]
         fn retype_sequences_match_c_after_every_step() {
             use Op::*;
             /// One step: a conversion (order, flags) or a setter.
@@ -2524,6 +2563,7 @@ mod layout {
         }
 
         #[test]
+        #[cfg_attr(miri, ignore = "calls C")]
         fn subset_matches_c_on_every_start_and_standard_layout() {
             for ops in starts() {
                 let (r, c) = twins(&ops);
@@ -2578,6 +2618,7 @@ mod layout {
         }
 
         #[test]
+        #[cfg_attr(miri, ignore = "calls C")]
         fn standard_layouts_are_cs_table_in_order() {
             let c = c_standard();
             let mut it = standard_layouts();
@@ -2609,6 +2650,7 @@ mod layout {
         }
 
         #[test]
+        #[cfg_attr(miri, ignore = "calls C")]
         fn standard_layouts_resume_where_cs_state_would() {
             // A walk interrupted after `k` entries and resumed from a copy
             // matches C resumed from the state it left after `k` calls.
@@ -2838,6 +2880,7 @@ mod layout {
         }
 
         #[test]
+        #[cfg_attr(miri, ignore = "calls C")]
         fn readers_match_c_on_every_start() {
             let mut described = 0;
             for ops in starts() {
@@ -2850,6 +2893,7 @@ mod layout {
         }
 
         #[test]
+        #[cfg_attr(miri, ignore = "calls C")]
         fn readers_match_c_on_every_standard_layout_and_description() {
             for (name, layout) in STANDARD_LAYOUTS {
                 let r = ChannelLayoutVal::from(layout);
@@ -2868,6 +2912,7 @@ mod layout {
         }
 
         #[test]
+        #[cfg_attr(miri, ignore = "calls C")]
         fn equality_matches_c_compare_for_every_pair() {
             let all: Vec<_> = starts().iter().map(|ops| twins(ops)).collect();
             let mut equal = 0;
@@ -2901,6 +2946,7 @@ mod layout {
         }
 
         #[test]
+        #[cfg_attr(miri, ignore = "calls C")]
         fn readers_match_c_after_every_step_of_a_sequence() {
             use Op::*;
             /// One step: a conversion (order, flags) or a setter.

@@ -26,6 +26,7 @@ const CODES: [i32; 14] = [
 ];
 
 #[test]
+#[cfg_attr(miri, ignore = "calls C")]
 fn every_code_and_buffer_size_matches_c() {
     for errnum in CODES {
         for size in 0..=80 {
@@ -46,6 +47,7 @@ fn every_code_and_buffer_size_matches_c() {
 }
 
 #[test]
+#[cfg_attr(miri, ignore = "calls C")]
 fn repeated_calls_into_one_buffer_match_c() {
     let mut c = [0u8; 24];
     let mut r = [0u8; 24];
@@ -108,6 +110,7 @@ mod make_error_string {
     }
 
     #[test]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn descriptions_and_buffers_match_at_every_size() {
         for errnum in CODES {
             for len in (0..=MAX_STRING_SIZE + 8).chain([256]) {
@@ -123,6 +126,7 @@ mod make_error_string {
     }
 
     #[test]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn reusing_one_buffer_matches_step_by_step() {
         let mut rust = [0u8; MAX_STRING_SIZE];
         let mut c = [0u8; MAX_STRING_SIZE];

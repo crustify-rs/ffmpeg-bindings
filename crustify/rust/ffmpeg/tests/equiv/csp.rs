@@ -112,6 +112,7 @@ mod cie_xy {
     }
 
     #[test]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn getters_read_what_c_stores_for_every_gamut() {
         let gamuts = c_gamuts();
         // BT.709 .. EBU 3213 less the unspecified and reserved slots, and
@@ -130,6 +131,7 @@ mod cie_xy {
     }
 
     #[test]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn gamuts_rebuilt_through_the_setters_identify_as_c_after_each_step() {
         for (p, reference) in c_gamuts() {
             // Rust's four points in an `av_malloc` block, C's in its own
@@ -197,6 +199,7 @@ mod cie_xy {
     }
 
     #[test]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn equality_is_c_comparison_on_both_coordinates() {
         let mut points: Vec<ffi::AVCIExy> =
             c_gamuts().iter().flat_map(|(_, d)| c_points(d)).collect();
@@ -296,6 +299,7 @@ mod luma_coefficients {
     }
 
     #[test]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn getters_read_c_s_table_for_every_colour_space() {
         let mut found = 0;
         for csp in spaces() {
@@ -324,6 +328,7 @@ mod luma_coefficients {
     }
 
     #[test]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn equality_matches_c_s_comparison_of_every_coefficient() {
         let mut entries: Vec<ffi::AVLumaCoefficients> =
             spaces().filter_map(c_entry).map(|e| e.get().into_raw()).collect();
@@ -353,6 +358,7 @@ mod luma_coefficients {
     }
 
     #[test]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn values_written_through_field_handles_match_c_writes() {
         for csp in spaces() {
             let Some(entry) = c_entry(csp) else { continue };
@@ -552,6 +558,7 @@ mod primary_coefficients {
     }
 
     #[test]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn getters_read_c_s_table_for_every_gamut() {
         let gamuts = c_gamuts();
         assert!(gamuts.len() >= 11, "C describes {} gamuts", gamuts.len());
@@ -577,6 +584,7 @@ mod primary_coefficients {
     }
 
     #[test]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn primaries_rebuilt_through_the_setters_identify_as_c_after_each_step() {
         for (p, reference) in c_gamuts() {
             // Rust's primaries in an `av_malloc` block, C's in its own
@@ -630,6 +638,7 @@ mod primary_coefficients {
     }
 
     #[test]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn equality_is_c_comparison_on_every_coordinate() {
         let q = |num, den| ffi::AVRational { num, den };
         let mut entries: Vec<ffi::AVPrimaryCoefficients> =
@@ -723,6 +732,7 @@ mod color_transfer {
     }
 
     #[test]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn gammas_match_c_for_every_value() {
         let (mut trc, mut eotf) = (0, 0);
         for raw in raws() {
@@ -752,6 +762,7 @@ mod color_transfer {
     }
 
     #[test]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn trc_handles_match_c_for_every_value() {
         let mut found = [0; 2];
         for raw in raws() {
@@ -782,6 +793,7 @@ mod color_transfer {
     }
 
     #[test]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn eotf_handles_match_c_for_every_value() {
         let mut found = [0; 2];
         for raw in raws() {
@@ -825,6 +837,7 @@ mod color_transfer {
     }
 
     #[test]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn forward_and_inverse_compose_as_in_c() {
         for raw in raws() {
             let (Some(f), Some(g)) = (t(raw).trc_function(), t(raw).inverse_trc_function()) else {
@@ -862,6 +875,7 @@ mod luma_lookup {
     }
 
     #[test]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn luma_coefficients_are_cs_table_entries() {
         let mut found = 0;
         for raw in values() {
@@ -884,6 +898,7 @@ mod luma_lookup {
     }
 
     #[test]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn repeated_lookups_return_the_same_entry() {
         for raw in values() {
             let cs = ColorSpace::from_raw(ffi::AVColorSpace(raw));
@@ -1041,6 +1056,7 @@ mod color_primaries_descriptor {
     }
 
     #[test]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn getters_read_c_s_tables_for_every_gamut() {
         let gamuts = c_gamuts();
         assert!(gamuts.len() >= 11, "C describes {} gamuts", gamuts.len());
@@ -1071,6 +1087,7 @@ mod color_primaries_descriptor {
     }
 
     #[test]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn descriptions_rebuilt_through_the_setters_identify_as_c_after_each_step() {
         for (p, reference) in c_gamuts() {
             // Rust's description in an `av_malloc` block, C's in its own
@@ -1129,6 +1146,7 @@ mod color_primaries_descriptor {
     }
 
     #[test]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn equality_is_c_comparison_on_every_coordinate() {
         let q = |num, den| ffi::AVRational { num, den };
         let mut entries: Vec<ffi::AVColorPrimariesDesc> =
@@ -1193,6 +1211,7 @@ mod color_primaries_descriptor {
     }
 
     #[test]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn embedded_in_a_c_parent_is_read_by_c_in_place_after_each_step() {
         assert_eq!(size_of::<DmLevel10>(), size_of::<ffi::AVDOVIDmLevel10>());
         assert_eq!(align_of::<DmLevel10>(), align_of::<ffi::AVDOVIDmLevel10>());
@@ -1350,6 +1369,7 @@ mod primaries_lookup {
     }
 
     #[test]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn descriptors_are_cs_table_entries() {
         let mut found = 0;
         for raw in values() {
@@ -1366,6 +1386,7 @@ mod primaries_lookup {
     }
 
     #[test]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn repeated_lookups_return_the_same_entry() {
         for raw in values() {
             let p = ColorPrimaries::from_raw(ffi::AVColorPrimaries(raw));
@@ -1375,6 +1396,7 @@ mod primaries_lookup {
     }
 
     #[test]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn every_description_identifies_as_in_c() {
         let mut ids = Vec::new();
         for raw in values() {
@@ -1420,6 +1442,7 @@ mod primaries_lookup {
     }
 
     #[test]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn tolerance_boundary_matches_c() {
         // [inside, at or past 1/1000][elsewhere, the unmoved entry's id]
         let mut outcomes = [[0; 2]; 2];
@@ -1492,6 +1515,7 @@ mod primaries_lookup {
     ];
 
     #[test]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn reduced_sums_follow_c_not_exact_arithmetic() {
         let bt709 = c_desc(ffi::AVColorPrimaries::AVCOL_PRI_BT709.0).unwrap();
         let base = fields(&bt709);
@@ -1552,6 +1576,7 @@ mod primaries_lookup {
     ];
 
     #[test]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn random_edits_identify_as_in_c_after_each_step() {
         let entries: Vec<[i32; 16]> = values().filter_map(c_desc).map(|d| fields(&d)).collect();
         let mut rng = XorShift(0x9e37_79b9_7f4a_7c15);

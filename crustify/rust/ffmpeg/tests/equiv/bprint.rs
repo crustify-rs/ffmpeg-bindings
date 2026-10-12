@@ -42,6 +42,7 @@ fn init_automatic(storage: &mut MaybeUninit<ffi::AVBPrint>) -> *mut ffi::AVBPrin
 }
 
 #[test]
+#[cfg_attr(miri, ignore = "calls C")]
 fn automatic_storage_is_the_padded_size() {
     let mut storage = MaybeUninit::uninit();
     let buf = init_automatic(&mut storage);
@@ -58,6 +59,7 @@ fn automatic_storage_is_the_padded_size() {
 }
 
 #[test]
+#[cfg_attr(miri, ignore = "calls C")]
 fn c_fills_the_storage_to_its_last_byte_and_no_further() {
     let mut storage = MaybeUninit::uninit();
     let buf = init_automatic(&mut storage);
@@ -189,6 +191,7 @@ mod fields {
     }
 
     #[test]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn automatic_buffers_match_after_every_append() {
         let mut storage = MaybeUninit::uninit();
         let buf = init(&mut storage, ffi::AV_BPRINT_SIZE_AUTOMATIC);
@@ -206,6 +209,7 @@ mod fields {
     }
 
     #[test]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn count_only_buffers_match_after_every_append() {
         let mut storage = MaybeUninit::uninit();
         // `AV_BPRINT_SIZE_COUNT_ONLY`: C counts, but writes only the NUL.
@@ -559,6 +563,7 @@ mod owners {
     ];
 
     #[test]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn new_and_its_finalizers_match_av_bprint_init_and_finalize() {
         for (size_init, size_max) in INITS {
             let c = CBuf::init(size_init, size_max);
@@ -615,6 +620,7 @@ mod owners {
     }
 
     #[test]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn for_buffer_matches_av_bprint_init_for_buffer() {
         for len in [0, 1, 2, 5, 64, 2048] {
             let mut c_data = vec![0xa5_u8; len];
@@ -663,6 +669,7 @@ mod owners {
     /// alike with `AVERROR(ENOMEM)`, and a grown string C cannot shrink is
     /// handed out unshrunk, alike.
     #[test]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn finalizing_at_the_av_max_alloc_limit_matches_c() {
         if !isolated("bprint::owners::finalizing_at_the_av_max_alloc_limit_matches_c") {
             return;
@@ -719,6 +726,7 @@ mod owners {
     /// allocation limit is restored. Truncating below capacity permits a
     /// fresh growth; compare all fields and stored bytes after each step.
     #[test]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn failed_growth_stays_truncated_until_explicitly_shortened() {
         if !isolated("bprint::owners::failed_growth_stays_truncated_until_explicitly_shortened") {
             return;
@@ -805,6 +813,7 @@ mod owners {
     /// forced truncation with its stock text; each on a fresh buffer, after
     /// text, and once truncated.
     #[test]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn strftime_matches_c_on_every_shape_and_path() {
         // `%2000c` is wider than the 1 KiB fallback, so a truncated buffer
         // gets nothing at all.
@@ -834,6 +843,7 @@ mod owners {
     /// Every mode, every flag set and each kind of special list, on text
     /// with every character the modes treat specially.
     #[test]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn escape_matches_c_for_every_mode_and_flag() {
         const SRC: [&CStr; 5] = [
             c"",
@@ -883,6 +893,7 @@ mod owners {
     /// The formatting appenders, the raw appenders and storage handed out,
     /// on every shape: growth, limits and truncation alike.
     #[test]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn appenders_match_c_on_every_shape() {
         run_on_every_shape(OPS);
         run_on_every_shape(&[
@@ -902,6 +913,7 @@ mod owners {
     /// isolated child: `av_bprint_strftime`'s 1 KiB fallback and its forced
     /// truncation on an unlimited buffer, and storage handed out short.
     #[test]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn appenders_at_the_av_max_alloc_limit_match_c() {
         if !isolated("bprint::owners::appenders_at_the_av_max_alloc_limit_match_c") {
             return;

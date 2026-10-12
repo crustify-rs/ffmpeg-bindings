@@ -182,6 +182,7 @@ mod unit_tests {
     }
 
     #[test]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn raw_adoption_round_trip_keeps_the_full_c_allocation() {
         let owner = Ripemd::new(DigestBits::Bits320).unwrap();
         let ptr = owner.into_c();

@@ -81,6 +81,7 @@ mod numeric {
     use ffmpeg::libavutil::mathematics::{bessel_i0, compare_mod};
 
     #[test]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn compare_mod_is_defined_for_every_modulus() {
         let edges = [0, 1, 2, 3, 1 << 31, 1 << 63, u64::MAX - 1, u64::MAX];
         for m in (0..64).map(|b| 1u64 << b).chain(edges) {
@@ -98,6 +99,7 @@ mod numeric {
     }
 
     #[test]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn bessel_i0_is_defined_on_every_float_class() {
         for x in [
             0.0,
@@ -118,6 +120,7 @@ mod numeric {
     }
 
     #[test]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn numeric_functions_run_concurrently() {
         std::thread::scope(|s| {
             for t in 0..4u32 {
@@ -138,6 +141,7 @@ mod greatest_common_divisor {
     use ffmpeg::libavutil::mathematics::gcd;
 
     #[test]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn gcd_takes_every_sign_and_extreme() {
         let edges = [
             0,
@@ -167,6 +171,7 @@ mod greatest_common_divisor {
 // ---- av_rescale ----
 
 #[test]
+#[cfg_attr(miri, ignore = "calls C")]
 fn rescale_every_extreme_is_sound() {
     use ffmpeg::libavutil::mathematics::rescale;
     let v = [
@@ -291,6 +296,7 @@ mod timestamps {
     }
 
     #[test]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn every_edge_rescales() {
         for a in I64 {
             for b in I64 {
@@ -314,6 +320,7 @@ mod timestamps {
     }
 
     #[test]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn random_delta_rescales_keep_their_state() {
         let mut rng = Rng(0x9e37_79b9_7f4a_7c15);
         let durations = [0, 1, 1024, i32::MAX, -1, i32::MIN];
@@ -334,6 +341,7 @@ mod timestamps {
     }
 
     #[test]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn delta_rescales_of_one_stream_at_the_edges() {
         let fine = Rational::new(1, 48_000);
         let coarse = Rational::new(1, 25);
@@ -349,6 +357,7 @@ mod timestamps {
     }
 
     #[test]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn steps_c_overflows_on_are_rejected() {
         // Each of these overflows an `int64_t` addition or subtraction inside
         // `av_rescale_delta`; the wrapper answers `None` without calling it.
@@ -378,6 +387,7 @@ mod timestamps {
     }
 
     #[test]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn random_stable_additions() {
         let mut rng = Rng(0x2545_f491_4f6c_dd1d);
         let incs = [
@@ -410,6 +420,7 @@ mod timestamps {
     }
 
     #[test]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn timestamps_on_many_threads_at_once() {
         let workers: Vec<_> = (0..8u64)
             .map(|t| {

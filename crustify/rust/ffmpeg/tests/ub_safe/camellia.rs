@@ -1,6 +1,7 @@
 use ffmpeg::libavutil::camellia::{Camellia, context_size};
 
 #[test]
+#[cfg_attr(miri, ignore = "calls C")]
 fn reinitialize_across_reborrows() {
     let mut context = {
         let key = vec![0x42; 16].into_boxed_slice();
@@ -16,6 +17,7 @@ fn reinitialize_across_reborrows() {
 }
 
 #[test]
+#[cfg_attr(miri, ignore = "calls C")]
 fn concurrent_constructors_serialize_global_table() {
     let threads: Vec<_> = (0..8)
         .map(|byte| {
@@ -33,6 +35,7 @@ fn concurrent_constructors_serialize_global_table() {
 }
 
 #[test]
+#[cfg_attr(miri, ignore = "reads a C global")]
 fn batch10_immutable_size_across_threads() {
     let size: &'static i32 = context_size();
     assert!(*size > 0);
@@ -53,6 +56,7 @@ fn batch10_immutable_size_across_threads() {
 use ffmpeg::libavutil::aes::Direction;
 
 #[test]
+#[cfg_attr(miri, ignore = "calls C")]
 fn processing_across_reborrows_and_unaligned_buffers() {
     for key_len in [16, 24, 32] {
         for direction in [Direction::Encrypt, Direction::Decrypt] {
@@ -93,6 +97,7 @@ fn processing_across_reborrows_and_unaligned_buffers() {
 }
 
 #[test]
+#[cfg_attr(miri, ignore = "calls C")]
 fn parallel_initialization_and_processing_share_lock() {
     let threads: Vec<_> = (0..8)
         .map(|seed| {

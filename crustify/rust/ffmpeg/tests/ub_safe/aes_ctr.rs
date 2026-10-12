@@ -6,6 +6,7 @@ fn shared_views(view: AesCtrRef<'_>) {
 }
 
 #[test]
+#[cfg_attr(miri, ignore = "calls C")]
 fn lifecycle_reborrows() {
     for seed in 0..32 {
         let mut owner = {
@@ -26,6 +27,7 @@ fn lifecycle_reborrows() {
 }
 
 #[test]
+#[cfg_attr(miri, ignore = "calls C")]
 fn partial_stream_iv_changes_and_reborrows() {
     for seed in 0..16 {
         let mut owner = AesCtr::new(&[seed; 16]).unwrap();
@@ -56,6 +58,7 @@ fn partial_stream_iv_changes_and_reborrows() {
 }
 
 #[test]
+#[cfg_attr(miri, ignore = "calls C")]
 fn parallel_random_iv_and_seed_access() {
     let threads: Vec<_> = (0..4)
         .map(|seed| {

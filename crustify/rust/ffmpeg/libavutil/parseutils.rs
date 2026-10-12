@@ -628,6 +628,7 @@ mod unit_tests {
     }
 
     #[test]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn is_nan_spelling_matches_libc_strtod() {
         let fixed: [&[u8]; 28] = [
             b"nan",
@@ -695,6 +696,7 @@ mod unit_tests {
     /// instead of reading an uninitialised buffer (`#`, length 0) or the
     /// bytes after the prefix (`0x`, length 0, which C parses as red).
     #[test]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn prefixes_inside_the_marker_fail_before_c() {
         for (color, len) in [(c"#ff0000", 0), (c"0xff0000", 0), (c"0xff0000", 1)] {
             assert_eq!(
@@ -715,6 +717,7 @@ mod unit_tests {
     /// The corrected behaviour: a NaN opacity fails instead of reaching C's
     /// conversion of NaN to a byte (UBSan: `parseutils.c:433`).
     #[test]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn nan_opacities_fail_before_c() {
         for color in [
             c"red@nan",
@@ -739,6 +742,7 @@ mod unit_tests {
     }
 
     #[test]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn parse_time_selects_the_mode() {
         assert_eq!(parse_time(c"1.5", true), Ok(1_500_000));
         assert_eq!(parse_time(c"1.5", false), Err(AVERROR_EINVAL));
@@ -781,6 +785,7 @@ mod unit_tests {
     }
 
     #[test]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn an_empty_buffer_reports_a_match_with_the_empty_value() {
         let mut empty = [0u8; 0];
         assert_eq!(find_info_tag(&mut empty, c"a", c"?a=1"), Some(c""));
@@ -857,6 +862,7 @@ mod unit_tests {
         ];
 
         #[test]
+        #[cfg_attr(miri, ignore = "calls C")]
         fn timegm_refuses_exactly_cs_int_overflows() {
             let mut state = 0x1234_5678_9abc_def0u64;
             let mut next = move || {
@@ -897,6 +903,7 @@ mod unit_tests {
         /// The corrected behaviour: C's signed overflows (UBSan:
         /// `parseutils.c:577`, `:585`, `:587`) become `None`.
         #[test]
+        #[cfg_attr(miri, ignore = "calls C")]
         fn timegm_overflows_are_none() {
             assert_eq!(timegm(tm(6_000_000, 0, 1, 0, 0, 0).as_ref()), None);
             assert_eq!(timegm(tm(70, 0, 1, 600_000, 0, 0).as_ref()), None);
@@ -907,6 +914,7 @@ mod unit_tests {
         }
 
         #[test]
+        #[cfg_attr(miri, ignore = "calls C")]
         fn negative_bounds_and_refused_expressions_fail_before_c() {
             assert_eq!(parse_ratio(c"1:2", -1), Err(AVERROR_EINVAL));
             assert_eq!(

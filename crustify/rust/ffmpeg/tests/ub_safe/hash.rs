@@ -21,6 +21,7 @@ const NAMES: [&std::ffi::CStr; 15] = [
 ];
 
 #[test]
+#[cfg_attr(miri, ignore = "calls C")]
 fn owners_shared_views_and_exclusive_reborrows() {
     for name in NAMES {
         for _ in 0..8 {
@@ -43,6 +44,7 @@ fn owners_shared_views_and_exclusive_reborrows() {
 }
 
 #[test]
+#[cfg_attr(miri, ignore = "calls C")]
 fn ephemeral_algorithm_name_is_not_retained() {
     let mut owner = {
         let name = std::ffi::CString::new("sHa256").unwrap();
@@ -56,6 +58,7 @@ fn ephemeral_algorithm_name_is_not_retained() {
 use ffmpeg::libavutil::hash::name;
 
 #[test]
+#[cfg_attr(miri, ignore = "calls C")]
 fn batch10_static_names_and_invalid_indices() {
     assert!(name(i32::MIN).is_none());
     assert!(name(-1).is_none());
@@ -71,6 +74,7 @@ fn batch10_static_names_and_invalid_indices() {
 }
 
 #[test]
+#[cfg_attr(miri, ignore = "calls C")]
 fn hashing_foreign_writes_and_reborrows() {
     for name in NAMES {
         let mut owner = HashContext::new(name).unwrap();
@@ -108,6 +112,7 @@ fn hashing_foreign_writes_and_reborrows() {
 }
 
 #[test]
+#[cfg_attr(miri, ignore = "calls C")]
 fn independent_hash_contexts_on_threads() {
     let workers: Vec<_> = (0..4)
         .map(|_| {
@@ -126,6 +131,7 @@ fn independent_hash_contexts_on_threads() {
 }
 
 #[test]
+#[cfg_attr(miri, ignore = "calls C")]
 fn owned_digest_outlives_its_context() {
     let digest = {
         let mut owner = HashContext::new(c"SHA256").unwrap();

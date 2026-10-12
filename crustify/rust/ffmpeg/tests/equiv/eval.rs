@@ -31,6 +31,7 @@ fn agree(s: &CStr) {
 }
 
 #[test]
+#[cfg_attr(miri, ignore = "calls C")]
 fn listed_numbers_agree() {
     for s in [
         c"",
@@ -139,6 +140,7 @@ fn under_bsan() -> bool {
 /// Every string of up to four bytes over the bytes that steer C's number
 /// and suffix handling.
 #[test]
+#[cfg_attr(miri, ignore = "calls C")]
 fn short_strings_agree() {
     if under_bsan() {
         return;
@@ -160,6 +162,7 @@ fn short_strings_agree() {
 /// Every byte from `'E'` to `'z'` after a number, alone and before `i` and
 /// `B`: C indexes its SI table with it.
 #[test]
+#[cfg_attr(miri, ignore = "calls C")]
 fn every_suffix_byte_agrees() {
     if under_bsan() {
         return;
@@ -388,6 +391,7 @@ mod expr {
     ];
 
     #[test]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn valid_expressions_parse_and_evaluate_alike() {
         if under_bsan() {
             return;
@@ -430,6 +434,7 @@ mod expr {
     }
 
     #[test]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn invalid_expressions_fail_alike() {
         if under_bsan() {
             return;
@@ -483,6 +488,7 @@ mod expr {
     }
 
     #[test]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn names_match_at_their_first_position() {
         if under_bsan() {
             return;
@@ -523,6 +529,7 @@ mod expr {
     }
 
     #[test]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn names_need_not_outlive_the_parse() {
         if under_bsan() {
             return;
@@ -631,6 +638,7 @@ mod expr {
     /// Random expressions and random corruptions of them (a byte deleted,
     /// duplicated or replaced), which mostly fail to parse.
     #[test]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn random_expressions_parse_and_evaluate_alike() {
         if under_bsan() {
             return;
@@ -670,6 +678,7 @@ mod expr {
     /// The `av_max_alloc` limit is process-global, so this test lowers it only in
     /// a child process running nothing else, and passes when the child does.
     #[test]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn allocation_failures_match_c() {
         if under_bsan() {
             return;
@@ -809,6 +818,7 @@ mod expr {
         }
 
         #[test]
+        #[cfg_attr(miri, ignore = "calls C")]
         fn listed_expressions_evaluate_alike_step_by_step() {
             if under_bsan() {
                 return;
@@ -838,6 +848,7 @@ mod expr {
         /// Expressions C would evaluate into undefined behaviour are refused
         /// before C parses them; the rest of each family agrees.
         #[test]
+        #[cfg_attr(miri, ignore = "calls C")]
         fn refused_expressions_never_reach_c() {
             for s in [
                 c"ld(X)",
@@ -864,6 +875,7 @@ mod expr {
         }
 
         #[test]
+        #[cfg_attr(miri, ignore = "calls C")]
         fn random_expressions_evaluate_alike_step_by_step() {
             if under_bsan() {
                 return;
@@ -973,6 +985,7 @@ mod expressions {
     }
 
     #[test]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn expressions_evaluate_as_in_c() {
         for e in [
             c"1+2^3+5*5+sin(2/3)",
@@ -1016,6 +1029,7 @@ mod expressions {
     }
 
     #[test]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn random_arithmetic_evaluates_as_in_c() {
         // BSan reports C's reads through the end pointers glibc's uninstrumented
         // `strtod` / `strtol` / `strtoul` store (`eval.c:120`, `parseutils.c:391`)
@@ -1158,6 +1172,7 @@ mod parse_with_context {
     }
 
     #[test]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn parses_log_as_c_under_each_parent() {
         if super::under_bsan()
             || !isolated("eval::parse_with_context::parses_log_as_c_under_each_parent")

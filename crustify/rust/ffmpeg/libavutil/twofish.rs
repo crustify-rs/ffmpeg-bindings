@@ -244,6 +244,7 @@ mod unit_tests {
     }
 
     #[test]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn rejected_buffers_are_unchanged() {
         let mut owner = Twofish::new(&[0; 16], 128).unwrap().0;
         let mut output = [0x7b; 16];
@@ -331,7 +332,7 @@ mod unit_tests {
     }
 
     #[test]
-    #[cfg(not(miri))]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn raw_ownership_round_trip() {
         let (owner, _) = Twofish::new(&[7; 16], 128).unwrap();
         let ptr = owner.into_c();

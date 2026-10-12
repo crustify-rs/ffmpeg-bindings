@@ -94,6 +94,7 @@ mod unit_tests {
     }
 
     #[test]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn fills_every_byte() {
         // 64 random bytes are all zero with probability 2^-512.
         let mut buf = [0u8; 64];
@@ -105,6 +106,7 @@ mod unit_tests {
     }
 
     #[test]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn uninit_buffer_reads_back_initialised() {
         let mut buf = [MaybeUninit::<u8>::uninit(); 48];
         let bytes = random_bytes_uninit(&mut buf).unwrap();
@@ -113,6 +115,7 @@ mod unit_tests {
     }
 
     #[test]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn empty_buffers_succeed() {
         random_bytes(&mut []).unwrap();
         assert!(random_bytes_uninit(&mut []).unwrap().is_empty());

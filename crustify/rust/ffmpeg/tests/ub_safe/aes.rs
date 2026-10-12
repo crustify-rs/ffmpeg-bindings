@@ -6,6 +6,7 @@ fn shared_views(view: AesRef<'_>) {
 }
 
 #[test]
+#[cfg_attr(miri, ignore = "calls C")]
 fn lifecycle_reborrows() {
     for direction in [Direction::Encrypt, Direction::Decrypt] {
         for len in [16, 24, 32] {
@@ -28,6 +29,7 @@ fn lifecycle_reborrows() {
 }
 
 #[test]
+#[cfg_attr(miri, ignore = "calls C")]
 fn invalid_keys_do_not_invalidate_owner() {
     let mut owner = Aes::new(&[0; 16], Direction::Encrypt).unwrap();
     for len in 0..=64 {
@@ -44,6 +46,7 @@ fn invalid_keys_do_not_invalidate_owner() {
 }
 
 #[test]
+#[cfg_attr(miri, ignore = "calls C")]
 fn parallel_constructors() {
     // Owners never cross threads. Independent safe construction does share C's
     // static AES lookup tables, whose initialization must use ff_thread_once.
@@ -71,6 +74,7 @@ fn parallel_constructors() {
 use ffmpeg::libavutil::aes::context_size;
 
 #[test]
+#[cfg_attr(miri, ignore = "reads a C global")]
 fn batch10_immutable_size_across_threads() {
     let size: &'static i32 = context_size();
     assert!(*size > 0);
@@ -89,6 +93,7 @@ fn batch10_immutable_size_across_threads() {
 }
 
 #[test]
+#[cfg_attr(miri, ignore = "calls C")]
 fn processing_across_reborrows_and_unaligned_buffers() {
     for key_len in [16, 24, 32] {
         for direction in [Direction::Encrypt, Direction::Decrypt] {

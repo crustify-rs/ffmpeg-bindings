@@ -74,6 +74,7 @@ fn modes_encode_as_the_c_enumerators() {
 }
 
 #[test]
+#[cfg_attr(miri, ignore = "calls C")]
 fn av_escape_behaves_alike_for_each_encoding() {
     for (mode, c) in MODES {
         for flags in FLAGS {
@@ -91,6 +92,7 @@ fn av_escape_behaves_alike_for_each_encoding() {
 }
 
 #[test]
+#[cfg_attr(miri, ignore = "calls C")]
 fn chained_escapes_agree_after_every_step() {
     for (mode, c) in MODES {
         let mut rust = c"a 'b' <c> \\d".to_owned();
@@ -106,6 +108,7 @@ fn chained_escapes_agree_after_every_step() {
 }
 
 #[test]
+#[cfg_attr(miri, ignore = "calls C")]
 fn default_mode_escapes_as_backslash_today() {
     // `bprint.c` maps `AV_ESCAPE_MODE_AUTO` to backslash escaping, as
     // `EscapeMode::Auto` documents.
@@ -118,6 +121,7 @@ fn default_mode_escapes_as_backslash_today() {
 }
 
 #[test]
+#[cfg_attr(miri, ignore = "calls C")]
 fn the_modes_are_observably_distinct_in_c() {
     let src = c"it's <x> \\ y";
     let outs: Vec<_> = [EscapeMode::Backslash, EscapeMode::Quote, EscapeMode::Xml]
@@ -165,6 +169,7 @@ mod helpers {
     }
 
     #[test]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn strip_prefix_matches_av_strstart() {
         for s in STRINGS {
             for prefix in STRINGS {
@@ -177,6 +182,7 @@ mod helpers {
     }
 
     #[test]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn chained_strip_prefix_agrees_after_every_step() {
         let s = c"key=value;rest";
         let (mut rust, mut c) = (s, 0);
@@ -193,6 +199,7 @@ mod helpers {
     }
 
     #[test]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn find_matches_av_strnstr_at_every_length() {
         let hay: &[u8] = b"abcab\0cabcd\0";
         let needles = [
@@ -221,6 +228,7 @@ mod helpers {
     }
 
     #[test]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn strlcpy_matches_av_strlcpy_at_every_size() {
         for src in STRINGS {
             for size in 0..=8 {
@@ -242,6 +250,7 @@ mod helpers {
     }
 
     #[test]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn strlcat_matches_av_strlcat_at_every_size() {
         for start in [c"", c"x", c"xyz"] {
             for src in STRINGS {
@@ -258,6 +267,7 @@ mod helpers {
     }
 
     #[test]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn strlcatf_matches_av_strlcatf_formats() {
         for start in [c"", c"x", c"xyz"] {
             for size in start.count_bytes() + 1..=12 {
@@ -286,6 +296,7 @@ mod helpers {
     }
 
     #[test]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn appends_agree_after_every_step() {
         let mut mine = [FILL; 16];
         let mut theirs = [FILL; 16];
@@ -311,6 +322,7 @@ mod helpers {
     }
 
     #[test]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn strnlen_matches_av_strnlen_on_every_prefix() {
         let s: &[u8] = b"abc\0def\0";
         for len in 0..=s.len() {
@@ -324,6 +336,7 @@ mod helpers {
     }
 
     #[test]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn cmp_n_ignore_ascii_case_orders_as_av_strncasecmp() {
         for a in STRINGS {
             for b in STRINGS {
@@ -370,6 +383,7 @@ mod helpers {
     }
 
     #[test]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn tokens_split_as_av_strtok() {
         let inputs: [&[u8]; 8] = [
             b"\0",
@@ -398,6 +412,7 @@ mod helpers {
     }
 
     #[test]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn interleaved_tokens_agree_after_every_step() {
         let input = b"one two  three four\0";
         let mut mine = input.to_vec();
@@ -424,6 +439,7 @@ mod helpers {
     }
 
     #[test]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn case_mapping_matches_av_tolower_and_av_toupper() {
         let extremes = [c_int::MIN, c_int::MIN + 1, -1, c_int::MAX];
         for c in (-300..=300).chain(extremes) {
@@ -465,6 +481,7 @@ mod helpers {
     }
 
     #[test]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn utf8_decode_steps_as_av_utf8_decode() {
         let inputs: [&[u8]; 14] = [
             b"plain ascii\t\n\r\x01",
@@ -499,6 +516,7 @@ mod helpers {
     /// for an overlong encoding, which yields no code point, and for the
     /// six-byte maximum, which decodes to `i32::MAX`.
     #[test]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn utf8_decode_consumes_as_c_on_each_malformed_shape() {
         let big = ffi::AV_UTF8_FLAG_ACCEPT_INVALID_BIG_CODES;
         // `AVERROR(EILSEQ)`, as C reports it for a lone continuation byte.
@@ -540,6 +558,7 @@ mod helpers {
     }
 
     #[test]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn utf8_decode_agrees_on_pseudo_random_bytes() {
         // A fixed linear congruential generator: reproducible bytes biased
         // towards lead and continuation bytes.
@@ -609,6 +628,7 @@ mod paths_and_format {
     ];
 
     #[test]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn basename_points_where_c_points() {
         for path in PATHS {
             // SAFETY: `path` is a live NUL-terminated string, only read.
@@ -627,6 +647,7 @@ mod paths_and_format {
     }
 
     #[test]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn appended_paths_match_c_for_every_pair() {
         for path in PATHS {
             for component in PATHS {
@@ -641,6 +662,7 @@ mod paths_and_format {
     }
 
     #[test]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn c_null_sides_read_as_rust_empty_ones() {
         for s in PATHS {
             // SAFETY: `s` is a live NUL-terminated string; NULL is accepted
@@ -661,6 +683,7 @@ mod paths_and_format {
     }
 
     #[test]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn paths_built_step_by_step_stay_equal() {
         // Each side extends its own previous result, compared after each step.
         let steps = [c"/", c"usr/", c"/lib", c"", c"x86_64", c"//libavutil.so"];
@@ -683,6 +706,7 @@ mod paths_and_format {
     }
 
     #[test]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn format_matches_av_asprintf_with_the_same_conversions() {
         // SAFETY: each format's conversions match the arguments that follow.
         let cases = unsafe {
@@ -735,6 +759,7 @@ mod paths_and_format {
     }
 
     #[test]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn format_of_a_nul_matches_c_reading_the_same_text() {
         // C's `%s` stops at the NUL; so does the Rust result.
         let text = c"before";
@@ -745,6 +770,7 @@ mod paths_and_format {
     }
 
     #[test]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn chained_formats_stay_equal() {
         // Each side formats its own previous result into the next.
         // SAFETY: a format without conversions takes no arguments.
@@ -766,6 +792,7 @@ mod paths_and_format {
     /// in a child process running nothing else, and passes when the child
     /// does.
     #[test]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn failures_at_the_av_max_alloc_limit_match_c() {
         const NAME: &str = "avstring::paths_and_format::failures_at_the_av_max_alloc_limit_match_c";
         if std::env::var_os(ISOLATED).is_none() {
@@ -880,6 +907,7 @@ mod paths_and_tokens {
     }
 
     #[test]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn dirname_cuts_and_returns_as_av_dirname() {
         for path in PATHS {
             assert_eq!(
@@ -892,6 +920,7 @@ mod paths_and_tokens {
     }
 
     #[test]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn repeated_dirnames_agree_after_every_step() {
         for path in [&b"/usr/local/lib/x.so"[..], b"a/b/c/", b"rel/path"] {
             let (mut rust, mut c) = (path.to_vec(), path.to_vec());
@@ -937,6 +966,7 @@ mod paths_and_tokens {
     ];
 
     #[test]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn token_sequences_agree_after_every_step() {
         for (input, term) in TOKEN_INPUTS {
             let mut rust = input;
@@ -957,6 +987,7 @@ mod paths_and_tokens {
     }
 
     #[test]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn is_digit_classifies_every_int_as_av_isdigit() {
         let extremes = [c_int::MIN, c_int::MIN + 1, -1, c_int::MAX - 1, c_int::MAX];
         for c in (-300..=300).chain(extremes) {
@@ -973,6 +1004,7 @@ mod paths_and_tokens {
     /// The `av_max_alloc` limit is process-global, so this test lowers it only in
     /// a child process running nothing else, and passes when the child does.
     #[test]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn get_token_failure_at_the_av_max_alloc_limit_matches_c() {
         if std::env::var_os(ISOLATED).is_none() {
             let status = std::process::Command::new(std::env::current_exe().unwrap())
@@ -1038,6 +1070,7 @@ mod search_and_scan {
     ];
 
     #[test]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn compare_matches_av_strcasecmp() {
         for a in WORDS {
             for b in WORDS {
@@ -1049,6 +1082,7 @@ mod search_and_scan {
     }
 
     #[test]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn strip_prefix_matches_av_stristart() {
         for s in WORDS {
             for p in WORDS {
@@ -1069,6 +1103,7 @@ mod search_and_scan {
     }
 
     #[test]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn find_matches_av_stristr() {
         let hay = [
             c"",
@@ -1092,6 +1127,7 @@ mod search_and_scan {
     }
 
     #[test]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn replace_matches_av_strireplace_step_by_step() {
         let steps: [(&CStr, &CStr); 6] = [
             (c"world", c"There"),
@@ -1282,6 +1318,7 @@ mod search_and_scan {
     ];
 
     #[test]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn sscanf_matches_av_sscanf_case_by_case_and_in_sequence() {
         // One pair of destinations, carried through every case: unassigned
         // destinations must keep earlier values on both sides alike.
@@ -1394,6 +1431,7 @@ mod search_and_scan {
     ];
 
     #[test]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn sscanf_numbers_match_av_sscanf() {
         let formats: [(&CStr, F); 9] = [
             (c"%d", F::I0),
@@ -1460,6 +1498,7 @@ mod search_and_scan {
     /// in a child process running nothing else, and passes when the child
     /// does.
     #[test]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn replace_failure_at_the_av_max_alloc_limit_matches_c() {
         const NAME: &str =
             "avstring::search_and_scan::replace_failure_at_the_av_max_alloc_limit_matches_c";
@@ -1513,6 +1552,7 @@ mod search_and_scan {
 }
 
 #[test]
+#[cfg_attr(miri, ignore = "calls C")]
 fn character_classes_match_c_on_every_byte_and_the_extremes() {
     let extremes = [
         c_int::MIN,
@@ -1556,6 +1596,7 @@ const NAME_LISTS: [&CStr; 14] = [
 ];
 
 #[test]
+#[cfg_attr(miri, ignore = "calls C")]
 fn match_name_matches_av_match_name() {
     for name in NAMES {
         for names in NAME_LISTS {
@@ -1586,6 +1627,7 @@ const LISTS: [&CStr; 12] = [
 ];
 
 #[test]
+#[cfg_attr(miri, ignore = "calls C")]
 fn match_list_matches_av_match_list_for_every_separator() {
     for sep in [b',', b';', b' ', b'a', 0x01, 0x7f, 0x80, 0xff] {
         let separator = NonZeroU8::new(sep).unwrap();
@@ -1630,6 +1672,7 @@ mod escape_wrapper {
     }
 
     #[test]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn escape_is_av_escape() {
         let flags = FLAGS.iter().copied().chain([1 << 4, -1, c_int::MIN]);
         for (mode, raw) in MODES {
@@ -1655,6 +1698,7 @@ mod escape_wrapper {
     /// in a child process running nothing else, and passes when the child
     /// does.
     #[test]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn failures_at_the_av_max_alloc_limit_match_c() {
         const NAME: &str = "avstring::escape_wrapper::failures_at_the_av_max_alloc_limit_match_c";
         if std::env::var_os(ISOLATED).is_none() {
@@ -1697,6 +1741,7 @@ mod escape_wrapper {
         assert!(mine(c"0123456789abcdef", None, MODES[0].0, 0).is_ok());
     }
     #[test]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn repeated_escapes_agree_after_every_step() {
         for (mode, raw) in MODES {
             let mut rust = CString::from(c"a 'quoted' <x> & \\ tail ");

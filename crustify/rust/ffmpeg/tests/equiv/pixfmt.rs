@@ -246,6 +246,7 @@ mod color_space_and_transfer {
     }
 
     #[test]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn color_space_constants_are_the_c_enumerators() {
         for (c, raw, name) in SPACE_NAMED {
             assert_eq!(c.into_raw(), raw);
@@ -266,6 +267,7 @@ mod color_space_and_transfer {
     }
 
     #[test]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn color_transfer_constants_are_the_c_enumerators() {
         for (t, raw, name) in TRANSFER_NAMED {
             assert_eq!(t.into_raw(), raw);
@@ -301,6 +303,7 @@ mod color_space_and_transfer {
     }
 
     #[test]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn debug_names_exactly_what_c_names() {
         // Rust names a value with a constant exactly when C has a name for it.
         for raw in space_values()
@@ -328,6 +331,7 @@ mod color_space_and_transfer {
     }
 
     #[test]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn zeroed_storage_reads_as_c_zeroed_storage() {
         const LEN: usize = 8;
         let spaces = alloc_array_zeroed::<ColorSpace>(LEN).unwrap();
@@ -349,6 +353,7 @@ mod color_space_and_transfer {
     }
 
     #[test]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn color_space_writes_through_each_side_agree_after_every_step() {
         let values = space_values();
         let len = values.len();
@@ -378,6 +383,7 @@ mod color_space_and_transfer {
     }
 
     #[test]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn color_transfer_writes_through_each_side_agree_after_every_step() {
         let values = transfer_values();
         let len = values.len();
@@ -405,6 +411,7 @@ mod color_space_and_transfer {
     }
 
     #[test]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn values_c_writes_are_read_back_unchanged() {
         // The path a field accessor over a C array of these enums takes: adopt
         // the C block and read it as the safe type.
@@ -531,6 +538,7 @@ mod alpha_mode {
     }
 
     #[test]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn alpha_mode_constants_are_the_c_enumerators() {
         for (mode, c, name) in ALPHA_MODE_NAMED {
             assert_eq!(mode.into_raw(), c);
@@ -547,6 +555,7 @@ mod alpha_mode {
     }
 
     #[test]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn alpha_mode_holds_c_parse_errors_unchanged() {
         for name in [c"", c"Straight", c"premultiplied ", c"none", c"unknown"] {
             let c = c_from_name(name);
@@ -559,6 +568,7 @@ mod alpha_mode {
     }
 
     #[test]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn alpha_mode_zeroed_storage_reads_as_c_zeroed_storage() {
         const LEN: usize = 8;
         let rust = alloc_array_zeroed::<AlphaMode>(LEN).unwrap();
@@ -572,6 +582,7 @@ mod alpha_mode {
     }
 
     #[test]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn alpha_mode_writes_through_each_side_agree_after_every_step() {
         let values = values();
         let len = values.len();
@@ -600,6 +611,7 @@ mod alpha_mode {
     }
 
     #[test]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn alpha_mode_values_c_writes_are_read_back_unchanged() {
         let values = values();
         let mut c = CModes::zeroed(values.len());
@@ -809,6 +821,7 @@ mod pixel_format {
     }
 
     #[test]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn named_values_are_exactly_the_ones_c_describes() {
         let nb = ffi::AVPixelFormat::AV_PIX_FMT_NB.0;
         let mut named = 0;
@@ -837,6 +850,7 @@ mod pixel_format {
     }
 
     #[test]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn aliases_are_the_c_aliases() {
         for (alias, c) in [
             (PixelFormat::Y400A, ffi::AVPixelFormat::AV_PIX_FMT_Y400A),
@@ -852,6 +866,7 @@ mod pixel_format {
     }
 
     #[test]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn native_endian_constants_are_the_c_aliases() {
         let c = c_native_endian();
         assert_eq!(c.len(), NATIVE_ENDIAN.len());
@@ -929,6 +944,7 @@ mod pixel_format {
     }
 
     #[test]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn zeroed_storage_reads_as_c_zeroed_storage() {
         const LEN: usize = 8;
         let rust = alloc_array_zeroed::<PixelFormat>(LEN).unwrap();
@@ -941,6 +957,7 @@ mod pixel_format {
     }
 
     #[test]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn writes_through_each_side_agree_after_every_step() {
         let values = values();
         let len = values.len();
@@ -967,6 +984,7 @@ mod pixel_format {
     }
 
     #[test]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn none_terminated_c_list_reads_back_unchanged() {
         // The shape of C's format lists (`AVCodec.pix_fmts`,
         // `AVHWFramesConstraints.valid_sw_formats`): values up to a terminating
@@ -1000,6 +1018,7 @@ mod pixel_format {
     }
 
     #[test]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn clone_copies_the_c_encoding() {
         let src: Vec<PixelFormat> = values().into_iter().map(PixelFormat::from).collect();
         let rust = HeapVec::from_slice(&src).unwrap();
@@ -1283,6 +1302,7 @@ mod color_primaries_and_range {
     }
 
     #[test]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn primaries_constants_are_the_c_enumerators() {
         for (p, c, name) in PRIMARIES_NAMED {
             assert_eq!(p.into_raw(), c);
@@ -1292,6 +1312,7 @@ mod color_primaries_and_range {
     }
 
     #[test]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn range_constants_are_the_c_enumerators() {
         for (r, c, name) in RANGE_NAMED {
             assert_eq!(r.into_raw(), c);
@@ -1301,6 +1322,7 @@ mod color_primaries_and_range {
     }
 
     #[test]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn c_name_lookups_land_on_the_constants() {
         // "reserved" names two primaries; C's lookup returns the first.
         for (p, _, name) in PRIMARIES_NAMED {
@@ -1328,6 +1350,7 @@ mod color_primaries_and_range {
     }
 
     #[test]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn debug_names_exactly_the_values_c_names() {
         let sweep = (0..=300).chain(PRIMARIES_UNNAMED);
         for raw in sweep.clone() {
@@ -1351,6 +1374,7 @@ mod color_primaries_and_range {
     }
 
     #[test]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn defaults_are_what_c_initialises_a_frame_with() {
         let frame = CFrame::new();
         assert_eq!(ColorPrimaries::default().into_raw(), frame.primaries());
@@ -1366,6 +1390,7 @@ mod color_primaries_and_range {
     }
 
     #[test]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn frame_fields_carry_rust_values_to_c_after_every_step() {
         let mut frame = CFrame::new();
         let primaries: Vec<ColorPrimaries> = PRIMARIES_NAMED
@@ -1392,6 +1417,7 @@ mod color_primaries_and_range {
     }
 
     #[test]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn zeroed_storage_reads_as_c_zeroed_storage() {
         const LEN: usize = 8;
         let p = alloc_array_zeroed::<ColorPrimaries>(LEN).unwrap();
@@ -1407,6 +1433,7 @@ mod color_primaries_and_range {
     }
 
     #[test]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn writes_through_each_side_agree_after_every_step() {
         let values: Vec<ffi::AVColorPrimaries> = PRIMARIES_NAMED
             .iter()
@@ -1451,6 +1478,7 @@ mod color_primaries_and_range {
     }
 
     #[test]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn values_c_writes_are_read_back_unchanged() {
         let values: Vec<_> = PRIMARIES_NAMED
             .map(|(_, c, _)| c)
@@ -1497,6 +1525,7 @@ mod color_primaries_and_range {
     }
 
     #[test]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn clone_copies_the_c_encoding() {
         let src: Vec<ColorPrimaries> = PRIMARIES_NAMED
             .map(|(p, _, _)| p)
@@ -1616,6 +1645,7 @@ mod chroma_location {
     }
 
     #[test]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn constants_are_the_c_enumerators() {
         for (loc, c, name) in NAMED {
             assert_eq!(loc.into_raw(), c);
@@ -1637,6 +1667,7 @@ mod chroma_location {
     }
 
     #[test]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn debug_names_what_c_names() {
         for c in values() {
             assert_eq!(rust_name(c.into()).as_deref(), c_name(c), "{c:?}");
@@ -1644,6 +1675,7 @@ mod chroma_location {
     }
 
     #[test]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn default_is_c_zeroed_storage() {
         const LEN: usize = 4;
         let rust = alloc_array_zeroed::<ChromaLocation>(LEN).unwrap();
@@ -1698,6 +1730,7 @@ mod chroma_location {
     }
 
     #[test]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn arrays_agree_with_c_blocks_after_every_step() {
         let values = values();
         let len = values.len();
@@ -1726,6 +1759,7 @@ mod chroma_location {
     }
 
     #[test]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn values_c_writes_are_read_back_unchanged() {
         let values = values();
         let mut c = CLocations::zeroed(values.len());
@@ -1798,6 +1832,7 @@ mod frame_defaults {
     }
 
     #[test]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn every_default_is_what_c_writes_into_a_fresh_frame() {
         let rust = FrameDefaults {
             format: PixelFormat::default().into_raw().0,

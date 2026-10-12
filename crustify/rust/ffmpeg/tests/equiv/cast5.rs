@@ -53,6 +53,7 @@ fn observe_safe(owner: &Cast5Box, input: &[u8; 16], decrypt: bool) -> [u8; 16] {
 }
 
 #[test]
+#[cfg_attr(miri, ignore = "calls C")]
 fn constructors_and_reinitialization_match_independent_c_contexts() {
     let input = *b"0123456789abcdef";
     for initial_len in 5..=16 {
@@ -101,6 +102,7 @@ fn constructors_and_reinitialization_match_independent_c_contexts() {
 use ffmpeg::libavutil::cast5;
 
 #[test]
+#[cfg_attr(miri, ignore = "reads a C global")]
 fn batch10_size_is_the_c_global() {
     for _ in 0..4 {
         // SAFETY: this global is an immutable const int with static lifetime.
@@ -113,6 +115,7 @@ fn batch10_size_is_the_c_global() {
 use ffmpeg::libavutil::aes::Direction;
 
 #[test]
+#[cfg_attr(miri, ignore = "calls C")]
 fn buffer_sequences_match_c() {
     for key_len in [5, 10, 11, 16] {
         for direction in [Direction::Encrypt, Direction::Decrypt] {

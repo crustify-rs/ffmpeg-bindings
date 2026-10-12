@@ -136,6 +136,7 @@ fn values_match_the_c_union_by_value() {
 }
 
 #[test]
+#[cfg_attr(miri, ignore = "calls C")]
 fn backptr_fill_matches_rust_writes_at_every_alignment() {
     // 32, 64 and 96 run `fill32`'s `AV_WN64` blocks only; 37 and 75 add the
     // 32-bit and byte tails; 31 and 3 never reach `AV_WN64` (baseline).
@@ -151,6 +152,7 @@ fn backptr_fill_matches_rust_writes_at_every_alignment() {
 }
 
 #[test]
+#[cfg_attr(miri, ignore = "calls C")]
 fn c_fills_and_rust_writes_interleave() {
     let len = 160;
     let mut c = pattern(len);
@@ -270,6 +272,7 @@ fn zeroed_matches_a_zeroed_union() {
 }
 
 #[test]
+#[cfg_attr(miri, ignore = "calls C")]
 fn alias32_write_sequence_matches_the_union() {
     let mut raw = ffi::av_alias32::default();
     let mut value = Alias32::zeroed();
@@ -318,6 +321,7 @@ fn alias32_write_sequence_matches_the_union() {
 }
 
 #[test]
+#[cfg_attr(miri, ignore = "calls C")]
 fn alias16_write_sequence_matches_the_union() {
     let mut raw = ffi::av_alias16::default();
     let mut value = Alias16::zeroed();
@@ -397,6 +401,7 @@ fn constructors_match_a_union_written_through_the_same_field() {
 }
 
 #[test]
+#[cfg_attr(miri, ignore = "calls C")]
 fn heap_box_clone_matches_av_memdup() {
     let mut boxed = HeapBox::<Alias32>::new_zeroed().unwrap();
     boxed.as_mut().set_u32(0xcafe_f00d);
@@ -677,6 +682,7 @@ fn rust_backptr_narrow(buf: &mut [u8], dst: usize, back: usize, cnt: usize) {
 }
 
 #[test]
+#[cfg_attr(miri, ignore = "calls C")]
 fn backptr_narrow_paths_match_rust_views_at_every_alignment() {
     for (back, counts) in [
         (2, 0..40),
@@ -702,6 +708,7 @@ fn backptr_narrow_paths_match_rust_views_at_every_alignment() {
 }
 
 #[test]
+#[cfg_attr(miri, ignore = "calls C")]
 fn c_fills_read_rust_seeds_and_rust_reads_c_fills() {
     let mut c = pattern(64);
     let mut rust = c.clone();
@@ -869,6 +876,7 @@ fn alias64_constructors_match_a_c_member_write() {
 }
 
 #[test]
+#[cfg_attr(miri, ignore = "calls C")]
 fn alias64_write_sequences_match_c_after_each_step() {
     let mut c = ffi::av_alias64::default();
     let mut rust = Alias64::default();
@@ -975,6 +983,7 @@ mod alias64_c_accessors {
     }
 
     #[test]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn heap_box_views_track_c_aligned_accesses_after_each_step() {
         let mut c = CSide::default();
         let mut boxed = HeapBox::<Alias64>::new_zeroed().unwrap();
@@ -1010,6 +1019,7 @@ mod alias64_c_accessors {
     }
 
     #[test]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn c_copy_swap_and_zero_between_heap_boxes_match_the_views() {
         let mut src = HeapBox::<Alias64>::new_zeroed().unwrap();
         let dst = HeapBox::<Alias64>::new_zeroed().unwrap();
@@ -1063,6 +1073,7 @@ mod alias64_c_accessors {
     }
 
     #[test]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn c_accesses_on_heap_array_elements_stay_in_their_slot() {
         const N: usize = 6;
         let mut v: HeapVec<Alias64> = alloc_cell_array_zeroed(N).unwrap();
@@ -1199,6 +1210,7 @@ fn c_zero32(buf: &mut [u8], off: usize) {
 }
 
 #[test]
+#[cfg_attr(miri, ignore = "calls C")]
 fn aligned_views_read_what_the_aligned_c_macros_read() {
     let mut c = Aligned16([0; 16]);
     c.0.copy_from_slice(&pattern(16));
@@ -1232,6 +1244,7 @@ fn aligned_views_read_what_the_aligned_c_macros_read() {
 }
 
 #[test]
+#[cfg_attr(miri, ignore = "calls C")]
 fn aligned_views_write_what_the_aligned_c_macros_write() {
     let mut c = Aligned16([0; 16]);
     let mut rust = Aligned16([0; 16]);

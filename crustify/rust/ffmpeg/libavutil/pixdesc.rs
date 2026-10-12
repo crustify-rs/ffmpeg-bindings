@@ -2381,6 +2381,7 @@ mod unit_tests {
     }
 
     #[test]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn from_name_finds_each_property() {
         assert_eq!(ColorRange::from_name(c"pc"), Some(ColorRange::JPEG));
         assert_eq!(
@@ -2401,6 +2402,7 @@ mod unit_tests {
     }
 
     #[test]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn swap_endianness_pairs_be_and_le() {
         let pairs = [
             (PixelFormat::RGB48BE, PixelFormat::RGB48LE),
@@ -2430,6 +2432,7 @@ mod unit_tests {
     }
 
     #[test]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn property_names_come_from_c_tables() {
         assert_eq!(ColorRange::MPEG.name(), Some(c"tv"));
         assert_eq!(ColorPrimaries::RESERVED.name(), Some(c"reserved"));
@@ -2454,6 +2457,7 @@ mod unit_tests {
     }
 
     #[test]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn lookups_read_cs_sentinels_as_not_found() {
         assert_eq!(
             AlphaMode::from_name(c"premultiplied"),
@@ -2525,6 +2529,7 @@ mod unit_tests {
     }
 
     #[test]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn conversion_loss_and_choices() {
         assert_eq!(
             PixelFormat::YUV420P.conversion_loss(PixelFormat::YUV420P, true),
@@ -2914,6 +2919,7 @@ mod unit_tests {
     }
 
     #[test]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn describe_refuses_values_past_the_table_untouched() {
         let mut buf = [b'x'; 40];
         let nb = ffi::AVPixelFormat::AV_PIX_FMT_NB.0;
@@ -2928,6 +2934,7 @@ mod unit_tests {
     }
 
     #[test]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn describe_prints_headers_for_negatives_and_truncates() {
         let mut buf = [b'x'; 40];
         for raw in [c_int::MIN, -2, -1] {
@@ -2939,6 +2946,7 @@ mod unit_tests {
     }
 
     #[test]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn plane_count_and_chroma_subsampling_of_known_formats() {
         assert_eq!(PixelFormat::YUV420P.plane_count(), Some(3));
         assert_eq!(PixelFormat::NV12.plane_count(), Some(2));
@@ -3331,6 +3339,7 @@ mod unit_tests {
     }
 
     #[test]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn descriptors_iterator_is_fused_and_walks_the_table() {
         let mut it = descriptors();
         let first = it.next().unwrap();

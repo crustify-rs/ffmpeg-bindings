@@ -14,6 +14,7 @@ fn words() -> impl Iterator<Item = u64> {
 }
 
 #[test]
+#[cfg_attr(miri, ignore = "calls C")]
 fn swaps_match_c_and_swap_bytes() {
     for w in words() {
         for x in [w as u16, (w >> 16) as u16, (w >> 48) as u16] {
@@ -36,6 +37,7 @@ fn swaps_match_c_and_swap_bytes() {
 }
 
 #[test]
+#[cfg_attr(miri, ignore = "calls C")]
 fn round_trips_through_either_side_agree() {
     for w in words() {
         // Rust then C, and C then Rust, each restore the word.

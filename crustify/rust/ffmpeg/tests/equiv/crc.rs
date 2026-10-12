@@ -1,6 +1,7 @@
 use ffmpeg::libavutil::{crc::CrcId, ffi};
 
 #[test]
+#[cfg_attr(miri, ignore = "calls C")]
 fn constants_and_lookup_selection_match_c() {
     for (id, raw) in [
         (CrcId::ATM_8, ffi::AVCRCId::AV_CRC_8_ATM),
@@ -34,6 +35,7 @@ fn constants_and_lookup_selection_match_c() {
 }
 
 #[test]
+#[cfg_attr(miri, ignore = "calls C")]
 fn identifiers_select_the_same_tables_without_cpu_extensions() {
     const ISOLATED: &str = "CRUSTIFY_CRC_FALLBACK_CHILD";
     if std::env::var_os(ISOLATED).is_none() {
@@ -59,6 +61,7 @@ fn identifiers_select_the_same_tables_without_cpu_extensions() {
 use ffmpeg::libavutil::crc::{Table, TableSize};
 
 #[test]
+#[cfg_attr(miri, ignore = "calls C")]
 fn batch10_table_outputs_and_stream_sequences_match_c() {
     for (le, bits, poly) in [
         (false, 8, 7),
@@ -108,6 +111,7 @@ fn batch10_table_outputs_and_stream_sequences_match_c() {
 }
 
 #[test]
+#[cfg_attr(miri, ignore = "calls C")]
 fn batch10_scalar_tables_match_c_in_isolated_process() {
     const CHILD: &str = "CRUSTIFY_B10_CRC_SCALAR_CHILD";
     if std::env::var_os(CHILD).is_some() {
@@ -132,6 +136,7 @@ fn batch10_scalar_tables_match_c_in_isolated_process() {
 }
 
 #[test]
+#[cfg_attr(miri, ignore = "calls C")]
 fn standard_table_sequences_match_c() {
     use ffmpeg::libavutil::crc::{CrcId, get_table};
     for id in [

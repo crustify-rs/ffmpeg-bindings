@@ -1205,6 +1205,7 @@ mod unit_tests {
     }
 
     #[test]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn format_copies_static_and_formatted_text() {
         let s = format(format_args!("static")).unwrap();
         assert_eq!(s.to_str(), Ok("static"));
@@ -1215,6 +1216,7 @@ mod unit_tests {
     }
 
     #[test]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn format_stops_at_the_first_nul() {
         let s = format(format_args!("ab{}cd", '\0')).unwrap();
         assert_eq!(s.as_bytes(), b"ab");
@@ -1223,12 +1225,14 @@ mod unit_tests {
     }
 
     #[test]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn format_passes_percent_signs_through() {
         let s = format(format_args!("100% %s %n %{}", 'd')).unwrap();
         assert_eq!(s.to_str(), Ok("100% %s %n %d"));
     }
 
     #[test]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn basename_borrows_the_last_component() {
         let path = c"a/b/c.txt";
         let base = basename(path);
@@ -1242,6 +1246,7 @@ mod unit_tests {
     }
 
     #[test]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn append_path_component_merges_the_join() {
         let cases: [(&CStr, &CStr, &str); 8] = [
             (c"a", c"b", "a/b"),
@@ -1295,6 +1300,7 @@ mod unit_tests {
     }
 
     #[test]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn tokens_are_fused_and_debuggable() {
         let mut buf = *b" x \0";
         let mut it = tokens(&mut buf, c" ").unwrap();
@@ -1306,6 +1312,7 @@ mod unit_tests {
     }
 
     #[test]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn utf8_error_reports_code_and_code_point() {
         let (r, n) = utf8_decode(b"\xed\xa0\x80", 0).unwrap();
         let e = r.unwrap_err();
@@ -1334,6 +1341,7 @@ mod unit_tests {
     }
 
     #[test]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn dirname_reads_only_up_to_the_first_nul() {
         let mut path = *b"a\0b/c\0";
         assert_eq!(dirname(&mut path), Some(c"."));
@@ -1344,6 +1352,7 @@ mod unit_tests {
     }
 
     #[test]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn get_token_cursor_stays_on_the_input() {
         let input = c"a , b";
         let mut cursor = input;
@@ -1631,6 +1640,7 @@ mod unit_tests {
     }
 
     #[test]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn empty_replace_pattern_copies_the_input() {
         // C would loop forever; the wrapper returns the input unchanged.
         let r = replace_ignore_ascii_case(c"abc", c"", c"x").unwrap();
@@ -1640,6 +1650,7 @@ mod unit_tests {
     }
 
     #[test]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn character_classes() {
         for c in -1..=256 {
             let ascii = u8::try_from(c).ok().filter(u8::is_ascii);
@@ -1662,6 +1673,7 @@ mod unit_tests {
     }
 
     #[test]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn match_name_entries_negation_and_all() {
         assert!(match_name(c"h264", c"mpeg4,H264"));
         assert!(!match_name(c"h264", c"h26"));
@@ -1675,6 +1687,7 @@ mod unit_tests {
     }
 
     #[test]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn match_list_any_common_entry() {
         let comma = NonZeroU8::new(b',').unwrap();
         assert!(match_list(c"a,b", c"c,b", comma));
@@ -1730,6 +1743,7 @@ mod unit_tests {
     }
 
     #[test]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn escape_by_each_mode() {
         let none = EscapeFlags::empty();
         let esc = |src, special, mode, flags| {

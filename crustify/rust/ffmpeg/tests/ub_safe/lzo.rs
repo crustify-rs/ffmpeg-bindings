@@ -37,6 +37,7 @@ fn samples() -> Vec<Vec<u8>> {
 }
 
 #[test]
+#[cfg_attr(miri, ignore = "calls C")]
 fn batch10_hidden_padding_errors_and_reused_destinations() {
     for input in samples() {
         for capacity in [0, 1, 2, 3, 4, 8, 16, 64, 300, 512, 16388, 32772] {
@@ -61,6 +62,7 @@ fn batch10_hidden_padding_errors_and_reused_destinations() {
 }
 
 #[test]
+#[cfg_attr(miri, ignore = "calls C")]
 fn batch10_malformed_bounded_corpus() {
     let mut seed = 0x12345678u32;
     for len in 1..65 {
@@ -80,6 +82,7 @@ fn batch10_malformed_bounded_corpus() {
 }
 
 #[test]
+#[cfg_attr(miri, ignore = "calls C")]
 fn batch10_extended_length_overflow_guard() {
     // get_len's 255-per-byte accumulator must report an error before its
     // signed int counter overflows, even when supplied a large valid slice.

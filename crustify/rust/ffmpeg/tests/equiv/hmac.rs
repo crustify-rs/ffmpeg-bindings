@@ -15,6 +15,7 @@ fn c_accepts(algorithm: ffi::AVHMACType) -> bool {
 }
 
 #[test]
+#[cfg_attr(miri, ignore = "calls C")]
 fn algorithm_values_match_c_consumption() {
     for (safe, raw) in [
         (HmacType::MD5, ffi::AVHMACType::AV_HMAC_MD5),
@@ -57,6 +58,7 @@ impl Drop for Reference {
 }
 
 #[test]
+#[cfg_attr(miri, ignore = "calls C")]
 fn keyed_construction_and_reinitialization_agree() {
     for (algorithm, digest_len) in [
         (HmacType::MD5, 16),
@@ -130,6 +132,7 @@ fn keyed_construction_and_reinitialization_agree() {
 }
 
 #[test]
+#[cfg_attr(miri, ignore = "calls C")]
 fn calculate_and_failed_output_preserve_c_state() {
     for algorithm in [
         HmacType::MD5,
@@ -217,6 +220,7 @@ mod beyond_uint_max {
     }
 
     #[test]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn finals_and_calculations_into_outputs_beyond_uint_max_follow_c() {
         if under_bsan() {
             return;

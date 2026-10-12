@@ -21,6 +21,7 @@ fn identifiers_cross_threads_without_shared_mutable_storage() {
 use ffmpeg::libavutil::crc::{Table, TableSize};
 
 #[test]
+#[cfg_attr(miri, ignore = "calls C")]
 fn batch10_tables_clone_share_and_stream_unaligned_data() {
     let input: Vec<_> = (0..4097).map(|i| (i * 137) as u8).collect();
     for (le, bits, poly) in [
@@ -53,6 +54,7 @@ fn batch10_tables_clone_share_and_stream_unaligned_data() {
 }
 
 #[test]
+#[cfg_attr(miri, ignore = "calls C")]
 fn standard_tables_are_static_shared_and_thread_safe() {
     use ffmpeg::libavutil::crc::{CrcId, get_table};
     let threads: Vec<_> = [

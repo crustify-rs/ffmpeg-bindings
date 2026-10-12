@@ -29,6 +29,7 @@ fn sizes() -> impl Iterator<Item = u32> {
 }
 
 #[test]
+#[cfg_attr(miri, ignore = "calls C")]
 fn every_size_selects_or_refuses() {
     for a in ALIGNMENTS {
         for bits in sizes() {
@@ -44,6 +45,7 @@ fn every_size_selects_or_refuses() {
 }
 
 #[test]
+#[cfg_attr(miri, ignore = "calls C")]
 fn selected_functions_read_only_their_blocks() {
     for a in ALIGNMENTS {
         for bits in 1..=5 {
@@ -71,6 +73,7 @@ fn selected_functions_read_only_their_blocks() {
 }
 
 #[test]
+#[cfg_attr(miri, ignore = "calls C")]
 fn selection_from_threads_at_once() {
     let expect: Vec<Option<usize>> = sizes()
         .map(|b| SadFn::new(b, SadAlignment::Both).map(|f| f.size()))

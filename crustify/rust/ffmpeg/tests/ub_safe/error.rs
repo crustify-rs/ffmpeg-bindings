@@ -15,6 +15,7 @@ const CODES: [i32; 8] = [
 ];
 
 #[test]
+#[cfg_attr(miri, ignore = "calls C")]
 fn every_buffer_size_stays_in_bounds() {
     for code in CODES {
         for size in 0..=80 {
@@ -28,6 +29,7 @@ fn every_buffer_size_stays_in_bounds() {
 }
 
 #[test]
+#[cfg_attr(miri, ignore = "calls C")]
 fn concurrent_descriptions_do_not_race() {
     std::thread::scope(|scope| {
         for code in CODES {
@@ -64,6 +66,7 @@ mod make_error_string {
     ];
 
     #[test]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn every_buffer_length_holds_its_string() {
         for errnum in CODES {
             for len in 0..=MAX_STRING_SIZE + 16 {
@@ -77,6 +80,7 @@ mod make_error_string {
     }
 
     #[test]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn the_string_borrows_the_buffer() {
         let mut buf = [0u8; MAX_STRING_SIZE];
         let s = make_error_string(CODES[0], &mut buf).to_owned();
@@ -85,6 +89,7 @@ mod make_error_string {
     }
 
     #[test]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn descriptions_are_written_concurrently() {
         let handles: Vec<_> = (0..4)
             .map(|t| {

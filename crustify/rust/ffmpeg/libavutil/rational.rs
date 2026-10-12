@@ -651,6 +651,7 @@ mod unit_tests {
     }
 
     #[test]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn c_fills_an_inline_value_through_the_exclusive_handle() {
         // The path a wrapper over an `AVRational *` out-parameter takes
         // (`av_opt_get_q`, `av_parse_ratio`): C stores into Rust's inline
@@ -681,6 +682,7 @@ mod unit_tests {
     }
 
     #[test]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn heap_boxed_rational_reads_writes_and_clones() {
         let mut a = HeapBox::<Rational>::new_zeroed().unwrap();
         assert_eq!((a.as_ref().num(), a.as_ref().den()), (0, 0));
@@ -713,6 +715,7 @@ mod unit_tests {
     }
 
     #[test]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn reduces_to_lowest_terms() {
         assert_eq!(parts(reduce(-6, 4, i32::MAX)), Some((-3, 2, true)));
         assert_eq!(parts(reduce(6, -4, i32::MAX)), Some((-3, 2, true)));
@@ -720,6 +723,7 @@ mod unit_tests {
     }
 
     #[test]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn approximates_beyond_the_bound() {
         // 355/113 is the best approximation of pi with terms <= 1000.
         let pi = reduce(3_141_592_653_589_793, 1_000_000_000_000_000, 1000);
@@ -729,6 +733,7 @@ mod unit_tests {
     }
 
     #[test]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn zero_terms_reduce_exactly() {
         assert_eq!(parts(reduce(0, 5, 10)), Some((0, 1, true)));
         assert_eq!(parts(reduce(7, 0, 10)), Some((1, 0, true)));
@@ -746,6 +751,7 @@ mod unit_tests {
     }
 
     #[test]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn equality_and_order_are_by_value() {
         assert_eq!(q(1, 2), q(2, 4));
         assert_eq!(q(1, 2), q(-1, -2));
@@ -765,6 +771,7 @@ mod unit_tests {
     }
 
     #[test]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn arithmetic_reduces_and_approximates() {
         assert_eq!(nd(q(1, 2) + q(1, 3)), (5, 6));
         assert_eq!(nd(q(1, 2) - q(1, 3)), (1, 6));
@@ -778,6 +785,7 @@ mod unit_tests {
     }
 
     #[test]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn min_over_min_sum_is_computed_as_one_plus_one() {
         // C overflows `INT64_MAX` forming this sum's numerator.
         let m = q(i32::MIN, i32::MIN);
@@ -789,6 +797,7 @@ mod unit_tests {
     }
 
     #[test]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn recip_and_float_conversions() {
         assert_eq!(nd(q(0, 5).recip()), (5, 0));
         assert_eq!(nd(q(-3, 7).recip()), (7, -3));
@@ -804,6 +813,7 @@ mod unit_tests {
     }
 
     #[test]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn cmp_distance_rejects_what_c_overflows_on() {
         assert_eq!(q(1, 3).cmp_distance(q(1, 4), q(1, 2)), Some(Ordering::Less));
         assert_eq!(
@@ -824,6 +834,7 @@ mod unit_tests {
     }
 
     #[test]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn nearest_scans_to_the_first_zero_denominator() {
         let rates = [q(24000, 1001), q(24, 1), q(25, 1), q(30000, 1001)];
         assert_eq!(q(25, 1).nearest(&rates), Some(2));
@@ -838,6 +849,7 @@ mod unit_tests {
     }
 
     #[test]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn nearest_rejects_two_min_denominators_only_when_c_compares_them() {
         let m = q(1, i32::MIN);
         assert_eq!(q(1, 2).nearest(&[m]), None);
@@ -860,6 +872,7 @@ mod unit_tests {
     }
 
     #[test]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn f32_bits_match_rust_floats() {
         for (num, den) in [
             (1, 2),
@@ -883,12 +896,14 @@ mod unit_tests {
     }
 
     #[test]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn f32_bits_keep_the_sign_of_negative_infinity() {
         // C returns `+inf` here: it strips the sign before testing `den == 0`.
         assert_eq!(q(-3, 0).to_f32_bits(), Some(f32::NEG_INFINITY.to_bits()));
     }
 
     #[test]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn f32_bits_reject_min_parts() {
         assert_eq!(q(i32::MIN, 1).to_f32_bits(), None);
         assert_eq!(q(1, i32::MIN).to_f32_bits(), None);
@@ -899,6 +914,7 @@ mod unit_tests {
     }
 
     #[test]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn gcd_is_the_common_step() {
         assert_eq!(q(1, 24).gcd(q(1, 30), 1000).map(nd), Some((1, 120)));
         assert_eq!(q(3, 4).gcd(q(9, 8), 1000).map(nd), Some((3, 8)));

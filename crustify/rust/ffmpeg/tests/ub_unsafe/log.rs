@@ -246,6 +246,7 @@ mod log_with_context {
     }
 
     #[test]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn null_context_is_the_general_log() {
         let _s = LogState::lock();
         let lines = capture(|| {
@@ -258,6 +259,7 @@ mod log_with_context {
     }
 
     #[test]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn every_context_shape_formats_through_a_rust_callback() {
         let _s = LogState::lock();
         let classes = classes();
@@ -275,6 +277,7 @@ mod log_with_context {
     }
 
     #[test]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn offsets_shift_levels_from_fatal_up() {
         let _s = LogState::lock();
         let classes = classes();
@@ -297,6 +300,7 @@ mod log_with_context {
     }
 
     #[test]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn contexts_are_shared_across_logging_threads() {
         let _s = LogState::lock();
         let classes = classes();
@@ -323,6 +327,7 @@ mod log_with_context {
     /// The default callback reads names and categories, and with colour
     /// indexes its table by category.
     #[test]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn every_context_shape_prints_through_the_default_callback() {
         if !in_colour_mode_children(
             "log::log_with_context::every_context_shape_prints_through_the_default_callback",
@@ -366,6 +371,7 @@ mod log_fmt_with_context {
     }
 
     #[test]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn null_context_is_the_general_log() {
         let _s = LogState::lock();
         let lines = capture(|| {
@@ -380,6 +386,7 @@ mod log_fmt_with_context {
     }
 
     #[test]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn every_context_shape_formats_through_a_rust_callback() {
         let _s = LogState::lock();
         let classes = classes();
@@ -397,6 +404,7 @@ mod log_fmt_with_context {
     }
 
     #[test]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn contexts_are_shared_across_logging_threads() {
         let _s = LogState::lock();
         let classes = classes();
@@ -425,6 +433,7 @@ mod log_fmt_with_context {
     }
 
     #[test]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn every_context_shape_prints_through_the_default_callback() {
         if !in_colour_mode_children(
             "log::log_fmt_with_context::every_context_shape_prints_through_the_default_callback",
@@ -482,6 +491,7 @@ mod log_once_with_context {
     }
 
     #[test]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn null_context_moves_the_state() {
         let _s = LogState::lock();
         let mut state = false;
@@ -505,6 +515,7 @@ mod log_once_with_context {
     }
 
     #[test]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn every_context_shape_and_state() {
         let _s = LogState::lock();
         let classes = classes();
@@ -520,6 +531,7 @@ mod log_once_with_context {
     }
 
     #[test]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn states_are_per_thread_and_contexts_shared() {
         let _s = LogState::lock();
         let classes = classes();
@@ -555,6 +567,7 @@ mod log_once_with_context {
     }
 
     #[test]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn every_context_shape_prints_through_the_default_callback() {
         if !in_colour_mode_children(
             "log::log_once_with_context::every_context_shape_prints_through_the_default_callback",
@@ -659,6 +672,7 @@ mod vlog {
     }
 
     #[test]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn null_context_and_null_class() {
         // SAFETY: NULL is the general log.
         unsafe {
@@ -680,6 +694,7 @@ mod vlog {
     }
 
     #[test]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn level_offsets_up_to_the_overflow_bound() {
         let cls = class(OFFSET_VERSION, true, false);
         let trace = ffi::AV_LOG_TRACE as c_int;
@@ -708,6 +723,7 @@ mod vlog {
     }
 
     #[test]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn offsets_of_old_classes_are_ignored() {
         let old = class(OFFSET_VERSION - 1, true, false);
         let mut ctx = Ctx::boxed(&*old, c_int::MAX);
@@ -717,6 +733,7 @@ mod vlog {
     }
 
     #[test]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn printed_lines_name_the_context_and_its_parent() {
         let parent_class = class(CATEGORY_VERSION, false, false);
         let mut parent: *const ffi::AVClass = &*parent_class;
@@ -747,6 +764,7 @@ mod vlog {
     }
 
     #[test]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn one_context_logged_from_many_threads() {
         let cls = class(CATEGORY_VERSION, true, false);
         let ctx = Ctx::boxed(&*cls, 16);
@@ -822,6 +840,7 @@ mod item_name {
     }
 
     #[test]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn static_class_name_lives_for_static() {
         let name: &'static CStr = {
             let obj = Obj::new(&NAMED.0);
@@ -834,6 +853,7 @@ mod item_name {
     }
 
     #[test]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn bare_class_pointer_is_the_smallest_object() {
         let fake: *const ffi::AVClass = &NAMED.0;
         // SAFETY: `fake` is readable memory starting with a non-NULL class
@@ -843,6 +863,7 @@ mod item_name {
     }
 
     #[test]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn class_pointer_slot_inside_a_larger_object() {
         /// An object whose class pointer is an aligned member, but not its
         /// allocation's first byte: the context points at the member.
@@ -868,6 +889,7 @@ mod item_name {
     }
 
     #[test]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn null_class_name_reads_as_none() {
         let cls = ffi::AVClass {
             class_name: null(),
@@ -880,6 +902,7 @@ mod item_name {
     }
 
     #[test]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn heap_name_is_read_within_its_owner() {
         for text in ["", "h", "heap-allocated-class-name", &"n".repeat(4000)] {
             let name = CString::new(text).unwrap();
@@ -901,6 +924,7 @@ mod item_name {
     }
 
     #[test]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn object_class_switches_between_calls() {
         let other = ffi::AVClass {
             class_name: c"other".as_ptr(),
@@ -918,6 +942,7 @@ mod item_name {
     }
 
     #[test]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn concurrent_readers_share_an_object() {
         /// An object, `Sync` to share across threads.
         struct Shared(Obj);
@@ -994,14 +1019,17 @@ mod class_callbacks {
     static EMPTY: Class = Class::new(c"", ClassCategory::NA);
 
     #[test]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn item_name_names_objects_of_rust_classes() {
         for class in [&OWN, &EMPTY] {
             let mut obj = Obj::new(class.as_c_ptr());
-            let name = class.as_ref().item_name().unwrap();
+            // `Class::new` leaves `item_name` NULL, which C's logging reads as
+            // `av_default_item_name`: name the object the way C then does.
+            assert!(class.as_ref().item_name().is_none());
+            use ffmpeg::libavutil::log::default_item_name;
             // SAFETY: `obj` is a live object whose first member points to
-            // `class`, whose `item_name` is `av_default_item_name`; the name
-            // is the class's `'static` literal.
-            let got: Option<&'static CStr> = unsafe { name.call(obj.as_obj()) };
+            // `class`; the name is the class's `'static` literal.
+            let got: Option<&'static CStr> = unsafe { default_item_name(obj.as_obj()) };
             assert_eq!(got, class.as_ref().name());
             assert_eq!(
                 got.unwrap().as_ptr(),
@@ -1021,6 +1049,7 @@ mod class_callbacks {
     }
 
     #[test]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn item_name_and_get_category_take_any_result() {
         let _s = LogState::lock();
         let mut nameless = raw(None);
@@ -1065,6 +1094,7 @@ mod class_callbacks {
     }
 
     #[test]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn query_ranges_builds_fails_and_reports_a_missing_list() {
         let _s = LogState::lock();
         let fake = ffi::AV_OPT_SEARCH_FAKE_OBJ as c_int;
@@ -1138,6 +1168,7 @@ mod class_callbacks {
     }
 
     #[test]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn child_next_walks_the_children_to_the_end() {
         let _s = LogState::lock();
         let child_class = raw(Some(c"child"));
@@ -1209,6 +1240,7 @@ mod default_category {
     }
 
     #[test]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn static_class_reads_its_category() {
         let obj = Obj::new(&DEMUXER.0);
         // SAFETY: `obj` starts with a non-NULL pointer to the live static
@@ -1218,6 +1250,7 @@ mod default_category {
     }
 
     #[test]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn bare_class_pointer_is_the_smallest_object() {
         let fake: *const ffi::AVClass = &DEMUXER.0;
         // SAFETY: `fake` is a readable, aligned slot holding a non-NULL
@@ -1227,6 +1260,7 @@ mod default_category {
     }
 
     #[test]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn class_pointer_slot_inside_a_larger_object() {
         /// An object whose class pointer is an aligned member, not its
         /// allocation's first byte: the context points at the member.
@@ -1250,6 +1284,7 @@ mod default_category {
     }
 
     #[test]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn every_category_value_of_a_heap_class() {
         let values = (0..=u32::from(u8::MAX)).chain([1 << 16, u32::MAX - 1, u32::MAX]);
         for v in values {
@@ -1268,6 +1303,7 @@ mod default_category {
     }
 
     #[test]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn object_class_switches_between_calls() {
         let other = ffi::AVClass {
             category: ffi::AVClassCategory::AV_CLASS_CATEGORY_ENCODER,
@@ -1285,6 +1321,7 @@ mod default_category {
     }
 
     #[test]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn concurrent_readers_share_an_object() {
         /// An object, `Sync` to share across threads.
         struct Shared(Obj);

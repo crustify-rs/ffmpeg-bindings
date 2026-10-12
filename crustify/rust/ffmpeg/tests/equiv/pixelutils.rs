@@ -38,6 +38,7 @@ fn c_sad_fn(
 }
 
 #[test]
+#[cfg_attr(miri, ignore = "calls C")]
 fn selection_matches_c_for_every_size() {
     for (a, c) in ALIGNMENTS {
         for bits in 0..=8 {
@@ -59,6 +60,7 @@ fn selection_matches_c_for_every_size() {
 }
 
 #[test]
+#[cfg_attr(miri, ignore = "calls C")]
 fn selected_functions_sum_as_c_s_do() {
     let (a, b) = (noise(41), noise(43));
     for (al, c) in ALIGNMENTS {

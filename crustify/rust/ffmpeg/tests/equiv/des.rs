@@ -42,6 +42,7 @@ impl Drop for Reference {
 struct Blocks([u8; 16]);
 
 #[test]
+#[cfg_attr(miri, ignore = "calls C")]
 fn lifecycle_fields_and_multicall_state_agree() {
     let raw = Reference::new();
     let mut safe = Des::new_boxed(&[0; 8], false).unwrap();
@@ -125,6 +126,7 @@ fn lifecycle_fields_and_multicall_state_agree() {
 }
 
 #[test]
+#[cfg_attr(miri, ignore = "calls C")]
 fn copies_and_clones_track_c_struct_copies() {
     let key: Vec<u8> = (0..24).map(|i| (i * 29 + 3) as u8).collect();
     let raw = Reference::new();
@@ -188,6 +190,7 @@ fn copies_and_clones_track_c_struct_copies() {
 }
 
 #[test]
+#[cfg_attr(miri, ignore = "calls C")]
 fn crypt_cbc_in_place_zero_input_and_mac_sequences() {
     for key_len in [8, 24] {
         let key = vec![0x91; key_len];

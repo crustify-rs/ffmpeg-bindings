@@ -143,6 +143,7 @@ fn pairs(rng: &mut Rng, n: usize) -> Vec<(CString, CString)> {
 }
 
 #[test]
+#[cfg_attr(miri, ignore = "calls C")]
 fn empty_dictionary_is_c_null() {
     let mut d = Dict::new();
     let c = CDict(ptr::null_mut());
@@ -157,6 +158,7 @@ fn empty_dictionary_is_c_null() {
 }
 
 #[test]
+#[cfg_attr(miri, ignore = "calls C")]
 fn from_entries_matches_c_multikey_inserts() {
     let mut rng = Rng(0x9e37_79b9_7f4a_7c15);
     for n in [1, 2, 3, 7, 16, 64] {
@@ -174,6 +176,7 @@ fn from_entries_matches_c_multikey_inserts() {
 }
 
 #[test]
+#[cfg_attr(miri, ignore = "calls C")]
 fn clone_matches_c_multikey_copy_step_by_step() {
     let mut rng = Rng(0x2545_f491_4f6c_dd1d);
     for n in [1, 2, 5, 33] {
@@ -214,6 +217,7 @@ fn clone_matches_c_multikey_copy_step_by_step() {
 }
 
 #[test]
+#[cfg_attr(miri, ignore = "calls C")]
 fn clone_matches_the_default_copy_without_duplicate_keys() {
     let unique: Vec<_> = [("a", "1"), ("title", "2"), ("", "3"), ("x;y\\z", "4=")]
         .iter()
@@ -385,6 +389,7 @@ mod readers_and_writers {
     }
 
     #[test]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn write_sequences_agree_after_every_step() {
         let mut rng = Rng(0x0dd_b1a5_e5ca_1ab1);
         for _ in 0..200 {
@@ -433,6 +438,7 @@ mod readers_and_writers {
     }
 
     #[test]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn readers_agree_on_every_key_flag_and_separator() {
         let mut rng = Rng(0x005e_ed0f_d1c7);
         let seps = [b'=', b';', b':', b',', b'\\', 0, b' '];
@@ -494,6 +500,7 @@ mod readers_and_writers {
     /// A serialized dictionary parses back into the same entries, in C and in
     /// Rust, for keys and values holding the separators.
     #[test]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn serialized_strings_parse_back_as_in_c() {
         let pairs: Vec<(CString, CString)> =
             [("a", "1"), ("k=v", "x;y"), ("b\\", " sp "), ("t", "")]

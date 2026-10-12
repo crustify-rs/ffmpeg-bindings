@@ -102,6 +102,7 @@ fn counting_pool(
 }
 
 #[test]
+#[cfg_attr(miri, ignore = "calls C")]
 fn allocator_state_outlives_the_owner_until_the_last_buffer_returns() {
     for size in [0, 1, 64, 4096] {
         for extra in [0, 3] {
@@ -125,6 +126,7 @@ fn allocator_state_outlives_the_owner_until_the_last_buffer_returns() {
 }
 
 #[test]
+#[cfg_attr(miri, ignore = "calls C")]
 fn allocator_runs_only_for_an_empty_free_list_and_recycles_at_pool_size() {
     let (calls, drops) = (Arc::new(AtomicUsize::new(0)), Arc::new(AtomicUsize::new(0)));
     // The allocator's references describe `size + 5` bytes; recycled ones
@@ -146,6 +148,7 @@ fn allocator_runs_only_for_an_empty_free_list_and_recycles_at_pool_size() {
 }
 
 #[test]
+#[cfg_attr(miri, ignore = "calls C")]
 fn null_from_the_allocator_fails_only_that_request() {
     let drops = Arc::new(AtomicUsize::new(0));
     let guard = DropCount(drops.clone());
@@ -176,6 +179,7 @@ fn null_from_the_allocator_fails_only_that_request() {
 }
 
 #[test]
+#[cfg_attr(miri, ignore = "calls C")]
 fn zero_sized_allocator_state() {
     // SAFETY: `default_alloc` returns 48-byte buffers and never touches the
     // pool.
@@ -202,6 +206,7 @@ impl Drop for Log {
 }
 
 #[test]
+#[cfg_attr(miri, ignore = "calls C")]
 fn concurrent_requests_serialize_the_allocator() {
     const THREADS: usize = 8;
     const ROUNDS: usize = 100;
@@ -247,6 +252,7 @@ fn concurrent_requests_serialize_the_allocator() {
 }
 
 #[test]
+#[cfg_attr(miri, ignore = "calls C")]
 fn owner_and_last_buffer_released_on_other_threads() {
     let (calls, drops) = (Arc::new(AtomicUsize::new(0)), Arc::new(AtomicUsize::new(0)));
     let pool = counting_pool(256, 0, &calls, &drops);
@@ -286,6 +292,7 @@ impl Drop for Counted {
 }
 
 #[test]
+#[cfg_attr(miri, ignore = "calls C")]
 fn custom_buffers_keep_their_opaque_and_release() {
     // Only this test releases a `Counted` with this counter.
     static FREES: AtomicUsize = AtomicUsize::new(0);
@@ -340,6 +347,7 @@ impl Drop for ReleasesKept {
 /// calling into their own pool, whose mutex C holds while dropping the owner
 /// flushes them; another pool's buffers are theirs to release.
 #[test]
+#[cfg_attr(miri, ignore = "calls C")]
 fn free_callbacks_may_release_buffers_of_other_pools() {
     let other = BufferPool::new(32).unwrap();
     // SAFETY: each buffer owns exactly `size` bytes from its start, and its
@@ -377,6 +385,7 @@ fn free_callbacks_may_release_buffers_of_other_pools() {
 /// `av_realloc`ing the block its pool entry records: the original returns to
 /// the pool whole, is recycled at the same address and released once.
 #[test]
+#[cfg_attr(miri, ignore = "calls C")]
 fn resizable_allocator_buffers_resize_by_copy() {
     // SAFETY: every buffer holds exactly `size` bytes from its start (a
     // fresh resizable buffer's window is its data), and neither the
@@ -418,6 +427,7 @@ mod uninit_assume_init {
     const SIZES: [usize; 5] = [0, 1, 15, 4096, 1 << 16];
 
     #[test]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn after_writing_the_whole_run() {
         for size in SIZES {
             let mut u = BufferReference::alloc(size).unwrap();
@@ -441,6 +451,7 @@ mod uninit_assume_init {
     }
 
     #[test]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn after_writing_in_pieces() {
         for size in SIZES {
             let mut u = BufferReference::alloc(size).unwrap();
@@ -465,6 +476,7 @@ mod uninit_assume_init {
     }
 
     #[test]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn vacuously_for_an_empty_buffer() {
         let u = BufferReference::alloc(0).unwrap();
         assert!(u.is_empty());
@@ -475,6 +487,7 @@ mod uninit_assume_init {
     }
 
     #[test]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn after_an_initialised_owner_wrote_them() {
         for size in SIZES {
             let bytes = vec![0x7e; size];
@@ -495,6 +508,7 @@ mod uninit_assume_init {
     /// Review of buffer-frame wave 2: an `UninitBuffer::from_owner` owner
     /// whose bytes it initialised itself.
     #[test]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn after_a_rust_owner_initialised_them() {
         for size in SIZES {
             let u = UninitBuffer::from_owner(vec![MaybeUninit::new(0x5d); size]).unwrap();

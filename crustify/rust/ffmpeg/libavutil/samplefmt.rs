@@ -1350,6 +1350,7 @@ mod unit_tests {
     /// be represented in type 'int'`); the wrapper gets C's intended layout
     /// without it.
     #[test]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn samples_buffer_size_defaults_int_max_minus_31_samples_without_overflow() {
         let n = (c_int::MAX - 31) as usize;
         for f in [SampleFormat::U8, SampleFormat::U8P] {
@@ -1398,6 +1399,7 @@ mod unit_tests {
     }
 
     #[test]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn is_planar_names_the_p_formats() {
         for (f, name) in NAMED {
             assert_eq!(f.is_planar(), name.ends_with('P'), "{f:?}");
@@ -1408,6 +1410,7 @@ mod unit_tests {
     }
 
     #[test]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn samples_buffer_size_reports_c_s_layout() {
         assert_eq!(
             samples_buffer_size(2, 10, SampleFormat::S16P, 1),
@@ -1449,6 +1452,7 @@ mod unit_tests {
     }
 
     #[test]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn sample_buffer_new_is_silent_and_laid_out_by_c() {
         for (f, fill) in [
             (SampleFormat::U8P, 0x80),
@@ -1483,6 +1487,7 @@ mod unit_tests {
     }
 
     #[test]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn sample_buffer_with_pointers_points_c_s_array_at_the_planes() {
         let mut b = SampleBufferWithPointers::new(4, 9, SampleFormat::S32P, 32).unwrap();
         let starts: Vec<*const u8> = b.as_ref().planes().map(<[u8]>::as_ptr).collect();
@@ -1518,6 +1523,7 @@ mod unit_tests {
     }
 
     #[test]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn from_buffer_lays_planes_over_the_caller_s_bytes() {
         let mut bytes = vec![5u8; 64];
         let base = bytes.as_ptr();
@@ -1546,6 +1552,7 @@ mod unit_tests {
     }
 
     #[test]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn set_silence_and_copies_check_their_ranges() {
         let mut a = SampleBuffer::new(2, 4, SampleFormat::S16P, 1).unwrap();
         let b = SampleBuffer::new(2, 4, SampleFormat::S16P, 8).unwrap();
@@ -1603,6 +1610,7 @@ mod unit_tests {
     /// C's allocation failures, under an `av_max_alloc` limit of 64 bytes:
     /// the sample block, and the pointer array before it.
     #[test]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn allocation_failures_report_enomem() {
         if !isolated("libavutil::samplefmt::unit_tests::allocation_failures_report_enomem") {
             return;
@@ -1648,6 +1656,7 @@ mod unit_tests {
     }
 
     #[test]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn forms_and_sizes_follow_cs_table() {
         let pairs = [
             (SampleFormat::U8, SampleFormat::U8P, 1),
@@ -1673,6 +1682,7 @@ mod unit_tests {
     }
 
     #[test]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn name_and_from_name_round_trip_every_counted_format() {
         for &(f, _) in &NAMED[1..] {
             let name = f.name().unwrap();
@@ -1684,6 +1694,7 @@ mod unit_tests {
     }
 
     #[test]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn planar_is_planar_and_idempotent() {
         for &(f, _) in &NAMED[1..] {
             let planar = f.planar().unwrap();
@@ -1710,6 +1721,7 @@ mod unit_tests {
     }
 
     #[test]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn describe_truncates_and_prints_headers_for_negatives() {
         let mut buf = [b'x'; 16];
         assert_eq!(SampleFormat::U8.describe(&mut buf[..1]), Some(c""));

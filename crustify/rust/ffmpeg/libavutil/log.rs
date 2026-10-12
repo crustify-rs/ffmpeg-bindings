@@ -437,8 +437,10 @@ const VERSION_INT: c_int = ((ffi::LIBAVUTIL_VERSION_MAJOR << 16)
 
 impl Class {
     /// A class named `name`, of `category`, for a Rust object that logs as
-    /// an `AVClass`-enabled context: named by `av_default_item_name` (its
-    /// class name), recording the libavutil version it is built against, with
+    /// an `AVClass`-enabled context: named by its class name (`item_name` is
+    /// NULL, which C's logging reads as `av_default_item_name`, so it is
+    /// recognised without comparing function addresses, which Rust does not
+    /// keep stable), recording the libavutil version it is built against, with
     /// no options, children, parent or log level offset. A `const fn`, so it
     /// builds a `static`:
     ///
@@ -451,7 +453,7 @@ impl Class {
         Self(
             ffi::AVClass {
                 class_name: name.as_ptr(),
-                item_name: Some(ffi::av_default_item_name),
+                item_name: None,
                 option: ptr::null(),
                 version: VERSION_INT,
                 log_level_offset_offset: 0,
@@ -656,6 +658,12 @@ impl ItemNameFn {
 
     /// Whether the callback is `av_default_item_name`, which reads only the
     /// object's class pointer.
+    ///
+    /// An address comparison: Rust does not guarantee one function a single
+    /// address (Miri gives each reification its own), so a callback that is
+    /// `av_default_item_name` under another address reads as `false`. Callers
+    /// only refuse on `false`, which is the safe direction; a class whose
+    /// `item_name` is NULL, C's own default, needs no comparison.
     pub(crate) fn is_default(self) -> bool {
         let default: unsafe extern "C" fn(*mut c_void) -> *const c_char = ffi::av_default_item_name;
         core::ptr::fn_addr_eq(self.0, default)
@@ -1512,6 +1520,7 @@ mod unit_tests {
     }
 
     #[test]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn default_item_name_reads_the_class_name() {
         let named = class(Some(c"unit-class"));
         let obj: *const ffi::AVClass = &named;
@@ -1607,6 +1616,7 @@ mod unit_tests {
     }
 
     #[test]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn device_predicates_name_the_device_categories() {
         let inputs = [
             ClassCategory::DEVICE_VIDEO_INPUT,
@@ -1895,6 +1905,7 @@ mod unit_tests {
     }
 
     #[test]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn records_format_measure_and_truncate() {
         let seen = capture(|| {
             log(Level::WARNING, c"50% done\n");
@@ -1913,6 +1924,7 @@ mod unit_tests {
     }
 
     #[test]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn write_line_into_an_empty_buffer_is_empty() {
         struct Empty;
         impl Callback for Empty {
@@ -1948,6 +1960,7 @@ mod unit_tests {
     }
 
     #[test]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn to_line_keeps_what_the_second_pass_wrote() {
         let class = ffi::AVClass {
             class_name: c"flip".as_ptr(),
@@ -1983,7 +1996,7 @@ mod unit_tests {
         assert_eq!(c.name(), Some(c"unit-new"));
         assert_eq!(c.category(), ClassCategory::FILTER);
         assert_eq!(c.version(), (61 << 16) | (6 << 8) | 100);
-        assert!(c.item_name().is_some());
+        assert!(c.item_name().is_none());
         assert!(c.options().is_empty());
         assert_eq!(c.child_classes().count(), 0);
         assert!(c.get_category().is_none() && c.query_ranges().is_none());
@@ -2000,6 +2013,7 @@ mod unit_tests {
     }
 
     #[test]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn a_temporary_class_borrows_its_callers_name() {
         let name = CString::new("temporary tag").unwrap();
         let raw = ffi::AVClass {
@@ -2153,6 +2167,7 @@ mod unit_tests {
     }
 
     #[test]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn default_category_reads_the_class_member() {
         for category in [
             ClassCategory::NA,

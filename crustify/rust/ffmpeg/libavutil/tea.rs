@@ -194,6 +194,7 @@ mod unit_tests {
     }
 
     #[test]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn rejected_buffers_are_unchanged() {
         let mut owner = Tea::new(&[0; 16], 64).unwrap();
         let mut output = [0x7b; 8];
@@ -249,7 +250,7 @@ mod unit_tests {
     }
 
     #[test]
-    #[cfg(not(miri))]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn raw_ownership_round_trip() {
         let owner = Tea::new(&[7; 16], 64).unwrap();
         let ptr = owner.into_c();

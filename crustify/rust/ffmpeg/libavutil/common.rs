@@ -297,6 +297,7 @@ mod unit_tests {
     use super::*;
 
     #[test]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn bounded_clamps_pick_min_then_max() {
         assert_eq!(clamp_i32(5, 0, 10), 5);
         assert_eq!(clamp_i32(-5, 0, 10), 0);
@@ -311,6 +312,7 @@ mod unit_tests {
     }
 
     #[test]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn float_clamps_follow_ffmin_ffmax() {
         assert_eq!(clamp_f32(0.5, 0.0, 1.0), 0.5);
         assert_eq!(clamp_f32(f32::NAN, -1.0, 1.0), -1.0);
@@ -322,6 +324,7 @@ mod unit_tests {
     }
 
     #[test]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn saturations_cover_their_ranges() {
         assert_eq!(
             [i32::MIN, -1, 0, 255, 256, i32::MAX].map(clamp_to_u8),
@@ -343,6 +346,7 @@ mod unit_tests {
     }
 
     #[test]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn power_of_two_clamps_span_every_bit_position() {
         for p in 0..=MAX_POW2 {
             let hi = ((1i64 << p) - 1) as i32;
@@ -368,6 +372,7 @@ mod unit_tests {
     }
 
     #[test]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn ceil_log2_rounds_up_and_wraps_below_one() {
         assert_eq!(
             [1, 2, 3, 4, 5, 1 << 30, (1 << 30) + 1, i32::MAX].map(ceil_log2),
@@ -377,6 +382,7 @@ mod unit_tests {
     }
 
     #[test]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn zero_extend_keeps_the_low_bits() {
         assert_eq!(zero_extend(u32::MAX, 0), Some(0));
         assert_eq!(zero_extend(u32::MAX, 1), Some(1));
@@ -438,6 +444,7 @@ mod unit_tests {
     }
 
     #[test]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn log2_is_the_highest_set_bit() {
         assert_eq!(log2(0), 0);
         assert_eq!(log2(1), 0);
@@ -449,6 +456,7 @@ mod unit_tests {
     }
 
     #[test]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn log2_16bit_matches_log2_on_its_domain() {
         for v in [0, 1, 2, 3, 0xff, 0x100, 0x7fff, 0x8000, u16::MAX] {
             assert_eq!(log2_16bit(v), log2(v.into()), "{v:#x}");
@@ -456,6 +464,7 @@ mod unit_tests {
     }
 
     #[test]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn parity_counts_bits_mod_two() {
         for v in [0, 1, 3, 7, 0x8000_0000, 0xffff_ffff, 0x1234_5678] {
             assert_eq!(parity(v), v.count_ones() % 2 == 1, "{v:#x}");

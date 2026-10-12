@@ -1434,6 +1434,7 @@ mod unit_tests {
     /// up-ref is one more down-ref owed, and the last one releases it (LSan
     /// reports a leak otherwise).
     #[test]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn policy_counts_references_on_a_raw_pool() {
         // SAFETY: no callbacks, any size and flags.
         let raw = unsafe { ffi::av_refstruct_pool_alloc(32, 0) };
@@ -1461,6 +1462,7 @@ mod unit_tests {
 
     /// A pool's owner never hands out the exclusive handle, sole or not.
     #[test]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn arc_never_claims_exclusive_access() {
         let mut a = RefStructPool::new(8, PoolFlags::NONE).expect("pool");
         assert!(exclusive(a.as_c_ptr()));
@@ -1490,6 +1492,7 @@ mod unit_tests {
         }
 
         #[test]
+        #[cfg_attr(miri, ignore = "calls C")]
         fn adopted_object_is_zeroed_exclusive_and_released_once() {
             let mut a = adopted();
             assert_eq!(a.as_ref().bits(), 0);
@@ -1506,6 +1509,7 @@ mod unit_tests {
         }
 
         #[test]
+        #[cfg_attr(miri, ignore = "calls C")]
         fn policies_count_through_the_raw_seam() {
             let a = adopted();
             let p = NonNull::new(a.as_ptr()).unwrap();
@@ -1524,6 +1528,7 @@ mod unit_tests {
         }
 
         #[test]
+        #[cfg_attr(miri, ignore = "calls C")]
         fn const_policy_never_claims_the_sole_reference() {
             let c = into_const(adopted());
             let p = NonNull::new(c.as_ptr()).unwrap();
@@ -1533,6 +1538,7 @@ mod unit_tests {
         }
 
         #[test]
+        #[cfg_attr(miri, ignore = "calls C")]
         fn into_const_keeps_the_count_and_to_const_adds_one() {
             let a = adopted();
             let c = to_const(&a);
@@ -1547,6 +1553,7 @@ mod unit_tests {
         }
 
         #[test]
+        #[cfg_attr(miri, ignore = "calls C")]
         fn replace_with_the_same_object_leaves_the_count_alone() {
             let a = adopted();
             let mut slot = Some(a.clone());
@@ -1562,6 +1569,7 @@ mod unit_tests {
         }
 
         #[test]
+        #[cfg_attr(miri, ignore = "calls C")]
         fn drop_policy_frees_an_object_whose_last_reference_goes() {
             // SAFETY: a fresh object with one reference plus the one `av_refstruct_ref`
             // adds, each released once by `c_drop`; ASan reports a leak or double
@@ -1576,6 +1584,7 @@ mod unit_tests {
         }
 
         #[test]
+        #[cfg_attr(miri, ignore = "calls C")]
         fn allocation_by_size_matches_the_payload() {
             let b = RefStructBox::<IntFloat64>::new_zeroed().unwrap();
             assert_eq!(b.as_ptr() as usize % ALIGN, 0);
@@ -1761,6 +1770,7 @@ mod unit_tests {
         /// freed; and freed unfilled, without a read of it (LSan and ASan
         /// check both).
         #[test]
+        #[cfg_attr(miri, ignore = "calls C")]
         fn uninitialised_storage_is_filled_in_place_and_released() {
             let mut slot = RefStructBox::<IntFloat64>::new_uninit().unwrap();
             assert_eq!(slot.as_c_ptr() as usize % ALIGN, 0);

@@ -1,6 +1,7 @@
 use ffmpeg::libavutil::cast5::{Cast5, InitError};
 
 #[test]
+#[cfg_attr(miri, ignore = "calls C")]
 fn keys_are_copied_and_handles_reborrow_exclusively() {
     for initial_len in 5..=16 {
         let mut owner = {
@@ -26,6 +27,7 @@ fn keys_are_copied_and_handles_reborrow_exclusively() {
 }
 
 #[test]
+#[cfg_attr(miri, ignore = "calls C")]
 fn repeated_construction_and_destruction() {
     for i in 0..256 {
         let mut owner = Cast5::new(&[i as u8; 16]).unwrap();
@@ -34,6 +36,7 @@ fn repeated_construction_and_destruction() {
 }
 
 #[test]
+#[cfg_attr(miri, ignore = "calls C")]
 fn allocation_failure_returns_an_error_without_an_owner() {
     // Isolate the process-wide allocator limit from every other test.
     const ISOLATED: &str = "CRUSTIFY_CAST5_ALLOC_FAILURE_CHILD";
@@ -67,6 +70,7 @@ fn allocation_failure_returns_an_error_without_an_owner() {
 use ffmpeg::libavutil::cast5::context_size;
 
 #[test]
+#[cfg_attr(miri, ignore = "reads a C global")]
 fn batch10_immutable_size_across_threads() {
     let size: &'static i32 = context_size();
     assert!(*size > 0);
@@ -87,6 +91,7 @@ fn batch10_immutable_size_across_threads() {
 use ffmpeg::libavutil::aes::Direction;
 
 #[test]
+#[cfg_attr(miri, ignore = "calls C")]
 fn processing_across_reborrows_and_unaligned_buffers() {
     for key_len in [5, 10, 11, 16] {
         for direction in [Direction::Encrypt, Direction::Decrypt] {

@@ -106,6 +106,7 @@ fn c_values(c: &CTypes) -> Vec<ffi::AVMediaType> {
 }
 
 #[test]
+#[cfg_attr(miri, ignore = "calls C")]
 fn constants_are_the_c_enumerators() {
     for (t, c, name) in NAMED {
         assert_eq!(t.into_raw(), c);
@@ -120,6 +121,7 @@ fn constants_are_the_c_enumerators() {
 }
 
 #[test]
+#[cfg_attr(miri, ignore = "calls C")]
 fn index_is_some_exactly_where_c_names_the_type() {
     let all = NAMED.iter().map(|&(_, c, _)| c.0).chain(UNNAMED);
     for raw in all.chain(-3..=8) {
@@ -134,6 +136,7 @@ fn index_is_some_exactly_where_c_names_the_type() {
 }
 
 #[test]
+#[cfg_attr(miri, ignore = "calls C")]
 fn zeroed_storage_reads_as_c_zeroed_storage() {
     const LEN: usize = 8;
     let rust = alloc_array_zeroed::<MediaType>(LEN).unwrap();
@@ -144,6 +147,7 @@ fn zeroed_storage_reads_as_c_zeroed_storage() {
 }
 
 #[test]
+#[cfg_attr(miri, ignore = "calls C")]
 fn writes_through_each_side_agree_after_every_step() {
     let values: Vec<ffi::AVMediaType> = NAMED
         .iter()
@@ -174,6 +178,7 @@ fn writes_through_each_side_agree_after_every_step() {
 }
 
 #[test]
+#[cfg_attr(miri, ignore = "calls C")]
 fn values_c_writes_are_read_back_unchanged() {
     let values: Vec<_> = NAMED
         .map(|(_, c, _)| c)
@@ -200,6 +205,7 @@ fn values_c_writes_are_read_back_unchanged() {
 }
 
 #[test]
+#[cfg_attr(miri, ignore = "calls C")]
 fn clone_copies_the_c_encoding() {
     let src: Vec<MediaType> = NAMED
         .map(|(t, _, _)| t)
@@ -265,6 +271,7 @@ fn picture_values() -> Vec<ffi::AVPictureType> {
 }
 
 #[test]
+#[cfg_attr(miri, ignore = "calls C")]
 fn picture_type_constants_are_the_c_enumerators() {
     for (t, c, letter) in PICTURE_NAMED {
         assert_eq!(t.into_raw(), c);
@@ -281,6 +288,7 @@ fn picture_type_constants_are_the_c_enumerators() {
 }
 
 #[test]
+#[cfg_attr(miri, ignore = "calls C")]
 fn picture_type_zeroed_storage_reads_as_c_zeroed_storage() {
     const LEN: usize = 8;
     let rust = alloc_array_zeroed::<PictureType>(LEN).unwrap();
@@ -301,6 +309,7 @@ fn picture_type_zeroed_storage_reads_as_c_zeroed_storage() {
 }
 
 #[test]
+#[cfg_attr(miri, ignore = "calls C")]
 fn picture_type_writes_through_each_side_agree_after_every_step() {
     let values = picture_values();
     let len = values.len();
@@ -351,6 +360,7 @@ mod version_and_x_if_null {
     use ffmpeg::libavutil::ffi;
 
     #[test]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn version_queries_return_the_c_values() {
         // SAFETY: argument-less queries.
         let c = unsafe { ffi::avutil_version() };
@@ -372,6 +382,7 @@ mod version_and_x_if_null {
     }
 
     #[test]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn repeated_queries_are_stable() {
         let first = (version(), version_info(), configuration(), license());
         for _ in 0..3 {
@@ -393,6 +404,7 @@ mod version_and_x_if_null {
     }
 
     #[test]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn x_if_null_picks_as_c() {
         let (a, b) = (0x11u32, 0x22u32);
         for (p, x) in [
@@ -407,6 +419,7 @@ mod version_and_x_if_null {
     }
 
     #[test]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn x_if_null_mut_writes_land_where_c_points() {
         let mut mine = [[0u16; 2]; 2];
         let mut theirs = [[0u16; 2]; 2];
@@ -459,6 +472,7 @@ mod fourcc {
     }
 
     #[test]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn fourcc_strings_and_buffers_match_c() {
         for f in fourccs() {
             let (mut rb, mut cb) = ([0u8; 32], [0u8; 32]);
@@ -469,6 +483,7 @@ mod fourcc {
     }
 
     #[test]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn reused_buffers_agree_after_every_step() {
         let (mut rb, mut cb) = ([0xa5u8; 32], [0xa5u8; 32]);
         for f in [
@@ -495,6 +510,7 @@ mod names {
     use super::{NAMED, PICTURE_NAMED, UNNAMED, c_letter, c_name, picture_values};
 
     #[test]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn as_str_is_av_get_media_type_string() {
         let values = NAMED
             .iter()
@@ -509,6 +525,7 @@ mod names {
     }
 
     #[test]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn to_char_is_av_get_picture_type_char() {
         for raw in picture_values() {
             assert_eq!(
@@ -524,6 +541,7 @@ mod names {
     }
 
     #[test]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn time_base_is_av_get_time_base_q() {
         // SAFETY: `av_get_time_base_q` takes no arguments and returns a
         // struct by value.

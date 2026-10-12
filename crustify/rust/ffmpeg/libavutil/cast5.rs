@@ -274,7 +274,7 @@ mod unit_tests {
     use super::*;
 
     #[test]
-    #[cfg(not(miri))]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn rejected_buffers_are_atomic() {
         let key = [0; 5];
         let context = Cast5::new(&key).unwrap();
@@ -337,6 +337,7 @@ mod unit_tests {
     }
 
     #[test]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn raw_owner_round_trip_and_borrowed_handles() {
         let owner = Cast5::new(&[0; 5]).unwrap();
         let ptr = owner.into_c();

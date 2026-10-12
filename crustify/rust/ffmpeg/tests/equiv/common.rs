@@ -55,6 +55,7 @@ fn same(a: f64, b: f64) -> bool {
 }
 
 #[test]
+#[cfg_attr(miri, ignore = "calls C")]
 fn bounded_integer_clamps_match_c() {
     let bounds = [(0, 10), (-10, 10), (10, 0), (i32::MIN, i32::MAX), (5, 5)];
     for a in ints() {
@@ -73,6 +74,7 @@ fn bounded_integer_clamps_match_c() {
 }
 
 #[test]
+#[cfg_attr(miri, ignore = "calls C")]
 fn saturations_match_c() {
     for a in ints() {
         // SAFETY: each takes and returns integers by value.
@@ -90,6 +92,7 @@ fn saturations_match_c() {
 }
 
 #[test]
+#[cfg_attr(miri, ignore = "calls C")]
 fn power_of_two_clamps_match_c_at_every_defined_position() {
     for p in 0..=31u32 {
         for a in ints() {
@@ -108,6 +111,7 @@ fn power_of_two_clamps_match_c_at_every_defined_position() {
 }
 
 #[test]
+#[cfg_attr(miri, ignore = "calls C")]
 fn float_clamps_match_c() {
     for a in FLOATS {
         for lo in FLOATS {
@@ -126,6 +130,7 @@ fn float_clamps_match_c() {
 }
 
 #[test]
+#[cfg_attr(miri, ignore = "calls C")]
 fn ceil_log2_matches_c_and_av_log2() {
     for x in ints() {
         // SAFETY: both take and return integers by value.
@@ -145,6 +150,7 @@ fn ceil_log2_matches_c_and_av_log2() {
 }
 
 #[test]
+#[cfg_attr(miri, ignore = "calls C")]
 fn zero_extend_matches_c_at_every_defined_position() {
     let values = [
         0,
@@ -166,6 +172,7 @@ fn zero_extend_matches_c_at_every_defined_position() {
 }
 
 #[test]
+#[cfg_attr(miri, ignore = "calls C")]
 fn chained_zero_extends_agree_after_every_step() {
     let (mut mine, mut theirs) = (u32::MAX, u32::MAX);
     for p in [31, 24, 24, 17, 8, 3, 0] {
@@ -230,6 +237,7 @@ mod count_and_saturate {
     }
 
     #[test]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn popcount_matches_c() {
         let edges = [
             0u64,
@@ -250,6 +258,7 @@ mod count_and_saturate {
     }
 
     #[test]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn saturating_32_matches_c() {
         let random = xorshift(11).take(600).map(|x| x as i32);
         let ops: Vec<i32> = I32.into_iter().chain(random).collect();
@@ -277,6 +286,7 @@ mod count_and_saturate {
     }
 
     #[test]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn saturating_64_matches_c() {
         let random = xorshift(13).take(600).map(|x| x as i64);
         let ops: Vec<i64> = I64.into_iter().chain(random).collect();
@@ -307,6 +317,7 @@ fn u32_edges() -> Vec<u32> {
 }
 
 #[test]
+#[cfg_attr(miri, ignore = "calls C")]
 fn log2_matches_av_log2() {
     for v in u32_edges() {
         // SAFETY: `av_log2` takes its argument by value.
@@ -316,6 +327,7 @@ fn log2_matches_av_log2() {
 }
 
 #[test]
+#[cfg_attr(miri, ignore = "calls C")]
 fn log2_16bit_matches_av_log2_16bit_on_every_value() {
     for v in 0..=u16::MAX {
         // SAFETY: `av_log2_16bit` takes its argument by value; it is below
@@ -326,6 +338,7 @@ fn log2_16bit_matches_av_log2_16bit_on_every_value() {
 }
 
 #[test]
+#[cfg_attr(miri, ignore = "calls C")]
 fn parity_matches_av_parity_c() {
     for v in u32_edges() {
         // SAFETY: `av_parity_c` takes its argument by value.

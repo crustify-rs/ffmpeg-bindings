@@ -56,6 +56,7 @@ const COLORS: [&[u8]; 34] = [
 ];
 
 #[test]
+#[cfg_attr(miri, ignore = "calls C")]
 fn colors_whole_and_at_every_prefix() {
     for color in COLORS {
         let s = exact(color);
@@ -74,6 +75,7 @@ fn colors_whole_and_at_every_prefix() {
 /// it to a byte) and a prefix ending inside the marker (C reads an
 /// uninitialised buffer).
 #[test]
+#[cfg_attr(miri, ignore = "calls C")]
 fn c_ub_inputs_fail() {
     for color in [
         &b"red@nan"[..],
@@ -94,6 +96,7 @@ fn c_ub_inputs_fail() {
 
 /// C copies at most 127 bytes after the marker into a stack buffer.
 #[test]
+#[cfg_attr(miri, ignore = "calls C")]
 fn long_colors() {
     for n in [0, 1, 6, 8, 125, 126, 127, 128, 4096] {
         for marker in ["", "#", "0x"] {
@@ -111,6 +114,7 @@ fn long_colors() {
 /// prefix, with no context and with bare objects on the stack and the heap
 /// (freed after the calls), which C logs failures through.
 #[test]
+#[cfg_attr(miri, ignore = "calls C")]
 fn colors_with_log_contexts() {
     use ffmpeg::libavutil::log::{Class, ClassCategory};
     use ffmpeg::libavutil::opt::BareObject;
@@ -176,6 +180,7 @@ const SIZES: [&[u8]; 22] = [
 ];
 
 #[test]
+#[cfg_attr(miri, ignore = "calls C")]
 fn video_sizes() {
     for size in SIZES {
         let Ok(s) = CString::new(size) else { continue };
@@ -220,6 +225,7 @@ const DURATIONS: [&[u8]; 30] = [
 ];
 
 #[test]
+#[cfg_attr(miri, ignore = "calls C")]
 fn durations() {
     for d in DURATIONS {
         if let Err(e) = parse_duration(&exact(d)) {
@@ -267,6 +273,7 @@ const DATES: [&[u8]; 24] = [
 ];
 
 #[test]
+#[cfg_attr(miri, ignore = "calls C")]
 fn dates() {
     let _t = local_time();
     for d in DATES {
@@ -277,6 +284,7 @@ fn dates() {
 }
 
 #[test]
+#[cfg_attr(miri, ignore = "calls C")]
 fn many_threads() {
     std::thread::scope(|s| {
         for t in 0..8 {
@@ -320,6 +328,7 @@ mod info_tags_and_colors {
     }
 
     #[test]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn buffers_of_every_small_size() {
         every_size("a", "?a=1234567890");
         every_size("b", "?a=1&b=x+y+z&c");
@@ -331,6 +340,7 @@ mod info_tags_and_colors {
     }
 
     #[test]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn long_tags_and_values() {
         let long_tag = "t".repeat(300);
         let info = format!("?{long_tag}={}&x=1", "v".repeat(5000));
@@ -356,6 +366,7 @@ mod info_tags_and_colors {
     }
 
     #[test]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn the_color_table_ends() {
         let mut n = 0;
         while let Some((name, rgb)) = known_color_name(n) {
@@ -376,6 +387,7 @@ mod info_tags_and_colors {
     }
 
     #[test]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn lookups_from_many_threads() {
         std::thread::scope(|s| {
             for t in 0..4 {
@@ -439,6 +451,7 @@ mod ratios_and_dates {
     ];
 
     #[test]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn ratios_at_every_bound_and_offset() {
         for r in RATIOS {
             let s = exact(r);
@@ -475,6 +488,7 @@ mod ratios_and_dates {
     }
 
     #[test]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn ratios_log_in_a_context() {
         static CLASS: Class = Class::new(c"crustify-ratio", ClassCategory::NA);
         let ctx = Box::new(BareObject::new(CLASS.as_ref()).unwrap());
@@ -490,6 +504,7 @@ mod ratios_and_dates {
     }
 
     #[test]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn video_rates() {
         for r in RATIOS.iter().copied().chain([
             &b"ntsc-film"[..],
@@ -543,6 +558,7 @@ mod ratios_and_dates {
     ];
 
     #[test]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn strptime_rests_stay_within_the_input() {
         for fmt in FORMATS {
             let fmt = exact(fmt);
@@ -563,6 +579,7 @@ mod ratios_and_dates {
     /// The rest borrows the input, not the `Tm`: it outlives the `Tm`, and
     /// the `Tm` is reused while it lives.
     #[test]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn rests_outlive_the_tm() {
         let s = exact(b"12:34:56 rest");
         let rest = {
@@ -575,6 +592,7 @@ mod ratios_and_dates {
     }
 
     #[test]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn utc_times_at_every_int_edge() {
         let edges = [
             i32::MIN,
@@ -624,6 +642,7 @@ mod ratios_and_dates {
     }
 
     #[test]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn many_threads() {
         std::thread::scope(|s| {
             for t in 0..4 {

@@ -169,6 +169,7 @@ fn all_values() -> Vec<ffi::AVSampleFormat> {
 }
 
 #[test]
+#[cfg_attr(miri, ignore = "calls C")]
 fn constants_are_the_c_enumerators() {
     for (f, c, name) in NAMED {
         assert_eq!(f.into_raw(), c);
@@ -184,6 +185,7 @@ fn constants_are_the_c_enumerators() {
 }
 
 #[test]
+#[cfg_attr(miri, ignore = "calls C")]
 fn c_parses_each_name_back_to_its_constant() {
     for (f, _, name) in NAMED {
         let Some(name) = name else { continue };
@@ -195,6 +197,7 @@ fn c_parses_each_name_back_to_its_constant() {
 }
 
 #[test]
+#[cfg_attr(miri, ignore = "calls C")]
 fn index_is_some_exactly_where_c_knows_the_format() {
     let all = all_values().into_iter().map(|c| c.0);
     for raw in all.chain(-3..=16) {
@@ -209,6 +212,7 @@ fn index_is_some_exactly_where_c_knows_the_format() {
 }
 
 #[test]
+#[cfg_attr(miri, ignore = "calls C")]
 fn planar_constants_are_the_ones_c_reports_planar() {
     let planar = [
         SampleFormat::U8P,
@@ -225,6 +229,7 @@ fn planar_constants_are_the_ones_c_reports_planar() {
 }
 
 #[test]
+#[cfg_attr(miri, ignore = "calls C")]
 fn zeroed_storage_reads_as_c_zeroed_storage() {
     const LEN: usize = 8;
     let rust = alloc_array_zeroed::<SampleFormat>(LEN).unwrap();
@@ -236,6 +241,7 @@ fn zeroed_storage_reads_as_c_zeroed_storage() {
 }
 
 #[test]
+#[cfg_attr(miri, ignore = "calls C")]
 fn writes_through_each_side_agree_after_every_step() {
     let values = all_values();
     let len = values.len();
@@ -260,6 +266,7 @@ fn writes_through_each_side_agree_after_every_step() {
 }
 
 #[test]
+#[cfg_attr(miri, ignore = "calls C")]
 fn values_c_writes_are_read_back_unchanged() {
     let values = all_values();
     let mut c = CFormats::zeroed(values.len());
@@ -282,6 +289,7 @@ fn values_c_writes_are_read_back_unchanged() {
 }
 
 #[test]
+#[cfg_attr(miri, ignore = "calls C")]
 fn none_terminated_lists_end_where_c_ends_them() {
     // A C-built list in the shape of `AVCodec.sample_fmts`, read through the
     // Rust type up to its terminator, against C's own walk of the same block.
@@ -311,6 +319,7 @@ fn none_terminated_lists_end_where_c_ends_them() {
 }
 
 #[test]
+#[cfg_attr(miri, ignore = "calls C")]
 fn clone_copies_the_c_encoding() {
     let src: Vec<SampleFormat> = all_values().into_iter().map(SampleFormat::from).collect();
     let rust = HeapVec::from_slice(&src).unwrap();
@@ -324,6 +333,7 @@ fn clone_copies_the_c_encoding() {
 }
 
 #[test]
+#[cfg_attr(miri, ignore = "calls C")]
 fn default_is_the_format_c_gives_a_fresh_frame() {
     // `av_frame_alloc` writes `-1` into the `format` an audio frame reads
     // as its sample format: `AV_SAMPLE_FMT_NONE`.
@@ -688,6 +698,7 @@ mod buffers {
     }
 
     #[test]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn is_planar_matches_c_for_every_value() {
         for raw in all_values() {
             let f = SampleFormat::from_raw(raw);
@@ -696,6 +707,7 @@ mod buffers {
     }
 
     #[test]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn buffer_size_matches_c_across_the_int_range() {
         let max = c_int::MAX;
         let counts = [
@@ -749,6 +761,7 @@ mod buffers {
     }
 
     #[test]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn counts_beyond_an_int_fail_as_c_fails_their_negative_twins() {
         for f in FORMATS {
             // C sees a `u32` alignment past `INT_MAX` as negative.
@@ -768,6 +781,7 @@ mod buffers {
     }
 
     #[test]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn alloc_lays_out_and_silences_as_c() {
         let mut rng = Rng(0x9e37_79b9_7f4a_7c15);
         for f in FORMATS {
@@ -798,6 +812,7 @@ mod buffers {
     }
 
     #[test]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn alloc_array_lays_out_and_silences_as_c() {
         let mut rng = Rng(0x2545_f491_4f6c_dd1d);
         for f in FORMATS {
@@ -827,6 +842,7 @@ mod buffers {
     }
 
     #[test]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn alloc_failures_return_c_s_errors() {
         for raw in all_values() {
             let f = SampleFormat::from_raw(raw);
@@ -850,6 +866,7 @@ mod buffers {
     }
 
     #[test]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn fill_arrays_lays_planes_over_the_buffer_as_c() {
         let mut rng = Rng(0x1234_5678_9abc_def1);
         for f in FORMATS {
@@ -985,6 +1002,7 @@ mod sample_format_forms {
     }
 
     #[test]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn forms_and_sizes_match_c_for_every_value() {
         let mut known = 0;
         for r in raws() {
@@ -999,6 +1017,7 @@ mod sample_format_forms {
     }
 
     #[test]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn chained_conversions_match_c_step_by_step() {
         for r in raws() {
             let (mut rust, mut c) = (fmt(r), r);
@@ -1036,6 +1055,7 @@ mod lookups {
     }
 
     #[test]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn name_matches_c() {
         for raw in values() {
             // SAFETY: by value; C returns NULL or a static string.
@@ -1051,6 +1071,7 @@ mod lookups {
     }
 
     #[test]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn from_name_matches_c() {
         let names: [&CStr; 16] = [
             c"u8", c"s16", c"s32", c"flt", c"dbl", c"u8p", c"s16p", c"s32p", c"fltp", c"dblp",
@@ -1066,6 +1087,7 @@ mod lookups {
     }
 
     #[test]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn planar_matches_c_twice() {
         for raw in values() {
             let mut rust = Some(SampleFormat::from_raw(ffi::AVSampleFormat(raw)));
@@ -1082,6 +1104,7 @@ mod lookups {
     }
 
     #[test]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn describe_writes_what_c_writes() {
         for raw in values() {
             let mut rust_buf = [b'#'; 24];

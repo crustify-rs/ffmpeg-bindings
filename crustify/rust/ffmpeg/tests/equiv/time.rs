@@ -9,6 +9,7 @@ use ffmpeg::libavutil::ffi;
 use ffmpeg::libavutil::time::{now, now_relative, relative_is_monotonic, usleep};
 
 #[test]
+#[cfg_attr(miri, ignore = "calls C")]
 fn usleep_returns_and_sleeps_as_av_usleep() {
     for usec in [0, 1, 500, 1_500, 0] {
         let start = Instant::now();
@@ -25,6 +26,7 @@ fn usleep_returns_and_sleeps_as_av_usleep() {
 }
 
 #[test]
+#[cfg_attr(miri, ignore = "calls C")]
 fn wall_clock_reads_between_c_readings() {
     for _ in 0..100 {
         // SAFETY: `av_gettime` takes no arguments.
@@ -42,6 +44,7 @@ fn wall_clock_reads_between_c_readings() {
 }
 
 #[test]
+#[cfg_attr(miri, ignore = "calls C")]
 fn relative_clock_reads_between_c_readings() {
     // SAFETY: `av_gettime_relative_is_monotonic` takes no arguments.
     let mono = unsafe { ffi::av_gettime_relative_is_monotonic() } != 0;

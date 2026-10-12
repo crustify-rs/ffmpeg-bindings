@@ -135,7 +135,7 @@ mod unit_tests {
     use super::*;
 
     #[test]
-    #[cfg_attr(miri, ignore)]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn allocation_failure() {
         const FLAG: &str = "CRUSTIFY_MD5_FAILURE_CHILD";
         if std::env::var_os(FLAG).is_some() {
@@ -169,7 +169,7 @@ mod unit_tests {
     }
 
     #[test]
-    #[cfg_attr(miri, ignore)]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn owner_round_trip_and_null_adoption() {
         let mut owner = Md5::new().unwrap();
         owner.as_mut().update(b"abc");
@@ -189,7 +189,7 @@ mod unit_tests {
     }
 
     #[test]
-    #[cfg_attr(miri, ignore)]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn borrowed_raw_seams_preserve_identity() {
         let mut owner = Md5::new().unwrap();
         let shared = owner.as_ref();

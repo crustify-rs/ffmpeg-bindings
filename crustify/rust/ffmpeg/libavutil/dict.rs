@@ -896,6 +896,7 @@ mod unit_tests {
     }
 
     #[test]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn adopted_dictionary_clones_deeply_and_frees() {
         let original = adopt_c(&PAIRS, MULTIKEY);
         let copy = original.clone();
@@ -917,6 +918,7 @@ mod unit_tests {
     }
 
     #[test]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn clone_keeps_keys_c_would_merge() {
         // Without AV_DICT_MULTIKEY, C keeps one of `a` and `A`.
         let merged = adopt_c(&PAIRS, 0);
@@ -927,6 +929,7 @@ mod unit_tests {
     }
 
     #[test]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn from_entries_keeps_every_pair_in_order() {
         assert!(
             Dict::from_entries::<&CStr, &CStr>([])
@@ -952,6 +955,7 @@ mod unit_tests {
     }
 
     #[test]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn append_allocates_and_deleting_the_last_entry_empties() {
         let mut d = Dict::new();
         assert_eq!(d.append(c"k", c"v"), 0);
@@ -971,6 +975,7 @@ mod unit_tests {
     }
 
     #[test]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn owners_convert_without_copying() {
         let mut d = Dict::from_entries(PAIRS).unwrap();
         let ptr = d.as_mut().unwrap().as_mut_ptr();
@@ -1004,6 +1009,7 @@ mod unit_tests {
     /// limit the last value exceeds: the partial dictionaries are freed (as
     /// LeakSanitizer checks) and the source is untouched.
     #[test]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn allocation_failures_free_partial_dictionaries() {
         if !isolated("libavutil::dict::unit_tests::allocation_failures_free_partial_dictionaries") {
             return;
@@ -1070,6 +1076,7 @@ mod unit_tests {
         }
 
         #[test]
+        #[cfg_attr(miri, ignore = "calls C")]
         fn owned_strings_are_stored_or_freed_on_every_path() {
             let mut d = Dict::new();
             d.set_owned(heap(c"k"), heap(c"v"), Flags::NONE).unwrap();
@@ -1089,6 +1096,7 @@ mod unit_tests {
         }
 
         #[test]
+        #[cfg_attr(miri, ignore = "calls C")]
         fn removing_the_last_entry_empties_the_owner() {
             let mut d = Dict::from_entries([(c"a", c"1")]).unwrap();
             d.remove(c"b", Flags::NONE).unwrap();
@@ -1108,6 +1116,7 @@ mod unit_tests {
         }
 
         #[test]
+        #[cfg_attr(miri, ignore = "calls C")]
         fn iterators_count_down_and_stay_done() {
             let d = Dict::from_entries(PAIRS).unwrap();
             let mut it = d.iter();
@@ -1133,6 +1142,7 @@ mod unit_tests {
         /// Writers under an `av_max_alloc` limit: the failing write reports
         /// `ENOMEM` and leaves the entries it did not reach as they were.
         #[test]
+        #[cfg_attr(miri, ignore = "calls C")]
         fn allocation_failures_keep_the_entries() {
             if !isolated(
                 "libavutil::dict::unit_tests::readers_and_writers::allocation_failures_keep_the_entries",

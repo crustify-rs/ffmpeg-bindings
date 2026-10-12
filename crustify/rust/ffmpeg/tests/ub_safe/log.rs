@@ -33,6 +33,7 @@ fn any_category_value_is_valid() {
 /// The device predicates reach C; kept apart from the FFI-free tests above,
 /// which also run under Miri.
 #[test]
+#[cfg_attr(miri, ignore = "calls C")]
 fn device_predicates_accept_any_value() {
     for v in EDGES {
         let c = ClassCategory::from_value(v);
@@ -150,6 +151,7 @@ impl Callback for FormatAll {
 }
 
 #[test]
+#[cfg_attr(miri, ignore = "calls C")]
 fn records_format_into_exact_size_buffers() {
     if !isolated("log::records_format_into_exact_size_buffers") {
         return;
@@ -250,6 +252,7 @@ impl Callback for Other {
 }
 
 #[test]
+#[cfg_attr(miri, ignore = "calls C")]
 fn callbacks_reenter_logging_and_swap_themselves() {
     if !isolated("log::callbacks_reenter_logging_and_swap_themselves") {
         return;
@@ -292,6 +295,7 @@ impl Callback for CountB {
 }
 
 #[test]
+#[cfg_attr(miri, ignore = "calls C")]
 fn logging_races_with_callback_level_and_flag_changes() {
     if !isolated("log::logging_races_with_callback_level_and_flag_changes") {
         return;
@@ -337,6 +341,7 @@ fn logging_races_with_callback_level_and_flag_changes() {
 }
 
 #[test]
+#[cfg_attr(miri, ignore = "calls C")]
 fn log_once_takes_either_starting_state() {
     let _s = LogState::lock();
     log::clear_callback();
@@ -394,6 +399,7 @@ impl Callback for Forward {
 /// output is stderr, so each mode runs in a child process whose stderr is
 /// discarded.
 #[test]
+#[cfg_attr(miri, ignore = "calls C")]
 fn default_callback_takes_every_level_flag_and_colour_mode() {
     const NAME: &str = "log::default_callback_takes_every_level_flag_and_colour_mode";
     if std::env::var_os(ISOLATED).is_none() {
@@ -502,6 +508,7 @@ mod vlog {
     ];
 
     #[test]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn any_message_is_accepted() {
         let long = CString::new(vec![b'%'; 4000]).unwrap();
         for level in DROPPED {
@@ -512,6 +519,7 @@ mod vlog {
     }
 
     #[test]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn printed_lines_are_formatted_whole() {
         let long = CString::new(format!("crustify ub_safe vlog: {}\n", "%".repeat(1500))).unwrap();
         log(Level::INFO, c"crustify ub_safe vlog: 100% %s %n\n");
@@ -521,6 +529,7 @@ mod vlog {
     }
 
     #[test]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn logging_from_many_threads_at_once() {
         let workers: Vec<_> = (0..8)
             .map(|i| {
@@ -658,6 +667,7 @@ mod class {
     /// `av_parse_cpu_caps` evaluates flags against its own static class,
     /// `cpuflags`, and logs an unknown token in that class's context.
     #[test]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn the_cpuflags_class_reaches_a_callback() {
         if !super::isolated("log::class::the_cpuflags_class_reaches_a_callback") {
             return;

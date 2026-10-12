@@ -137,6 +137,7 @@ const STEPS: [Step; 9] = [
 ];
 
 #[test]
+#[cfg_attr(miri, ignore = "calls C")]
 fn copy_plane_matches_c_step_by_step() {
     let src = noise(1);
     let (mut rust, mut c) = (noise(2), noise(2));
@@ -172,6 +173,7 @@ fn copy_plane_matches_c_step_by_step() {
 /// rounded-up width, or its plain path), the results match byte for byte,
 /// the SSE4 path's copies past the width included.
 #[test]
+#[cfg_attr(miri, ignore = "calls C")]
 fn uncacheable_copy_matches_c_step_by_step() {
     let src = noise(3);
     let (mut rust, mut c) = (noise(4), noise(4));
@@ -216,6 +218,7 @@ fn uncacheable_copy_matches_c_step_by_step() {
 }
 
 #[test]
+#[cfg_attr(miri, ignore = "calls C")]
 fn check_size_matches_c() {
     let dims = [
         0u32,
@@ -326,6 +329,7 @@ fn isolated(name: &str) -> bool {
 }
 
 #[test]
+#[cfg_attr(miri, ignore = "calls C")]
 fn check_size_logs_as_c() {
     if !isolated("imgutils::check_size_logs_as_c") {
         return;
@@ -487,6 +491,7 @@ mod images {
     ];
 
     #[test]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn linesizes_match_c() {
         for raw in formats() {
             for w in WIDTHS {
@@ -521,6 +526,7 @@ mod images {
     }
 
     #[test]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn plane_sizes_and_pointer_layouts_match_c() {
         let heights = [1, 2, 3, 17, 1 << 20];
         let linesizes: [[c_int; 4]; 4] = [
@@ -630,6 +636,7 @@ mod images {
     const SIZES: [(c_int, c_int); 4] = [(1, 1), (7, 5), (33, 17), (64, 3)];
 
     #[test]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn array_layouts_and_buffer_sizes_match_c() {
         for raw in formats() {
             for (w, h) in SIZES
@@ -694,6 +701,7 @@ mod images {
     }
 
     #[test]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn size_and_sar_checks_match_c() {
         let dims = [
             0u32,
@@ -760,6 +768,7 @@ mod images {
     }
 
     #[test]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn check_size_max_pixels_logs_as_c() {
         if !isolated("imgutils::images::check_size_max_pixels_logs_as_c") {
             return;
@@ -940,6 +949,7 @@ mod images {
     }
 
     #[test]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn allocations_match_c() {
         let (sizes, aligns): (&[(c_int, c_int)], &[usize]) = if under_bsan() {
             (&[(7, 5), (64, 3), (0, 1), (1 << 16, 1 << 16)], &[1, 64])
@@ -1156,6 +1166,7 @@ mod images {
     }
 
     #[test]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn copies_and_fills_match_c_for_every_format() {
         let sizes: &[(c_int, c_int)] = if under_bsan() {
             &[(7, 5), (33, 17)]
@@ -1175,6 +1186,7 @@ mod images {
     }
 
     #[test]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn copies_of_bottom_up_planes_match_c() {
         // Row 0 last in each plane: C's negative linesizes from the last
         // row's address.
@@ -1364,6 +1376,7 @@ mod images {
     /// per-plane extents and the rejection of rows C would assert on are
     /// the wrappers' own arithmetic.
     #[test]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn random_plane_layouts_match_c() {
         let formats = [
             PixelFormat::YUV420P,
@@ -1573,6 +1586,7 @@ mod pixel_steps {
     }
 
     #[test]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn max_pixel_steps_match_c_with_and_without_components() {
         for raw in 0..NB {
             let p = c_get(raw);
@@ -1592,6 +1606,7 @@ mod pixel_steps {
     }
 
     #[test]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn max_pixel_steps_of_rust_built_descriptors_match_c() {
         use ffmpeg::libavutil::pixdesc::{ComponentDescriptor, PixelFormatDescriptor};
         let steps = [c_int::MIN, -1, 0, 1, 2, 7, c_int::MAX];

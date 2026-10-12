@@ -82,6 +82,7 @@ fn layout_matches_the_c_struct() {
 }
 
 #[test]
+#[cfg_attr(miri, ignore = "calls C")]
 fn new_is_av_make_q() {
     for (num, den) in PAIRS {
         let rust = Rational::new(num, den);
@@ -94,6 +95,7 @@ fn new_is_av_make_q() {
 }
 
 #[test]
+#[cfg_attr(miri, ignore = "calls C")]
 fn getters_read_what_c_reads() {
     for (num, den) in PAIRS {
         // Rust builds its value through the setters, C through its
@@ -115,6 +117,7 @@ fn getters_read_what_c_reads() {
 }
 
 #[test]
+#[cfg_attr(miri, ignore = "calls C")]
 fn whole_value_set_and_get_match_c_struct_copies() {
     // One Rust value is overwritten at every step; C copies its struct anew.
     let mut rust = Rational::zeroed();
@@ -140,6 +143,7 @@ fn whole_value_set_and_get_match_c_struct_copies() {
 }
 
 #[test]
+#[cfg_attr(miri, ignore = "calls C")]
 fn c_writes_in_place_read_back_through_the_handles() {
     // `av_reduce` writes the parts of a Rust-owned `av_mallocz` box and of a
     // C-owned stack struct; after each call, and after each Rust write, both
@@ -176,6 +180,7 @@ fn c_writes_in_place_read_back_through_the_handles() {
 }
 
 #[test]
+#[cfg_attr(miri, ignore = "calls C")]
 fn handles_over_c_filled_storage_match_c_reads() {
     // C fills an `av_malloc` block in place, as C fills a struct field a
     // wrapper's accessor later hands out as a handle.
@@ -200,6 +205,7 @@ fn handles_over_c_filled_storage_match_c_reads() {
 }
 
 #[test]
+#[cfg_attr(miri, ignore = "calls C")]
 fn zeroed_arrays_read_as_c_zeroed_storage() {
     const LEN: usize = 8;
     let mut rust = alloc_cell_array_zeroed::<Rational>(LEN).unwrap();
@@ -235,6 +241,7 @@ fn zeroed_arrays_read_as_c_zeroed_storage() {
 }
 
 #[test]
+#[cfg_attr(miri, ignore = "calls C")]
 fn copies_of_a_run_match_c_memdup_after_every_step() {
     // Rust copies a run of rationals two ways: a Rust slice into an
     // `av_malloc` block, and a borrowed run element by element into another;
@@ -348,6 +355,7 @@ mod reduce {
     const MAX: [i32; 8] = [0, 1, 2, 255, 1000, 65535, 1 << 30, i32::MAX];
 
     #[test]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn every_term_pair_and_bound_matches_c() {
         for num in TERMS {
             for den in TERMS {
@@ -364,6 +372,7 @@ mod reduce {
     }
 
     #[test]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn pseudo_random_fractions_match_c() {
         let mut s = 0x9E37_79B9_7F4A_7C15u64;
         let mut next = || {
@@ -446,6 +455,7 @@ mod arithmetic {
     }
 
     #[test]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn operators_are_the_c_functions() {
         for b in PAIRS {
             for k in PAIRS {
@@ -483,6 +493,7 @@ mod arithmetic {
     }
 
     #[test]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn order_is_av_cmp_q() {
         for b in PAIRS {
             for k in PAIRS {
@@ -506,6 +517,7 @@ mod arithmetic {
     }
 
     #[test]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn conversions_are_the_c_functions() {
         for b in PAIRS {
             let r = rust(b.0, b.1);
@@ -518,6 +530,7 @@ mod arithmetic {
     }
 
     #[test]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn from_f64_is_av_d2q() {
         let values = [
             0.0,
@@ -553,6 +566,7 @@ mod arithmetic {
     }
 
     #[test]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn f32_bits_are_av_q2intfloat_on_non_negative_values() {
         for b in PAIRS {
             if b.0 == i32::MIN || b.1 == i32::MIN {
@@ -581,6 +595,7 @@ mod arithmetic {
     }
 
     #[test]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn gcd_is_av_gcd_q() {
         for b in PAIRS {
             for k in PAIRS {
@@ -598,6 +613,7 @@ mod arithmetic {
     }
 
     #[test]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn cmp_distance_is_av_nearer_q() {
         for q in PAIRS {
             for a in PAIRS {
@@ -624,6 +640,7 @@ mod arithmetic {
     }
 
     #[test]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn nearest_is_av_find_nearest_q_idx() {
         let lists: [&[(i32, i32)]; 8] = [
             &[
@@ -683,6 +700,7 @@ mod arithmetic {
     }
 
     #[test]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn nearest_walks_two_min_denominators_as_av_find_nearest_q_idx() {
         let m = (1, i32::MIN);
         let lists: [&[(i32, i32)]; 6] = [
@@ -718,6 +736,7 @@ mod arithmetic {
     }
 
     #[test]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn chained_sums_and_products_agree_after_every_step() {
         let steps = [
             (1, 3),

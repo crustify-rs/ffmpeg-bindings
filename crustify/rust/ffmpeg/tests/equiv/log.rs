@@ -146,6 +146,7 @@ const CATEGORIES: [(ClassCategory, ffi::AVClassCategory); 18] = [
 ];
 
 #[test]
+#[cfg_attr(miri, ignore = "calls C")]
 fn named_categories_read_back_through_c() {
     let options = options();
     for (category, raw) in CATEGORIES {
@@ -158,6 +159,7 @@ fn named_categories_read_back_through_c() {
 }
 
 #[test]
+#[cfg_attr(miri, ignore = "calls C")]
 fn unnamed_categories_read_back_through_c() {
     let options = options();
     // The gap below the device categories, `AV_CLASS_CATEGORY_NB` and beyond:
@@ -177,6 +179,7 @@ fn unnamed_categories_read_back_through_c() {
 type Step = fn(&mut ClassStateFlags);
 
 #[test]
+#[cfg_attr(miri, ignore = "calls C")]
 fn state_flags_gate_non_runtime_options_as_in_c() {
     let options = options();
     let class = class(ffi::AVClassCategory::AV_CLASS_CATEGORY_NA, &options);
@@ -361,6 +364,7 @@ impl Drop for Family {
 }
 
 #[test]
+#[cfg_attr(miri, ignore = "calls C")]
 fn state_flags_of_the_parent_gate_a_child_option_as_in_c() {
     let options = child_options();
     let parent_class = parent_class();
@@ -400,6 +404,7 @@ fn state_flags_of_the_parent_gate_a_child_option_as_in_c() {
 }
 
 #[test]
+#[cfg_attr(miri, ignore = "calls C")]
 fn state_flags_of_the_child_take_precedence_over_the_parent_as_in_c() {
     let options = child_options();
     let parent_class = parent_class();
@@ -455,6 +460,7 @@ fn state_flags_of_the_child_take_precedence_over_the_parent_as_in_c() {
 }
 
 #[test]
+#[cfg_attr(miri, ignore = "calls C")]
 fn without_state_flags_nothing_gates_an_option_as_in_c() {
     let initialized = ffi::AVClassStateFlags::AV_CLASS_STATE_INITIALIZED.0;
     let bits = [0, initialized, initialized | 0x80];
@@ -507,6 +513,7 @@ fn without_state_flags_nothing_gates_an_option_as_in_c() {
 const DEVICE_EDGES: [c_uint; 12] = [0, 11, 12, 39, 40, 41, 42, 43, 44, 45, 46, c_uint::MAX];
 
 #[test]
+#[cfg_attr(miri, ignore = "calls C")]
 fn device_predicates_match_the_c_macros() {
     let named = CATEGORIES.iter().map(|&(_, raw)| raw.0);
     for v in named.chain(DEVICE_EDGES) {
@@ -637,6 +644,7 @@ mod vlog {
     ];
 
     #[test]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn general_log_reaches_the_callback_as_av_log() {
         let cap = Installed::new();
         for level in LEVELS {
@@ -701,6 +709,7 @@ mod vlog {
     }
 
     #[test]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn context_log_reaches_the_callback_as_av_log() {
         let parent_class = class(0, false, false);
         let mut parent: *const ffi::AVClass = &parent_class;
@@ -759,6 +768,7 @@ mod vlog {
     }
 
     #[test]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn null_context_is_the_general_log() {
         let cap = Installed::new();
         for level in LEVELS {
@@ -809,6 +819,7 @@ mod item_name {
     }
 
     #[test]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn names_read_alike_as_the_class_changes() {
         let classes = [
             class(Some(c"first")),
@@ -834,6 +845,7 @@ mod item_name {
     }
 
     #[test]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn heap_class_and_name_read_alike() {
         // A class and name that live on the heap, not in statics: the name
         // borrows for the scope that keeps them alive.
@@ -1126,6 +1138,7 @@ const LEVELS: [c_int; 13] = [
 ];
 
 #[test]
+#[cfg_attr(miri, ignore = "calls C")]
 fn log_delivers_what_av_log_with_percent_s_delivers() {
     let _s = LogState::lock();
     for via in [Via::Rust, Via::C] {
@@ -1154,6 +1167,7 @@ fn log_delivers_what_av_log_with_percent_s_delivers() {
 }
 
 #[test]
+#[cfg_attr(miri, ignore = "calls C")]
 fn log_fmt_formats_as_c_printf_and_stops_at_nul() {
     let _s = LogState::lock();
     for via in [Via::Rust, Via::C] {
@@ -1247,6 +1261,7 @@ fn log_formats() {
 }
 
 #[test]
+#[cfg_attr(miri, ignore = "calls C")]
 fn records_format_c_arguments_as_the_c_functions() {
     let _s = LogState::lock();
     let rust = capture(Via::Rust, log_formats);
@@ -1256,6 +1271,7 @@ fn records_format_c_arguments_as_the_c_functions() {
 }
 
 #[test]
+#[cfg_attr(miri, ignore = "calls C")]
 fn records_report_print_level_and_ignore_print_time_like_c() {
     let _s = LogState::lock();
     for flags in [
@@ -1271,6 +1287,7 @@ fn records_report_print_level_and_ignore_print_time_like_c() {
 }
 
 #[test]
+#[cfg_attr(miri, ignore = "calls C")]
 fn log_once_moves_state_and_level_like_av_log_once() {
     let _s = LogState::lock();
     let script = [
@@ -1352,6 +1369,7 @@ fn log_class(name: &'static CStr) -> ffi::AVClass {
 }
 
 #[test]
+#[cfg_attr(miri, ignore = "calls C")]
 fn contexts_shift_levels_and_prefix_lines_like_c() {
     let _s = LogState::lock();
     let child_class = log_class(c"child");
@@ -1442,6 +1460,7 @@ fn contexts_shift_levels_and_prefix_lines_like_c() {
 }
 
 #[test]
+#[cfg_attr(miri, ignore = "calls C")]
 fn level_and_flags_round_trip_through_c() {
     let _s = LogState::lock();
     for raw in [-8, 0, 16, 32, 56, 99, -1000, c_int::MIN, c_int::MAX] {
@@ -1463,6 +1482,7 @@ fn level_and_flags_round_trip_through_c() {
 }
 
 #[test]
+#[cfg_attr(miri, ignore = "calls C")]
 fn cleared_callback_drops_messages_like_a_null_c_callback() {
     let _s = LogState::lock();
     let rust = capture(Via::Rust, || {
@@ -1538,6 +1558,7 @@ fn default_callback_script() {
 /// process-wide, so each callback runs in a child process running nothing
 /// else, and the parent compares their stderr.
 #[test]
+#[cfg_attr(miri, ignore = "calls C")]
 fn default_callback_output_is_identical() {
     const NAME: &str = "log::default_callback_output_is_identical";
     match std::env::var(LOG_VIA).as_deref() {
@@ -1692,6 +1713,7 @@ mod class {
     static NAMELESS: Class = Class::new(c"", ClassCategory::from_value(77));
 
     #[test]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn rust_classes_read_as_c_reads_them() {
         let _s = LogState::lock();
         for class in [&OWN, &NAMELESS] {
@@ -1704,6 +1726,7 @@ mod class {
     }
 
     #[test]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn iamf_classes_read_as_c_reads_them() {
         let _s = LogState::lock();
         let getters: [unsafe extern "C" fn() -> *const ffi::AVClass; 3] = [
@@ -1722,6 +1745,7 @@ mod class {
     }
 
     #[test]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn a_classless_context_has_no_class_as_c_reads_it() {
         let _s = LogState::lock();
         let mut fake = Fake(ptr::null());
@@ -1749,6 +1773,7 @@ mod class {
     }
 
     #[test]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn child_next_walks_as_av_opt_child_next() {
         let _s = LogState::lock();
         let child_class = ffi::AVClass {
@@ -1815,6 +1840,7 @@ mod class {
     }
 
     #[test]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn query_ranges_matches_av_opt_query_ranges() {
         let _s = LogState::lock();
         let fake = ffi::AV_OPT_SEARCH_FAKE_OBJ as c_int;
@@ -1873,6 +1899,7 @@ mod default_category {
     }
 
     #[test]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn default_category_is_av_default_get_category() {
         let opts = options();
         let unnamed = [17, 40, 46, 1000, u32::MAX].map(ffi::AVClassCategory);
@@ -1888,6 +1915,7 @@ mod default_category {
     }
 
     #[test]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn a_class_rewritten_between_calls_reads_alike() {
         let opts = options();
         let (mut ours, mut theirs) = (class(CATEGORIES[0].1, &opts), class(CATEGORIES[0].1, &opts));

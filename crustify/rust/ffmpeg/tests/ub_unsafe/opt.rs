@@ -93,6 +93,7 @@ mod query {
     }
 
     #[test]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn every_ranged_key_on_a_class() {
         for key in RANGED {
             for flags in [NONE, MULTI, CHILDREN] {
@@ -103,6 +104,7 @@ mod query {
     }
 
     #[test]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn rejected_keys_own_nothing() {
         for key in UNRANGED {
             assert_eq!(query(&FAKE, key, NONE).err(), Some(ENOSYS), "{key:?}");
@@ -114,6 +116,7 @@ mod query {
     }
 
     #[test]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn real_object_with_children_search() {
         let o = Owned::with_child();
         let obj = shared(&o);
@@ -140,6 +143,7 @@ mod query {
     }
 
     #[test]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn callback_lists_free_every_owned_range_and_string() {
         // Two ranges of three components, each range owning its `str`;
         // LeakSanitizer reports any range or string the drop misses.
@@ -160,6 +164,7 @@ mod query {
     }
 
     #[test]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn views_and_copies_outlive_handles_but_not_the_owner() {
         let b = query(&CB_FAKE, c"size", MULTI).unwrap();
         // An iterator taken through a temporary handle keeps the owner's
@@ -190,6 +195,7 @@ mod query {
     /// (`Send` / `Sync` on `OptionRanges` and `ClassRef`; ThreadSanitizer
     /// reports any race).
     #[test]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn lists_are_read_moved_and_dropped_across_threads() {
         let b = query(&CB_FAKE, c"size", MULTI).unwrap();
         let shared: &OptionRangesBox = &b;
@@ -240,6 +246,7 @@ mod query {
     }
 
     #[test]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn many_lists_live_at_once() {
         let lists: Vec<_> = with_fake_class(&CB_FAKE, |class| {
             (0..64)
@@ -271,6 +278,7 @@ mod query_default {
     }
 
     #[test]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn every_key_one_range_of_one_component() {
         for key in RANGED {
             for flags in [NONE, MULTI, CHILDREN] {
@@ -291,6 +299,7 @@ mod query_default {
     }
 
     #[test]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn callback_is_bypassed() {
         // `"size"` is an image size: the default list has one component even
         // when the class callback would give three.
@@ -301,6 +310,7 @@ mod query_default {
     }
 
     #[test]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn real_object() {
         let o = Owned::new();
         let obj = shared(&o);
@@ -334,6 +344,7 @@ mod range_handles {
     /// drop then releases the new strings (and the replaced ones were
     /// released at once): LeakSanitizer reports a miss, ASan a double free.
     #[test]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn labels_replaced_on_every_element_are_released_once() {
         let mut b = query(&CB_FAKE, c"size", MULTI);
         let mut m = b.as_mut();
@@ -357,6 +368,7 @@ mod range_handles {
 
     /// A label taken out of a list outlives it; the list then frees none.
     #[test]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn taken_labels_outlive_the_list() {
         let mut b = query(&CB_FAKE, c"size", NONE);
         let mut taken = Vec::new();
@@ -380,6 +392,7 @@ mod range_handles {
     /// Default lists have NULL labels; setting, clearing and resetting one
     /// on a list that started without strings keeps the release balanced.
     #[test]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn default_list_labels_set_cleared_and_reset() {
         for key in RANGED {
             let mut b = query(&FAKE, key, MULTI);
@@ -398,6 +411,7 @@ mod range_handles {
     /// NULL elements of a sparse callback list have no exclusive handle, and
     /// rewriting their neighbours leaves them NULL.
     #[test]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn null_elements_stay_null_around_writes() {
         let mut b = query(&CB_FAKE, c"sparse", NONE);
         assert!(b.as_mut().get_mut(1, 0).is_none());
@@ -418,6 +432,7 @@ mod range_handles {
     /// and dropped on others (`Send` / `Sync` on `OptionRange` and its
     /// handles; ThreadSanitizer reports any race).
     #[test]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn ranges_are_written_read_and_moved_across_threads() {
         let mut b = query(&CB_FAKE, c"size", MULTI);
         let mut b = std::thread::spawn(move || {
@@ -508,6 +523,7 @@ mod set_options_string {
     }
 
     #[test]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn every_option_type() {
         if under_bsan() {
             return;
@@ -541,6 +557,7 @@ mod set_options_string {
     /// Owned values replaced many times, with values of growing size, and
     /// cleared: ASan sees every block C frees and allocates, LSan any left.
     #[test]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn owned_values_replaced_and_cleared() {
         if under_bsan() {
             return;
@@ -569,6 +586,7 @@ mod set_options_string {
     /// Lists in exactly sized heap strings, so ASan sees any read past
     /// their NUL; the separators likewise.
     #[test]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn exactly_sized_lists() {
         if under_bsan() {
             return;
@@ -611,6 +629,7 @@ mod set_options_string {
     }
 
     #[test]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn failures_leave_earlier_pairs_set() {
         if under_bsan() {
             return;
@@ -633,6 +652,7 @@ mod set_options_string {
     /// before C runs, with no pair set, wherever it sits in the list and
     /// whichever object of the tree it names.
     #[test]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn refused_values_set_nothing() {
         if under_bsan() {
             return;
@@ -662,6 +682,7 @@ mod set_options_string {
     /// A bare object has no options: every key is not found, and an empty
     /// list sets nothing.
     #[test]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn bare_objects_find_no_key() {
         static CLASS: Class = Class::new(c"crustify-opt-bare-list", ClassCategory::NA);
         let mut bare = BareObject::new(CLASS.as_ref()).unwrap();
@@ -722,6 +743,7 @@ mod set_options_string {
     });
 
     #[test]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn children_are_searched() {
         if under_bsan() {
             return;
@@ -751,6 +773,7 @@ mod set_options_string {
 
     /// Distinct objects set from many threads at once.
     #[test]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn distinct_objects_on_many_threads() {
         if under_bsan() {
             return;
@@ -772,6 +795,7 @@ mod set_options_string {
     }
 
     #[test]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn class_is_the_fixture_class() {
         let o = Owned::new();
         assert!(core::ptr::eq(obj(&o).class, &OBJ_CLASS.0));
@@ -853,6 +877,7 @@ mod objects {
     }
 
     #[test]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn object_ref_from_ptr() {
         // BSan reports C's reads through the end pointers glibc's uninstrumented
         // `strtod` / `strtol` / `strtoul` store (`eval.c:120`, `parseutils.c:391`)
@@ -914,6 +939,7 @@ mod objects {
     }
 
     #[test]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn object_mut_from_ptr() {
         // BSan reports C's reads through the end pointers glibc's uninstrumented
         // `strtod` / `strtol` / `strtoul` store (`eval.c:120`, `parseutils.c:391`)
@@ -1041,6 +1067,7 @@ mod objects {
     /// option: each is refused, fails in C, or sets a value, without a
     /// sanitizer report; the object stays readable and freeable.
     #[test]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn random_values() {
         // BSan reports C's reads through the end pointers glibc's uninstrumented
         // `strtod` / `strtol` / `strtoul` store (`eval.c:120`, `parseutils.c:391`)
@@ -1118,6 +1145,7 @@ mod objects {
     /// formatted reads, each through a fresh reborrow of the handle. The
     /// object tests BSan runs.
     #[test]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn typed_paths_across_reborrows() {
         let o = Owned::zeroed_with_child();
         let other = Owned::zeroed();
@@ -1153,6 +1181,7 @@ mod objects {
 
     /// The fixture's `Obj` layout is what the table's offsets describe.
     #[test]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn fixture_strings_are_c_strings() {
         let o = Owned::new();
         // SAFETY: a raw read of the defaulted object's string.
@@ -1290,6 +1319,7 @@ mod log_contexts {
     }
 
     #[test]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn null_and_classless_contexts_are_no_context() {
         // SAFETY: NULL is accepted.
         assert!(unsafe { ObjectRef::from_ptr(null_mut()) }.is_none());
@@ -1301,6 +1331,7 @@ mod log_contexts {
     }
 
     #[test]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn classed_contexts() {
         for class in [&READS_NAME, &READS_CATEGORY, &DEFAULT_NAME, &NO_NAME] {
             let mut local = Ctx::new(class);
@@ -1326,6 +1357,7 @@ mod log_contexts {
     /// Long colors: C copies at most 127 bytes after the marker, so the
     /// alpha specifier is cut off or missed, never read past.
     #[test]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn long_colors() {
         let mut ctx = Ctx::new(&READS_NAME);
         for n in [120, 126, 127, 128, 129, 1000] {
@@ -1346,11 +1378,14 @@ mod log_contexts {
     /// review: `BareObject::new` accepted them, and logging read past the
     /// object).
     #[test]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn bare_objects_refuse_classes_whose_callbacks_read_the_object() {
         for (class, bare) in [
             (&READS_NAME, false),
             (&READS_CATEGORY, false),
-            (&DEFAULT_NAME, true),
+            // `av_default_item_name` is recognised by address, which Miri does
+            // not keep stable: there it is refused, the safe side.
+            (&DEFAULT_NAME, cfg!(not(miri))),
             (&NO_NAME, true),
         ] {
             let mut ctx = Ctx::new(class);
@@ -1476,6 +1511,7 @@ mod previewed_values {
     /// `DEFAULT_NUMVAL` of an array option is its definition's address,
     /// non-zero: `not(not(default))` is 1 in C, and the preview agrees.
     #[test]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn array_defaults_preview_as_c_evaluates_them() {
         if under_bsan() {
             return;
@@ -1522,6 +1558,7 @@ mod previewed_values {
     /// and must leave no sanitizer report (UBSan recovers: the suite's log
     /// is grepped for `runtime error:`).
     #[test]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn clock_reading_operands_are_refused() {
         if under_bsan() {
             return;
@@ -1632,6 +1669,7 @@ mod typed_setters {
     }
 
     #[test]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn every_typed_setter_on_every_option() {
         let o = Owned::with_child();
         let names = obj_names();
@@ -1703,6 +1741,7 @@ mod typed_setters {
     }
 
     #[test]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn every_array_edit_of_every_value_type() {
         let o = OwnedArrays::with_child();
         let strings = exact(&[
@@ -1798,6 +1837,7 @@ mod typed_setters {
     /// with no string parses, so that BorrowSanitizer runs it without C's
     /// evaluator (whose `av_strtod` end pointers it misreports).
     #[test]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn borrowed_values_across_reborrows() {
         let o = OwnedArrays::zeroed_with_child();
         let s = Owned::zeroed_with_child();
@@ -1865,6 +1905,7 @@ mod typed_setters {
     /// again, a failure leaves the dictionary as it was, and every block is
     /// freed once (LeakSanitizer).
     #[test]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn dictionaries_handed_over_and_back() {
         if under_bsan() {
             return;
@@ -1898,6 +1939,7 @@ mod typed_setters {
     }
 
     #[test]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn distinct_objects_on_many_threads() {
         std::thread::scope(|s| {
             for t in 0..4 {
@@ -1989,6 +2031,7 @@ mod remove_array_shrink_failure {
     }
 
     #[test]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn failed_shrinks_leave_the_remaining_elements_once() {
         const KEY: &str = "CRUSTIFY_UB_UNSAFE_OPT_REMOVE_SHRINK_ISOLATED";
         if std::env::var_os(KEY).is_none() {
@@ -2082,6 +2125,7 @@ mod lookups {
     const NAMED: usize = OBJ_OPTIONS.0.len() - 1;
 
     #[test]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn found_options_and_walks_outlive_the_handles_that_found_them() {
         let o = Owned::with_child();
         let (int, walk, found, class) = {
@@ -2105,6 +2149,7 @@ mod lookups {
     }
 
     #[test]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn defaults_are_checked_across_writes_and_frees_on_parent_and_child() {
         let o = Owned::with_child();
         for round in 0..4 {
@@ -2189,6 +2234,7 @@ mod lookups {
     ];
 
     #[test]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn every_evaluator_on_every_option_refuses_undefined_values() {
         let o = Owned::with_child();
         let obj = shared(&o);
@@ -2225,6 +2271,7 @@ mod lookups {
     /// refusal, before C converts `1e300` to an `int` (options wave-2
     /// review, `ub_safe/eval-flags-token-split-hides-evaluator-call`).
     #[test]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn cut_flag_tokens_are_refused_by_evaluators_and_setters() {
         // BSan misreads C's reads through glibc `strtod` / `strtol` end
         // pointers (`eval.c:120`, `parseutils.c:166`) in these evaluations
@@ -2262,6 +2309,7 @@ mod lookups {
     /// `ClassRef` and `OptionDefRef`; an `EvalContext` holds no more than
     /// its handle, and is not `Send` only because an object's is not).
     #[test]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn class_contexts_evaluate_on_many_threads() {
         let o = Owned::new();
         let class = shared(&o).class();
@@ -2295,6 +2343,7 @@ mod lookups {
     /// nothing here parses a string, which BorrowSanitizer misreports at
     /// glibc-written end pointers.
     #[test]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn lookups_interleave_with_writes_through_reborrows() {
         let o = Owned::zeroed_with_child();
         let mut m = exclusive(&o);

@@ -2,6 +2,7 @@
 use ffmpeg::libavutil::{ffi, murmur3::Murmur3};
 
 #[test]
+#[cfg_attr(miri, ignore = "calls C")]
 fn streaming_seeds_reset_and_post_final_match_c() {
     let mut wrapped = Murmur3::new().unwrap();
     let reference = Murmur3::new().unwrap();
@@ -61,6 +62,7 @@ fn streaming_seeds_reset_and_post_final_match_c() {
 }
 
 #[test]
+#[cfg_attr(miri, ignore = "calls C")]
 fn interleaved_update_and_final_match_after_each_step() {
     let mut wrapped = Murmur3::new().unwrap();
     let reference = Murmur3::new().unwrap();

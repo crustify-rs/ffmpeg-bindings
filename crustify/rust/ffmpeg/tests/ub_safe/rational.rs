@@ -36,6 +36,7 @@ fn q(num: i32, den: i32) -> Rational {
 }
 
 #[test]
+#[cfg_attr(miri, ignore = "calls C")]
 fn every_pair_builds_and_reads_back() {
     for (num, den) in PAIRS {
         let q = Rational::new(num, den);
@@ -75,6 +76,7 @@ fn exclusive_handle_reborrows_without_aliasing() {
 }
 
 #[test]
+#[cfg_attr(miri, ignore = "calls C")]
 fn copies_outlive_and_are_independent_of_their_source() {
     let copy = {
         let mut boxed = HeapBox::<Rational>::new_zeroed().unwrap();
@@ -93,6 +95,7 @@ fn copies_outlive_and_are_independent_of_their_source() {
 }
 
 #[test]
+#[cfg_attr(miri, ignore = "calls C")]
 fn heap_box_owner_lives_reads_writes_clones_and_frees() {
     let mut a = HeapBox::<Rational>::new_zeroed().unwrap();
     for (num, den) in PAIRS {
@@ -111,6 +114,7 @@ fn heap_box_owner_lives_reads_writes_clones_and_frees() {
 }
 
 #[test]
+#[cfg_attr(miri, ignore = "calls C")]
 fn heap_array_handles_stay_in_bounds() {
     let mut a = alloc_cell_array_zeroed::<Rational>(PAIRS.len()).unwrap();
     assert!(a.as_handles().iter().all(|h| parts(h) == (0, 0)));
@@ -131,6 +135,7 @@ fn heap_array_handles_stay_in_bounds() {
 }
 
 #[test]
+#[cfg_attr(miri, ignore = "calls C")]
 fn values_and_owners_move_across_threads() {
     let q = Rational::new(24000, 1001);
     let b = HeapBox::<Rational>::new_zeroed().unwrap();
@@ -147,6 +152,7 @@ fn values_and_owners_move_across_threads() {
 }
 
 #[test]
+#[cfg_attr(miri, ignore = "calls C")]
 fn shared_handles_read_concurrently() {
     let q = Rational::new(1, 90000);
     let boxed = HeapBox::<Rational>::new_zeroed().unwrap();
@@ -164,6 +170,7 @@ fn shared_handles_read_concurrently() {
 }
 
 #[test]
+#[cfg_attr(miri, ignore = "calls C")]
 fn exclusive_handles_write_on_other_threads() {
     let mut values = [Rational::zeroed(); 4];
     let mut boxed = HeapBox::<Rational>::new_zeroed().unwrap();
@@ -215,6 +222,7 @@ fn inline_handles_cross_threads() {
 }
 
 #[test]
+#[cfg_attr(miri, ignore = "calls C")]
 fn rust_slices_copy_into_heap_arrays_and_back() {
     let values: Vec<Rational> = PAIRS.iter().map(|&(num, den)| q(num, den)).collect();
     // A Rust slice copied into an `av_malloc` block (`av_memdup`).
@@ -243,6 +251,7 @@ fn rust_slices_copy_into_heap_arrays_and_back() {
 }
 
 #[test]
+#[cfg_attr(miri, ignore = "calls C")]
 fn exclusive_array_views_split_and_iterate_without_aliasing() {
     let mut a = alloc_cell_array_zeroed::<Rational>(PAIRS.len()).unwrap();
     let mut all = a.as_handles_mut();
@@ -313,6 +322,7 @@ mod reduce {
     const BOUNDS: [i32; 7] = [i32::MIN, -1, 0, 1, 1 << 16, i32::MAX - 1, i32::MAX];
 
     #[test]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn every_extreme_is_refused_or_reduced_in_range() {
         for num in TERMS {
             for den in TERMS {
@@ -336,6 +346,7 @@ mod reduce {
     }
 
     #[test]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn concurrent_reductions_do_not_race() {
         std::thread::scope(|scope| {
             for t in 0..8i64 {
@@ -407,6 +418,7 @@ mod arithmetic {
     }
 
     #[test]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn every_edge_pair_computes() {
         let all = edges();
         let mut sum = 0i64;
@@ -425,6 +437,7 @@ mod arithmetic {
     }
 
     #[test]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn every_edge_converts() {
         for a in edges() {
             let _ = a.recip();
@@ -453,6 +466,7 @@ mod arithmetic {
     }
 
     #[test]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn random_triples_compare_distances() {
         let mut rng = Rng(0x9e37_79b9_7f4a_7c15);
         let all = edges();
@@ -466,6 +480,7 @@ mod arithmetic {
     }
 
     #[test]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn random_lists_find_the_nearest() {
         let mut rng = Rng(0x2545_f491_4f6c_dd1d);
         for _ in 0..5_000 {
@@ -483,6 +498,7 @@ mod arithmetic {
     }
 
     #[test]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn overflowing_operands_are_stepped_around() {
         let m = Rational::new(i32::MIN, i32::MIN);
         let two = m + m;
@@ -504,6 +520,7 @@ mod arithmetic {
     }
 
     #[test]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn operations_run_on_many_threads_at_once() {
         let workers: Vec<_> = (0..8u64)
             .map(|t| {

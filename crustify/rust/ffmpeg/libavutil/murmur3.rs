@@ -116,7 +116,7 @@ mod unit_tests {
     use super::*;
 
     #[test]
-    #[cfg_attr(miri, ignore)]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn allocation_failure() {
         const FLAG: &str = "CRUSTIFY_MURMUR3_FAILURE_CHILD";
         if std::env::var_os(FLAG).is_some() {
@@ -151,7 +151,7 @@ mod unit_tests {
     }
 
     #[test]
-    #[cfg_attr(miri, ignore)]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn owner_round_trip_and_null_adoption() {
         let owner = Murmur3::with_seed(0).unwrap();
         let ptr = owner.into_c();
@@ -164,7 +164,7 @@ mod unit_tests {
     }
 
     #[test]
-    #[cfg_attr(miri, ignore)]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn borrowed_raw_seams_preserve_identity() {
         let mut owner = Murmur3::new().unwrap();
         let shared = owner.as_ref();

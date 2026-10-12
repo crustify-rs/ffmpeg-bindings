@@ -15,6 +15,7 @@ use ffmpeg::libavutil::mem::{
 };
 
 #[test]
+#[cfg_attr(miri, ignore = "calls C")]
 fn uninit_array_is_filled_end_to_end_and_freed() {
     let mut a = alloc_array::<u64>(257).unwrap();
     assert_eq!(a.len(), 257);
@@ -26,6 +27,7 @@ fn uninit_array_is_filled_end_to_end_and_freed() {
 }
 
 #[test]
+#[cfg_attr(miri, ignore = "calls C")]
 fn every_element_shape_allocates_and_frees() {
     drop(alloc_array::<u8>(1).unwrap());
     drop(alloc_array::<u128>(3).unwrap());
@@ -38,6 +40,7 @@ fn every_element_shape_allocates_and_frees() {
 }
 
 #[test]
+#[cfg_attr(miri, ignore = "calls C")]
 fn zeroed_array_reads_zero_and_writes_stay_in_bounds() {
     let mut a = alloc_array_zeroed::<i32>(64).unwrap();
     assert!(a.as_slice().iter().all(|&x| x == 0));
@@ -52,12 +55,14 @@ fn zeroed_array_reads_zero_and_writes_stay_in_bounds() {
 }
 
 #[test]
+#[cfg_attr(miri, ignore = "calls C")]
 fn null_ptr_elements_are_plain_values() {
     let a = alloc_array_zeroed::<*const u8>(3).unwrap();
     assert!(a.as_slice().iter().all(|p| p.is_null()));
 }
 
 #[test]
+#[cfg_attr(miri, ignore = "calls C")]
 fn empty_and_zero_sized_arrays_are_sound() {
     for a in [
         alloc_array_zeroed::<u8>(0).unwrap(),
@@ -87,6 +92,7 @@ fn empty_arrays_never_reach_the_allocator() {
 }
 
 #[test]
+#[cfg_attr(miri, ignore = "calls C")]
 fn failed_allocations_are_none_not_dangling() {
     assert!(alloc_array::<u32>(usize::MAX).is_none());
     assert!(alloc_array::<u8>(usize::MAX).is_none());
@@ -95,6 +101,7 @@ fn failed_allocations_are_none_not_dangling() {
 }
 
 #[test]
+#[cfg_attr(miri, ignore = "calls C")]
 fn copies_are_independent_through_clone_chains() {
     let mut a = HeapVec::<u32>::from_slice(&[1, 2, 3, 4]).unwrap();
     let b = a.clone();
@@ -109,6 +116,7 @@ fn copies_are_independent_through_clone_chains() {
 }
 
 #[test]
+#[cfg_attr(miri, ignore = "calls C")]
 fn uninit_array_clones_without_reading_as_init() {
     let mut a = alloc_array::<u8>(32).unwrap();
     a.as_mut_slice()[0] = MaybeUninit::new(5);
@@ -117,6 +125,7 @@ fn uninit_array_clones_without_reading_as_init() {
 }
 
 #[test]
+#[cfg_attr(miri, ignore = "calls C")]
 fn panicking_initializer_leaves_nothing_behind() {
     let r = catch_unwind(|| {
         alloc_array_from_fn(16, |i| if i == 15 { panic!("stop") } else { i as u8 })
@@ -128,6 +137,7 @@ fn panicking_initializer_leaves_nothing_behind() {
 }
 
 #[test]
+#[cfg_attr(miri, ignore = "calls C")]
 fn owners_drop_on_other_threads() {
     let a = alloc_array_from_fn(1024, |i| i as u16).unwrap();
     let b = HeapVec::<u8>::from_slice(b"crustify").unwrap();
@@ -140,6 +150,7 @@ fn owners_drop_on_other_threads() {
 }
 
 #[test]
+#[cfg_attr(miri, ignore = "calls C")]
 fn shared_array_is_read_and_cloned_concurrently() {
     let a = alloc_array_from_fn(4096, |i| i as u32).unwrap();
     std::thread::scope(|s| {
@@ -155,6 +166,7 @@ fn shared_array_is_read_and_cloned_concurrently() {
 }
 
 #[test]
+#[cfg_attr(miri, ignore = "calls C")]
 fn exclusive_slices_are_written_from_scoped_threads() {
     let mut a = alloc_array_zeroed::<u64>(4000).unwrap();
     std::thread::scope(|s| {
@@ -187,6 +199,7 @@ fn sample_bytes() -> Vec<Vec<u8>> {
 }
 
 #[test]
+#[cfg_attr(miri, ignore = "calls C")]
 fn strings_are_built_read_and_freed_end_to_end() {
     for bytes in sample_bytes() {
         let s = string_from_bytes_until_nul(&bytes).unwrap();
@@ -201,6 +214,7 @@ fn strings_are_built_read_and_freed_end_to_end() {
 }
 
 #[test]
+#[cfg_attr(miri, ignore = "calls C")]
 fn interior_nul_truncates_and_never_reads_past_the_slice() {
     let s = string_from_bytes_until_nul(b"ab\0cd").unwrap();
     assert_eq!(s.as_bytes(), b"ab");
@@ -215,6 +229,7 @@ fn interior_nul_truncates_and_never_reads_past_the_slice() {
 }
 
 #[test]
+#[cfg_attr(miri, ignore = "calls C")]
 fn non_utf8_is_an_error_not_a_bad_str() {
     let s = string_from_bytes_until_nul(&[b'a', 0xff, 0xfe]).unwrap();
     assert!(s.to_str().is_err());
@@ -224,6 +239,7 @@ fn non_utf8_is_an_error_not_a_bad_str() {
 }
 
 #[test]
+#[cfg_attr(miri, ignore = "calls C")]
 fn string_copies_are_independent_through_clone_chains() {
     let a = string_from_c_str(c"origin").unwrap();
     let b = a.clone();
@@ -239,6 +255,7 @@ fn string_copies_are_independent_through_clone_chains() {
 }
 
 #[test]
+#[cfg_attr(miri, ignore = "calls C")]
 fn strings_drop_on_other_threads() {
     let s = string_from_c_str(c"travels").unwrap();
     let t = s.clone();
@@ -251,6 +268,7 @@ fn strings_drop_on_other_threads() {
 }
 
 #[test]
+#[cfg_attr(miri, ignore = "calls C")]
 fn shared_string_is_read_and_cloned_concurrently() {
     let s = string_from_bytes_until_nul(&[b'q'; 4000]).unwrap();
     std::thread::scope(|scope| {
@@ -266,6 +284,7 @@ fn shared_string_is_read_and_cloned_concurrently() {
 }
 
 #[test]
+#[cfg_attr(miri, ignore = "calls C")]
 fn optional_strings_and_debug_are_sound() {
     let none: Option<HeapString> = None;
     assert!(none.is_none());
@@ -277,6 +296,7 @@ fn optional_strings_and_debug_are_sound() {
 }
 
 #[test]
+#[cfg_attr(miri, ignore = "calls C")]
 fn dynarray_grows_through_every_doubling() {
     let mut a = DynArray::<u8>::new();
     assert_eq!(a.as_slice(), &[] as &[u8]);
@@ -302,6 +322,7 @@ fn dynarray_grows_through_every_doubling() {
 }
 
 #[test]
+#[cfg_attr(miri, ignore = "calls C")]
 fn dynarray_takes_every_element_shape() {
     let mut odd = DynArray::<[u8; 3]>::new();
     let mut wide = DynArray::<f64>::new();
@@ -318,6 +339,7 @@ fn dynarray_takes_every_element_shape() {
 }
 
 #[test]
+#[cfg_attr(miri, ignore = "calls C")]
 fn pointer_arrays_store_dangling_pointers_without_following_them() {
     let mut a = DynArray::<*const String>::new();
     let mut b = DynArray::<*mut u8>::new();
@@ -337,6 +359,7 @@ fn pointer_arrays_store_dangling_pointers_without_following_them() {
 }
 
 #[test]
+#[cfg_attr(miri, ignore = "calls C")]
 fn cell_elements_are_reached_through_handles() {
     let mut a = DynArray::<IntFloat64>::new();
     for i in 0..65u64 {
@@ -353,6 +376,7 @@ fn cell_elements_are_reached_through_handles() {
 }
 
 #[test]
+#[cfg_attr(miri, ignore = "calls C")]
 fn dynarrays_cross_and_share_threads() {
     let mut a = DynArray::<u32>::new();
     assert!(a.push_or_clear(1));
@@ -392,6 +416,7 @@ const FAST_SIZES: [usize; 11] = [
 ];
 
 #[test]
+#[cfg_attr(miri, ignore = "calls C")]
 fn fast_buffers_are_writable_end_to_end_after_every_regrowth() {
     let (mut keep, mut discard, mut zeroed) = (
         FastBuffer::new(),
@@ -427,6 +452,7 @@ fn fast_buffers_are_writable_end_to_end_after_every_regrowth() {
 }
 
 #[test]
+#[cfg_attr(miri, ignore = "calls C")]
 fn fast_buffers_cross_and_share_threads() {
     let mut keep = FastBuffer::new();
     assert!(keep.reserve(100));
@@ -472,6 +498,7 @@ mod realloc {
     }
 
     #[test]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn grow_shrink_cycles_stay_in_bounds() {
         let mut a = realloc_array::<u32>(HeapVec::empty(), 1).unwrap();
         for len in [1, 7, 64, 3, 0, 1000, 2, 4096, 1] {
@@ -487,6 +514,7 @@ mod realloc {
     }
 
     #[test]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn failures_leave_a_usable_array_or_free_it() {
         let mut a = alloc_array::<u64>(4).unwrap();
         touch(&mut a, 1);
@@ -506,6 +534,7 @@ mod realloc {
     }
 
     #[test]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn initialised_resizes_never_expose_uninit_elements() {
         let mut a = alloc_array_from_fn(0, |_| 0u64).unwrap();
         for len in [5, 1, 300, 0, 17] {
@@ -517,6 +546,7 @@ mod realloc {
     }
 
     #[test]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn panicking_fill_frees_the_storage() {
         // Plain elements: owning ones would leak, as `HeapVec` never drops
         // its elements, which LeakSanitizer reports.
@@ -528,6 +558,7 @@ mod realloc {
     }
 
     #[test]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn zero_sized_and_empty_arrays_are_sound() {
         let z = realloc_array::<()>(HeapVec::empty(), 1_000_000).unwrap();
         assert_eq!(z.len(), 1_000_000);
@@ -541,6 +572,7 @@ mod realloc {
     }
 
     #[test]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn in_place_slots_survive_every_transition() {
         let mut slot = HeapVec::<MaybeUninit<u8>>::empty();
         for size in [0, 9, usize::MAX, 0, 3, 4096, 0, 1] {
@@ -555,6 +587,7 @@ mod realloc {
     }
 
     #[test]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn arrays_resize_and_free_on_other_threads() {
         let a = alloc_array_from_fn(8, |i| i as u32).unwrap();
         let a = std::thread::spawn(move || resize_array_with(a, 64, |i| i as u32).unwrap())
@@ -587,6 +620,7 @@ fn check_back_reference(size: usize, dst: usize, back: usize, len: usize) {
 }
 
 #[test]
+#[cfg_attr(miri, ignore = "calls C")]
 fn back_references_stay_inside_exact_size_buffers() {
     // Every (dst, back, len) over exact-size buffers of up to 12 bytes (6
     // under BSan, whose per-access cost makes the full set take minutes), one
@@ -626,6 +660,7 @@ fn back_references_stay_inside_exact_size_buffers() {
 }
 
 #[test]
+#[cfg_attr(miri, ignore = "calls C")]
 fn long_back_references_take_every_fill_path() {
     // Every distance up to 70; under BSan, one per fill path and its edges.
     let (backs, size): (Vec<usize>, usize) = if under_bsan() {
@@ -677,6 +712,7 @@ fn oversized_back_references_are_rejected() {
 /// gibibyte is ever touched; the source stays on zero pages. Not under BSan
 /// or TSan, whose shadow of a 2 GiB buffer is impractical.
 #[test]
+#[cfg_attr(miri, ignore = "calls C")]
 fn back_references_past_the_doubling_bound_stay_inside() {
     let variant = std::env::var("CRUSTIFY_FFMPEG_VARIANT");
     if matches!(variant.as_deref(), Ok("bsan") | Ok("tsan")) {
@@ -695,6 +731,7 @@ fn back_references_past_the_doubling_bound_stay_inside() {
 }
 
 #[test]
+#[cfg_attr(miri, ignore = "calls C")]
 fn back_references_run_concurrently_on_separate_buffers() {
     let handles: Vec<_> = (1..=4)
         .map(|back| {
@@ -718,6 +755,7 @@ const ISOLATED: &str = "CRUSTIFY_UB_ISOLATED";
 /// each limit, while other threads keep allocating. The limit is
 /// process-global, so this runs in a child process running nothing else.
 #[test]
+#[cfg_attr(miri, ignore = "calls C")]
 fn allocations_obey_every_max_alloc_limit() {
     const NAME: &str = "mem::allocations_obey_every_max_alloc_limit";
     if std::env::var_os(ISOLATED).is_none() {

@@ -1,6 +1,7 @@
 use ffmpeg::libavutil::base64::{decode, encode, validate};
 
 #[test]
+#[cfg_attr(miri, ignore = "calls C")]
 fn batch10_roundtrips_truncation_and_reused_buffers() {
     let input: Vec<_> = (0..2048).map(|i| (i * 53) as u8).collect();
     for len in 0..80 {
@@ -20,6 +21,7 @@ fn batch10_roundtrips_truncation_and_reused_buffers() {
 }
 
 #[test]
+#[cfg_attr(miri, ignore = "calls C")]
 fn batch10_malformed_nul_padding_and_high_bytes() {
     for byte in 1..=255 {
         let text = std::ffi::CString::new(vec![byte; 17]).unwrap();

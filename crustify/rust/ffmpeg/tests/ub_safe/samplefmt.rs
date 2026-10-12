@@ -48,6 +48,7 @@ fn values_hash_and_compare_by_encoding() {
 }
 
 #[test]
+#[cfg_attr(miri, ignore = "calls C")]
 fn none_terminated_list_stops_at_its_terminator() {
     // The shape of `AVCodec.sample_fmts`: formats up to `NONE`, then storage
     // past it that a reader must not reach.
@@ -69,6 +70,7 @@ fn none_terminated_list_stops_at_its_terminator() {
 }
 
 #[test]
+#[cfg_attr(miri, ignore = "calls C")]
 fn zeroed_array_reads_u8_and_takes_every_value() {
     let values = sample();
     let mut a = alloc_array_zeroed::<SampleFormat>(values.len()).unwrap();
@@ -79,6 +81,7 @@ fn zeroed_array_reads_u8_and_takes_every_value() {
 }
 
 #[test]
+#[cfg_attr(miri, ignore = "calls C")]
 fn uninit_and_from_fn_arrays_fill_end_to_end() {
     let values = sample();
     let mut u = alloc_array::<SampleFormat>(values.len()).unwrap();
@@ -91,6 +94,7 @@ fn uninit_and_from_fn_arrays_fill_end_to_end() {
 }
 
 #[test]
+#[cfg_attr(miri, ignore = "calls C")]
 fn clone_is_independent_of_its_source() {
     let values = sample();
     let mut a = HeapVec::from_slice(&values).unwrap();
@@ -101,6 +105,7 @@ fn clone_is_independent_of_its_source() {
 }
 
 #[test]
+#[cfg_attr(miri, ignore = "calls C")]
 fn empty_arrays_allocate_and_free() {
     drop(alloc_array_zeroed::<SampleFormat>(0).unwrap());
     drop(alloc_array::<SampleFormat>(0).unwrap());
@@ -108,6 +113,7 @@ fn empty_arrays_allocate_and_free() {
 }
 
 #[test]
+#[cfg_attr(miri, ignore = "calls C")]
 fn arrays_cross_and_are_shared_between_threads() {
     let values = sample();
     let a = HeapVec::from_slice(&values).unwrap();
@@ -189,6 +195,7 @@ mod buffers {
     }
 
     #[test]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn every_owner_and_view_stays_inside_its_planes() {
         for f in FORMATS {
             for channels in [1, 2, 5, 9] {
@@ -235,6 +242,7 @@ mod buffers {
     }
 
     #[test]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn copies_between_layouts_stay_inside_both() {
         for f in FORMATS {
             let mut dst = SampleBuffer::new(3, 40, f, 64).unwrap();
@@ -270,6 +278,7 @@ mod buffers {
     }
 
     #[test]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn counts_at_c_s_int_limits_are_refused_before_allocating() {
         let max = i32::MAX as usize;
         for f in FORMATS {
@@ -298,6 +307,7 @@ mod buffers {
     }
 
     #[test]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn many_planar_channels_spill_the_plane_pointers() {
         // More planes than the inline pointer array holds (8), and a C
         // pointer array of 4096 entries; a few dozen under BSan, where the
@@ -316,6 +326,7 @@ mod buffers {
     }
 
     #[test]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn owners_cross_and_are_shared_between_threads() {
         let mut b = SampleBuffer::new(4, 64, SampleFormat::FLTP, 0).unwrap();
         b.as_mut().planes_mut().for_each(|p| p.fill(7));
@@ -342,6 +353,7 @@ mod buffers {
     }
 
     #[test]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn disjoint_caller_buffers_are_written_from_threads_at_once() {
         let size = samples_buffer_size(2, 256, SampleFormat::S32P, 0)
             .unwrap()
@@ -374,6 +386,7 @@ mod buffers {
     /// 2 GiB layout without it. Skipped under BSan, whose cost per byte
     /// makes a 2 GiB buffer impractical.
     #[test]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn default_alignment_of_int_max_minus_31_samples_does_not_overflow() {
         if std::env::var("CRUSTIFY_FFMPEG_VARIANT").as_deref() == Ok("bsan") {
             return;
@@ -394,6 +407,7 @@ mod buffers {
     }
 
     #[test]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn is_planar_accepts_every_value() {
         for raw in [i32::MIN, -2, -1, 0, 5, 11, 12, 13, i32::MAX] {
             let f = SampleFormat::from_raw(ffmpeg::libavutil::ffi::AVSampleFormat(raw));
@@ -418,6 +432,7 @@ mod sample_format_forms {
     }
 
     #[test]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn every_value_is_accepted() {
         for f in values() {
             for planar in [false, true] {
@@ -434,6 +449,7 @@ mod sample_format_forms {
     }
 
     #[test]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn calls_run_on_many_threads() {
         let all = values();
         let expect: Vec<_> = all
@@ -472,6 +488,7 @@ mod lookups {
     }
 
     #[test]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn lookups_of_every_value_stay_in_bounds() {
         for f in values() {
             let _ = f.name();
@@ -490,6 +507,7 @@ mod lookups {
     }
 
     #[test]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn lookups_on_many_threads() {
         thread::scope(|s| {
             for _ in 0..8 {

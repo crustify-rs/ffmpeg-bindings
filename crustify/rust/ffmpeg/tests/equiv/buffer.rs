@@ -177,6 +177,7 @@ fn finish(rust: &mut Side, c: &mut Side, observe: &mut dyn FnMut(&str)) {
 const SIZES: [usize; 5] = [0, 1, 7, 64, 4096];
 
 #[test]
+#[cfg_attr(miri, ignore = "calls C")]
 fn default_pools_hand_out_recycle_and_count_as_c() {
     for size in SIZES {
         for seed in 1..=6 {
@@ -192,6 +193,7 @@ fn default_pools_hand_out_recycle_and_count_as_c() {
 }
 
 #[test]
+#[cfg_attr(miri, ignore = "calls C")]
 fn owners_released_first_and_last_as_c() {
     for size in SIZES {
         // Released with nothing outstanding, with only free buffers, and with
@@ -248,6 +250,7 @@ impl Drop for DropCount {
 }
 
 #[test]
+#[cfg_attr(miri, ignore = "calls C")]
 fn allocator_pools_call_and_release_their_state_as_c_init2() {
     for size in [0, 16, 1000] {
         for fail_every in [0, 1, 2, 3] {
@@ -316,6 +319,7 @@ unsafe extern "C" fn c_alloc(size: usize) -> *mut ffi::AVBufferRef {
 }
 
 #[test]
+#[cfg_attr(miri, ignore = "calls C")]
 fn stateless_allocators_as_c_init() {
     for size in [1, 512] {
         INIT_CALLS.store(0, Ordering::SeqCst);
@@ -355,6 +359,7 @@ mod default_release {
     use ffmpeg::libavutil::mem::{HeapVec, alloc_array_zeroed};
 
     #[test]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn default_free_releases_as_the_c_callback() {
         for len in [0usize, 1, 7, 64, 4096] {
             // SAFETY: an `av_malloc` block of `len` bytes (or NULL, for 0 on a
@@ -767,6 +772,7 @@ mod reference {
     }
 
     #[test]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn single_references_read_as_c_from_every_constructor() {
         for size in SIZES {
             for kind in [
@@ -794,6 +800,7 @@ mod reference {
     }
 
     #[test]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn sequences_count_write_narrow_and_release_as_c() {
         // Writes that found the reference writable, and that did not.
         let mut outcomes = [0usize; 2];
@@ -1319,6 +1326,7 @@ mod mutation {
     }
 
     #[test]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn sequences_mutate_count_and_release_as_c() {
         // Mutators run, and C's copies, in-place resizes and same-buffer
         // assignments, so that the sequences demonstrably reach every path.
@@ -1573,6 +1581,7 @@ mod pool_get {
     }
 
     #[test]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn default_pools_get_as_c_with_null_opaques() {
         for size in [0, 3, 256] {
             for seed in 1..=4u64 {
@@ -1590,6 +1599,7 @@ mod pool_get {
     }
 
     #[test]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn allocator_opaques_come_back_as_c() {
         let state = Box::into_raw(Box::new(CState {
             frees: AtomicUsize::new(0),
@@ -1720,6 +1730,7 @@ mod pool_resize {
     }
 
     #[test]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn pool_buffers_resize_by_copy_as_c() {
         for size in SIZES {
             for len in LENS {

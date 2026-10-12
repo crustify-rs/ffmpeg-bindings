@@ -27,6 +27,7 @@ impl Drop for Reference {
 }
 
 #[test]
+#[cfg_attr(miri, ignore = "calls C")]
 fn allocation_initialization_metadata_and_reset_match() {
     for name in [
         c"MD5",
@@ -75,6 +76,7 @@ fn allocation_initialization_metadata_and_reset_match() {
 }
 
 #[test]
+#[cfg_attr(miri, ignore = "calls C")]
 fn failed_allocations_match_and_clear_the_output() {
     for name in [c"", c"unknown", c"SHA999", c"\xff"] {
         let mut context = ptr::null_mut();
@@ -89,6 +91,7 @@ fn failed_allocations_match_and_clear_the_output() {
 use ffmpeg::libavutil::hash;
 
 #[test]
+#[cfg_attr(miri, ignore = "calls C")]
 fn batch10_registry_indices_match_c() {
     for i in [i32::MIN, -1].into_iter().chain(0..64).chain([i32::MAX]) {
         // SAFETY: C checks every integer index and returns null or a static
@@ -105,6 +108,7 @@ fn batch10_registry_indices_match_c() {
 }
 
 #[test]
+#[cfg_attr(miri, ignore = "calls C")]
 fn allocation_failures_match_c() {
     // The av_max_alloc limit is process-global: run in an isolated child.
     const ISOLATED: &str = "CRUSTIFY_HASH_ALLOC_LIMIT_CHILD";
@@ -174,6 +178,7 @@ fn name_of(context: *const ffi::AVHashContext) -> &'static CStr {
 }
 
 #[test]
+#[cfg_attr(miri, ignore = "calls C")]
 fn all_algorithms_output_formats_and_capacities() {
     for index in 0..15 {
         let name = hash::name(index).unwrap();
@@ -255,6 +260,7 @@ mod beyond_int_max {
     }
 
     #[test]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn text_and_binary_finals_into_outputs_beyond_int_max_follow_c() {
         if under_bsan() {
             return;

@@ -29,6 +29,7 @@ fn c_make_string(buf: &mut [u8; SIZE], ts: i64) -> *mut core::ffi::c_char {
 }
 
 #[test]
+#[cfg_attr(miri, ignore = "calls C")]
 fn make_string_writes_as_av_ts_make_string() {
     for ts in STAMPS {
         let mut mine = [0xa5; SIZE];
@@ -45,6 +46,7 @@ fn make_string_writes_as_av_ts_make_string() {
 }
 
 #[test]
+#[cfg_attr(miri, ignore = "calls C")]
 fn reused_buffers_agree_after_every_step() {
     let mut mine = [0; SIZE];
     let mut theirs = [0; SIZE];
@@ -125,6 +127,7 @@ mod time_string {
     }
 
     #[test]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn make_time_string_writes_as_av_ts_make_time_string2() {
         for ts in STAMPS {
             for tb in BASES {
@@ -135,6 +138,7 @@ mod time_string {
     }
 
     #[test]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn reused_buffers_agree_after_every_step() {
         // C leaves `snprintf`'s bytes after the trimmed NUL, so each call's
         // buffer depends on the previous one.
@@ -151,6 +155,7 @@ mod time_string {
     }
 
     #[test]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn interleaved_with_make_string_agree_after_every_step() {
         let mut mine = [0x5a; SIZE];
         let mut theirs = [0x5a; SIZE];
@@ -168,6 +173,7 @@ mod time_string {
     }
 
     #[test]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn pseudo_random_stamps_and_bases_agree() {
         // A fixed xorshift sequence, so a failure reproduces.
         let mut x: u64 = 0x9e37_79b9_7f4a_7c15;
@@ -234,6 +240,7 @@ mod time_string_by_ref {
     }
 
     #[test]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn by_ref_writes_as_av_ts_make_time_string() {
         let stamps = STAMPS
             .into_iter()
@@ -256,6 +263,7 @@ mod time_string_by_ref {
     }
 
     #[test]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn reused_buffers_agree_after_every_step() {
         let mut mine = [0; SIZE];
         let mut theirs = [0; SIZE];

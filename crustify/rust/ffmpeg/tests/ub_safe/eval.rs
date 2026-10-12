@@ -45,6 +45,7 @@ const NUMBERS: [&[u8]; 30] = [
 ];
 
 #[test]
+#[cfg_attr(miri, ignore = "calls C")]
 fn rest_is_a_suffix_of_the_input() {
     for n in NUMBERS {
         let s = exact(n);
@@ -69,6 +70,7 @@ fn under_bsan() -> bool {
 /// Every string of up to three bytes over the bytes that steer C's suffix
 /// handling, each in its own exactly sized block.
 #[test]
+#[cfg_attr(miri, ignore = "calls C")]
 fn short_strings() {
     if under_bsan() {
         return;
@@ -91,6 +93,7 @@ fn short_strings() {
 
 /// The rest outlives every other borrow of the input but the input itself.
 #[test]
+#[cfg_attr(miri, ignore = "calls C")]
 fn rest_borrows_the_input() {
     let s = exact(b"12k rest");
     let rest = {
@@ -102,6 +105,7 @@ fn rest_borrows_the_input() {
 }
 
 #[test]
+#[cfg_attr(miri, ignore = "calls C")]
 fn many_threads() {
     std::thread::scope(|s| {
         for _ in 0..8 {
@@ -159,6 +163,7 @@ mod expr {
     }
 
     #[test]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn well_formed_and_malformed_input() {
         if under_bsan() {
             return;
@@ -213,6 +218,7 @@ mod expr {
     }
 
     #[test]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn nesting_up_to_and_past_the_limit() {
         if under_bsan() {
             return;
@@ -245,6 +251,7 @@ mod expr {
     }
 
     #[test]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn long_input_and_many_names() {
         if under_bsan() {
             return;
@@ -288,6 +295,7 @@ mod expr {
     }
 
     #[test]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn names_die_right_after_the_parse() {
         if under_bsan() {
             return;
@@ -305,6 +313,7 @@ mod expr {
     }
 
     #[test]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn trees_are_released_on_other_threads() {
         if under_bsan() {
             return;
@@ -331,6 +340,7 @@ mod expr {
     }
 
     #[test]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn many_threads_parse_at_once() {
         if under_bsan() {
             return;
@@ -359,6 +369,7 @@ mod expr {
     /// The `av_max_alloc` limit is process-global, so this test lowers it only in
     /// a child process running nothing else, and passes when the child does.
     #[test]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn allocation_failure_inside_the_parser() {
         if under_bsan() {
             return;
@@ -458,6 +469,7 @@ mod expressions {
     }
 
     #[test]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn builtins_with_literal_arguments_evaluate() {
         for (e, v) in [
             ("ld(0)", 0.0),
@@ -485,6 +497,7 @@ mod expressions {
     }
 
     #[test]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn constants_and_functions_reach_their_own_values() {
         let calls = Cell::new(0);
         let square = |x: f64| {
@@ -562,6 +575,7 @@ mod expressions {
     }
 
     #[test]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn functions_may_evaluate_again() {
         let inner = |x: f64| parse_and_eval(c"X*2", &[(c"X", x)], &[], &[], 0, None).unwrap();
         let funcs1: [Func1<'_>; 1] = [(c"twice", &inner)];
@@ -570,6 +584,7 @@ mod expressions {
     }
 
     #[test]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn a_panicking_function_unwinds_after_c_returns() {
         let calls = Cell::new(0);
         let boom = |_: f64| -> f64 {
@@ -585,6 +600,7 @@ mod expressions {
     }
 
     #[test]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn log_contexts_and_offsets() {
         static CLASS: Class = Class::new(c"crustify-eval-ub", ClassCategory::NA);
         let ctx = BareObject::new(CLASS.as_ref()).unwrap();
@@ -599,6 +615,7 @@ mod expressions {
     }
 
     #[test]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn expressions_from_many_threads() {
         std::thread::scope(|s| {
             for t in 0..4 {
@@ -618,6 +635,7 @@ mod expressions {
     /// Random expressions built from tokens near the refusal rules: each is
     /// refused, fails in C, or evaluates without a sanitizer report.
     #[test]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn random_expressions() {
         // BSan reports C's reads through the end pointers glibc's uninstrumented
         // `strtod` / `strtol` / `strtoul` store (`eval.c:120`, `parseutils.c:391`)
@@ -727,6 +745,7 @@ mod parse_with_context {
     }
 
     #[test]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn no_context() {
         if under_bsan() {
             return;
@@ -735,6 +754,7 @@ mod parse_with_context {
     }
 
     #[test]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn context_with_a_class() {
         if under_bsan() {
             return;
@@ -744,6 +764,7 @@ mod parse_with_context {
     }
 
     #[test]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn context_dropped_right_after_the_parse() {
         if under_bsan() {
             return;
@@ -761,6 +782,7 @@ mod parse_with_context {
     }
 
     #[test]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn contexts_on_many_threads() {
         if under_bsan() {
             return;
@@ -834,6 +856,7 @@ mod expression {
     ];
 
     #[test]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn every_construct_evaluates_again_and_again() {
         if under_bsan() {
             return;
@@ -873,6 +896,7 @@ mod expression {
     }
 
     #[test]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn counters_of_every_size() {
         if under_bsan() {
             return;
@@ -894,6 +918,7 @@ mod expression {
     }
 
     #[test]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn expressions_move_between_threads() {
         if under_bsan() {
             return;

@@ -239,6 +239,7 @@ mod unit_tests {
     }
 
     #[test]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn new_selects_exactly_the_supported_sizes() {
         for (a, _) in ALIGNMENTS {
             for bits in 1..=5u32 {
@@ -253,6 +254,7 @@ mod unit_tests {
     }
 
     #[test]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn new_returns_the_function_c_selects() {
         for (a, c) in ALIGNMENTS {
             for bits in 1..=5 {
@@ -272,6 +274,7 @@ mod unit_tests {
     }
 
     #[test]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn size_and_alignment_report_the_selection() {
         for f in all() {
             assert!([2, 4, 8, 16, 32].contains(&f.size()));
@@ -284,6 +287,7 @@ mod unit_tests {
     }
 
     #[test]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn sums_match_the_reference_and_c() {
         let (a, b) = (noise(7), noise(0x9e37_79b9));
         for f in all() {
@@ -316,6 +320,7 @@ mod unit_tests {
     }
 
     #[test]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn extreme_blocks_sum_to_the_maximum() {
         let (zeros, ones) = (Aligned([0u8; 2048]), Aligned([0xffu8; 2048]));
         for f in all() {
@@ -327,6 +332,7 @@ mod unit_tests {
     }
 
     #[test]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn short_blocks_are_rejected() {
         let a = noise(3);
         for f in all() {
@@ -349,6 +355,7 @@ mod unit_tests {
     }
 
     #[test]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn misaligned_blocks_are_rejected_as_assumed() {
         let a = noise(5);
         for f in all() {
@@ -380,6 +387,7 @@ mod unit_tests {
     }
 
     #[test]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn unaligned_functions_take_any_offset() {
         let (a, b) = (noise(11), noise(13));
         for bits in 1..=5u8 {
@@ -410,6 +418,7 @@ mod unit_tests {
     }
 
     #[test]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn handles_cross_threads() {
         let (a, b) = (noise(17), noise(19));
         let fns: Vec<SadFn> = all().collect();
@@ -447,6 +456,7 @@ mod unit_tests {
     /// C's plain functions (no SIMD), and the SSE2 ones without AVX2, sum
     /// as the reference does.
     #[test]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn every_cpu_tier_sums_alike() {
         if !isolated("libavutil::pixelutils::unit_tests::every_cpu_tier_sums_alike") {
             return;

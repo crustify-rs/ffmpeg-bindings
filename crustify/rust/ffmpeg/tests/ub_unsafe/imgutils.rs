@@ -63,12 +63,14 @@ unsafe fn checks(ctx: *mut c_void) {
 }
 
 #[test]
+#[cfg_attr(miri, ignore = "calls C")]
 fn null_context() {
     // SAFETY: NULL is "no parent context".
     unsafe { checks(ptr::null_mut()) };
 }
 
 #[test]
+#[cfg_attr(miri, ignore = "calls C")]
 fn classless_context() {
     let mut ctx = Box::new(Ctx { class: ptr::null() });
     // SAFETY: a live struct led by a NULL class pointer, unwritten while
@@ -77,6 +79,7 @@ fn classless_context() {
 }
 
 #[test]
+#[cfg_attr(miri, ignore = "calls C")]
 fn context_with_a_class() {
     let class = Box::new(class());
     let mut ctx = Box::new(Ctx { class: &*class });
@@ -85,6 +88,7 @@ fn context_with_a_class() {
 }
 
 #[test]
+#[cfg_attr(miri, ignore = "calls C")]
 fn shared_context_on_many_threads() {
     let class = class();
     let ctx = Ctx { class: &class };
@@ -160,12 +164,14 @@ mod max_pixels {
     }
 
     #[test]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn null_context() {
         // SAFETY: NULL is "no parent context".
         unsafe { checks(ptr::null_mut()) };
     }
 
     #[test]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn classless_context() {
         let mut ctx = Box::new(Ctx { class: ptr::null() });
         // SAFETY: a live struct led by a NULL class pointer, unwritten while
@@ -174,6 +180,7 @@ mod max_pixels {
     }
 
     #[test]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn context_with_a_class() {
         let class = Box::new(class());
         let mut ctx = Box::new(Ctx { class: &*class });
@@ -182,6 +189,7 @@ mod max_pixels {
     }
 
     #[test]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn shared_context_on_many_threads() {
         let class = class();
         let ctx = Ctx { class: &class };

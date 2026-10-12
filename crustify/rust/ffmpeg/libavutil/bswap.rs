@@ -41,6 +41,7 @@ mod unit_tests {
     use super::*;
 
     #[test]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn swaps_reverse_the_bytes() {
         assert_eq!(swap16(0x1234), 0x3412);
         assert_eq!(swap32(0x1234_5678), 0x7856_3412);
@@ -48,6 +49,7 @@ mod unit_tests {
     }
 
     #[test]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn swaps_are_involutions() {
         for x in [0, 1, 0x80, 0xff, 0x7fff, 0x8000, u16::MAX] {
             assert_eq!(swap16(swap16(x)), x);

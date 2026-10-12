@@ -6,6 +6,7 @@ use std::thread;
 use ffmpeg::libavutil::time::{now, now_relative, relative_is_monotonic, usleep};
 
 #[test]
+#[cfg_attr(miri, ignore = "calls C")]
 fn sleeping_on_many_threads_at_once() {
     let workers: Vec<_> = (0..8u32)
         .map(|i| thread::spawn(move || (0..20).try_for_each(|j| usleep(i * 10 + j))))
@@ -17,6 +18,7 @@ fn sleeping_on_many_threads_at_once() {
 }
 
 #[test]
+#[cfg_attr(miri, ignore = "calls C")]
 fn clocks_are_read_concurrently() {
     let handles: Vec<_> = (0..8)
         .map(|_| {

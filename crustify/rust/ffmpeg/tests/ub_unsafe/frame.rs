@@ -151,6 +151,7 @@ mod side_data_descriptor_from_raw {
     }
 
     #[test]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn c_table_entries_adopt_and_read_back() {
         let mut adopted = 0;
         for t in (0..256).chain([c_uint::MAX >> 1, c_uint::MAX]) {
@@ -256,6 +257,7 @@ mod side_data_array_from_raw_parts {
     }
 
     #[test]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn null_and_zero_is_the_empty_array() {
         // SAFETY: NULL and 0, the empty array C's routines start from.
         let a = unsafe { SideDataArray::from_raw_parts(ptr::null_mut(), 0) };
@@ -267,6 +269,7 @@ mod side_data_array_from_raw_parts {
     }
 
     #[test]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn exactly_sized_payloads_read_and_write_in_full() {
         let lens = [0, 1, 2, 15, 16, 17, 4095, 4096, 65537];
         let (sd, nb) = built(&lens);
@@ -281,6 +284,7 @@ mod side_data_array_from_raw_parts {
     }
 
     #[test]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn round_trips_with_c_shrinking_the_array_between() {
         let lens = [3, 0, 9, 1, 30, 7];
         let (mut sd, mut nb) = built(&lens);
@@ -310,6 +314,7 @@ mod side_data_array_from_raw_parts {
     }
 
     #[test]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn arrays_sharing_buffers_drop_in_either_order() {
         for first in [false, true] {
             let lens = [8, 0, 100, 5];
@@ -347,6 +352,7 @@ mod side_data_array_from_raw_parts {
     }
 
     #[test]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn references_c_keeps_for_the_caller_make_payloads_read_only() {
         // SAFETY: a fresh C buffer of 6 bytes, filled.
         let mut buf = unsafe {
@@ -387,6 +393,7 @@ mod side_data_array_from_raw_parts {
     }
 
     #[test]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn adopted_arrays_move_to_other_threads() {
         let lens = [10, 20, 0, 40];
         let (sd, nb) = built(&lens);
@@ -453,6 +460,7 @@ mod frame_type {
     }
 
     #[test]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn set_data_ptr_lends_external_planes_that_clones_copy() {
         for (w, h) in [(1, 1), (3, 5), (64, 2), (17, 17)] {
             let mut mem = pattern((w * h) as usize);
@@ -475,6 +483,7 @@ mod frame_type {
     }
 
     #[test]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn set_data_ptr_takes_null_and_pointers_into_own_buffers() {
         let mut f = Frame::new().unwrap();
         let mut m = f.as_mut();
@@ -493,6 +502,7 @@ mod frame_type {
     }
 
     #[test]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn a_buffer_at_index_0_clears_external_planes() {
         let mut mem = pattern(16);
         // SAFETY: `mem` is exactly the plane and outlives `f`.
@@ -510,6 +520,7 @@ mod frame_type {
 
     #[test]
     #[should_panic(expected = "plane 8 out of range")]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn set_data_ptr_panics_past_the_planes() {
         let mut f = Frame::new().unwrap();
         // SAFETY: NULL is always allowed; the index panics first.
@@ -545,6 +556,7 @@ mod frame_type {
     }
 
     #[test]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn set_extended_data_ptr_lends_channels_that_clones_copy() {
         for channels in [1usize, 2, 8, 9, 20] {
             for samples in [1, 33] {
@@ -573,6 +585,7 @@ mod frame_type {
 
     #[test]
     #[should_panic(expected = "extended plane 3 out of range")]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn set_extended_data_ptr_panics_past_the_channels() {
         let mut f = Frame::new().unwrap();
         f.as_mut()
@@ -600,6 +613,7 @@ mod frame_type {
     /// array of its own lending every channel, the clone copies them all
     /// (review `ub_unsafe/clone-reads-planar-channels-past-data`).
     #[test]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn clones_refuse_channels_past_data() {
         const SAMPLES: usize = 64;
         let mut mems: Vec<Vec<u8>> = (0..NUM_DATA_POINTERS + 1)
@@ -646,6 +660,7 @@ mod frame_type {
     /// `alloc_extended_data` copies no lent plane, so the old block may go
     /// (review `ub_unsafe/extended-data-keeps-a-replaced-external-plane`).
     #[test]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn extended_arrays_keep_no_lent_planes() {
         const SAMPLES: usize = 64;
         let mut left = pattern(SAMPLES);

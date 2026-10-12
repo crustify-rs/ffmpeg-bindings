@@ -91,6 +91,7 @@ mod component_descriptor {
     }
 
     #[test]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn copies_outlive_and_are_independent_of_their_source() {
         let copy = {
             let mut boxed = HeapBox::<ComponentDescriptor>::new_zeroed().unwrap();
@@ -110,6 +111,7 @@ mod component_descriptor {
     }
 
     #[test]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn heap_box_owner_lives_reads_writes_clones_and_frees() {
         let mut a = HeapBox::<ComponentDescriptor>::new_zeroed().unwrap();
         assert_eq!(fields(a.as_ref()), [0; 5]);
@@ -128,6 +130,7 @@ mod component_descriptor {
     }
 
     #[test]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn heap_array_handles_stay_in_bounds() {
         let mut a = alloc_cell_array_zeroed::<ComponentDescriptor>(FIELDS.len()).unwrap();
         assert!(a.as_handles().iter().all(|h| fields(h) == [0; 5]));
@@ -151,6 +154,7 @@ mod component_descriptor {
     }
 
     #[test]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn values_and_owners_move_across_threads() {
         let v = d(FIELDS[2]);
         let b = HeapBox::<ComponentDescriptor>::new_zeroed().unwrap();
@@ -167,6 +171,7 @@ mod component_descriptor {
     }
 
     #[test]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn shared_handles_read_concurrently() {
         let v = d(FIELDS[1]);
         let boxed = HeapBox::<ComponentDescriptor>::new_zeroed().unwrap();
@@ -184,6 +189,7 @@ mod component_descriptor {
     }
 
     #[test]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn exclusive_handles_write_on_other_threads() {
         let mut values = [ComponentDescriptor::new(); 4];
         let mut boxed = HeapBox::<ComponentDescriptor>::new_zeroed().unwrap();
@@ -213,6 +219,7 @@ mod component_descriptor {
     }
 
     #[test]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn heap_array_elements_written_from_separate_threads() {
         let mut a = alloc_cell_array_zeroed::<ComponentDescriptor>(4).unwrap();
         let mut handles = a.as_handles_mut();
@@ -329,6 +336,7 @@ mod color_names {
     }
 
     #[test]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn degenerate_names_are_refused() {
         for name in [
             &b""[..],
@@ -348,6 +356,7 @@ mod color_names {
     }
 
     #[test]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn table_names_are_found_by_their_property() {
         let tables: [&[&str]; 5] = [&RANGES, &PRIMARIES, &TRANSFERS[..19], &SPACES, &LOCATIONS];
         for (i, table) in tables.into_iter().enumerate() {
@@ -362,6 +371,7 @@ mod color_names {
     }
 
     #[test]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn lookups_run_on_many_threads() {
         let names: Vec<CString> = RANGES
             .iter()
@@ -402,6 +412,7 @@ mod swap_endianness {
     }
 
     #[test]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn every_value_swaps_or_refuses() {
         for f in values() {
             if let Some(g) = f.swap_endianness() {
@@ -412,6 +423,7 @@ mod swap_endianness {
     }
 
     #[test]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn swaps_from_threads_at_once() {
         let expect: Vec<_> = values().map(PixelFormat::swap_endianness).collect();
         thread::scope(|s| {
@@ -485,6 +497,7 @@ mod names_and_positions {
     }
 
     #[test]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn getters_accept_every_value() {
         for raw in unsigned_values() {
             for name in names(raw).into_iter().flatten() {
@@ -510,6 +523,7 @@ mod names_and_positions {
     }
 
     #[test]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn static_names_outlive_every_later_call() {
         let kept = all_names();
         let copies: Vec<CString> = kept.iter().map(|n| (*n).to_owned()).collect();
@@ -531,6 +545,7 @@ mod names_and_positions {
     }
 
     #[test]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn lookups_read_names_of_every_length_in_bounds() {
         let mut names: Vec<Vec<u8>> = vec![b"".to_vec(), b"\xff".to_vec()];
         for len in [1, 2, 28, 29, 30, 31, 32, 33, 64, 4096] {
@@ -552,6 +567,7 @@ mod names_and_positions {
     }
 
     #[test]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn calls_run_on_many_threads() {
         let expect: Vec<_> = unsigned_values().map(names).collect();
         let formats: Vec<_> = signed_values()
@@ -603,6 +619,7 @@ mod pixel_format_loss {
     }
 
     #[test]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn every_pair_scores_without_ub() {
         let all = formats();
         for &src in &all {
@@ -620,6 +637,7 @@ mod pixel_format_loss {
     }
 
     #[test]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn every_ignore_set_is_accepted() {
         let all = formats();
         for bits in [0, 1, 0xff, 0x100, i32::MAX, i32::MIN, -1, -2] {
@@ -637,6 +655,7 @@ mod pixel_format_loss {
     }
 
     #[test]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn scoring_runs_on_many_threads() {
         let all = formats();
         let expect: Vec<_> = all
@@ -894,6 +913,7 @@ mod pixel_format_descriptor {
     }
 
     #[test]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn heap_box_owner_lives_reads_writes_clones_and_frees() {
         let mut a = HeapBox::<PixelFormatDescriptor>::new_zeroed().unwrap();
         assert_eq!(
@@ -923,6 +943,7 @@ mod pixel_format_descriptor {
     }
 
     #[test]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn heap_array_handles_and_component_runs_stay_in_bounds() {
         let n = 5;
         let mut arr = alloc_cell_array_zeroed::<PixelFormatDescriptor>(n).unwrap();
@@ -950,6 +971,7 @@ mod pixel_format_descriptor {
     }
 
     #[test]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn heap_values_and_owners_move_across_threads() {
         let mut v = PixelFormatDescriptor::new();
         fill(&mut v.as_mut(), Some(leaked(b"bgra")), 2);
@@ -987,6 +1009,7 @@ mod pixel_format_descriptor {
     }
 
     #[test]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn heap_shared_handles_read_concurrently() {
         let mut b = HeapBox::<PixelFormatDescriptor>::new_zeroed().unwrap();
         fill(&mut b.as_mut(), Some(c"gbrp"), 2);
@@ -1050,6 +1073,7 @@ mod pixel_format_descriptor {
     }
 
     #[test]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn heap_array_elements_written_from_separate_threads() {
         let mut arr = alloc_cell_array_zeroed::<PixelFormatDescriptor>(4).unwrap();
         let mut handles = arr.as_handles_mut();
@@ -1085,6 +1109,7 @@ mod pixel_format_queries {
     }
 
     #[test]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn queries_of_every_value_stay_in_bounds() {
         for f in values() {
             let _ = f.plane_count();
@@ -1099,6 +1124,7 @@ mod pixel_format_queries {
     }
 
     #[test]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn queries_on_many_threads() {
         thread::scope(|s| {
             for _ in 0..8 {
@@ -1135,6 +1161,7 @@ mod descriptor_table {
     }
 
     #[test]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn every_value_looks_up_without_ub() {
         for raw in (-3..NB + 3).chain([i32::MIN, i32::MAX]) {
             if let Some(d) = format(raw).descriptor() {
@@ -1149,6 +1176,7 @@ mod descriptor_table {
     }
 
     #[test]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn static_handles_outlive_their_lookups_and_cross_threads() {
         static KEPT: OnceLock<Vec<PixelFormatDescriptorRef<'static>>> = OnceLock::new();
         let kept = KEPT.get_or_init(|| descriptors().collect());
@@ -1173,6 +1201,7 @@ mod descriptor_table {
     }
 
     #[test]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn walking_from_copies_and_fresh_descriptors_stops() {
         let first = descriptors().next().unwrap();
         let name = {
@@ -1193,6 +1222,7 @@ mod descriptor_table {
     const EDGES: [i32; 10] = [i32::MIN, -1, 0, 1, 3, 4, 8, 1 << 27, 1 << 28, i32::MAX];
 
     #[test]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn bit_counters_take_every_edge_descriptor() {
         let mut accepted = 0;
         for count in [0, 1, 4, 5, u8::MAX] {
@@ -1358,6 +1388,7 @@ mod image_lines {
     }
 
     #[test]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn table_lines_touch_only_the_bytes_checked() {
         let mut calls = 0;
         let lines: &[(usize, usize, usize)] = if under_bsan() {
@@ -1382,6 +1413,7 @@ mod image_lines {
     }
 
     #[test]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn bottom_up_lines_stop_at_the_planes_first_byte() {
         // Row 1 of a bottom-up plane is its first: a byte C reads before the
         // line's start is before the allocation.
@@ -1421,6 +1453,7 @@ mod image_lines {
     const DEPTHS: [i32; 15] = [-1, 0, 1, 5, 8, 9, 16, 24, 29, 30, 31, 32, 33, 63, 64];
 
     #[test]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn edge_descriptors_touch_only_the_bytes_checked() {
         let flag_sets = [
             PixelFormatFlags::empty(),
@@ -1466,6 +1499,7 @@ mod image_lines {
     }
 
     #[test]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn lines_on_many_threads_at_once() {
         // Formats whose every component has the image's full size.
         let formats = [

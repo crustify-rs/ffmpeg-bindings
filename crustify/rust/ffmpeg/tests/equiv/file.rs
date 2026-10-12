@@ -65,6 +65,7 @@ fn rust_map(name: &CStr) -> (Result<Vec<u8>, c_int>, usize) {
 }
 
 #[test]
+#[cfg_attr(miri, ignore = "calls C")]
 fn mapped_contents_match_c() {
     let page: Vec<u8> = (0..4096u32).map(|i| (i * 7 % 251) as u8).collect();
     for (name, contents) in [
@@ -81,6 +82,7 @@ fn mapped_contents_match_c() {
 }
 
 #[test]
+#[cfg_attr(miri, ignore = "calls C")]
 fn failures_report_the_c_error() {
     let dir = std::env::temp_dir();
     let missing = CString::new(
@@ -102,6 +104,7 @@ fn failures_report_the_c_error() {
 }
 
 #[test]
+#[cfg_attr(miri, ignore = "calls C")]
 fn remapping_after_each_rewrite_matches_c() {
     let f = TempFile::new("rewritten", b"");
     for (step, contents) in [&b"first"[..], b"", b"a longer second version", b"3"]

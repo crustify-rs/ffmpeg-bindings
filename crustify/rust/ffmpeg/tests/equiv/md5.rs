@@ -2,6 +2,7 @@
 use ffmpeg::libavutil::{ffi, md5::Md5};
 
 #[test]
+#[cfg_attr(miri, ignore = "calls C")]
 fn streaming_reset_and_post_final_match_c() {
     let mut wrapped = Md5::new().unwrap();
     let reference = Md5::new().unwrap();
@@ -57,6 +58,7 @@ fn streaming_reset_and_post_final_match_c() {
 }
 
 #[test]
+#[cfg_attr(miri, ignore = "calls C")]
 fn interleaved_update_and_final_match_after_each_step() {
     let mut wrapped = Md5::new().unwrap();
     let reference = Md5::new().unwrap();
@@ -82,6 +84,7 @@ fn interleaved_update_and_final_match_after_each_step() {
 use ffmpeg::libavutil::md5;
 
 #[test]
+#[cfg_attr(miri, ignore = "reads a C global")]
 fn batch10_size_is_the_c_global() {
     for _ in 0..4 {
         // SAFETY: this global is an immutable const int with static lifetime.
@@ -92,6 +95,7 @@ fn batch10_size_is_the_c_global() {
 }
 
 #[test]
+#[cfg_attr(miri, ignore = "calls C")]
 fn batch10_digest_sequences_match_c() {
     let data: Vec<_> = (0..1025).map(|i| (i * 97) as u8).collect();
     for len in [0, 1, 55, 56, 63, 64, 65, 119, 120, 127, 128, 1024] {

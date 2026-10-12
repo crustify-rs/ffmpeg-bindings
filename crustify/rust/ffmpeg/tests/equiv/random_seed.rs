@@ -6,6 +6,7 @@ use ffmpeg::libavutil::ffi;
 use ffmpeg::libavutil::random_seed::get;
 
 #[test]
+#[cfg_attr(miri, ignore = "calls C")]
 fn seeds_vary_on_each_side() {
     let rust: Vec<u32> = (0..8).map(|_| get()).collect();
     // SAFETY: `av_get_random_seed` takes no arguments.
@@ -50,6 +51,7 @@ mod bytes {
     }
 
     #[test]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn status_and_fill_match_c_across_lengths() {
         for len in [0, 1, 7, 16, 255, 4096] {
             let mut c = vec![0u8; len];
@@ -71,6 +73,7 @@ mod bytes {
     }
 
     #[test]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn repeated_calls_keep_drawing_fresh_bytes_as_c_does() {
         let mut c = [[0u8; 32]; 4];
         let mut r = [[0u8; 32]; 4];

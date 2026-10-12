@@ -3,6 +3,7 @@ use ffmpeg::libavutil::aes::Direction::{Decrypt, Encrypt};
 use ffmpeg::libavutil::des::{Des, DesBox};
 
 #[test]
+#[cfg_attr(miri, ignore = "calls C")]
 fn inline_heap_fields_and_reborrows() {
     #[repr(align(8))]
     struct KeyStorage([u8; 25]);
@@ -39,6 +40,7 @@ fn inline_heap_fields_and_reborrows() {
 }
 
 #[test]
+#[cfg_attr(miri, ignore = "calls C")]
 fn repeated_construction_and_destruction() {
     for _ in 0..128 {
         let mut owner = Des::new_boxed(&[0; 24], false).unwrap();
@@ -65,6 +67,7 @@ fn rust_only_layout_projection() {
 }
 
 #[test]
+#[cfg_attr(miri, ignore = "calls C")]
 fn copies_and_clones_outlive_their_sources() {
     let mut clones = Vec::new();
     for len in [8, 24] {
@@ -99,6 +102,7 @@ fn copies_and_clones_outlive_their_sources() {
 }
 
 #[test]
+#[cfg_attr(miri, ignore = "calls C")]
 fn crypt_foreign_writes_and_borrowed_inputs() {
     let mut inline = Des::zeroed();
     inline.as_mut().set_round_keys([[u64::MAX; 16]; 3]);
@@ -141,6 +145,7 @@ fn crypt_foreign_writes_and_borrowed_inputs() {
 }
 
 #[test]
+#[cfg_attr(miri, ignore = "calls C")]
 fn independent_crypt_contexts_on_threads() {
     let workers: Vec<_> = (0..4)
         .map(|_| {

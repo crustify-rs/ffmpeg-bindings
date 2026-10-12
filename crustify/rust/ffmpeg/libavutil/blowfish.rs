@@ -208,7 +208,7 @@ mod unit_tests {
 
     // No FFI: also run under Miri to check layout, projection and reborrows.
     #[test]
-    #[cfg(not(miri))]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn rejected_buffers_are_atomic() {
         let key = [0; 1];
         let context = Blowfish::new(&key).unwrap();
@@ -262,6 +262,7 @@ mod unit_tests {
     }
 
     #[test]
+    #[cfg_attr(miri, ignore = "calls C")]
     fn raw_owner_round_trip() {
         let context = Blowfish::new_boxed(b"key").unwrap();
         let expected = context.as_ref().p();
