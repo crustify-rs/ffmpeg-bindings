@@ -1,0 +1,7 @@
+error[E0133]: call to unsafe function `FramesContextMut::<'a>::set_pool` is unsafe and requires unsafe block
+ --> tests/ub_safe/compile_fail/hwcontext_frames_set_pool_needs_unsafe.rs
+  |
+  |     let _ = frames.context_mut().set_pool(pool);
+  |             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ call to unsafe function
+  |
+  = note: consult the function's documentation for information on how to avoid undefined behavior

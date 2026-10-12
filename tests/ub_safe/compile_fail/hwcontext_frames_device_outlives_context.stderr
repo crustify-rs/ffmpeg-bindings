@@ -1,0 +1,16 @@
+error[E0505]: cannot move out of `frames` because it is borrowed
+ --> tests/ub_safe/compile_fail/hwcontext_frames_device_outlives_context.rs
+  |
+  | fn device(frames: FramesReferenceBox) {
+  |           ------ binding `frames` declared here
+  |     let device = frames.as_ref().context().device();
+  |                  ------ borrow of `frames` occurs here
+  |     drop(frames);
+  |          ^^^^^^ move out of `frames` occurs here
+  |     let _ = device.alloc_frames();
+  |             ------ borrow later used here
+  |
+help: consider cloning the value if the performance cost is acceptable
+  |
+4 |     let device = frames.clone().as_ref().context().device();
+  |                        ++++++++

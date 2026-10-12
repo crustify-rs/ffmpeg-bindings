@@ -1171,6 +1171,136 @@
    ]
   },
   {
+   "name": "AVHWFramesContext",
+   "defined_in": "libavutil/hwcontext.h",
+   "_comment_agent": "hwcontext wave-2 batch-0 (wrap). AVHWFramesContext is only ever reached through the data of an AVBufferRef: av_hwframe_ctx_alloc av_mallocz's an FFHWFramesContext (public struct first; hw_type, pool_internal, source_frames, source_allocation_map_flags), allocates hwctx, references the device, wraps it in a READONLY AVBuffer released by hwframe_ctx_free, and returns the reference (av_hwframe_ctx_create_derived builds on it and returns initialised derived contexts). Clone = av_buffer_ref, drop = av_buffer_unref; the last one runs hwframe_ctx_free: pool_internal uninit, backend frames_uninit (also for never-initialised contexts), ctx->free, source_frames unref, device_ref unref, av_freep(hwctx), av_freep(ctx). No symbol takes or returns AVHWFramesContext * for its lifecycle (only AVBufferRef * / uint8_t *), so `query symbols --lifetime-for AVHWFramesContext` stays empty; hwframe_ctx_free is submitted as the dropper on its data argument. Construction phase: alloc (format/sw_format AV_PIX_FMT_NONE, size/pool 0) -> caller fills format, sw_format, width, height, initial_pool_size, optionally pool, hwctx, free, user_opaque -> av_hwframe_ctx_init (validates format against the backend list and the size with av_image_check_size, frames_init, adopts pool_internal when pool is NULL, preallocates initial_pool_size frames). After init the struct is read-only for callers. Rust: FramesContext{,Ref,Mut} layout over the public struct; UninitFrames lends context()/context_mut() (replacing wave 1's raw as_mut_ptr seam), FramesReferenceRef::context() a read-only FramesContextRef. Plain fields get getters/setters; av_class/device_ref/device_ctx getters only; hwctx and pool typed access unsafe; free/user_opaque/pool (when set from Rust) live in Rust hooks.",
+   "fields": [
+    {
+     "name": "av_class",
+     "ptr": {
+      "scalar": {
+       "by_val": true
+      },
+      "array": null,
+      "string": false,
+      "owned": false,
+      "borrowed": {
+       "lifetime": "static"
+      },
+      "nullable": false,
+      "mutable": false,
+      "note": "const AVClass *; av_hwframe_ctx_alloc stores &hwframe_ctx_class, a static const class, and nothing writes it afterwards. Rust: FramesContextRef::class, no setter."
+     }
+    },
+    {
+     "name": "device_ctx",
+     "ptr": {
+      "scalar": {
+       "by_val": true
+      },
+      "array": null,
+      "string": false,
+      "owned": false,
+      "borrowed": {
+       "lifetime": "other"
+      },
+      "nullable": false,
+      "mutable": false,
+      "note": "Borrowed alias of device_ref->data (&FFHWDeviceContext.p), set by av_hwframe_ctx_alloc and never changed; kept alive by device_ref, i.e. by the frames context itself. The device context is initialised and shared, so only read. Rust: FramesContextRef::device_context() -> DeviceContextRef<'a>."
+     }
+    },
+    {
+     "name": "device_ref",
+     "ptr": {
+      "scalar": {
+       "by_ref": {
+        "owned": true,
+        "borrowed": null
+       }
+      },
+      "array": null,
+      "string": false,
+      "owned": true,
+      "borrowed": null,
+      "nullable": false,
+      "mutable": false,
+      "note": "An owned AVBufferRef to the initialised device context the frames context was allocated on: av_hwframe_ctx_alloc stores av_buffer_ref(device_ref_in); hwframe_ctx_free av_buffer_unref's it after ctx->free. Never replaced by any C code (backends and libavcodec/libavfilter only av_buffer_ref it); hwctx size and backend (ctxi->hw_type) were chosen by this device, so a replacement by another device is unsound. Rust: FramesContextRef::device() -> DeviceReferenceRef<'a> (borrowed, lifetime of the context), owning copy via try_clone; no setter."
+     }
+    },
+    {
+     "name": "free",
+     "ptr": {
+      "scalar": {
+       "by_val": true
+      },
+      "array": null,
+      "string": false,
+      "owned": false,
+      "borrowed": {
+       "lifetime": "static"
+      },
+      "nullable": true,
+      "mutable": false,
+      "note": "Function pointer called once by hwframe_ctx_free (last av_buffer_unref), after pool_internal is uninit'd and the backend's frames_uninit, before source_frames/device_ref unref and hwctx/context free. NULL unless set before init by the caller or C code: libavcodec nvdec sets it alone (nvdec_free_dummy uninits the pool it set), vulkan_decode with user_opaque (free_profile_data av_frees it). So neither field tells whether the other is set: a wrapper that claims the pair must find both unset. Rust: Box<FramesHooks> in user_opaque marked by free == RELEASE_FRAMES_HOOKS; set_free_callback / take_free_callback / has_free_callback."
+     }
+    },
+    {
+     "name": "hwctx",
+     "ptr": {
+      "scalar": {
+       "by_val": true
+      },
+      "array": null,
+      "string": false,
+      "owned": true,
+      "borrowed": null,
+      "nullable": true,
+      "mutable": true,
+      "note": "av_mallocz(hw_type->frames_hwctx_size) by av_hwframe_ctx_alloc (NULL when the size is 0), av_freep'd by hwframe_ctx_free last. Type-erased: the device type's public frames context (AVVAAPIFramesContext, AVD3D11VAFramesContext, ...). The caller may fill it before av_hwframe_ctx_init; backends' frames_init use what it provides and frames_uninit release what they find; some backends write it while allocating frames (d3d11va texture_infos). The pointer itself is never replaced. Rust: unsafe FramesContextRef::hwctx<T> / FramesContextMut::into_hwctx<T>."
+     }
+    },
+    {
+     "name": "pool",
+     "ptr": {
+      "scalar": {
+       "by_ref": {
+        "owned": true,
+        "borrowed": {
+         "lifetime": "other"
+        }
+       }
+      },
+      "array": null,
+      "string": false,
+      "owned": false,
+      "borrowed": {
+       "lifetime": "other"
+      },
+      "nullable": true,
+      "mutable": true,
+      "note": "Runtime ownership. Either the caller's (set before av_hwframe_ctx_init; C never releases it - hwframe_ctx_free uninits only ctxi->pool_internal - so the caller frees it from its free callback, as nvdec does), or, when left NULL, set by av_hwframe_ctx_init to the backend's pool_internal (made in frames_init), which hwframe_ctx_free uninits first while leaving ctx->pool dangling during frames_uninit and ctx->free. av_hwframe_get_buffer requires it (EINVAL when NULL); backends' frames_get_buffer take av_buffer_pool_get(ctx->pool) and use the buffer's data as their surface handle (VASurfaceID cast to a pointer, AVD3D11FrameDescriptor, CUdeviceptr), so its buffers are generally not bytes. Rust: a pool set by unsafe FramesContextMut::set_pool is owned by the frames hooks and dropped by the trampoline before the free callback (which then sees pool NULL); take_pool returns it; has_pool safe; unsafe FramesContextRef::pool lends a BufferPoolRef (caller vouches buffers are bytes)."
+     }
+    },
+    {
+     "name": "user_opaque",
+     "ptr": {
+      "scalar": {
+       "by_val": true
+      },
+      "array": null,
+      "string": false,
+      "owned": false,
+      "borrowed": {
+       "lifetime": "other"
+      },
+      "nullable": true,
+      "mutable": null,
+      "note": "Cookie C itself never reads or frees; it belongs to whoever installed `free` (vulkan_decode: an av_malloc'd profile struct its free callback av_frees). Rust keeps its own Box<FramesHooks> (user data, free closure, owned pool) here, installed only when free and user_opaque are both NULL, recognised by free == its trampoline, dropped by the trampoline."
+     }
+    }
+   ]
+  },
+  {
    "name": "AVHashContext",
    "defined_in": "libavutil/hash.c",
    "_comment_agent": "Public API opaque. av_hash_alloc owns context plus child; requires separate av_hash_init before hashing. Safe constructor combines allocation/init, av_hash_freep releases both. Metadata independent of initialization/finalization; name points into static hashdesc. All field touchers are in hash.c; consumers allocate/init/use/free opaque pointers. No clone, refcount, inline dispose, or public field surface; C owns layout/storage. No Send/Sync assertion.",
@@ -19536,6 +19666,51 @@
       "nullable": true,
       "mutable": null,
       "note": "The AVBuffer's opaque, which av_hwdevice_ctx_alloc passes as NULL to av_buffer_create; never read."
+     }
+    }
+   ]
+  },
+  {
+   "name": "hwframe_ctx_free",
+   "defined_in": "libavutil/hwcontext.c",
+   "lifetime": {
+    "for": "data",
+    "is_dropper": true,
+    "is_disposer": false,
+    "is_cloner": null,
+    "is_constructor": null
+   },
+   "ptr_args": [
+    {
+     "name": "data",
+     "ptr": {
+      "scalar": {
+       "by_val": true
+      },
+      "array": null,
+      "string": false,
+      "owned": true,
+      "borrowed": null,
+      "nullable": false,
+      "mutable": true,
+      "note": "The buffer's data: the FFHWFramesContext (public AVHWFramesContext first) av_hwframe_ctx_alloc av_mallocz'd and handed to av_buffer_create as a READONLY buffer whose free callback this is. av_buffer_unref calls it once, with the last reference gone. It uninits pool_internal, runs the backend's frames_uninit (also for a never-initialised context), then ctx->free (C code's, or Rust's release_frames_hooks trampoline when the hooks are installed), unrefs source_frames and device_ref, and av_freep's hwctx and the context. A caller-set ctx->pool is never released here. This is AVHWFramesContext's only releaser: no symbol takes an AVHWFramesContext * to free it, so the lifecycle is reached through the AVBufferRef (Rust: ContextUnref = av_buffer_unref on FramesReferenceBox/UninitFrames)."
+     }
+    },
+    {
+     "name": "opaque",
+     "ptr": {
+      "scalar": {
+       "by_val": true
+      },
+      "array": null,
+      "string": false,
+      "owned": false,
+      "borrowed": {
+       "lifetime": "call"
+      },
+      "nullable": true,
+      "mutable": null,
+      "note": "The AVBuffer's opaque, which av_hwframe_ctx_alloc passes as NULL to av_buffer_create; never read."
      }
     }
    ]

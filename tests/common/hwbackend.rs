@@ -33,6 +33,8 @@ use core::ffi::{c_char, c_int, c_void};
 use core::mem::{size_of, zeroed};
 use core::ptr::{self, addr_of, addr_of_mut, null_mut};
 
+use ffibox::define_ctype;
+
 use super::ffi;
 
 type DeviceCtx = ffi::AVHWDeviceContext;
@@ -159,6 +161,31 @@ pub struct FramesHwctx {
     pub no_pool: c_int,
     /// When negative, kind A's transfer result for frames of this context.
     pub transfer_ret: c_int,
+}
+
+define_ctype!(
+    /// [`FramesHwctx`], the test backends' frames context, as the frames
+    /// context wrappers type `hwctx`.
+    FramesHw,
+    FramesHwRef,
+    FramesHwMut,
+    FramesHwctx
+);
+
+impl FramesHwRef<'_> {
+    /// The backend results the frames context holds.
+    pub fn get(&self) -> FramesHwctx {
+        // SAFETY: the live frames struct the handle borrows.
+        unsafe { self.as_ptr().read() }
+    }
+}
+
+impl FramesHwMut<'_> {
+    /// Sets the backend results of the frames context.
+    pub fn set(&mut self, hwctx: FramesHwctx) {
+        // SAFETY: the live frames struct the handle borrows exclusively.
+        unsafe { self.as_mut_ptr().write(hwctx) }
+    }
 }
 
 /// The bytes of a surface.

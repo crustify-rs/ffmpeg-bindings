@@ -855,3 +855,405 @@ mod device_context {
         }
     }
 }
+
+#[path = "../common/hwbackend.rs"]
+mod hwbackend;
+
+/// UB tests for the unsafe public API the `AVHWFramesContext` wrapper adds
+/// (hwcontext wave 2, batch 0), each called within its `# Safety` contract:
+/// [`FramesContextRef::hwctx`], [`FramesContextMut::into_hwctx`],
+/// [`FramesContextRef::pool`] and [`FramesContextMut::set_pool`], next to
+/// the safe hooks they share a context with.
+///
+/// The campaign builds compile no hardware backend, so every device comes
+/// from the test backends of `tests/common/hwbackend.rs`, adopted once
+/// ([`device`]); C's own `av_hwframe_ctx_alloc`/`init`, `get_buffer` and
+/// releases run on them. Their pools hold zeroed surface-sized bytes, and
+/// their `frames_get_buffer` takes any buffer of the context's pool for a
+/// surface, so a pool of bytes is within `set_pool`'s contract here.
+///
+/// [`FramesContextRef::hwctx`]: ffmpeg::libavutil::hwcontext::FramesContextRef::hwctx
+/// [`FramesContextMut::into_hwctx`]: ffmpeg::libavutil::hwcontext::FramesContextMut::into_hwctx
+/// [`FramesContextRef::pool`]: ffmpeg::libavutil::hwcontext::FramesContextRef::pool
+/// [`FramesContextMut::set_pool`]: ffmpeg::libavutil::hwcontext::FramesContextMut::set_pool
+mod frames_context {
+    use core::ffi::c_int;
+    use core::sync::atomic::{AtomicUsize, Ordering};
+    use std::sync::{Arc, Mutex};
+    use std::thread;
+
+    use ffmpeg::libavutil::buffer::{BufferPool, BufferPoolBox, BufferReference};
+    use ffmpeg::libavutil::ffi;
+    use ffmpeg::libavutil::hwcontext::{
+        DeviceReferenceBox, FramesContextMut, FramesReferenceBox, UninitFrames,
+    };
+    use ffmpeg::libavutil::pixfmt::PixelFormat;
+
+    use super::hwbackend::{self as fx, FramesHw, FramesHwctx, Kind, SURFACE_SIZE};
+
+    /// The one unsafe fixture: an initialised test device of `kind`,
+    /// adopted.
+    fn device(kind: Kind) -> DeviceReferenceBox {
+        // SAFETY: the only reference to an initialised test device context,
+        // built as `av_hwdevice_ctx_alloc` builds one.
+        unsafe { DeviceReferenceBox::from_c(fx::device(kind)) }.unwrap()
+    }
+
+    /// A frames context of `kind` on `device`, filled for an init that
+    /// succeeds and preallocates `prealloc` frames.
+    fn uninit(device: &DeviceReferenceBox, kind: Kind, prealloc: c_int) -> UninitFrames {
+        let mut u = device.as_ref().alloc_frames().unwrap();
+        let mut m = u.context_mut();
+        m.set_format(PixelFormat::from_raw(kind.format()));
+        m.set_sw_format(PixelFormat::NV12);
+        m.set_width(64);
+        m.set_height(32);
+        m.set_initial_pool_size(prealloc);
+        u
+    }
+
+    /// A pool of surface-sized bytes counting its allocations into `allocs`;
+    /// its allocator holds a [`Dropped`] counting into `drops`.
+    fn pool(allocs: &Arc<AtomicUsize>, drops: &Arc<AtomicUsize>) -> BufferPoolBox {
+        let (a, token) = (allocs.clone(), Dropped(drops.clone()));
+        // SAFETY: each buffer is a fresh `size`-byte allocation, and the
+        // allocator never calls into the pool.
+        unsafe {
+            BufferPool::with_allocator(SURFACE_SIZE, move |n| {
+                let _ = &token;
+                a.fetch_add(1, Ordering::SeqCst);
+                BufferReference::alloc(n)
+            })
+        }
+        .unwrap()
+    }
+
+    /// A value that counts its drops.
+    struct Dropped(Arc<AtomicUsize>);
+    impl Drop for Dropped {
+        fn drop(&mut self) {
+            self.0.fetch_add(1, Ordering::SeqCst);
+        }
+    }
+
+    /// A reference handed to C, which another thread releases.
+    struct CReference(*mut ffi::AVBufferRef);
+    // SAFETY: C counts references atomically, and the frames context's
+    // release runs the test backend's thread-agnostic uninit and the `Send`
+    // Rust hooks.
+    unsafe impl Send for CReference {}
+    impl CReference {
+        fn release(mut self) {
+            // SAFETY: a reference C owns, released once.
+            unsafe { ffi::av_buffer_unref(&mut self.0) };
+        }
+    }
+
+    fn references(frames: &FramesReferenceBox, n: usize) -> Vec<CReference> {
+        (0..n)
+            .map(|_| CReference(frames.as_ref().try_clone().unwrap().into_c()))
+            .collect()
+    }
+
+    /// [`FramesContextRef::hwctx`]: typed shared reads from uninitialised
+    /// and initialised contexts, through several handles at once.
+    ///
+    /// [`FramesContextRef::hwctx`]: ffmpeg::libavutil::hwcontext::FramesContextRef::hwctx
+    mod ref_hwctx {
+        use super::*;
+
+        #[test]
+        fn reads_follow_the_owner_and_outlive_no_reference() {
+            let a = device(Kind::A);
+            let u = uninit(&a, Kind::A, 0);
+            // SAFETY: the test backends' frames struct is a `FramesHwctx`,
+            // written by no one meanwhile.
+            let hw = unsafe { u.context().hwctx::<FramesHw>() }.unwrap();
+            assert_eq!(hw.get().init_ret, 0);
+            let frames = u.init().unwrap();
+            let copy = frames.clone();
+            let (x, y) = (frames.as_ref().context(), copy.as_ref().context());
+            // SAFETY: as above; the test backends never write it.
+            let hx = unsafe { x.hwctx::<FramesHw>() }.unwrap();
+            // SAFETY: as above.
+            let hy = unsafe { y.hwctx::<FramesHw>() }.unwrap();
+            assert_eq!(hx.get().no_pool, hy.get().no_pool);
+            let frame = frames.as_ref().get_buffer().unwrap();
+            drop((frames, copy));
+            // SAFETY: as above, through the frame's own reference.
+            let hw = unsafe { frame.frames().context().hwctx::<FramesHw>() }.unwrap();
+            assert_eq!(hw.get().get_buffer_ret, 0);
+            drop(frame);
+            drop(a);
+            fx::take_events();
+        }
+
+        #[test]
+        fn reads_on_the_free_callback() {
+            let a = device(Kind::B);
+            let seen = Arc::new(Mutex::new(None));
+            let mut u = uninit(&a, Kind::B, 0);
+            let s = seen.clone();
+            u.context_mut()
+                .set_free_callback(move |ctx: FramesContextMut<'_>| {
+                    // SAFETY: the frames struct, still allocated while the
+                    // callback runs.
+                    let hw = unsafe { ctx.as_ref().hwctx::<FramesHw>() }.unwrap();
+                    *s.lock().unwrap() = Some(hw.get().derive_ret);
+                })
+                .ok()
+                .unwrap();
+            // SAFETY: as in `reads_follow_the_owner_and_outlive_no_reference`.
+            unsafe { u.context_mut().into_hwctx::<FramesHw>() }
+                .unwrap()
+                .set(FramesHwctx {
+                    derive_ret: -2,
+                    ..FramesHwctx::default()
+                });
+            drop(u.init().unwrap());
+            assert_eq!(*seen.lock().unwrap(), Some(-2));
+            drop(a);
+            fx::take_events();
+        }
+    }
+
+    /// [`FramesContextMut::into_hwctx`]: writes before initialisation that
+    /// the backend obeys, through reborrows, and inside the free callback.
+    ///
+    /// [`FramesContextMut::into_hwctx`]: ffmpeg::libavutil::hwcontext::FramesContextMut::into_hwctx
+    mod mut_into_hwctx {
+        use super::*;
+
+        #[test]
+        fn writes_reach_the_backend() {
+            let a = device(Kind::A);
+            for ret in [-1, -22, c_int::MIN, 0] {
+                let mut u = uninit(&a, Kind::A, 0);
+                let mut ctx = u.context_mut();
+                for v in [5, ret] {
+                    // SAFETY: the test backends' frames struct is a
+                    // `FramesHwctx`, any of whose results they take; a
+                    // reborrow keeps `ctx`.
+                    unsafe { ctx.as_mut().into_hwctx::<FramesHw>() }
+                        .unwrap()
+                        .set(FramesHwctx {
+                            init_ret: v,
+                            ..FramesHwctx::default()
+                        });
+                    // SAFETY: as above.
+                    let hw = unsafe { ctx.as_ref().hwctx::<FramesHw>() }.unwrap();
+                    assert_eq!(hw.get().init_ret, v);
+                }
+                assert_eq!(u.init().err(), (ret < 0).then_some(ret));
+            }
+            drop(a);
+            fx::take_events();
+        }
+
+        #[test]
+        fn the_free_callback_writes_the_frames_struct() {
+            let a = device(Kind::A);
+            let mut u = uninit(&a, Kind::A, 1);
+            let calls = Arc::new(AtomicUsize::new(0));
+            let c = calls.clone();
+            u.context_mut()
+                .set_free_callback(move |ctx: FramesContextMut<'_>| {
+                    // SAFETY: the frames struct, still allocated and the
+                    // callback's alone while it runs.
+                    let mut hw = unsafe { ctx.into_hwctx::<FramesHw>() }.unwrap();
+                    hw.set(FramesHwctx {
+                        map_ret: -1,
+                        ..hw.as_ref().get()
+                    });
+                    c.fetch_add(1, Ordering::SeqCst);
+                })
+                .ok()
+                .unwrap();
+            let frames = u.init().unwrap();
+            let refs = references(&frames, 4);
+            drop(frames);
+            thread::scope(|s| {
+                for r in refs {
+                    s.spawn(move || r.release());
+                }
+            });
+            assert_eq!(calls.load(Ordering::SeqCst), 1);
+            drop(a);
+            fx::take_events();
+        }
+    }
+
+    /// [`FramesContextMut::set_pool`]: pools the backend's surfaces come
+    /// from, replaced, taken back, refused, and released with the context's
+    /// last reference on any thread.
+    ///
+    /// [`FramesContextMut::set_pool`]: ffmpeg::libavutil::hwcontext::FramesContextMut::set_pool
+    mod mut_set_pool {
+        use super::*;
+
+        #[test]
+        fn frames_come_from_the_pool_and_outlive_the_context() {
+            let a = device(Kind::A);
+            let (allocs, drops) = (Arc::default(), Arc::new(AtomicUsize::new(0)));
+            let mut u = uninit(&a, Kind::A, 3);
+            // SAFETY: the test backends take any surface-sized bytes.
+            unsafe { u.context_mut().set_pool(pool(&allocs, &drops)) }
+                .ok()
+                .unwrap();
+            let frames = u.init().unwrap();
+            assert_eq!(allocs.load(Ordering::SeqCst), 3);
+            let held: Vec<_> = (0..5)
+                .map(|_| frames.as_ref().get_buffer().unwrap())
+                .collect();
+            assert_eq!(allocs.load(Ordering::SeqCst), 5);
+            let mapped = held[0].map(PixelFormat::NONE, Default::default()).unwrap();
+            drop(frames);
+            assert_eq!(drops.load(Ordering::SeqCst), 0);
+            drop(held);
+            assert_eq!(drops.load(Ordering::SeqCst), 0);
+            drop(mapped);
+            assert_eq!(drops.load(Ordering::SeqCst), 1);
+            drop(a);
+            fx::take_events();
+        }
+
+        #[test]
+        fn replaced_taken_and_refused_pools_are_each_released_once() {
+            let a = device(Kind::B);
+            let (allocs, drops) = (Arc::default(), Arc::new(AtomicUsize::new(0)));
+            let mut u = uninit(&a, Kind::B, 0);
+            for _ in 0..3 {
+                // SAFETY: as above.
+                unsafe { u.context_mut().set_pool(pool(&allocs, &drops)) }
+                    .ok()
+                    .unwrap();
+            }
+            assert_eq!(drops.load(Ordering::SeqCst), 2);
+            let taken = u.context_mut().take_pool().unwrap();
+            drop(taken.as_ref().get());
+            assert!(u.context_mut().take_pool().is_none());
+            // SAFETY: as above, after the take.
+            unsafe { u.context_mut().set_pool(pool(&allocs, &drops)) }
+                .ok()
+                .unwrap();
+            assert_eq!(drops.load(Ordering::SeqCst), 2);
+            drop((u, taken));
+            assert_eq!(drops.load(Ordering::SeqCst), 4);
+            drop(a);
+            fx::take_events();
+        }
+
+        #[test]
+        fn the_last_release_on_other_threads_drops_the_pool_before_the_callback() {
+            let a = device(Kind::A);
+            for _ in 0..8 {
+                let (allocs, drops) = (Arc::default(), Arc::new(AtomicUsize::new(0)));
+                let seen = Arc::new(Mutex::new(None));
+                let mut u = uninit(&a, Kind::A, 2);
+                let (s, d) = (seen.clone(), drops.clone());
+                let mut m = u.context_mut();
+                // SAFETY: as above.
+                unsafe { m.set_pool(pool(&allocs, &drops)) }.ok().unwrap();
+                m.set_user_data(Dropped(drops.clone())).ok().unwrap();
+                m.set_free_callback(move |ctx: FramesContextMut<'_>| {
+                    *s.lock().unwrap() = Some((d.load(Ordering::SeqCst), ctx.as_ref().has_pool()));
+                })
+                .ok()
+                .unwrap();
+                let frames = u.init().unwrap();
+                let refs = references(&frames, 4);
+                drop(frames);
+                thread::scope(|s| {
+                    for r in refs {
+                        s.spawn(move || r.release());
+                    }
+                });
+                assert_eq!(*seen.lock().unwrap(), Some((1, false)));
+                assert_eq!(drops.load(Ordering::SeqCst), 2);
+            }
+            drop(a);
+            fx::take_events();
+        }
+    }
+
+    /// [`FramesContextRef::pool`]: the pool a context's frames come from,
+    /// lent while the context lives, its buffers taken alongside C's.
+    ///
+    /// [`FramesContextRef::pool`]: ffmpeg::libavutil::hwcontext::FramesContextRef::pool
+    mod ref_pool {
+        use super::*;
+
+        #[test]
+        fn the_backends_pool_lends_bytes_until_the_last_reference() {
+            let a = device(Kind::A);
+            let frames = uninit(&a, Kind::A, 1).init().unwrap();
+            let frame = frames.as_ref().get_buffer().unwrap();
+            drop(frames);
+            let ctx = frame.frames().context();
+            // SAFETY: the test backends' pools hold zeroed surface-sized
+            // bytes, and their allocator is thread-agnostic.
+            let pool = unsafe { ctx.pool() }.unwrap();
+            let bufs: Vec<_> = thread::scope(|s| {
+                let handles: Vec<_> = (0..4)
+                    .map(|_| s.spawn(move || pool.get().unwrap()))
+                    .collect();
+                handles.into_iter().map(|h| h.join().unwrap()).collect()
+            });
+            for b in bufs {
+                drop(b.fill(0xAB));
+            }
+            drop(frame);
+            drop(a);
+            fx::take_events();
+        }
+
+        #[test]
+        fn a_rust_pool_is_lent_before_and_after_init() {
+            let a = device(Kind::B);
+            let (allocs, drops) = (Arc::default(), Arc::new(AtomicUsize::new(0)));
+            let mut u = uninit(&a, Kind::B, 0);
+            // SAFETY: the test backends take any surface-sized bytes.
+            unsafe { u.context_mut().set_pool(pool(&allocs, &drops)) }
+                .ok()
+                .unwrap();
+            // SAFETY: the pool holds bytes, from a thread-agnostic allocator.
+            let early = unsafe { u.context().pool() }.unwrap().get().unwrap();
+            let frames = u.init().unwrap();
+            // SAFETY: as above.
+            let late = unsafe { frames.as_ref().context().pool() }
+                .unwrap()
+                .get()
+                .unwrap();
+            assert_eq!(allocs.load(Ordering::SeqCst), 2);
+            drop(frames);
+            // The buffers keep the pool, the context's last release aside.
+            assert_eq!(drops.load(Ordering::SeqCst), 0);
+            drop((early, late));
+            assert_eq!(drops.load(Ordering::SeqCst), 1);
+            drop(a);
+            fx::take_events();
+        }
+
+        #[test]
+        fn contexts_without_a_pool_lend_none() {
+            let a = device(Kind::A);
+            let u = uninit(&a, Kind::A, 0);
+            // SAFETY: there is no pool to misread.
+            assert!(unsafe { u.context().pool() }.is_none());
+            let mut u = u;
+            // SAFETY: the test backends' frames struct is a `FramesHwctx`.
+            unsafe { u.context_mut().into_hwctx::<FramesHw>() }
+                .unwrap()
+                .set(FramesHwctx {
+                    no_pool: 1,
+                    ..FramesHwctx::default()
+                });
+            let frames = u.init().unwrap();
+            // SAFETY: as above.
+            assert!(unsafe { frames.as_ref().context().pool() }.is_none());
+            assert!(frames.as_ref().get_buffer().is_err());
+            drop((frames, a));
+            fx::take_events();
+        }
+    }
+}
