@@ -1,0 +1,44 @@
+{
+ "lifetime": {
+  "for": "src",
+  "is_dropper": false,
+  "is_disposer": false,
+  "is_cloner": {
+   "deep": true,
+   "upref": false
+  },
+  "is_constructor": null
+ },
+ "ptr_args": {
+  "0": {
+   "ptr": {
+    "scalar": {
+     "by_val": true
+    },
+    "array": null,
+    "string": false,
+    "owned": false,
+    "borrowed": {
+     "lifetime": "arg:src"
+    },
+    "nullable": false,
+    "mutable": false,
+    "note": "The source frame, read only (const): av_frame_ref copies its properties, deep-copies metadata, side data entries (sharing their buffers) and channel layout, adds references to buf[], extended_buf[], hw_frames_ctx, opaque_ref (unchecked 32-bit AVBuffer counts) and private_ref, memdup's nb_channels entries of a separate extended_data; when buf[0] is NULL it copies the data through av_frame_get_buffer + av_frame_copy instead, which reads src's planes through its geometry and fails (EINVAL) when they are NULL. That av_frame_get_buffer(dst, 0) overflows int for audio of INT_MAX - 31 samples (av_samples_get_buffer_size's FFALIGN rounding): Rust's try_clone refuses such a non-refcounted source."
+   }
+  }
+ },
+ "ptr_ret": {
+  "ptr": {
+   "scalar": {
+    "by_val": true
+   },
+   "array": null,
+   "string": false,
+   "owned": true,
+   "borrowed": null,
+   "nullable": true,
+   "mutable": true,
+   "note": "A new av_frame_alloc'd frame referencing the same buffers (no plane writable while both live), freed with av_frame_free; NULL on failure (allocation, a failed data copy for a non-refcounted source, e.g. any frame without planes). For a non-refcounted source the copy's buffers come from av_frame_get_buffer (av_buffer_alloc): bytes outside the copied lines (padding, alignment gaps) are UNINITIALISED. Rust: FrameRef::try_clone, which first refuses when a buffer's count nears u32::MAX/2, and for a non-refcounted source swaps the copy's buffers for zeroed ones holding the same copy (av_frame_get_buffer + memset + av_frame_copy)."
+  }
+ }
+}

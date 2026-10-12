@@ -1,0 +1,30 @@
+{
+ "lifetime": {
+  "for": "frame",
+  "is_dropper": false,
+  "is_disposer": false,
+  "is_cloner": null,
+  "is_constructor": {
+   "alloc": false,
+   "init": true
+  }
+ },
+ "ptr_args": {
+  "0": {
+   "ptr": {
+    "scalar": {
+     "by_val": true
+    },
+    "array": null,
+    "string": false,
+    "owned": false,
+    "borrowed": {
+     "lifetime": "arg:frame"
+    },
+    "nullable": false,
+    "mutable": true,
+    "note": "The frame to fill, borrowed: by format/width/height (video, av_image_check_size, caller linesize[] reused when linesize[0] != 0) or nb_samples/ch_layout (audio) C av_buffer_alloc's buf[] (and for > 8 planar channels an av_calloc'd extended_data and extended_buf), and writes data/linesize/extended_data. Bytes are UNINITIALISED. Existing buf[0]/extended arrays are overwritten (leak). align > 2^27 overflows int in get_video_buffer, a non-power-of-two FFALIGN can move a pointer before its buffer, negative align reaches av_samples_get_buffer_size. Failures after allocation av_frame_unref the frame; the extended allocation failure leaves extended_data NULL, a bad caller linesize[0] leaves calloc'd NULL extended_buf entries counted. Rust: FrameMut::alloc_buffers releases the planes first, bounds align, zeroes the buffers, repairs failures. Also UB without a caller linesize[0]: audio of exactly INT_MAX - 31 samples at align <= 0 overflows av_samples_get_buffer_size's FFALIGN(nb_samples, 32) (nb_samples + 32 - 1 in int, samplefmt.c:137; its range check rejects only counts above INT_MAX - 31); Rust alloc_buffers and the copy paths below hand C the line size it would round to instead. C itself calls av_frame_get_buffer(dst, 0) from av_frame_ref (non-refcounted source) and av_frame_make_writable."
+   }
+  }
+ }
+}
