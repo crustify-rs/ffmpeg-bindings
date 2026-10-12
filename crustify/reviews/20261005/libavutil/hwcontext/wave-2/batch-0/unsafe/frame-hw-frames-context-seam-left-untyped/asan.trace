@@ -1,0 +1,37 @@
+AddressSanitizer:DEADLYSIGNAL
+=================================================================
+==3302399==ERROR: AddressSanitizer: SEGV on unknown address 0xfffffffffffffff8 (pc 0x7e222f21c2da bp 0x7ffc3bb26340 sp 0x7ffc3bb26280 T0)
+==3302399==The signal is caused by a READ memory access.
+    #0 0x7e222f21c2da in av_hwframe_transfer_data /target/crustify/builds/asan-ubsan/src/libavutil/hwcontext.c:490:19
+    #1 0x7e222f1f0b8f in av_frame_ref /target/crustify/builds/asan-ubsan/src/libavutil/frame.c:305:15
+    #2 0x7e222f1f7fed in av_frame_clone /target/crustify/builds/asan-ubsan/src/libavutil/frame.c:490:9
+    #3 0x60b8bc58b66a in <ffmpeg::libavutil::frame::FrameRef>::try_clone /target/crustify/.worktrees/crustify/review-batches/20261005/libavutil/hwcontext/wave-2/batch-0/crustify/rust/ffmpeg/libavutil/frame.rs:3673:33
+    #4 0x60b8bc5680e1 in frame_hw_frames_context_seam_left_untyped::main /target/crustify/.worktrees/crustify/review-batches/20261005/libavutil/hwcontext/wave-2/batch-0/crustify/reviews/20261005/libavutil/hwcontext/wave-2/batch-0/unsafe/frame-hw-frames-context-seam-left-untyped/src/main.rs:61:31
+    #5 0x60b8bc56774a in <fn() as core::ops::function::FnOnce<()>>::call_once /root/.rustup/toolchains/nightly-x86_64-unknown-linux-gnu/lib/rustlib/src/rust/library/core/src/ops/function.rs:250:5
+    #6 0x60b8bc5672bd in std::sys::backtrace::__rust_begin_short_backtrace::<fn(), ()> /root/.rustup/toolchains/nightly-x86_64-unknown-linux-gnu/lib/rustlib/src/rust/library/std/src/sys/backtrace.rs:166:18
+    #7 0x60b8bc569743 in std::rt::lang_start::<()>::{closure#0} /root/.rustup/toolchains/nightly-x86_64-unknown-linux-gnu/lib/rustlib/src/rust/library/std/src/rt.rs:206:18
+    #8 0x60b8bc5dcfd1 in <&dyn core::ops::function::Fn<(), Output = i32> + core::panic::unwind_safe::RefUnwindSafe + core::marker::Sync as core::ops::function::FnOnce<()>>::call_once /root/.rustup/toolchains/nightly-x86_64-unknown-linux-gnu/lib/rustlib/src/rust/library/core/src/ops/function.rs:287:21
+    #9 0x60b8bc5d52fa in std::panicking::catch_unwind::do_call::<&dyn core::ops::function::Fn<(), Output = i32> + core::panic::unwind_safe::RefUnwindSafe + core::marker::Sync, i32> /root/.rustup/toolchains/nightly-x86_64-unknown-linux-gnu/lib/rustlib/src/rust/library/std/src/panicking.rs:573:43
+    #10 0x60b8bc5e138a in __rust_try std.4ab26c9dab9163a9-cgu.02
+    #11 0x60b8bc5d447b in std::panicking::catch_unwind::<i32, &dyn core::ops::function::Fn<(), Output = i32> + core::panic::unwind_safe::RefUnwindSafe + core::marker::Sync> /root/.rustup/toolchains/nightly-x86_64-unknown-linux-gnu/lib/rustlib/src/rust/library/std/src/panicking.rs:541:19
+    #12 0x60b8bc6fc6da in std::panic::catch_unwind::<&dyn core::ops::function::Fn<(), Output = i32> + core::panic::unwind_safe::RefUnwindSafe + core::marker::Sync, i32> /root/.rustup/toolchains/nightly-x86_64-unknown-linux-gnu/lib/rustlib/src/rust/library/std/src/panic.rs:359:14
+    #13 0x60b8bc597b23 in std::rt::lang_start_internal::{closure#0} /root/.rustup/toolchains/nightly-x86_64-unknown-linux-gnu/lib/rustlib/src/rust/library/std/src/rt.rs:175:24
+    #14 0x60b8bc5d514e in std::panicking::catch_unwind::do_call::<std::rt::lang_start_internal::{closure#0}, isize> /root/.rustup/toolchains/nightly-x86_64-unknown-linux-gnu/lib/rustlib/src/rust/library/std/src/panicking.rs:573:43
+    #15 0x60b8bc5e138a in __rust_try std.4ab26c9dab9163a9-cgu.02
+    #16 0x60b8bc5d4217 in std::panicking::catch_unwind::<isize, std::rt::lang_start_internal::{closure#0}> /root/.rustup/toolchains/nightly-x86_64-unknown-linux-gnu/lib/rustlib/src/rust/library/std/src/panicking.rs:541:19
+    #17 0x60b8bc6fc64b in std::panic::catch_unwind::<std::rt::lang_start_internal::{closure#0}, isize> /root/.rustup/toolchains/nightly-x86_64-unknown-linux-gnu/lib/rustlib/src/rust/library/std/src/panic.rs:359:14
+    #18 0x60b8bc5a68f2 in std::rt::lang_start_internal /root/.rustup/toolchains/nightly-x86_64-unknown-linux-gnu/lib/rustlib/src/rust/library/std/src/rt.rs:171:5
+    #19 0x60b8bc5696af in std::rt::lang_start::<()> /root/.rustup/toolchains/nightly-x86_64-unknown-linux-gnu/lib/rustlib/src/rust/library/std/src/rt.rs:205:5
+    #20 0x60b8bc56840d in main (/tmp/hw2b0/repro-asan/x86_64-unknown-linux-gnu/debug/frame-hw-frames-context-seam-left-untyped+0x24a40d) (BuildId: 04b9b9a213e201a9ad8dba7d609063ec17ecb9f8)
+    #21 0x7e222ec971c9 in __libc_start_call_main csu/../sysdeps/nptl/libc_start_call_main.h:58:16
+    #22 0x7e222ec9728a in __libc_start_main csu/../csu/libc-start.c:360:3
+    #23 0x60b8bc49d4f4 in _start (/tmp/hw2b0/repro-asan/x86_64-unknown-linux-gnu/debug/frame-hw-frames-context-seam-left-untyped+0x17f4f4) (BuildId: 04b9b9a213e201a9ad8dba7d609063ec17ecb9f8)
+
+==3302399==Register values:
+rax = 0x00000c1717900044  rbx = 0x00007ffc3bb26280  rcx = 0x00007a222c9f1a00  rdx = 0x00000f444593e340  
+rdi = 0x00007b222dde0040  rsi = 0x00007b722dde0540  rbp = 0x00007ffc3bb26340  rsp = 0x00007ffc3bb26280  
+ r8 = 0x000060b8bc89c001   r9 = 0x00007b722dde0688  r10 = 0x00007fffffffff01  r11 = 0x00000f6e45bbc001  
+r12 = 0x00000f444593e340  r13 = 0x00007a222c9f1a00  r14 = 0x0000000000000000  r15 = 0x00007a222c9f1a01  
+AddressSanitizer can not provide additional info.
+SUMMARY: AddressSanitizer: SEGV /target/crustify/builds/asan-ubsan/src/libavutil/hwcontext.c:490:19 in av_hwframe_transfer_data
+==3302399==ABORTING

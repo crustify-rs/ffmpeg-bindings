@@ -1,0 +1,19 @@
+{
+ "_comment_agent": "AVFrame (libavutil/frame.h), buffer-frame wave 3 batch 0. A frame is allocated only by av_frame_alloc (av_malloc + get_frame_defaults; sizeof(AVFrame) is outside the ABI) and freed by av_frame_free (av_frame_unref + av_freep). av_frame_unref releases every owned field (side data array, buf[], extended_buf[] and its block, metadata, hw_frames_ctx, opaque_ref, private_ref, a separate extended_data, ch_layout's custom map) and rewrites the defaults; av_frame_ref/av_frame_clone build a new frame sharing every buffer (av_buffer_ref unchecked against AVBuffer's 32-bit count) and deep-copying metadata, side data entries and the channel layout, copying the data instead when buf[0] is NULL (av_frame_get_buffer + av_frame_copy, which fails on a frame without planes, e.g. a fresh one, so av_frame_clone cannot back a Clone); av_frame_move_ref moves the struct; av_frame_replace and av_frame_make_writable rebuild in place. No field holds a refcount of the frame itself. Geometry (format, width, height, nb_samples, ch_layout, linesize, crop_*) is plain data that C routines trust when reading planes (av_frame_copy, av_frame_apply_cropping, av_frame_get_plane_buffer reads extended_data[plane] for plane < 4 or channels): the Rust wrapper (frame.rs Frame/FrameRef/FrameMut, FrameBox = CBox<Frame, FrameFree>, CNew = av_frame_alloc, CDrop = av_frame_free on a local slot, try_clone = av_frame_clone after checking every buffer's count, reset = av_frame_unref) keeps ownership and plane-containment invariants and leaves geometry checks to the wrappers of plane-reading routines (wave 4). | Review (buffer-frame wave 3, batch 0): the earlier note said C reads nb_channels entries of the block, but missed that frame_copy_audio and av_frame_get_plane_buffer read them even when extended_data is the frame's own 8-entry data array (over-read into linesize, dereferenced; ASan SEGV through av_frame_clone), and that alloc_extended_data duplicated lent planes. See crustify/reviews/20261005/libavutil/buffer-frame/wave-3/batch-0/wavefront/extended-data-length-own-array-unrecorded. Hwcontext wave-2 type review: hw_frames_ctx typed through hwcontext's FramesReference (see its note).",
+ "fields": {
+  "hw_frames_ctx": {
+   "ptr": {
+    "scalar": {
+     "by_val": true
+    },
+    "array": null,
+    "string": false,
+    "owned": true,
+    "borrowed": null,
+    "nullable": true,
+    "mutable": false,
+    "note": "NULL, or a reference the frame owns to the AVBufferRef of an initialised AVHWFramesContext (av_hwframe_ctx_alloc's av_mallocz'd, READONLY buffer). Unref'd by av_frame_unref, ref'd by av_frame_ref, replaced by av_frame_replace; its data is read as AVHWFramesContext by av_frame_make_writable (av_hwframe_get_buffer), frame_copy_video (av_hwframe_transfer_data), vulkan.c and hardware codecs. It names the context only: nothing in C ties the frame's buf/data to that context's surfaces, yet av_frame_copy (hence av_frame_ref/av_frame_clone/av_frame_replace of a frame without buf[0]) hands any frame holding one to av_hwframe_transfer_data, which calls the backend's transfer_data_from unchecked (NULL for MediaCodec/OpenHarmony) and reads the planes as surfaces. Rust (hwcontext wave-2 type review): FrameRef::hw_frames_context -> Option<FramesReferenceRef<'a>> (borrowed from the frame), safe FrameMut::replace_hw_frames_context(Option<FramesReferenceBox>) / take_hw_frames_context -> Option<FramesReferenceBox>; copies of frames without buf[0] that hold one are refused (ENOSYS) before C, as copy_data_from/make_writable already were; FrameMut::transfer_data_from stays unsafe (its frames must be surfaces)."
+   }
+  }
+ }
+}
