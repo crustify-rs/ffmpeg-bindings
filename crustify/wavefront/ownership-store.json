@@ -1049,6 +1049,18 @@
    "fields": []
   },
   {
+   "name": "AVHWDeviceType",
+   "defined_in": "libavutil/hwcontext.h",
+   "_comment_agent": "C enum (NONE=0, VDPAU=1, CUDA, VAAPI, DXVA2, QSV, VIDEOTOOLBOX, D3D11VA, DRM, OPENCL, MEDIACODEC, VULKAN, D3D12VA, AMF, OHCODEC=14), no fields, no lifecycle; every enumerator is non-negative so bindgen backs ffi::AVHWDeviceType by c_uint. Stored in public fields users may write (AVHWDeviceContext.type, set by av_hwdevice_ctx_alloc from hw_table and documented as never changed afterwards; libavcodec AVCodecHWConfig.device_type in static codec tables), returned by av_hwdevice_find_type_by_name (NONE for unknown names) and av_hwdevice_iterate_types (NONE once exhausted; NONE as prev starts the walk), and taken by value by av_hwdevice_get_type_name (NULL unless NONE < type < FF_ARRAY_ELEMS(hw_type_names), so any value is accepted), av_hwdevice_ctx_alloc/create/create_derived(_opts) (a linear hw_table lookup by equality: an unknown or not-compiled type fails with NULL/ENOSYS) and libavcodec's ff_decode_get_hw_frames_ctx. C accepts every value and new FFmpeg versions append enumerators, so the value set is open. Wrapped (hwcontext wave 0 batch 0) as DeviceType, a Copy transparent newtype over the raw enum accepting every bit pattern (CPlainElem), Default = NONE. The campaign builds compile no hwcontext backend (--disable-autodetect), so hw_table is empty there.",
+   "fields": []
+  },
+  {
+   "name": "AVHWFrameTransferDirection",
+   "defined_in": "libavutil/hwcontext.h",
+   "_comment_agent": "C enum (FROM=0, TO=1), no fields, no lifecycle; bindgen backs ffi::AVHWFrameTransferDirection by c_uint. Only ever an input: the dir argument of av_hwframe_transfer_get_formats, forwarded unchanged to the frames context's backend transfer_get_formats callback (hwcontext_internal.h); transfer_data_alloc passes FROM, vf_hwdownload FROM, ffplay_renderer TO. No struct stores it and no function returns it. Backends switch on it (vaapi, vulkan, opencl, qsv, ...), so a value other than FROM/TO is meaningless. Wrapped (hwcontext wave 0 batch 0) as TransferDirection, a closed Rust enum {From, To} with into_raw / From conversion to the C enum and no conversion back; not CPlainElem since not every bit pattern is a direction.",
+   "fields": []
+  },
+  {
    "name": "AVHashContext",
    "defined_in": "libavutil/hash.c",
    "_comment_agent": "Public API opaque. av_hash_alloc owns context plus child; requires separate av_hash_init before hashing. Safe constructor combines allocation/init, av_hash_freep releases both. Metadata independent of initialization/finalization; name points into static hashdesc. All field touchers are in hash.c; consumers allocate/init/use/free opaque pointers. No clone, refcount, inline dispose, or public field surface; C owns layout/storage. No Send/Sync assertion.",

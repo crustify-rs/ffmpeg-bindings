@@ -57,3 +57,6 @@ mod uuid;
 
 // Buffer-frame wave 0.
 mod refstruct;
+
+// Hwcontext wave 0.
+mod hwcontext;

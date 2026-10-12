@@ -889,3 +889,9 @@ function ^av_frame_make_writable$
 function ^av_frame_new_side_data_from_buf$
 var ^AV_FRAME_CROP_.*
 var ^ENOSYS$
+# libavutil/hwcontext.h: the C readers and producers of `AVHWDeviceType`
+# values, which observe `DeviceType`'s encoding in equivalence tests
+# (hwcontext wave 0, batch 0).
+function ^av_hwdevice_find_type_by_name$
+function ^av_hwdevice_get_type_name$
+function ^av_hwdevice_iterate_types$
