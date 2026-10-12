@@ -17,14 +17,15 @@ use super::ffi;
 /// The hardware API behind a device context: VAAPI, CUDA, Vulkan and so on,
 /// or [`NONE`](Self::NONE) for no device.
 ///
-/// A newtype over the C enum rather than a Rust `enum`: C stores the value in
-/// public struct fields its users may write directly
-/// (`AVHWDeviceContext.type`, libavcodec's `AVCodecHWConfig.device_type`), so
-/// it may hold any `unsigned`, and a Rust view of that memory must accept
-/// every one. C itself accepts every value: its name lookup returns nothing
-/// for a type it does not name, and device creation fails for a type the
-/// library was built without. Match on the associated constants, with a `_`
-/// arm for the values C does not name:
+/// A newtype over the C enum rather than a Rust `enum`, because the values C
+/// hands out are an open set: FFmpeg appends enumerators in minor releases,
+/// so a newer `libavutil` loaded at run time can return one this crate has
+/// no constant for (`av_hwdevice_find_type_by_name`,
+/// `av_hwdevice_iterate_types`, a device context's `type`), and a Rust view
+/// of C memory holding one must accept it. C itself accepts every value: its
+/// name lookup returns nothing for a type it does not name, and device
+/// creation fails for a type the library was built without. Match on the
+/// associated constants, with a `_` arm for the values C does not name:
 ///
 /// ```
 /// use ffmpeg::libavutil::hwcontext::DeviceType;
@@ -37,6 +38,12 @@ use super::ffi;
 /// assert!(is_windows_api(DeviceType::D3D11VA));
 /// assert!(!is_windows_api(DeviceType::VAAPI));
 /// ```
+///
+/// C stores a device type in `AVHWDeviceContext.type`, which the library
+/// sets when it allocates the context and documents as never changed
+/// afterwards: the backends cast the context's `hwctx` by it, so it is a
+/// value to read, not to write. libavcodec's `AVCodecHWConfig.device_type`
+/// lives in read-only codec tables.
 ///
 /// A constant names a type whatever backends the library was built with;
 /// which of them it can create is a property of the build. C has no count
