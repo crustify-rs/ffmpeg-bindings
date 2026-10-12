@@ -33,7 +33,8 @@
     "ty_wrapper_refs_sanctioned": 217,
     "ty_wrapper_refs_smell": 1,
     "ty_wrapper_refs_body_smell": 0,
-    "raw_ptr_ty_pub": 12,
+    "raw_ptr_ty_pub_fields_pub": 0,
+    "raw_ptr_ty_pub_fields_priv": 12,
     "raw_ptr_ty_priv": 0,
     "raw_ptr_fn_pub_safe": 20,
     "raw_ptr_fn_pub_unsafe": 19,
@@ -42,7 +43,8 @@
     "raw_ptr_has_ty_wrapper": 257,
     "raw_ptr_derefs": 512,
     "raw_ptr_derefs_outside_impl": 12,
-    "void_ptr_ty_pub": 3,
+    "void_ptr_ty_pub_fields_pub": 0,
+    "void_ptr_ty_pub_fields_priv": 3,
     "void_ptr_ty_priv": 0,
     "void_ptr_fn_pub_safe": 17,
     "void_ptr_fn_pub_unsafe": 15,
@@ -341,7 +343,7 @@
     "unsafe_fn_pub_ratio": 0.1296,
     "unsafe_fn_share_of_pub_fns": 0.0198,
     "raw_ptr_pub": 51,
-    "raw_ptr_pub_safe_interface": 32,
+    "raw_ptr_pub_safe_interface": 20,
     "unsafe_loc_ratio": 0.1616,
     "loc_per_unsafe_block": 10.3
   }
