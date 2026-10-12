@@ -28,6 +28,7 @@ pub mod file;
 pub mod frame;
 pub mod hash;
 pub mod hmac;
+pub mod hwcontext;
 pub mod imgutils;
 pub mod intfloat;
 pub mod intreadwrite;
