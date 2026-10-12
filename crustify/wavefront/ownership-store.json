@@ -9891,6 +9891,604 @@
    ]
   },
   {
+   "name": "av_hwdevice_ctx_alloc",
+   "defined_in": "libavutil/hwcontext.c",
+   "lifetime": {
+    "for": "return",
+    "is_dropper": false,
+    "is_disposer": false,
+    "is_cloner": null,
+    "is_constructor": {
+     "alloc": true,
+     "init": false
+    }
+   },
+   "ptr_ret": {
+    "ptr": {
+     "scalar": {
+      "by_val": true
+     },
+     "array": null,
+     "string": false,
+     "owned": true,
+     "borrowed": null,
+     "nullable": true,
+     "mutable": true,
+     "note": "The only reference to a fresh av_mallocz'd FFHWDeviceContext of the compiled-in backend for the type (hwctx av_mallocz'd at device_hwctx_size), in a READONLY buffer released by hwdevice_ctx_free (device_uninit, ctx->free, source_device unref, hwctx and ctx av_freep) at the last av_buffer_unref. Uninitialised: the caller fills hwctx/free/user_opaque, then av_hwdevice_ctx_init. NULL when the build has no backend for the type (always, with --disable-autodetect) or on ENOMEM. Rust: DeviceReference::alloc -> UninitDevice."
+    }
+   }
+  },
+  {
+   "name": "av_hwdevice_ctx_create",
+   "defined_in": "libavutil/hwcontext.c",
+   "lifetime": {
+    "for": "pdevice_ref",
+    "is_dropper": false,
+    "is_disposer": false,
+    "is_cloner": null,
+    "is_constructor": {
+     "alloc": true,
+     "init": false
+    }
+   },
+   "ptr_args": [
+    {
+     "name": "device",
+     "ptr": {
+      "scalar": {
+       "by_val": true
+      },
+      "array": null,
+      "string": true,
+      "owned": false,
+      "borrowed": {
+       "lifetime": "arg:device"
+      },
+      "nullable": true,
+      "mutable": false,
+      "note": "Backend-specific device name, read during the call only; NULL for the backend's default."
+     }
+    },
+    {
+     "name": "opts",
+     "ptr": {
+      "scalar": {
+       "by_val": true
+      },
+      "array": null,
+      "string": false,
+      "owned": false,
+      "borrowed": {
+       "lifetime": "arg:opts"
+      },
+      "nullable": true,
+      "mutable": false,
+      "note": "Backend-specific options, read (av_dict_get) during the call only and left owned by the caller; NULL for none. Non-const in the signature only."
+     }
+    },
+    {
+     "name": "pdevice_ref",
+     "ptr": {
+      "scalar": {
+       "by_ref": {
+        "owned": true,
+        "borrowed": null
+       }
+      },
+      "array": null,
+      "string": false,
+      "owned": false,
+      "borrowed": {
+       "lifetime": "arg:pdevice_ref"
+      },
+      "nullable": false,
+      "mutable": true,
+      "note": "Out slot, never NULL: on success the only reference to a new device context, allocated (av_hwdevice_ctx_alloc), opened (device_create, which also sets free/user_opaque) and initialised (av_hwdevice_ctx_init); on failure everything is released and NULL is written. ENOMEM when alloc fails, which includes 'no backend for the type'."
+     }
+    }
+   ]
+  },
+  {
+   "name": "av_hwdevice_ctx_create_derived",
+   "defined_in": "libavutil/hwcontext.c",
+   "lifetime": {
+    "for": "dst_ref_ptr",
+    "is_dropper": false,
+    "is_disposer": false,
+    "is_cloner": null,
+    "is_constructor": {
+     "alloc": true,
+     "init": false
+    }
+   },
+   "ptr_args": [
+    {
+     "name": "dst_ref_ptr",
+     "ptr": {
+      "scalar": {
+       "by_ref": {
+        "owned": true,
+        "borrowed": null
+       }
+      },
+      "array": null,
+      "string": false,
+      "owned": false,
+      "borrowed": {
+       "lifetime": "arg:dst_ref_ptr"
+      },
+      "nullable": false,
+      "mutable": true,
+      "note": "Out slot, never NULL: on success an owned reference, either av_buffer_ref of the first device of the requested type in src_ref's source_device chain (src_ref included; unchecked refcount increment), or a new device derived by the target backend's device_derive from src_ref or an ancestor, holding a reference to src_ref in source_device, initialised. On failure NULL. Forwards to av_hwdevice_ctx_create_derived_opts with NULL options."
+     }
+    },
+    {
+     "name": "src_ref",
+     "ptr": {
+      "scalar": {
+       "by_val": true
+      },
+      "array": null,
+      "string": false,
+      "owned": false,
+      "borrowed": {
+       "lifetime": "arg:src_ref"
+      },
+      "nullable": false,
+      "mutable": true,
+      "note": "A reference to an initialised device context (AVBufferRef whose data is hwcontext.c's private FFHWDeviceContext, public AVHWDeviceContext first); any other buffer is UB (C casts data to FFHWDeviceContext and reads hw_type). Read (type, source_device chain), handed to device_derive, and referenced (returned or stored as source_device); borrowed for the call."
+     }
+    }
+   ]
+  },
+  {
+   "name": "av_hwdevice_ctx_create_derived_opts",
+   "defined_in": "libavutil/hwcontext.c",
+   "lifetime": {
+    "for": "dst_ref_ptr",
+    "is_dropper": false,
+    "is_disposer": false,
+    "is_cloner": null,
+    "is_constructor": {
+     "alloc": true,
+     "init": false
+    }
+   },
+   "ptr_args": [
+    {
+     "name": "dst_ref_ptr",
+     "ptr": {
+      "scalar": {
+       "by_ref": {
+        "owned": true,
+        "borrowed": null
+       }
+      },
+      "array": null,
+      "string": false,
+      "owned": false,
+      "borrowed": {
+       "lifetime": "arg:dst_ref_ptr"
+      },
+      "nullable": false,
+      "mutable": true,
+      "note": "As av_hwdevice_ctx_create_derived's: an owned reference to the chain's device of the type (av_buffer_ref, unchecked) or to a new derived, initialised device; NULL on failure (ENOMEM when av_hwdevice_ctx_alloc fails, i.e. no backend; ENOSYS when no ancestor derives)."
+     }
+    },
+    {
+     "name": "options",
+     "ptr": {
+      "scalar": {
+       "by_val": true
+      },
+      "array": null,
+      "string": false,
+      "owned": false,
+      "borrowed": {
+       "lifetime": "arg:options"
+      },
+      "nullable": true,
+      "mutable": false,
+      "note": "Backend-specific options handed to device_derive, read only; owned by the caller; NULL for none."
+     }
+    },
+    {
+     "name": "src_ref",
+     "ptr": {
+      "scalar": {
+       "by_val": true
+      },
+      "array": null,
+      "string": false,
+      "owned": false,
+      "borrowed": {
+       "lifetime": "arg:src_ref"
+      },
+      "nullable": false,
+      "mutable": true,
+      "note": "A reference to an initialised device context (AVBufferRef whose data is hwcontext.c's private FFHWDeviceContext, public AVHWDeviceContext first); any other buffer is UB (C casts data to FFHWDeviceContext and reads hw_type). Walked through private source_device links, handed to device_derive, referenced."
+     }
+    }
+   ]
+  },
+  {
+   "name": "av_hwdevice_ctx_init",
+   "defined_in": "libavutil/hwcontext.c",
+   "lifetime": {
+    "for": "ref",
+    "is_dropper": false,
+    "is_disposer": false,
+    "is_cloner": null,
+    "is_constructor": {
+     "alloc": false,
+     "init": true
+    }
+   },
+   "ptr_args": [
+    {
+     "name": "ref",
+     "ptr": {
+      "scalar": {
+       "by_val": true
+      },
+      "array": null,
+      "string": false,
+      "owned": false,
+      "borrowed": {
+       "lifetime": "arg:ref"
+      },
+      "nullable": false,
+      "mutable": true,
+      "note": "A reference to an allocated, not yet initialised device context (AVBufferRef whose data is hwcontext.c's private FFHWDeviceContext, public AVHWDeviceContext first); any other buffer is UB (C casts data to FFHWDeviceContext and reads hw_type). Runs hw_type->device_init on the context, which reads and completes what the caller filled in; must run once, before any other use (calling it again re-runs the backend's init). The reference is borrowed: the caller keeps it, and releases the context with it on failure. Rust: UninitDevice::init(self)."
+     }
+    }
+   ]
+  },
+  {
+   "name": "av_hwdevice_find_type_by_name",
+   "defined_in": "libavutil/hwcontext.c",
+   "ptr_args": [
+    {
+     "name": "name",
+     "ptr": {
+      "scalar": {
+       "by_val": true
+      },
+      "array": null,
+      "string": true,
+      "owned": false,
+      "borrowed": {
+       "lifetime": "arg:name"
+      },
+      "nullable": false,
+      "mutable": false,
+      "note": "NUL-terminated name compared with strcmp (case-sensitive, despite the header) against hw_type_names during the call; never NULL (strcmp). Rust: DeviceType::from_name(&CStr) -> Option (NONE = not found)."
+     }
+    }
+   ]
+  },
+  {
+   "name": "av_hwdevice_get_type_name",
+   "defined_in": "libavutil/hwcontext.c",
+   "ptr_ret": {
+    "ptr": {
+     "scalar": {
+      "by_val": true
+     },
+     "array": null,
+     "string": true,
+     "owned": false,
+     "borrowed": {
+      "lifetime": "static"
+     },
+     "nullable": true,
+     "mutable": false,
+     "note": "A string literal of the static hw_type_names table; NULL for NONE and out-of-range values. Rust: DeviceType::name -> Option<&'static CStr>."
+    }
+   }
+  },
+  {
+   "name": "av_hwdevice_hwconfig_alloc",
+   "defined_in": "libavutil/hwcontext.c",
+   "lifetime": {
+    "for": "return",
+    "is_dropper": false,
+    "is_disposer": false,
+    "is_cloner": null,
+    "is_constructor": {
+     "alloc": true,
+     "init": false
+    }
+   },
+   "ptr_args": [
+    {
+     "name": "ref",
+     "ptr": {
+      "scalar": {
+       "by_val": true
+      },
+      "array": null,
+      "string": false,
+      "owned": false,
+      "borrowed": {
+       "lifetime": "arg:ref"
+      },
+      "nullable": false,
+      "mutable": false,
+      "note": "A reference to an initialised device context (AVBufferRef whose data is hwcontext.c's private FFHWDeviceContext, public AVHWDeviceContext first); any other buffer is UB (C casts data to FFHWDeviceContext and reads hw_type). Only hw_type->device_hwconfig_size is read; non-const in the signature only."
+     }
+    }
+   ],
+   "ptr_ret": {
+    "ptr": {
+     "scalar": {
+      "by_val": true
+     },
+     "array": null,
+     "string": false,
+     "owned": true,
+     "borrowed": null,
+     "nullable": true,
+     "mutable": true,
+     "note": "A zeroed av_mallocz block of the backend's device_hwconfig_size, laid out as its AV<API>HWConfig (size known to C only), freed with av_free; NULL when the backend has no configuration (size 0) or on ENOMEM. Rust: DeviceReferenceRef::alloc_hw_config -> HwConfig (raw seam, keeps the device type)."
+    }
+   }
+  },
+  {
+   "name": "av_hwdevice_iterate_types",
+   "defined_in": "libavutil/hwcontext.c"
+  },
+  {
+   "name": "av_hwframe_ctx_alloc",
+   "defined_in": "libavutil/hwcontext.c",
+   "lifetime": {
+    "for": "return",
+    "is_dropper": false,
+    "is_disposer": false,
+    "is_cloner": null,
+    "is_constructor": {
+     "alloc": true,
+     "init": false
+    }
+   },
+   "ptr_args": [
+    {
+     "name": "device_ref_in",
+     "ptr": {
+      "scalar": {
+       "by_val": true
+      },
+      "array": null,
+      "string": false,
+      "owned": false,
+      "borrowed": {
+       "lifetime": "arg:device_ref_in"
+      },
+      "nullable": false,
+      "mutable": true,
+      "note": "A reference to an initialised device context (AVBufferRef whose data is hwcontext.c's private FFHWDeviceContext, public AVHWDeviceContext first); any other buffer is UB (C casts data to FFHWDeviceContext and reads hw_type). Its backend is read and a new reference to it is stored in the frames context's device_ref (unchecked increment); the caller keeps its own."
+     }
+    }
+   ],
+   "ptr_ret": {
+    "ptr": {
+     "scalar": {
+      "by_val": true
+     },
+     "array": null,
+     "string": false,
+     "owned": true,
+     "borrowed": null,
+     "nullable": true,
+     "mutable": true,
+     "note": "The only reference to a fresh FFHWFramesContext (hwctx av_mallocz'd at frames_hwctx_size, device_ref/device_ctx set, format and sw_format AV_PIX_FMT_NONE) in a READONLY buffer released by hwframe_ctx_free (pool_internal uninit, frames_uninit (also for a never-initialised context), ctx->free, source_frames and device_ref unref). Uninitialised: the caller fills format/sw_format/size/pool, then av_hwframe_ctx_init. NULL on ENOMEM. Rust: DeviceReferenceRef::alloc_frames -> UninitFrames."
+    }
+   }
+  },
+  {
+   "name": "av_hwframe_ctx_create_derived",
+   "defined_in": "libavutil/hwcontext.c",
+   "lifetime": {
+    "for": "derived_frame_ctx",
+    "is_dropper": false,
+    "is_disposer": false,
+    "is_cloner": null,
+    "is_constructor": {
+     "alloc": true,
+     "init": false
+    }
+   },
+   "ptr_args": [
+    {
+     "name": "derived_device_ctx",
+     "ptr": {
+      "scalar": {
+       "by_val": true
+      },
+      "array": null,
+      "string": false,
+      "owned": false,
+      "borrowed": {
+       "lifetime": "arg:derived_device_ctx"
+      },
+      "nullable": false,
+      "mutable": true,
+      "note": "A reference to an initialised device context (AVBufferRef whose data is hwcontext.c's private FFHWDeviceContext, public AVHWDeviceContext first); any other buffer is UB (C casts data to FFHWDeviceContext and reads hw_type). Read and referenced by the new context (av_hwframe_ctx_alloc)."
+     }
+    },
+    {
+     "name": "derived_frame_ctx",
+     "ptr": {
+      "scalar": {
+       "by_ref": {
+        "owned": true,
+        "borrowed": null
+       }
+      },
+      "array": null,
+      "string": false,
+      "owned": false,
+      "borrowed": {
+       "lifetime": "arg:derived_frame_ctx"
+      },
+      "nullable": false,
+      "mutable": true,
+      "note": "Out slot: on success an owned reference to a new frames context on derived_device_ctx (format given, sw_format/size copied, source_frames referencing source_frame_ctx, map flags masked to READ|WRITE|OVERWRITE|DIRECT), already initialised (av_hwframe_ctx_init returns 0 for it); or, when the source was itself derived from a context on derived_device_ctx, av_buffer_ref of that source (unchecked; the format is ignored). Written NULL on that path's ENOMEM, untouched on other failures. A backend that derives neither way (ENOSYS twice) still succeeds."
+     }
+    },
+    {
+     "name": "source_frame_ctx",
+     "ptr": {
+      "scalar": {
+       "by_val": true
+      },
+      "array": null,
+      "string": false,
+      "owned": false,
+      "borrowed": {
+       "lifetime": "arg:source_frame_ctx"
+      },
+      "nullable": false,
+      "mutable": true,
+      "note": "A reference to an initialised frames context (data is FFHWFramesContext, AVHWFramesContext first); any other buffer is UB. Read (private source_frames, device_ctx), referenced as the new context's source_frames, handed to the backends' frames_derive_from/to."
+     }
+    }
+   ]
+  },
+  {
+   "name": "av_hwframe_ctx_init",
+   "defined_in": "libavutil/hwcontext.c",
+   "lifetime": {
+    "for": "ref",
+    "is_dropper": false,
+    "is_disposer": false,
+    "is_cloner": null,
+    "is_constructor": {
+     "alloc": false,
+     "init": true
+    }
+   },
+   "ptr_args": [
+    {
+     "name": "ref",
+     "ptr": {
+      "scalar": {
+       "by_val": true
+      },
+      "array": null,
+      "string": false,
+      "owned": false,
+      "borrowed": {
+       "lifetime": "arg:ref"
+      },
+      "nullable": false,
+      "mutable": true,
+      "note": "A reference to an allocated, not yet initialised frames context (data is FFHWFramesContext, AVHWFramesContext first); any other buffer is UB. Validates format against hw_type->pix_fmts (ENOSYS, logging av_get_pix_fmt_name(format) through %s, which is NULL for AV_PIX_FMT_NONE: glibc prints (null)) and size (av_image_check_size), runs frames_init, adopts pool_internal as pool when unset, preallocates initial_pool_size frames via av_hwframe_get_buffer. Returns 0 at once for a derived context. Must run once. Rust: UninitFrames::init(self)."
+     }
+    }
+   ]
+  },
+  {
+   "name": "av_hwframe_get_buffer",
+   "defined_in": "libavutil/hwcontext.c",
+   "lifetime": {
+    "for": "frame",
+    "is_dropper": false,
+    "is_disposer": false,
+    "is_cloner": null,
+    "is_constructor": {
+     "alloc": false,
+     "init": true
+    }
+   },
+   "ptr_args": [
+    {
+     "name": "frame",
+     "ptr": {
+      "scalar": {
+       "by_val": true
+      },
+      "array": null,
+      "string": false,
+      "owned": false,
+      "borrowed": {
+       "lifetime": "arg:frame"
+      },
+      "nullable": false,
+      "mutable": true,
+      "note": "A blank frame (freshly allocated or unreffed: existing buf/hw_frames_ctx would leak), filled by the backend's frames_get_buffer: buf[] holding backend surface handles rather than bytes (VA-API: the surface ID as the data pointer), data[] pointing outside any buffer, format, size, hw_frames_ctx; extended_data = data. On failure hw_frames_ctx is released (a derived context leaves format/hw_frames_ctx set for the caller's av_frame_free). flags unused. Rust: FramesReferenceRef::get_buffer -> HardwareFrame (a fresh frame kept out of the Frame API)."
+     }
+    },
+    {
+     "name": "hwframe_ref",
+     "ptr": {
+      "scalar": {
+       "by_val": true
+      },
+      "array": null,
+      "string": false,
+      "owned": false,
+      "borrowed": {
+       "lifetime": "arg:hwframe_ref"
+      },
+      "nullable": false,
+      "mutable": true,
+      "note": "A reference to an initialised frames context (data is FFHWFramesContext, AVHWFramesContext first); any other buffer is UB. Read; a new reference to it is stored in frame->hw_frames_ctx (two for a derived context, one via the mapping). A derived context allocates in its source_frames (recursive call) and maps with av_hwframe_map."
+     }
+    }
+   ]
+  },
+  {
+   "name": "av_hwframe_map",
+   "defined_in": "libavutil/hwcontext.c",
+   "lifetime": {
+    "for": "dst",
+    "is_dropper": false,
+    "is_disposer": false,
+    "is_cloner": null,
+    "is_constructor": {
+     "alloc": false,
+     "init": true
+    }
+   },
+   "ptr_args": [
+    {
+     "name": "dst",
+     "ptr": {
+      "scalar": {
+       "by_val": true
+      },
+      "array": null,
+      "string": false,
+      "owned": false,
+      "borrowed": {
+       "lifetime": "arg:dst"
+      },
+      "nullable": false,
+      "mutable": true,
+      "note": "A blank frame, optionally with format and hw_frames_ctx (caller-owned reference). Filled as a mapping by the backend's map_from/map_to (ff_hwframe_map_create: buf[0] an HWMapDescriptor holding av_frame_ref(src) and a frames context reference, data into the mapping), or, unmapping (dst's context is src's, src.format == sw_format, dst.format == format; or src's context derived from dst's), replaced by hwmap->source (av_frame_replace) read from src->buf[0]->data. On failure blanked except format/hw_frames_ctx (av_assert0 that the backend kept the latter)."
+     }
+    },
+    {
+     "name": "src",
+     "ptr": {
+      "scalar": {
+       "by_val": true
+      },
+      "array": null,
+      "string": false,
+      "owned": false,
+      "borrowed": {
+       "lifetime": "arg:src"
+      },
+      "nullable": false,
+      "mutable": false,
+      "note": "The frame to map, read and referenced (by the mapping). Unmapping reinterprets src->buf[0]->data as HWMapDescriptor: UB unless src is a mapping C made, which the conditions above assume (a pool frame of dst's own context with format == sw_format breaks it). Rust: HardwareFrame::map (hw->sw, fresh dst with a format) and HardwareFrame::map_to (hw->hw into another context, own context refused with EINVAL); sw->hw mapping is not wrapped."
+     }
+    }
+   ]
+  },
+  {
    "name": "av_hwframe_transfer_data",
    "defined_in": "libavutil/hwcontext.c",
    "ptr_args": [

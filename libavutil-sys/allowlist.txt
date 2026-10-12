@@ -901,3 +901,20 @@ function ^av_hwdevice_iterate_types$
 # batch 2).
 function ^av_hwframe_transfer_data$
 function ^av_hwframe_transfer_get_formats$
+
+# libavutil/hwcontext.h, hwcontext wave 1, batch 1: the device and frames
+# context lifecycle hwcontext.rs wraps (alloc, init, create, derive), the
+# hardware configuration allocator, hardware frame allocation and mapping, and
+# the AV_HWFRAME_MAP_* flags of the mappings.
+function ^av_hwdevice_ctx_alloc$
+function ^av_hwdevice_ctx_init$
+function ^av_hwdevice_ctx_create$
+function ^av_hwdevice_ctx_create_derived$
+function ^av_hwdevice_ctx_create_derived_opts$
+function ^av_hwdevice_hwconfig_alloc$
+function ^av_hwframe_ctx_alloc$
+function ^av_hwframe_ctx_init$
+function ^av_hwframe_ctx_create_derived$
+function ^av_hwframe_get_buffer$
+function ^av_hwframe_map$
+var ^AV_HWFRAME_MAP_.*
