@@ -278,7 +278,7 @@ HDR side-data family stay untouched.
 
 ## 4. Unsafe surface
 
-`crustify scan-unsafe`'s rustc driver at crustify `c2c4425`, which counts only
+`crustify scan-unsafe`'s rustc driver at crustify `039884b`, which counts only
 what the scanned crate defines, by rustc's effective visibility (reachable from
 outside the crate) and, for fn signatures, by safety; methods implementing
 another crate's trait are left out, since that crate fixed their signature.
@@ -394,7 +394,7 @@ How to read it:
 - Both Rust figures exclude `#[cfg(test)]` code; the campaign's also excludes
   `tests/`, which these crates' `src/` scope already leaves out.
 - ¹ The unsafe-surface rows are not restated: all three are fresh scans with
-  the same driver (crustify `c2c4425`), the campaign's at the active campaign's
+  the same driver (crustify `039884b`), the campaign's at the active campaign's
   tip (`ffmpeg-wrap-20261005`, `crustify/campaigns/20261005` at `1a441943aa`,
   `crustify/campaigns/20261005/scan-unsafe.json`). They count only what each
   crate defines, so ffibox's own conversions and the `pub(crate)` constructors
