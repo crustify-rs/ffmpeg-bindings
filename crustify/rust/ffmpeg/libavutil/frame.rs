@@ -3618,6 +3618,18 @@ impl<'a> FrameRef<'a> {
         !video && self.sample_format().is_planar() && channels > self.extended_plane_count()
     }
 
+    /// Why C must not copy this frame's data into buffers it allocates
+    /// (`av_frame_ref`'s path for a frame that is not reference counted):
+    /// it would read the planes past `extended_data`
+    /// ([`copy_reads_past_extended_data`](Self::copy_reads_past_extended_data)),
+    /// or overflow an `int` allocating the copy's buffers
+    /// ([`sample_rounding_overflows`](Self::sample_rounding_overflows)).
+    /// `AVERROR(EINVAL)`, which C also returns after that overflow unless it
+    /// can allocate the whole copy.
+    fn copy_refusal(&self) -> Option<c_int> {
+        (self.copy_reads_past_extended_data() || self.sample_rounding_overflows()).then_some(EINVAL)
+    }
+
     /// Wraps: av_frame_clone
     ///
     /// A new frame describing the same data: the same properties, side data
@@ -3635,12 +3647,14 @@ impl<'a> FrameRef<'a> {
     ///
     /// `None` when C fails (the copy above, or memory), when one of the
     /// buffers' counts would near wrapping, and for a frame that is not
-    /// reference counted whose data C would read past its `extended_data`:
-    /// planar audio of more channels than [`NUM_DATA_POINTERS`] needs an
-    /// array of its own ([`FrameMut::alloc_extended_data`]).
+    /// reference counted whose data C would read past its `extended_data`
+    /// (planar audio of more channels than [`NUM_DATA_POINTERS`] needs an
+    /// array of its own, [`FrameMut::alloc_extended_data`]) or whose
+    /// buffers C cannot allocate without overflowing an `int` (audio of
+    /// `INT_MAX - 31` samples).
     #[must_use]
     pub fn try_clone(&self) -> Option<FrameBox> {
-        if !self.may_clone() || (!self.is_counted() && self.copy_reads_past_extended_data()) {
+        if !self.may_clone() || (!self.is_counted() && self.copy_refusal().is_some()) {
             return None;
         }
         // C allocates a frame and av_frame_ref's it: it copies the scalar
@@ -3687,6 +3701,13 @@ impl<'a> FrameRef<'a> {
     /// cannot allocate the frame, and `AVERROR(EINVAL)` when the copy would
     /// reach bytes it must not ([`copy_is_sound`]).
     fn copy_into_zeroed_buffers(&self) -> Result<NonNull<ffi::AVFrame>, c_int> {
+        // 0 lets C pick the line size, which it cannot compute for every
+        // sample count.
+        let linesize = if self.sample_rounding_overflows() {
+            self.default_sample_linesize()?
+        } else {
+            0
+        };
         // SAFETY: no precondition; NULL when C cannot allocate.
         let mut f = unsafe { ffi::av_frame_alloc() };
         if f.is_null() {
@@ -3695,14 +3716,16 @@ impl<'a> FrameRef<'a> {
         let src = self.as_ptr();
         // SAFETY: `f` is a fresh frame nothing else reaches and `src` a live
         // one, read only. C copies the layout (by the invariant, one C
-        // accepts) and allocates buffers for the geometry, whose bytes are
-        // zeroed over each reference's window, which makes `f` a frame
-        // satisfying the invariant.
+        // accepts) and allocates buffers for the geometry, rounding its
+        // sample count only where that stays in range (the line size above),
+        // whose bytes are zeroed over each reference's window, which makes
+        // `f` a frame satisfying the invariant.
         let mut ret = unsafe {
             (*f).format = (*src).format;
             (*f).width = (*src).width;
             (*f).height = (*src).height;
             (*f).nb_samples = (*src).nb_samples;
+            (*f).linesize[0] = linesize;
             let mut ret =
                 ffi::av_channel_layout_copy(&raw mut (*f).ch_layout, &raw const (*src).ch_layout);
             if ret >= 0 {
@@ -5045,6 +5068,37 @@ fn c_ctz(v: usize) -> Option<u32> {
 }
 
 impl<'a> FrameRef<'a> {
+    /// Whether `av_frame_get_buffer(_, 0)`, given a frame of this frame's
+    /// geometry without a line size, overflows an `int`: for audio (as C
+    /// tells it from video) of exactly `INT_MAX - 31` samples, the one count
+    /// `av_samples_get_buffer_size`'s range check lets through, it rounds
+    /// the count up to a multiple of 32 as `nb_samples + 32 - 1`. C runs
+    /// that allocation itself when it copies the data of a frame that is not
+    /// reference counted (`av_frame_ref`, `av_frame_clone`), and so does
+    /// [`FrameMut::make_writable`]'s copy.
+    fn sample_rounding_overflows(&self) -> bool {
+        self.format() >= 0
+            && !(self.width() > 0 && self.height() > 0)
+            && self.sample_count() == c_int::MAX - 31
+            && self.channel_layout().is_valid()
+    }
+
+    /// The line size `av_frame_get_buffer(_, 0)` picks for this frame's
+    /// samples, computed without C's overflowing rounding where
+    /// [`sample_rounding_overflows`](Self::sample_rounding_overflows): that
+    /// count is a multiple of 32 already, so the rounding leaves it alone,
+    /// and C takes a line size given as is. C's error where it has none.
+    fn default_sample_linesize(&self) -> Result<c_int, c_int> {
+        let channels = self.channel_layout().channel_count();
+        let size = samplefmt::samples_buffer_size(
+            usize::try_from(channels).unwrap_or(0),
+            usize::try_from(self.sample_count()).unwrap_or(0),
+            self.sample_format(),
+            0,
+        )?;
+        c_int::try_from(size.linesize).map_err(|_| EINVAL)
+    }
+
     /// Whether a C routine may reach `rows` from plane pointer `p`, a
     /// non-NULL plane of this frame, writing them when `write`. In a
     /// reference-counted frame, every row must lie inside the bytes of the
@@ -5360,8 +5414,9 @@ impl FrameMut<'_> {
     /// allocate or a buffer's count would near wrapping; for a `src` that is
     /// not reference counted, C's error copying its data (`AVERROR(EINVAL)`
     /// for one without planes, such as a new frame), and `AVERROR(EINVAL)`
-    /// when C would read its planes past its `extended_data`, as
-    /// [`try_clone`](FrameRef::try_clone) refuses.
+    /// when C would read its planes past its `extended_data` or overflow an
+    /// `int` allocating its buffers, as [`try_clone`](FrameRef::try_clone)
+    /// refuses.
     ///
     /// ```
     /// use ffmpeg::libavutil::buffer::BufferReference;
@@ -5380,8 +5435,8 @@ impl FrameMut<'_> {
             return Err(ENOMEM);
         }
         let copies = !src.is_counted();
-        if copies && src.copy_reads_past_extended_data() {
-            return Err(EINVAL);
+        if let Some(ret) = src.copy_refusal().filter(|_| copies) {
+            return Err(ret);
         }
         // SAFETY: the frame, reset (as C requires of `dst`) and reached
         // through the exclusive handle, and `src`, a distinct live frame read
@@ -5418,8 +5473,10 @@ impl FrameMut<'_> {
     /// # Errors
     ///
     /// `AVERROR(ENOMEM)` when a buffer's count would near wrapping, and
-    /// `AVERROR(EINVAL)` when C would read `src`'s planes past its
-    /// `extended_data`: the frame is then left as it was. Otherwise C's
+    /// `AVERROR(EINVAL)` when C, copying `src`'s data, would read its planes
+    /// past its `extended_data` or overflow an `int` allocating the copy's
+    /// buffers, as [`try_clone_from`](Self::try_clone_from) refuses: the
+    /// frame is then left as it was. Otherwise C's
     /// errors (memory, a failed copy), on which the frame is reset.
     pub fn assign(&mut self, src: FrameRef<'_>) -> Result<(), c_int> {
         if !src.may_clone() {
@@ -5427,8 +5484,8 @@ impl FrameMut<'_> {
         }
         let counted = src.is_counted();
         let copies = !counted && src.data_ptrs()[..4].iter().any(|p| !p.is_null());
-        if copies && src.copy_reads_past_extended_data() {
-            return Err(EINVAL);
+        if let Some(ret) = src.copy_refusal().filter(|_| copies) {
+            return Err(ret);
         }
         if src.extended_buffer_parts().0.is_null() {
             // For a `src` without extra references, C frees the frame's but
@@ -5554,8 +5611,10 @@ impl FrameMut<'_> {
     /// # Errors
     ///
     /// `AVERROR(ENOMEM)` when C cannot allocate a side data copy, after
-    /// which the frame has lost all of its side data, as C leaves it, its
-    /// other properties copied. Refused with the frame unchanged:
+    /// which the frame has lost all of its side data, as C leaves it: its
+    /// plain properties and metadata are copied, but its private and user
+    /// data references ([`opaque_ref`](FrameRef::opaque_ref)) are still its
+    /// own, as C copies them last. Refused with the frame unchanged:
     /// `AVERROR(ENOMEM)` when a reference C would add could near wrapping its
     /// count, and `AVERROR(EINVAL)` when an entry C would copy has an empty
     /// payload at a NULL window ([`BufferReference::from_heap_vec`] of an
@@ -5620,25 +5679,9 @@ impl FrameMut<'_> {
         }
         self.release_planes();
         let shared = self.as_ref();
-        let audio = shared.format() >= 0
-            && !(shared.width() > 0 && shared.height() > 0)
-            && shared.sample_count() > 0
-            && shared.channel_layout().is_valid();
-        let samples = shared.sample_count();
-        if audio && align == 0 && shared.linesizes()[0] == 0 && samples == c_int::MAX - 31 {
-            // C rounds this sample count up to a multiple of 32 as
-            // `nb_samples + 32 - 1`, which overflows; it is one already, and
-            // the line size C would compute is the one
-            // `samples_buffer_size` computes without overflowing, which C
-            // then takes as given.
-            let channels = shared.channel_layout().channel_count();
-            let size = samplefmt::samples_buffer_size(
-                usize::try_from(channels).unwrap_or(0),
-                samples as usize,
-                shared.sample_format(),
-                0,
-            )?;
-            let linesize = c_int::try_from(size.linesize).map_err(|_| EINVAL)?;
+        if align == 0 && shared.linesizes()[0] == 0 && shared.sample_rounding_overflows() {
+            // C would take a line size given, which skips its rounding.
+            let linesize = shared.default_sample_linesize()?;
             self.set_linesize(0, linesize);
         }
         let p = self.as_mut_ptr();
@@ -7875,6 +7918,63 @@ mod unit_tests {
         assert_eq!(m.as_ref().sample_count(), 0);
     }
 
+    /// The frames whose copy C cannot allocate without overflowing an `int`
+    /// at align 0: audio of exactly `INT_MAX - 31` samples, which every copy
+    /// path refuses (when C would allocate it) or allocates with the line
+    /// size C would round to.
+    #[test]
+    #[cfg_attr(miri, ignore)]
+    fn frame_copies_at_a_sample_count_c_cannot_round() {
+        let shaped = |format: SampleFormat, channels: c_int, samples: c_int| {
+            let mut f = Frame::new().unwrap();
+            let mut m = f.as_mut();
+            m.set_sample_format(format);
+            m.set_sample_count(samples);
+            m.set_channel_layout(ChannelLayout::unspecified(channels))
+                .unwrap();
+            f
+        };
+        let edge = c_int::MAX - 31;
+        let f = shaped(SampleFormat::U8, 1, edge);
+        assert!(f.as_ref().sample_rounding_overflows());
+        assert_eq!(f.as_ref().copy_refusal(), Some(EINVAL));
+        assert_eq!(f.as_ref().default_sample_linesize(), Ok(edge));
+        let wide = shaped(SampleFormat::S16, 2, edge);
+        assert!(wide.as_ref().sample_rounding_overflows());
+        assert_eq!(wide.as_ref().default_sample_linesize(), Err(EINVAL));
+        // C rounds the counts around it in range, or refuses them first.
+        for samples in [edge - 1, edge + 1, c_int::MAX] {
+            let g = shaped(SampleFormat::U8, 1, samples);
+            assert!(!g.as_ref().sample_rounding_overflows(), "{samples}");
+            assert_eq!(g.as_ref().copy_refusal(), None, "{samples}");
+        }
+        // C allocates video, or nothing, for the other geometries.
+        let mut video = shaped(SampleFormat::U8, 1, edge);
+        video.as_mut().set_width(4);
+        video.as_mut().set_height(4);
+        assert!(!video.as_ref().sample_rounding_overflows());
+        let none = shaped(SampleFormat::U8, 0, edge);
+        assert!(!none.as_ref().sample_rounding_overflows());
+        let mut unknown = shaped(SampleFormat::U8, 1, edge);
+        unknown.as_mut().set_format(-1);
+        assert!(!unknown.as_ref().sample_rounding_overflows());
+
+        // `assign` refuses to have C copy lent planes at that count.
+        let mut lent = shaped(SampleFormat::U8, 1, edge);
+        let mut mem = [0u8; 16];
+        // SAFETY: `mem` outlives `lent`'s use below; C never reads it, as
+        // `assign` refuses the copy (asserted), and C's own copy path would
+        // fail allocating its buffers before reading any plane.
+        unsafe { lent.as_mut().set_data_ptr(0, mem.as_mut_ptr()) };
+        let mut dst = Frame::new().unwrap();
+        dst.as_mut().set_pts(5);
+        assert_eq!(dst.as_mut().assign(lent.as_ref()), Err(EINVAL));
+        assert_eq!(dst.as_ref().pts(), 5, "left as it was");
+        assert_eq!(dst.as_mut().try_clone_from(lent.as_ref()), Err(EINVAL));
+        assert!(lent.as_ref().try_clone().is_none());
+        drop(lent);
+    }
+
     /// Lent planes are copied into zeroed buffers by `try_clone_from`,
     /// `assign` and `make_writable`; `assign` from a frame whose only lent
     /// planes are past the first four takes none of them.
@@ -8218,6 +8318,8 @@ mod unit_tests {
             }
             if rc.is_err() {
                 assert!(c.as_ref().side_data().is_empty());
+                // C copies the user data reference last: `c` keeps none.
+                assert!(c.as_ref().opaque_ref().is_none(), "{limit}");
             }
         }
         assert!(

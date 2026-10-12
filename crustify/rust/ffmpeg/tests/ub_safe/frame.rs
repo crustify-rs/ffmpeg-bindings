@@ -1997,6 +1997,7 @@ mod frame_routines {
     use ffmpeg::libavutil::samplefmt::SampleFormat;
 
     const EINVAL: i32 = -22;
+    const ENOMEM: i32 = -12;
     /// `AVERROR_BUG`, `FFERRTAG('B', 'U', 'G', '!')`.
     const AVERROR_BUG: i32 = -i32::from_le_bytes(*b"BUG!");
 
@@ -2657,6 +2658,89 @@ mod frame_routines {
                 .data_mut()
                 .is_some()
         );
+    }
+
+    /// Runs test `name` again alone in a child whose UBSan halts on its
+    /// first report (the asan-ubsan build otherwise only prints C's
+    /// reports); true inside that child.
+    fn halting(name: &str) -> bool {
+        const CHILD: &str = "CRUSTIFY_FRAME_HALTING_CHILD";
+        if std::env::var_os(CHILD).is_some() {
+            return true;
+        }
+        let status = std::process::Command::new(std::env::current_exe().unwrap())
+            .args(["--exact", name, "--test-threads=1"])
+            .env(CHILD, "1")
+            .env("UBSAN_OPTIONS", "halt_on_error=1")
+            .status()
+            .unwrap();
+        assert!(status.success(), "{name} failed in its child: {status}");
+        false
+    }
+
+    /// Every routine that has C allocate buffers for a copy of an audio
+    /// frame stays defined at `INT_MAX - 31` samples, the count whose
+    /// default rounding (`nb_samples + 32 - 1` in `int`) C's range check lets
+    /// through: copies of a frame that is not reference counted are refused,
+    /// and `make_writable` and `alloc_buffers` hand C the line size it would
+    /// compute, which it then cannot allocate.
+    #[test]
+    fn copies_at_a_sample_count_c_cannot_round_stay_defined() {
+        const NAME: &str =
+            "frame::frame_routines::copies_at_a_sample_count_c_cannot_round_stay_defined";
+        if !halting(NAME) {
+            return;
+        }
+        let shapes = [
+            (SampleFormat::U8, 1),
+            (SampleFormat::S16, 2),
+            (SampleFormat::FLTP, 3),
+            (SampleFormat::U8P, 10),
+        ];
+        for (format, channels) in shapes {
+            let shaped = || {
+                let mut f = Frame::new().unwrap();
+                let mut m = f.as_mut();
+                m.set_sample_format(format);
+                m.set_sample_count(i32::MAX - 31);
+                m.set_channel_layout(ChannelLayout::unspecified(channels))
+                    .unwrap();
+                if channels > NUM_DATA_POINTERS as i32 {
+                    m.alloc_extended_data().unwrap();
+                }
+                f
+            };
+            let mut f = shaped();
+            let what = format!("{format:?} x {channels}");
+            // Not reference counted: C would copy it into buffers of its own.
+            assert!(f.as_ref().try_clone().is_none(), "{what}");
+            let mut dst = Frame::new().unwrap();
+            dst.as_mut().set_pts(1);
+            assert_eq!(
+                dst.as_mut().try_clone_from(f.as_ref()),
+                Err(EINVAL),
+                "{what}"
+            );
+            assert_eq!(dst.as_ref().pts(), i64::MIN, "{what}: reset");
+            // C accepts a frame's planes copied into buffers of the line
+            // size it rounds to: 2 GiB for one byte per sample (more than
+            // `av_max_alloc` allows), more than an `int` otherwise.
+            let expected = if channels == 1 { ENOMEM } else { EINVAL };
+            assert_eq!(f.as_mut().make_writable(), Err(expected), "{what}");
+            let mut g = shaped();
+            assert_eq!(g.as_mut().alloc_buffers(0), Err(expected), "{what}");
+            // Reference counted and shared, so copied by `make_writable`.
+            let buf = BufferReference::alloc_zeroed(64).unwrap();
+            let keep = buf.as_ref().try_clone().unwrap();
+            f.as_mut().set_buffer(0, Some(buf));
+            assert!(!f.as_ref().is_writable());
+            assert_eq!(f.as_mut().make_writable(), Err(expected), "{what}");
+            assert_eq!(keep.as_ref().ref_count(), 2, "{what}: left as it was");
+            // Its references are shared rather than copied.
+            let clone = f.as_ref().try_clone().expect("a counted clone");
+            assert_eq!(clone.as_ref().sample_count(), i32::MAX - 31);
+            assert_eq!(dst.as_mut().try_clone_from(f.as_ref()), Ok(()), "{what}");
+        }
     }
 
     /// Shared frames serve lookups, references, copies and property copies
