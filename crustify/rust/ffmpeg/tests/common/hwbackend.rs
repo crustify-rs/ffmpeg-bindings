@@ -19,12 +19,13 @@
 //! results are configured through the contexts' `hwctx` structs
 //! ([`DeviceHwctx`], [`FramesHwctx`]), zeroed (all success) by default.
 //!
-//! Kind A (`VAAPI`, hardware format `VAAPI`) allocates surfaces from a pool and
+//! Kind A (`VAAPI`, hardware format `VAAPI`) allocates surfaces from a pool,
 //! maps them to software frames, or into another frames context
-//! (`map_from`); kind B (`DRM`, hardware format `DRM_PRIME`) maps frames of
+//! (`map_from`), and transfers data to and from them ([`transfer`]); kind B (`DRM`, hardware format `DRM_PRIME`) maps frames of
 //! another context into its own (`map_to`) and derives frames contexts
-//! (`frames_derive_to`). A surface is a [`SURFACE_SIZE`]-byte pool buffer,
-//! zeroed, which `data[3]` points at, as VA-API's surface IDs sit there.
+//! (`frames_derive_to`), and transfers nothing. A surface is a
+//! [`SURFACE_SIZE`]-byte pool buffer, zeroed, which `data[3]` points at, as
+//! VA-API's surface IDs sit there.
 #![allow(dead_code)]
 
 use core::cell::RefCell;
@@ -156,6 +157,8 @@ pub struct FramesHwctx {
     pub derive_ret: c_int,
     /// Nonzero for a `frames_init` that leaves the context without a pool.
     pub no_pool: c_int,
+    /// When negative, kind A's transfer result for frames of this context.
+    pub transfer_ret: c_int,
 }
 
 /// The bytes of a surface.
@@ -220,6 +223,8 @@ pub enum Event {
     Unmap(Kind),
     DeriveFrom(Kind),
     DeriveTo(Kind),
+    /// A transfer by the backend of the frames context it ran in.
+    Transfer(Kind),
 }
 
 thread_local! {
@@ -281,9 +286,9 @@ pub static BACKEND_A: Shared<HwContextType> = Shared(HwContextType {
     frames_init: Some(frames_init),
     frames_uninit: Some(frames_uninit),
     frames_get_buffer: Some(frames_get_buffer),
-    transfer_get_formats: None,
-    transfer_data_to: None,
-    transfer_data_from: None,
+    transfer_get_formats: Some(transfer_get_formats),
+    transfer_data_to: Some(transfer),
+    transfer_data_from: Some(transfer),
     map_to: None,
     map_from: Some(map_from),
     frames_derive_to: None,
@@ -530,6 +535,91 @@ unsafe extern "C" fn map_to(
             return averror(ffi::ENOSYS);
         }
         map_frame((*dst).hw_frames_ctx, dst, src)
+    }
+}
+
+/// Kind A's `transfer_get_formats`: the context's software format, for
+/// either direction.
+unsafe extern "C" fn transfer_get_formats(
+    ctx: *mut FramesCtx,
+    _dir: ffi::AVHWFrameTransferDirection,
+    formats: *mut *mut ffi::AVPixelFormat,
+) -> c_int {
+    // SAFETY: C passes a live, initialised frames context and a writable
+    // slot, to which a NONE-terminated `av_malloc` list is handed over.
+    unsafe {
+        let list =
+            ffi::av_malloc_array(2, size_of::<ffi::AVPixelFormat>()).cast::<ffi::AVPixelFormat>();
+        if list.is_null() {
+            return averror(ffi::ENOMEM);
+        }
+        list.write((*ctx).sw_format);
+        list.add(1).write(ffi::AVPixelFormat::AV_PIX_FMT_NONE);
+        formats.write(list);
+        0
+    }
+}
+
+/// Kind A's `transfer_data_to` and `transfer_data_from`. Between two
+/// hardware frames it copies the source's surface over the destination's.
+/// Otherwise, for each plane of the context's software format, it runs over
+/// the rows of an image of the context's allocated size in the software
+/// frame, at its line size, unchecked, as CUDA's transfers trust the frame:
+/// a download writes them with the surface's bytes, read cyclically; an
+/// upload adds them into the surface's bytes, cyclically.
+unsafe extern "C" fn transfer(
+    ctx: *mut FramesCtx,
+    dst: *mut ffi::AVFrame,
+    src: *const ffi::AVFrame,
+) -> c_int {
+    // SAFETY: C passes the live frames context of the hardware side, whose
+    // frames' `data[3]` are surfaces, and the frames; the software side is
+    // trusted to hold the image, as the wrappers check.
+    unsafe {
+        record(Event::Transfer(frames_kind(ctx)));
+        let ret = frames_hwctx(ctx).transfer_ret;
+        if ret < 0 {
+            return ret;
+        }
+        let (dst_hw, src_hw) = (
+            !(*dst).hw_frames_ctx.is_null(),
+            !(*src).hw_frames_ctx.is_null(),
+        );
+        if dst_hw && src_hw {
+            ptr::copy((*src).data[3], (*dst).data[3], SURFACE_SIZE);
+            return 0;
+        }
+        let (sw, surface) = if src_hw {
+            (dst.cast_const(), (*src).data[3])
+        } else {
+            (src, (*dst).data[3])
+        };
+        let format = (*ctx).sw_format;
+        let desc = ffi::av_pix_fmt_desc_get(format);
+        let mut k = 0;
+        for i in 0..ffi::av_pix_fmt_count_planes(format) {
+            let len = ffi::av_image_get_linesize(format, (*ctx).width, i) as usize;
+            let shift = if i == 1 || i == 2 {
+                (*desc).log2_chroma_h
+            } else {
+                0
+            };
+            let rows = -((-(*ctx).height) >> shift);
+            let line = (*sw).linesize[i as usize] as isize;
+            for row in 0..rows as isize {
+                let p = (*sw).data[i as usize].offset(row * line);
+                for x in 0..len {
+                    let s = surface.add(k % SURFACE_SIZE);
+                    if src_hw {
+                        p.add(x).write(s.read());
+                    } else {
+                        s.write(s.read().wrapping_add(p.add(x).read()));
+                    }
+                    k += 1;
+                }
+            }
+        }
+        0
     }
 }
 
