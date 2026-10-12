@@ -1,0 +1,19 @@
+{
+  "objective": "wrap",
+  "items": [
+    {
+      "name": "av_hwdevice_get_hwframe_constraints",
+      "defined_in": "libavutil/hwcontext.c",
+      "kind": "symbol",
+      "field_anchors": [],
+      "home": "crustify/rust/ffmpeg/libavutil/hwcontext.rs"
+    },
+    {
+      "name": "av_hwframe_constraints_free",
+      "defined_in": "libavutil/hwcontext.c",
+      "kind": "symbol",
+      "field_anchors": [],
+      "home": "crustify/rust/ffmpeg/libavutil/hwcontext.rs"
+    }
+  ]
+}
