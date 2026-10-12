@@ -3025,7 +3025,7 @@ impl<'a> FrameRef<'a> {
     }
 
     /// The `data` array, copied out.
-    fn data_ptrs(&self) -> [*mut u8; NUM_DATA_POINTERS] {
+    pub(crate) fn data_ptrs(&self) -> [*mut u8; NUM_DATA_POINTERS] {
         // SAFETY: a read of the `data` array projected through the shared
         // handle's pointer to a live, initialised `AVFrame`.
         unsafe { addr_of!((*self.as_ptr()).data).read() }
@@ -3059,7 +3059,7 @@ impl<'a> FrameRef<'a> {
 
     /// Whether `buf[0]` holds a reference, which C takes for a frame whose
     /// data is reference counted.
-    fn is_counted(&self) -> bool {
+    pub(crate) fn is_counted(&self) -> bool {
         !self.buffer_ptrs()[0].is_null()
     }
 
@@ -4838,7 +4838,7 @@ const MAX_BUFFER_ALIGN: usize = 1 << 27;
 
 /// The bytes of a palette, which C copies whole from plane 1 of a palettized
 /// format.
-const PALETTE_SIZE: usize = 4 * 256;
+pub(crate) const PALETTE_SIZE: usize = 4 * 256;
 
 int_flags! {
     /// The `AV_FRAME_CROP_*` flags of [`FrameMut::apply_cropping`].
@@ -4858,15 +4858,15 @@ int_flags! {
 /// `len` bytes, `linesize` bytes apart (rows before the pointer for a
 /// negative one).
 #[derive(Clone, Copy, Debug)]
-struct Rows {
-    len: usize,
-    rows: usize,
-    linesize: isize,
+pub(crate) struct Rows {
+    pub(crate) len: usize,
+    pub(crate) rows: usize,
+    pub(crate) linesize: isize,
 }
 
 impl Rows {
     /// One run of `len` bytes.
-    fn run(len: usize) -> Self {
+    pub(crate) fn run(len: usize) -> Self {
         Self {
             len,
             rows: 1,
@@ -4899,9 +4899,9 @@ impl Rows {
 /// `height` image: the row width and rows of each of planes 0 to 3 it copies,
 /// and whether it copies a palette from plane 1.
 #[derive(Clone, Copy, Debug, Default)]
-struct ImageReach {
-    planes: [Option<(usize, usize)>; 4],
-    palette: bool,
+pub(crate) struct ImageReach {
+    pub(crate) planes: [Option<(usize, usize)>; 4],
+    pub(crate) palette: bool,
 }
 
 /// [`ImageReach`] for an image of `format`, as C computes it; `None` where
@@ -4909,7 +4909,7 @@ struct ImageReach {
 /// copies as a `size_t` (palettized formats), a row width overflowing `int`
 /// ([`imgutils::linesize_overflows`]) or a chroma height of `INT_MIN`, which
 /// `AV_CEIL_RSHIFT` negates.
-fn image_reach(format: PixelFormat, width: c_int, height: c_int) -> Option<ImageReach> {
+pub(crate) fn image_reach(format: PixelFormat, width: c_int, height: c_int) -> Option<ImageReach> {
     let mut reach = ImageReach::default();
     let Some(desc) = format.descriptor() else {
         // C copies nothing.
@@ -5105,7 +5105,7 @@ impl<'a> FrameRef<'a> {
     /// buffer reference `p` points into, which for a write must be writable;
     /// the planes of a frame that is not reference counted were vouched for
     /// by their setter.
-    fn reaches(&self, p: *const u8, rows: Rows, write: bool) -> bool {
+    pub(crate) fn reaches(&self, p: *const u8, rows: Rows, write: bool) -> bool {
         if !self.is_counted() {
             return true;
         }

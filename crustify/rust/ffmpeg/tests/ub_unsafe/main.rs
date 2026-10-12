@@ -5,6 +5,7 @@ mod buffer;
 mod cpu;
 mod file;
 mod frame;
+mod hwcontext;
 mod imgutils;
 mod log;
 mod opt;

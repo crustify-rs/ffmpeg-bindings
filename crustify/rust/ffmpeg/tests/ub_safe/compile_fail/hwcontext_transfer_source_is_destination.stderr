@@ -1,0 +1,8 @@
+error[E0502]: cannot borrow `frame` as immutable because it is also borrowed as mutable
+ --> tests/ub_safe/compile_fail/hwcontext_transfer_source_is_destination.rs
+  |
+  |     let _ = unsafe { frame.as_mut().transfer_data_from(frame.as_ref()) };
+  |                      -----          ------------------ ^^^^^ immutable borrow occurs here
+  |                      |              |
+  |                      |              mutable borrow later used by call
+  |                      mutable borrow occurs here

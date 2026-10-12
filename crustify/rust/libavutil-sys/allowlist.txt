@@ -895,3 +895,9 @@ var ^ENOSYS$
 function ^av_hwdevice_find_type_by_name$
 function ^av_hwdevice_get_type_name$
 function ^av_hwdevice_iterate_types$
+
+# libavutil/hwcontext.h: transfers between hardware and software frames and
+# the formats they accept, which hwcontext.rs wraps (hwcontext wave 1,
+# batch 2).
+function ^av_hwframe_transfer_data$
+function ^av_hwframe_transfer_get_formats$

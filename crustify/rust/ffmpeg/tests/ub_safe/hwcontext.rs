@@ -149,3 +149,74 @@ mod transfer_direction {
         assert_eq!(back, ALL.map(TransferDirection::into_raw));
     }
 }
+
+/// [`FrameRef::transfer_formats`] on software frames in every state the
+/// safe API leaves one in: there is no context to ask, so each is refused
+/// without C dereferencing the NULL reference (hwcontext wave 1, batch 2).
+/// The campaign builds compile no hwcontext backend, so the safe API makes
+/// no hardware frame; listings of one are covered by the `equiv` and
+/// `ub_unsafe` suites' fake context. A transfer cannot read the frame it
+/// writes (`compile_fail/hwcontext_transfer_*`).
+///
+/// [`FrameRef::transfer_formats`]: ffmpeg::libavutil::frame::FrameRef::transfer_formats
+mod frame_ref_transfer_formats {
+    use std::thread;
+
+    use ffmpeg::libavutil::buffer::BufferReference;
+    use ffmpeg::libavutil::ffi;
+    use ffmpeg::libavutil::frame::{Frame, FrameBox};
+    use ffmpeg::libavutil::hwcontext::TransferDirection;
+    use ffmpeg::libavutil::pixfmt::PixelFormat;
+
+    const EINVAL: i32 = -(ffi::EINVAL as i32);
+    const DIRS: [TransferDirection; 2] = [TransferDirection::From, TransferDirection::To];
+
+    /// Software frames: new, with buffers, reset, with a user reference,
+    /// cloned, and with their (absent) context taken.
+    fn frames() -> Vec<FrameBox> {
+        let new = Frame::new().unwrap();
+        let mut allocated = Frame::new().unwrap();
+        let mut m = allocated.as_mut();
+        m.set_pixel_format(PixelFormat::YUV420P);
+        m.set_width(8);
+        m.set_height(4);
+        m.alloc_buffers(0).unwrap();
+        let cloned = allocated.as_ref().try_clone().unwrap();
+        let mut reset = allocated.as_ref().try_clone().unwrap();
+        reset.as_mut().reset();
+        let mut user = Frame::new().unwrap();
+        user.as_mut()
+            .set_opaque_ref(Some(BufferReference::alloc_zeroed(16).unwrap()));
+        let mut taken = Frame::new().unwrap();
+        assert!(taken.as_mut().take_hw_frames_context().is_none());
+        vec![new, allocated, cloned, reset, user, taken]
+    }
+
+    #[test]
+    fn software_frames_have_no_formats_to_list() {
+        for frame in frames() {
+            for dir in DIRS {
+                assert_eq!(
+                    frame.as_ref().transfer_formats(dir).map(|_| ()),
+                    Err(EINVAL)
+                );
+            }
+        }
+    }
+
+    #[test]
+    fn listing_through_shared_handles_on_many_threads() {
+        let frames = frames();
+        thread::scope(|s| {
+            for t in 0..4 {
+                let frames = &frames;
+                s.spawn(move || {
+                    for (i, f) in frames.iter().enumerate() {
+                        let dir = DIRS[(t + i) % 2];
+                        assert!(f.as_ref().transfer_formats(dir).is_err());
+                    }
+                });
+            }
+        });
+    }
+}
