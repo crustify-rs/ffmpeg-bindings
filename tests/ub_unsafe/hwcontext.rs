@@ -90,14 +90,16 @@ mod fixture {
     }
 }
 
-/// `hwcontext::transfer_formats` on references to initialised (fake)
-/// contexts: the lists are the caller's alone and outlive the context, each
-/// failure the backend reports frees nothing it did not hand over, and
-/// listing runs on several threads at once.
-mod transfer_formats {
+/// `FrameRef::transfer_formats` on hardware frames of initialised (fake)
+/// contexts, which only the unsafe adoption of the fixture's frames makes
+/// (`ub_safe` has no hardware frame to list for): the lists are the
+/// caller's alone and outlive the frame and its context, each failure the
+/// backend reports frees nothing it did not hand over, and listing runs on
+/// several threads at once.
+mod frame_ref_transfer_formats {
     use std::thread;
 
-    use ffmpeg::libavutil::hwcontext::{TransferDirection, transfer_formats};
+    use ffmpeg::libavutil::hwcontext::TransferDirection;
     use ffmpeg::libavutil::pixfmt::PixelFormat;
 
     use super::fixture::{context, hw_frame, inert_context};
@@ -106,11 +108,12 @@ mod transfer_formats {
     const DIRS: [TransferDirection; 2] = [TransferDirection::From, TransferDirection::To];
 
     #[test]
-    fn lists_outlive_the_context() {
+    fn lists_outlive_the_frame_and_context() {
         let ctx = context(&YUV);
-        // SAFETY: a live reference to a fake context.
-        let from = unsafe { transfer_formats(ctx.as_ref(), TransferDirection::From) }.unwrap();
-        drop(ctx);
+        let frame = hw_frame(&ctx, 0);
+        let from = frame.as_ref().transfer_formats(TransferDirection::From);
+        drop((frame, ctx));
+        let from = from.unwrap();
         assert_eq!(from.as_slice(), [PixelFormat::YUV420P, PixelFormat::GRAY8]);
         let copy = from.clone();
         drop(from);
@@ -118,42 +121,38 @@ mod transfer_formats {
     }
 
     #[test]
-    fn every_reference_to_a_context_lists_alike() {
+    fn every_frame_of_a_context_lists_alike() {
         let ctx = context(&GRAY_FIRST);
         let frame = hw_frame(&ctx, 0);
         let other = ctx.as_ref().try_clone().unwrap();
+        let other_frame = hw_frame(&other, 1);
+        let copy = frame.as_ref().try_clone();
         for dir in DIRS {
-            // SAFETY: live references to one fake context.
-            let (a, b) = unsafe {
-                (
-                    transfer_formats(ctx.as_ref(), dir).unwrap(),
-                    transfer_formats(other.as_ref(), dir).unwrap(),
-                )
-            };
+            let a = frame.as_ref().transfer_formats(dir).unwrap();
+            let b = other_frame.as_ref().transfer_formats(dir).unwrap();
             assert_eq!(a.as_slice(), b.as_slice());
-            let c = frame.as_ref().transfer_formats(dir).unwrap();
-            assert_eq!(a.as_slice(), c.as_slice());
+            if let Some(copy) = &copy {
+                let c = copy.as_ref().transfer_formats(dir).unwrap();
+                assert_eq!(a.as_slice(), c.as_slice());
+            }
         }
     }
 
     #[test]
     fn failures_and_empty_lists_free_nothing_twice() {
-        let empty = context(&EMPTY);
-        let failing = context(&LISTING_FAILS);
-        let inert = inert_context();
+        let (empty, failing, inert) = (context(&EMPTY), context(&LISTING_FAILS), inert_context());
+        let frames = [
+            hw_frame(&empty, 0),
+            hw_frame(&failing, 0),
+            hw_frame(&inert, 0),
+        ];
+        drop((empty, failing, inert));
         for dir in DIRS {
             for _ in 0..3 {
-                // SAFETY: live references to fake contexts.
-                unsafe {
-                    assert!(
-                        transfer_formats(empty.as_ref(), dir)
-                            .unwrap()
-                            .as_slice()
-                            .is_empty()
-                    );
-                    assert!(transfer_formats(failing.as_ref(), dir).is_err());
-                    assert!(transfer_formats(inert.as_ref(), dir).is_err());
-                }
+                let listed = frames[0].as_ref().transfer_formats(dir);
+                assert!(listed.unwrap().as_slice().is_empty());
+                assert!(frames[1].as_ref().transfer_formats(dir).is_err());
+                assert!(frames[2].as_ref().transfer_formats(dir).is_err());
             }
         }
     }
@@ -161,17 +160,15 @@ mod transfer_formats {
     #[test]
     fn lists_on_many_threads() {
         let ctx = context(&YUV);
-        let frame = hw_frame(&ctx, 0);
+        let (frame, other) = (hw_frame(&ctx, 0), hw_frame(&ctx, 1));
         thread::scope(|s| {
             for t in 0..8 {
-                let (ctx, frame) = (&ctx, &frame);
+                let (frame, other) = (&frame, &other);
                 s.spawn(move || {
                     for i in 0..50 {
                         let dir = DIRS[(t + i) % 2];
-                        // SAFETY: a live reference to a fake context, which
-                        // nothing writes.
-                        let a = unsafe { transfer_formats(ctx.as_ref(), dir) }.unwrap();
-                        let b = frame.as_ref().transfer_formats(dir).unwrap();
+                        let a = frame.as_ref().transfer_formats(dir).unwrap();
+                        let b = other.as_ref().transfer_formats(dir).unwrap();
                         assert_eq!(a.as_slice(), b.as_slice());
                     }
                 });

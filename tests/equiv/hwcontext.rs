@@ -281,11 +281,10 @@ fn transfer_directions_are_the_c_enumerators() {
 mod hwframes;
 
 /// `av_hwframe_transfer_get_formats` and `av_hwframe_transfer_data` against
-/// [`transfer_formats`], [`FrameRef::transfer_formats`] and
-/// [`FrameMut::transfer_data_from`] (hwcontext wave 1, batch 2), over
-/// independent fake contexts and frames built alike for each side.
+/// [`FrameRef::transfer_formats`] and [`FrameMut::transfer_data_from`]
+/// (hwcontext wave 1, batch 2), over independent fake contexts and frames
+/// built alike for each side.
 ///
-/// [`transfer_formats`]: ffmpeg::libavutil::hwcontext::transfer_formats
 /// [`FrameRef::transfer_formats`]: ffmpeg::libavutil::frame::FrameRef::transfer_formats
 /// [`FrameMut::transfer_data_from`]: ffmpeg::libavutil::frame::FrameMut::transfer_data_from
 mod transfer {
@@ -294,7 +293,7 @@ mod transfer {
 
     use ffmpeg::libavutil::buffer::BufferReferenceBox;
     use ffmpeg::libavutil::frame::{Frame, FrameBox};
-    use ffmpeg::libavutil::hwcontext::{TransferDirection, transfer_formats};
+    use ffmpeg::libavutil::hwcontext::TransferDirection;
     use ffmpeg::libavutil::pixfmt::PixelFormat;
 
     use super::ffi;
@@ -497,19 +496,16 @@ mod transfer {
             let frames = hw_frames(&ctx, 0);
             for dir in DIRS {
                 let c = c_formats(&ctx.0, dir);
-                // SAFETY: a live reference to a fake context.
-                let r = unsafe { transfer_formats(ctx.1.as_ref(), dir) };
-                assert_eq!(r.map(|l| l.as_slice().to_vec()), c, "{dir:?}");
                 let r = frames.1.as_ref().transfer_formats(dir);
                 assert_eq!(r.map(|l| l.as_slice().to_vec()), c, "{dir:?}");
             }
         }
         let inert = inert_contexts();
+        let frames = hw_frames(&inert, 0);
         for dir in DIRS {
             let c = c_formats(&inert.0, dir);
             assert_eq!(c, Err(-(ffi::ENOSYS as c_int)));
-            // SAFETY: a live reference to a fake context.
-            let r = unsafe { transfer_formats(inert.1.as_ref(), dir) };
+            let r = frames.1.as_ref().transfer_formats(dir);
             assert_eq!(r.map(|l| l.as_slice().to_vec()), c);
         }
     }
@@ -1480,6 +1476,379 @@ mod contexts {
             drop(r_dev);
             assert_eq!(fx::take_events(), c_events);
         }
+    }
+}
+
+/// [`HardwareFrame`]'s transfers ([`download_to`], [`upload_from`],
+/// [`copy_from`]) and [`FramesReferenceRef::transfer_formats`] against
+/// `av_hwframe_transfer_data` and `av_hwframe_transfer_get_formats` (hwcontext
+/// wave-1 symbol review), over independent frames contexts of kind A of
+/// `tests/common/hwbackend.rs`, whose transfers run over the software frame's
+/// image unchecked; kind B transfers nothing, which C would call through NULL,
+/// so only its listing runs in C. Results, downloaded images, frame shapes
+/// and the backends' event logs are compared after each step.
+///
+/// [`HardwareFrame`]: ffmpeg::libavutil::hwcontext::HardwareFrame
+/// [`download_to`]: ffmpeg::libavutil::hwcontext::HardwareFrame::download_to
+/// [`upload_from`]: ffmpeg::libavutil::hwcontext::HardwareFrame::upload_from
+/// [`copy_from`]: ffmpeg::libavutil::hwcontext::HardwareFrame::copy_from
+/// [`FramesReferenceRef::transfer_formats`]: ffmpeg::libavutil::hwcontext::FramesReferenceRef::transfer_formats
+mod hardware_frame_transfers {
+    use core::ffi::c_int;
+    use core::ptr;
+
+    use ffmpeg::libavutil::ffi;
+    use ffmpeg::libavutil::frame::{Frame, FrameBox};
+    use ffmpeg::libavutil::hwcontext::{
+        DeviceReferenceBox, FramesReferenceBox, HardwareFrame, MapFlags, TransferDirection,
+    };
+    use ffmpeg::libavutil::pixfmt::PixelFormat;
+
+    use super::backend::{self as fx, Event, FramesHwctx, Kind, averror};
+
+    const W: c_int = 64;
+    const H: c_int = 32;
+    const ENOSYS: c_int = averror(ffi::ENOSYS);
+
+    /// Both sides' frames context of `kind` at `W` x `H` on a device of its
+    /// own, and its device: C's references, Rust's boxes.
+    struct Contexts {
+        c_dev: *mut ffi::AVBufferRef,
+        c: *mut ffi::AVBufferRef,
+        r_dev: DeviceReferenceBox,
+        r: FramesReferenceBox,
+    }
+
+    impl Contexts {
+        fn new(kind: Kind, hwctx: FramesHwctx) -> Self {
+            let c_dev = fx::device(kind);
+            // SAFETY: the only reference to an initialised test device.
+            let r_dev = unsafe { DeviceReferenceBox::from_c(fx::device(kind)) }.unwrap();
+            // SAFETY: a live device; then the fresh frames context it made,
+            // filled and initialised.
+            let c = unsafe {
+                let c = ffi::av_hwframe_ctx_alloc(c_dev);
+                assert!(!c.is_null());
+                fx::fill_frames(fx::frames_ctx(c), kind, W, H, 0);
+                fx::set_frames_hwctx(fx::frames_ctx(c), hwctx);
+                assert_eq!(ffi::av_hwframe_ctx_init(c), 0);
+                c
+            };
+            let mut r = r_dev.as_ref().alloc_frames().unwrap();
+            let p = r.as_mut_ptr();
+            // SAFETY: the fresh, uninitialised context `r` owns.
+            unsafe {
+                fx::fill_frames(p, kind, W, H, 0);
+                fx::set_frames_hwctx(p, hwctx);
+            }
+            let r = r.init().unwrap();
+            let events = fx::take_events();
+            assert_eq!(events, [Event::FramesInit(kind), Event::FramesInit(kind)]);
+            Self { c_dev, c, r_dev, r }
+        }
+
+        /// A hardware frame of each side's context.
+        fn get_buffer(&self) -> (CFrame, HardwareFrame) {
+            let c = CFrame::alloc();
+            // SAFETY: a live frames context and a fresh frame.
+            assert_eq!(unsafe { ffi::av_hwframe_get_buffer(self.c, c.0, 0) }, 0);
+            let r = self.r.as_ref().get_buffer().unwrap();
+            let events = fx::take_events();
+            assert_eq!(events.len(), 2);
+            assert_eq!(events[0], events[1]);
+            (c, r)
+        }
+    }
+
+    impl Drop for Contexts {
+        fn drop(&mut self) {
+            // SAFETY: the test's own references.
+            unsafe {
+                fx::unref(self.c);
+                fx::unref(self.c_dev);
+            }
+        }
+    }
+
+    /// An `AVFrame` C owns, freed on drop.
+    struct CFrame(*mut ffi::AVFrame);
+
+    impl CFrame {
+        fn alloc() -> Self {
+            // SAFETY: allocation.
+            let f = unsafe { ffi::av_frame_alloc() };
+            assert!(!f.is_null());
+            Self(f)
+        }
+    }
+
+    impl Drop for CFrame {
+        fn drop(&mut self) {
+            // SAFETY: a frame this test owns.
+            unsafe { ffi::av_frame_free(&mut self.0) };
+        }
+    }
+
+    /// The byte at row `r`, column `x` of plane `i` of the image `seed`
+    /// names.
+    fn byte(seed: u8, i: usize, r: usize, x: usize) -> u8 {
+        seed.wrapping_add((r * 31 + x * 7 + i) as u8)
+    }
+
+    /// The planes and rows of a `w` x `h` NV12 image.
+    fn planes(h: c_int) -> [(usize, usize); 2] {
+        [(0, h as usize), (1, (h as usize).div_ceil(2))]
+    }
+
+    /// An NV12 software frame of `w` x `h` for each side, given buffers by
+    /// `av_frame_get_buffer` and [`alloc_buffers`] (zeroed), its image then
+    /// holding `seed`'s bytes.
+    ///
+    /// [`alloc_buffers`]: ffmpeg::libavutil::frame::FrameMut::alloc_buffers
+    fn software(w: c_int, h: c_int, seed: u8) -> (CFrame, FrameBox) {
+        let c = CFrame::alloc();
+        // SAFETY: a fresh frame given a format, size and buffers, whose image
+        // rows are then written inside its planes.
+        unsafe {
+            (*c.0).format = ffi::AVPixelFormat::AV_PIX_FMT_NV12.0;
+            (*c.0).width = w;
+            (*c.0).height = h;
+            assert_eq!(ffi::av_frame_get_buffer(c.0, 0), 0);
+            for (i, rows) in planes(h) {
+                for r in 0..rows {
+                    let row = (*c.0).data[i].offset(r as isize * (*c.0).linesize[i] as isize);
+                    for x in 0..w as usize {
+                        row.add(x).write(byte(seed, i, r, x));
+                    }
+                }
+            }
+        }
+        let mut f = Frame::new().unwrap();
+        let mut m = f.as_mut();
+        m.set_pixel_format(PixelFormat::NV12);
+        m.set_width(w);
+        m.set_height(h);
+        m.alloc_buffers(0).unwrap();
+        let lines = m.as_ref().linesizes();
+        for (i, rows) in planes(h) {
+            let ls = lines[i] as usize;
+            let plane = m.plane_mut(i).unwrap();
+            for r in 0..rows {
+                for x in 0..w as usize {
+                    plane[r * ls + x] = byte(seed, i, r, x);
+                }
+            }
+        }
+        (c, f)
+    }
+
+    /// The `W` x `H` NV12 image of each side's software frame.
+    fn images(c: &CFrame, r: &FrameBox) -> (Vec<u8>, Vec<u8>) {
+        let mut ci = Vec::new();
+        // SAFETY: a live frame whose planes hold the image, initialised.
+        unsafe {
+            for (i, rows) in planes(H) {
+                for row in 0..rows {
+                    let p = (*c.0).data[i].offset(row as isize * (*c.0).linesize[i] as isize);
+                    ci.extend_from_slice(core::slice::from_raw_parts(p, W as usize));
+                }
+            }
+        }
+        let f = r.as_ref();
+        let (lines, mut ri) = (f.linesizes(), Vec::new());
+        for (i, rows) in planes(H) {
+            let (ls, plane) = (lines[i] as usize, f.plane(i).unwrap());
+            for row in 0..rows {
+                ri.extend_from_slice(&plane[row * ls..row * ls + W as usize]);
+            }
+        }
+        (ci, ri)
+    }
+
+    /// The format, width and height of each side's frame.
+    fn dims(c: &CFrame, r: &FrameBox) -> ((c_int, c_int, c_int), (c_int, c_int, c_int)) {
+        // SAFETY: a live frame.
+        let cd = unsafe { ((*c.0).format, (*c.0).width, (*c.0).height) };
+        let f = r.as_ref();
+        (cd, (f.format(), f.width(), f.height()))
+    }
+
+    /// C's `av_hwframe_transfer_data(dst, src, 0)`.
+    fn c_transfer(dst: &CFrame, src: &CFrame) -> c_int {
+        // SAFETY: live frames: each hardware one a frame of its test
+        // context, each software one holding the surfaces' image.
+        unsafe { ffi::av_hwframe_transfer_data(dst.0, src.0, 0) }
+    }
+
+    /// A Rust result as C reports it.
+    fn code(r: Result<(), c_int>) -> c_int {
+        r.err().unwrap_or(0)
+    }
+
+    /// Asserts the C and Rust steps recorded the same backend events.
+    fn same_events(c_events: Vec<Event>) {
+        assert_eq!(fx::take_events(), c_events);
+    }
+
+    #[test]
+    fn format_listings_match_c() {
+        for kind in [Kind::A, Kind::B] {
+            let ctx = Contexts::new(kind, FramesHwctx::default());
+            for dir in [TransferDirection::From, TransferDirection::To] {
+                let mut list = ptr::null_mut();
+                // SAFETY: a live frames context and a writable slot.
+                let ret = unsafe {
+                    ffi::av_hwframe_transfer_get_formats(ctx.c, dir.into_raw(), &mut list, 0)
+                };
+                let c = (ret >= 0).then(|| {
+                    // SAFETY: the terminated list C handed over, read to its
+                    // terminator and freed.
+                    unsafe {
+                        let mut out = Vec::new();
+                        let mut p = list;
+                        while *p != ffi::AVPixelFormat::AV_PIX_FMT_NONE {
+                            out.push(PixelFormat::from_raw(*p));
+                            p = p.add(1);
+                        }
+                        ffi::av_free(list.cast());
+                        out
+                    }
+                });
+                let r = ctx.r.as_ref().transfer_formats(dir);
+                assert_eq!(r.as_ref().err().copied(), (ret < 0).then_some(ret));
+                assert_eq!(r.ok().map(|l| l.as_slice().to_vec()), c, "{kind:?} {dir:?}");
+            }
+            if kind == Kind::B {
+                let (_c_hw, r_hw) = ctx.get_buffer();
+                let listed = r_hw.frames().transfer_formats(TransferDirection::From);
+                assert_eq!(listed.err(), Some(ENOSYS));
+            }
+            drop(ctx);
+            fx::take_events();
+        }
+    }
+
+    #[test]
+    fn transfer_sequences_match_c() {
+        let ctx = Contexts::new(Kind::A, FramesHwctx::default());
+        let (c_hw, mut r_hw) = ctx.get_buffer();
+        let (c_other, mut r_other) = ctx.get_buffer();
+        let (c_dst, mut r_dst) = software(W, H, 0);
+        for seed in [3, 200, 77] {
+            // Upload, adding into the surface.
+            let src = software(W, H, seed);
+            let c = c_transfer(&c_hw, &src.0);
+            let c_events = fx::take_events();
+            assert_eq!(code(r_hw.upload_from(src.1.as_ref())), c);
+            same_events(c_events);
+            // Download into buffers, and into a frame without any.
+            let c = c_transfer(&c_dst, &c_hw);
+            let c_events = fx::take_events();
+            assert_eq!(code(r_hw.download_to(r_dst.as_mut())), c);
+            same_events(c_events);
+            let (ci, ri) = images(&c_dst, &r_dst);
+            assert_eq!(ci, ri, "seed {seed}");
+            let (c_fresh, mut r_fresh) = (CFrame::alloc(), Frame::new().unwrap());
+            let c = c_transfer(&c_fresh, &c_hw);
+            let c_events = fx::take_events();
+            assert_eq!(code(r_hw.download_to(r_fresh.as_mut())), c);
+            same_events(c_events);
+            let (cd, rd) = dims(&c_fresh, &r_fresh);
+            assert_eq!(cd, rd);
+            let (cf, rf) = images(&c_fresh, &r_fresh);
+            assert_eq!(cf, rf);
+            assert_eq!(cf, ci);
+            // Copy between hardware frames, then download the copy.
+            let c = c_transfer(&c_other, &c_hw);
+            let c_events = fx::take_events();
+            assert_eq!(code(r_other.copy_from(&r_hw)), c);
+            same_events(c_events);
+            let c = c_transfer(&c_dst, &c_other);
+            let c_events = fx::take_events();
+            assert_eq!(code(r_other.download_to(r_dst.as_mut())), c);
+            same_events(c_events);
+            assert_eq!(images(&c_dst, &r_dst), (ci.clone(), ci));
+        }
+        // Back from the copy, in the other direction.
+        let c = c_transfer(&c_hw, &c_other);
+        let c_events = fx::take_events();
+        assert_eq!(code(r_hw.copy_from(&r_other)), c);
+        same_events(c_events);
+        drop((c_hw, r_hw, c_other, r_other, ctx));
+        fx::take_events();
+    }
+
+    #[test]
+    fn backend_failures_and_derived_copies_match_c() {
+        let failing = FramesHwctx {
+            transfer_ret: -12345,
+            ..FramesHwctx::default()
+        };
+        let ctx = Contexts::new(Kind::A, failing);
+        let (c_hw, mut r_hw) = ctx.get_buffer();
+        let (c_sw, r_sw) = software(W, H, 1);
+        let c = c_transfer(&c_hw, &c_sw);
+        let c_events = fx::take_events();
+        assert_eq!(c, -12345);
+        assert_eq!(code(r_hw.upload_from(r_sw.as_ref())), c);
+        same_events(c_events);
+        let (c_fresh, mut r_fresh) = (CFrame::alloc(), Frame::new().unwrap());
+        let c = c_transfer(&c_fresh, &c_hw);
+        let c_events = fx::take_events();
+        assert_eq!(code(r_hw.download_to(r_fresh.as_mut())), c);
+        same_events(c_events);
+        let (cd, rd) = dims(&c_fresh, &r_fresh);
+        assert_eq!(cd, rd);
+        // A derived context on the same device: C refuses copies between
+        // hardware frames when either context is derived, after the listings
+        // Rust checks first.
+        let ok = Contexts::new(Kind::A, FramesHwctx::default());
+        let flags = MapFlags::READ | MapFlags::WRITE;
+        let fmt = ffi::AVPixelFormat::AV_PIX_FMT_VAAPI;
+        let mut c_derived = ptr::null_mut();
+        // SAFETY: live device and frames contexts and a writable slot.
+        let ret = unsafe {
+            ffi::av_hwframe_ctx_create_derived(&mut c_derived, fmt, ok.c_dev, ok.c, flags.bits())
+        };
+        assert_eq!(ret, 0);
+        let source = ok.r.as_ref();
+        let r_derived = source
+            .derive(PixelFormat::VAAPI, ok.r_dev.as_ref(), flags)
+            .unwrap();
+        fx::take_events();
+        let c_hd = CFrame::alloc();
+        // SAFETY: a live frames context and a fresh frame.
+        let ret = unsafe { ffi::av_hwframe_get_buffer(c_derived, c_hd.0, 0) };
+        assert_eq!(ret, 0);
+        let mut r_hd = r_derived.as_ref().get_buffer().unwrap();
+        let c_events = fx::take_events();
+        assert_eq!(c_events.len(), 4);
+        assert_eq!(c_events[..2], c_events[2..]);
+        let (c_plain, mut r_plain) = ok.get_buffer();
+        let c = c_transfer(&c_hd, &c_plain);
+        assert_eq!(c, ENOSYS);
+        assert_eq!(code(r_hd.copy_from(&r_plain)), c);
+        let c = c_transfer(&c_plain, &c_hd);
+        assert_eq!(code(r_plain.copy_from(&r_hd)), c);
+        assert!(fx::take_events().is_empty());
+        // Its mapped frames transfer with software frames.
+        let c = c_transfer(&c_hd, &c_sw);
+        let c_events = fx::take_events();
+        assert_eq!(code(r_hd.upload_from(r_sw.as_ref())), c);
+        same_events(c_events);
+        let (c_dst, mut r_dst) = software(W, H, 0);
+        let c = c_transfer(&c_dst, &c_hd);
+        let c_events = fx::take_events();
+        assert_eq!(code(r_hd.download_to(r_dst.as_mut())), c);
+        same_events(c_events);
+        let (ci, ri) = images(&c_dst, &r_dst);
+        assert_eq!(ci, ri);
+        // SAFETY: the test's own reference.
+        unsafe { fx::unref(c_derived) };
+        drop((
+            c_dst, r_dst, c_hd, r_hd, r_derived, c_plain, r_plain, ok, c_hw, r_hw, ctx,
+        ));
+        fx::take_events();
     }
 }
 

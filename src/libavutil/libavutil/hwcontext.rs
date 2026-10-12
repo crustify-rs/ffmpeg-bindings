@@ -6,13 +6,16 @@
 //! asks about. Both are plain `Copy` values.
 //!
 //! Frames move between hardware and software through
-//! [`FrameMut::transfer_data_from`] (`av_hwframe_transfer_data`), in the
-//! software formats a hardware frame's context lists for each direction
-//! ([`FrameRef::transfer_formats`], or [`transfer_formats`] for a context
-//! reference; `av_hwframe_transfer_get_formats`). Until this module wraps
-//! hardware frames contexts and their frames, the transfer and the listing
-//! over a bare context reference are `unsafe`: their callers vouch for the
-//! hardware side, which Rust checks the software side against.
+//! `av_hwframe_transfer_data`, in the software formats a hardware frames
+//! context lists for each direction ([`FramesReferenceRef::transfer_formats`],
+//! or [`FrameRef::transfer_formats`] for the context a frame holds;
+//! `av_hwframe_transfer_get_formats`). A [`HardwareFrame`] downloads into a
+//! software frame ([`HardwareFrame::download_to`]), uploads from one
+//! ([`HardwareFrame::upload_from`]) or copies another hardware frame
+//! ([`HardwareFrame::copy_from`]); Rust checks the software side against its
+//! context. [`FrameMut::transfer_data_from`] is the same transfer over plain
+//! frames, `unsafe`, for hardware frames C hands over as a [`Frame`] (a
+//! hardware decoder's), which only their caller can vouch for.
 //!
 //! A device context is reached through a [`DeviceReferenceBox`], made by
 //! [`DeviceReference::create`], by initialising an [`UninitDevice`] from
@@ -255,10 +258,10 @@ const EINVAL: c_int = -(ffi::EINVAL as c_int);
 /// `av_hwframe_ctx_alloc` made and `av_hwframe_ctx_init` set up, whose
 /// bytes are its `AVHWFramesContext` and which nothing writes while the
 /// reference is borrowed.
-// A private stand-in for the typed frames context handle that wrapping
-// hwcontext.h's AVHWFramesContext brings; built only from a frame's
-// `hw_frames_ctx` (which `Frame`'s invariant makes such a reference) and
-// from callers of the unsafe entry points who vouch for one.
+// A private view of a frames context reference as the buffer reference a
+// frame holds; built only from a frame's `hw_frames_ctx` (which `Frame`'s
+// invariant makes such a reference), from a `FramesReferenceRef`, and from
+// callers of the unsafe entry points who vouch for one.
 #[derive(Clone, Copy)]
 struct HwFrames<'a>(BufferReferenceRef<'a>);
 
@@ -337,39 +340,6 @@ impl<'a> HwFrames<'a> {
         let list = unsafe { HeapVec::from_raw_parts_or_empty(list.cast::<PixelFormat>(), len) };
         Ok(list.unwrap_or_else(HeapVec::empty))
     }
-}
-
-/// Wraps: av_hwframe_transfer_get_formats
-///
-/// The software pixel formats a transfer with the hardware frames of the
-/// context `frames_context` references can use: those data can be
-/// downloaded into ([`TransferDirection::From`]) or uploaded from
-/// ([`TransferDirection::To`]), in the backend's order of preference. C
-/// promises at least one format on success. The list is the caller's.
-///
-/// [`FrameRef::transfer_formats`] is the safe form for the context of a
-/// hardware frame.
-///
-/// # Errors
-///
-/// The backend's error; `AVERROR(ENOSYS)` for a backend that transfers no
-/// data (MediaCodec, OpenHarmony).
-///
-/// # Safety
-///
-/// `frames_context` must reference an initialised hardware frames context
-/// (one `av_hwframe_ctx_alloc` made and `av_hwframe_ctx_init` set up, or a
-/// reference to it), whose bytes C reads as its `AVHWFramesContext` and
-/// whose private part its backend reads; no other reference may write them
-/// meanwhile.
-// A method of the typed frames context replaces this seam once hwcontext.h's
-// AVHWFramesContext is wrapped.
-pub unsafe fn transfer_formats(
-    frames_context: BufferReferenceRef<'_>,
-    dir: TransferDirection,
-) -> Result<HeapVec<PixelFormat>, c_int> {
-    // The caller vouches for the context.
-    HwFrames(frames_context).transfer_formats(dir)
 }
 
 impl FrameRef<'_> {
@@ -547,10 +517,14 @@ impl FrameMut<'_> {
     /// mapped for it (`av_hwframe_get_buffer`, `av_hwframe_map`, a hardware
     /// decoder) and left as it made them, which the backend reads and, for
     /// a destination, writes through them. Its width and height may have
-    /// changed, which is checked. This crate builds no hardware frame yet,
-    /// and `Frame` cannot tell one from a software frame given a context.
-    // A safe method over a typed hardware frame replaces this seam once
-    // hwcontext.h's frames contexts and their frames are wrapped.
+    /// changed, which is checked. `Frame` cannot tell a hardware frame from a
+    /// software frame given a context; [`HardwareFrame`]'s transfers
+    /// ([`download_to`](HardwareFrame::download_to),
+    /// [`upload_from`](HardwareFrame::upload_from),
+    /// [`copy_from`](HardwareFrame::copy_from)) are the safe forms for the
+    /// hardware frames this crate allocates.
+    // Remains for hardware frames C hands over as plain frames (hardware
+    // decoders, filters), until their wrappers hand out `HardwareFrame`s.
     pub unsafe fn transfer_data_from(&mut self, src: FrameRef<'_>) -> Result<(), c_int> {
         let dst = self.as_ref();
         let (dst_hw, src_hw) = (HwFrames::of(dst), HwFrames::of(src));
@@ -1399,6 +1373,34 @@ impl<'a> FramesReferenceRef<'a> {
         unsafe { FramesReferenceBox::from_c(copy) }
     }
 
+    /// The reference as the transfer checks view a frame's frames context.
+    fn hw_frames(&self) -> HwFrames<'a> {
+        // SAFETY: a live reference, for `'a`, to an initialised frames
+        // context: C's `av_mallocz` block of its private context, wholly
+        // initialised, whose public struct is the buffer's window, which
+        // nothing writes any more and which C made read-only (so it is never
+        // writable, nor an `UninitBuffer`). The view stays in the transfer
+        // checks, which read the context's fields and hand it to C.
+        let buf = unsafe { BufferReferenceRef::from_ptr(self.as_ptr().cast_mut()) };
+        HwFrames(buf.expect("a handle's reference is not NULL"))
+    }
+
+    /// Wraps: av_hwframe_transfer_get_formats
+    ///
+    /// The software pixel formats a transfer with the context's hardware
+    /// frames can use: those their data can be downloaded into
+    /// ([`TransferDirection::From`]) or uploaded from
+    /// ([`TransferDirection::To`]), in the backend's order of preference. C
+    /// promises at least one format on success. The list is the caller's.
+    ///
+    /// # Errors
+    ///
+    /// The backend's error; `AVERROR(ENOSYS)` for a backend that transfers no
+    /// data (MediaCodec, OpenHarmony).
+    pub fn transfer_formats(&self, dir: TransferDirection) -> Result<HeapVec<PixelFormat>, c_int> {
+        self.hw_frames().transfer_formats(dir)
+    }
+
     /// Wraps: av_hwframe_get_buffer
     ///
     /// A new hardware frame from the context's pool, of its format and
@@ -1515,10 +1517,17 @@ impl UninitFrames {
     ///
     /// A raw seam until hwcontext.h's `AVHWFramesContext` is wrapped.
     /// Writes through it must keep `av_class`, `device_ref`, `device_ctx`
-    /// and the `hwctx` pointer as C set them, and leave `pool` NULL or a
-    /// pool of buffers the backend can use as its surfaces, which the
-    /// context then holds a reference to until it is released; the pointer
-    /// is valid while `self` lives.
+    /// and the `hwctx` pointer as C set them; may fill the backend's `hwctx`
+    /// struct only with what its `hwcontext_<api>.h` allows (its
+    /// `frames_init` uses the surfaces or textures a caller provides there,
+    /// and its `frames_uninit` releases what it finds, whether the context
+    /// was initialised or not); and must leave `pool` NULL or a pool of
+    /// buffers the backend can use as its surfaces, and `free` NULL or a
+    /// function C may call with the context, and `user_opaque` as written,
+    /// at its last release. C never releases a pool the caller set (only the
+    /// one the backend makes): the caller's `free` must uninit it, or it
+    /// leaks. [`init`](Self::init), a safe call, relies on all of this. The
+    /// pointer is valid while `self` lives.
     #[must_use]
     pub fn as_mut_ptr(&mut self) -> *mut ffi::AVHWFramesContext {
         // SAFETY: a read of the `data` field of the live reference the box
@@ -1571,7 +1580,9 @@ impl fmt::Debug for UninitFrames {
 /// backend's surface handles where a frame's hold bytes (VA-API makes a
 /// surface ID the data pointer of a 4-byte buffer), and its planes point
 /// into no buffer. Its data is reached by mapping it to normal memory
-/// ([`map`](Self::map)), or by copying it out (`av_hwframe_transfer_data`).
+/// ([`map`](Self::map)), or by copying it out
+/// ([`download_to`](Self::download_to)); [`upload_from`](Self::upload_from)
+/// and [`copy_from`](Self::copy_from) copy data in.
 ///
 /// Every value holds a frame that `av_hwframe_get_buffer` or
 /// `av_hwframe_map` filled, with a frames context, which nothing else
@@ -1715,8 +1726,11 @@ impl HardwareFrame {
     /// must be compatible, as for a context derived from this frame's
     /// ([`FramesReferenceRef::derive`]). When this frame's context was
     /// derived from `frames`, the result is the frame this one was mapped
-    /// from, as a new reference (an unmapping). The new frame holds a
-    /// reference to this one, or to the frame it was mapped from.
+    /// from, as a new reference (an unmapping), in that frame's own context:
+    /// `frames` for the frames the derived context allocates, but the third
+    /// context of a frame mapped into the derived one from there. The new
+    /// frame holds a reference to this one, or to the frame it was mapped
+    /// from.
     ///
     /// # Errors
     ///
@@ -1754,13 +1768,98 @@ impl HardwareFrame {
         // the backends' `map_from`/`map_to` read and reference.
         let ret = unsafe { ffi::av_hwframe_map(p, self.frame.as_c_ptr(), flags.bits()) };
         status(ret)?;
-        // A frame `av_hwframe_map` filled, holding `frames`' context (or,
-        // unmapping, the source frame's, which is `frames`'): the type's
-        // invariant.
+        // A frame `av_hwframe_map` filled, holding `frames`' context or,
+        // unmapping, a reference to the frame this one was mapped from, with
+        // that frame's context: the type's invariant.
         Ok(HardwareFrame {
             frame: dst,
             _context: PhantomData,
         })
+    }
+
+    /// Wraps: av_hwframe_transfer_data
+    ///
+    /// Downloads the frame's data into the software frame `dst`, as
+    /// [`FrameMut::transfer_data_from`] does from a hardware source: `dst`
+    /// must use a format the frames context lists for downloads
+    /// ([`FramesReferenceRef::transfer_formats`] with
+    /// [`TransferDirection::From`]) and hold a writable image of the
+    /// context's allocated size, or have no buffers (as [`Frame::new`] makes
+    /// it), in which case it is given new ones of that size, in its format if
+    /// it has one, else in the first the context lists. Only the planes' data
+    /// moves; no property is copied.
+    ///
+    /// # Errors
+    ///
+    /// `AVERROR(EINVAL)` for a `dst` holding a hardware frames context, which
+    /// is no software frame; otherwise as
+    /// [`transfer_data_from`](FrameMut::transfer_data_from): its refusals of
+    /// `dst` (unlisted format, planes not holding the image, shared or
+    /// read-only buffers, display size past the surfaces), the listing's and
+    /// the backend's errors. A `dst` receiving new buffers is unchanged on
+    /// error.
+    pub fn download_to(&self, mut dst: FrameMut<'_>) -> Result<(), c_int> {
+        if dst.as_ref().hw_frames_context().is_some() {
+            return Err(EINVAL);
+        }
+        // SAFETY: the source is a hardware frame of its frames context (the
+        // type's invariant), and `dst` holds no frames context.
+        unsafe { dst.transfer_data_from(self.frame.as_ref()) }
+    }
+
+    /// Wraps: av_hwframe_transfer_data
+    ///
+    /// Uploads the data of the software frame `src` into the frame's
+    /// surface, as [`FrameMut::transfer_data_from`] does into a hardware
+    /// destination: `src` must use a format the frames context lists for
+    /// uploads ([`FramesReferenceRef::transfer_formats`] with
+    /// [`TransferDirection::To`]) and hold an image of the context's
+    /// allocated size, which a frame
+    /// [`alloc_buffers`](FrameMut::alloc_buffers) gave buffers at that size
+    /// does. Only the planes' data moves.
+    ///
+    /// # Errors
+    ///
+    /// `AVERROR(EINVAL)` for a `src` holding a hardware frames context, which
+    /// is no software frame ([`copy_from`](Self::copy_from) copies between
+    /// hardware frames); otherwise as
+    /// [`transfer_data_from`](FrameMut::transfer_data_from): its refusals of
+    /// `src`, the listing's and the backend's errors.
+    pub fn upload_from(&mut self, src: FrameRef<'_>) -> Result<(), c_int> {
+        if src.hw_frames_context().is_some() {
+            return Err(EINVAL);
+        }
+        // SAFETY: the destination is a hardware frame of its frames context
+        // (the type's invariant), reached through `&mut self`, and `src`
+        // holds no frames context.
+        unsafe { self.frame.as_mut().transfer_data_from(src) }
+    }
+
+    /// Wraps: av_hwframe_transfer_data
+    ///
+    /// Copies the data of the hardware frame `src` into the frame's surface,
+    /// where the backend of either frame can: `src`'s first, then this
+    /// one's. A frame is not copied onto itself:
+    ///
+    /// ```compile_fail,E0502
+    /// use ffmpeg::libavutil::hwcontext::HardwareFrame;
+    /// fn copy_itself(frame: &mut HardwareFrame) {
+    ///     let _ = frame.copy_from(frame);
+    /// }
+    /// ```
+    ///
+    /// # Errors
+    ///
+    /// As [`transfer_data_from`](FrameMut::transfer_data_from) between
+    /// hardware frames: `AVERROR(EINVAL)` for a display size past either
+    /// context's surfaces; `AVERROR(ENOSYS)` when either backend transfers
+    /// no data, either context is derived, or neither backend copies
+    /// between them; the backends' errors.
+    pub fn copy_from(&mut self, src: &HardwareFrame) -> Result<(), c_int> {
+        // SAFETY: both frames are hardware frames of their frames contexts
+        // (the type's invariant), the destination reached through
+        // `&mut self` and the source a distinct frame, read only.
+        unsafe { self.frame.as_mut().transfer_data_from(src.frame.as_ref()) }
     }
 }
 
@@ -3299,7 +3398,7 @@ mod unit_tests {
         use core::ffi::CStr;
         use core::ptr::{addr_of, addr_of_mut};
 
-        use crate::libavutil::buffer::MAX_REFERENCES;
+        use crate::libavutil::buffer::{BufferReferenceBox, MAX_REFERENCES};
         use crate::libavutil::dict::Dict;
         use crate::libavutil::hwcontext::backend::{
             self as fx, Event, FramesHwctx, HWCONFIG_SIZE, Kind, averror,
@@ -4038,6 +4137,220 @@ mod unit_tests {
             assert_eq!(DeviceType::from_name(&long), None);
             let names: Vec<&CStr> = NAMED.iter().filter_map(|&(t, _)| t.name()).collect();
             assert_eq!(names.len(), 14);
+        }
+
+        // Hwcontext wave-1 symbol review: the safe transfers of hardware
+        // frames and the frames context's format listing, over kind A's
+        // transfers (kind B has none).
+
+        /// An NV12 software frame of `w` x `h` given zeroed buffers, its
+        /// image then holding bytes derived from `seed`.
+        fn nv12(w: c_int, h: c_int, seed: u8) -> FrameBox {
+            let mut f = software(PixelFormat::NV12, w, h);
+            let mut m = f.as_mut();
+            let lines = m.as_ref().linesizes();
+            for (i, rows) in [(0, h), (1, (h + 1) / 2)] {
+                let ls = lines[i] as usize;
+                let plane = m.plane_mut(i).unwrap();
+                for r in 0..rows as usize {
+                    for x in 0..w as usize {
+                        plane[r * ls + x] = seed.wrapping_add((r * 31 + x * 7 + i) as u8);
+                    }
+                }
+            }
+            f
+        }
+
+        /// The bytes of the `w` x `h` image of an NV12 frame, in the order
+        /// kind A's transfers run over them.
+        fn nv12_image(f: FrameRef<'_>, w: c_int, h: c_int) -> Vec<u8> {
+            let lines = f.linesizes();
+            let mut out = Vec::new();
+            for (i, rows) in [(0, h), (1, (h + 1) / 2)] {
+                let ls = lines[i] as usize;
+                let plane = f.plane(i).unwrap();
+                for r in 0..rows as usize {
+                    out.extend_from_slice(&plane[r * ls..r * ls + w as usize]);
+                }
+            }
+            out
+        }
+
+        /// What kind A's download gives after uploads of `images` into a
+        /// zeroed surface.
+        fn downloaded(images: &[&[u8]]) -> Vec<u8> {
+            let mut surface = [0u8; fx::SURFACE_SIZE];
+            for image in images {
+                for (k, b) in image.iter().enumerate() {
+                    let s = &mut surface[k % fx::SURFACE_SIZE];
+                    *s = s.wrapping_add(*b);
+                }
+            }
+            let len = images.first().map_or(0, |i| i.len());
+            (0..len).map(|k| surface[k % fx::SURFACE_SIZE]).collect()
+        }
+
+        #[test]
+        fn frames_list_their_backends_transfer_formats() {
+            let (a, b) = (device(Kind::A), device(Kind::B));
+            let (fa, fb) = (frames(&a, Kind::A), frames(&b, Kind::B));
+            for dir in [TransferDirection::From, TransferDirection::To] {
+                let listed = fa.as_ref().transfer_formats(dir).unwrap();
+                assert_eq!(listed.as_slice(), [PixelFormat::NV12]);
+                assert_eq!(fb.as_ref().transfer_formats(dir).err(), Some(ENOSYS));
+            }
+            let frame = fa.as_ref().get_buffer().unwrap();
+            let listed = frame.frames().transfer_formats(TransferDirection::To);
+            drop((frame, fa, fb, a, b));
+            assert_eq!(listed.unwrap().as_slice(), [PixelFormat::NV12]);
+            fx::take_events();
+        }
+
+        #[test]
+        fn hardware_frames_upload_download_and_copy() {
+            let a = device(Kind::A);
+            let fa = frames(&a, Kind::A);
+            let mut hw = fa.as_ref().get_buffer().unwrap();
+            let (src, again) = (nv12(64, 32, 3), nv12(64, 32, 200));
+            hw.upload_from(src.as_ref()).unwrap();
+            let image = nv12_image(src.as_ref(), 64, 32);
+            let expected = downloaded(&[&image]);
+            // Into a frame with buffers, and into one without, which gets
+            // buffers of the context's format and size.
+            let mut dst = software(PixelFormat::NV12, 64, 32);
+            hw.download_to(dst.as_mut()).unwrap();
+            assert_eq!(nv12_image(dst.as_ref(), 64, 32), expected);
+            let mut fresh = Frame::new().unwrap();
+            hw.download_to(fresh.as_mut()).unwrap();
+            let r = fresh.as_ref();
+            assert_eq!(
+                (r.pixel_format(), r.width(), r.height()),
+                (PixelFormat::NV12, 64, 32)
+            );
+            assert_eq!(nv12_image(r, 64, 32), expected);
+            let t = Event::Transfer(Kind::A);
+            assert_eq!(fx::take_events(), [Event::GetBuffer(Kind::A), t, t, t]);
+            // Uploads add into the surface; copies between hardware frames
+            // move it whole.
+            hw.upload_from(again.as_ref()).unwrap();
+            let both = downloaded(&[&image, &nv12_image(again.as_ref(), 64, 32)]);
+            let mut other = fa.as_ref().get_buffer().unwrap();
+            other.copy_from(&hw).unwrap();
+            drop(hw);
+            let mut copied = Frame::new().unwrap();
+            other.download_to(copied.as_mut()).unwrap();
+            assert_eq!(nv12_image(copied.as_ref(), 64, 32), both);
+            // The downloaded frames outlive the contexts.
+            drop((other, fa, a));
+            assert_eq!(nv12_image(dst.as_ref(), 64, 32), expected);
+            fx::take_events();
+        }
+
+        #[test]
+        fn hardware_frame_transfers_refuse_before_c() {
+            let (a, b) = (device(Kind::A), device(Kind::B));
+            let (fa, fb) = (frames(&a, Kind::A), frames(&b, Kind::B));
+            let mut hw = fa.as_ref().get_buffer().unwrap();
+            let mut hb = fb.as_ref().get_buffer().unwrap();
+            fx::take_events();
+            // A frame holding a frames context is no software frame.
+            let mut holder = nv12(64, 32, 0);
+            // SAFETY: a live frames context reference; C returns NULL or a
+            // new reference to the same initialised context.
+            let ctx = unsafe { BufferReferenceBox::from_c(ffi::av_buffer_ref(fa.as_c_ptr())) };
+            // SAFETY: a reference to an initialised frames context, whose
+            // bytes nothing writes.
+            drop(unsafe { holder.as_mut().replace_hw_frames_context(ctx) });
+            assert_eq!(hw.download_to(holder.as_mut()), Err(EINVAL_));
+            assert_eq!(hw.upload_from(holder.as_ref()), Err(EINVAL_));
+            // Unlisted formats, display sizes past the surfaces, a shared
+            // destination.
+            let yuv = software(PixelFormat::YUV420P, 64, 32);
+            assert_eq!(hw.upload_from(yuv.as_ref()), Err(EINVAL_));
+            let mut wide = nv12(128, 16, 0);
+            assert_eq!(hw.upload_from(wide.as_ref()), Err(EINVAL_));
+            assert_eq!(hw.download_to(wide.as_mut()), Err(EINVAL_));
+            let mut dst = software(PixelFormat::NV12, 64, 32);
+            let shared = dst.as_ref().try_clone().unwrap();
+            assert_eq!(hw.download_to(dst.as_mut()), Err(EINVAL_));
+            drop(shared);
+            // Kind B transfers nothing: C would call its NULL transfers.
+            assert_eq!(hb.download_to(dst.as_mut()), Err(ENOSYS));
+            assert_eq!(hb.upload_from(dst.as_ref()), Err(ENOSYS));
+            assert_eq!(hb.copy_from(&hw), Err(ENOSYS));
+            assert_eq!(hw.copy_from(&hb), Err(ENOSYS));
+            assert!(fx::take_events().is_empty());
+            // The backend's error, which leaves a frame without buffers so.
+            let failing = FramesHwctx {
+                transfer_ret: -12345,
+                ..FramesHwctx::default()
+            };
+            let ff = frames_with(&a, Kind::A, failing, 0).unwrap();
+            let mut hf = ff.as_ref().get_buffer().unwrap();
+            assert_eq!(hf.upload_from(dst.as_ref()), Err(-12345));
+            let mut fresh = Frame::new().unwrap();
+            assert_eq!(hf.download_to(fresh.as_mut()), Err(-12345));
+            assert!(!fresh.as_ref().is_counted());
+            // C refuses copies into or out of a derived context, whose mapped
+            // frames transfer with software frames.
+            let flags = MapFlags::READ | MapFlags::WRITE;
+            let derived = fa
+                .as_ref()
+                .derive(PixelFormat::VAAPI, a.as_ref(), flags)
+                .unwrap();
+            let mut hd = derived.as_ref().get_buffer().unwrap();
+            assert_eq!(hd.copy_from(&hw), Err(ENOSYS));
+            assert_eq!(hw.copy_from(&hd), Err(ENOSYS));
+            let src = nv12(64, 32, 9);
+            hd.upload_from(src.as_ref()).unwrap();
+            hw.download_to(dst.as_mut()).unwrap();
+            let image = nv12_image(src.as_ref(), 64, 32);
+            assert_ne!(nv12_image(dst.as_ref(), 64, 32), downloaded(&[&image]));
+            hd.download_to(dst.as_mut()).unwrap();
+            drop((hd, derived, hf, ff, hw, hb, fa, fb, a, b));
+            fx::take_events();
+        }
+
+        #[test]
+        fn frames_clones_stop_at_the_limit() {
+            let a = device(Kind::A);
+            let fa = frames(&a, Kind::A);
+            let copy = fa.as_ref().try_clone().unwrap();
+            assert!(copy.as_ref().ptr_eq(fa.as_ref()));
+            assert_eq!(count(fa.as_c_ptr()), 2);
+            set_count(fa.as_c_ptr(), MAX_REFERENCES);
+            assert!(fa.as_ref().try_clone().is_none());
+            assert_eq!(fa.as_ref().get_buffer().err(), Some(ENOMEM_));
+            set_count(fa.as_c_ptr(), 2);
+            drop((copy, fa, a));
+            fx::take_events();
+        }
+
+        #[test]
+        fn unmapping_returns_the_mapped_frame_in_its_own_context() {
+            let (a, b) = (device(Kind::A), device(Kind::B));
+            let (fa, other) = (frames(&a, Kind::A), frames(&a, Kind::A));
+            let flags = MapFlags::READ;
+            let derived = fa
+                .as_ref()
+                .derive(PixelFormat::DRM_PRIME, b.as_ref(), flags)
+                .unwrap();
+            // A frame of a third context, mapped into the derived one.
+            let x = other.as_ref().get_buffer().unwrap();
+            let mapped = x.map_to(derived.as_ref(), flags).unwrap();
+            assert!(mapped.frames().ptr_eq(derived.as_ref()));
+            // Mapping it to the context `derived` was derived from unmaps it:
+            // back to `x`'s frame, in `other`.
+            let back = mapped.map_to(fa.as_ref(), flags).unwrap();
+            assert!(back.frames().ptr_eq(other.as_ref()));
+            assert!(!back.frames().ptr_eq(fa.as_ref()));
+            assert_eq!(back.format(), PixelFormat::VAAPI);
+            // The derived context's own frames unmap into `fa`.
+            let own = derived.as_ref().get_buffer().unwrap();
+            let own_back = own.map_to(fa.as_ref(), flags).unwrap();
+            assert!(own_back.frames().ptr_eq(fa.as_ref()));
+            drop((own_back, own, back, mapped, x, derived, other, fa, a, b));
+            fx::take_events();
         }
     }
 
