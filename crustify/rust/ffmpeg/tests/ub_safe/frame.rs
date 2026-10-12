@@ -1976,6 +1976,23 @@ mod frame_type {
         assert_eq!(f.as_ref().plane(0).unwrap(), &[9u8; 256][..]);
         thread::spawn(move || drop(f)).join().unwrap();
     }
+
+    /// The hardware frames context accessors, safe since hwcontext wave 2
+    /// typed them: the only value this build reaches without a backend is
+    /// none, on the frame's thread and another.
+    #[test]
+    fn hw_frames_context_round_trips_none() {
+        let mut f = Frame::new().unwrap();
+        let old = f.as_mut().replace_hw_frames_context(None);
+        assert!(old.is_none() && f.as_ref().hw_frames_context().is_none());
+        assert!(f.as_mut().take_hw_frames_context().is_none());
+        thread::spawn(move || {
+            assert!(f.as_mut().replace_hw_frames_context(None).is_none());
+            assert!(f.as_ref().try_clone().is_none());
+        })
+        .join()
+        .unwrap();
+    }
 }
 
 /// `AVFrame`'s routines: buffer allocation, copies of planes and properties,

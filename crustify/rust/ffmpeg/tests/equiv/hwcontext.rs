@@ -3231,3 +3231,161 @@ mod frames_context {
         }
     }
 }
+
+/// `AVFrame.hw_frames_ctx` through the typed accessors hwcontext wave 2
+/// gave it once `AVHWFramesContext` was wrapped (the wave-2 type review):
+/// a frame attached to a frames context, copied by reference (`av_frame_clone`,
+/// `av_frame_ref`), its reference taken out and handed to another frame,
+/// and every frame released, each step against the same steps on raw C
+/// frames, comparing the context's count of references and which frames
+/// hold it. C's copy of a frame that is not reference counted but holds a
+/// context goes through the backend as from a surface, which the wrappers
+/// refuse (`FrameRef::try_clone`), so it has no C reference here.
+mod frame_hw_frames_context {
+    use core::ffi::c_int;
+    use core::ptr;
+
+    use ffmpeg::libavutil::buffer::BufferReference;
+    use ffmpeg::libavutil::ffi;
+    use ffmpeg::libavutil::frame::{Frame, FrameBox, FrameRef};
+    use ffmpeg::libavutil::hwcontext::{DeviceReferenceBox, FramesReferenceBox};
+    use ffmpeg::libavutil::pixfmt::PixelFormat;
+
+    use super::backend::{self as fx, Kind};
+
+    fn count(buf: *const ffi::AVBufferRef) -> c_int {
+        // SAFETY: callers pass live references.
+        unsafe { fx::ref_count(buf) }
+    }
+
+    /// Whether the C frame `f` holds a reference to the context `data`.
+    fn c_holds(f: *const ffi::AVFrame, data: *const u8) -> bool {
+        // SAFETY: callers pass live frames.
+        let held = unsafe { (*f).hw_frames_ctx };
+        // SAFETY: NULL or a live reference the frame owns.
+        !held.is_null() && ptr::eq(unsafe { (*held).data }, data)
+    }
+
+    fn rust_holds(f: FrameRef<'_>, frames: &FramesReferenceBox) -> bool {
+        f.hw_frames_context()
+            .is_some_and(|held| held.ptr_eq(frames.as_ref()))
+    }
+
+    /// A raw C frame of NV12 at 64 x 32 holding one zeroed 64-byte buffer.
+    fn c_frame() -> *mut ffi::AVFrame {
+        // SAFETY: a fresh frame and buffer; C allocates both.
+        unsafe {
+            let f = ffi::av_frame_alloc();
+            assert!(!f.is_null());
+            (*f).format = ffi::AVPixelFormat::AV_PIX_FMT_NV12.0;
+            (*f).width = 64;
+            (*f).height = 32;
+            (*f).buf[0] = ffi::av_buffer_allocz(64);
+            assert!(!(*f).buf[0].is_null());
+            f
+        }
+    }
+
+    fn rust_frame() -> FrameBox {
+        let mut f = Frame::new().unwrap();
+        let mut m = f.as_mut();
+        m.set_pixel_format(PixelFormat::NV12);
+        m.set_width(64);
+        m.set_height(32);
+        m.set_buffer(0, Some(BufferReference::alloc_zeroed(64).unwrap()));
+        f
+    }
+
+    #[test]
+    fn references_follow_c_through_copies_takes_and_releases() {
+        for kind in [Kind::A, Kind::B] {
+            let c_dev = fx::device(kind);
+            // SAFETY: a live initialised test device of `kind`; then the
+            // context's only reference, which the test owns.
+            let c_frames = unsafe { fx::frames(c_dev, kind, 64, 32) };
+            // SAFETY: the only reference to an initialised test device,
+            // built as `av_hwdevice_ctx_alloc` builds one.
+            let r_dev = unsafe { DeviceReferenceBox::from_c(fx::device(kind)) }.unwrap();
+            let format = PixelFormat::from_raw(kind.format());
+            let r_frames = r_dev
+                .as_ref()
+                .create_frames(format, PixelFormat::NV12, 64, 32, 0)
+                .unwrap();
+            fx::take_events();
+            // SAFETY: a live frames context reference.
+            let c_data = unsafe { (*c_frames).data }.cast_const();
+            let same = |step: &str| {
+                assert_eq!(count(c_frames), count(r_frames.as_c_ptr()), "{step}");
+            };
+
+            // Attached: C's own field, the typed setter.
+            let c_a = c_frame();
+            // SAFETY: a live frame and frames context; the frame owns the
+            // new reference.
+            unsafe { (*c_a).hw_frames_ctx = ffi::av_buffer_ref(c_frames) };
+            let mut r_a = rust_frame();
+            assert!(
+                r_a.as_mut()
+                    .replace_hw_frames_context(r_frames.as_ref().try_clone())
+                    .is_none()
+            );
+            same("attach");
+            assert_eq!(c_holds(c_a, c_data), rust_holds(r_a.as_ref(), &r_frames));
+            let held = r_a.as_ref().hw_frames_context().unwrap().context();
+            // SAFETY: a live frames context.
+            let c_ctx = unsafe { *fx::frames_ctx(c_frames) };
+            assert_eq!((c_ctx.width, c_ctx.height), (held.width(), held.height()));
+            assert_eq!(c_ctx.format, held.format().into_raw());
+
+            // Copied by reference.
+            // SAFETY: a live, reference counted frame.
+            let c_b = unsafe { ffi::av_frame_clone(c_a) };
+            assert!(!c_b.is_null());
+            let r_b = r_a.as_ref().try_clone().unwrap();
+            same("clone");
+            assert_eq!(c_holds(c_b, c_data), rust_holds(r_b.as_ref(), &r_frames));
+            // SAFETY: no precondition.
+            let c_c = unsafe { ffi::av_frame_alloc() };
+            assert!(!c_c.is_null());
+            // SAFETY: a fresh frame, and a live one to reference.
+            let ret = unsafe { ffi::av_frame_ref(c_c, c_b) };
+            assert_eq!(ret, 0);
+            let mut r_c = Frame::new().unwrap();
+            r_c.as_mut().try_clone_from(r_b.as_ref()).unwrap();
+            same("ref");
+            assert_eq!(c_holds(c_c, c_data), rust_holds(r_c.as_ref(), &r_frames));
+
+            // Taken out of one frame and handed to a frame holding one.
+            // SAFETY: live frames; the reference moves from `c_a` to `c_c`,
+            // whose own one is released.
+            unsafe {
+                let taken = (*c_a).hw_frames_ctx;
+                (*c_a).hw_frames_ctx = ptr::null_mut();
+                ffi::av_buffer_unref(&mut (*c_c).hw_frames_ctx);
+                (*c_c).hw_frames_ctx = taken;
+            }
+            let taken = r_a.as_mut().take_hw_frames_context().unwrap();
+            drop(r_c.as_mut().replace_hw_frames_context(Some(taken)));
+            same("take and replace");
+            assert_eq!(c_holds(c_a, c_data), rust_holds(r_a.as_ref(), &r_frames));
+            assert_eq!(c_holds(c_c, c_data), rust_holds(r_c.as_ref(), &r_frames));
+
+            // Released one by one, the context's own reference last.
+            for (step, c, r) in [("a", c_a, r_a), ("b", c_b, r_b), ("c", c_c, r_c)] {
+                let mut c = c;
+                // SAFETY: a live frame the test owns, freed once.
+                unsafe { ffi::av_frame_free(&mut c) };
+                drop(r);
+                same(step);
+            }
+            assert_eq!(count(c_frames), 1);
+            // SAFETY: the test's references, released once.
+            unsafe {
+                fx::unref(c_frames);
+                fx::unref(c_dev);
+            }
+            drop((r_frames, r_dev));
+            fx::take_events();
+        }
+    }
+}
