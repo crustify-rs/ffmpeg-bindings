@@ -1,0 +1,47 @@
+{
+  "method": {
+    "rust": "RUSTFLAGS=-C instrument-coverage CRUSTIFY_FFMPEG_VARIANT=coverage; cargo +nightly test -p ffmpeg --lib --tests -- hwcontext --skip compile_fail; nightly llvm-profdata merge + llvm-cov report/show over the four test binaries, for libavutil/hwcontext.rs (the workset's lines are 2355-2400, the two wrappers, and 2439-2496, FramesConstraintsFree and its box)",
+    "c": "the same run with GCOV_PREFIX into a private dir; gcov 13 -b -c -f over src/libavutil/hwcontext.c with the coverage build's .gcno",
+    "note": "Measured on the landed tree (wave tip 126a47005b plus the new equivalence test, which changes no library line). Every line in the workset's ranges runs: frames_constraints 45 calls, frames_constraints_for_config 46 (1 refusal). In C, both functions run all their lines; the one branch never taken is av_hwframe_constraints_free's `*constraints == NULL` (0 of 128 calls), which no Rust path reaches, because FramesConstraintsFree::c_drop always passes a live structure. hwcontext.c's other missed lines are backend paths: hw_table is empty under --disable-autodetect."
+  },
+  "rust": {
+    "libavutil/hwcontext.rs": {
+      "landed": {
+        "regions": {
+          "count": 4256,
+          "missed": 40,
+          "percent": 99.06
+        },
+        "functions": {
+          "count": 330,
+          "missed": 9,
+          "percent": 97.27
+        },
+        "lines": {
+          "count": 3106,
+          "missed": 21,
+          "percent": 99.32
+        }
+      },
+      "workset_lines_missed": []
+    }
+  },
+  "c": {
+    "libavutil/hwcontext.c": {
+      "file_lines_percent": 78.27,
+      "functions": {
+        "av_hwdevice_get_hwframe_constraints": {
+          "lines_percent": 100.0,
+          "calls": 166,
+          "branches_taken": "6 of 6"
+        },
+        "av_hwframe_constraints_free": {
+          "lines_percent": 100.0,
+          "calls": 128,
+          "branches_taken": "1 of 2",
+          "untaken": "*constraints == NULL"
+        }
+      }
+    }
+  }
+}
