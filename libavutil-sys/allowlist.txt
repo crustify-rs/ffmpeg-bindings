@@ -918,3 +918,8 @@ function ^av_hwframe_ctx_create_derived$
 function ^av_hwframe_get_buffer$
 function ^av_hwframe_map$
 var ^AV_HWFRAME_MAP_.*
+
+# libavutil/hwcontext.h: AVHWFramesConstraints' constructor and releaser,
+# which the type run binds to its owner (hwcontext wave 1, batch 0).
+function ^av_hwdevice_get_hwframe_constraints$
+function ^av_hwframe_constraints_free$

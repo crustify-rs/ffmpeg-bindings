@@ -494,3 +494,367 @@ mod frame_mut_transfer_data_from {
         assert_ne!(first, second);
     }
 }
+
+#[path = "../common/hwdevice.rs"]
+mod hwdevice;
+
+/// UB tests for the unsafe public API the `AVHWDeviceContext` wrapper adds or
+/// makes unsafe, each called within its `# Safety` contract (hwcontext wave
+/// 1, batch 0): [`UninitDevice::from_c`], [`UninitDevice::init`],
+/// [`DeviceContextRef::hwctx`] and [`DeviceContextMut::into_hwctx`].
+///
+/// The campaign builds compile no hardware backend, so every context comes
+/// from the fake backend of `tests/common/hwdevice.rs`: what
+/// `av_hwdevice_ctx_alloc` would return for it, with C's own
+/// `av_hwdevice_ctx_init` and `av_hwdevice_get_hwframe_constraints` running
+/// on it.
+///
+/// [`UninitDevice::from_c`]: ffmpeg::libavutil::hwcontext::UninitDevice::from_c
+/// [`UninitDevice::init`]: ffmpeg::libavutil::hwcontext::UninitDevice::init
+/// [`DeviceContextRef::hwctx`]: ffmpeg::libavutil::hwcontext::DeviceContextRef::hwctx
+/// [`DeviceContextMut::into_hwctx`]: ffmpeg::libavutil::hwcontext::DeviceContextMut::into_hwctx
+mod device_context {
+    use core::sync::atomic::{AtomicUsize, Ordering};
+    use std::sync::{Arc, Mutex};
+    use std::thread;
+
+    use ffmpeg::libavutil::ffi;
+    use ffmpeg::libavutil::hwcontext::{
+        DeviceContextMut, DeviceReferenceBox, DeviceType, UninitDevice,
+    };
+    use ffmpeg::libavutil::pixfmt::PixelFormat;
+
+    use super::hwdevice::{self, BARE_TYPE, Events, FakeConfig, FakeHw};
+
+    /// A fresh fake context under construction, counting into `events`.
+    fn uninit(events: &Arc<Events>) -> UninitDevice {
+        // SAFETY: the only reference to a fresh, uninitialised fake context
+        // with no hooks.
+        let mut u = unsafe { UninitDevice::from_c(hwdevice::fake_device()) }.unwrap();
+        // SAFETY: the fake context's hardware context is a `FakeHwctx`; the
+        // events outlive the context, as each test keeps them.
+        unsafe { u.context_mut().into_hwctx::<FakeHw>() }
+            .unwrap()
+            .set_events(Arc::as_ptr(events));
+        u
+    }
+
+    /// An initialised fake context holding `value`.
+    fn device(events: &Arc<Events>, value: i64) -> DeviceReferenceBox {
+        let mut u = uninit(events);
+        // SAFETY: as in `uninit`; any payload is valid for the fake backend.
+        unsafe { u.context_mut().into_hwctx::<FakeHw>() }
+            .unwrap()
+            .set_value(value);
+        // SAFETY: the fake backend's `device_init` reads nothing it cannot
+        // take.
+        unsafe { u.init() }.unwrap()
+    }
+
+    /// A value that counts its drops.
+    struct Dropped(Arc<AtomicUsize>);
+    impl Drop for Dropped {
+        fn drop(&mut self) {
+            self.0.fetch_add(1, Ordering::SeqCst);
+        }
+    }
+
+    /// A reference handed to C, which another thread releases: C may drop a
+    /// device's last reference on any thread (a codec's frame threads).
+    struct CReference(*mut ffi::AVBufferRef);
+    // SAFETY: C counts references atomically, and the device's release runs
+    // the fake backend's thread-agnostic uninit and the `Send` Rust hooks.
+    unsafe impl Send for CReference {}
+    impl CReference {
+        fn release(mut self) {
+            // SAFETY: a reference C owns, released once.
+            unsafe { ffi::av_buffer_unref(&mut self.0) };
+        }
+    }
+
+    /// [`UninitDevice::from_c`]: adopting fresh contexts, with and without a
+    /// hardware context or a backend's hooks, and handing them back.
+    mod uninit_from_c {
+        use super::*;
+
+        #[test]
+        fn adopted_contexts_release_once() {
+            let events = Arc::new(Events::default());
+            for _ in 0..16 {
+                let u = uninit(&events);
+                assert_eq!(u.context().device_type(), DeviceType::VAAPI);
+                drop(u);
+            }
+            assert_eq!(events.get(), (0, 16, 0));
+        }
+
+        #[test]
+        fn null_is_refused() {
+            // SAFETY: NULL is within the contract.
+            assert!(unsafe { UninitDevice::from_c(core::ptr::null_mut()) }.is_none());
+        }
+
+        #[test]
+        fn round_trips_through_c_keep_the_hooks() {
+            let events = Arc::new(Events::default());
+            let drops = Arc::new(AtomicUsize::new(0));
+            let mut u = uninit(&events);
+            u.context_mut()
+                .set_user_data(Dropped(drops.clone()))
+                .ok()
+                .unwrap();
+            for _ in 0..4 {
+                let raw = u.into_c();
+                // SAFETY: the reference `into_c` gave up, still uninitialised,
+                // with hooks this crate set.
+                u = unsafe { UninitDevice::from_c(raw) }.unwrap();
+            }
+            assert!(u.context().user_data::<Dropped>().is_some());
+            drop(u);
+            assert_eq!(drops.load(Ordering::SeqCst), 1);
+        }
+
+        #[test]
+        fn backend_hooks_stay_the_backends() {
+            let freed = AtomicUsize::new(0);
+            let raw = hwdevice::fake_device();
+            // SAFETY: the only reference to a fresh fake context; `freed`
+            // outlives it.
+            unsafe { hwdevice::set_foreign_free(raw, &freed) };
+            // SAFETY: an uninitialised fake context whose hooks a backend set,
+            // as the contract allows.
+            let mut u = unsafe { UninitDevice::from_c(raw) }.unwrap();
+            assert!(u.context_mut().set_user_data(0u8).is_err());
+            assert!(u.context().has_free_callback());
+            drop(u);
+            assert_eq!(freed.load(Ordering::SeqCst), 1);
+        }
+
+        #[test]
+        fn bare_contexts_have_no_hardware_context() {
+            let raw =
+                hwdevice::fake_device_of(&BARE_TYPE, ffi::AVHWDeviceType::AV_HWDEVICE_TYPE_CUDA);
+            // SAFETY: the only reference to a fresh, uninitialised bare context.
+            let mut u = unsafe { UninitDevice::from_c(raw) }.unwrap();
+            assert_eq!(u.context().device_type(), DeviceType::CUDA);
+            // SAFETY: there is no hardware context to mistype.
+            assert!(unsafe { u.context_mut().into_hwctx::<FakeHw>() }.is_none());
+            u.context_mut().set_user_data(String::from("bare")).unwrap();
+            let data = u.context().user_data::<String>().map(String::as_str);
+            assert_eq!(data, Some("bare"));
+        }
+    }
+
+    /// [`UninitDevice::init`]: success and failure, with every hook form, the
+    /// last release on other threads, and constraints outliving the device.
+    mod uninit_init {
+        use super::*;
+
+        #[test]
+        fn success_shares_the_filled_context() {
+            let events = Arc::new(Events::default());
+            let device = device(&events, 9);
+            // SAFETY: the fake context's hardware context is a `FakeHwctx`,
+            // which nothing writes after initialisation.
+            let hw = unsafe { device.as_ref().context().hwctx::<FakeHw>() }.unwrap();
+            assert!(hw.initialised());
+            assert_eq!(hw.value(), 9);
+            drop(device);
+            assert_eq!(events.get(), (1, 1, 0));
+        }
+
+        #[test]
+        fn failure_releases_the_context_and_its_hooks() {
+            let events = Arc::new(Events::default());
+            let drops = Arc::new(AtomicUsize::new(0));
+            let mut u = uninit(&events);
+            // SAFETY: as in `uninit`; the fake backend fails as told.
+            unsafe { u.context_mut().into_hwctx::<FakeHw>() }
+                .unwrap()
+                .set_init_ret(-38);
+            u.context_mut()
+                .set_user_data(Dropped(drops.clone()))
+                .ok()
+                .unwrap();
+            let d = drops.clone();
+            u.context_mut()
+                .set_free_callback(move |ctx: DeviceContextMut<'_>| {
+                    assert!(ctx.as_ref().user_data::<Dropped>().is_some());
+                    assert_eq!(d.load(Ordering::SeqCst), 0);
+                })
+                .ok()
+                .unwrap();
+            // SAFETY: the fake backend's `device_init` reads nothing it cannot
+            // take.
+            assert_eq!(unsafe { u.init() }.unwrap_err(), -38);
+            assert_eq!(events.get(), (1, 1, 0));
+            assert_eq!(drops.load(Ordering::SeqCst), 1);
+        }
+
+        #[test]
+        fn bare_contexts_initialise_without_a_backend_call() {
+            let raw =
+                hwdevice::fake_device_of(&BARE_TYPE, ffi::AVHWDeviceType::AV_HWDEVICE_TYPE_DRM);
+            // SAFETY: the only reference to a fresh, uninitialised bare context.
+            let u = unsafe { UninitDevice::from_c(raw) }.unwrap();
+            // SAFETY: the bare backend has no `device_init`.
+            let device = unsafe { u.init() }.unwrap();
+            assert!(device.as_ref().frames_constraints().is_none());
+        }
+
+        #[test]
+        fn hooks_run_once_when_c_drops_the_last_references_elsewhere() {
+            let events = Arc::new(Events::default());
+            for _ in 0..8 {
+                let calls = Arc::new(AtomicUsize::new(0));
+                let drops = Arc::new(AtomicUsize::new(0));
+                let mut u = uninit(&events);
+                u.context_mut()
+                    .set_user_data(Dropped(drops.clone()))
+                    .ok()
+                    .unwrap();
+                let c = calls.clone();
+                u.context_mut()
+                    .set_free_callback(move |ctx: DeviceContextMut<'_>| {
+                        assert!(ctx.as_ref().user_data::<Dropped>().is_some());
+                        c.fetch_add(1, Ordering::SeqCst);
+                    })
+                    .ok()
+                    .unwrap();
+                // SAFETY: as in `device`.
+                let device = unsafe { u.init() }.unwrap();
+                let refs: Vec<_> = (0..4)
+                    .map(|_| CReference(device.as_ref().try_clone().unwrap().into_c()))
+                    .collect();
+                drop(device);
+                thread::scope(|s| {
+                    for r in refs {
+                        s.spawn(move || r.release());
+                    }
+                });
+                assert_eq!(calls.load(Ordering::SeqCst), 1);
+                assert_eq!(drops.load(Ordering::SeqCst), 1);
+            }
+            assert_eq!(events.get(), (8, 8, 0));
+        }
+
+        #[test]
+        fn constraints_outlive_the_device() {
+            let events = Arc::new(Events::default());
+            let device = device(&events, 0);
+            let mut config = device.as_ref().alloc_hw_config().unwrap();
+            // SAFETY: the fake backend's zeroed configuration, owned by
+            // `config`.
+            unsafe {
+                let p = config.as_mut_ptr().cast::<FakeConfig>();
+                (*p).hw_format = ffi::AVPixelFormat::AV_PIX_FMT_VULKAN;
+            }
+            let c = device.as_ref().frames_constraints_for_config(&config);
+            let plain = device.as_ref().frames_constraints();
+            drop((device, config));
+            assert_eq!(events.get().1, 1);
+            let hw: Vec<_> = c
+                .unwrap()
+                .as_ref()
+                .valid_hw_formats()
+                .unwrap()
+                .elems()
+                .collect();
+            assert_eq!(hw, [PixelFormat::VULKAN]);
+            assert!(plain.unwrap().as_ref().valid_hw_formats().is_some());
+        }
+    }
+
+    /// [`DeviceContextRef::hwctx`]: typed shared reads from uninitialised
+    /// and initialised contexts, through several handles at once.
+    ///
+    /// [`DeviceContextRef::hwctx`]: ffmpeg::libavutil::hwcontext::DeviceContextRef::hwctx
+    mod ref_hwctx {
+        use super::*;
+
+        #[test]
+        fn reads_follow_the_owner() {
+            let events = Arc::new(Events::default());
+            let u = uninit(&events);
+            // SAFETY: the fake context's hardware context is a `FakeHwctx`.
+            let hw = unsafe { u.context().hwctx::<FakeHw>() }.unwrap();
+            assert_eq!((hw.value(), hw.initialised()), (0, false));
+            let device = device(&events, -5);
+            let copy = device.clone();
+            let (a, b) = (device.as_ref().context(), copy.as_ref().context());
+            // SAFETY: as above, unwritten after initialisation.
+            let ha = unsafe { a.hwctx::<FakeHw>() }.unwrap();
+            // SAFETY: as above.
+            let hb = unsafe { b.hwctx::<FakeHw>() }.unwrap();
+            assert_eq!((ha.value(), hb.value()), (-5, -5));
+        }
+
+        #[test]
+        fn bare_contexts_read_none() {
+            let raw =
+                hwdevice::fake_device_of(&BARE_TYPE, ffi::AVHWDeviceType::AV_HWDEVICE_TYPE_QSV);
+            // SAFETY: the only reference to a fresh, uninitialised bare context.
+            let u = unsafe { UninitDevice::from_c(raw) }.unwrap();
+            // SAFETY: there is no hardware context to mistype.
+            assert!(unsafe { u.context().hwctx::<FakeHw>() }.is_none());
+        }
+    }
+
+    /// [`DeviceContextMut::into_hwctx`]: writes before initialisation that C
+    /// reads, through reborrows, and inside the free callback.
+    ///
+    /// [`DeviceContextMut::into_hwctx`]: ffmpeg::libavutil::hwcontext::DeviceContextMut::into_hwctx
+    mod mut_into_hwctx {
+        use super::*;
+
+        #[test]
+        fn writes_reach_the_backend() {
+            let events = Arc::new(Events::default());
+            let mut u = uninit(&events);
+            let mut ctx = u.context_mut();
+            for v in [1, i64::MIN, i64::MAX] {
+                // SAFETY: as in `uninit`; a reborrow keeps `ctx`.
+                unsafe { ctx.as_mut().into_hwctx::<FakeHw>() }
+                    .unwrap()
+                    .set_value(v);
+                // SAFETY: as above.
+                let hw = unsafe { ctx.as_ref().hwctx::<FakeHw>() }.unwrap();
+                assert_eq!(hw.value(), v);
+            }
+            // SAFETY: as in `device`.
+            let device = unsafe { u.init() }.unwrap();
+            // SAFETY: as in `ref_hwctx`.
+            let hw = unsafe { device.as_ref().context().hwctx::<FakeHw>() }.unwrap();
+            assert_eq!(hw.value(), i64::MAX);
+            assert!(hw.initialised());
+        }
+
+        #[test]
+        fn the_free_callback_reaches_the_hardware_context() {
+            let events = Arc::new(Events::default());
+            let seen = Arc::new(Mutex::new(None));
+            let mut u = uninit(&events);
+            let s = seen.clone();
+            let ev = events.clone();
+            u.context_mut()
+                .set_free_callback(move |ctx: DeviceContextMut<'_>| {
+                    // SAFETY: the fake context's hardware context, still
+                    // allocated while the callback runs; resetting the
+                    // payload is within the fake backend's rules.
+                    let mut hw = unsafe { ctx.into_hwctx::<FakeHw>() }.unwrap();
+                    *s.lock().unwrap() = Some((hw.as_ref().value(), ev.get()));
+                    hw.set_value(0);
+                })
+                .ok()
+                .unwrap();
+            // SAFETY: as in `uninit`.
+            unsafe { u.context_mut().into_hwctx::<FakeHw>() }
+                .unwrap()
+                .set_value(3);
+            // SAFETY: as in `device`.
+            let device = unsafe { u.init() }.unwrap();
+            drop(device);
+            assert_eq!(*seen.lock().unwrap(), Some((3, (1, 1, 0))));
+        }
+    }
+}

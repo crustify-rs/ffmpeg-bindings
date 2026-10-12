@@ -1,0 +1,9 @@
+error[E0502]: cannot borrow `constraints` as mutable because it is also borrowed as immutable
+ --> tests/ub_safe/compile_fail/hwcontext_constraints_formats_held_across_set.rs
+  |
+  |     let formats = constraints.as_ref().valid_sw_formats();
+  |                   ----------- immutable borrow occurs here
+  |     constraints.as_mut().set_valid_sw_formats(Some(&[PixelFormat::NV12])).unwrap();
+  |     ^^^^^^^^^^^^^^^^^^^^ mutable borrow occurs here
+  |     let _ = formats.map(|l| l.len());
+  |             ------- immutable borrow later used here

@@ -1,0 +1,12 @@
+error[E0505]: cannot move out of `device` because it is borrowed
+ --> tests/ub_safe/compile_fail/hwcontext_device_user_data_outlives_uninit_device.rs
+  |
+  |     let mut device = DeviceReference::alloc(DeviceType::VAAPI).unwrap();
+  |         ---------- binding `device` declared here
+  |     device.context_mut().set_user_data(String::from("data")).unwrap();
+  |     let data = device.context().user_data::<String>();
+  |                ------ borrow of `device` occurs here
+  |     drop(device);
+  |          ^^^^^^ move out of `device` occurs here
+  |     let _ = data.map(|s| s.len());
+  |             ---- borrow later used here

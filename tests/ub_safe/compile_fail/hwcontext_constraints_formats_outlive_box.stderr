@@ -1,0 +1,11 @@
+error[E0505]: cannot move out of `constraints` because it is borrowed
+ --> tests/ub_safe/compile_fail/hwcontext_constraints_formats_outlive_box.rs
+  |
+  |     let constraints = FramesConstraints::new().unwrap();
+  |         ----------- binding `constraints` declared here
+  |     let formats = constraints.as_ref().valid_hw_formats();
+  |                   ----------- borrow of `constraints` occurs here
+  |     drop(constraints);
+  |          ^^^^^^^^^^^ move out of `constraints` occurs here
+  |     let _ = formats.map(|l| l.len());
+  |             ------- borrow later used here

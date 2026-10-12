@@ -25,7 +25,14 @@
 //! into other frames contexts. [`DeviceType`]'s name table and the backends
 //! the library was built with are [`DeviceType::name`],
 //! [`DeviceType::from_name`] and [`DeviceType::supported`].
+//!
+//! A device context's own fields are [`DeviceContext`]'s, reached through
+//! [`DeviceReferenceRef::context`] once initialised and
+//! [`UninitDevice::context_mut`] while it is filled in; its constraints on
+//! frames are a [`FramesConstraintsBox`]
+//! ([`DeviceReferenceRef::frames_constraints`]).
 
+use core::any::Any;
 use core::ffi::{CStr, c_int, c_uint, c_void};
 use core::fmt;
 use core::iter::FusedIterator;
@@ -33,7 +40,7 @@ use core::marker::PhantomData;
 use core::ops::{BitAnd, BitOr, BitOrAssign, Sub};
 use core::ptr::{self, NonNull, addr_of, addr_of_mut};
 
-use ffibox::{CBox, CDrop, CDupClone, CPlainElem, define_ctype};
+use ffibox::{CBox, CCell, CDrop, CDupClone, CNew, CPlainElem, CSlice, define_ctype};
 
 use super::buffer::{BufferReferenceRef, ENOMEM, MAX_REFERENCES, may_add_reference};
 use super::dict::Dict;
@@ -41,7 +48,8 @@ use super::ffi;
 use super::frame::{
     Frame, FrameBox, FrameMut, FrameRef, PALETTE_SIZE, Rows, image_reach, int_flags,
 };
-use super::mem::HeapVec;
+use super::log::ClassRef;
+use super::mem::{HeapVec, alloc_array_from_fn};
 use super::pixdesc::PixelFormatFlags;
 use super::pixfmt::PixelFormat;
 
@@ -815,7 +823,8 @@ define_ctype!(
     /// devices. Its public fields are not written after that, as
     /// `hwcontext.h` asks of callers. The one reference to a context not
     /// yet initialised is held by an [`UninitDevice`], which lends no
-    /// handle.
+    /// reference handle. The context itself is reached through
+    /// [`context`](DeviceReferenceRef::context).
     ///
     /// Neither `Send` nor `Sync`: a context is shared by all its references
     /// and the frames contexts and frames made from it, and FFmpeg promises
@@ -1106,15 +1115,17 @@ impl<'a> DeviceReferenceRef<'a> {
 ///
 /// A device context that is allocated but not yet initialised, from
 /// [`DeviceReference::alloc`]: the only reference to it. Fill in what its
-/// backend needs (`hwctx`, the backend's device struct from its
-/// `hwcontext_<api>.h`, and optionally `free` and `user_opaque`) through
-/// [`as_mut_ptr`](Self::as_mut_ptr), then [`init`](Self::init) it.
+/// backend needs through [`context_mut`](Self::context_mut): `hwctx`, the
+/// backend's device struct from its `hwcontext_<api>.h`
+/// ([`DeviceContextMut::into_hwctx`]), and optionally a free callback and
+/// user data; then [`init`](Self::init) it.
 ///
-/// Hand-written: a [`DeviceReferenceBox`] whose handles are withheld until
-/// the context is initialised, since every routine taking a device needs an
-/// initialised one. Dropping it releases the context, as C does with one
-/// that failed to initialise. Neither `Send` nor `Sync`, as
-/// [`DeviceReference`]:
+/// Hand-written: a [`DeviceReferenceBox`] whose reference handles are
+/// withheld until the context is initialised, since every routine taking a
+/// device needs an initialised one; only the context's own handles
+/// ([`DeviceContextRef`], [`DeviceContextMut`]) are lent. Dropping it
+/// releases the context, as C does with one that failed to initialise.
+/// Neither `Send` nor `Sync`, as [`DeviceReference`]:
 ///
 /// ```compile_fail,E0277
 /// use ffmpeg::libavutil::hwcontext::UninitDevice;
@@ -1133,27 +1144,45 @@ impl UninitDevice {
     ///
     /// `ptr` must be NULL or a reference the caller owns and hands over, to
     /// a device context `av_hwdevice_ctx_alloc` allocated (or built exactly
-    /// as it does) that has no other reference and was not initialised.
-    pub(crate) unsafe fn from_c(ptr: *mut ffi::AVBufferRef) -> Option<Self> {
-        // SAFETY: by the caller's contract; the box lends no handle to the
-        // context until `init` initialised it.
+    /// as it does) that has no other reference and was not initialised, and
+    /// whose `free` and `user_opaque` are unset, a backend's, or this
+    /// crate's.
+    #[must_use]
+    pub unsafe fn from_c(ptr: *mut ffi::AVBufferRef) -> Option<Self> {
+        // SAFETY: by the caller's contract; the box lends no reference
+        // handle until `init` initialised the context.
         unsafe { DeviceReferenceBox::from_c(ptr) }.map(Self)
     }
 
-    /// The context's `AVHWDeviceContext`, for filling in its `hwctx` (the
-    /// backend's device struct, which C allocated), `free` and
-    /// `user_opaque` before [`init`](Self::init), as the backend's header
-    /// asks.
-    ///
-    /// A raw seam until hwcontext.h's `AVHWDeviceContext` is wrapped (its
-    /// `hwctx` stays backend-specific). Writes through it must keep
-    /// `av_class`, `type` and the `hwctx` pointer as C set them; the pointer
-    /// is valid while the box lives.
+    /// Gives the reference up, as the `AVBufferRef` C knows it by, still
+    /// uninitialised.
+    #[must_use = "the reference leaks unless C releases it"]
+    pub fn into_c(self) -> *mut ffi::AVBufferRef {
+        self.0.into_c()
+    }
+
+    /// The context, shared.
     #[must_use]
-    pub fn as_mut_ptr(&mut self) -> *mut ffi::AVHWDeviceContext {
+    pub fn context(&self) -> DeviceContextRef<'_> {
         // SAFETY: a read of the `data` field of the live reference the box
         // holds; its data is the context's public struct.
-        unsafe { addr_of!((*self.0.as_c_ptr()).data).read() }.cast()
+        let ctx = unsafe { addr_of!((*self.0.as_c_ptr()).data).read() };
+        // SAFETY: the reference keeps the context live for the borrow, and
+        // nothing writes it except through `context_mut`, which the shared
+        // borrow excludes.
+        unsafe { DeviceContextRef::from_ptr(ctx.cast()) }
+            .expect("a device context reference has data")
+    }
+
+    /// The context, exclusively, to fill in before [`init`](Self::init).
+    #[must_use]
+    pub fn context_mut(&mut self) -> DeviceContextMut<'_> {
+        // SAFETY: as in `context`.
+        let ctx = unsafe { addr_of!((*self.0.as_c_ptr()).data).read() };
+        // SAFETY: the box holds the context's only reference, so nothing else
+        // reaches the context for the borrow.
+        unsafe { DeviceContextMut::from_ptr(ctx.cast()) }
+            .expect("a device context reference has data")
     }
 
     /// Wraps: av_hwdevice_ctx_init
@@ -1165,10 +1194,19 @@ impl UninitDevice {
     /// # Errors
     ///
     /// The backend's error; the context is released then.
-    pub fn init(self) -> Result<DeviceReferenceBox, c_int> {
+    ///
+    /// # Safety
+    ///
+    /// The hardware context must hold what the device type's
+    /// `hwcontext_<api>.h` requires before `av_hwdevice_ctx_init`: backends
+    /// dereference the caller's device handles there unchecked (D3D11VA
+    /// calls through its `device`, Vulkan through its function loader), so
+    /// a context left as allocated is not enough.
+    pub unsafe fn init(self) -> Result<DeviceReferenceBox, c_int> {
         // SAFETY: the only reference to an allocated device context, never
         // initialised before (`init` consumes it); C runs the backend's
-        // `device_init` on it, which reads what the caller filled in.
+        // `device_init` on it, which reads what the caller filled in, as the
+        // caller vouches.
         let ret = unsafe { ffi::av_hwdevice_ctx_init(self.0.as_c_ptr()) };
         status(ret)?;
         Ok(self.0)
@@ -1794,6 +1832,810 @@ impl fmt::Debug for MappedFrame {
             .finish_non_exhaustive()
     }
 }
+
+define_ctype!(
+    /// Wraps: AVHWDeviceContext
+    ///
+    /// The state a hardware API keeps for one device, shared by everything
+    /// derived from it (frames contexts, codecs, filters). Its getters are on
+    /// [`DeviceContextRef`]; its setters, which only a context under
+    /// construction or being freed lends, on [`DeviceContextMut`].
+    ///
+    /// C reaches a context only through the data of an `AVBufferRef`: each
+    /// reference to the buffer is one counted share of the context, and the
+    /// last one released runs the backend's `device_uninit`, then the context's
+    /// [free callback](DeviceContextMut::set_free_callback), and frees the
+    /// hardware context and the struct. So nothing here owns a `DeviceContext`
+    /// directly: a context under construction is lent by the
+    /// [`UninitDevice`] holding its only reference
+    /// ([`context`](UninitDevice::context),
+    /// [`context_mut`](UninitDevice::context_mut)); an initialised one, shared
+    /// read-only, by any [`DeviceReferenceRef`]
+    /// ([`context`](DeviceReferenceRef::context)).
+    ///
+    /// Its fields are:
+    ///
+    /// - `type`, the [`DeviceType`], set by the allocator and never changed
+    ///   ([`device_type`](DeviceContextRef::device_type), no setter);
+    /// - `av_class`, the logging class C's allocator sets
+    ///   ([`class`](DeviceContextRef::class), no setter);
+    /// - `hwctx`, the device type's own hardware context (an
+    ///   `AVVAAPIDeviceContext` for VAAPI, an `AVCUDADeviceContext` for CUDA,
+    ///   and so on), allocated and freed with the context, which the caller
+    ///   fills before initialisation: typed by the caller
+    ///   ([`hwctx`](DeviceContextRef::hwctx),
+    ///   [`into_hwctx`](DeviceContextMut::into_hwctx), both `unsafe`);
+    /// - `free` and `user_opaque`, a callback C runs at the last release and
+    ///   the data it is meant for, which Rust fills with a closure
+    ///   ([`set_free_callback`](DeviceContextMut::set_free_callback)) and any
+    ///   `Send + Sync` value ([`set_user_data`](DeviceContextMut::set_user_data)).
+    ///
+    /// Neither `Send` nor `Sync`, as [`DeviceReference`]; the user data and
+    /// free callback are `Send` (and the data `Sync`) all the same, since C
+    /// may release the last reference on any thread (a codec's frame
+    /// threads hold some).
+    DeviceContext,
+    DeviceContextRef,
+    DeviceContextMut,
+    ffi::AVHWDeviceContext
+);
+
+/// A device context's free callback, as
+/// [`take_free_callback`](DeviceContextMut::take_free_callback) hands it back:
+/// called once, with the context, when its last reference is released.
+pub type FreeCallback = Box<dyn for<'c> FnOnce(DeviceContextMut<'c>) + Send>;
+
+/// The Rust state a device context keeps in its `user_opaque` while its
+/// `free` is [`release_hooks`]: the caller's data and free callback.
+struct Hooks {
+    data: Option<Box<dyn Any + Send + Sync>>,
+    on_free: Option<FreeCallback>,
+}
+
+/// [`release_hooks`] as the one function pointer value the setters store in
+/// `free` and [`is_release_hooks`] compares with. Two pointers to one
+/// function taken at different sites may differ (a function can be
+/// duplicated across codegen units, and Miri gives them distinct addresses);
+/// one value read from a static compares equal to itself.
+static RELEASE_HOOKS: unsafe extern "C" fn(*mut ffi::AVHWDeviceContext) = release_hooks;
+
+/// Whether `free` is [`RELEASE_HOOKS`], the mark of a `user_opaque` holding
+/// [`Hooks`].
+fn is_release_hooks(free: Option<unsafe extern "C" fn(*mut ffi::AVHWDeviceContext)>) -> bool {
+    free.is_some_and(|f| ptr::fn_addr_eq(f, RELEASE_HOOKS))
+}
+
+/// A device context's `free` while Rust's [`Hooks`] are installed: runs the
+/// free callback with the context, then drops the hooks, the user data with
+/// them, and clears both fields. A panic in either aborts the process.
+unsafe extern "C" fn release_hooks(ctx: *mut ffi::AVHWDeviceContext) {
+    // SAFETY: hwdevice_ctx_free calls `free` once, with the live context whose
+    // last reference is gone, so nothing else reaches it; this function is
+    // its `free` only while `user_opaque` holds the `Box<Hooks>` the setters
+    // leaked, which is read here without a reference to the context.
+    let hooks = unsafe { addr_of!((*ctx).user_opaque).read() }.cast::<Hooks>();
+    if hooks.is_null() {
+        return;
+    }
+    // SAFETY: a live `Hooks` only this call reaches; the borrow ends before
+    // the callback runs, which may reach it again through its handle.
+    let on_free = unsafe { (*hooks).on_free.take() };
+    if let Some(on_free) = on_free {
+        // SAFETY: the context is live and exclusively this call's until it
+        // returns; the handle cannot outlive the callback (`for<'c>`).
+        if let Some(ctx) = unsafe { DeviceContextMut::from_ptr(ctx) } {
+            on_free(ctx);
+        }
+    }
+    // The callback may have taken the hooks out, or installed new ones.
+    // SAFETY: as above, the callback's handle is gone.
+    let free = unsafe { addr_of_mut!((*ctx).free).replace(None) };
+    // SAFETY: as above.
+    let hooks = unsafe { addr_of_mut!((*ctx).user_opaque).replace(ptr::null_mut()) };
+    if is_release_hooks(free) && !hooks.is_null() {
+        // SAFETY: `free` marks `user_opaque` as the `Box<Hooks>` a setter
+        // leaked, now detached from the context.
+        drop(unsafe { Box::from_raw(hooks.cast::<Hooks>()) });
+    }
+}
+
+impl<'a> DeviceContextRef<'a> {
+    /// Field: AVHWDeviceContext.type
+    ///
+    /// The hardware API the context drives, fixed when it was allocated.
+    #[must_use]
+    pub fn device_type(&self) -> DeviceType {
+        // SAFETY: a read of the `type` field projected through the shared
+        // handle's pointer to a live context; nothing writes it after
+        // allocation.
+        DeviceType::from_raw(unsafe { addr_of!((*self.as_ptr()).type_).read() })
+    }
+
+    /// Field: AVHWDeviceContext.av_class
+    ///
+    /// The context's logging class, which C's allocator sets
+    /// (`AVHWDeviceContext`, in the hardware device log category); `None`
+    /// only for a context C did not allocate and left without one.
+    #[must_use]
+    pub fn class(&self) -> Option<ClassRef<'a>> {
+        // SAFETY: as in `device_type`, for the `av_class` field.
+        let class = unsafe { addr_of!((*self.as_ptr()).av_class).read() };
+        // SAFETY: NULL, or a well-formed class that outlives the context:
+        // `av_hwdevice_ctx_alloc` stores its static `hwdevice_ctx_class`.
+        unsafe { ClassRef::from_ptr(class.cast_mut()) }
+    }
+
+    /// Field: AVHWDeviceContext.hwctx
+    ///
+    /// The device type's hardware context, as a `T`; `None` when the device
+    /// type has none.
+    ///
+    /// # Safety
+    ///
+    /// `T::C` must be the public hardware context type of the context's
+    /// [`device_type`](Self::device_type), as its `hwcontext_<type>.h`
+    /// declares it (`AVVAAPIDeviceContext` for [`DeviceType::VAAPI`], ...):
+    /// C allocates the backend's size, and nothing records the type. Nothing
+    /// may write the fields read through the result while it lives, which
+    /// the backends do not after initialisation.
+    #[must_use]
+    pub unsafe fn hwctx<T: CCell + 'a>(&self) -> Option<T::Ref<'a>> {
+        // SAFETY: as in `device_type`, for the `hwctx` pointer, which C never
+        // replaces.
+        let hwctx = unsafe { addr_of!((*self.as_ptr()).hwctx).read() };
+        // SAFETY: NULL, or the context's hardware context, live as long as
+        // the context; the caller vouches for its type and for writers.
+        unsafe { T::ref_from_void_ptr(hwctx) }
+    }
+
+    /// Field: AVHWDeviceContext.free
+    ///
+    /// Whether something runs when the context's last reference is released:
+    /// a callback [`set_free_callback`](DeviceContextMut::set_free_callback)
+    /// installed, or one the backend's device creation did.
+    #[must_use]
+    pub fn has_free_callback(&self) -> bool {
+        match self.hooks() {
+            Some(hooks) => hooks.on_free.is_some(),
+            // SAFETY: as in `device_type`, for the `free` field.
+            None => unsafe { addr_of!((*self.as_ptr()).free).read() }.is_some(),
+        }
+    }
+
+    /// Field: AVHWDeviceContext.user_opaque
+    ///
+    /// The value [`set_user_data`](DeviceContextMut::set_user_data) stored,
+    /// borrowed from the context; `None` when it stored none, or one of
+    /// another type. The private data a backend keeps there for its own free
+    /// callback is not readable.
+    #[must_use]
+    pub fn user_data<T: Any>(&self) -> Option<&'a T> {
+        self.hooks()?.data.as_deref()?.downcast_ref()
+    }
+
+    /// The Rust hooks the context's `user_opaque` holds, if any.
+    fn hooks(&self) -> Option<&'a Hooks> {
+        let p = self.as_ptr();
+        // SAFETY: as in `device_type`, for the `free` and `user_opaque`
+        // fields.
+        let (free, opaque) = unsafe {
+            (
+                addr_of!((*p).free).read(),
+                addr_of!((*p).user_opaque).read(),
+            )
+        };
+        if !is_release_hooks(free) {
+            return None;
+        }
+        // SAFETY: `release_hooks` as `free` marks `user_opaque` as NULL or the
+        // `Box<Hooks>` a setter leaked; only a `DeviceContextMut` replaces or
+        // frees it, and none exists while this shared borrow lives.
+        unsafe { opaque.cast::<Hooks>().as_ref() }
+    }
+}
+
+impl fmt::Debug for DeviceContextRef<'_> {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.debug_struct("DeviceContext")
+            .field("device_type", &self.device_type())
+            .field("has_free_callback", &self.has_free_callback())
+            .finish_non_exhaustive()
+    }
+}
+
+impl<'a> DeviceContextMut<'a> {
+    /// Field: AVHWDeviceContext.hwctx
+    ///
+    /// The device type's hardware context, as a `T`, to fill before
+    /// [`UninitDevice::init`], borrowed for as long as this handle
+    /// (reborrow with `as_mut()` to keep it); `None` when the device type
+    /// has none.
+    ///
+    /// # Safety
+    ///
+    /// `T::C` must be the context's hardware context type, as for
+    /// [`DeviceContextRef::hwctx`]. Whatever is written must be what the
+    /// device type's header allows: the backend's `device_init` reads it,
+    /// and its `device_uninit` releases what it finds there whether the
+    /// context was initialised or not.
+    #[must_use]
+    pub unsafe fn into_hwctx<T: CCell + 'a>(mut self) -> Option<T::Mut<'a>> {
+        // SAFETY: a read of the `hwctx` pointer projected through the
+        // exclusive handle's pointer to a live context.
+        let hwctx = unsafe { addr_of!((*self.as_mut_ptr()).hwctx).read() };
+        // SAFETY: NULL, or the context's hardware context, which this
+        // exclusive borrow, consumed here, reaches alone for `'a`; the
+        // caller vouches for its type.
+        unsafe { T::mut_from_void_ptr(hwctx) }
+    }
+
+    /// Field: AVHWDeviceContext.free
+    ///
+    /// Makes `f` the context's free callback, dropping the one this set
+    /// before: C calls it once, on the thread releasing the context's last
+    /// reference, after the backend's `device_uninit` and before the
+    /// hardware context and the struct are freed. Its handle reaches the
+    /// [user data](Self::set_user_data), which is dropped after it returns;
+    /// a callback it sets is dropped uncalled. A panic in it aborts the
+    /// process.
+    ///
+    /// Refused, giving `f` back, when the context's `free` and `user_opaque`
+    /// are someone else's: a backend's device creation sets them.
+    ///
+    /// The callback may run on another thread, so it must be `Send`:
+    ///
+    /// ```compile_fail,E0277
+    /// use std::rc::Rc;
+    /// use ffmpeg::libavutil::hwcontext::{DeviceReference, DeviceType};
+    /// let mut device = DeviceReference::alloc(DeviceType::VAAPI).unwrap();
+    /// let local = Rc::new(1);
+    /// let _ = device.context_mut().set_free_callback(move |_| drop(local));
+    /// ```
+    pub fn set_free_callback<F>(&mut self, f: F) -> Result<(), F>
+    where
+        F: FnOnce(DeviceContextMut<'_>) + Send + 'static,
+    {
+        match self.hooks_mut() {
+            Some(hooks) => {
+                hooks.on_free = Some(Box::new(f));
+                Ok(())
+            }
+            None => Err(f),
+        }
+    }
+
+    /// Field: AVHWDeviceContext.free
+    ///
+    /// Takes the free callback [`set_free_callback`](Self::set_free_callback)
+    /// installed out, uncalled; `None` when it installed none.
+    #[must_use]
+    pub fn take_free_callback(&mut self) -> Option<FreeCallback> {
+        let on_free = self.hooks_mut_if_installed()?.on_free.take();
+        self.release_empty_hooks();
+        on_free
+    }
+
+    /// Field: AVHWDeviceContext.user_opaque
+    ///
+    /// Makes `data` the context's user data, dropping the value this set
+    /// before. It lives as long as the context, readable through
+    /// [`DeviceContextRef::user_data`] (the free callback's handle
+    /// included), and is dropped on the thread releasing the context's last
+    /// reference, hence `Send + Sync`.
+    ///
+    /// Refused, giving `data` back, when the context's `free` and
+    /// `user_opaque` are someone else's, as for
+    /// [`set_free_callback`](Self::set_free_callback).
+    ///
+    /// Every thread holding the context may read it, so it must be `Sync`:
+    ///
+    /// ```compile_fail,E0277
+    /// use std::cell::Cell;
+    /// use ffmpeg::libavutil::hwcontext::{DeviceReference, DeviceType};
+    /// let mut device = DeviceReference::alloc(DeviceType::VAAPI).unwrap();
+    /// let _ = device.context_mut().set_user_data(Cell::new(1));
+    /// ```
+    pub fn set_user_data<T>(&mut self, data: T) -> Result<(), T>
+    where
+        T: Any + Send + Sync,
+    {
+        match self.hooks_mut() {
+            Some(hooks) => {
+                hooks.data = Some(Box::new(data));
+                Ok(())
+            }
+            None => Err(data),
+        }
+    }
+
+    /// Field: AVHWDeviceContext.user_opaque
+    ///
+    /// Takes the user data [`set_user_data`](Self::set_user_data) stored out;
+    /// `None` when it stored none.
+    #[must_use]
+    pub fn take_user_data(&mut self) -> Option<Box<dyn Any + Send + Sync>> {
+        let data = self.hooks_mut_if_installed()?.data.take();
+        self.release_empty_hooks();
+        data
+    }
+
+    /// The context's Rust hooks, installed first when `free` and
+    /// `user_opaque` are both unset; `None` when they are someone else's.
+    fn hooks_mut(&mut self) -> Option<&mut Hooks> {
+        if self.as_ref().hooks().is_none() {
+            let p = self.as_mut_ptr();
+            // SAFETY: reads of the `free` and `user_opaque` fields projected
+            // through the exclusive handle's pointer to a live context.
+            let unset = unsafe {
+                addr_of!((*p).free).read().is_none() && addr_of!((*p).user_opaque).read().is_null()
+            };
+            if !unset {
+                return None;
+            }
+            let hooks = Box::into_raw(Box::new(Hooks {
+                data: None,
+                on_free: None,
+            }));
+            // SAFETY: writes of both fields through the exclusive handle;
+            // neither held anything to release, and C reads them only in
+            // hwdevice_ctx_free, which then calls `release_hooks` to free
+            // the box.
+            unsafe {
+                addr_of_mut!((*p).user_opaque).write(hooks.cast());
+                addr_of_mut!((*p).free).write(Some(RELEASE_HOOKS));
+            }
+        }
+        self.hooks_mut_if_installed()
+    }
+
+    /// The context's Rust hooks, if `user_opaque` holds them.
+    fn hooks_mut_if_installed(&mut self) -> Option<&mut Hooks> {
+        let p = self.as_mut_ptr();
+        // SAFETY: as in `hooks_mut`, for both fields.
+        let (free, opaque) = unsafe {
+            (
+                addr_of!((*p).free).read(),
+                addr_of!((*p).user_opaque).read(),
+            )
+        };
+        if !is_release_hooks(free) {
+            return None;
+        }
+        // SAFETY: `release_hooks` as `free` marks `user_opaque` as NULL or the
+        // `Box<Hooks>` a setter leaked, which the exclusive borrow reaches
+        // alone.
+        unsafe { opaque.cast::<Hooks>().as_mut() }
+    }
+
+    /// Frees the context's Rust hooks and clears `free` and `user_opaque`
+    /// once the hooks hold nothing.
+    fn release_empty_hooks(&mut self) {
+        let empty = self
+            .hooks_mut_if_installed()
+            .is_some_and(|h| h.data.is_none() && h.on_free.is_none());
+        if !empty {
+            return;
+        }
+        let p = self.as_mut_ptr();
+        // SAFETY: writes of both fields through the exclusive handle; the
+        // hooks were installed, so `user_opaque` held their box.
+        let hooks = unsafe {
+            addr_of_mut!((*p).free).write(None);
+            addr_of_mut!((*p).user_opaque).replace(ptr::null_mut())
+        };
+        // SAFETY: the empty `Box<Hooks>` a setter leaked, now detached.
+        drop(unsafe { Box::from_raw(hooks.cast::<Hooks>()) });
+    }
+}
+
+impl fmt::Debug for DeviceContextMut<'_> {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        self.as_ref().fmt(f)
+    }
+}
+
+impl<'a> DeviceReferenceRef<'a> {
+    /// The device context the reference keeps alive, shared: its type, class,
+    /// hardware context and user data. An initialised context is not written
+    /// through any reference, so there is no exclusive form.
+    #[must_use]
+    pub fn context(&self) -> DeviceContextRef<'a> {
+        // SAFETY: a read of the `data` field of the live reference, which by
+        // the type's invariant is an initialised context's public struct.
+        let ctx = unsafe { addr_of!((*self.as_ptr()).data).read() };
+        // SAFETY: the reference keeps the context live for `'a`, and nothing
+        // writes an initialised context's fields while it is shared.
+        unsafe { DeviceContextRef::from_ptr(ctx.cast()) }
+            .expect("a device context reference has data")
+    }
+
+    /// Wraps: av_hwdevice_get_hwframe_constraints
+    ///
+    /// The limits on frames of this device at its maximum capabilities: the
+    /// pixel formats and sizes a hardware frames context may use; `None`
+    /// when the backend reports none, fails, or C cannot allocate them.
+    #[must_use]
+    pub fn frames_constraints(&self) -> Option<FramesConstraintsBox> {
+        let (device, config) = (self.as_ptr().cast_mut(), ptr::null());
+        // SAFETY: a reference to an initialised context, borrowed for the
+        // call; a NULL configuration asks every backend for its maximum
+        // capabilities. C returns NULL or a fresh structure the caller owns,
+        // with NONE-terminated av_malloc lists, released by
+        // av_hwframe_constraints_free.
+        let constraints = unsafe { ffi::av_hwdevice_get_hwframe_constraints(device, config) };
+        // SAFETY: as above.
+        unsafe { FramesConstraintsBox::from_c(constraints) }
+    }
+
+    /// Wraps: av_hwdevice_get_hwframe_constraints
+    ///
+    /// The limits on frames of this device under the hardware configuration
+    /// `config` ([`alloc_hw_config`](Self::alloc_hw_config)), as
+    /// [`frames_constraints`](Self::frames_constraints); also `None` for a
+    /// configuration of another device type, whose struct the backend would
+    /// misread.
+    #[must_use]
+    pub fn frames_constraints_for_config(&self, config: &HwConfig) -> Option<FramesConstraintsBox> {
+        if config.device_type() != self.kind() {
+            return None;
+        }
+        let (device, config) = (self.as_ptr().cast_mut(), config.as_ptr());
+        // SAFETY: as in `frames_constraints`, with a configuration the
+        // device's backend allocated (`av_hwdevice_hwconfig_alloc`): zeroed,
+        // or filled through its raw seam as the backend's header asks, and
+        // only read by C.
+        let constraints = unsafe { ffi::av_hwdevice_get_hwframe_constraints(device, config) };
+        // SAFETY: as in `frames_constraints`.
+        unsafe { FramesConstraintsBox::from_c(constraints) }
+    }
+}
+
+define_ctype!(
+    /// Wraps: AVHWFramesConstraints
+    ///
+    /// The limits a device puts on hardware frames: the pixel formats a
+    /// frames context may use as its hardware and software formats, and the
+    /// range of frame sizes. Its getters are on [`FramesConstraintsRef`]
+    /// (`as_ref()`), its setters on [`FramesConstraintsMut`] (`as_mut()`).
+    ///
+    /// The caller owns it alone, as a [`FramesConstraintsBox`], from
+    /// [`DeviceReferenceRef::frames_constraints`] or
+    /// [`FramesConstraints::new`]. Each format list is NULL ("unknown") or an
+    /// `av_malloc` block the structure owns, holding formats up to a
+    /// terminating [`PixelFormat::NONE`]; the getters lend the formats
+    /// before it.
+    ///
+    /// `Send` and `Sync`: plain values and two arrays freed with `av_free`
+    /// on any thread, and only the exclusive handle writes.
+    FramesConstraints,
+    FramesConstraintsRef,
+    FramesConstraintsMut,
+    ffi::AVHWFramesConstraints
+);
+
+// SAFETY: four integers and two owned av_malloc blocks of plain values, which
+// av_hwframe_constraints_free releases on any thread; nothing in it is tied
+// to a thread.
+unsafe impl Send for FramesConstraints {}
+// SAFETY: the shared handle only reads, and only `FramesConstraintsMut`,
+// which a shared borrow excludes, writes the struct or its lists.
+unsafe impl Sync for FramesConstraints {}
+// SAFETY: as for `Sync for FramesConstraints`: copies of a shared handle only
+// read.
+unsafe impl Send for FramesConstraintsRef<'_> {}
+// SAFETY: as above.
+unsafe impl Sync for FramesConstraintsRef<'_> {}
+
+/// Wraps: av_hwframe_constraints_free
+/// Handwritten
+///
+/// Releases a [`FramesConstraintsBox`]: C frees both format lists, then the
+/// structure. Its constructor is C's own first step: a zero-filled structure
+/// with sizes unlimited. `impl_cdrop!` would need a raw-pointer adapter only
+/// to pass the slot C takes.
+///
+/// Stateless: C frees with `av_free`, on any thread.
+#[derive(Clone, Copy, Debug, Default)]
+pub struct FramesConstraintsFree;
+
+// SAFETY: av_hwframe_constraints_free av_freep's both lists (NULL or
+// av_malloc blocks the structure owns, by its invariant) and then the
+// structure, NULLing only this local slot; it reads nothing else.
+unsafe impl CDrop<FramesConstraints> for FramesConstraintsFree {
+    #[inline]
+    unsafe fn c_drop(&self, ptr: NonNull<FramesConstraints>) {
+        let mut slot = ptr.as_ptr().cast::<ffi::AVHWFramesConstraints>();
+        // SAFETY: the caller hands over the box's sole claim on a live
+        // structure; C keeps no pointer to the slot.
+        unsafe { ffi::av_hwframe_constraints_free(&mut slot) }
+    }
+}
+
+// SAFETY: a fresh av_mallocz block of the structure's size, which `c_drop`
+// releases: NULL lists, which the getters read as unknown and C frees as
+// nothing, and the sizes av_hwdevice_get_hwframe_constraints starts from.
+unsafe impl CNew<FramesConstraints> for FramesConstraintsFree {
+    fn c_new(&self) -> Option<NonNull<FramesConstraints>> {
+        let size = size_of::<ffi::AVHWFramesConstraints>();
+        // SAFETY: av_mallocz takes any size and returns NULL or a fresh,
+        // zero-filled block aligned for any C object.
+        let p = unsafe { ffi::av_mallocz(size) }.cast::<ffi::AVHWFramesConstraints>();
+        let p = NonNull::new(p)?;
+        // SAFETY: writes of two fields of the block just allocated, which
+        // nothing else reaches.
+        unsafe {
+            addr_of_mut!((*p.as_ptr()).max_width).write(c_int::MAX);
+            addr_of_mut!((*p.as_ptr()).max_height).write(c_int::MAX);
+        }
+        Some(p.cast())
+    }
+}
+
+/// Frame constraints, owned: both format lists are freed with the structure
+/// (`av_hwframe_constraints_free`). No `Clone`: C has no copy.
+///
+/// Its format lists are borrowed from it:
+///
+/// ```compile_fail,E0505
+/// use ffmpeg::libavutil::hwcontext::FramesConstraints;
+/// let constraints = FramesConstraints::new().unwrap();
+/// let formats = constraints.as_ref().valid_sw_formats();
+/// drop(constraints);
+/// let _ = formats;
+/// ```
+pub type FramesConstraintsBox = CBox<FramesConstraints, FramesConstraintsFree>;
+
+impl FramesConstraints {
+    /// Constraints with no format lists and the sizes C starts from: 0 to
+    /// `i32::MAX` in both dimensions; `None` when C cannot allocate them.
+    #[must_use]
+    pub fn new() -> Option<FramesConstraintsBox> {
+        FramesConstraintsBox::new()
+    }
+}
+
+/// One of the constraints' two format lists.
+#[derive(Clone, Copy)]
+enum FormatList {
+    Hardware,
+    Software,
+}
+
+impl<'a> FramesConstraintsRef<'a> {
+    /// The formats of `which` list before its terminating `NONE`, borrowed
+    /// from the constraints; `None` for NULL.
+    fn list(&self, which: FormatList) -> Option<CSlice<'a, PixelFormat>> {
+        let p = self.as_ptr();
+        // SAFETY: a read of one list pointer projected through the shared
+        // handle's pointer to live constraints.
+        let list = unsafe {
+            match which {
+                FormatList::Hardware => addr_of!((*p).valid_hw_formats).read(),
+                FormatList::Software => addr_of!((*p).valid_sw_formats).read(),
+            }
+        };
+        // By the type's invariant, NULL or a NONE-terminated list the
+        // constraints own, which nothing frees or writes while they are
+        // borrowed shared; `PixelFormat` is transparent over `AVPixelFormat`.
+        let list = NonNull::new(list)?.cast::<PixelFormat>();
+        let mut len = 0;
+        // SAFETY: every element up to and including the terminator is live
+        // and initialised, as above.
+        while unsafe { list.add(len).read() } != PixelFormat::NONE {
+            len += 1;
+        }
+        // SAFETY: `len` initialised elements, live and unwritten for `'a`.
+        Some(unsafe { CSlice::from_raw_parts(list, len) })
+    }
+
+    /// Field: AVHWFramesConstraints.valid_hw_formats
+    ///
+    /// The formats a frames context of the device may use as its `format`,
+    /// borrowed from the constraints; `None` when they list none (a
+    /// backend's constraints always do).
+    #[must_use]
+    pub fn valid_hw_formats(&self) -> Option<CSlice<'a, PixelFormat>> {
+        self.list(FormatList::Hardware)
+    }
+
+    /// Field: AVHWFramesConstraints.valid_sw_formats
+    ///
+    /// The formats a frames context of the device may use as its
+    /// `sw_format`, borrowed from the constraints; `None` when the device
+    /// does not know them.
+    #[must_use]
+    pub fn valid_sw_formats(&self) -> Option<CSlice<'a, PixelFormat>> {
+        self.list(FormatList::Software)
+    }
+
+    /// Field: AVHWFramesConstraints.min_width
+    ///
+    /// The smallest frame width; 0 when not known.
+    #[must_use]
+    pub fn min_width(&self) -> i32 {
+        // SAFETY: a read of an `int` field projected through the shared
+        // handle's pointer to live constraints.
+        unsafe { addr_of!((*self.as_ptr()).min_width).read() }
+    }
+
+    /// Field: AVHWFramesConstraints.min_height
+    ///
+    /// The smallest frame height; 0 when not known.
+    #[must_use]
+    pub fn min_height(&self) -> i32 {
+        // SAFETY: as in `min_width`, for the `min_height` field.
+        unsafe { addr_of!((*self.as_ptr()).min_height).read() }
+    }
+
+    /// Field: AVHWFramesConstraints.max_width
+    ///
+    /// The largest frame width; `i32::MAX` when not known or unlimited.
+    #[must_use]
+    pub fn max_width(&self) -> i32 {
+        // SAFETY: as in `min_width`, for the `max_width` field.
+        unsafe { addr_of!((*self.as_ptr()).max_width).read() }
+    }
+
+    /// Field: AVHWFramesConstraints.max_height
+    ///
+    /// The largest frame height; `i32::MAX` when not known or unlimited.
+    #[must_use]
+    pub fn max_height(&self) -> i32 {
+        // SAFETY: as in `min_width`, for the `max_height` field.
+        unsafe { addr_of!((*self.as_ptr()).max_height).read() }
+    }
+}
+
+impl fmt::Debug for FramesConstraintsRef<'_> {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        let list = |l: Option<CSlice<'_, PixelFormat>>| l.map(|l| l.elems().collect::<Vec<_>>());
+        f.debug_struct("FramesConstraints")
+            .field("valid_hw_formats", &list(self.valid_hw_formats()))
+            .field("valid_sw_formats", &list(self.valid_sw_formats()))
+            .field("min_width", &self.min_width())
+            .field("min_height", &self.min_height())
+            .field("max_width", &self.max_width())
+            .field("max_height", &self.max_height())
+            .finish()
+    }
+}
+
+impl FramesConstraintsMut<'_> {
+    /// Makes `with` (a NONE-terminated list, or none) the list in `which`,
+    /// and returns the formats the old one held.
+    fn replace_list(
+        &mut self,
+        which: FormatList,
+        with: Option<HeapVec<PixelFormat>>,
+    ) -> Option<HeapVec<PixelFormat>> {
+        let len = self.as_ref().list(which).map_or(0, |l| l.len());
+        let with = with.map_or(ptr::null_mut(), |v| v.into_raw_parts().0);
+        let p = self.as_mut_ptr();
+        // SAFETY: a read and a write of one list pointer projected through
+        // the exclusive handle's pointer to live constraints; `with` is NULL
+        // or an av_malloc block holding a NONE-terminated list, whose claim
+        // moves to the constraints.
+        let old = unsafe {
+            match which {
+                FormatList::Hardware => addr_of_mut!((*p).valid_hw_formats).replace(with.cast()),
+                FormatList::Software => addr_of_mut!((*p).valid_sw_formats).replace(with.cast()),
+            }
+        };
+        // SAFETY: by the type's invariant, NULL or an av_malloc block the
+        // constraints owned, holding `len` initialised formats and their
+        // terminator, which no longer reaches them; `av_free` ignores the
+        // length.
+        unsafe { HeapVec::from_raw_parts(old.cast::<PixelFormat>(), len) }
+    }
+
+    /// Makes a terminated copy of `formats` (up to its first `NONE`) the
+    /// list in `which`, freeing the old one; none for `None`.
+    fn set_list(
+        &mut self,
+        which: FormatList,
+        formats: Option<&[PixelFormat]>,
+    ) -> Result<(), c_int> {
+        let copy = match formats {
+            None => None,
+            Some(formats) => {
+                let len = formats
+                    .iter()
+                    .position(|&f| f == PixelFormat::NONE)
+                    .unwrap_or(formats.len());
+                let terminated = alloc_array_from_fn(len + 1, |i| {
+                    if i < len {
+                        formats[i]
+                    } else {
+                        PixelFormat::NONE
+                    }
+                });
+                Some(terminated.ok_or(ENOMEM)?)
+            }
+        };
+        drop(self.replace_list(which, copy));
+        Ok(())
+    }
+
+    /// Field: AVHWFramesConstraints.valid_hw_formats
+    ///
+    /// Makes a copy of `formats` the hardware formats, up to the first
+    /// [`PixelFormat::NONE`] it holds, and frees the old list; `None` lists
+    /// none. `Err(AVERROR(ENOMEM))`, with the old list kept, when C cannot
+    /// allocate the copy.
+    pub fn set_valid_hw_formats(&mut self, formats: Option<&[PixelFormat]>) -> Result<(), c_int> {
+        self.set_list(FormatList::Hardware, formats)
+    }
+
+    /// Field: AVHWFramesConstraints.valid_hw_formats
+    ///
+    /// Takes the hardware formats out (without their terminator), leaving
+    /// none; `None` when there were none.
+    #[must_use]
+    pub fn take_valid_hw_formats(&mut self) -> Option<HeapVec<PixelFormat>> {
+        self.replace_list(FormatList::Hardware, None)
+    }
+
+    /// Field: AVHWFramesConstraints.valid_sw_formats
+    ///
+    /// Makes a copy of `formats` the software formats, as
+    /// [`set_valid_hw_formats`](Self::set_valid_hw_formats); `None` marks
+    /// them unknown.
+    pub fn set_valid_sw_formats(&mut self, formats: Option<&[PixelFormat]>) -> Result<(), c_int> {
+        self.set_list(FormatList::Software, formats)
+    }
+
+    /// Field: AVHWFramesConstraints.valid_sw_formats
+    ///
+    /// Takes the software formats out (without their terminator), leaving
+    /// them unknown; `None` when they were.
+    #[must_use]
+    pub fn take_valid_sw_formats(&mut self) -> Option<HeapVec<PixelFormat>> {
+        self.replace_list(FormatList::Software, None)
+    }
+
+    /// Field: AVHWFramesConstraints.min_width
+    ///
+    /// Sets the smallest frame width.
+    pub fn set_min_width(&mut self, width: i32) {
+        // SAFETY: a write of an `int` field projected through the exclusive
+        // handle's pointer to live constraints.
+        unsafe { addr_of_mut!((*self.as_mut_ptr()).min_width).write(width) }
+    }
+
+    /// Field: AVHWFramesConstraints.min_height
+    ///
+    /// Sets the smallest frame height.
+    pub fn set_min_height(&mut self, height: i32) {
+        // SAFETY: as in `set_min_width`, for the `min_height` field.
+        unsafe { addr_of_mut!((*self.as_mut_ptr()).min_height).write(height) }
+    }
+
+    /// Field: AVHWFramesConstraints.max_width
+    ///
+    /// Sets the largest frame width.
+    pub fn set_max_width(&mut self, width: i32) {
+        // SAFETY: as in `set_min_width`, for the `max_width` field.
+        unsafe { addr_of_mut!((*self.as_mut_ptr()).max_width).write(width) }
+    }
+
+    /// Field: AVHWFramesConstraints.max_height
+    ///
+    /// Sets the largest frame height.
+    pub fn set_max_height(&mut self, height: i32) {
+        // SAFETY: as in `set_min_width`, for the `max_height` field.
+        unsafe { addr_of_mut!((*self.as_mut_ptr()).max_height).write(height) }
+    }
+}
+
+impl fmt::Debug for FramesConstraintsMut<'_> {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        self.as_ref().fmt(f)
+    }
+}
+
+#[cfg(test)]
+#[path = "../tests/common/hwdevice.rs"]
+pub(crate) mod hwdevice;
 
 #[cfg(test)]
 #[path = "../tests/common/hwframes.rs"]
@@ -2587,14 +3429,15 @@ mod unit_tests {
             );
             let mut uninit = uninit_device(Kind::A);
             assert_eq!(format!("{uninit:?}"), "UninitDevice(VAAPI)");
-            let ctx = uninit.as_mut_ptr();
+            let ctx = uninit.context_mut().as_mut_ptr();
             // SAFETY: the public struct of the context `uninit` owns.
             unsafe {
                 assert_eq!((*ctx).type_, ffi::AVHWDeviceType::AV_HWDEVICE_TYPE_VAAPI);
                 assert!(!(*ctx).hwctx.is_null());
             }
             assert!(fx::take_events().is_empty());
-            let device = uninit.init().unwrap();
+            // SAFETY: the test backend's `device_init` reads only its knobs.
+            let device = unsafe { uninit.init() }.unwrap();
             assert_eq!(fx::take_events(), [Event::DeviceInit(Kind::A)]);
             assert_eq!(count(device.as_c_ptr()), 1);
             drop(device);
@@ -2613,10 +3456,11 @@ mod unit_tests {
         #[test]
         fn failed_device_init_releases_the_context() {
             let mut uninit = uninit_device(Kind::B);
-            let ctx = uninit.as_mut_ptr();
+            let ctx = uninit.context_mut().as_mut_ptr();
             // SAFETY: the backend struct of the context `uninit` owns.
             unsafe { (*(*ctx).hwctx.cast::<fx::DeviceHwctx>()).init_ret = -77 };
-            assert_eq!(uninit.init().err(), Some(-77));
+            // SAFETY: as in `uninit_device_inits_once_and_releases_on_drop`.
+            assert_eq!(unsafe { uninit.init() }.err(), Some(-77));
             assert_eq!(
                 fx::take_events(),
                 [
@@ -3191,6 +4035,582 @@ mod unit_tests {
             assert_eq!(DeviceType::from_name(&long), None);
             let names: Vec<&CStr> = NAMED.iter().filter_map(|&(t, _)| t.name()).collect();
             assert_eq!(names.len(), 14);
+        }
+    }
+
+    /// Device contexts and frame constraints over the fake backend of
+    /// `tests/common/hwdevice.rs` (hwcontext wave 1, batch 0).
+    mod device_context {
+        use super::super::hwdevice::{
+            self, BARE_TYPE, Events, FakeConfig, FakeHw, HW_FORMAT, SIZES, SW_FORMATS,
+        };
+        use super::*;
+        use core::sync::atomic::{AtomicUsize, Ordering};
+        use std::sync::{Arc, Mutex};
+
+        /// A fresh fake context under construction, counting into `events`.
+        fn builder(events: &Arc<Events>) -> UninitDevice {
+            // SAFETY: `fake_device` returns NULL or the only reference to an
+            // uninitialised fake context with no hooks.
+            let mut b = unsafe { UninitDevice::from_c(hwdevice::fake_device()) }.unwrap();
+            // SAFETY: the fake context's hardware context is a `FakeHwctx`.
+            unsafe { b.context_mut().into_hwctx::<FakeHw>() }
+                .unwrap()
+                .set_events(Arc::as_ptr(events));
+            b
+        }
+
+        /// The C `free` and `user_opaque` of the context behind `b`.
+        fn raw_hooks(b: &UninitDevice) -> (bool, bool) {
+            let p = b.context().as_ptr();
+            // SAFETY: reads of the builder's live context.
+            unsafe { ((*p).free.is_some(), !(*p).user_opaque.is_null()) }
+        }
+
+        /// The number of references to the context `arc` holds.
+        fn count(arc: &DeviceReferenceBox) -> u32 {
+            // SAFETY: a live reference.
+            unsafe { ffi::av_buffer_get_ref_count(arc.as_c_ptr()) as u32 }
+        }
+
+        /// A value that counts its drops.
+        struct Dropped(Arc<AtomicUsize>);
+        impl Drop for Dropped {
+            fn drop(&mut self) {
+                self.0.fetch_add(1, Ordering::SeqCst);
+            }
+        }
+
+        #[test]
+        fn builder_getters_read_the_allocated_fields() {
+            let events = Arc::new(Events::default());
+            let b = builder(&events);
+            let ctx = b.context();
+            assert_eq!(ctx.device_type(), DeviceType::VAAPI);
+            let class = ctx.class().unwrap();
+            assert_eq!(class.name(), Some(c"AVHWDeviceContext"));
+            // SAFETY: the fake context's hardware context is a `FakeHwctx`.
+            let hw = unsafe { ctx.hwctx::<FakeHw>() }.unwrap();
+            assert_eq!(hw.value(), 0);
+            assert!(!hw.initialised());
+            assert!(!ctx.has_free_callback());
+            assert!(ctx.user_data::<u32>().is_none());
+            assert!(format!("{:?}", b.context()).contains("device_type: VAAPI"));
+            let mut b = b;
+            assert!(
+                format!("{:?}", b.context_mut()).starts_with("DeviceContext { device_type: VAAPI")
+            );
+            drop(b);
+            assert_eq!(events.get(), (0, 1, 0));
+        }
+
+        #[test]
+        fn bare_backend_has_no_hardware_context() {
+            let raw =
+                hwdevice::fake_device_of(&BARE_TYPE, ffi::AVHWDeviceType::AV_HWDEVICE_TYPE_DRM);
+            // SAFETY: the only reference to an uninitialised fake context.
+            let mut b = unsafe { UninitDevice::from_c(raw) }.unwrap();
+            assert_eq!(b.context().device_type(), DeviceType::DRM);
+            // SAFETY: a bare context has no hardware context to mistype.
+            assert!(unsafe { b.context().hwctx::<FakeHw>() }.is_none());
+            // SAFETY: as above.
+            assert!(unsafe { b.context_mut().into_hwctx::<FakeHw>() }.is_none());
+            // SAFETY: the bare backend has no `device_init` to feed.
+            let arc = unsafe { b.init() }.unwrap();
+            assert!(arc.as_ref().frames_constraints().is_none());
+        }
+
+        #[test]
+        fn null_references_are_refused() {
+            // SAFETY: NULL is accepted and refused.
+            assert!(unsafe { UninitDevice::from_c(ptr::null_mut()) }.is_none());
+            // SAFETY: as above.
+            assert!(unsafe { DeviceReferenceBox::from_c(ptr::null_mut()) }.is_none());
+        }
+
+        #[test]
+        fn user_data_is_typed_replaced_and_taken() {
+            let events = Arc::new(Events::default());
+            let mut b = builder(&events);
+            let drops = Arc::new(AtomicUsize::new(0));
+            assert!(
+                b.context_mut()
+                    .set_user_data(Dropped(drops.clone()))
+                    .is_ok()
+            );
+            assert_eq!(raw_hooks(&b), (true, true));
+            assert!(b.context().user_data::<Dropped>().is_some());
+            assert!(b.context().user_data::<u8>().is_none());
+            // Data alone runs no callback of the caller's.
+            assert!(!b.context().has_free_callback());
+            assert!(b.context_mut().set_user_data(7u64).is_ok());
+            assert_eq!(drops.load(Ordering::SeqCst), 1);
+            assert_eq!(b.context().user_data::<u64>(), Some(&7));
+            let taken = b.context_mut().take_user_data().unwrap();
+            assert_eq!(taken.downcast_ref::<u64>(), Some(&7));
+            assert!(b.context_mut().take_user_data().is_none());
+            assert!(b.context_mut().take_free_callback().is_none());
+            // Empty hooks are released and both fields cleared.
+            assert_eq!(raw_hooks(&b), (false, false));
+            assert!(b.context().user_data::<u64>().is_none());
+        }
+
+        #[test]
+        fn free_callback_runs_once_after_uninit_and_sees_the_data() {
+            let events = Arc::new(Events::default());
+            let mut b = builder(&events);
+            let seen = Arc::new(Mutex::new(Vec::new()));
+            let drops = Arc::new(AtomicUsize::new(0));
+            b.context_mut()
+                .set_user_data(Dropped(drops.clone()))
+                .ok()
+                .unwrap();
+            let (log, ev, dr) = (seen.clone(), events.clone(), drops.clone());
+            b.context_mut()
+                .set_free_callback(move |mut ctx: DeviceContextMut<'_>| {
+                    let data = ctx.as_ref().user_data::<Dropped>().is_some();
+                    log.lock()
+                        .unwrap()
+                        .push((ev.get(), data, dr.load(Ordering::SeqCst)));
+                    // A callback installed now is dropped uncalled.
+                    let late = log.clone();
+                    ctx.set_free_callback(move |_| late.lock().unwrap().clear())
+                        .ok()
+                        .unwrap();
+                })
+                .ok()
+                .unwrap();
+            assert!(b.context().has_free_callback());
+            // SAFETY: the fake backend's `device_init` accepts any payload.
+            let arc = unsafe { b.init() }.unwrap();
+            let other = arc.clone();
+            assert_eq!(count(&arc), 2);
+            drop(arc);
+            assert!(seen.lock().unwrap().is_empty());
+            drop(other);
+            assert_eq!(*seen.lock().unwrap(), [((1, 1, 0), true, 0)]);
+            assert_eq!(drops.load(Ordering::SeqCst), 1);
+        }
+
+        #[test]
+        fn a_callback_may_take_or_replace_everything() {
+            let events = Arc::new(Events::default());
+            let mut b = builder(&events);
+            let drops = Arc::new(AtomicUsize::new(0));
+            b.context_mut()
+                .set_user_data(Dropped(drops.clone()))
+                .ok()
+                .unwrap();
+            let dr = drops.clone();
+            b.context_mut()
+                .set_free_callback(move |mut ctx: DeviceContextMut<'_>| {
+                    // Takes the data out and drops it itself, then leaves new
+                    // data behind, dropped after it returns.
+                    drop(ctx.take_user_data());
+                    assert!(ctx.take_free_callback().is_none());
+                    ctx.set_user_data(Dropped(dr)).ok().unwrap();
+                })
+                .ok()
+                .unwrap();
+            drop(b);
+            assert_eq!(drops.load(Ordering::SeqCst), 2);
+
+            let mut b = builder(&events);
+            b.context_mut()
+                .set_free_callback(|mut ctx: DeviceContextMut<'_>| {
+                    assert!(ctx.take_free_callback().is_none());
+                    assert!(ctx.take_user_data().is_none());
+                })
+                .ok()
+                .unwrap();
+            drop(b);
+        }
+
+        #[test]
+        fn replaced_and_taken_callbacks_are_not_called() {
+            let events = Arc::new(Events::default());
+            let mut b = builder(&events);
+            let calls = Arc::new(AtomicUsize::new(0));
+            let c = calls.clone();
+            b.context_mut()
+                .set_free_callback(move |_| {
+                    c.fetch_add(100, Ordering::SeqCst);
+                })
+                .ok()
+                .unwrap();
+            let c = calls.clone();
+            b.context_mut()
+                .set_free_callback(move |_| {
+                    c.fetch_add(1, Ordering::SeqCst);
+                })
+                .ok()
+                .unwrap();
+            let taken = b.context_mut().take_free_callback().unwrap();
+            assert_eq!(raw_hooks(&b), (false, false));
+            assert!(!b.context().has_free_callback());
+            drop(b);
+            assert_eq!(calls.load(Ordering::SeqCst), 0);
+            // A taken callback is the caller's to call.
+            let mut other = builder(&events);
+            taken(other.context_mut());
+            assert_eq!(calls.load(Ordering::SeqCst), 1);
+        }
+
+        #[test]
+        fn foreign_hooks_are_neither_read_nor_replaced() {
+            let freed = AtomicUsize::new(0);
+            let raw = hwdevice::fake_device();
+            // SAFETY: the only reference to a fresh fake context; `freed`
+            // outlives it.
+            unsafe { hwdevice::set_foreign_free(raw, &freed) };
+            // SAFETY: as in `builder`; the hooks are a backend's.
+            let mut b = unsafe { UninitDevice::from_c(raw) }.unwrap();
+            assert!(b.context().has_free_callback());
+            assert!(b.context().user_data::<hwdevice::ForeignPriv>().is_none());
+            assert_eq!(b.context_mut().set_user_data(3u8), Err(3));
+            assert!(b.context_mut().set_free_callback(|_| ()).is_err());
+            assert!(b.context_mut().take_user_data().is_none());
+            assert!(b.context_mut().take_free_callback().is_none());
+            drop(b);
+            assert_eq!(freed.load(Ordering::SeqCst), 1);
+
+            // A cookie without a callback is someone else's as well.
+            let raw = hwdevice::fake_device();
+            let mut cookie = 0u8;
+            // SAFETY: a write of the fresh context's `user_opaque`.
+            unsafe { (*hwdevice::context(raw)).user_opaque = (&raw mut cookie).cast() };
+            // SAFETY: as in `builder`.
+            let mut b = unsafe { UninitDevice::from_c(raw) }.unwrap();
+            assert!(b.context_mut().set_user_data(1u8).is_err());
+            assert!(!b.context().has_free_callback());
+        }
+
+        /// The hooks over a context in Rust storage, with no C call, so that
+        /// Miri checks the leaked box's provenance across the setters'
+        /// reborrows and the trampoline.
+        #[test]
+        fn hooks_on_rust_storage_without_c() {
+            // SAFETY: an all-zero context (NULL pointers, no callback, type
+            // NONE) is a valid `AVHWDeviceContext` value.
+            let zeroed = unsafe { core::mem::zeroed::<ffi::AVHWDeviceContext>() };
+            let ctx = Box::into_raw(Box::new(zeroed));
+            let drops = Arc::new(AtomicUsize::new(0));
+            let calls = Arc::new(AtomicUsize::new(0));
+            for round in 0..3 {
+                // SAFETY: the boxed context, reached only through this handle
+                // until the trampoline runs.
+                let mut m = unsafe { DeviceContextMut::from_ptr(ctx) }.unwrap();
+                m.set_user_data(Dropped(drops.clone())).ok().unwrap();
+                assert!(m.as_ref().user_data::<Dropped>().is_some());
+                let c = calls.clone();
+                m.set_free_callback(move |mut ctx: DeviceContextMut<'_>| {
+                    assert!(ctx.as_ref().user_data::<Dropped>().is_some());
+                    c.fetch_add(1, Ordering::SeqCst);
+                    if round == 1 {
+                        drop(ctx.take_user_data());
+                    }
+                })
+                .ok()
+                .unwrap();
+                assert!(m.as_ref().has_free_callback());
+                if round == 2 {
+                    drop(m.take_free_callback());
+                    drop(m.take_user_data());
+                    assert_eq!(m.as_ref().device_type(), DeviceType::NONE);
+                    continue;
+                }
+                // SAFETY: as hwdevice_ctx_free calls it, with the context
+                // nothing else reaches.
+                unsafe { release_hooks(ctx) };
+                // SAFETY: a read of the boxed context.
+                assert!(unsafe { (*ctx).free.is_none() && (*ctx).user_opaque.is_null() });
+            }
+            assert_eq!(calls.load(Ordering::SeqCst), 2);
+            assert_eq!(drops.load(Ordering::SeqCst), 3);
+            // SAFETY: the box leaked above, with no hooks left.
+            drop(unsafe { Box::from_raw(ctx) });
+        }
+
+        #[test]
+        fn release_hooks_tolerates_a_cleared_cookie() {
+            let raw = hwdevice::fake_device();
+            // SAFETY: the only reference to a fresh fake context: a `free`
+            // of `release_hooks` with no cookie must do nothing.
+            unsafe {
+                let ctx = hwdevice::context(raw);
+                (*ctx).free = Some(RELEASE_HOOKS);
+                ffi::av_buffer_unref(&mut { raw });
+            }
+        }
+
+        #[test]
+        fn init_reports_failure_and_releases_the_context() {
+            let events = Arc::new(Events::default());
+            let mut b = builder(&events);
+            // SAFETY: the fake context's hardware context is a `FakeHwctx`.
+            unsafe { b.context_mut().into_hwctx::<FakeHw>() }
+                .unwrap()
+                .set_init_ret(-22);
+            let called = Arc::new(AtomicUsize::new(0));
+            let c = called.clone();
+            b.context_mut()
+                .set_free_callback(move |_| {
+                    c.fetch_add(1, Ordering::SeqCst);
+                })
+                .ok()
+                .unwrap();
+            // SAFETY: the fake backend's `device_init` accepts any payload.
+            assert_eq!(unsafe { b.init() }.unwrap_err(), -22);
+            assert_eq!(events.get(), (1, 1, 0));
+            assert_eq!(called.load(Ordering::SeqCst), 1);
+        }
+
+        #[test]
+        fn arcs_share_one_context_and_hand_it_back_to_c() {
+            let events = Arc::new(Events::default());
+            let mut b = builder(&events);
+            // SAFETY: the fake context's hardware context is a `FakeHwctx`.
+            unsafe { b.context_mut().into_hwctx::<FakeHw>() }
+                .unwrap()
+                .set_value(41);
+            // SAFETY: the fake backend's `device_init` accepts any payload.
+            let arc = unsafe { b.init() }.unwrap();
+            // SAFETY: as above.
+            let hw = unsafe { arc.as_ref().context().hwctx::<FakeHw>() }.unwrap();
+            assert!(hw.initialised());
+            assert_eq!(hw.value(), 41);
+            let copy = arc.as_ref().try_clone().unwrap();
+            assert_eq!(count(&arc), 2);
+            assert_eq!(
+                copy.as_ref().context().as_ptr(),
+                arc.as_ref().context().as_ptr()
+            );
+            assert!(format!("{:?}", copy.as_ref().context()).starts_with("DeviceContext {"));
+            let raw = copy.into_c();
+            // SAFETY: the reference `into_c` gave up, to an initialised
+            // context.
+            let back = unsafe { DeviceReferenceBox::from_c(raw) }.unwrap();
+            assert_eq!(count(&back), 2);
+            drop((arc, back));
+            assert_eq!(events.get(), (1, 1, 0));
+
+            // A builder's reference goes back to C the same way.
+            let b = builder(&events);
+            let raw = b.into_c();
+            // SAFETY: the reference `into_c` gave up, still uninitialised.
+            let b = unsafe { UninitDevice::from_c(raw) }.unwrap();
+            drop(b);
+            assert_eq!(events.get(), (1, 2, 0));
+        }
+
+        #[test]
+        fn device_constraints_come_from_the_backend() {
+            let events = Arc::new(Events::default());
+            for nb_sw in [-1, 0, 2, 4] {
+                let mut b = builder(&events);
+                // SAFETY: the fake context's hardware context is a `FakeHwctx`.
+                unsafe { b.context_mut().into_hwctx::<FakeHw>() }
+                    .unwrap()
+                    .set_nb_sw(nb_sw);
+                // SAFETY: the fake backend's `device_init` accepts any payload.
+                let arc = unsafe { b.init() }.unwrap();
+                let c = arc.as_ref().frames_constraints().unwrap();
+                let c = c.as_ref();
+                let hw: Vec<_> = c.valid_hw_formats().unwrap().elems().collect();
+                assert_eq!(hw, [PixelFormat::from_raw(HW_FORMAT)]);
+                match c.valid_sw_formats() {
+                    None => assert_eq!(nb_sw, -1),
+                    Some(sw) => {
+                        let sw: Vec<_> = sw.elems().map(PixelFormat::into_raw).collect();
+                        assert_eq!(sw, SW_FORMATS[..nb_sw as usize]);
+                    }
+                }
+                let sizes = [c.min_width(), c.min_height(), c.max_width(), c.max_height()];
+                assert_eq!(sizes, SIZES);
+
+                let mut config = arc.as_ref().alloc_hw_config().unwrap();
+                // SAFETY: the fake backend's zeroed configuration, which the
+                // config owns.
+                unsafe {
+                    let p = config.as_mut_ptr().cast::<FakeConfig>();
+                    (*p).hw_format = ffi::AVPixelFormat::AV_PIX_FMT_CUDA;
+                }
+                let c = arc.as_ref().frames_constraints_for_config(&config);
+                let hw: Vec<_> = c
+                    .unwrap()
+                    .as_ref()
+                    .valid_hw_formats()
+                    .unwrap()
+                    .elems()
+                    .collect();
+                assert_eq!(hw, [PixelFormat::CUDA]);
+            }
+            assert_eq!(events.get(), (4, 4, 8));
+        }
+
+        #[test]
+        fn configurations_of_another_device_type_are_refused() {
+            let events = Arc::new(Events::default());
+            // SAFETY: the fake backend's `device_init` accepts any payload.
+            let vaapi = unsafe { builder(&events).init() }.unwrap();
+            let config = vaapi.as_ref().alloc_hw_config().unwrap();
+            let raw = hwdevice::fake_device_of(
+                &hwdevice::FAKE_TYPE,
+                ffi::AVHWDeviceType::AV_HWDEVICE_TYPE_DRM,
+            );
+            // SAFETY: the only reference to a fresh, uninitialised fake
+            // context.
+            let mut drm = unsafe { UninitDevice::from_c(raw) }.unwrap();
+            // SAFETY: the fake context's hardware context is a `FakeHwctx`.
+            unsafe { drm.context_mut().into_hwctx::<FakeHw>() }
+                .unwrap()
+                .set_events(Arc::as_ptr(&events));
+            // SAFETY: as above.
+            let drm = unsafe { drm.init() }.unwrap();
+            assert!(
+                drm.as_ref()
+                    .frames_constraints_for_config(&config)
+                    .is_none()
+            );
+            assert_eq!(events.get().2, 0);
+            assert!(
+                vaapi
+                    .as_ref()
+                    .frames_constraints_for_config(&config)
+                    .is_some()
+            );
+            assert_eq!(events.get().2, 1);
+        }
+
+        #[test]
+        fn failing_backend_constraints_are_none() {
+            let events = Arc::new(Events::default());
+            let mut b = builder(&events);
+            {
+                // SAFETY: the fake context's hardware context is a `FakeHwctx`.
+                let mut hw = unsafe { b.context_mut().into_hwctx::<FakeHw>() }.unwrap();
+                hw.set_nb_sw(3);
+                hw.set_constraints_ret(-12);
+            }
+            // SAFETY: the fake backend's `device_init` accepts any payload.
+            let arc = unsafe { b.init() }.unwrap();
+            // C frees the lists the backend filled before failing.
+            assert!(arc.as_ref().frames_constraints().is_none());
+            assert_eq!(events.get().2, 1);
+        }
+
+        #[test]
+        fn new_constraints_start_as_c_does() {
+            let c = FramesConstraints::new().unwrap();
+            let r = c.as_ref();
+            assert!(r.valid_hw_formats().is_none());
+            assert!(r.valid_sw_formats().is_none());
+            assert_eq!([r.min_width(), r.min_height()], [0, 0]);
+            assert_eq!([r.max_width(), r.max_height()], [i32::MAX, i32::MAX]);
+            assert!(format!("{r:?}").starts_with("FramesConstraints { valid_hw_formats: None"));
+        }
+
+        #[test]
+        fn constraint_setters_copy_terminate_and_free() {
+            let mut c = FramesConstraints::new().unwrap();
+            let mut m = c.as_mut();
+            let list = [PixelFormat::NV12, PixelFormat::YUV420P];
+            m.set_valid_sw_formats(Some(&list)).unwrap();
+            m.set_valid_hw_formats(Some(&[
+                PixelFormat::VAAPI,
+                PixelFormat::NONE,
+                PixelFormat::CUDA,
+            ]))
+            .unwrap();
+            assert_eq!(
+                m.as_ref()
+                    .valid_sw_formats()
+                    .unwrap()
+                    .elems()
+                    .collect::<Vec<_>>(),
+                list
+            );
+            assert_eq!(
+                m.as_ref()
+                    .valid_hw_formats()
+                    .unwrap()
+                    .elems()
+                    .collect::<Vec<_>>(),
+                [PixelFormat::VAAPI]
+            );
+            // The copy is terminated in C's way.
+            // SAFETY: a read of the live list and its terminator.
+            let raw = unsafe { (*m.as_ref().as_ptr()).valid_sw_formats };
+            // SAFETY: three elements, the terminator included.
+            let terminator = unsafe { raw.add(2).read() };
+            assert_eq!(terminator, ffi::AVPixelFormat::AV_PIX_FMT_NONE);
+            // An empty list is not an unknown one.
+            m.set_valid_sw_formats(Some(&[])).unwrap();
+            assert_eq!(m.as_ref().valid_sw_formats().map(|l| l.len()), Some(0));
+            assert_eq!(m.take_valid_sw_formats().map(|v| v.len()), Some(0));
+            assert!(m.as_ref().valid_sw_formats().is_none());
+            assert!(m.take_valid_sw_formats().is_none());
+            let taken = m.take_valid_hw_formats().unwrap();
+            assert_eq!(taken.as_slice(), [PixelFormat::VAAPI]);
+            m.set_valid_hw_formats(Some(&list)).unwrap();
+            m.set_valid_hw_formats(None).unwrap();
+            assert!(m.as_ref().valid_hw_formats().is_none());
+            m.set_min_width(1);
+            m.set_min_height(2);
+            m.set_max_width(3);
+            m.set_max_height(4);
+            let r = c.as_ref();
+            assert_eq!(
+                [r.min_width(), r.min_height(), r.max_width(), r.max_height()],
+                [1, 2, 3, 4]
+            );
+            assert!(format!("{:?}", c.as_mut()).contains("min_height: 2"));
+        }
+
+        /// Runs the test `name` alone in a child process, where it may lower
+        /// the process-wide allocation limit; true in that child.
+        fn isolated(name: &str) -> bool {
+            const KEY: &str = "CRUSTIFY_UNIT_HWCONTEXT_ISOLATED";
+            if std::env::var_os(KEY).is_some() {
+                return true;
+            }
+            let status = std::process::Command::new(std::env::current_exe().unwrap())
+                .args(["--exact", name, "--test-threads=1"])
+                .env(KEY, "1")
+                .status()
+                .unwrap();
+            assert!(status.success(), "isolated run failed: {status}");
+            false
+        }
+
+        #[test]
+        fn constraints_keep_what_they_have_on_enomem() {
+            if !isolated(
+                "libavutil::hwcontext::unit_tests::device_context::constraints_keep_what_they_have_on_enomem",
+            ) {
+                return;
+            }
+            let mut c = FramesConstraints::new().unwrap();
+            c.as_mut()
+                .set_valid_sw_formats(Some(&[PixelFormat::NV12]))
+                .unwrap();
+            let big = vec![PixelFormat::YUV420P; 1 << 16];
+            crate::libavutil::mem::set_max_alloc(1 << 10);
+            let ret = c.as_mut().set_valid_sw_formats(Some(&big));
+            crate::libavutil::mem::set_max_alloc(i32::MAX as usize);
+            assert_eq!(ret, Err(ENOMEM));
+            let sw: Vec<_> = c.as_ref().valid_sw_formats().unwrap().elems().collect();
+            assert_eq!(sw, [PixelFormat::NV12]);
+            // The structure itself (32 bytes) fails, for both constructors.
+            let events = Arc::new(Events::default());
+            // SAFETY: the fake backend's `device_init` accepts any payload.
+            let arc = unsafe { builder(&events).init() }.unwrap();
+            crate::libavutil::mem::set_max_alloc(16);
+            let new = FramesConstraints::new();
+            let queried = arc.as_ref().frames_constraints();
+            crate::libavutil::mem::set_max_alloc(i32::MAX as usize);
+            assert!(new.is_none() && queried.is_none());
+            assert_eq!(events.get().2, 0);
         }
     }
 }

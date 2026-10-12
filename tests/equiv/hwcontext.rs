@@ -1482,3 +1482,638 @@ mod contexts {
         }
     }
 }
+
+#[path = "../common/hwdevice.rs"]
+mod hwdevice;
+
+/// [`DeviceContext`]'s getters and hooks, and initialisation after filling
+/// it, against C's own routines and field reads (hwcontext wave 1, batch 0).
+///
+/// The campaign builds compile no backend, so both sides use the fake one of
+/// `tests/common/hwdevice.rs`, on independent, equivalent contexts: C's
+/// `av_hwdevice_ctx_init` on one, [`UninitDevice::init`] on the other.
+///
+/// [`DeviceContext`]: ffmpeg::libavutil::hwcontext::DeviceContext
+/// [`UninitDevice::init`]: ffmpeg::libavutil::hwcontext::UninitDevice::init
+mod device_context {
+    use core::ffi::{CStr, c_int, c_void};
+    use core::ptr::null_mut;
+    use std::sync::{Arc, Mutex};
+
+    use ffmpeg::libavutil::ffi;
+    use ffmpeg::libavutil::hwcontext::{DeviceContextMut, DeviceContextRef, UninitDevice};
+
+    use super::hwdevice::{self, BARE_TYPE, Events, FakeHw};
+
+    /// The C reference: a raw fake context with `value` and `init_ret`
+    /// written by hand, counting into `events`.
+    fn c_device(events: &Arc<Events>, value: i64, init_ret: c_int) -> *mut ffi::AVBufferRef {
+        let raw = hwdevice::fake_device();
+        // SAFETY: the only reference to a fresh fake context; the events
+        // outlive it.
+        unsafe {
+            let hw = hwdevice::hwctx(raw);
+            (*hw).events = Arc::as_ptr(events);
+            (*hw).value = value;
+            (*hw).init_ret = init_ret;
+        }
+        raw
+    }
+
+    /// The Rust side: the same through the wrapper.
+    fn rust_device(events: &Arc<Events>, value: i64, init_ret: c_int) -> UninitDevice {
+        // SAFETY: the only reference to a fresh, uninitialised fake context.
+        let mut b = unsafe { UninitDevice::from_c(hwdevice::fake_device()) }.unwrap();
+        // SAFETY: the fake context's hardware context is a `FakeHwctx`; the
+        // events outlive it.
+        let mut hw = unsafe { b.context_mut().into_hwctx::<FakeHw>() }.unwrap();
+        hw.set_events(Arc::as_ptr(events));
+        hw.set_value(value);
+        hw.set_init_ret(init_ret);
+        b
+    }
+
+    /// C's view of a context's hardware context: value and initialised flag.
+    fn c_state(raw: *mut ffi::AVBufferRef) -> (i64, c_int) {
+        // SAFETY: a live reference to a fake context.
+        unsafe {
+            let hw = hwdevice::hwctx(raw);
+            ((*hw).value, (*hw).initialised)
+        }
+    }
+
+    fn rust_state(ctx: DeviceContextRef<'_>) -> (i64, c_int) {
+        // SAFETY: the fake context's hardware context is a `FakeHwctx`.
+        let hw = unsafe { ctx.hwctx::<FakeHw>() }.unwrap();
+        (hw.value(), hw.initialised() as c_int)
+    }
+
+    fn c_unref(mut raw: *mut ffi::AVBufferRef) {
+        // SAFETY: the caller's reference, released once.
+        unsafe { ffi::av_buffer_unref(&mut raw) };
+    }
+
+    #[test]
+    fn init_results_and_lifecycle_match_c() {
+        for init_ret in [0, 1, 7, -1, -22, c_int::MIN] {
+            let (ce, re) = (Arc::new(Events::default()), Arc::new(Events::default()));
+            let c = c_device(&ce, 5, init_ret);
+            let rust = rust_device(&re, 5, init_ret);
+            assert_eq!(c_state(c), rust_state(rust.context()));
+            // SAFETY: the only reference to an uninitialised fake context.
+            let c_ret = unsafe { ffi::av_hwdevice_ctx_init(c) };
+            // SAFETY: the fake backend's `device_init` reads nothing it
+            // cannot take.
+            let rust = unsafe { rust.init() };
+            assert_eq!(c_ret, init_ret);
+            match &rust {
+                Ok(arc) => {
+                    assert!(c_ret >= 0);
+                    assert_eq!(c_state(c), rust_state(arc.as_ref().context()));
+                }
+                Err(e) => assert_eq!(*e, c_ret),
+            }
+            assert_eq!(ce.get().0, re.get().0);
+            // A failed C context is the caller's to release; the wrapper
+            // released its own.
+            if c_ret < 0 {
+                assert_eq!(re.get().1, 1);
+                c_unref(c);
+            } else {
+                let arc = rust.unwrap();
+                // SAFETY: a live reference; C adds another.
+                let c2 = unsafe { ffi::av_buffer_ref(c) };
+                let r2 = arc.clone();
+                assert!(!c2.is_null());
+                c_unref(c);
+                drop(arc);
+                assert_eq!((ce.get().1, re.get().1), (0, 0));
+                c_unref(c2);
+                drop(r2);
+            }
+            assert_eq!(ce.get(), re.get(), "init_ret {init_ret}");
+        }
+    }
+
+    #[test]
+    fn getters_read_what_c_stores() {
+        for (backend, t) in [
+            (
+                &hwdevice::FAKE_TYPE,
+                ffi::AVHWDeviceType::AV_HWDEVICE_TYPE_VAAPI,
+            ),
+            (&BARE_TYPE, ffi::AVHWDeviceType::AV_HWDEVICE_TYPE_VULKAN),
+            (&BARE_TYPE, ffi::AVHWDeviceType(99)),
+        ] {
+            let raw = hwdevice::fake_device_of(backend, t);
+            // SAFETY: a live fake context, read before the builder adopts it.
+            let (c_type, c_class, c_hwctx) = unsafe {
+                let ctx = hwdevice::context(raw);
+                (
+                    (*ctx).type_,
+                    CStr::from_ptr((*(*ctx).av_class).class_name),
+                    (*ctx).hwctx,
+                )
+            };
+            // SAFETY: the only reference to a fresh, uninitialised context.
+            let b = unsafe { UninitDevice::from_c(raw) }.unwrap();
+            let ctx = b.context();
+            assert_eq!(ctx.device_type().into_raw(), c_type);
+            assert_eq!(ctx.class().unwrap().name(), Some(c_class));
+            // SAFETY: the fake backend's hardware context type, or none.
+            let hw = unsafe { ctx.hwctx::<FakeHw>() };
+            assert_eq!(hw.is_some(), !c_hwctx.is_null());
+            if let Some(hw) = hw {
+                // SAFETY: C's own pointer to the same hardware context.
+                assert_eq!(hw.value(), unsafe {
+                    (*c_hwctx.cast::<hwdevice::FakeHwctx>()).value
+                });
+            }
+            drop(b);
+        }
+    }
+
+    /// The C reference's free callback: records the events at its call into
+    /// the `Mutex` its `user_opaque` addresses, as a caller's C callback
+    /// reads its own data.
+    unsafe extern "C" fn c_free(ctx: *mut ffi::AVHWDeviceContext) {
+        // SAFETY: C passes the live fake context; `user_opaque` is the test's
+        // slot and `hwctx` is still allocated.
+        unsafe {
+            let slot = &*(*ctx)
+                .user_opaque
+                .cast::<Mutex<Option<(usize, usize, usize)>>>();
+            let events = &*(*(*ctx).hwctx.cast::<hwdevice::FakeHwctx>()).events;
+            *slot.lock().unwrap() = Some(events.get());
+        }
+    }
+
+    #[test]
+    fn hooks_run_where_cs_free_callback_runs() {
+        let (ce, re) = (Arc::new(Events::default()), Arc::new(Events::default()));
+        let c_slot = Mutex::new(None);
+        let c = c_device(&ce, 1, 0);
+        // SAFETY: the only reference to a fresh fake context: the caller's
+        // callback and its data, which outlives the context.
+        unsafe {
+            let ctx = hwdevice::context(c);
+            (*ctx).free = Some(c_free);
+            (*ctx).user_opaque = (&raw const c_slot).cast_mut().cast::<c_void>();
+        }
+        let mut rust = rust_device(&re, 1, 0);
+        let rust_slot = Arc::new(Mutex::new(None));
+        let (slot, ev) = (rust_slot.clone(), re.clone());
+        rust.context_mut()
+            .set_free_callback(move |_: DeviceContextMut<'_>| {
+                *slot.lock().unwrap() = Some(ev.get())
+            })
+            .ok()
+            .unwrap();
+        // Both are visible to C the same way: a callback and its data set.
+        // SAFETY: reads of a live context's fields.
+        let c_fields = unsafe {
+            (
+                (*hwdevice::context(c)).free.is_some(),
+                !(*hwdevice::context(c)).user_opaque.is_null(),
+            )
+        };
+        let rust_raw = rust.into_c();
+        // SAFETY: as above.
+        let rust_fields = unsafe {
+            (
+                (*hwdevice::context(rust_raw)).free.is_some(),
+                !(*hwdevice::context(rust_raw)).user_opaque.is_null(),
+            )
+        };
+        assert_eq!(c_fields, rust_fields);
+        // SAFETY: the reference `into_c` gave up, still uninitialised.
+        let rust = unsafe { UninitDevice::from_c(rust_raw) }.unwrap();
+        // SAFETY: the only reference to an uninitialised fake context.
+        assert_eq!(unsafe { ffi::av_hwdevice_ctx_init(c) }, 0);
+        // SAFETY: as in `init_results_and_lifecycle_match_c`.
+        let arc = unsafe { rust.init() }.unwrap();
+        // C releases both, the Rust one through its `AVBufferRef`.
+        c_unref(c);
+        c_unref(arc.into_c());
+        assert_eq!(*c_slot.lock().unwrap(), Some((1, 1, 0)));
+        assert_eq!(*rust_slot.lock().unwrap(), *c_slot.lock().unwrap());
+        assert_eq!(ce.get(), re.get());
+    }
+
+    #[test]
+    fn taking_the_hooks_leaves_what_c_starts_with() {
+        let events = Arc::new(Events::default());
+        let mut rust = rust_device(&events, 0, 0);
+        rust.context_mut().set_user_data(1u32).unwrap();
+        rust.context_mut().set_free_callback(|_| ()).ok().unwrap();
+        let _ = rust.context_mut().take_free_callback();
+        let _ = rust.context_mut().take_user_data();
+        let raw = rust.into_c();
+        // SAFETY: a fresh C context and this one, both live, read for their
+        // hook fields.
+        let (c, fresh) = unsafe {
+            let fresh = hwdevice::fake_device();
+            let a = hwdevice::context(raw);
+            let f = hwdevice::context(fresh);
+            (
+                ((*a).free.is_none(), (*a).user_opaque),
+                ((*f).free.is_none(), (*f).user_opaque, fresh),
+            )
+        };
+        assert_eq!(c, (fresh.0, fresh.1));
+        assert_eq!(c.1, null_mut());
+        c_unref(fresh.2);
+        // SAFETY: the reference `into_c` gave up.
+        drop(unsafe { UninitDevice::from_c(raw) });
+    }
+}
+
+/// [`FramesConstraints`] from C's `av_hwdevice_get_hwframe_constraints`
+/// against the wrapper's, on independent equivalent fake devices, then
+/// edited in step by C-style writes and the setters, and released by
+/// `av_hwframe_constraints_free` and the box (hwcontext wave 1, batch 0).
+///
+/// [`FramesConstraints`]: ffmpeg::libavutil::hwcontext::FramesConstraints
+mod frames_constraints {
+    use core::ffi::c_int;
+    use core::ptr::{null, null_mut};
+    use core::sync::atomic::Ordering;
+    use std::sync::Arc;
+
+    use ffmpeg::libavutil::ffi;
+    use ffmpeg::libavutil::hwcontext::{
+        DeviceReferenceBox, FramesConstraints, FramesConstraintsBox, UninitDevice,
+    };
+    use ffmpeg::libavutil::pixfmt::PixelFormat;
+
+    use super::hwdevice::{self, BARE_TYPE, Backend, Events, FakeConfig, FakeHw};
+
+    /// One query: the backend, what it lists and returns, and a
+    /// configuration's hardware format.
+    #[derive(Clone, Copy, Debug)]
+    struct Query {
+        bare: bool,
+        nb_sw: c_int,
+        ret: c_int,
+        config: Option<ffi::AVPixelFormat>,
+    }
+
+    fn queries() -> Vec<Query> {
+        let mut q = vec![];
+        for bare in [false, true] {
+            for nb_sw in [-1, 0, 1, 4] {
+                for ret in [0, 3, -12] {
+                    for config in [None, Some(ffi::AVPixelFormat::AV_PIX_FMT_CUDA)] {
+                        q.push(Query {
+                            bare,
+                            nb_sw,
+                            ret,
+                            config,
+                        });
+                    }
+                }
+            }
+        }
+        q
+    }
+
+    fn backend(q: Query) -> &'static Backend {
+        if q.bare {
+            &BARE_TYPE
+        } else {
+            &hwdevice::FAKE_TYPE
+        }
+    }
+
+    /// A raw fake device set up for `q` and initialised by C.
+    fn c_device(q: Query, events: &Arc<Events>) -> *mut ffi::AVBufferRef {
+        let raw = hwdevice::fake_device_of(backend(q), ffi::AVHWDeviceType::AV_HWDEVICE_TYPE_VAAPI);
+        // SAFETY: the only reference to a fresh fake context.
+        unsafe {
+            let hw = hwdevice::hwctx(raw);
+            if !hw.is_null() {
+                (*hw).events = Arc::as_ptr(events);
+                (*hw).nb_sw = q.nb_sw;
+                (*hw).constraints_ret = q.ret;
+            }
+            assert_eq!(ffi::av_hwdevice_ctx_init(raw), 0);
+        }
+        raw
+    }
+
+    /// The same device through the wrapper.
+    fn rust_device(q: Query, events: &Arc<Events>) -> DeviceReferenceBox {
+        let raw = hwdevice::fake_device_of(backend(q), ffi::AVHWDeviceType::AV_HWDEVICE_TYPE_VAAPI);
+        // SAFETY: the only reference to a fresh, uninitialised fake context.
+        let mut b = unsafe { UninitDevice::from_c(raw) }.unwrap();
+        // SAFETY: the fake backend's hardware context type, or none.
+        if let Some(mut hw) = unsafe { b.context_mut().into_hwctx::<FakeHw>() } {
+            hw.set_events(Arc::as_ptr(events));
+            hw.set_nb_sw(q.nb_sw);
+            hw.set_constraints_ret(q.ret);
+        }
+        // SAFETY: the fake backend's `device_init` reads nothing it cannot
+        // take.
+        unsafe { b.init() }.unwrap()
+    }
+
+    /// A NONE-terminated C list, read up to the terminator.
+    fn c_list(list: *const ffi::AVPixelFormat) -> Option<Vec<ffi::AVPixelFormat>> {
+        if list.is_null() {
+            return None;
+        }
+        let mut v = vec![];
+        // SAFETY: a live NONE-terminated list.
+        while unsafe { list.add(v.len()).read() } != ffi::AVPixelFormat::AV_PIX_FMT_NONE {
+            // SAFETY: as above, before the terminator.
+            v.push(unsafe { list.add(v.len()).read() });
+        }
+        Some(v)
+    }
+
+    /// Everything C observes of a constraints struct.
+    type View = (
+        Option<Vec<ffi::AVPixelFormat>>,
+        Option<Vec<ffi::AVPixelFormat>>,
+        [c_int; 4],
+    );
+
+    fn c_view(c: *const ffi::AVHWFramesConstraints) -> View {
+        // SAFETY: a live constraints struct.
+        unsafe {
+            (
+                c_list((*c).valid_hw_formats),
+                c_list((*c).valid_sw_formats),
+                [
+                    (*c).min_width,
+                    (*c).min_height,
+                    (*c).max_width,
+                    (*c).max_height,
+                ],
+            )
+        }
+    }
+
+    fn rust_view(c: &FramesConstraintsBox) -> View {
+        let r = c.as_ref();
+        let list = |l: Option<ffibox::CSlice<'_, PixelFormat>>| {
+            l.map(|l| l.elems().map(PixelFormat::into_raw).collect())
+        };
+        (
+            list(r.valid_hw_formats()),
+            list(r.valid_sw_formats()),
+            [r.min_width(), r.min_height(), r.max_width(), r.max_height()],
+        )
+    }
+
+    fn c_free(mut c: *mut ffi::AVHWFramesConstraints) {
+        // SAFETY: the caller's constraints, released once.
+        unsafe { ffi::av_hwframe_constraints_free(&mut c) };
+        assert!(c.is_null());
+    }
+
+    fn c_unref(mut raw: *mut ffi::AVBufferRef) {
+        // SAFETY: the caller's reference, released once.
+        unsafe { ffi::av_buffer_unref(&mut raw) };
+    }
+
+    /// One edit, applied to both sides.
+    #[derive(Clone, Debug)]
+    enum Edit {
+        Sizes([c_int; 4]),
+        Hw(Option<Vec<PixelFormat>>),
+        Sw(Option<Vec<PixelFormat>>),
+        TakeHw,
+        TakeSw,
+    }
+
+    fn edits() -> Vec<Edit> {
+        use Edit::*;
+        let some = |v: &[PixelFormat]| Some(v.to_vec());
+        vec![
+            Sizes([16, 16, 1920, 1080]),
+            Hw(some(&[PixelFormat::VAAPI, PixelFormat::DRM_PRIME])),
+            Sw(some(&[])),
+            Sw(some(&[
+                PixelFormat::NV12,
+                PixelFormat::NONE,
+                PixelFormat::P010LE,
+            ])),
+            TakeHw,
+            TakeHw,
+            Hw(None),
+            Sw(None),
+            TakeSw,
+            Sw(some(&[PixelFormat::YUV420P; 40])),
+            Sizes([c_int::MIN, -1, 0, c_int::MAX]),
+            Hw(some(&[PixelFormat::NONE])),
+            TakeSw,
+        ]
+    }
+
+    /// C's edit: hand-written list blocks, as a backend fills them, and
+    /// `av_free` of the old ones; a taken list is read, then freed.
+    fn c_edit(c: *mut ffi::AVHWFramesConstraints, e: &Edit) -> Option<Vec<ffi::AVPixelFormat>> {
+        let replace = |slot: *mut *mut ffi::AVPixelFormat, with: Option<&Vec<PixelFormat>>| {
+            let new = match with {
+                None => null_mut(),
+                Some(v) => {
+                    let stored: Vec<_> = v
+                        .iter()
+                        .copied()
+                        .take_while(|&f| f != PixelFormat::NONE)
+                        .collect();
+                    let n = stored.len() + 1;
+                    // SAFETY: a fresh block of `n` formats.
+                    let list = unsafe { ffi::av_malloc_array(n, size_of::<ffi::AVPixelFormat>()) }
+                        .cast::<ffi::AVPixelFormat>();
+                    assert!(!list.is_null());
+                    let all = stored
+                        .iter()
+                        .map(|f| f.into_raw())
+                        .chain([ffi::AVPixelFormat::AV_PIX_FMT_NONE]);
+                    for (i, f) in all.enumerate() {
+                        // SAFETY: `i < n`.
+                        unsafe { list.add(i).write(f) };
+                    }
+                    list
+                }
+            };
+            // SAFETY: the struct's own list slot; the old list is its av_malloc
+            // block or NULL.
+            unsafe { ffi::av_free(slot.replace(new).cast()) };
+        };
+        let take = |slot: *mut *mut ffi::AVPixelFormat| {
+            // SAFETY: as above.
+            let old = unsafe { slot.replace(null_mut()) };
+            let v = c_list(old);
+            // SAFETY: the list just detached.
+            unsafe { ffi::av_free(old.cast()) };
+            v
+        };
+        // SAFETY: field projections of the live struct.
+        let (hw, sw) = unsafe {
+            (
+                &raw mut (*c).valid_hw_formats,
+                &raw mut (*c).valid_sw_formats,
+            )
+        };
+        match e {
+            Edit::Sizes(s) => {
+                // SAFETY: writes of the live struct's sizes.
+                unsafe {
+                    (*c).min_width = s[0];
+                    (*c).min_height = s[1];
+                    (*c).max_width = s[2];
+                    (*c).max_height = s[3];
+                }
+                None
+            }
+            Edit::Hw(v) => {
+                replace(hw, v.as_ref());
+                None
+            }
+            Edit::Sw(v) => {
+                replace(sw, v.as_ref());
+                None
+            }
+            Edit::TakeHw => take(hw),
+            Edit::TakeSw => take(sw),
+        }
+    }
+
+    fn rust_edit(c: &mut FramesConstraintsBox, e: &Edit) -> Option<Vec<ffi::AVPixelFormat>> {
+        let mut m = c.as_mut();
+        let raw = |v: Option<ffmpeg::libavutil::mem::HeapVec<PixelFormat>>| {
+            v.map(|v| v.as_slice().iter().map(|f| f.into_raw()).collect())
+        };
+        match e {
+            Edit::Sizes(s) => {
+                m.set_min_width(s[0]);
+                m.set_min_height(s[1]);
+                m.set_max_width(s[2]);
+                m.set_max_height(s[3]);
+                None
+            }
+            Edit::Hw(v) => {
+                m.set_valid_hw_formats(v.as_deref()).unwrap();
+                None
+            }
+            Edit::Sw(v) => {
+                m.set_valid_sw_formats(v.as_deref()).unwrap();
+                None
+            }
+            Edit::TakeHw => raw(m.take_valid_hw_formats()),
+            Edit::TakeSw => raw(m.take_valid_sw_formats()),
+        }
+    }
+
+    #[test]
+    fn device_queries_and_edits_match_c() {
+        for q in queries() {
+            let (ce, re) = (Arc::new(Events::default()), Arc::new(Events::default()));
+            let c_dev = c_device(q, &ce);
+            let rust_dev = rust_device(q, &re);
+            // C's configuration from its own allocator, and the wrapper's,
+            // filled alike.
+            let c_config = q.config.map(|hw_format| {
+                // SAFETY: an initialised device; C returns a zeroed block of
+                // the backend's configuration size, or NULL.
+                let p = unsafe { ffi::av_hwdevice_hwconfig_alloc(c_dev) }.cast::<FakeConfig>();
+                assert!(!p.is_null());
+                // SAFETY: the fake backend's configuration, which the test owns.
+                unsafe { (*p).hw_format = hw_format };
+                p
+            });
+            let rust_config = q.config.map(|hw_format| {
+                let mut config = rust_dev.as_ref().alloc_hw_config().unwrap();
+                // SAFETY: as above, owned by `config`.
+                unsafe { (*config.as_mut_ptr().cast::<FakeConfig>()).hw_format = hw_format };
+                config
+            });
+            let config_ptr = c_config.map_or(null(), |p| p.cast_const().cast());
+            // SAFETY: an initialised device and NULL or the fake backend's
+            // configuration, live for the call.
+            let c = unsafe { ffi::av_hwdevice_get_hwframe_constraints(c_dev, config_ptr) };
+            if let Some(p) = c_config {
+                // SAFETY: the av_mallocz block C allocated above, no longer used.
+                unsafe { ffi::av_free(p.cast()) };
+            }
+            let rust = match &rust_config {
+                None => rust_dev.as_ref().frames_constraints(),
+                Some(config) => rust_dev.as_ref().frames_constraints_for_config(config),
+            };
+            assert_eq!(rust.is_some(), !c.is_null(), "{q:?}");
+            assert_eq!(ce.get(), re.get(), "{q:?}");
+            // SAFETY: live fake hardware contexts, when the backend has one.
+            let seen = |raw: *mut ffi::AVBufferRef| unsafe {
+                let hw = hwdevice::hwctx(raw);
+                (!hw.is_null()).then(|| {
+                    (*hw)
+                        .seen_sizes
+                        .each_ref()
+                        .map(|a| a.load(Ordering::SeqCst))
+                })
+            };
+            // SAFETY: the fake backend's hardware context type, or none.
+            let rust_hw = unsafe { rust_dev.as_ref().context().hwctx::<FakeHw>() };
+            assert_eq!(seen(c_dev), rust_hw.map(|h| h.seen_sizes()));
+            if let Some(mut rust) = rust {
+                assert_eq!(rust_view(&rust), c_view(c), "{q:?}");
+                for e in edits() {
+                    assert_eq!(rust_edit(&mut rust, &e), c_edit(c, &e), "{q:?} {e:?}");
+                    assert_eq!(rust_view(&rust), c_view(c), "{q:?} {e:?}");
+                }
+                c_free(c);
+                drop(rust);
+            }
+            c_unref(c_dev);
+            drop(rust_dev);
+            assert_eq!(ce.get(), re.get(), "{q:?}");
+        }
+    }
+
+    #[test]
+    fn new_constraints_are_cs_starting_point() {
+        let q = Query {
+            bare: false,
+            nb_sw: 0,
+            ret: 0,
+            config: None,
+        };
+        let events = Arc::new(Events::default());
+        let dev = c_device(q, &events);
+        // SAFETY: an initialised device; NULL asks for its capabilities.
+        let c = unsafe { ffi::av_hwdevice_get_hwframe_constraints(dev, null()) };
+        assert!(!c.is_null());
+        c_free(c);
+        // SAFETY: the live fake hardware context.
+        let seen = unsafe { &(*hwdevice::hwctx(dev)).seen_sizes }
+            .each_ref()
+            .map(|a| a.load(Ordering::SeqCst));
+        c_unref(dev);
+        let new = FramesConstraints::new().unwrap();
+        assert_eq!(rust_view(&new), (None, None, seen));
+        // Both release a never-filled structure the same way.
+        let mut c = new.into_c();
+        // SAFETY: the structure `into_c` gave up, which C frees.
+        unsafe { ffi::av_hwframe_constraints_free(&mut c) };
+        assert!(c.is_null());
+    }
+
+    #[test]
+    fn edited_constraints_are_freed_by_c() {
+        let mut rust = FramesConstraints::new().unwrap();
+        for e in edits() {
+            rust_edit(&mut rust, &e);
+        }
+        rust.as_mut()
+            .set_valid_hw_formats(Some(&[PixelFormat::CUDA]))
+            .unwrap();
+        let mut c = rust.into_c();
+        assert_eq!(c_view(c).0, Some(vec![ffi::AVPixelFormat::AV_PIX_FMT_CUDA]));
+        // SAFETY: the structure `into_c` gave up, with lists the setters
+        // allocated, which C frees.
+        unsafe { ffi::av_hwframe_constraints_free(&mut c) };
+    }
+}

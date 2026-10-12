@@ -341,3 +341,159 @@ mod contexts {
         }
     }
 }
+
+/// [`FramesConstraints`] owned through its safe constructor: every getter and
+/// setter, the owned and borrowed list forms, and the asserted `Send` and
+/// `Sync` (hwcontext wave 1, batch 0).
+///
+/// [`FramesConstraints`]: ffmpeg::libavutil::hwcontext::FramesConstraints
+mod frames_constraints {
+    use std::sync::Mutex;
+    use std::thread;
+
+    use ffmpeg::libavutil::hwcontext::{FramesConstraints, FramesConstraintsBox};
+    use ffmpeg::libavutil::mem::HeapVec;
+    use ffmpeg::libavutil::pixfmt::PixelFormat;
+
+    /// Format lists of every length shape: empty, one, a `NONE` inside, a
+    /// `NONE` first, long.
+    fn lists() -> Vec<Vec<PixelFormat>> {
+        let long: Vec<_> = (0..300)
+            .map(|i| PixelFormat::from_raw(ffmpeg::libavutil::ffi::AVPixelFormat(i % 200)))
+            .collect();
+        vec![
+            vec![],
+            vec![PixelFormat::NV12],
+            vec![PixelFormat::VAAPI, PixelFormat::NONE, PixelFormat::CUDA],
+            vec![PixelFormat::NONE, PixelFormat::NV12],
+            long,
+        ]
+    }
+
+    /// The formats a list holds once set: up to its first `NONE`.
+    fn stored(list: &[PixelFormat]) -> Vec<PixelFormat> {
+        list.iter()
+            .copied()
+            .take_while(|&f| f != PixelFormat::NONE)
+            .collect()
+    }
+
+    fn sw(c: &FramesConstraintsBox) -> Option<Vec<PixelFormat>> {
+        c.as_ref().valid_sw_formats().map(|l| l.elems().collect())
+    }
+
+    fn hw(c: &FramesConstraintsBox) -> Option<Vec<PixelFormat>> {
+        c.as_ref().valid_hw_formats().map(|l| l.elems().collect())
+    }
+
+    #[test]
+    fn lists_are_copied_replaced_and_taken() {
+        let mut c = FramesConstraints::new().unwrap();
+        for list in lists() {
+            c.as_mut().set_valid_sw_formats(Some(&list)).unwrap();
+            c.as_mut().set_valid_hw_formats(Some(&list)).unwrap();
+            assert_eq!(sw(&c), Some(stored(&list)));
+            assert_eq!(hw(&c), Some(stored(&list)));
+            // A borrowed list copies out without a reference into C memory.
+            let view = c.as_ref().valid_sw_formats().unwrap();
+            let mut copy = vec![PixelFormat::NONE; view.len()];
+            assert!(view.copy_to_slice(&mut copy));
+            assert_eq!(copy, stored(&list));
+            let owned: HeapVec<PixelFormat> = view.to_cvec().unwrap();
+            assert_eq!(owned.as_slice(), &stored(&list)[..]);
+            assert_eq!(view.elem(view.len()), None);
+        }
+        let taken = c.as_mut().take_valid_hw_formats().unwrap();
+        assert_eq!(hw(&c), None);
+        drop(c);
+        // A taken list outlives the constraints.
+        assert_eq!(taken.as_slice().len(), 300);
+    }
+
+    #[test]
+    fn unknown_lists_and_sizes_round_trip() {
+        let mut c = FramesConstraints::new().unwrap();
+        let r = c.as_ref();
+        assert_eq!((r.min_width(), r.min_height()), (0, 0));
+        assert_eq!((r.max_width(), r.max_height()), (i32::MAX, i32::MAX));
+        for v in [i32::MIN, -1, 0, 1, i32::MAX] {
+            let mut m = c.as_mut();
+            m.set_min_width(v);
+            m.set_min_height(v);
+            m.set_max_width(v);
+            m.set_max_height(v);
+            let r = c.as_ref();
+            assert_eq!(
+                [r.min_width(), r.min_height(), r.max_width(), r.max_height()],
+                [v; 4]
+            );
+        }
+        c.as_mut()
+            .set_valid_sw_formats(Some(&[PixelFormat::NV12]))
+            .unwrap();
+        c.as_mut().set_valid_sw_formats(None).unwrap();
+        assert_eq!(sw(&c), None);
+        assert!(c.as_mut().take_valid_sw_formats().is_none());
+        let debug = format!("{:?}", c.as_ref());
+        assert!(debug.contains("valid_sw_formats: None"), "{debug}");
+    }
+
+    #[test]
+    fn many_boxes_drop_in_any_order() {
+        let mut boxes: Vec<_> = lists()
+            .iter()
+            .map(|l| {
+                let mut c = FramesConstraints::new().unwrap();
+                c.as_mut().set_valid_hw_formats(Some(l)).unwrap();
+                c.as_mut().set_valid_sw_formats(Some(l)).unwrap();
+                c
+            })
+            .collect();
+        let taken: Vec<_> = boxes
+            .iter_mut()
+            .filter_map(|c| c.as_mut().take_valid_sw_formats())
+            .collect();
+        boxes.reverse();
+        drop(boxes);
+        assert_eq!(taken.len(), lists().len());
+    }
+
+    #[test]
+    fn boxes_and_handles_cross_threads() {
+        let mut c = FramesConstraints::new().unwrap();
+        c.as_mut()
+            .set_valid_hw_formats(Some(&[PixelFormat::VAAPI]))
+            .unwrap();
+        c.as_mut().set_valid_sw_formats(Some(&lists()[4])).unwrap();
+        let expect = sw(&c);
+        // Shared readers on many threads, through the box and copied handles.
+        let r = c.as_ref();
+        thread::scope(|s| {
+            for _ in 0..4 {
+                s.spawn(|| assert_eq!(sw(&c), expect));
+                s.spawn(move || {
+                    assert_eq!(
+                        r.valid_hw_formats().unwrap().elem(0),
+                        Some(PixelFormat::VAAPI)
+                    )
+                });
+            }
+        });
+        // A box moved to, written and dropped on other threads.
+        let shared = Mutex::new(c);
+        thread::scope(|s| {
+            for i in 0..4 {
+                let shared = &shared;
+                s.spawn(move || {
+                    let mut c = shared.lock().unwrap();
+                    c.as_mut().set_min_width(i);
+                    c.as_mut()
+                        .set_valid_sw_formats(Some(&lists()[i as usize]))
+                        .unwrap();
+                });
+            }
+        });
+        let c = shared.into_inner().unwrap();
+        thread::spawn(move || drop(c)).join().unwrap();
+    }
+}

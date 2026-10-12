@@ -1,0 +1,9 @@
+error[E0502]: cannot borrow `device` as mutable because it is also borrowed as immutable
+ --> tests/ub_safe/compile_fail/hwcontext_device_user_data_replaced_while_borrowed.rs
+  |
+  |     let data = device.context().user_data::<String>();
+  |                ------ immutable borrow occurs here
+  |     device.context_mut().set_user_data(1u8).unwrap();
+  |     ^^^^^^^^^^^^^^^^^^^^ mutable borrow occurs here
+  |     let _ = data.map(|s| s.len());
+  |             ---- immutable borrow later used here
