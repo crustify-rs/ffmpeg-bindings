@@ -755,3 +755,730 @@ mod transfer {
         assert_eq!(c, images(&down, Fmt::AV_PIX_FMT_YUV420P, W, H).0);
     }
 }
+
+#[path = "../common/hwbackend.rs"]
+mod backend;
+
+/// Wave 1, batch 1: the name table, the backend walk, and the device and
+/// frames contexts and hardware frames, driven in C and through the
+/// wrappers over independent contexts of the test backends of
+/// `tests/common/hwbackend.rs`, comparing results, frames, reference counts
+/// and the backends' event logs after each step. The campaign builds have no
+/// backend of their own: `av_hwdevice_ctx_alloc` and `av_hwdevice_ctx_create`
+/// are compared on their failures, and the Rust side adopts the test
+/// devices through `DeviceReferenceBox::from_c`.
+mod contexts {
+    use core::ffi::{CStr, c_int};
+    use core::ptr::{self, null_mut};
+
+    use ffmpeg::libavutil::dict::Dict;
+    use ffmpeg::libavutil::ffi;
+    use ffmpeg::libavutil::hwcontext::{
+        DeviceReference, DeviceReferenceBox, DeviceType, FramesReferenceBox, HardwareFrame,
+        MapFlags,
+    };
+    use ffmpeg::libavutil::pixfmt::PixelFormat;
+
+    use super::backend::{self as fx, Event, FramesHwctx, HWCONFIG_SIZE, Kind, averror};
+    use super::{C, NAMED, UNNAMED, c_find, c_name, c_next};
+
+    const ENOSYS: c_int = averror(ffi::ENOSYS);
+
+    /// The count of `buf`'s buffer.
+    fn count(buf: *const ffi::AVBufferRef) -> c_int {
+        // SAFETY: callers pass live references.
+        unsafe { fx::ref_count(buf) }
+    }
+
+    /// A C-side test device of `kind`, initialised.
+    fn c_device(kind: Kind) -> *mut ffi::AVBufferRef {
+        fx::device(kind)
+    }
+
+    /// A Rust-side test device of `kind`, initialised by C and adopted.
+    fn rust_device(kind: Kind) -> DeviceReferenceBox {
+        // SAFETY: the only reference to an initialised test device context,
+        // built as `av_hwdevice_ctx_alloc` builds one.
+        unsafe { DeviceReferenceBox::from_c(fx::device(kind)) }.unwrap()
+    }
+
+    /// Fills a fresh frames context for `kind` and sets its backend results.
+    fn fill(
+        ctx: *mut ffi::AVHWFramesContext,
+        kind: Kind,
+        size: (c_int, c_int),
+        pool: c_int,
+        hwctx: FramesHwctx,
+    ) {
+        // SAFETY: callers pass a fresh, uninitialised context they alone hold.
+        unsafe {
+            fx::fill_frames(ctx, kind, size.0, size.1, pool);
+            fx::set_frames_hwctx(ctx, hwctx);
+        }
+    }
+
+    /// C: a frames context on `device`, filled and initialised; the
+    /// reference, or C's error after releasing it.
+    fn c_frames(
+        device: *mut ffi::AVBufferRef,
+        kind: Kind,
+        size: (c_int, c_int),
+        pool: c_int,
+        hwctx: FramesHwctx,
+    ) -> Result<*mut ffi::AVBufferRef, c_int> {
+        // SAFETY: a live device reference.
+        let buf = unsafe { ffi::av_hwframe_ctx_alloc(device) };
+        assert!(!buf.is_null());
+        // SAFETY: the fresh context `buf` refers to.
+        fill(unsafe { fx::frames_ctx(buf) }, kind, size, pool, hwctx);
+        // SAFETY: a fresh, filled frames context.
+        let ret = unsafe { ffi::av_hwframe_ctx_init(buf) };
+        if ret < 0 {
+            // SAFETY: the reference `buf` holds.
+            unsafe { fx::unref(buf) };
+            Err(ret)
+        } else {
+            Ok(buf)
+        }
+    }
+
+    /// Rust: the same through the wrappers.
+    fn rust_frames(
+        device: &DeviceReferenceBox,
+        kind: Kind,
+        size: (c_int, c_int),
+        pool: c_int,
+        hwctx: FramesHwctx,
+    ) -> Result<FramesReferenceBox, c_int> {
+        let mut frames = device.as_ref().alloc_frames().unwrap();
+        fill(frames.as_mut_ptr(), kind, size, pool, hwctx);
+        frames.init()
+    }
+
+    /// C: a hardware frame of `frames`, or C's error.
+    fn c_get_buffer(frames: *mut ffi::AVBufferRef) -> Result<*mut ffi::AVFrame, c_int> {
+        // SAFETY: allocation, then a live frames context and a fresh frame.
+        unsafe {
+            let mut frame = ffi::av_frame_alloc();
+            let ret = ffi::av_hwframe_get_buffer(frames, frame, 0);
+            if ret < 0 {
+                ffi::av_frame_free(&mut frame);
+                Err(ret)
+            } else {
+                Ok(frame)
+            }
+        }
+    }
+
+    /// C: `src` mapped into a fresh frame of `format` (and frames context
+    /// `frames`, if any), or C's error.
+    fn c_map(
+        src: *const ffi::AVFrame,
+        format: c_int,
+        frames: *mut ffi::AVBufferRef,
+        flags: MapFlags,
+    ) -> Result<*mut ffi::AVFrame, c_int> {
+        // SAFETY: allocation, then a live source frame and a fresh one with
+        // a format and, when given, a new reference to a frames context.
+        unsafe {
+            let mut dst = ffi::av_frame_alloc();
+            (*dst).format = format;
+            if !frames.is_null() {
+                (*dst).hw_frames_ctx = ffi::av_buffer_ref(frames);
+            }
+            let ret = ffi::av_hwframe_map(dst, src, flags.bits());
+            if ret < 0 {
+                ffi::av_frame_free(&mut dst);
+                Err(ret)
+            } else {
+                Ok(dst)
+            }
+        }
+    }
+
+    fn free_frame(mut frame: *mut ffi::AVFrame) {
+        // SAFETY: callers pass a frame they own.
+        unsafe { ffi::av_frame_free(&mut frame) }
+    }
+
+    /// The format, width and height of a C frame.
+    fn c_dims(frame: *const ffi::AVFrame) -> (c_int, c_int, c_int) {
+        // SAFETY: callers pass a live frame.
+        let s = unsafe { fx::shape(frame) };
+        (s.format, s.width, s.height)
+    }
+
+    fn rust_dims(frame: &HardwareFrame) -> (c_int, c_int, c_int) {
+        (frame.format().into_raw().0, frame.width(), frame.height())
+    }
+
+    /// The frames context a C frame holds.
+    fn c_frames_of(frame: *const ffi::AVFrame) -> *const u8 {
+        // SAFETY: callers pass a live frame with a frames context.
+        unsafe { (*(*frame).hw_frames_ctx).data.cast_const() }
+    }
+
+    fn data(buf: *const ffi::AVBufferRef) -> *const u8 {
+        // SAFETY: callers pass a live reference.
+        unsafe { (*buf).data.cast_const() }
+    }
+
+    #[test]
+    fn names_and_lookups_match_c() {
+        for raw in (0..=48).chain(UNNAMED) {
+            let t = DeviceType::from_raw(C(raw));
+            assert_eq!(
+                t.name().map(|n| n.to_str().unwrap()),
+                c_name(C(raw)),
+                "{raw}"
+            );
+        }
+        let unknown: [&CStr; 6] = [c"", c"none", c"CUDA", c"vaapi ", c"vulkan2", c"\xff"];
+        let names = NAMED.iter().filter_map(|&(t, _, _)| t.name());
+        for name in names.chain(unknown) {
+            let c = c_find(name);
+            let rust = DeviceType::from_name(name);
+            assert_eq!(rust.unwrap_or(DeviceType::NONE), c, "{name:?}");
+            assert_eq!(rust.is_none(), c == DeviceType::NONE);
+        }
+    }
+
+    #[test]
+    fn supported_types_are_cs_walk() {
+        let mut c = Vec::new();
+        let mut prev = DeviceType::NONE;
+        loop {
+            let next = c_next(prev.into_raw());
+            if next == DeviceType::NONE {
+                break;
+            }
+            c.push(next);
+            prev = next;
+        }
+        assert_eq!(DeviceType::supported().collect::<Vec<_>>(), c);
+    }
+
+    #[test]
+    fn allocation_and_creation_fail_as_in_c() {
+        let options = Dict::from_entries([(c"connect", c"1")]).unwrap();
+        let types = NAMED
+            .iter()
+            .map(|&(t, _, _)| t)
+            .chain(UNNAMED.map(|r| DeviceType::from_raw(C(r))));
+        for t in types {
+            // SAFETY: by value.
+            let c = unsafe { ffi::av_hwdevice_ctx_alloc(t.into_raw()) };
+            assert_eq!(DeviceReference::alloc(t).is_none(), c.is_null(), "{t:?}");
+            // SAFETY: NULL, or the reference C returned.
+            unsafe { fx::unref(c) };
+            for device in [None, Some(c"/dev/dri/renderD128"), Some(c"")] {
+                for opts in [&Dict::new(), &options] {
+                    let mut out = ptr::dangling_mut();
+                    let raw_opts = opts.iter().next().map_or(null_mut(), |_| {
+                        let mut d = null_mut();
+                        let (k, v) = (c"connect".as_ptr(), c"1".as_ptr());
+                        // SAFETY: a fresh dictionary slot and live strings.
+                        let ret = unsafe { ffi::av_dict_set(&mut d, k, v, 0) };
+                        assert_eq!(ret, 0);
+                        d
+                    });
+                    // SAFETY: a local slot, NULL or live strings, a C
+                    // dictionary freed below.
+                    let ret = unsafe {
+                        ffi::av_hwdevice_ctx_create(
+                            &mut out,
+                            t.into_raw(),
+                            device.map_or(ptr::null(), CStr::as_ptr),
+                            raw_opts,
+                            0,
+                        )
+                    };
+                    let mut raw_opts = raw_opts;
+                    // SAFETY: the dictionary built above.
+                    unsafe { ffi::av_dict_free(&mut raw_opts) };
+                    assert!(out.is_null());
+                    let rust = DeviceReference::create(t, device, opts);
+                    assert_eq!(rust.err(), Some(ret), "{t:?} {device:?}");
+                }
+            }
+        }
+    }
+
+    /// The device of a chain a derivation returned: its index in `chain`.
+    fn which(found: *const u8, chain: &[*const u8]) -> usize {
+        chain
+            .iter()
+            .position(|&d| d == found)
+            .expect("a device of the chain")
+    }
+
+    #[test]
+    fn derivations_walk_the_chain_as_in_c() {
+        let options = Dict::from_entries([(c"k", c"v")]).unwrap();
+        let (ca, cb) = (c_device(Kind::A), c_device(Kind::B));
+        let (ra, rb) = (rust_device(Kind::A), rust_device(Kind::B));
+        // SAFETY: live test devices, not derived yet.
+        unsafe {
+            fx::set_source_device(cb, ca);
+            fx::set_source_device(rb.as_c_ptr(), ra.as_c_ptr());
+        }
+        let c_chain = [data(ca), data(cb)];
+        let r_chain = [data(ra.as_c_ptr()), data(rb.as_c_ptr())];
+        let mut c_held = Vec::new();
+        let mut r_held = Vec::new();
+        let types = [
+            DeviceType::VAAPI,
+            DeviceType::DRM,
+            DeviceType::CUDA,
+            DeviceType::NONE,
+        ];
+        for (step, &t) in types.iter().cycle().take(12).enumerate() {
+            for src in 0..2 {
+                let with_options = step % 3 == 1;
+                let c_src = [ca, cb][src];
+                let mut out = null_mut();
+                // SAFETY: a local slot and a live device reference.
+                let ret = unsafe {
+                    if with_options {
+                        let mut d = null_mut();
+                        ffi::av_dict_set(&mut d, c"k".as_ptr(), c"v".as_ptr(), 0);
+                        let ret = ffi::av_hwdevice_ctx_create_derived_opts(
+                            &mut out,
+                            t.into_raw(),
+                            c_src,
+                            d,
+                            0,
+                        );
+                        ffi::av_dict_free(&mut d);
+                        ret
+                    } else {
+                        ffi::av_hwdevice_ctx_create_derived(&mut out, t.into_raw(), c_src, 0)
+                    }
+                };
+                let r_src = [&ra, &rb][src].as_ref();
+                let rust = if with_options {
+                    r_src.derive_with_options(t, &options)
+                } else {
+                    r_src.derive(t)
+                };
+                match rust {
+                    Ok(dev) => {
+                        assert_eq!(ret, 0, "{t:?} from {src}");
+                        assert_eq!(
+                            which(data(out), &c_chain),
+                            which(data(dev.as_c_ptr()), &r_chain)
+                        );
+                        c_held.push(out);
+                        r_held.push(dev);
+                    }
+                    Err(e) => {
+                        assert_eq!(e, ret, "{t:?} from {src}");
+                        assert!(out.is_null());
+                    }
+                }
+                assert_eq!(
+                    [count(ca), count(cb)],
+                    [count(ra.as_c_ptr()), count(rb.as_c_ptr())],
+                    "step {step}"
+                );
+            }
+        }
+        assert!(!r_held.is_empty());
+        for buf in c_held {
+            // SAFETY: references C returned.
+            unsafe { fx::unref(buf) };
+        }
+        drop(r_held);
+        assert_eq!(
+            [count(ca), count(cb)],
+            [count(ra.as_c_ptr()), count(rb.as_c_ptr())]
+        );
+        // SAFETY: the test's own references.
+        unsafe {
+            fx::unref(cb);
+            fx::unref(ca);
+        }
+        let c_events = fx::take_events();
+        drop((rb, ra));
+        assert_eq!(fx::take_events(), c_events);
+    }
+
+    #[test]
+    fn frames_allocation_matches_c() {
+        let c_dev = c_device(Kind::A);
+        let r_dev = rust_device(Kind::A);
+        // SAFETY: a live device reference.
+        let c = unsafe { ffi::av_hwframe_ctx_alloc(c_dev) };
+        let mut rust = r_dev.as_ref().alloc_frames().unwrap();
+        assert_eq!(count(c_dev), count(r_dev.as_c_ptr()));
+        // SAFETY: the two fresh contexts' public structs.
+        let (cc, rc) = unsafe { (*fx::frames_ctx(c), *rust.as_mut_ptr()) };
+        assert_eq!((cc.format, cc.sw_format), (rc.format, rc.sw_format));
+        assert_eq!(
+            (cc.width, cc.height, cc.initial_pool_size),
+            (rc.width, rc.height, rc.initial_pool_size)
+        );
+        assert!(cc.pool.is_null() && rc.pool.is_null());
+        assert!(!cc.hwctx.is_null() && !rc.hwctx.is_null());
+        assert_eq!(data(cc.device_ref), data(c_dev));
+        assert_eq!(data(rc.device_ref), data(r_dev.as_c_ptr()));
+        assert_eq!(cc.device_ctx.cast_const().cast(), data(c_dev));
+        assert_eq!(rc.device_ctx.cast_const().cast(), data(r_dev.as_c_ptr()));
+        assert_eq!(cc.av_class.is_null(), rc.av_class.is_null());
+        // SAFETY: the reference C returned.
+        unsafe { fx::unref(c) };
+        let c_events = fx::take_events();
+        drop(rust);
+        assert_eq!(fx::take_events(), c_events);
+        assert_eq!(count(c_dev), count(r_dev.as_c_ptr()));
+        // SAFETY: the test's own reference.
+        unsafe { fx::unref(c_dev) };
+        let c_events = fx::take_events();
+        drop(r_dev);
+        assert_eq!(fx::take_events(), c_events);
+    }
+
+    #[test]
+    fn frames_init_and_allocation_match_c() {
+        let sizes = [
+            (64, 32),
+            (0, 8),
+            (8, 0),
+            (1, 1),
+            (-1, 4),
+            (16384, 16384),
+            (c_int::MAX, 2),
+        ];
+        let results = [0, -9, ENOSYS, 3];
+        let c_dev = c_device(Kind::A);
+        let r_dev = rust_device(Kind::A);
+        for kind in [Kind::A, Kind::B] {
+            for size in sizes {
+                for pool in [0, 2] {
+                    for init_ret in results {
+                        for get_buffer_ret in [0, -4] {
+                            let hwctx = FramesHwctx {
+                                init_ret,
+                                get_buffer_ret,
+                                ..FramesHwctx::default()
+                            };
+                            let c = c_frames(c_dev, kind, size, pool, hwctx);
+                            let c_events = fx::take_events();
+                            let rust = rust_frames(&r_dev, kind, size, pool, hwctx);
+                            assert_eq!(
+                                fx::take_events(),
+                                c_events,
+                                "{kind:?} {size:?} {pool} {init_ret}"
+                            );
+                            let label =
+                                format!("{kind:?} {size:?} {pool} {init_ret} {get_buffer_ret}");
+                            match (c, rust) {
+                                (Ok(cf), Ok(rf)) => {
+                                    compare_allocations(cf, &rf, &label);
+                                    // SAFETY: the reference `c_frames` returned.
+                                    unsafe { fx::unref(cf) };
+                                    let c_events = fx::take_events();
+                                    drop(rf);
+                                    assert_eq!(fx::take_events(), c_events, "{label}");
+                                }
+                                (c, rust) => assert_eq!(c.err(), rust.err(), "{label}"),
+                            }
+                            assert_eq!(count(c_dev), count(r_dev.as_c_ptr()));
+                        }
+                    }
+                }
+            }
+        }
+        // SAFETY: the test's own reference.
+        unsafe { fx::unref(c_dev) };
+        let c_events = fx::take_events();
+        drop(r_dev);
+        assert_eq!(fx::take_events(), c_events);
+    }
+
+    /// Allocates three frames from each context, comparing every step.
+    fn compare_allocations(cf: *mut ffi::AVBufferRef, rf: &FramesReferenceBox, label: &str) {
+        let mut c_frames = Vec::new();
+        let mut r_frames = Vec::new();
+        for i in 0..3 {
+            let c = c_get_buffer(cf);
+            let c_events = fx::take_events();
+            let rust = rf.as_ref().get_buffer();
+            assert_eq!(fx::take_events(), c_events, "{label} #{i}");
+            match (c, rust) {
+                (Ok(c), Ok(r)) => {
+                    assert_eq!(c_dims(c), rust_dims(&r), "{label} #{i}");
+                    assert_eq!(c_frames_of(c), data(cf));
+                    assert!(r.frames().ptr_eq(rf.as_ref()));
+                    c_frames.push(c);
+                    r_frames.push(r);
+                }
+                (c, rust) => assert_eq!(c.err(), rust.err(), "{label} #{i}"),
+            }
+            assert_eq!(count(cf), count(rf.as_c_ptr()), "{label} #{i}");
+        }
+        c_frames.into_iter().for_each(free_frame);
+        drop(r_frames);
+        assert_eq!(count(cf), count(rf.as_c_ptr()), "{label}");
+    }
+
+    #[test]
+    fn mappings_to_memory_match_c() {
+        let flag_sets = [
+            MapFlags::empty(),
+            MapFlags::READ,
+            MapFlags::READ | MapFlags::WRITE,
+            MapFlags::OVERWRITE | MapFlags::DIRECT,
+        ];
+        let formats = [
+            PixelFormat::NONE,
+            PixelFormat::NV12,
+            PixelFormat::YUV420P,
+            PixelFormat::VAAPI,
+        ];
+        let c_dev = c_device(Kind::A);
+        let r_dev = rust_device(Kind::A);
+        for map_ret in [0, ENOSYS, -3] {
+            let hwctx = FramesHwctx {
+                map_ret,
+                ..FramesHwctx::default()
+            };
+            let cf = c_frames(c_dev, Kind::A, (32, 16), 0, hwctx).unwrap();
+            let rf = rust_frames(&r_dev, Kind::A, (32, 16), 0, hwctx).unwrap();
+            let cs = c_get_buffer(cf).unwrap();
+            let rs = rf.as_ref().get_buffer().unwrap();
+            fx::take_events();
+            let mut c_maps = Vec::new();
+            let mut r_maps = Vec::new();
+            for format in formats {
+                for flags in flag_sets {
+                    let c = c_map(cs, format.into_raw().0, null_mut(), flags);
+                    let c_events = fx::take_events();
+                    let rust = rs.map(format, flags);
+                    assert_eq!(fx::take_events(), c_events);
+                    match (c, rust) {
+                        (Ok(c), Ok(r)) => {
+                            assert_eq!(c_dims(c), (r.format().into_raw().0, r.width(), r.height()));
+                            c_maps.push(c);
+                            r_maps.push(r);
+                        }
+                        (c, rust) => {
+                            assert_eq!(c.err(), rust.err(), "{format:?} {flags:?} {map_ret}")
+                        }
+                    }
+                    assert_eq!(count(cf), count(rf.as_c_ptr()));
+                }
+            }
+            // The mappings outlive the source frame and its context's box.
+            free_frame(cs);
+            // SAFETY: the reference `c_frames` returned.
+            unsafe { fx::unref(cf) };
+            let c_events = fx::take_events();
+            drop((rs, rf));
+            assert_eq!(fx::take_events(), c_events);
+            assert_eq!(c_events.is_empty(), !c_maps.is_empty());
+            c_maps.into_iter().for_each(free_frame);
+            let c_events = fx::take_events();
+            drop(r_maps);
+            assert_eq!(fx::take_events(), c_events);
+        }
+        // SAFETY: the test's own reference.
+        unsafe { fx::unref(c_dev) };
+        let c_events = fx::take_events();
+        drop(r_dev);
+        assert_eq!(fx::take_events(), c_events);
+    }
+
+    #[test]
+    fn mappings_between_contexts_and_derivations_match_c() {
+        let flags = MapFlags::READ;
+        let configs = [
+            (0, 0, 0),
+            (ENOSYS, ENOSYS, 0),
+            (0, -21, 0),
+            (-3, 0, 0),
+            (ENOSYS, 0, -7),
+        ];
+        for (map_ret, derive_ret, b_map_ret) in configs {
+            let label = format!("{map_ret} {derive_ret} {b_map_ret}");
+            let hwctx = FramesHwctx {
+                map_ret,
+                derive_ret,
+                ..FramesHwctx::default()
+            };
+            let b_hwctx = FramesHwctx {
+                map_ret: b_map_ret,
+                ..FramesHwctx::default()
+            };
+            let (ca, cb) = (c_device(Kind::A), c_device(Kind::B));
+            let (ra, rb) = (rust_device(Kind::A), rust_device(Kind::B));
+            let cfa = c_frames(ca, Kind::A, (16, 16), 0, hwctx).unwrap();
+            let rfa = rust_frames(&ra, Kind::A, (16, 16), 0, hwctx).unwrap();
+            let cfb = c_frames(cb, Kind::B, (16, 16), 0, b_hwctx).unwrap();
+            let rfb = rust_frames(&rb, Kind::B, (16, 16), 0, b_hwctx).unwrap();
+            let cs = c_get_buffer(cfa).unwrap();
+            let rs = rfa.as_ref().get_buffer().unwrap();
+            fx::take_events();
+            let c_counts = || [count(ca), count(cb), count(cfa), count(cfb)];
+            let r_counts = || {
+                [
+                    count(ra.as_c_ptr()),
+                    count(rb.as_c_ptr()),
+                    count(rfa.as_c_ptr()),
+                    count(rfb.as_c_ptr()),
+                ]
+            };
+
+            // Into B's context.
+            let c = c_map(cs, Kind::B.format().0, cfb, flags);
+            let c_events = fx::take_events();
+            let rust = rs.map_to(rfb.as_ref(), flags);
+            assert_eq!(fx::take_events(), c_events, "{label}");
+            assert_eq!(c.is_ok(), rust.is_ok(), "{label}");
+            if let (Ok(c), Ok(r)) = (&c, &rust) {
+                assert_eq!(c_dims(*c), rust_dims(r));
+                assert_eq!(c_frames_of(*c), data(cfb));
+                assert!(r.frames().ptr_eq(rfb.as_ref()));
+            } else {
+                assert_eq!(c.err(), rust.as_ref().err().copied(), "{label}");
+            }
+            assert_eq!(c_counts(), r_counts(), "{label}");
+
+            // A frames context derived from A's onto B's device.
+            let mut cd = null_mut();
+            // SAFETY: a local slot and live references.
+            let ret = unsafe {
+                ffi::av_hwframe_ctx_create_derived(&mut cd, Kind::B.format(), cb, cfa, flags.bits())
+            };
+            let c_events = fx::take_events();
+            let rd = rfa
+                .as_ref()
+                .derive(PixelFormat::DRM_PRIME, rb.as_ref(), flags);
+            assert_eq!(fx::take_events(), c_events, "{label}");
+            assert_eq!(
+                rd.as_ref().err().copied(),
+                (ret < 0).then_some(ret),
+                "{label}"
+            );
+            assert_eq!(c_counts(), r_counts(), "{label}");
+            if let Ok(rd) = &rd {
+                // Allocations in the derived context, then their unmapping
+                // back into A's, and the derivation back onto A's device.
+                let c2 = c_get_buffer(cd);
+                let c_events = fx::take_events();
+                let r2 = rd.as_ref().get_buffer();
+                assert_eq!(fx::take_events(), c_events, "{label}");
+                assert_eq!(c2.as_ref().err(), r2.as_ref().err(), "{label}");
+                if let (Ok(c2), Ok(r2)) = (c2, r2) {
+                    assert_eq!(c_dims(c2), rust_dims(&r2));
+                    let cu = c_map(c2, Kind::A.format().0, cfa, flags).unwrap();
+                    let ru = r2.map_to(rfa.as_ref(), flags).unwrap();
+                    assert_eq!(c_dims(cu), rust_dims(&ru));
+                    assert_eq!(c_frames_of(cu), data(cfa));
+                    assert!(ru.frames().ptr_eq(rfa.as_ref()));
+                    assert_eq!(fx::take_events(), []);
+                    let mut cback = null_mut();
+                    // SAFETY: a local slot and live references.
+                    let ret = unsafe {
+                        ffi::av_hwframe_ctx_create_derived(&mut cback, Kind::A.format(), ca, cd, 0)
+                    };
+                    let rback = rd
+                        .as_ref()
+                        .derive(PixelFormat::VAAPI, ra.as_ref(), MapFlags::empty())
+                        .unwrap();
+                    assert_eq!(ret, 0);
+                    assert_eq!(data(cback), data(cfa));
+                    assert!(rback.as_ref().ptr_eq(rfa.as_ref()));
+                    assert_eq!(c_counts(), r_counts(), "{label}");
+                    // SAFETY: the reference C returned.
+                    unsafe { fx::unref(cback) };
+                    drop(rback);
+                    for f in [cu, c2] {
+                        free_frame(f);
+                    }
+                    let c_events = fx::take_events();
+                    drop((ru, r2));
+                    assert_eq!(fx::take_events(), c_events, "{label}");
+                }
+            }
+            if let Ok(c) = c {
+                free_frame(c);
+            }
+            free_frame(cs);
+            // SAFETY: NULL or the references C returned, and the test's own.
+            unsafe {
+                fx::unref(cd);
+                for buf in [cfb, cfa, cb, ca] {
+                    fx::unref(buf);
+                }
+            }
+            let c_events = fx::take_events();
+            drop((rust, rs, rd, rfb, rfa, rb, ra));
+            assert_eq!(fx::take_events(), c_events, "{label}");
+        }
+    }
+
+    /// The wrapper refuses to map a frame into its own context, which C
+    /// would take for an unmapping when the frame's format is the
+    /// context's software format and read the pool's buffer as a mapping
+    /// descriptor. With the hardware format, C maps it like any other.
+    #[test]
+    fn mapping_into_the_own_context_is_refused() {
+        let ca = c_device(Kind::A);
+        let ra = rust_device(Kind::A);
+        let cf = c_frames(ca, Kind::A, (8, 8), 0, FramesHwctx::default()).unwrap();
+        let rf = rust_frames(&ra, Kind::A, (8, 8), 0, FramesHwctx::default()).unwrap();
+        let cs = c_get_buffer(cf).unwrap();
+        let rs = rf.as_ref().get_buffer().unwrap();
+        fx::take_events();
+        let c = c_map(cs, Kind::A.format().0, cf, MapFlags::READ).unwrap();
+        assert_eq!(fx::take_events(), [Event::MapFrom(Kind::A)]);
+        assert_eq!(
+            rs.map_to(rf.as_ref(), MapFlags::READ).err(),
+            Some(averror(ffi::EINVAL))
+        );
+        assert!(fx::take_events().is_empty());
+        for f in [c, cs] {
+            free_frame(f);
+        }
+        // SAFETY: the test's own references.
+        unsafe {
+            fx::unref(cf);
+            fx::unref(ca);
+        }
+        fx::take_events();
+        drop((rs, rf, ra));
+        fx::take_events();
+    }
+
+    #[test]
+    fn hw_configs_match_c() {
+        for kind in [Kind::A, Kind::B] {
+            let c_dev = c_device(kind);
+            let r_dev = rust_device(kind);
+            // SAFETY: a live device reference.
+            let c = unsafe { ffi::av_hwdevice_hwconfig_alloc(c_dev) };
+            let rust = r_dev.as_ref().alloc_hw_config();
+            assert_eq!(c.is_null(), rust.is_none());
+            if let Some(r) = &rust {
+                assert_eq!(r.device_type().into_raw(), kind.device_type());
+                // SAFETY: two blocks of the backend's configuration size.
+                let (cb, rb) = unsafe {
+                    (
+                        core::slice::from_raw_parts(c.cast::<u8>(), HWCONFIG_SIZE),
+                        core::slice::from_raw_parts(r.as_ptr().cast::<u8>(), HWCONFIG_SIZE),
+                    )
+                };
+                assert_eq!(cb, rb);
+            }
+            // SAFETY: NULL or the block C returned.
+            unsafe { ffi::av_free(c) };
+            drop(rust);
+            // SAFETY: the test's own reference.
+            unsafe { fx::unref(c_dev) };
+            let c_events = fx::take_events();
+            drop(r_dev);
+            assert_eq!(fx::take_events(), c_events);
+        }
+    }
+}

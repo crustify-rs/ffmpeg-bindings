@@ -220,3 +220,124 @@ mod frame_ref_transfer_formats {
         });
     }
 }
+
+/// The name table, the backend walk, map flags and the device constructors
+/// (hwcontext wave 1, batch 1). The campaign builds compile no backend, so
+/// the safe constructors fail for every device type and the contexts and
+/// hardware frames are reached only by adopting test devices, in the unit
+/// and equivalence tests; their compile-time guarantees (handles borrowed
+/// from their owners, no `Send`, no frame handle of a hardware frame) are
+/// `compile_fail` doctests on the types.
+mod contexts {
+    use std::ffi::CString;
+    use std::thread;
+
+    use ffmpeg::libavutil::dict::Dict;
+    use ffmpeg::libavutil::ffi;
+    use ffmpeg::libavutil::hwcontext::{DeviceReference, DeviceType, MapFlags};
+
+    /// Every value 0..64, and the `unsigned` extremes.
+    fn types() -> impl Iterator<Item = DeviceType> {
+        (0..64)
+            .chain([1 << 20, i32::MAX as u32, i32::MIN as u32, u32::MAX])
+            .map(|raw| DeviceType::from_raw(ffi::AVHWDeviceType(raw)))
+    }
+
+    #[test]
+    fn names_of_every_value_are_static_strings_that_round_trip() {
+        for t in types() {
+            if let Some(name) = t.name() {
+                assert!(!name.to_bytes().is_empty());
+                assert_eq!(DeviceType::from_name(name), Some(t));
+            }
+        }
+    }
+
+    /// Strings of every length up to past the longest name, exactly sized
+    /// heap copies so a read past the NUL would be caught, and bytes outside
+    /// ASCII.
+    #[test]
+    fn lookups_read_only_their_string() {
+        let names = types().filter_map(|t| t.name()).collect::<Vec<_>>();
+        for len in 0..16 {
+            for fill in [b'a', b'v', 0x7f, 0xff] {
+                let s = CString::new(vec![fill; len]).unwrap();
+                assert_eq!(DeviceType::from_name(&s), None);
+            }
+        }
+        for name in names {
+            let bytes = name.to_bytes();
+            for cut in 0..bytes.len() {
+                let prefix = CString::new(&bytes[..cut]).unwrap();
+                assert_eq!(DeviceType::from_name(&prefix), None);
+            }
+            let mut longer = bytes.to_vec();
+            longer.push(b'x');
+            assert_eq!(DeviceType::from_name(&CString::new(longer).unwrap()), None);
+        }
+    }
+
+    #[test]
+    fn the_backend_walk_ends_and_stays_ended() {
+        let mut supported = DeviceType::supported();
+        let walked: Vec<DeviceType> = supported.by_ref().collect();
+        assert!(
+            walked
+                .windows(2)
+                .all(|w| w[0].into_raw().0 < w[1].into_raw().0)
+        );
+        assert!(supported.next().is_none());
+        assert!(supported.next().is_none());
+        let copy = DeviceType::supported();
+        assert_eq!(copy.clone().count(), walked.len());
+    }
+
+    #[test]
+    fn constructors_fail_cleanly_for_every_value() {
+        let options = Dict::from_entries([(c"a", c"1"), (c"b", c"")]).unwrap();
+        for t in types() {
+            assert!(DeviceReference::alloc(t).is_none() || DeviceType::supported().any(|s| s == t));
+            for device in [None, Some(c""), Some(c"0"), Some(c"/dev/null")] {
+                for opts in [&Dict::new(), &options] {
+                    if let Err(e) = DeviceReference::create(t, device, opts) {
+                        assert!(e < 0);
+                    }
+                }
+            }
+        }
+    }
+
+    /// The name lookups and the backend walk read static tables only, so
+    /// any number of threads may run them.
+    #[test]
+    fn lookups_and_walks_from_many_threads() {
+        let handles: Vec<_> = (0..8)
+            .map(|i| {
+                thread::spawn(move || {
+                    for t in types().skip(i) {
+                        if let Some(name) = t.name() {
+                            assert_eq!(DeviceType::from_name(name), Some(t));
+                        }
+                        assert!(DeviceType::supported().all(|s| s.name().is_some()));
+                        assert!(DeviceReference::alloc(t).is_none() || t.name().is_some());
+                    }
+                })
+            })
+            .collect();
+        for h in handles {
+            h.join().unwrap();
+        }
+    }
+
+    #[test]
+    fn map_flags_combine_any_bits() {
+        let all = MapFlags::READ | MapFlags::WRITE | MapFlags::OVERWRITE | MapFlags::DIRECT;
+        assert_eq!(all.bits(), 0xf);
+        for bits in [0, 1, 0xf, 0x10, -1, i32::MIN, i32::MAX] {
+            let f = MapFlags::from_bits_retain(bits);
+            assert_eq!(f.bits(), bits);
+            assert!(!format!("{f:?}").is_empty());
+            assert_eq!((f & all) | (f - all), f);
+        }
+    }
+}

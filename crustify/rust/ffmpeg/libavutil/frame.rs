@@ -2691,6 +2691,9 @@ macro_rules! int_flags {
     };
 }
 
+// Other modules' `int` flag sets (hwcontext.rs's `MapFlags`) reuse it.
+pub(crate) use int_flags;
+
 int_flags! {
     /// The `AV_FRAME_FLAG_*` bits of a frame's [`flags`](FrameRef::flags):
     /// properties of its content that decoders set and filters and encoders

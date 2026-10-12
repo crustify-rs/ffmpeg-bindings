@@ -13,16 +13,34 @@
 //! hardware frames contexts and their frames, the transfer and the listing
 //! over a bare context reference are `unsafe`: their callers vouch for the
 //! hardware side, which Rust checks the software side against.
+//!
+//! A device context is reached through a [`DeviceReferenceBox`], made by
+//! [`DeviceReference::create`], by initialising an [`UninitDevice`] from
+//! [`DeviceReference::alloc`], or by deriving it from another device
+//! ([`DeviceReferenceRef::derive`]). Frames contexts on a device are
+//! allocated as [`UninitFrames`] ([`DeviceReferenceRef::alloc_frames`]),
+//! initialised into [`FramesReferenceBox`]es, or derived from another
+//! frames context ([`FramesReferenceRef::derive`]); they allocate
+//! [`HardwareFrame`]s, which map to normal memory as [`MappedFrame`]s or
+//! into other frames contexts. [`DeviceType`]'s name table and the backends
+//! the library was built with are [`DeviceType::name`],
+//! [`DeviceType::from_name`] and [`DeviceType::supported`].
 
-use core::ffi::c_int;
+use core::ffi::{CStr, c_int, c_uint, c_void};
 use core::fmt;
-use core::ptr::{self, addr_of};
+use core::iter::FusedIterator;
+use core::marker::PhantomData;
+use core::ops::{BitAnd, BitOr, BitOrAssign, Sub};
+use core::ptr::{self, NonNull, addr_of, addr_of_mut};
 
-use ffibox::CPlainElem;
+use ffibox::{CBox, CDrop, CDupClone, CPlainElem, define_ctype};
 
-use super::buffer::{BufferReferenceRef, ENOMEM};
+use super::buffer::{BufferReferenceRef, ENOMEM, MAX_REFERENCES, may_add_reference};
+use super::dict::Dict;
 use super::ffi;
-use super::frame::{Frame, FrameBox, FrameMut, FrameRef, PALETTE_SIZE, Rows, image_reach};
+use super::frame::{
+    Frame, FrameBox, FrameMut, FrameRef, PALETTE_SIZE, Rows, image_reach, int_flags,
+};
 use super::mem::HeapVec;
 use super::pixdesc::PixelFormatFlags;
 use super::pixfmt::PixelFormat;
@@ -586,9 +604,1204 @@ impl FrameMut<'_> {
     }
 }
 
+// Hwcontext wave 1, batch 1: the device type's name table and backend list,
+// device and frames contexts, and hardware frames.
+
+impl DeviceType {
+    /// Wraps: av_hwdevice_get_type_name
+    ///
+    /// The name C gives this device type, as FFmpeg's options spell it
+    /// (`cuda`, `vaapi`, ...); `None` for [`NONE`](Self::NONE) and any value
+    /// C does not name.
+    ///
+    /// ```
+    /// use ffmpeg::libavutil::hwcontext::DeviceType;
+    /// assert_eq!(DeviceType::VULKAN.name(), Some(c"vulkan"));
+    /// assert_eq!(DeviceType::NONE.name(), None);
+    /// ```
+    #[must_use]
+    pub fn name(self) -> Option<&'static CStr> {
+        // SAFETY: `av_hwdevice_get_type_name` takes the enum by value,
+        // bounds-checks it and returns NULL or an entry of its static
+        // `hw_type_names` table.
+        let name = unsafe { ffi::av_hwdevice_get_type_name(self.0) };
+        // SAFETY: a non-NULL `name` is a string literal of that immutable
+        // table, alive for the process.
+        (!name.is_null()).then(|| unsafe { CStr::from_ptr(name) })
+    }
+
+    /// Wraps: av_hwdevice_find_type_by_name
+    ///
+    /// The device type C names `name` (see [`name`](Self::name)), or `None`
+    /// for any other string. Names are matched exactly, case included:
+    /// `hwcontext.h` calls the lookup case-insensitive, but C compares with
+    /// `strcmp`.
+    ///
+    /// ```
+    /// use ffmpeg::libavutil::hwcontext::DeviceType;
+    /// assert_eq!(DeviceType::from_name(c"cuda"), Some(DeviceType::CUDA));
+    /// assert_eq!(DeviceType::from_name(c"CUDA"), None);
+    /// ```
+    #[must_use]
+    pub fn from_name(name: &CStr) -> Option<Self> {
+        // SAFETY: `name` is a live NUL-terminated string, which C only
+        // compares with its table's names during the call.
+        let found = Self(unsafe { ffi::av_hwdevice_find_type_by_name(name.as_ptr()) });
+        // No name maps to NONE, C's "not found".
+        (found != Self::NONE).then_some(found)
+    }
+
+    /// Wraps: av_hwdevice_iterate_types
+    ///
+    /// The device types this build of the library has a backend for, so
+    /// that [`DeviceReference::alloc`] can succeed, in increasing order of
+    /// their values. Empty for a build without hardware libraries (FFmpeg
+    /// configured with `--disable-autodetect` and no `--enable-<api>`).
+    #[must_use]
+    pub fn supported() -> SupportedDeviceTypes {
+        SupportedDeviceTypes {
+            prev: Some(Self::NONE),
+        }
+    }
+}
+
+/// The device types the library has a backend for, from
+/// [`DeviceType::supported`].
+#[derive(Clone, Debug)]
+pub struct SupportedDeviceTypes {
+    /// The last type yielded (`NONE` before the first), `None` once C
+    /// reported none after it.
+    prev: Option<DeviceType>,
+}
+
+impl Iterator for SupportedDeviceTypes {
+    type Item = DeviceType;
+
+    fn next(&mut self) -> Option<DeviceType> {
+        let prev = self.prev?;
+        // SAFETY: `av_hwdevice_iterate_types` takes the enum by value and
+        // only compares it with the compiled-in backends' types.
+        let next = DeviceType(unsafe { ffi::av_hwdevice_iterate_types(prev.0) });
+        // C returns the smallest backend type above `prev`, so the walk
+        // ends, with NONE.
+        self.prev = (next != DeviceType::NONE).then_some(next);
+        self.prev
+    }
+}
+
+impl FusedIterator for SupportedDeviceTypes {}
+
+int_flags! {
+    /// The `AV_HWFRAME_MAP_*` flags of a hardware frame mapping
+    /// ([`HardwareFrame::map`], [`HardwareFrame::map_to`]) and of the
+    /// mappings a derived frames context makes
+    /// ([`FramesReferenceRef::derive`]). Backends refuse a mapping they
+    /// cannot make as asked, with `AVERROR(ENOSYS)`.
+    MapFlags {
+        /// The mapping must be readable.
+        READ = ffi::AV_HWFRAME_MAP_READ.0,
+        /// The mapping must be writable.
+        WRITE = ffi::AV_HWFRAME_MAP_WRITE.0,
+        /// The mapped frame will be overwritten whole, so its current data
+        /// need not be loaded; what is not overwritten is unspecified.
+        OVERWRITE = ffi::AV_HWFRAME_MAP_OVERWRITE.0,
+        /// The mapping must be direct: no copy in the map or unmap steps.
+        DIRECT = ffi::AV_HWFRAME_MAP_DIRECT.0,
+    }
+}
+
+/// A hwcontext.h status as a `Result`.
+fn status(ret: c_int) -> Result<(), c_int> {
+    if ret < 0 { Err(ret) } else { Ok(()) }
+}
+
+/// Whether a buffer counting `count` references (as C's
+/// `av_buffer_get_ref_count` reports it, converted from `unsigned` to `int`)
+/// may take another: its count is below [`MAX_REFERENCES`], as any wrapper
+/// adding a reference checks (see [`may_add_reference`]).
+fn count_allows_another(count: c_int) -> bool {
+    may_add_reference(count as c_uint)
+}
+
+/// Whether a buffer counting `count` references is within
+/// [`MAX_REFERENCES`]: C adds some references unchecked (to the device or
+/// frames context it returns from a chain of derived ones), and a result
+/// past the limit is released instead.
+fn count_within_limit(count: c_int) -> bool {
+    count as c_uint <= MAX_REFERENCES
+}
+
+/// Wraps: av_buffer_unref
+/// Handwritten
+///
+/// Releases a hardware device or frames context reference
+/// ([`DeviceReferenceBox`], [`FramesReferenceBox`]): C frees the
+/// `AVBufferRef` and drops one count of the context's buffer. The last one
+/// runs the context's release (`hwdevice_ctx_free`, `hwframe_ctx_free`):
+/// the backend's uninit, the context's `free` callback, the references the
+/// context holds (its device, the context it was derived from) and its
+/// memory. Its copy adds a reference to the same context (`av_buffer_ref`).
+///
+/// Hand-written, as [`BufferUnref`](super::buffer::BufferUnref) is: to pass
+/// the reference's slot to `av_buffer_unref`, and to check the count before
+/// `av_buffer_ref`. Stateless.
+#[derive(Clone, Copy, Debug, Default)]
+pub struct ContextUnref;
+
+// SAFETY: av_buffer_unref releases exactly the one reference a box holds
+// and reads nothing of the box afterwards; the context's release runs with
+// its last reference, which keeps everything it releases alive until then.
+unsafe impl CDrop<DeviceReference> for ContextUnref {
+    #[inline]
+    unsafe fn c_drop(&self, ptr: NonNull<DeviceReference>) {
+        let mut slot = ptr.as_ptr().cast::<ffi::AVBufferRef>();
+        // SAFETY: the caller hands over the box's sole claim on a live
+        // reference; C av_frees the struct (NULLing only the local slot) and
+        // drops one count of the buffer with acq_rel ordering, releasing the
+        // context with the last one.
+        unsafe { ffi::av_buffer_unref(&mut slot) }
+    }
+}
+
+/// Wraps: av_buffer_ref
+// SAFETY: a non-null result is a fresh struct, independent of `ptr` and
+// released by `c_drop`, referring to the same initialised device context,
+// which no handle writes. NULL means C failed, or the count would near
+// wrapping.
+unsafe impl CDupClone<DeviceReference> for ContextUnref {
+    #[inline]
+    unsafe fn c_dup(&self, ptr: NonNull<DeviceReference>) -> Option<NonNull<DeviceReference>> {
+        // SAFETY: the caller passes a live reference, borrowed for the call.
+        let src = unsafe { DeviceReferenceRef::from_ptr(ptr.as_ptr().cast()) }?;
+        NonNull::new(src.try_clone()?.into_raw())
+    }
+}
+
+// SAFETY: as for `CDrop<DeviceReference>`.
+unsafe impl CDrop<FramesReference> for ContextUnref {
+    #[inline]
+    unsafe fn c_drop(&self, ptr: NonNull<FramesReference>) {
+        let mut slot = ptr.as_ptr().cast::<ffi::AVBufferRef>();
+        // SAFETY: as for a device reference.
+        unsafe { ffi::av_buffer_unref(&mut slot) }
+    }
+}
+
+/// Wraps: av_buffer_ref
+// SAFETY: as for `CDupClone<DeviceReference>`, of a frames context.
+unsafe impl CDupClone<FramesReference> for ContextUnref {
+    #[inline]
+    unsafe fn c_dup(&self, ptr: NonNull<FramesReference>) -> Option<NonNull<FramesReference>> {
+        // SAFETY: the caller passes a live reference, borrowed for the call.
+        let src = unsafe { FramesReferenceRef::from_ptr(ptr.as_ptr().cast()) }?;
+        NonNull::new(src.try_clone()?.into_raw())
+    }
+}
+
+define_ctype!(
+    /// A reference to a hardware device context: the `AVBufferRef` whose
+    /// data is the context's `AVHWDeviceContext`, an open device of one
+    /// hardware API ([`DeviceType`]). Device and frames contexts are only
+    /// ever reached through such references, and every reference keeps the
+    /// context alive: so do the frames contexts and devices made from it.
+    /// Its routines are on [`DeviceReferenceRef`] (`as_ref()`); the
+    /// reference itself is owned by a [`DeviceReferenceBox`].
+    ///
+    /// Every reference a handle reaches holds one count of a device context
+    /// that `av_hwdevice_ctx_alloc` allocated (hwcontext.c's private
+    /// context, which starts with the public struct and names the backend
+    /// driving it), and that was initialised: by `av_hwdevice_ctx_init`
+    /// ([`UninitDevice::init`]) or by the routines creating initialised
+    /// devices. Its public fields are not written after that, as
+    /// `hwcontext.h` asks of callers. The one reference to a context not
+    /// yet initialised is held by an [`UninitDevice`], which lends no
+    /// handle.
+    ///
+    /// Neither `Send` nor `Sync`: a context is shared by all its references
+    /// and the frames contexts and frames made from it, and FFmpeg promises
+    /// no thread safety for its backends (libavcodec serializes the
+    /// hardware accelerators that do not declare it), so they all stay on
+    /// one thread.
+    DeviceReference,
+    DeviceReferenceRef,
+    DeviceReferenceMut,
+    ffi::AVBufferRef
+);
+
+/// One reference to an initialised hardware device context, owned: the
+/// reference is released when the box drops, and the context with its last
+/// reference. `clone` adds a reference to the same context
+/// (`av_buffer_ref`), and aborts the process where C cannot allocate one,
+/// or the context's count would near wrapping; [`DeviceReferenceRef::try_clone`]
+/// returns `None` there.
+///
+/// Made by [`DeviceReference::create`], [`UninitDevice::init`] and
+/// [`DeviceReferenceRef::derive`]; never allocated bare:
+///
+/// ```compile_fail,E0599
+/// use ffmpeg::libavutil::hwcontext::DeviceReferenceBox;
+/// let _ = DeviceReferenceBox::new();
+/// ```
+///
+/// Its handles are borrowed from it:
+///
+/// ```compile_fail,E0505
+/// use ffmpeg::libavutil::hwcontext::DeviceReferenceBox;
+/// fn use_after_drop(device: DeviceReferenceBox) {
+///     let handle = device.as_ref();
+///     drop(device);
+///     let _ = handle.alloc_frames();
+/// }
+/// ```
+///
+/// and it stays on its thread:
+///
+/// ```compile_fail,E0277
+/// use ffmpeg::libavutil::hwcontext::DeviceReferenceBox;
+/// fn send<T: Send>(_: T) {}
+/// fn move_away(device: DeviceReferenceBox) {
+///     send(device);
+/// }
+/// ```
+pub type DeviceReferenceBox = CBox<DeviceReference, ContextUnref>;
+
+impl DeviceReference {
+    /// Wraps: av_hwdevice_ctx_alloc
+    ///
+    /// A new, uninitialised device context of `device_type`, for the caller
+    /// to fill in and [`init`](UninitDevice::init); `None` when the library
+    /// has no backend for the type (see [`DeviceType::supported`]) or
+    /// cannot allocate the context.
+    #[must_use]
+    pub fn alloc(device_type: DeviceType) -> Option<UninitDevice> {
+        // SAFETY: `av_hwdevice_ctx_alloc` takes the enum by value and
+        // returns NULL or the only reference to a fresh, uninitialised
+        // device context of a compiled-in backend.
+        let buf = unsafe { ffi::av_hwdevice_ctx_alloc(device_type.0) };
+        // SAFETY: NULL, or the only reference to an allocated context that
+        // nothing initialised.
+        unsafe { UninitDevice::from_c(buf) }
+    }
+
+    /// Wraps: av_hwdevice_ctx_create
+    ///
+    /// Opens the device `device` names, in the backend's own syntax (a DRM
+    /// render node for VA-API, a GPU index for CUDA; `None` for the
+    /// backend's default), and returns an initialised device context of
+    /// `device_type` over it, set up by the backend-specific `options`,
+    /// which C only reads. The backend sets the context's `free` and
+    /// `user_opaque` fields itself.
+    ///
+    /// # Errors
+    ///
+    /// C's error: `AVERROR(ENOMEM)` when the library has no backend for the
+    /// type, as when memory runs out; `AVERROR(ENOSYS)` for a backend that
+    /// cannot open devices itself; the backend's own errors.
+    pub fn create(
+        device_type: DeviceType,
+        device: Option<&CStr>,
+        options: &Dict,
+    ) -> Result<DeviceReferenceBox, c_int> {
+        let mut out = ptr::null_mut();
+        let options = options.as_ref().map_or(ptr::null(), |d| d.as_ptr());
+        // SAFETY: `out` is a local slot C writes once; `device` is NULL or a
+        // live string and `options` NULL or a live dictionary, both only read
+        // during the call (backends look options up with `av_dict_get`). On
+        // failure C releases what it built and writes NULL.
+        let ret = unsafe {
+            ffi::av_hwdevice_ctx_create(
+                &mut out,
+                device_type.0,
+                device.map_or(ptr::null(), CStr::as_ptr),
+                options.cast_mut(),
+                0,
+            )
+        };
+        status(ret)?;
+        // SAFETY: on success, the only reference to a device context C
+        // allocated and initialised (`av_hwdevice_ctx_init`).
+        unsafe { DeviceReferenceBox::from_c(out) }.ok_or(ENOMEM)
+    }
+}
+
+/// `device`, a reference C returned from a chain of derived devices,
+/// unless that left the device's count past [`MAX_REFERENCES`].
+fn within_limit_device(device: DeviceReferenceBox) -> Result<DeviceReferenceBox, c_int> {
+    if count_within_limit(device.as_ref().ref_count()) {
+        Ok(device)
+    } else {
+        Err(ENOMEM)
+    }
+}
+
+impl<'a> DeviceReferenceRef<'a> {
+    /// The address of the device context, which identifies it.
+    fn context_addr(&self) -> usize {
+        // SAFETY: a read of the `data` field of a live reference.
+        unsafe { addr_of!((*self.as_ptr()).data).read() }.addr()
+    }
+
+    /// The device type of the context, as C set it at allocation.
+    // The public getter is AVHWDeviceContext's.
+    fn kind(&self) -> DeviceType {
+        // SAFETY: a read of the `data` field of a live reference.
+        let data = unsafe { addr_of!((*self.as_ptr()).data).read() };
+        let ctx = data.cast::<ffi::AVHWDeviceContext>();
+        // SAFETY: by the type's invariant, `data` is the context's public
+        // struct, whose `type` C never changes after allocation.
+        DeviceType(unsafe { addr_of!((*ctx).type_).read() })
+    }
+
+    /// The number of references to the device context, as C reads it.
+    fn ref_count(&self) -> c_int {
+        // SAFETY: a live reference; C atomically loads its buffer's count.
+        unsafe { ffi::av_buffer_get_ref_count(self.as_ptr()) }
+    }
+
+    /// Whether C may add a reference to the device context.
+    fn may_reference(&self) -> bool {
+        count_allows_another(self.ref_count())
+    }
+
+    /// Whether `self` and `other` refer to the same device context.
+    #[must_use]
+    pub fn ptr_eq(&self, other: DeviceReferenceRef<'_>) -> bool {
+        self.context_addr() == other.context_addr()
+    }
+
+    /// A new, owned reference to the same device context (`av_buffer_ref`,
+    /// as [`DeviceReferenceBox`]'s `clone`); `None` when C cannot allocate
+    /// it, or the context's count of references would near wrapping.
+    #[must_use]
+    pub fn try_clone(&self) -> Option<DeviceReferenceBox> {
+        if !self.may_reference() {
+            return None;
+        }
+        // SAFETY: a live reference; C copies the struct into a fresh
+        // av_mallocz block and adds one count to the buffer, or returns NULL
+        // with the count untouched.
+        let copy = unsafe { ffi::av_buffer_ref(self.as_ptr()) };
+        // SAFETY: NULL, or a new reference to the same initialised context.
+        unsafe { DeviceReferenceBox::from_c(copy) }
+    }
+
+    /// Wraps: av_hwdevice_ctx_create_derived
+    ///
+    /// A device context of `device_type` on the hardware this one opened. If
+    /// this device is of that type, or was derived from one (through any
+    /// chain of devices of other types), that device itself, as a new
+    /// reference; otherwise a new device, derived by the target backend from
+    /// this device or, failing that, from each device this one was derived
+    /// from in turn. A new device holds a reference to this one.
+    ///
+    /// # Errors
+    ///
+    /// C's error: `AVERROR(ENOMEM)` when the library has no backend for the
+    /// type, as when memory runs out; `AVERROR(ENOSYS)` when no device of
+    /// the chain derives to the type; the backend's own errors.
+    /// `AVERROR(ENOMEM)`, before C, when the device's count of references
+    /// would near wrapping, and for a result whose count would.
+    pub fn derive(&self, device_type: DeviceType) -> Result<DeviceReferenceBox, c_int> {
+        if !self.may_reference() {
+            return Err(ENOMEM);
+        }
+        let mut out = ptr::null_mut();
+        // SAFETY: `out` is a local slot C writes once; the source is a live
+        // reference to an initialised device context, whose type and chain
+        // of sources C reads (both fixed since they were set), whose
+        // backends' `device_derive` read them, and which C references. On
+        // failure C releases what it built and writes NULL.
+        let ret = unsafe {
+            ffi::av_hwdevice_ctx_create_derived(
+                &mut out,
+                device_type.0,
+                self.as_ptr().cast_mut(),
+                0,
+            )
+        };
+        status(ret)?;
+        // SAFETY: on success, a reference the caller owns to an initialised
+        // device context: a new one, or one of the source's chain.
+        let device = unsafe { DeviceReferenceBox::from_c(out) }.ok_or(ENOMEM)?;
+        within_limit_device(device)
+    }
+
+    /// Wraps: av_hwdevice_ctx_create_derived_opts
+    ///
+    /// As [`derive`](Self::derive), handing the backend-specific `options`
+    /// (those of [`DeviceReference::create`]) to the target backend when it
+    /// derives a new device; C only reads them.
+    ///
+    /// # Errors
+    ///
+    /// As [`derive`](Self::derive).
+    pub fn derive_with_options(
+        &self,
+        device_type: DeviceType,
+        options: &Dict,
+    ) -> Result<DeviceReferenceBox, c_int> {
+        if !self.may_reference() {
+            return Err(ENOMEM);
+        }
+        let mut out = ptr::null_mut();
+        let options = options.as_ref().map_or(ptr::null(), |d| d.as_ptr());
+        // SAFETY: as in `derive`; `options` is NULL or a live dictionary,
+        // which the backends only read during the call.
+        let ret = unsafe {
+            ffi::av_hwdevice_ctx_create_derived_opts(
+                &mut out,
+                device_type.0,
+                self.as_ptr().cast_mut(),
+                options.cast_mut(),
+                0,
+            )
+        };
+        status(ret)?;
+        // SAFETY: on success, a reference the caller owns to an initialised
+        // device context: a new one, or one of the source's chain.
+        let device = unsafe { DeviceReferenceBox::from_c(out) }.ok_or(ENOMEM)?;
+        within_limit_device(device)
+    }
+
+    /// Wraps: av_hwframe_ctx_alloc
+    ///
+    /// A new, uninitialised frames context on this device, for the caller
+    /// to fill in and [`init`](UninitFrames::init): no hardware or software
+    /// format (`AV_PIX_FMT_NONE`), size or pool. It holds a reference to
+    /// this device. `None` when C cannot allocate it, or the device's count
+    /// of references would near wrapping.
+    #[must_use]
+    pub fn alloc_frames(&self) -> Option<UninitFrames> {
+        if !self.may_reference() {
+            return None;
+        }
+        // SAFETY: a live reference to an initialised device context, whose
+        // backend C reads and which it references.
+        let buf = unsafe { ffi::av_hwframe_ctx_alloc(self.as_ptr().cast_mut()) };
+        // SAFETY: NULL, or the only reference to a fresh, uninitialised
+        // frames context on this device.
+        unsafe { UninitFrames::from_c(buf) }
+    }
+
+    /// Wraps: av_hwdevice_hwconfig_alloc
+    ///
+    /// A zeroed hardware configuration for this device's backend, which
+    /// describes a configuration of the hardware to query the frames
+    /// constraints of; `None` when the backend has none (most do not), or C
+    /// cannot allocate it.
+    #[must_use]
+    pub fn alloc_hw_config(&self) -> Option<HwConfig> {
+        // SAFETY: a live reference to a device context, whose backend's
+        // configuration size C reads; it returns NULL or a fresh av_mallocz
+        // block of that size.
+        let ptr = unsafe { ffi::av_hwdevice_hwconfig_alloc(self.as_ptr().cast_mut()) };
+        Some(HwConfig {
+            ptr: NonNull::new(ptr)?,
+            device_type: self.kind(),
+        })
+    }
+}
+
+/// Handwritten
+///
+/// A device context that is allocated but not yet initialised, from
+/// [`DeviceReference::alloc`]: the only reference to it. Fill in what its
+/// backend needs (`hwctx`, the backend's device struct from its
+/// `hwcontext_<api>.h`, and optionally `free` and `user_opaque`) through
+/// [`as_mut_ptr`](Self::as_mut_ptr), then [`init`](Self::init) it.
+///
+/// Hand-written: a [`DeviceReferenceBox`] whose handles are withheld until
+/// the context is initialised, since every routine taking a device needs an
+/// initialised one. Dropping it releases the context, as C does with one
+/// that failed to initialise. Neither `Send` nor `Sync`, as
+/// [`DeviceReference`]:
+///
+/// ```compile_fail,E0277
+/// use ffmpeg::libavutil::hwcontext::UninitDevice;
+/// fn send<T: Send>(_: T) {}
+/// fn move_away(device: UninitDevice) {
+///     send(device);
+/// }
+/// ```
+pub struct UninitDevice(DeviceReferenceBox);
+
+impl UninitDevice {
+    /// Adopts `ptr`, the only reference to an uninitialised device context;
+    /// `None` for NULL.
+    ///
+    /// # Safety
+    ///
+    /// `ptr` must be NULL or a reference the caller owns and hands over, to
+    /// a device context `av_hwdevice_ctx_alloc` allocated (or built exactly
+    /// as it does) that has no other reference and was not initialised.
+    pub(crate) unsafe fn from_c(ptr: *mut ffi::AVBufferRef) -> Option<Self> {
+        // SAFETY: by the caller's contract; the box lends no handle to the
+        // context until `init` initialised it.
+        unsafe { DeviceReferenceBox::from_c(ptr) }.map(Self)
+    }
+
+    /// The context's `AVHWDeviceContext`, for filling in its `hwctx` (the
+    /// backend's device struct, which C allocated), `free` and
+    /// `user_opaque` before [`init`](Self::init), as the backend's header
+    /// asks.
+    ///
+    /// A raw seam until hwcontext.h's `AVHWDeviceContext` is wrapped (its
+    /// `hwctx` stays backend-specific). Writes through it must keep
+    /// `av_class`, `type` and the `hwctx` pointer as C set them; the pointer
+    /// is valid while the box lives.
+    #[must_use]
+    pub fn as_mut_ptr(&mut self) -> *mut ffi::AVHWDeviceContext {
+        // SAFETY: a read of the `data` field of the live reference the box
+        // holds; its data is the context's public struct.
+        unsafe { addr_of!((*self.0.as_c_ptr()).data).read() }.cast()
+    }
+
+    /// Wraps: av_hwdevice_ctx_init
+    ///
+    /// Finalizes the context once it is filled in: the backend checks and
+    /// completes it (its `device_init`, when it has one). The initialised
+    /// context can then be used and shared.
+    ///
+    /// # Errors
+    ///
+    /// The backend's error; the context is released then.
+    pub fn init(self) -> Result<DeviceReferenceBox, c_int> {
+        // SAFETY: the only reference to an allocated device context, never
+        // initialised before (`init` consumes it); C runs the backend's
+        // `device_init` on it, which reads what the caller filled in.
+        let ret = unsafe { ffi::av_hwdevice_ctx_init(self.0.as_c_ptr()) };
+        status(ret)?;
+        Ok(self.0)
+    }
+}
+
+impl fmt::Debug for UninitDevice {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        // Only the type C set at allocation is read through the handle.
+        f.debug_tuple("UninitDevice")
+            .field(&self.0.as_ref().kind())
+            .finish()
+    }
+}
+
+/// Handwritten
+///
+/// A hardware configuration of a device's backend, from
+/// [`DeviceReferenceRef::alloc_hw_config`]: an `av_mallocz` block, freed
+/// with `av_free` on drop, laid out as the backend's `AV<API>HWConfig`
+/// struct (VA-API's names the `VAConfigID` to query frames constraints
+/// for). Its size is the backend's and only C knows it, so it is reached
+/// through raw pointers only: [`as_mut_ptr`](Self::as_mut_ptr) to fill it
+/// in, as the backend's header asks.
+///
+/// Hand-written: an owner of an untyped C block whose size and type
+/// depend on the backend, for later routines to pass back with the
+/// device type it belongs to.
+pub struct HwConfig {
+    ptr: NonNull<c_void>,
+    device_type: DeviceType,
+}
+
+impl HwConfig {
+    /// The device type whose backend allocated the configuration.
+    #[must_use]
+    pub fn device_type(&self) -> DeviceType {
+        self.device_type
+    }
+
+    /// The configuration, for reading through the backend's struct. A raw
+    /// seam: the backend headers (`hwcontext_<api>.h`) are not wrapped.
+    #[must_use]
+    pub fn as_ptr(&self) -> *const c_void {
+        self.ptr.as_ptr()
+    }
+
+    /// The configuration, for filling in through the backend's struct. A
+    /// raw seam, as [`as_ptr`](Self::as_ptr); the block is zeroed when
+    /// allocated and valid while `self` lives.
+    #[must_use]
+    pub fn as_mut_ptr(&mut self) -> *mut c_void {
+        self.ptr.as_ptr()
+    }
+}
+
+impl Drop for HwConfig {
+    fn drop(&mut self) {
+        // SAFETY: the av_mallocz block `av_hwdevice_hwconfig_alloc`
+        // returned, which `self` owns and nothing else frees.
+        unsafe { ffi::av_free(self.ptr.as_ptr()) }
+    }
+}
+
+impl fmt::Debug for HwConfig {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.debug_struct("HwConfig")
+            .field("device_type", &self.device_type)
+            .finish_non_exhaustive()
+    }
+}
+
+define_ctype!(
+    /// A reference to a hardware frames context: the `AVBufferRef` whose
+    /// data is the context's `AVHWFramesContext`, a pool of interchangeable
+    /// hardware frames of one format and size on one device. Every
+    /// reference keeps the context alive, and the context keeps its device
+    /// alive: so do the frames allocated from it. Its routines are on
+    /// [`FramesReferenceRef`] (`as_ref()`); the reference itself is owned by
+    /// a [`FramesReferenceBox`].
+    ///
+    /// Every reference a handle reaches holds one count of a frames context
+    /// that `av_hwframe_ctx_alloc` allocated on an initialised device
+    /// context (hwcontext_internal.h's private context, which starts with
+    /// the public struct), and that was initialised: by
+    /// `av_hwframe_ctx_init` ([`UninitFrames::init`]) or as a derived
+    /// context (`av_hwframe_ctx_create_derived`). Its public fields are not
+    /// written after that. The one reference to a context not yet
+    /// initialised is held by an [`UninitFrames`], which lends no handle.
+    ///
+    /// Neither `Send` nor `Sync`, as [`DeviceReference`], whose device it
+    /// shares.
+    FramesReference,
+    FramesReferenceRef,
+    FramesReferenceMut,
+    ffi::AVBufferRef
+);
+
+/// One reference to an initialised hardware frames context, owned, as
+/// [`DeviceReferenceBox`] owns one to a device: released on drop, `clone`
+/// adds a reference (`av_buffer_ref`) or aborts where
+/// [`FramesReferenceRef::try_clone`] returns `None`.
+///
+/// Made by [`UninitFrames::init`] and [`FramesReferenceRef::derive`]; never
+/// allocated bare:
+///
+/// ```compile_fail,E0599
+/// use ffmpeg::libavutil::hwcontext::FramesReferenceBox;
+/// let _ = FramesReferenceBox::new();
+/// ```
+///
+/// Its handles are borrowed from it:
+///
+/// ```compile_fail,E0505
+/// use ffmpeg::libavutil::hwcontext::FramesReferenceBox;
+/// fn use_after_drop(frames: FramesReferenceBox) {
+///     let handle = frames.as_ref();
+///     drop(frames);
+///     let _ = handle.get_buffer();
+/// }
+/// ```
+///
+/// and it stays on its thread:
+///
+/// ```compile_fail,E0277
+/// use ffmpeg::libavutil::hwcontext::FramesReferenceBox;
+/// fn send<T: Send>(_: T) {}
+/// fn move_away(frames: FramesReferenceBox) {
+///     send(frames);
+/// }
+/// ```
+pub type FramesReferenceBox = CBox<FramesReference, ContextUnref>;
+
+/// `frames`, a reference C returned from a derivation, unless that left the
+/// context's count past [`MAX_REFERENCES`].
+fn within_limit_frames(frames: FramesReferenceBox) -> Result<FramesReferenceBox, c_int> {
+    if count_within_limit(frames.as_ref().ref_count()) {
+        Ok(frames)
+    } else {
+        Err(ENOMEM)
+    }
+}
+
+impl<'a> FramesReferenceRef<'a> {
+    /// The address of the frames context, which identifies it.
+    fn context_addr(&self) -> usize {
+        // SAFETY: a read of the `data` field of a live reference.
+        unsafe { addr_of!((*self.as_ptr()).data).read() }.addr()
+    }
+
+    /// The context's hardware pixel format, which its frames have.
+    // The public getter is AVHWFramesContext's.
+    fn hw_format(&self) -> ffi::AVPixelFormat {
+        // SAFETY: a read of the `data` field of a live reference.
+        let data = unsafe { addr_of!((*self.as_ptr()).data).read() };
+        let ctx = data.cast::<ffi::AVHWFramesContext>();
+        // SAFETY: by the type's invariant, `data` is the initialised
+        // context's public struct, which nothing writes any more.
+        unsafe { addr_of!((*ctx).format).read() }
+    }
+
+    /// The number of references to the frames context, as C reads it.
+    fn ref_count(&self) -> c_int {
+        // SAFETY: a live reference; C atomically loads its buffer's count.
+        unsafe { ffi::av_buffer_get_ref_count(self.as_ptr()) }
+    }
+
+    /// Whether C may add a reference to the frames context.
+    fn may_reference(&self) -> bool {
+        count_allows_another(self.ref_count())
+    }
+
+    /// Whether `self` and `other` refer to the same frames context.
+    #[must_use]
+    pub fn ptr_eq(&self, other: FramesReferenceRef<'_>) -> bool {
+        self.context_addr() == other.context_addr()
+    }
+
+    /// A new, owned reference to the same frames context (`av_buffer_ref`,
+    /// as [`FramesReferenceBox`]'s `clone`); `None` when C cannot allocate
+    /// it, or the context's count of references would near wrapping.
+    #[must_use]
+    pub fn try_clone(&self) -> Option<FramesReferenceBox> {
+        if !self.may_reference() {
+            return None;
+        }
+        // SAFETY: as for a device reference.
+        let copy = unsafe { ffi::av_buffer_ref(self.as_ptr()) };
+        // SAFETY: NULL, or a new reference to the same initialised context.
+        unsafe { FramesReferenceBox::from_c(copy) }
+    }
+
+    /// Wraps: av_hwframe_get_buffer
+    ///
+    /// A new hardware frame from the context's pool, of its format and
+    /// size, holding a reference to the context. A derived context
+    /// allocates the frame in the context it was derived from and maps it
+    /// into its own.
+    ///
+    /// # Errors
+    ///
+    /// C's error: `AVERROR(ENOSYS)` for a backend that allocates no frames,
+    /// `AVERROR(EINVAL)` for a context without a pool, `AVERROR(ENOMEM)`,
+    /// the backend's own errors and, for a derived context, those of the
+    /// allocation and mapping. `AVERROR(ENOMEM)`, before C, when the
+    /// context's count of references would near wrapping.
+    pub fn get_buffer(&self) -> Result<HardwareFrame, c_int> {
+        if !self.may_reference() {
+            return Err(ENOMEM);
+        }
+        let frame = Frame::new().ok_or(ENOMEM)?;
+        let (ctx, dst) = (self.as_ptr().cast_mut(), frame.as_c_ptr());
+        // SAFETY: a live reference to an initialised frames context, which
+        // C reads and references, and a fresh frame nothing else reaches,
+        // which C fills (buffers, planes, format, size, frames context).
+        // On failure the frame holds at most a frames context reference and
+        // its format, which its release handles.
+        let ret = unsafe { ffi::av_hwframe_get_buffer(ctx, dst, 0) };
+        status(ret)?;
+        // A frame `av_hwframe_get_buffer` filled: the type's invariant.
+        Ok(HardwareFrame {
+            frame,
+            _context: PhantomData,
+        })
+    }
+
+    /// Wraps: av_hwframe_ctx_create_derived
+    ///
+    /// A new, initialised frames context of hardware format `format` on
+    /// `device`, which maps the frames of this one: its frames are
+    /// allocated here and mapped there with `flags`. Its software format
+    /// and size are this context's. When this context was itself derived
+    /// from one on `device`, the result is that context, as a new reference
+    /// (an unmapping).
+    ///
+    /// # Errors
+    ///
+    /// C's error: `AVERROR(ENOMEM)`, the backends' own errors (a backend
+    /// that cannot derive is not one: C then leaves the mapping to each
+    /// allocation). `AVERROR(ENOMEM)`, before C, when this context's or the
+    /// device's count of references would near wrapping, and for a result
+    /// whose count would.
+    pub fn derive(
+        &self,
+        format: PixelFormat,
+        device: DeviceReferenceRef<'_>,
+        flags: MapFlags,
+    ) -> Result<FramesReferenceBox, c_int> {
+        if !(self.may_reference() && device.may_reference()) {
+            return Err(ENOMEM);
+        }
+        let mut out = ptr::null_mut();
+        // SAFETY: `out` is a local slot C writes at most once; `device` and
+        // the source are live references to initialised device and frames
+        // contexts, which C reads and references, and whose backends'
+        // `frames_derive_from`/`frames_derive_to` read them. On failure C
+        // releases what it built.
+        let ret = unsafe {
+            ffi::av_hwframe_ctx_create_derived(
+                &mut out,
+                format.into_raw(),
+                device.as_ptr().cast_mut(),
+                self.as_ptr().cast_mut(),
+                flags.bits(),
+            )
+        };
+        status(ret)?;
+        // SAFETY: on success, a reference the caller owns to an initialised
+        // frames context: a new derived one, or the source's own source.
+        let frames = unsafe { FramesReferenceBox::from_c(out) }.ok_or(ENOMEM)?;
+        within_limit_frames(frames)
+    }
+}
+
+/// Handwritten
+///
+/// A frames context that is allocated but not yet initialised, from
+/// [`DeviceReferenceRef::alloc_frames`]: the only reference to it. Fill in
+/// its hardware and software formats, size and, optionally, initial pool
+/// size, pool, `hwctx` (the backend's frames struct), `free` and
+/// `user_opaque` through [`as_mut_ptr`](Self::as_mut_ptr), then
+/// [`init`](Self::init) it.
+///
+/// Hand-written, as [`UninitDevice`] is. Dropping it releases the context.
+/// Neither `Send` nor `Sync`, as [`FramesReference`].
+pub struct UninitFrames(FramesReferenceBox);
+
+impl UninitFrames {
+    /// Adopts `ptr`, the only reference to an uninitialised frames context;
+    /// `None` for NULL.
+    ///
+    /// # Safety
+    ///
+    /// `ptr` must be NULL or a reference the caller owns and hands over, to
+    /// a frames context `av_hwframe_ctx_alloc` allocated that has no other
+    /// reference and was not initialised.
+    pub(crate) unsafe fn from_c(ptr: *mut ffi::AVBufferRef) -> Option<Self> {
+        // SAFETY: by the caller's contract; the box lends no handle to the
+        // context until `init` initialised it.
+        unsafe { FramesReferenceBox::from_c(ptr) }.map(Self)
+    }
+
+    /// The context's `AVHWFramesContext`, for filling in its formats, size,
+    /// pool and backend struct before [`init`](Self::init), as
+    /// `hwcontext.h` and the backend's header ask.
+    ///
+    /// A raw seam until hwcontext.h's `AVHWFramesContext` is wrapped.
+    /// Writes through it must keep `av_class`, `device_ref`, `device_ctx`
+    /// and the `hwctx` pointer as C set them, and leave `pool` NULL or a
+    /// pool of buffers the backend can use as its surfaces, which the
+    /// context then holds a reference to until it is released; the pointer
+    /// is valid while `self` lives.
+    #[must_use]
+    pub fn as_mut_ptr(&mut self) -> *mut ffi::AVHWFramesContext {
+        // SAFETY: a read of the `data` field of the live reference the box
+        // holds; its data is the context's public struct.
+        unsafe { addr_of!((*self.0.as_c_ptr()).data).read() }.cast()
+    }
+
+    /// Wraps: av_hwframe_ctx_init
+    ///
+    /// Finalizes the context once it is filled in: C checks that the
+    /// backend supports its hardware format (logging an error and failing
+    /// with `AVERROR(ENOSYS)` otherwise, as for the format C leaves unset)
+    /// and that its size is valid, the backend completes it, and the first
+    /// initial pool size frames are allocated and released, to fill the
+    /// pool. The initialised context can then allocate frames and be
+    /// shared.
+    ///
+    /// # Errors
+    ///
+    /// C's error, as above, or the backend's or allocation's; the context
+    /// is released then.
+    pub fn init(self) -> Result<FramesReferenceBox, c_int> {
+        // SAFETY: the only reference to an allocated frames context, never
+        // initialised before (`init` consumes it), whose fields the caller
+        // wrote through `as_mut_ptr` under its contract; C validates the
+        // format and size, runs the backend's `frames_init` and
+        // preallocates frames through `av_hwframe_get_buffer`.
+        let ret = unsafe { ffi::av_hwframe_ctx_init(self.0.as_c_ptr()) };
+        status(ret)?;
+        Ok(self.0)
+    }
+}
+
+impl fmt::Debug for UninitFrames {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.debug_tuple("UninitFrames").finish_non_exhaustive()
+    }
+}
+
+/// Handwritten
+///
+/// A hardware frame: a frame whose data are surfaces of a hardware frames
+/// context, from [`FramesReferenceRef::get_buffer`] or a mapping
+/// ([`map_to`](Self::map_to)). It owns a reference to its frames context
+/// ([`frames`](Self::frames)), and so to its device; drop it to return the
+/// surface to the pool.
+///
+/// Not a [`Frame`] to safe code, which lends no
+/// [`FrameRef`]: a hardware frame's buffers hold the
+/// backend's surface handles where a frame's hold bytes (VA-API makes a
+/// surface ID the data pointer of a 4-byte buffer), and its planes point
+/// into no buffer. Its data is reached by mapping it to normal memory
+/// ([`map`](Self::map)), or by copying it out (`av_hwframe_transfer_data`).
+///
+/// Every value holds a frame that `av_hwframe_get_buffer` or
+/// `av_hwframe_map` filled, with a frames context, which nothing else
+/// reaches. Hand-written: an owner of an `AVFrame` that keeps it out of the
+/// frame API, whose readers would take its surface handles for bytes:
+///
+/// ```compile_fail,E0599
+/// use ffmpeg::libavutil::hwcontext::HardwareFrame;
+/// fn planes(frame: &HardwareFrame) {
+///     let _ = frame.as_ref().plane(0);
+/// }
+/// ```
+///
+/// Its frames context is borrowed from it:
+///
+/// ```compile_fail,E0505
+/// use ffmpeg::libavutil::hwcontext::HardwareFrame;
+/// fn outlive(frame: HardwareFrame) {
+///     let frames = frame.frames();
+///     drop(frame);
+///     let _ = frames.get_buffer();
+/// }
+/// ```
+///
+/// Neither `Send` nor `Sync`, as [`FramesReference`]:
+///
+/// ```compile_fail,E0277
+/// use ffmpeg::libavutil::hwcontext::HardwareFrame;
+/// fn send<T: Send>(_: T) {}
+/// fn move_away(frame: HardwareFrame) {
+///     send(frame);
+/// }
+/// ```
+pub struct HardwareFrame {
+    frame: FrameBox,
+    /// Withholds `Send` and `Sync`, as the frames context's.
+    _context: PhantomData<*const ()>,
+}
+
+impl HardwareFrame {
+    /// Whether C may add a reference to the frame's frames context and to
+    /// each of its buffers, as a mapping of the frame does.
+    fn may_reference_all(&self) -> bool {
+        let p = self.frame.as_c_ptr();
+        // SAFETY: reads of the `buf`, `extended_buf`, `nb_extended_buf` and
+        // `hw_frames_ctx` fields of the live frame `self` owns.
+        let (bufs, extended, count, frames) = unsafe {
+            (
+                addr_of!((*p).buf).read(),
+                addr_of!((*p).extended_buf).read(),
+                addr_of!((*p).nb_extended_buf).read(),
+                addr_of!((*p).hw_frames_ctx).read(),
+            )
+        };
+        let count = if extended.is_null() {
+            0
+        } else {
+            usize::try_from(count).unwrap_or(0)
+        };
+        let may = |buf: *const ffi::AVBufferRef| {
+            // SAFETY: NULL, or a live reference the frame owns; C atomically
+            // loads its buffer's count.
+            buf.is_null() || count_allows_another(unsafe { ffi::av_buffer_get_ref_count(buf) })
+        };
+        // SAFETY: `extended` holds `count` live entries when not NULL.
+        let extended_entry = |i: usize| unsafe { extended.add(i).read() };
+        may(frames) && bufs.iter().all(|&b| may(b)) && (0..count).all(|i| may(extended_entry(i)))
+    }
+
+    /// The frame's pixel format: its frames context's hardware format.
+    // Only the frame's scalar fields are read through its handle.
+    #[must_use]
+    pub fn format(&self) -> PixelFormat {
+        self.frame.as_ref().pixel_format()
+    }
+
+    /// The frame's width, in pixels.
+    #[must_use]
+    pub fn width(&self) -> i32 {
+        self.frame.as_ref().width()
+    }
+
+    /// The frame's height, in pixels.
+    #[must_use]
+    pub fn height(&self) -> i32 {
+        self.frame.as_ref().height()
+    }
+
+    /// The frames context the frame belongs to, borrowed from the frame.
+    #[must_use]
+    pub fn frames(&self) -> FramesReferenceRef<'_> {
+        // SAFETY: a read of the `hw_frames_ctx` field of the live frame
+        // `self` owns.
+        let buf = unsafe { addr_of!((*self.frame.as_c_ptr()).hw_frames_ctx).read() };
+        // SAFETY: by the type's invariant, a live reference the frame owns
+        // to an initialised frames context, which nothing releases or
+        // replaces while `self` is borrowed.
+        unsafe { FramesReferenceRef::from_ptr(buf) }
+            .expect("a hardware frame holds its frames context")
+    }
+
+    /// Wraps: av_hwframe_map
+    ///
+    /// Maps the frame to normal memory, as a software frame of `format`
+    /// (with [`PixelFormat::NONE`], the format the backend finds most
+    /// appropriate, usually the frames context's software format), with
+    /// the access `flags` ask for. The mapped frame holds a reference to
+    /// this one, whose surface it shows, and the mapping is undone when it
+    /// is dropped.
+    ///
+    /// # Errors
+    ///
+    /// `AVERROR(ENOSYS)` when the backend cannot map the frame as asked,
+    /// other C errors when the mapping failed. `AVERROR(ENOMEM)`, before C,
+    /// when the count of references to the frames context or one of the
+    /// frame's buffers would near wrapping.
+    pub fn map(&self, format: PixelFormat, flags: MapFlags) -> Result<MappedFrame, c_int> {
+        if !self.may_reference_all() {
+            return Err(ENOMEM);
+        }
+        let mut dst = Frame::new().ok_or(ENOMEM)?;
+        dst.as_mut().set_format(format.into_raw().0);
+        let (dst_ptr, src) = (dst.as_c_ptr(), self.frame.as_c_ptr());
+        // SAFETY: `dst` is a fresh frame with only a format, which C fills
+        // as a mapping (on failure it releases what it set and keeps the
+        // format); the source is the live hardware frame `self` owns, which
+        // C and the backend's `map_from` read and reference.
+        let ret = unsafe { ffi::av_hwframe_map(dst_ptr, src, flags.bits()) };
+        status(ret)?;
+        // A frame `av_hwframe_map` filled: the type's invariant.
+        Ok(MappedFrame {
+            frame: dst,
+            _context: PhantomData,
+        })
+    }
+
+    /// Wraps: av_hwframe_map
+    ///
+    /// Maps the frame into another frames context, `frames`, as a hardware
+    /// frame of that context's format, with `flags`: the contexts' devices
+    /// must be compatible, as for a context derived from this frame's
+    /// ([`FramesReferenceRef::derive`]). When this frame's context was
+    /// derived from `frames`, the result is the frame this one was mapped
+    /// from, as a new reference (an unmapping). The new frame holds a
+    /// reference to this one, or to the frame it was mapped from.
+    ///
+    /// # Errors
+    ///
+    /// As [`map`](Self::map), and `AVERROR(EINVAL)`, before C, when
+    /// `frames` is the frame's own context: C reads the frame as one it
+    /// mapped itself there, which a frame of the context's pool is not.
+    pub fn map_to(
+        &self,
+        frames: FramesReferenceRef<'_>,
+        flags: MapFlags,
+    ) -> Result<HardwareFrame, c_int> {
+        if frames.ptr_eq(self.frames()) {
+            return Err(EINVAL);
+        }
+        if !self.may_reference_all() {
+            return Err(ENOMEM);
+        }
+        let target = frames.try_clone().ok_or(ENOMEM)?;
+        let dst = Frame::new().ok_or(ENOMEM)?;
+        let p = dst.as_c_ptr();
+        // SAFETY: writes of two fields of the fresh frame `dst` owns, which
+        // nothing else reaches: the format, and its frames context
+        // reference, which the frame then owns and releases.
+        unsafe {
+            addr_of_mut!((*p).format).write(frames.hw_format().0);
+            addr_of_mut!((*p).hw_frames_ctx).write(target.into_c());
+        }
+        // The contexts differ, so C unmaps only when this frame's context
+        // was derived from `frames`, whose frames are all mappings C made,
+        // as its unmapping expects of them.
+        // SAFETY: `dst` is a blank frame with a format and frames context,
+        // which C keeps on failure and fills as a mapping (or, unmapping,
+        // as a reference to the frame this one was mapped from) on success;
+        // the source is the live hardware frame `self` owns, which C and
+        // the backends' `map_from`/`map_to` read and reference.
+        let ret = unsafe { ffi::av_hwframe_map(p, self.frame.as_c_ptr(), flags.bits()) };
+        status(ret)?;
+        // A frame `av_hwframe_map` filled, holding `frames`' context (or,
+        // unmapping, the source frame's, which is `frames`'): the type's
+        // invariant.
+        Ok(HardwareFrame {
+            frame: dst,
+            _context: PhantomData,
+        })
+    }
+}
+
+impl fmt::Debug for HardwareFrame {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.debug_struct("HardwareFrame")
+            .field("format", &self.format())
+            .field("width", &self.width())
+            .field("height", &self.height())
+            .finish_non_exhaustive()
+    }
+}
+
+/// Handwritten
+///
+/// A hardware frame mapped to normal memory, from [`HardwareFrame::map`]:
+/// a software frame whose planes show the surface, as the backend mapped
+/// it. It holds a reference to the hardware frame, and the mapping is
+/// undone when it is dropped.
+///
+/// Not a [`Frame`] to safe code either: its planes
+/// point into the mapping rather than into its buffers, which a frame's
+/// readers rely on, and how many of the bytes there may be read or written
+/// depends on the access the mapping was made with. Its planes are left to
+/// the wrappers of the C routines that consume frames.
+///
+/// Hand-written, as [`HardwareFrame`] is. Neither `Send` nor `Sync`, as
+/// [`FramesReference`]:
+///
+/// ```compile_fail,E0277
+/// use ffmpeg::libavutil::hwcontext::MappedFrame;
+/// fn send<T: Send>(_: T) {}
+/// fn move_away(frame: MappedFrame) {
+///     send(frame);
+/// }
+/// ```
+pub struct MappedFrame {
+    frame: FrameBox,
+    /// Withholds `Send` and `Sync`, as the source frames context's.
+    _context: PhantomData<*const ()>,
+}
+
+impl MappedFrame {
+    /// The mapping's pixel format.
+    #[must_use]
+    pub fn format(&self) -> PixelFormat {
+        self.frame.as_ref().pixel_format()
+    }
+
+    /// The mapping's width, in pixels.
+    #[must_use]
+    pub fn width(&self) -> i32 {
+        self.frame.as_ref().width()
+    }
+
+    /// The mapping's height, in pixels.
+    #[must_use]
+    pub fn height(&self) -> i32 {
+        self.frame.as_ref().height()
+    }
+}
+
+impl fmt::Debug for MappedFrame {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.debug_struct("MappedFrame")
+            .field("format", &self.format())
+            .field("width", &self.width())
+            .field("height", &self.height())
+            .finish_non_exhaustive()
+    }
+}
+
 #[cfg(test)]
 #[path = "../tests/common/hwframes.rs"]
 mod fixture;
+
+#[cfg(test)]
+#[path = "../tests/common/hwbackend.rs"]
+pub(crate) mod backend;
 
 #[cfg(test)]
 mod unit_tests {
@@ -1231,6 +2444,753 @@ mod unit_tests {
                 Err(ENOSYS)
             );
             assert_eq!(other.as_mut().transfer_data_from(src.as_ref()), Err(ENOSYS));
+        }
+    }
+    /// Wave 1, batch 1: names, the backend list, map flags, and the device
+    /// and frames contexts and hardware frames over the test backends of
+    /// `tests/common/hwbackend.rs`, adopted through the crate's seams.
+    mod contexts {
+        use super::*;
+        use core::ffi::CStr;
+        use core::ptr::{addr_of, addr_of_mut};
+
+        use crate::libavutil::buffer::MAX_REFERENCES;
+        use crate::libavutil::dict::Dict;
+        use crate::libavutil::hwcontext::backend::{
+            self as fx, Event, FramesHwctx, HWCONFIG_SIZE, Kind, averror,
+        };
+
+        const ENOSYS: c_int = averror(ffi::ENOSYS);
+        const ENOMEM_: c_int = averror(ffi::ENOMEM);
+        const EINVAL_: c_int = averror(ffi::EINVAL);
+
+        /// The prefix of `AVBuffer`'s private layout (`buffer_internal.h`)
+        /// up to its count.
+        #[repr(C)]
+        struct BufferCount {
+            data: *mut u8,
+            size: usize,
+            refcount: c_uint,
+        }
+
+        /// Sets the count of `buf`'s buffer behind C's back; the caller
+        /// restores the true count before any reference is released.
+        fn set_count(buf: *const ffi::AVBufferRef, count: c_uint) {
+            // SAFETY: a live reference, whose private buffer body starts
+            // with the mirrored prefix; this test alone references it.
+            unsafe {
+                let body = addr_of!((*buf).buffer).read().cast::<BufferCount>();
+                addr_of_mut!((*body).refcount).write(count);
+            }
+        }
+
+        /// The count of `buf`'s buffer.
+        fn count(buf: *const ffi::AVBufferRef) -> c_int {
+            // SAFETY: a live reference.
+            unsafe { fx::ref_count(buf) }
+        }
+
+        /// An initialised test device of `kind`, adopted as a box.
+        fn device(kind: Kind) -> DeviceReferenceBox {
+            // SAFETY: the only reference to an initialised test device
+            // context, built as `av_hwdevice_ctx_alloc` builds one.
+            unsafe { DeviceReferenceBox::from_c(fx::device(kind)) }.unwrap()
+        }
+
+        /// An uninitialised test device of `kind`.
+        fn uninit_device(kind: Kind) -> UninitDevice {
+            // SAFETY: the only reference to a fresh test device context.
+            unsafe { UninitDevice::from_c(fx::alloc_device(kind)) }.unwrap()
+        }
+
+        /// A frames context of `kind` on `device`, filled with
+        /// `fx::fill_frames` and `hwctx`, initialised through the wrapper.
+        fn frames_with(
+            device: &DeviceReferenceBox,
+            kind: Kind,
+            hwctx: FramesHwctx,
+            pool: c_int,
+        ) -> Result<FramesReferenceBox, c_int> {
+            let mut frames = device.as_ref().alloc_frames().unwrap();
+            let p = frames.as_mut_ptr();
+            // SAFETY: the uninitialised context `frames` owns.
+            unsafe {
+                fx::fill_frames(p, kind, 64, 32, pool);
+                fx::set_frames_hwctx(p, hwctx);
+            }
+            frames.init()
+        }
+
+        fn frames(device: &DeviceReferenceBox, kind: Kind) -> FramesReferenceBox {
+            let frames = frames_with(device, kind, FramesHwctx::default(), 0).unwrap();
+            assert_eq!(fx::take_events(), [Event::FramesInit(kind)]);
+            frames
+        }
+
+        #[test]
+        fn names_round_trip_and_unknown_names_are_none() {
+            for (t, _) in NAMED {
+                match t.name() {
+                    None => assert_eq!(t, DeviceType::NONE),
+                    Some(name) => assert_eq!(DeviceType::from_name(name), Some(t)),
+                }
+            }
+            for raw in UNNAMED {
+                assert_eq!(DeviceType::from_raw(ffi::AVHWDeviceType(raw)).name(), None);
+            }
+            assert_eq!(DeviceType::CUDA.name(), Some(c"cuda"));
+            for unknown in [c"", c"none", c"Vaapi", c"vaapi ", c"cuda\t"] {
+                assert_eq!(DeviceType::from_name(unknown), None, "{unknown:?}");
+            }
+        }
+
+        /// The campaign builds compile no backend: the walk is empty, and
+        /// stays so.
+        #[test]
+        fn no_backend_is_supported_in_this_build() {
+            let mut types = DeviceType::supported();
+            assert_eq!(types.next(), None);
+            assert_eq!(types.next(), None);
+            assert_eq!(format!("{types:?}"), "SupportedDeviceTypes { prev: None }");
+            for (t, _) in NAMED {
+                assert!(DeviceReference::alloc(t).is_none(), "{t:?}");
+                assert_eq!(
+                    DeviceReference::create(t, None, &Dict::new()).err(),
+                    Some(ENOMEM_),
+                    "{t:?}"
+                );
+            }
+        }
+
+        #[test]
+        fn map_flags_are_the_c_bits() {
+            assert_eq!(MapFlags::READ.bits(), 1);
+            assert_eq!(MapFlags::WRITE.bits(), 2);
+            assert_eq!(MapFlags::OVERWRITE.bits(), 4);
+            assert_eq!(MapFlags::DIRECT.bits(), 8);
+            let rw = MapFlags::READ | MapFlags::WRITE;
+            assert!(rw.contains(MapFlags::READ) && !rw.contains(MapFlags::DIRECT));
+            assert_eq!(rw - MapFlags::READ, MapFlags::WRITE);
+            assert_eq!(format!("{rw:?}"), "MapFlags(READ | WRITE)");
+            assert_eq!(
+                format!("{:?}", MapFlags::from_bits_retain(0x30)),
+                "MapFlags(0x30)"
+            );
+            assert_eq!(MapFlags::default(), MapFlags::empty());
+        }
+
+        #[test]
+        fn uninit_device_inits_once_and_releases_on_drop() {
+            assert!(
+                // SAFETY: NULL adopts nothing.
+                unsafe { UninitDevice::from_c(ptr::null_mut()) }.is_none()
+            );
+            let mut uninit = uninit_device(Kind::A);
+            assert_eq!(format!("{uninit:?}"), "UninitDevice(VAAPI)");
+            let ctx = uninit.as_mut_ptr();
+            // SAFETY: the public struct of the context `uninit` owns.
+            unsafe {
+                assert_eq!((*ctx).type_, ffi::AVHWDeviceType::AV_HWDEVICE_TYPE_VAAPI);
+                assert!(!(*ctx).hwctx.is_null());
+            }
+            assert!(fx::take_events().is_empty());
+            let device = uninit.init().unwrap();
+            assert_eq!(fx::take_events(), [Event::DeviceInit(Kind::A)]);
+            assert_eq!(count(device.as_c_ptr()), 1);
+            drop(device);
+            assert_eq!(
+                fx::take_events(),
+                [Event::DeviceUninit(Kind::A), Event::DeviceFreed(Kind::A)]
+            );
+            // Never initialised: released as C releases a failed one.
+            drop(uninit_device(Kind::B));
+            assert_eq!(
+                fx::take_events(),
+                [Event::DeviceUninit(Kind::B), Event::DeviceFreed(Kind::B)]
+            );
+        }
+
+        #[test]
+        fn failed_device_init_releases_the_context() {
+            let mut uninit = uninit_device(Kind::B);
+            let ctx = uninit.as_mut_ptr();
+            // SAFETY: the backend struct of the context `uninit` owns.
+            unsafe { (*(*ctx).hwctx.cast::<fx::DeviceHwctx>()).init_ret = -77 };
+            assert_eq!(uninit.init().err(), Some(-77));
+            assert_eq!(
+                fx::take_events(),
+                [
+                    Event::DeviceInit(Kind::B),
+                    Event::DeviceUninit(Kind::B),
+                    Event::DeviceFreed(Kind::B)
+                ]
+            );
+        }
+
+        #[test]
+        fn device_clones_share_the_context_and_stop_at_the_limit() {
+            let a = device(Kind::A);
+            let b = a.clone();
+            assert!(a.as_ref().ptr_eq(b.as_ref()));
+            assert!(!a.as_ref().ptr_eq(device(Kind::A).as_ref()));
+            assert_eq!(
+                fx::take_events(),
+                [Event::DeviceUninit(Kind::A), Event::DeviceFreed(Kind::A)]
+            );
+            assert_eq!(count(a.as_c_ptr()), 2);
+            drop(b);
+            assert_eq!(count(a.as_c_ptr()), 1);
+            set_count(a.as_c_ptr(), MAX_REFERENCES);
+            assert!(a.as_ref().try_clone().is_none());
+            assert!(a.as_ref().alloc_frames().is_none());
+            assert_eq!(a.as_ref().derive(DeviceType::VAAPI).err(), Some(ENOMEM_));
+            assert_eq!(
+                a.as_ref()
+                    .derive_with_options(DeviceType::VAAPI, &Dict::new())
+                    .err(),
+                Some(ENOMEM_)
+            );
+            set_count(a.as_c_ptr(), MAX_REFERENCES - 1);
+            let last = a.as_ref().try_clone().unwrap();
+            assert!(last.as_ref().try_clone().is_none());
+            set_count(a.as_c_ptr(), 2);
+            drop(last);
+            assert!(fx::take_events().is_empty());
+            drop(a);
+            assert_eq!(
+                fx::take_events(),
+                [Event::DeviceUninit(Kind::A), Event::DeviceFreed(Kind::A)]
+            );
+        }
+
+        /// A device derived from another finds the source of the asked type
+        /// in its chain; any other type needs a backend, which this build
+        /// lacks.
+        #[test]
+        fn derive_returns_the_device_of_the_type_in_the_chain() {
+            let a = device(Kind::A);
+            let b = device(Kind::B);
+            // SAFETY: two live test devices; `b` is not derived yet.
+            unsafe { fx::set_source_device(b.as_c_ptr(), a.as_c_ptr()) };
+            assert_eq!(count(a.as_c_ptr()), 2);
+            let found = b.as_ref().derive(DeviceType::VAAPI).unwrap();
+            assert!(found.as_ref().ptr_eq(a.as_ref()));
+            assert_eq!(count(a.as_c_ptr()), 3);
+            let options = Dict::from_entries([(c"k", c"v")]).unwrap();
+            let itself = b
+                .as_ref()
+                .derive_with_options(DeviceType::DRM, &options)
+                .unwrap();
+            assert!(itself.as_ref().ptr_eq(b.as_ref()));
+            assert_eq!(a.as_ref().derive(DeviceType::DRM).err(), Some(ENOMEM_));
+            assert_eq!(
+                a.as_ref()
+                    .derive_with_options(DeviceType::CUDA, &options)
+                    .err(),
+                Some(ENOMEM_)
+            );
+            // C references the chain's device unchecked: a result past the
+            // limit is released.
+            set_count(a.as_c_ptr(), MAX_REFERENCES);
+            assert_eq!(b.as_ref().derive(DeviceType::VAAPI).err(), Some(ENOMEM_));
+            assert_eq!(count(a.as_c_ptr()) as c_uint, MAX_REFERENCES);
+            set_count(a.as_c_ptr(), 3);
+            drop((found, itself, b));
+            assert_eq!(count(a.as_c_ptr()), 1);
+            drop(a);
+            fx::take_events();
+        }
+
+        #[test]
+        fn hw_configs_follow_the_backend() {
+            let a = device(Kind::A);
+            let mut config = a.as_ref().alloc_hw_config().unwrap();
+            assert_eq!(config.device_type(), DeviceType::VAAPI);
+            assert_eq!(config.as_ptr(), config.as_mut_ptr().cast_const());
+            let start = config.as_ptr().cast::<u8>();
+            // SAFETY: the backend's configuration size, zeroed by C.
+            let bytes = unsafe { core::slice::from_raw_parts(start, HWCONFIG_SIZE) };
+            assert!(bytes.iter().all(|&b| b == 0));
+            assert_eq!(format!("{config:?}"), "HwConfig { device_type: VAAPI, .. }");
+            drop(a);
+            assert_eq!(
+                fx::take_events(),
+                [Event::DeviceUninit(Kind::A), Event::DeviceFreed(Kind::A)]
+            );
+            // The configuration outlives its device.
+            drop(config);
+            assert!(device(Kind::B).as_ref().alloc_hw_config().is_none());
+            fx::take_events();
+        }
+
+        #[test]
+        fn frames_init_checks_format_size_and_backend() {
+            let a = device(Kind::A);
+            fx::take_events();
+            // Not filled in: no format.
+            let uninit = a.as_ref().alloc_frames().unwrap();
+            assert_eq!(format!("{uninit:?}"), "UninitFrames(..)");
+            assert_eq!(count(a.as_c_ptr()), 2);
+            assert_eq!(uninit.init().err(), Some(ENOSYS));
+            assert_eq!(count(a.as_c_ptr()), 1);
+            // C uninits a context it releases, initialised or not.
+            assert_eq!(fx::take_events(), [Event::FramesUninit(Kind::A)]);
+            // Another backend's format.
+            let mut uninit = a.as_ref().alloc_frames().unwrap();
+            // SAFETY: the uninitialised context `uninit` owns.
+            unsafe { fx::fill_frames(uninit.as_mut_ptr(), Kind::B, 8, 8, 0) };
+            assert_eq!(uninit.init().err(), Some(ENOSYS));
+            // A size C refuses.
+            let mut uninit = a.as_ref().alloc_frames().unwrap();
+            // SAFETY: as above.
+            unsafe { fx::fill_frames(uninit.as_mut_ptr(), Kind::A, 0, 8, 0) };
+            assert_eq!(uninit.init().err(), Some(EINVAL_));
+            assert_eq!(
+                fx::take_events(),
+                [Event::FramesUninit(Kind::A), Event::FramesUninit(Kind::A)]
+            );
+            // The backend's failure.
+            let failing = FramesHwctx {
+                init_ret: -9,
+                ..FramesHwctx::default()
+            };
+            assert_eq!(frames_with(&a, Kind::A, failing, 0).err(), Some(-9));
+            assert_eq!(
+                fx::take_events(),
+                [Event::FramesInit(Kind::A), Event::FramesUninit(Kind::A)]
+            );
+            // Preallocation runs `get_buffer` for each frame.
+            let frames = frames_with(&a, Kind::A, FramesHwctx::default(), 3).unwrap();
+            assert_eq!(
+                fx::take_events(),
+                [
+                    Event::FramesInit(Kind::A),
+                    Event::GetBuffer(Kind::A),
+                    Event::GetBuffer(Kind::A),
+                    Event::GetBuffer(Kind::A)
+                ]
+            );
+            assert_eq!(count(frames.as_c_ptr()), 1);
+            // A preallocation failure fails the init.
+            let failing = FramesHwctx {
+                get_buffer_ret: -4,
+                ..FramesHwctx::default()
+            };
+            assert_eq!(frames_with(&a, Kind::A, failing, 2).err(), Some(-4));
+            assert_eq!(
+                fx::take_events(),
+                [
+                    Event::FramesInit(Kind::A),
+                    Event::GetBuffer(Kind::A),
+                    Event::FramesUninit(Kind::A)
+                ]
+            );
+            drop((frames, a));
+            fx::take_events();
+        }
+
+        #[test]
+        fn hardware_frames_hold_their_context_and_outlive_its_box() {
+            let a = device(Kind::A);
+            let frames = frames(&a, Kind::A);
+            let frame = frames.as_ref().get_buffer().unwrap();
+            assert_eq!(fx::take_events(), [Event::GetBuffer(Kind::A)]);
+            assert_eq!(frame.format(), PixelFormat::VAAPI);
+            assert_eq!((frame.width(), frame.height()), (64, 32));
+            assert!(frame.frames().ptr_eq(frames.as_ref()));
+            assert_eq!(count(frames.as_c_ptr()), 2);
+            let copy = frames.clone();
+            assert!(copy.as_ref().ptr_eq(frame.frames()));
+            assert_eq!(count(frames.as_c_ptr()), 3);
+            drop(copy);
+            assert_eq!(
+                format!("{frame:?}"),
+                "HardwareFrame { format: VAAPI, width: 64, height: 32, .. }"
+            );
+            // SAFETY: a read of the frame's fields, which C filled.
+            let shape = unsafe { fx::shape(frame.frame.as_c_ptr()) };
+            assert!(shape.bufs[0] && shape.data[3] && shape.has_frames && shape.own_extended);
+            // The parents go first; the frame keeps them.
+            drop((frames, a));
+            assert!(fx::take_events().is_empty());
+            let again = frame.frames().get_buffer().unwrap();
+            drop(frame);
+            drop(again);
+            assert_eq!(
+                fx::take_events(),
+                [
+                    Event::GetBuffer(Kind::A),
+                    Event::FramesUninit(Kind::A),
+                    Event::DeviceUninit(Kind::A),
+                    Event::DeviceFreed(Kind::A)
+                ]
+            );
+        }
+
+        #[test]
+        fn get_buffer_reports_c_failures() {
+            let a = device(Kind::A);
+            let failing = FramesHwctx {
+                get_buffer_ret: -12345,
+                ..FramesHwctx::default()
+            };
+            let frames = frames_with(&a, Kind::A, failing, 0).unwrap();
+            assert_eq!(frames.as_ref().get_buffer().err(), Some(-12345));
+            assert_eq!(count(frames.as_c_ptr()), 1);
+            let poolless = FramesHwctx {
+                no_pool: 1,
+                ..FramesHwctx::default()
+            };
+            let frames = frames_with(&a, Kind::A, poolless, 0).unwrap();
+            assert_eq!(frames.as_ref().get_buffer().err(), Some(EINVAL_));
+            set_count(frames.as_c_ptr(), MAX_REFERENCES);
+            assert_eq!(frames.as_ref().get_buffer().err(), Some(ENOMEM_));
+            set_count(frames.as_c_ptr(), 1);
+            drop((frames, a));
+            fx::take_events();
+        }
+
+        #[test]
+        fn maps_to_memory_hold_the_source_frame() {
+            let a = device(Kind::A);
+            let frames = frames(&a, Kind::A);
+            let frame = frames.as_ref().get_buffer().unwrap();
+            fx::take_events();
+            let mapped = frame.map(PixelFormat::NONE, MapFlags::READ).unwrap();
+            assert_eq!(fx::take_events(), [Event::MapFrom(Kind::A)]);
+            assert_eq!(mapped.format(), PixelFormat::NV12);
+            assert_eq!((mapped.width(), mapped.height()), (64, 32));
+            assert_eq!(
+                format!("{mapped:?}"),
+                "MappedFrame { format: NV12, width: 64, height: 32, .. }"
+            );
+            let explicit = frame
+                .map(PixelFormat::NV12, MapFlags::READ | MapFlags::WRITE)
+                .unwrap();
+            assert_eq!(
+                frame.map(PixelFormat::YUV420P, MapFlags::empty()).err(),
+                Some(ENOSYS)
+            );
+            assert_eq!(
+                fx::take_events(),
+                [Event::MapFrom(Kind::A), Event::MapFrom(Kind::A)]
+            );
+            // The mappings keep the frame, its context and device alive.
+            drop((frame, frames, a, explicit));
+            assert_eq!(fx::take_events(), [Event::Unmap(Kind::A)]);
+            drop(mapped);
+            assert_eq!(
+                fx::take_events(),
+                [
+                    Event::Unmap(Kind::A),
+                    Event::FramesUninit(Kind::A),
+                    Event::DeviceUninit(Kind::A),
+                    Event::DeviceFreed(Kind::A)
+                ]
+            );
+        }
+
+        #[test]
+        fn maps_refuse_the_own_context_and_wrapping_counts() {
+            let a = device(Kind::A);
+            let frames = frames(&a, Kind::A);
+            let frame = frames.as_ref().get_buffer().unwrap();
+            assert_eq!(
+                frame.map_to(frames.as_ref(), MapFlags::READ).err(),
+                Some(EINVAL_)
+            );
+            assert_eq!(
+                frame.map_to(frame.frames(), MapFlags::READ).err(),
+                Some(EINVAL_)
+            );
+            // SAFETY: the frame's first buffer, a live reference it owns.
+            let surface = unsafe { addr_of!((*frame.frame.as_c_ptr()).buf[0]).read() };
+            set_count(surface, MAX_REFERENCES);
+            assert_eq!(
+                frame.map(PixelFormat::NONE, MapFlags::READ).err(),
+                Some(ENOMEM_)
+            );
+            set_count(surface, 1);
+            let failing = FramesHwctx {
+                map_ret: -3,
+                ..FramesHwctx::default()
+            };
+            let other = frames_with(&a, Kind::A, failing, 0).unwrap();
+            let failing_frame = other.as_ref().get_buffer().unwrap();
+            fx::take_events();
+            assert_eq!(
+                failing_frame.map(PixelFormat::NONE, MapFlags::READ).err(),
+                Some(-3)
+            );
+            // A's `map_from` fails; no `map_to` is tried after a real error.
+            assert_eq!(
+                failing_frame.map_to(frames.as_ref(), MapFlags::READ).err(),
+                Some(-3)
+            );
+            assert_eq!(
+                fx::take_events(),
+                [Event::MapFrom(Kind::A), Event::MapFrom(Kind::A)]
+            );
+            drop((failing_frame, other, frame, frames, a));
+            fx::take_events();
+        }
+
+        #[test]
+        fn maps_into_another_context_and_back() {
+            let a = device(Kind::A);
+            let b = device(Kind::B);
+            let fa = frames(&a, Kind::A);
+            let fb = frames(&b, Kind::B);
+            let frame = fa.as_ref().get_buffer().unwrap();
+            fx::take_events();
+            // SAFETY: the frame's first buffer, a live reference it owns.
+            let surface = unsafe { addr_of!((*frame.frame.as_c_ptr()).buf[0]).read() };
+            set_count(surface, MAX_REFERENCES);
+            assert_eq!(
+                frame.map_to(fb.as_ref(), MapFlags::READ).err(),
+                Some(ENOMEM_)
+            );
+            set_count(surface, 1);
+            assert!(fx::take_events().is_empty());
+            // A maps the frame into B's context itself.
+            let into_b = frame.map_to(fb.as_ref(), MapFlags::READ).unwrap();
+            assert_eq!(fx::take_events(), [Event::MapFrom(Kind::A)]);
+            assert_eq!(into_b.format(), PixelFormat::DRM_PRIME);
+            assert!(into_b.frames().ptr_eq(fb.as_ref()));
+            // When A declines, B's `map_to` maps it.
+            let declining = FramesHwctx {
+                map_ret: ENOSYS,
+                ..FramesHwctx::default()
+            };
+            let fa2 = frames_with(&a, Kind::A, declining, 0).unwrap();
+            let frame2 = fa2.as_ref().get_buffer().unwrap();
+            fx::take_events();
+            let into_b2 = frame2.map_to(fb.as_ref(), MapFlags::WRITE).unwrap();
+            assert_eq!(
+                fx::take_events(),
+                [Event::MapFrom(Kind::A), Event::MapTo(Kind::B)]
+            );
+            // B maps nothing out of its own frames.
+            assert_eq!(
+                into_b.map(PixelFormat::NONE, MapFlags::READ).err(),
+                Some(ENOSYS)
+            );
+            assert_eq!(
+                into_b.map_to(fa.as_ref(), MapFlags::READ).err(),
+                Some(ENOSYS)
+            );
+            assert!(fx::take_events().is_empty());
+            drop((into_b, into_b2, frame, frame2, fa, fa2, fb, a, b));
+            fx::take_events();
+        }
+
+        #[test]
+        fn derived_frames_map_their_allocations_and_unmap() {
+            let a = device(Kind::A);
+            let b = device(Kind::B);
+            let fa = frames(&a, Kind::A);
+            let derived = fa
+                .as_ref()
+                .derive(
+                    PixelFormat::DRM_PRIME,
+                    b.as_ref(),
+                    MapFlags::READ | MapFlags::WRITE,
+                )
+                .unwrap();
+            assert_eq!(fx::take_events(), [Event::DeriveFrom(Kind::A)]);
+            assert!(!derived.as_ref().ptr_eq(fa.as_ref()));
+            assert_eq!(count(fa.as_c_ptr()), 2);
+            // Allocated in A's context, mapped into B's.
+            let frame = derived.as_ref().get_buffer().unwrap();
+            assert_eq!(
+                fx::take_events(),
+                [Event::GetBuffer(Kind::A), Event::MapFrom(Kind::A)]
+            );
+            assert_eq!(frame.format(), PixelFormat::DRM_PRIME);
+            assert!(frame.frames().ptr_eq(derived.as_ref()));
+            // Mapping it back into A's context unmaps it: the source frame.
+            let source = frame.map_to(fa.as_ref(), MapFlags::READ).unwrap();
+            assert!(fx::take_events().is_empty());
+            assert!(source.frames().ptr_eq(fa.as_ref()));
+            assert_eq!(source.format(), PixelFormat::VAAPI);
+            // Deriving the derived context back onto A's device unmaps it.
+            let back = derived
+                .as_ref()
+                .derive(PixelFormat::VAAPI, a.as_ref(), MapFlags::empty())
+                .unwrap();
+            assert!(back.as_ref().ptr_eq(fa.as_ref()));
+            assert!(fx::take_events().is_empty());
+            // ...and past the limit, that reference is released.
+            set_count(fa.as_c_ptr(), MAX_REFERENCES);
+            assert_eq!(
+                derived
+                    .as_ref()
+                    .derive(PixelFormat::VAAPI, a.as_ref(), MapFlags::empty())
+                    .err(),
+                Some(ENOMEM_)
+            );
+            set_count(fa.as_c_ptr(), MAX_REFERENCES);
+            assert_eq!(
+                fa.as_ref()
+                    .derive(PixelFormat::DRM_PRIME, b.as_ref(), MapFlags::empty())
+                    .err(),
+                Some(ENOMEM_)
+            );
+            // The box, the derived context's source, the mapping's source
+            // frame, the unmapped frame and the unmapping's reference.
+            set_count(fa.as_c_ptr(), 5);
+            drop((source, frame));
+            // The mapping was made in the derived context, of kind B.
+            assert_eq!(fx::take_events(), [Event::Unmap(Kind::B)]);
+            drop((back, derived));
+            assert_eq!(fx::take_events(), [Event::FramesUninit(Kind::B)]);
+            assert_eq!(count(fa.as_c_ptr()), 1);
+            drop((fa, a, b));
+            fx::take_events();
+        }
+
+        #[test]
+        fn frames_derivations_fall_back_and_fail_as_the_backends_say() {
+            let a = device(Kind::A);
+            let b = device(Kind::B);
+            let declining = FramesHwctx {
+                derive_ret: ENOSYS,
+                ..FramesHwctx::default()
+            };
+            let fa = frames_with(&a, Kind::A, declining, 0).unwrap();
+            fx::take_events();
+            let derived = fa
+                .as_ref()
+                .derive(PixelFormat::DRM_PRIME, b.as_ref(), MapFlags::READ)
+                .unwrap();
+            assert_eq!(
+                fx::take_events(),
+                [Event::DeriveFrom(Kind::A), Event::DeriveTo(Kind::B)]
+            );
+            // A context neither backend derives is still made: C leaves the
+            // mapping to each allocation.
+            let derived2 = fa
+                .as_ref()
+                .derive(PixelFormat::VAAPI, a.as_ref(), MapFlags::READ)
+                .unwrap();
+            assert_eq!(fx::take_events(), [Event::DeriveFrom(Kind::A)]);
+            let failing = FramesHwctx {
+                derive_ret: -21,
+                ..FramesHwctx::default()
+            };
+            let fa3 = frames_with(&a, Kind::A, failing, 0).unwrap();
+            fx::take_events();
+            assert_eq!(
+                fa3.as_ref()
+                    .derive(PixelFormat::DRM_PRIME, b.as_ref(), MapFlags::READ)
+                    .err(),
+                Some(-21)
+            );
+            assert_eq!(
+                fx::take_events(),
+                [Event::DeriveFrom(Kind::A), Event::FramesUninit(Kind::B)]
+            );
+            set_count(b.as_c_ptr(), MAX_REFERENCES);
+            assert_eq!(
+                fa.as_ref()
+                    .derive(PixelFormat::DRM_PRIME, b.as_ref(), MapFlags::READ)
+                    .err(),
+                Some(ENOMEM_)
+            );
+            set_count(b.as_c_ptr(), 2);
+            drop((derived, derived2, fa, fa3, a, b));
+            fx::take_events();
+        }
+
+        thread_local! {
+            static FREED: core::cell::Cell<usize> = const { core::cell::Cell::new(0) };
+        }
+
+        /// A frames context's `free` callback: counts the call and checks
+        /// the user data it was given.
+        unsafe extern "C" fn count_free(ctx: *mut ffi::AVHWFramesContext) {
+            // SAFETY: C passes the live context being released.
+            let opaque = unsafe { (*ctx).user_opaque };
+            assert_eq!(opaque.addr(), 0x5eed);
+            FREED.with(|f| f.set(f.get() + 1));
+        }
+
+        /// C runs the `free` filled in through the seam once, after the
+        /// backend's uninit, when the last reference goes.
+        #[test]
+        fn frames_free_callbacks_run_at_the_last_release() {
+            let a = device(Kind::A);
+            let mut uninit = a.as_ref().alloc_frames().unwrap();
+            let p = uninit.as_mut_ptr();
+            // SAFETY: the uninitialised context `uninit` owns.
+            unsafe {
+                fx::fill_frames(p, Kind::A, 4, 4, 0);
+                (*p).free = Some(count_free);
+                (*p).user_opaque = ptr::without_provenance_mut(0x5eed);
+            }
+            let frames = uninit.init().unwrap();
+            let frame = frames.as_ref().get_buffer().unwrap();
+            drop(frames);
+            assert_eq!(FREED.with(core::cell::Cell::get), 0);
+            fx::take_events();
+            drop(frame);
+            assert_eq!(FREED.with(core::cell::Cell::get), 1);
+            assert_eq!(fx::take_events(), [Event::FramesUninit(Kind::A)]);
+            drop(a);
+            fx::take_events();
+        }
+
+        /// A derived context reports its source's allocation failure, and
+        /// a target backend's mapping failure ends the mapping.
+        #[test]
+        fn derived_allocations_and_target_mappings_report_failures() {
+            let a = device(Kind::A);
+            let b = device(Kind::B);
+            let failing = FramesHwctx {
+                get_buffer_ret: -6,
+                map_ret: ENOSYS,
+                ..FramesHwctx::default()
+            };
+            let fa = frames_with(&a, Kind::A, failing, 0).unwrap();
+            let derived = fa
+                .as_ref()
+                .derive(PixelFormat::DRM_PRIME, b.as_ref(), MapFlags::READ)
+                .unwrap();
+            fx::take_events();
+            assert_eq!(derived.as_ref().get_buffer().err(), Some(-6));
+            assert_eq!(fx::take_events(), [Event::GetBuffer(Kind::A)]);
+            let refusing = FramesHwctx {
+                map_ret: -7,
+                ..FramesHwctx::default()
+            };
+            let fb = frames_with(&b, Kind::B, refusing, 0).unwrap();
+            let fa2 = frames_with(
+                &a,
+                Kind::A,
+                FramesHwctx {
+                    map_ret: ENOSYS,
+                    ..FramesHwctx::default()
+                },
+                0,
+            )
+            .unwrap();
+            let frame = fa2.as_ref().get_buffer().unwrap();
+            fx::take_events();
+            assert_eq!(frame.map_to(fb.as_ref(), MapFlags::READ).err(), Some(-7));
+            assert_eq!(
+                fx::take_events(),
+                [Event::MapFrom(Kind::A), Event::MapTo(Kind::B)]
+            );
+            drop((frame, fa2, fb, derived, fa, a, b));
+            fx::take_events();
+        }
+
+        #[test]
+        fn name_lookups_take_any_c_string() {
+            let long = std::ffi::CString::new("x".repeat(4096)).unwrap();
+            assert_eq!(DeviceType::from_name(&long), None);
+            let names: Vec<&CStr> = NAMED.iter().filter_map(|&(t, _)| t.name()).collect();
+            assert_eq!(names.len(), 14);
         }
     }
 }
