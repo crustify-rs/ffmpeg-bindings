@@ -1323,7 +1323,9 @@ mod mutation {
         // Mutators run, and C's copies, in-place resizes and same-buffer
         // assignments, so that the sequences demonstrably reach every path.
         let (mut mutated, mut paths) = (0usize, [0usize; 3]);
-        for seed in 1..=16u64 {
+        let seeds = seeds();
+        let count = seeds.clone().count();
+        for seed in seeds {
             let (mut rust, mut c) = (RustSide::default(), CSide::default());
             for (i, op) in ops(seed * 0x9e37_79b9, 200).into_iter().enumerate() {
                 let op = match op {
@@ -1358,8 +1360,21 @@ mod mutation {
             );
             paths.iter_mut().zip(c.paths).for_each(|(p, n)| *p += n);
         }
-        assert!(mutated > 800, "{mutated}");
-        assert!(paths.iter().all(|&n| n > 10), "{paths:?}");
+        assert!(mutated > 50 * count, "{mutated}");
+        assert!(paths.iter().all(|&n| n > count * 10 / 16), "{paths:?}");
+    }
+
+    /// The seeds `sequences_mutate_count_and_release_as_c` runs: 1 to 16,
+    /// or only 2 under BorrowSanitizer, which takes about 13 minutes per
+    /// seed there (all 16 ran past the gate's two-hour limit). Seed 2 alone
+    /// reaches all three of C's paths the test counts; seed 1 misses the
+    /// same-buffer assignment.
+    fn seeds() -> core::ops::RangeInclusive<u64> {
+        if std::env::var("CRUSTIFY_FFMPEG_VARIANT").as_deref() == Ok("bsan") {
+            2..=2
+        } else {
+            1..=16
+        }
     }
 }
 
