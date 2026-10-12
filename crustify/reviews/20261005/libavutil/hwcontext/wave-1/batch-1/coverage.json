@@ -1,0 +1,32 @@
+{
+  "method": {
+    "rust": "RUSTFLAGS='-C instrument-coverage' CRUSTIFY_FFMPEG_VARIANT=coverage cargo +nightly test --lib --tests -- hwcontext --skip compile_fail; nightly llvm-profdata merge + llvm-cov report over the four test binaries, for libavutil/hwcontext.rs",
+    "c": "the same run, GCOV_PREFIX into a private dir; gcov 13 -b -c -f over src/libavutil/hwcontext.c with the coverage build's .gcno",
+    "note": "base = the wave tip b9dbecd340; fixed = this review's tree. The home also holds the wave's types (batch 0) and the wave-0 enums, so the Rust figures cover the whole file."
+  },
+  "rust": {
+    "libavutil/hwcontext.rs": {
+      "base": {"regions": {"count": 2988, "missed": 29, "percent": 99.03}, "functions": {"count": 244, "missed": 5, "percent": 97.95}, "lines": {"count": 2208, "missed": 14, "percent": 99.37}},
+      "fixed": {"regions": {"count": 3332, "missed": 28, "percent": 99.16}, "functions": {"count": 258, "missed": 5, "percent": 98.06}, "lines": {"count": 2388, "missed": 13, "percent": 99.46}}
+    }
+  },
+  "c": {
+    "libavutil/hwcontext.c": {
+      "base": {"lines": {"count": 428, "percent": 78.04}, "branches_taken": {"count": 222, "percent": 70.72}, "calls": {"count": 96, "percent": 75.0}},
+      "fixed": {"lines": {"count": 428, "percent": 78.04}, "branches_taken": {"count": 222, "percent": 70.72}, "calls": {"count": 96, "percent": 75.0}}
+    }
+  },
+  "uncovered": {
+    "rust": [
+      "DeviceReference::create's success (hwcontext.rs ~906): needs a compiled-in backend's device_create; hw_table is empty under --disable-autodetect (environment-dependent)",
+      "HardwareFrame::may_reference_all's extended_buf walk (~1643-1651): no backend, real or test, gives hardware frames extended buffers (environment-dependent)",
+      "release_hooks' NULL-handle branch (~2027) and a unit test's never-called free callback (~4549): the type batch's DeviceContext, outside this workset"
+    ],
+    "c": [
+      "av_hwdevice_ctx_create past allocation (627-644) and av_hwdevice_ctx_create_derived_opts' new-device path (679-706): av_hwdevice_ctx_alloc succeeds only for a compiled-in backend (environment-dependent)",
+      "allocation failures of av_hwframe_ctx_alloc (279-306), hwframe_pool_prealloc (322), the chain reference (666-667) and av_hwframe_ctx_create_derived (894-918): later, smaller allocations than ones that succeed, which av_max_alloc cannot fail alone (OOM, nondeterministic)",
+      "ff_hwframe_unmap, ff_hwframe_map_create, ff_hwframe_map_replace (726-790, 948-951): internal helpers only real backends call; the test backends mirror them",
+      "av_hwframe_map's own-context unmapping condition (806) and its 'Invalid mapping' refusal (815-817): HardwareFrame::map_to refuses the own context before C, and every hardware frame has buf[0] (unreachable through the wrappers)"
+    ]
+  }
+}
