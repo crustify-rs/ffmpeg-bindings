@@ -1,0 +1,7 @@
+batch-1 exit 0 at 07:13
+purged crustify/.worktrees/crustify/review-batches/20261005/libavutil/hwcontext/wave-2/batch-1
+batch-1 scan-unsafe.json 
+batch-0 exit 0 at 08:53
+purged crustify/.worktrees/crustify/review-batches/20261005/libavutil/hwcontext/wave-2/batch-0
+batch-0 scan-unsafe.json 
+all 2 batches exited

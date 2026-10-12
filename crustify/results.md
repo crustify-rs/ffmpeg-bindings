@@ -34,8 +34,8 @@ Thin batches with `"objective": "review"`, LLM-as-a-Judge over each landed wave.
 - **`--max-loc`** — `500` (wave 0); unbounded from wave 1
 - **`--min-fields`** — `20`
 - **orchestrator parallelism** — up to `16` concurrent batch processes from `libavutil/options`; `10` before
-- **branch** — `crustify/reviews/20261005/libavutil/buffer-frame/wave-4`, tip `a7d919e1f2`
-- **agents** — `46` (one stopped by the provider), over `20` wave(s)
+- **branch** — `crustify/reviews/20261005/libavutil/hwcontext/wave-2`, tip `053a37e435`
+- **agents** — `51` (one stopped by the provider), over `23` wave(s)
 
 `rv`-prefixed columns below carry the review pass; the unprefixed ones remain
 the campaign's.
@@ -145,8 +145,8 @@ in Notes.
 - **total symbols** — `1126`
 - **ported types** — `<n>`
 - **ported symbols** — `<n>`
-- **wrapped types** — `77` (`26.55`% of total types)
-- **wrapped symbols** — `498` (`44.23`% of total symbols)
+- **wrapped types** — `82` (`28.28`% of total types)
+- **wrapped symbols** — `516` (`45.83`% of total symbols)
 
 Implementation `openrouter/anthropic/claude-opus-5.5` via `claude` (`openrouter/openai/gpt-6.1-sol` via `codex` for `libavutil/crypto`); review
 `openrouter/anthropic/claude-opus-5.5` via `claude`.
@@ -160,6 +160,7 @@ Implementation `openrouter/anthropic/claude-opus-5.5` via `claude` (`openrouter/
 | `libavutil/options` | `6` | `78` | `6h15m34s` | `$122.01` | `366.96M` | `$63.52` | `181.86M` | `$185.53` | `548.82M` | `$6.15` | `$1.91` |
 | `libavutil/crypto` | `19` | `103` | `4h26m50s` | `$46.14` | `171.31M` | `$38.22` | `108.22M` | `$84.36` | `279.52M` | `$2.48` | `$0.36` |
 | `libavutil/buffer-frame` | `12` | `58` | `10h58m03s` | `$130.04` | `372.78M` | `$89.40` | `226.96M` | `$219.44` | `599.74M` | `$8.59` | `$2.01` |
+| `libavutil/hwcontext` | `5` | `18` | `5h15m53s` | `$66.73` | `200.49M` | `$51.09` | `132.67M` | `$117.82` | `333.17M` | `$14.64` | `$2.48` |
 | `<link-unit>/<subsystem>` | `<n>` | `<n>` | `<n>h<n>m<n>s` | `$<n>` | `<n>M` | `$<n>` | `<n>M` | `$<n>` | `<n>M` | `$<n>` | `$<n>` |
 | orchestrator | `<n>` | `<n>` | — | — | — | — | — | `$<n>`+ | `<n>M`+ | — | — |
 | **Σ recorded agents** | **`<n>`** | **`<n>`** | **`<n>h<n>m`** | **`$<n>`** | **`<n>M`** | **`$<n>`** | **`<n>M`** | **`$<n>`** | **`<n>M`** | **`$<n>`** | **`$<n>`** |
@@ -239,7 +240,8 @@ Implementation `openrouter/anthropic/claude-opus-5.5` via `claude` (`openrouter/
 |`libavutil/buffer-frame`|`3`|`0`| `1` | `40` |`+3228/-230`| `71.01`% / `98.30`% | `+5` | `+17` | `$19.23` | `59.69M` | `64m31s` | `$19.23` | `$0.48` |
 |`libavutil/hwcontext`|`0`|`0`| `2` | `0` |`+548/-0`| `72.49`% / `98.37`% | `0` | `0` | `$2.84` | `6.64M` | `12m09s` | `$1.42` | `—` |
 |`libavutil/hwcontext`|`1`|`0`| `2` | `11` |`+2151/-10`| `75.07`% / `97.76`% | `+3` | `0` | `$25.46` | `84.94M` | `85m00s` | `$12.73` | `$2.31` |
-| **Σ** |  |  | **`81`** | **`162`** | **`+42256/-429`** | **`75.07`% / `97.76`%** | **`+26`** | **`+45`** | **`$280.03`** | **`793.97M`** | — | **`$3.46`** | **`$1.73`** |
+|`libavutil/hwcontext`|`2`|`0`| `1` | `12` |`+1844/-170`| `75.08`% / `97.78`% | `+4` | `0` | `$11.06` | `33.26M` | `41m54s` | `$11.06` | `$0.92` |
+| **Σ** |  |  | **`82`** | **`174`** | **`+44100/-599`** | **`75.08`% / `97.78`%** | **`+30`** | **`+45`** | **`$291.09`** | **`827.23M`** | — | **`$3.55`** | **`$1.67`** |
 
 ### Batches — wrap: tests
 
@@ -294,7 +296,8 @@ Implementation `openrouter/anthropic/claude-opus-5.5` via `claude` (`openrouter/
 |`libavutil/buffer-frame`|`3`|`0`|`+13` (`+1.76`/`+0.13` pp)|`+7` (`+2.64`/`+1.13` pp)|`+3` (`+1.08`/`-0.16` pp)|`+14` (`+1.59`/`-1.07` pp)|
 |`libavutil/hwcontext`|`0`|`0`|`+6` (`+0.00`/`-0.03` pp)|`+0` (`-0.02`/`-0.10` pp)|`+6` (`+0.10`/`+0.06` pp)|`+9` (`+0.00`/`+0.06` pp)|
 |`libavutil/hwcontext`|`1`|`0`|`+4` (`+0.05`/`-1.61` pp)|`+14` (`+0.23`/`+0.56` pp)|`+7` (`+0.15`/`-0.73` pp)|`+18` (`+0.15`/`+0.36` pp)|
-| **Σ** |  |  | **`+377` (`+15.55`/`-3.10` pp)** | **`+77` (`+6.63`/`+9.85` pp)** | **`+266` (`+32.61`/`-43.69` pp)** | **`+448` (`+18.82`/`-9.25` pp)** |
+|`libavutil/hwcontext`|`2`|`0`|`+0` (`+0.00`/`-1.26` pp)|`+10` (`+0.77`/`+1.29` pp)|`+5` (`+0.02`/`-0.06` pp)|`+13` (`+0.01`/`+0.24` pp)|
+| **Σ** |  |  | **`+377` (`+15.55`/`-4.36` pp)** | **`+87` (`+7.40`/`+11.14` pp)** | **`+271` (`+32.63`/`-43.75` pp)** | **`+461` (`+18.83`/`-9.01` pp)** |
 
 ### Batches — port
 
@@ -343,7 +346,8 @@ Implementation `openrouter/anthropic/claude-opus-5.5` via `claude` (`openrouter/
 |`libavutil/buffer-frame`|`3`|`0`| `1` |`+258/-3`| `71.09`% / `98.31`% | `0` | `0` | `+377/-18` | `$10.42` | `30.90M` | `32m45s` | `$10.42` |
 |`libavutil/hwcontext`|`0`|`0`| `2` |`+0/-0`| `72.49`% / `98.37`% | `0` | `0` | `+15/-8` | `$2.28` | `4.71M` | `9m50s` | `$1.14` |
 |`libavutil/hwcontext`|`1`|`0`| `2` |`+19/-0`| `75.07`% / `97.76`% | `0` | `0` | `+40/-8` | `$6.88` | `20.45M` | `22m16s` | `$3.44` |
-| **Σ** |  |  | **`81`** | **`+3329/-216`** | **`75.07`% / `97.76`%** | **`-2`** | **`-2`** | **`+4676/-436`** | **`$308.36`** | **`430.86M`** | — | **`$3.81`** |
+|`libavutil/hwcontext`|`2`|`0`| `1` |`+291/-28`| `75.12`% / `97.79`% | `-1` | `0` | `+460/-79` | `$24.69` | `55.21M` | `116m00s` | `$24.69` |
+| **Σ** |  |  | **`82`** | **`+3620/-244`** | **`75.12`% / `97.79`%** | **`-3`** | **`-2`** | **`+5136/-515`** | **`$333.05`** | **`486.07M`** | — | **`$4.06`** |
 
 ### Batches — review: tests
 
@@ -374,7 +378,8 @@ Implementation `openrouter/anthropic/claude-opus-5.5` via `claude` (`openrouter/
 |`libavutil/buffer-frame`|`3`|`0`|`+0` (`+0.00`/`+0.00` pp)|`+2` (`+0.04`/`+0.22` pp)|`+1` (`+0.38`/`+0.12` pp)|`+3` (`+0.42`/`+0.34` pp)|
 |`libavutil/hwcontext`|`0`|`0`|`+0` (`+0.00`/`-0.01` pp)|`+0` (`+0.02`/`+0.00` pp)|`+0` (`+0.00`/`+0.00` pp)|`+0` (`+0.00`/`+0.00` pp)|
 |`libavutil/hwcontext`|`1`|`0`|`+0` (`+0.00`/`+0.00` pp)|`+0` (`+0.00`/`+0.00` pp)|`+0` (`+0.00`/`+0.00` pp)|`+1` (`+0.00`/`+0.00` pp)|
-| **Σ** |  |  | **`+20` (`+0.00`/`-0.42` pp)** | **`+0` (`+0.07`/`-0.62` pp)** | **`+26` (`+0.44`/`-0.15` pp)** | **`+27` (`+0.44`/`+0.94` pp)** |
+|`libavutil/hwcontext`|`2`|`0`|`+1` (`+0.00`/`+0.03` pp)|`-1` (`+0.02`/`+0.05` pp)|`+1` (`+0.00`/`+0.11` pp)|`+2` (`+0.05`/`+0.03` pp)|
+| **Σ** |  |  | **`+21` (`+0.00`/`-0.39` pp)** | **`-1` (`+0.09`/`-0.57` pp)** | **`+27` (`+0.44`/`-0.04` pp)** | **`+29` (`+0.49`/`+0.97` pp)** |
 
 ### Batches — review: PoC + reports
 
@@ -405,7 +410,8 @@ Implementation `openrouter/anthropic/claude-opus-5.5` via `claude` (`openrouter/
 | `libavutil/buffer-frame` | `3` | `0` | `+0` | `+1` | `+0` | `+2` | `+0` | `+0` | `+0` | `+0` | `3` | `0` |
 | `libavutil/hwcontext` | `0` | `0` | `+0` | `+0` | `+0` | `+0` | `+0` | `+0` | `+0` | `+1` | `1` | `0` |
 | `libavutil/hwcontext` | `1` | `0` | `+0` | `+0` | `+0` | `+0` | `+0` | `+0` | `+0` | `+1` | `1` | `0` |
-| **Σ** |  |  | **`+3`** | **`+6`** | **`+0`** | **`+2`** | **`+0`** | **`+1`** | **`+5`** | **`+24`** | **`41`** | **`0`** |
+| `libavutil/hwcontext` | `2` | `0` | `+0` | `+1` | `+0` | `+0` | `+0` | `+0` | `+0` | `+1` | `2` | `0` |
+| **Σ** |  |  | **`+3`** | **`+7`** | **`+0`** | **`+2`** | **`+0`** | **`+1`** | **`+5`** | **`+25`** | **`43`** | **`0`** |
 
 ## Symbols
 
@@ -448,7 +454,8 @@ Implementation `openrouter/anthropic/claude-opus-5.5` via `claude` (`openrouter/
 |`libavutil/buffer-frame`|`4`|`0`| wrap | `18` | `2634` |`+2634/-29`| `72.39`% / `98.36`% | `0` | `0` | `$22.57` | `71.96M` | `63m09s` | `$1.25` | `$0.009` |
 |`libavutil/hwcontext`|`1`|`1`| wrap | `14` | `2390` |`+2390/-5`| `74.92`% / `97.84`% | `0` | `0` | `$16.16` | `47.13M` | `60m11s` | `$1.15` | `$0.007` |
 |`libavutil/hwcontext`|`1`|`2`| wrap | `2` | `1858` |`+1858/-14`| `72.96`% / `98.05`% | `+2` | `0` | `$9.31` | `24.09M` | `39m54s` | `$4.66` | `$0.005` |
-| **Σ** |  |  |  | **`514`** | **`54511`** | **`+54511/-828`** | **`74.92`% / `97.84`%** | **`+27`** | **`+38`** | **`$428.08`** | **`1182.24M`** | — | **`$0.83`** | **`$0.008`** |
+|`libavutil/hwcontext`|`2`|`1`| wrap | `2` | `0` |`+0/-0`| `75.07`% / `97.77`% | `0` | `0` | `$1.88` | `4.44M` | `12m41s` | `$0.94` | `—` |
+| **Σ** |  |  |  | **`516`** | **`54511`** | **`+54511/-828`** | **`75.07`% / `97.77`%** | **`+27`** | **`+38`** | **`$429.96`** | **`1186.68M`** | — | **`$0.83`** | **`$0.008`** |
 
 ### Batches: tests
 
@@ -489,7 +496,8 @@ Implementation `openrouter/anthropic/claude-opus-5.5` via `claude` (`openrouter/
 |`libavutil/buffer-frame`|`4`|`0`|`+12` (`+1.38`/`+0.51` pp)|`+0` (`+0.00`/`-0.03` pp)|`+9` (`+1.18`/`+0.34` pp)|`+18` (`+1.31`/`+0.80` pp)|
 |`libavutil/hwcontext`|`1`|`1`|`+6` (`+0.26`/`-3.27` pp)|`+0` (`+0.00`/`-1.24` pp)|`+10` (`+1.94`/`-1.81` pp)|`+19` (`+2.02`/`+0.49` pp)|
 |`libavutil/hwcontext`|`1`|`2`|`+2` (`+0.00`/`-2.32` pp)|`+17` (`+0.29`/`+1.27` pp)|`+10` (`+0.47`/`-1.48` pp)|`+17` (`+0.18`/`+0.10` pp)|
-| **Σ** |  |  | **`+377` (`+42.81`/`+12.91` pp)** | **`+86` (`+21.80`/`+14.48` pp)** | **`+381` (`+39.76`/`+22.91` pp)** | **`+434` (`+27.11`/`-8.91` pp)** |
+|`libavutil/hwcontext`|`2`|`1`|`+0` (`+0.00`/`-0.01` pp)|`+0` (`+0.00`/`+0.00` pp)|`+0` (`+0.00`/`+0.00` pp)|`+0` (`+0.00`/`+0.00` pp)|
+| **Σ** |  |  | **`+377` (`+42.81`/`+12.90` pp)** | **`+86` (`+21.80`/`+14.48` pp)** | **`+381` (`+39.76`/`+22.91` pp)** | **`+434` (`+27.11`/`-8.91` pp)** |
 
 ### Batches — review
 
@@ -520,7 +528,8 @@ Implementation `openrouter/anthropic/claude-opus-5.5` via `claude` (`openrouter/
 |`libavutil/buffer-frame`|`3`|`1`| `8` |`+194/-19`| `71.01`% / `98.31`% | `0` | `-1` | `+254/-27` | `$6.66` | `19.47M` | `20m44s` | `$0.83` |
 |`libavutil/buffer-frame`|`4`|`0`| `18` |`+157/-22`| `72.39`% / `98.36`% | `0` | `0` | `+240/-39` | `$26.77` | `48.31M` | `211m34s` | `$1.49` |
 |`libavutil/hwcontext`|`1`|`1`| `16` |`+599/-45`| `75.07`% / `97.77`% | `-1` | `0` | `+885/-116` | `$12.97` | `40.61M` | `34m52s` | `$0.81` |
-| **Σ** |  |  | **`514`** | **`+5348/-831`** | **`75.07`% / `97.77`%** | **`-3`** | **`-3`** | **`+7233/-1320`** | **`$449.31`** | **`687.39M`** | — | **`$0.87`** |
+|`libavutil/hwcontext`|`2`|`1`| `2` |`+118/-0`| `75.08`% / `97.78`% | `0` | `0` | `+154/-0` | `$4.26` | `11.69M` | `15m42s` | `$2.13` |
+| **Σ** |  |  | **`516`** | **`+5466/-831`** | **`75.08`% / `97.78`%** | **`-3`** | **`-3`** | **`+7387/-1320`** | **`$453.57`** | **`699.08M`** | — | **`$0.88`** |
 
 ### Batches — review: tests
 
@@ -551,7 +560,8 @@ Implementation `openrouter/anthropic/claude-opus-5.5` via `claude` (`openrouter/
 |`libavutil/buffer-frame`|`3`|`1`|`+1` (`-0.03`/`+0.02` pp)|`+0` (`+0.00`/`-0.06` pp)|`+1` (`+0.00`/`+0.04` pp)|`+0` (`+0.00`/`-0.18` pp)|
 |`libavutil/buffer-frame`|`4`|`0`|`+1` (`+0.02`/`+0.12` pp)|`+0` (`+0.02`/`+0.06` pp)|`+0` (`+0.00`/`-0.03` pp)|`+1` (`+0.00`/`+0.01` pp)|
 |`libavutil/hwcontext`|`1`|`1`|`+0` (`+0.00`/`-0.39` pp)|`+0` (`+0.02`/`-0.17` pp)|`+3` (`+0.00`/`-0.30` pp)|`+5` (`+0.11`/`+0.24` pp)|
-| **Σ** |  |  | **`+12` (`-0.01`/`-0.12` pp)** | **`+9` (`+0.56`/`+2.57` pp)** | **`+21` (`+0.74`/`+1.10` pp)** | **`+27` (`+0.76`/`+1.10` pp)** |
+|`libavutil/hwcontext`|`2`|`1`|`+0` (`+0.00`/`-0.01` pp)|`+0` (`+0.00`/`+0.00` pp)|`+1` (`-0.01`/`+0.00` pp)|`+0` (`+0.00`/`+0.00` pp)|
+| **Σ** |  |  | **`+12` (`-0.01`/`-0.13` pp)** | **`+9` (`+0.56`/`+2.57` pp)** | **`+22` (`+0.73`/`+1.10` pp)** | **`+27` (`+0.76`/`+1.10` pp)** |
 
 ### Batches — review: PoC + reports
 
@@ -582,6 +592,7 @@ Implementation `openrouter/anthropic/claude-opus-5.5` via `claude` (`openrouter/
 | `libavutil/buffer-frame` | `3` | `1` | — | `+1` | `+1` | `+0` | `+0` | `+0` | `+0` | `+0` | `2` | `0` |
 | `libavutil/buffer-frame` | `4` | `0` | — | `+0` | `+1` | `+0` | `+0` | `+0` | `+0` | `+2` | `3` | `0` |
 | `libavutil/hwcontext` | `1` | `1` | — | `+2` | `+0` | `+0` | `+0` | `+0` | `+0` | `+1` | `3` | `0` |
+| `libavutil/hwcontext` | `2` | `1` | — | `+0` | `+0` | `+0` | `+0` | `+0` | `+0` | `+0` | `0` | `0` |
 | **Σ** |  |  | — | **`+7`** | **`+5`** | **`+6`** | **`+4`** | **`+1`** | **`+10`** | **`+19`** | **`52`** | **`0`** |
 
 ## Safety audit
@@ -2011,3 +2022,79 @@ Wave wall time (22:40Z to 03:16Z on 2026-10-12) was 4h36m16s.
   `CCell` (`7fd89a4fc6`). It was validated with clippy, the whole plain suite, and the refstruct tests
   under ASan/UBSan, TSan and BSan; no smell moved. The sub-campaign and campaign-wide scans were taken
   on that tree.
+
+### `libavutil/hwcontext` wave 0
+
+`hwcontext` is based on `51d267324b`: the campaign tip `f5e8195b9b` plus the `hwcontext` header module.
+Translators and reviewers ran on `openrouter/anthropic/claude-opus-5.5`. Every campaign build is
+configured with `--disable-autodetect` and no hardware backend, so FFmpeg's backend table is empty:
+`av_hwdevice_ctx_alloc` and `create` fail for every device type and no real device or frames context
+exists. The translators therefore built three fake backends in `tests/common/` that mirror the C
+backend structs, so the lifecycle, map, derive, transfer and constraints paths run through C.
+
+Wave 0 is one type batch (`AVHWDeviceType`, `AVHWFrameTransferDirection`). It landed `01f8b6fdbf` at
+03:49Z on 2026-10-12, both items anchored, for `$2.84` (6.6M tokens, 12m09s). Its reviewer (`$2.28`,
+9m50s) corrected `DeviceType`'s docs: `AVHWDeviceContext.type` is read-only after allocation (the
+backends cast `hwctx` by it), so the context gets no type setter. No code defect. Wave wall time was
+24m00s.
+
+### `libavutil/hwcontext` wave 1
+
+One type batch (`AVHWDeviceContext`, `AVHWFramesConstraints`) and two symbol batches (14 device and
+frames-context routines; the transfer pair), based on `6d40d98d24`. All 3 landed between 04:44Z and
+05:29Z, all 18 items anchored, for `$50.94` (156.2M tokens, 3h05m); the type batch alone took
+`$25.46`. The type batch and a symbol batch both designed owners for the same C object, and the
+later landing kept one. `unsafe fn` went from 42 to 47.
+
+### `libavutil/hwcontext` review wave 1
+
+Two reviewers (2 types, 16 symbols) cost `$19.86` for 61.1M tokens and found no UB or equivalence
+defect. The symbols reviewer made the hardware frame transfers and the transfer format listing safe,
+since they had stayed `unsafe` waiting for a frames context wrapper a sibling batch landed in the same
+wave (`unsafe fn` 46). It also completed `UninitFrames::as_mut_ptr`'s contract. The types reviewer
+fixed the device context's free-callback refusal: several backends set `free` without `user_opaque`.
+Wave wall time (04:05Z to 06:06Z) was 2h01m31s.
+
+### `libavutil/hwcontext` wave 2
+
+Wave 2, the sub-campaign's last, is one type batch (`AVHWFramesContext`) and one batch of 2 symbols,
+based on `2003c9654e`. The symbol batch found both symbols already bound by wave 1's type batch as
+`FramesConstraints`' constructor and release, and recorded that (`3897b00e38`, `$1.88`). The type batch
+landed `126a47005b` at 06:52Z for `$11.06` (33.3M tokens, 41m54s). `unsafe fn` went to 50.
+
+### `libavutil/hwcontext` review wave 2
+
+Two reviewers cost `$28.95` for 66.9M tokens. With two last-wave reviewers, only the types reviewer
+ran the workspace BSan gate; the symbols reviewer ran BSan only on its own test (the orchestrator's
+reading of the gate policy, to avoid two concurrent gates).
+
+- **Types reviewer** (1h56m00s, `$24.69`): landed `493e8ef6b8` and `053a37e435`.
+  `unsafe/frame-hw-frames-context-seam-left-untyped`: `frame.rs` had kept `AVFrame.hw_frames_ctx` as a
+  byte-view getter and an untyped unsafe setter until this type existed, and that setter's contract let
+  the safe `FrameRef::try_clone` of a frame without `buf[0]` reach C's unchecked `transfer_data_from`
+  call through the context's backend. Rerun by the orchestrator, the reproducer exits 1 on `126a47005b`
+  (ASan SEGV in `libavutil.so`); on the fixed tree it no longer compiles, because the setter now takes a
+  `FramesReferenceBox` and is safe, and the same scenario through the safe API is a unit test that dies
+  with SIGSEGV without the new refusal. Accepted. Copies of frames holding a frames context are refused
+  (`ENOSYS`). `unsafe fn` 49.
+- **Symbols reviewer** (15m42s, `$4.26`): no defect; added a 12-step constraints query equivalence test.
+
+The BSan gate passed on both trees after thinning wave 1's `constraints_keep_what_they_have_on_enomem`
+(a 64 Ki-element list ran away to 40 GB; 512 elements exercise the same `ENOMEM` path) and skipping one
+more instance of the documented `strtol` end-pointer false positive
+(`misc/bsan-gate-lib-constraints-enomem-runaway`). Wave wall time (06:12Z to 08:52Z) was 2h39m56s.
+
+### `libavutil/hwcontext` sub-campaign totals
+
+- The Overview row counts 5 types and 18 symbols over 3 waves. `$/type` and `$/sym` divide each kind's
+  translation and review cost by its units: types `$73.21` over 5, symbols `$44.58` over 18. The high
+  `$/type` is `AVHWDeviceContext` and `AVHWFramesContext`, whose tests had to build fake backends.
+- Review cost 0.77× translation (`$51.09` against `$66.73`).
+- One reproducer held, reachable from safe code: the frame copy through an untyped hardware frames
+  context, which also closed the last seam `buffer-frame` left open.
+- `sub-campaign wall` runs from the scaffold (03:36Z on 2026-10-12) to the last review landing (08:52Z),
+  5h15m53s, with no pauses. Agent wall time sums to 7h30m: 4h11m translating and 3h18m reviewing.
+- At the end the unseeded scan reads 49 `unsafe fn` and 94 raw-pointer smells (42 and 94 at
+  `buffer-frame`'s end), with an unsafe-LoC ratio of 0.162. The union run covers 75.12% of libavutil's C
+  and 97.79% of the authored Rust, with 968 unit, 809 `ub_safe`, 181 `ub_unsafe` and 718 equivalence
+  tests.
