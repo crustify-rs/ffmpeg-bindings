@@ -1,0 +1,103 @@
+{
+  "objective": "wrap",
+  "items": [
+    {
+      "name": "av_hwdevice_ctx_alloc",
+      "defined_in": "libavutil/hwcontext.c",
+      "kind": "symbol",
+      "field_anchors": [],
+      "home": "crustify/rust/ffmpeg/libavutil/hwcontext.rs"
+    },
+    {
+      "name": "av_hwdevice_ctx_create",
+      "defined_in": "libavutil/hwcontext.c",
+      "kind": "symbol",
+      "field_anchors": [],
+      "home": "crustify/rust/ffmpeg/libavutil/hwcontext.rs"
+    },
+    {
+      "name": "av_hwdevice_ctx_create_derived",
+      "defined_in": "libavutil/hwcontext.c",
+      "kind": "symbol",
+      "field_anchors": [],
+      "home": "crustify/rust/ffmpeg/libavutil/hwcontext.rs"
+    },
+    {
+      "name": "av_hwdevice_ctx_create_derived_opts",
+      "defined_in": "libavutil/hwcontext.c",
+      "kind": "symbol",
+      "field_anchors": [],
+      "home": "crustify/rust/ffmpeg/libavutil/hwcontext.rs"
+    },
+    {
+      "name": "av_hwdevice_ctx_init",
+      "defined_in": "libavutil/hwcontext.c",
+      "kind": "symbol",
+      "field_anchors": [],
+      "home": "crustify/rust/ffmpeg/libavutil/hwcontext.rs"
+    },
+    {
+      "name": "av_hwdevice_find_type_by_name",
+      "defined_in": "libavutil/hwcontext.c",
+      "kind": "symbol",
+      "field_anchors": [],
+      "home": "crustify/rust/ffmpeg/libavutil/hwcontext.rs"
+    },
+    {
+      "name": "av_hwdevice_get_type_name",
+      "defined_in": "libavutil/hwcontext.c",
+      "kind": "symbol",
+      "field_anchors": [],
+      "home": "crustify/rust/ffmpeg/libavutil/hwcontext.rs"
+    },
+    {
+      "name": "av_hwdevice_hwconfig_alloc",
+      "defined_in": "libavutil/hwcontext.c",
+      "kind": "symbol",
+      "field_anchors": [],
+      "home": "crustify/rust/ffmpeg/libavutil/hwcontext.rs"
+    },
+    {
+      "name": "av_hwdevice_iterate_types",
+      "defined_in": "libavutil/hwcontext.c",
+      "kind": "symbol",
+      "field_anchors": [],
+      "home": "crustify/rust/ffmpeg/libavutil/hwcontext.rs"
+    },
+    {
+      "name": "av_hwframe_ctx_alloc",
+      "defined_in": "libavutil/hwcontext.c",
+      "kind": "symbol",
+      "field_anchors": [],
+      "home": "crustify/rust/ffmpeg/libavutil/hwcontext.rs"
+    },
+    {
+      "name": "av_hwframe_ctx_create_derived",
+      "defined_in": "libavutil/hwcontext.c",
+      "kind": "symbol",
+      "field_anchors": [],
+      "home": "crustify/rust/ffmpeg/libavutil/hwcontext.rs"
+    },
+    {
+      "name": "av_hwframe_ctx_init",
+      "defined_in": "libavutil/hwcontext.c",
+      "kind": "symbol",
+      "field_anchors": [],
+      "home": "crustify/rust/ffmpeg/libavutil/hwcontext.rs"
+    },
+    {
+      "name": "av_hwframe_get_buffer",
+      "defined_in": "libavutil/hwcontext.c",
+      "kind": "symbol",
+      "field_anchors": [],
+      "home": "crustify/rust/ffmpeg/libavutil/hwcontext.rs"
+    },
+    {
+      "name": "av_hwframe_map",
+      "defined_in": "libavutil/hwcontext.c",
+      "kind": "symbol",
+      "field_anchors": [],
+      "home": "crustify/rust/ffmpeg/libavutil/hwcontext.rs"
+    }
+  ]
+}
