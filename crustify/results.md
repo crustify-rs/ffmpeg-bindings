@@ -598,7 +598,7 @@ Implementation `openrouter/anthropic/claude-opus-5.5` via `claude` (`openrouter/
 
 ## Safety audit
 
-Deterministic `crustify scan-unsafe <workdir>`; no model.
+Deterministic `crustify ffimap <workdir>`; no model.
 
 ### Final tally overview
 
@@ -858,9 +858,9 @@ It added 10 unit, 9 equivalence and 15 `ub_safe` tests (4 of them trybuild rejec
 `compile_fail` doctests, and submitted the primitives' ownership findings to wavefront. The
 `symbols` count of the Overview row is the 6 primitives it anchored.
 
-The scheduled workset name `void` names no C entity, so `scan-unsafe --name void` matches no
-site; both batch dirs keep that output (`scan-unsafe.void.txt`) and a scan seeded with the 6
-anchored primitives (`scan-unsafe.json`). Against the empty base, the translation batch moved
+The scheduled workset name `void` names no C entity, so `ffimap --name void` matches no
+site; both batch dirs keep that output (`ffimap.void.txt`) and a scan seeded with the 6
+anchored primitives (`ffimap.json`). Against the empty base, the translation batch moved
 the `unsafe fn` smell by `+5` and the raw-pointer smell by `+5`, and the review by `+1` and `0`.
 The scan's `unsafe_fns_pub` (3, then 4) counts the `unsafe fn` methods of ffibox's unsafe
 policy traits implemented on `Heap`; neither batch added public unsafe API. The two raw-pointer
@@ -985,10 +985,10 @@ parent, so it is that batch's own change. The toolchain commit below has no row.
 - Σ coverage cells in the `: tests` tables add the per-row deltas. Denominators grow with every landing, so a Σ is
   not the wave-level change, and negative Rust deltas mark landings whose new lines a given
   workload does not reach.
-- Smell deltas come from unseeded scans (`scan-unsafe.tree.json`) at the landing commit and
+- Smell deltas come from unseeded scans (`ffimap.tree.json`) at the landing commit and
   its parent. They sum to `+13` (`unsafe fn`) and `+15` (raw pointer) over the base's 8 and 5,
   which equals the wave tip's 21 and 20. The seeded scans of batches 0, 1 and 4 matched no site
-  (`scan-unsafe.txt`).
+  (`ffimap.txt`).
 
 ### Toolchain drift before the wave-0 resume
 
@@ -1011,7 +1011,7 @@ Effects and fixes:
   reports the `realloc(NULL, n)` false use-after-free. Instead it aborts multi-threaded suites
   when its garbage collector waits more than 10 s for a thread to reach a safepoint;
   `BSAN_OPTIONS=gc_hang_threshold_ms=600000` lets every suite pass.
-- **`crustify scan-unsafe`.** Its `rustc_private` driver no longer built on the new nightly, so
+- **`crustify ffimap`.** Its `rustc_private` driver no longer built on the new nightly, so
   it reported no counts. The fix, crustify `4efc0cc` (merged into `main` on 2026-10-09), ports
   the driver and pins it to `nightly-2026-10-07`. Every wave-0 scan comes from
   that driver. Its scan of the wave base reproduces the raw-lifetime smells recorded above
@@ -1123,8 +1123,8 @@ Its review runs with wave 2's, on Opus 5.5, after wave 2.
 
 On 2026-10-09, at the user's direction:
 
-- crustify `main` took the `scan-unsafe` driver pin (`4efc0cc`) and the results-template split
-  (`2a4a613`). The live `crustify scan-unsafe` then gave the same counts on the wave-1 tip as the
+- crustify `main` took the `ffimap` driver pin (`4efc0cc`) and the results-template split
+  (`2a4a613`). The live `crustify ffimap` then gave the same counts on the wave-1 tip as the
   fix branch had.
 - ffibox `main` took `196c5fb` (`CSlice::to_cvec` for `Copy` cells).
 
@@ -1176,7 +1176,7 @@ promoted to `crustify/subcampaigns/20261005/libavutil/core`. Both reviewers wrot
 Commit subjects (`fix(avutil): …`) instead of the campaign's `crustify: …`. Review cost for the
 wave: `$23.44` landed, `$26.90` with the stopped attempt.
 
-### `scan-unsafe`'s `undocumented_unsafe` reads 0 of 0 here
+### `ffimap`'s `undocumented_unsafe` reads 0 of 0 here
 
 The scan's lexical `undocumented_unsafe` walker skips every path that has a `crustify`
 directory component (`_SKIP_DIRS` in `crustify_audit/unsafe_scan.py`, meant to exclude
@@ -1187,7 +1187,7 @@ driver's counts and the smells are unaffected. Statements here that no `unsafe` 
 `// SAFETY:` comment rest on `clippy::undocumented_unsafe_blocks`, which the workspace denies
 and which every gated tip passes.
 
-### `scan-unsafe` counter redefinition after `core` wave 1
+### `ffimap` counter redefinition after `core` wave 1
 
 On 2026-10-09, crustify `main` took `f66b2c3`..`a2b5c64`, which change what the scan counts.
 All figures above this note were measured before the change and stay as measured.
@@ -1428,7 +1428,7 @@ the 56 symbols. Together they cost `$101.41` for 89.5M tokens and 4h21m.
   `CRUSTIFY_FFMPEG_VARIANT=bsan` only, the three every-format sweeps keep one format per
   layout class, two sizes and two alignments, and the 4096-channel sample test uses 24
   channels. It added `random_plane_layouts_match_c`, a randomized C-versus-wrapper layout
-  sweep. One `conventions` report: a rustfmt-wrapped `unsafe` block that `scan-unsafe`
+  sweep. One `conventions` report: a rustfmt-wrapped `unsafe` block that `ffimap`
   counted as undocumented. It found no UB, equivalence or lifecycle defect.
 - No report has a runnable reproducer, so nothing was rerun or rejected.
 
@@ -1649,7 +1649,7 @@ Two `openrouter/anthropic/claude-opus-5.5` reviewers: batch 0 took the 6 types a
   (fix). `unsafe/expr-parse-with-context-raw-log-context`: batch 3's `ObjectRef` made the raw
   parent log context obsolete, so `Expr::parse_with_context` is now safe over
   `Option<ObjectRef>`. `conventions/expr-send-safety-comment-past-scan-window`: `Expr`'s
-  nine-line `SAFETY:` block exceeded `scan-unsafe`'s six-line window. No UB or equivalence
+  nine-line `SAFETY:` block exceeded `ffimap`'s six-line window. No UB or equivalence
   defect.
 - **Symbols reviewer** (73m04s, `$26.49`): landed `2e5089333e` (reports and reproducers) and
   `6fe884cbf0` (fixes). Three UB defects, each in a safe method on an object adopted within
@@ -1785,7 +1785,7 @@ their anchors there. Translation cost `$37.44` for 135.4M tokens and 5h41m of ag
   batch kept base64, LZO and UUID buffers in checked slices.
 - The translators committed their own notes (26 files: `validation.md`, coverage and scan
   dumps, `findings/*.json`) into the orchestrator's batch record dirs, two of them at its
-  `scan-unsafe.json` path. They were moved to `batch-<k>/translator-notes/` when the wave was
+  `ffimap.json` path. They were moved to `batch-<k>/translator-notes/` when the wave was
   recorded. Wave 1's translators then followed that layout, plus one stray
   `wave-1/batch-2-validation.md`, moved the same way.
 - Codex echoes its shell commands into `spawn.out`, where the orchestrator's watcher took any
