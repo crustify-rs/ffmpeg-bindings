@@ -67,6 +67,8 @@
       "fn_sig_ffibox_handle_priv": 537,
       "fn_sig_non_ffibox_owner_pub": 5,
       "fn_sig_non_ffibox_owner_priv": 0,
+      "fn_sig_non_ffibox_handle_pub": 107,
+      "fn_sig_non_ffibox_handle_priv": 34,
       "ty_pub_fields_pub_ffibox_owner": 2,
       "ty_pub_fields_priv_ffibox_owner": 14,
       "ty_priv_ffibox_owner": 1,
@@ -76,6 +78,9 @@
       "ty_pub_fields_pub_non_ffibox_owner": 0,
       "ty_pub_fields_priv_non_ffibox_owner": 0,
       "ty_priv_non_ffibox_owner": 0,
+      "ty_pub_fields_pub_non_ffibox_handle": 1,
+      "ty_pub_fields_priv_non_ffibox_handle": 5,
+      "ty_priv_non_ffibox_handle": 1,
       "ffibox_impl_macro": 70,
       "ffibox_impl_manual": 86,
       "ffibox_define_ctype_macro": 59,
@@ -116,6 +121,29 @@
         "libavutil::mem::DynArray": 1
       },
       "fn_sig_non_ffibox_owner_priv": {},
+      "fn_sig_non_ffibox_handle_pub": {
+        "libavutil::frame::SideDataArrayMut": 16,
+        "libavutil::frame::SideDataArrayRef": 8,
+        "libavutil::log::ChildClasses": 1,
+        "libavutil::log::QueryRangesFn": 2,
+        "libavutil::log::Record": 8,
+        "libavutil::opt::BareObject": 3,
+        "libavutil::opt::ChildrenMut": 2,
+        "libavutil::opt::ObjectMut": 29,
+        "libavutil::opt::ObjectRef": 36,
+        "libavutil::opt::PotentialChildren": 1,
+        "libavutil::opt::RangeIter": 1
+      },
+      "fn_sig_non_ffibox_handle_priv": {
+        "libavutil::frame::SideDataArrayMut": 3,
+        "libavutil::frame::SideDataArrayRef": 3,
+        "libavutil::hwcontext::HwFrames": 6,
+        "libavutil::log::Record": 1,
+        "libavutil::opt::EvalContext": 1,
+        "libavutil::opt::ObjectMut": 4,
+        "libavutil::opt::ObjectRef": 15,
+        "libavutil::opt::RangeTarget": 1
+      },
       "ty_pub_fields_pub_ffibox_owner": {
         "CStrBox": 2
       },
@@ -143,6 +171,16 @@
       "ty_pub_fields_pub_non_ffibox_owner": {},
       "ty_pub_fields_priv_non_ffibox_owner": {},
       "ty_priv_non_ffibox_owner": {},
+      "ty_pub_fields_pub_non_ffibox_handle": {
+        "libavutil::opt::ObjectRef": 1
+      },
+      "ty_pub_fields_priv_non_ffibox_handle": {
+        "libavutil::frame::SideDataArrayRef": 2,
+        "libavutil::opt::ObjectRef": 3
+      },
+      "ty_priv_non_ffibox_handle": {
+        "libavutil::opt::ObjectRef": 1
+      },
       "ffibox_impl_macro": {
         "CCell": 59,
         "CDispose": 1,
