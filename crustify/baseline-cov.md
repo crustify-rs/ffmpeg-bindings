@@ -278,13 +278,13 @@ HDR side-data family stay untouched.
 
 ## 4. Unsafe surface
 
-`crustify scan-unsafe`'s rustc driver at crustify `e1169d3`, which counts only
+`crustify ffimap`'s rustc driver at crustify `e1169d3`, which counts only
 what the scanned crate defines, by rustc's effective visibility (reachable from
 outside the crate) and, for fn signatures, by safety; methods implementing
 another crate's trait are left out, since that crate fixed their signature.
 Run with the `static` feature against the FFmpeg n9.0 prefix, keeping only the
 safe crate's emission (`/data/marius.momeu/baseline-cov/scan_surface.py`):
-`scan-unsafe` skips only crates named `*_sys`, and ftt's sys crate is
+`ffimap` skips only crates named `*_sys`, and ftt's sys crate is
 `ffmpeg_sys_the_third`. In both runs the safe crate was the only crate that
 emitted.
 
@@ -399,7 +399,7 @@ How to read it:
 - ¹ The unsafe-surface rows are not restated: all three are fresh scans with
   the same driver (crustify `e1169d3`), the campaign's at the active campaign's
   tip (`ffmpeg-wrap-20261005`, `crustify/campaigns/20261005` at `1a441943aa`,
-  `crustify/campaigns/20261005/scan-unsafe.json`). They count only what each
+  `crustify/campaigns/20261005/ffimap.json`). They count only what each
   crate defines, so ffibox's own conversions and the `pub(crate)` constructors
   `define_ctype!` emits are outside the campaign's public figures by
   construction, while the baselines' own `wrap` / `from_raw` / `as_ptr` are
