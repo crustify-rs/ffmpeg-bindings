@@ -63,8 +63,8 @@
     "counts": {
       "fn_sig_ffibox_owner_pub": 165,
       "fn_sig_ffibox_owner_priv": 20,
-      "fn_sig_ffibox_handle_pub": 1106,
-      "fn_sig_ffibox_handle_priv": 537,
+      "fn_sig_ffibox_handle_pub": 1109,
+      "fn_sig_ffibox_handle_priv": 543,
       "fn_sig_non_ffibox_owner_pub": 5,
       "fn_sig_non_ffibox_owner_priv": 0,
       "fn_sig_non_ffibox_handle_pub": 85,
@@ -108,12 +108,14 @@
         "CSlice": 6,
         "CSliceMut": 6,
         "Mut": 584,
-        "Ref": 510
+        "Ref": 510,
+        "libavutil::opt::BareObject": 3
       },
       "fn_sig_ffibox_handle_priv": {
         "CSlice": 2,
         "Mut": 204,
-        "Ref": 331
+        "Ref": 331,
+        "libavutil::hwcontext::HwFrames": 6
       },
       "fn_sig_non_ffibox_owner_pub": {
         "libavutil::frame::SideDataArray": 2,
