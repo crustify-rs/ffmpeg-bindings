@@ -1431,9 +1431,15 @@ pub(crate) fn ambisonic_order_overflows(description: &[u8]) -> bool {
 }
 
 impl ChannelLayout {
-    /// A layout of `raw`'s fields, whatever they are; the caller sees to it
-    /// that any map in it is one the layout may own.
-    const fn from_parts(raw: ffi::AVChannelLayout) -> Self {
+    /// A layout of `raw`'s fields, whatever they are.
+    ///
+    /// # Safety
+    ///
+    /// Any map in `raw` must be a block the layout may own, which nothing
+    /// else frees: a bare `ChannelLayout` is adopted safely
+    /// ([`ChannelLayoutVal::from`]), so it must keep the type's invariant
+    /// that it owns its map.
+    const unsafe fn from_parts(raw: ffi::AVChannelLayout) -> Self {
         Self(raw, core::marker::PhantomData)
     }
 
@@ -1458,7 +1464,7 @@ impl ChannelLayout {
     fn init_with(
         init: impl FnOnce(*mut ffi::AVChannelLayout) -> c_int,
     ) -> Result<ChannelLayoutVal, i32> {
-        let mut layout = ChannelLayoutVal::new(Self::zeroed());
+        let mut layout = ChannelLayoutVal::zeroed();
         let ret = init(layout.as_mut().as_mut_ptr());
         // On failure C leaves no map the layout owns, or (out of memory in
         // `av_channel_layout_from_string`'s ambisonic path) a custom order
@@ -1472,7 +1478,9 @@ impl ChannelLayout {
     /// `unspecified(0)` is the zeroed layout.
     pub fn unspecified(nb_channels: i32) -> ChannelLayoutVal {
         let raw = Self::masked(ChannelOrder::UNSPEC, nb_channels, 0, ptr::null_mut());
-        ChannelLayoutVal::new(Self::from_parts(raw))
+        // SAFETY: an unspecified-order layout holds no map, so it owns
+        // nothing and `av_channel_layout_uninit` frees nothing for it.
+        unsafe { ChannelLayoutVal::new(Self::from_parts(raw)) }
     }
 
     /// Wraps: av_channel_layout_custom_init
@@ -1553,7 +1561,7 @@ impl ChannelLayout {
     /// native layout with that many (`mono`, `stereo`, `2.1`, ...), or, for a
     /// count none has, the count in unspecified order.
     pub fn default_for(nb_channels: i32) -> ChannelLayoutVal {
-        let mut layout = ChannelLayoutVal::new(Self::zeroed());
+        let mut layout = ChannelLayoutVal::zeroed();
         // SAFETY: the pointer addresses the fresh zeroed layout `layout`
         // owns; C overwrites it with a copy of a static native layout, or
         // sets its order and count, storing no map either way.
@@ -1606,12 +1614,15 @@ impl ChannelLayout {
     /// mask, which leaves no channels.
     #[must_use]
     pub const fn native(mask: u64) -> Self {
-        Self::from_parts(ffi::AVChannelLayout {
-            order: ChannelOrder::NATIVE.into_raw(),
-            nb_channels: mask.count_ones() as c_int,
-            u: ffi::AVChannelLayout__bindgen_ty_1 { mask },
-            opaque: ptr::null_mut(),
-        })
+        // SAFETY: a native-order layout holds a mask, no map.
+        unsafe {
+            Self::from_parts(ffi::AVChannelLayout {
+                order: ChannelOrder::NATIVE.into_raw(),
+                nb_channels: mask.count_ones() as c_int,
+                u: ffi::AVChannelLayout__bindgen_ty_1 { mask },
+                opaque: ptr::null_mut(),
+            })
+        }
     }
 
     /// `AV_CHANNEL_LAYOUT_MONO`: the native layout of [`masks::MONO`].
@@ -1696,12 +1707,15 @@ impl ChannelLayout {
     pub const L22POINT2: Self = Self::native(masks::L22POINT2);
     /// `AV_CHANNEL_LAYOUT_AMBISONIC_FIRST_ORDER`: the four first-order
     /// Ambisonic components and no non-diegetic channel.
-    pub const AMBISONIC_FIRST_ORDER: Self = Self::from_parts(ffi::AVChannelLayout {
-        order: ChannelOrder::AMBISONIC.into_raw(),
-        nb_channels: 4,
-        u: ffi::AVChannelLayout__bindgen_ty_1 { mask: 0 },
-        opaque: ptr::null_mut(),
-    });
+    // SAFETY: an ambisonic layout with a zero mask holds no map.
+    pub const AMBISONIC_FIRST_ORDER: Self = unsafe {
+        Self::from_parts(ffi::AVChannelLayout {
+            order: ChannelOrder::AMBISONIC.into_raw(),
+            nb_channels: 4,
+            u: ffi::AVChannelLayout__bindgen_ty_1 { mask: 0 },
+            opaque: ptr::null_mut(),
+        })
+    };
 }
 
 /// Takes a bare layout, such as one of [`ChannelLayout`]'s standard
@@ -1709,7 +1723,10 @@ impl ChannelLayout {
 impl From<ChannelLayout> for ChannelLayoutVal {
     #[inline]
     fn from(layout: ChannelLayout) -> Self {
-        Self::new(layout)
+        // SAFETY: a bare `ChannelLayout` owns its map, if any, alone: it is
+        // neither `Copy` nor `Clone`, no safe function adopts a raw
+        // `AVChannelLayout`, and `from_parts` is unsafe (the type's invariant).
+        unsafe { Self::new(layout) }
     }
 }
 
@@ -1958,7 +1975,9 @@ impl<'a> ChannelLayoutMut<'a> {
         // of the old map moves to the returned owner, that of the new one
         // into the layout, so neither is freed or leaked twice.
         let old = unsafe { ptr::replace(self.as_mut_ptr(), new) };
-        ChannelLayoutVal::new(ChannelLayout::from_parts(old))
+        // SAFETY: `old` moved out of the layout whole, so it is the sole owner
+        // of the map the layout held, if any.
+        unsafe { ChannelLayoutVal::new(ChannelLayout::from_parts(old)) }
     }
 
     /// Overwrites the layout with `layout`, disposing of the previous one.
@@ -1978,7 +1997,8 @@ impl<'a> ChannelLayoutMut<'a> {
     fn reset_to(&mut self, order: ChannelOrder, nb_channels: c_int, mask: u64) {
         let opaque = self.as_ref().opaque();
         let raw = ChannelLayout::masked(order, nb_channels, mask, opaque);
-        self.set(ChannelLayoutVal::new(ChannelLayout::from_parts(raw)));
+        // SAFETY: `masked` builds a layout with no map, which owns nothing.
+        self.set(unsafe { ChannelLayoutVal::new(ChannelLayout::from_parts(raw)) });
     }
 
     /// Field: AVChannelLayout.order
@@ -2050,9 +2070,9 @@ impl<'a> ChannelLayoutMut<'a> {
             u: ffi::AVChannelLayout__bindgen_ty_1 { map: map.cast() },
             opaque,
         };
-        // The layout now owns the `av_malloc`-family block of `count`
+        // SAFETY: the layout now owns the `av_malloc`-family block of `count`
         // initialised elements, which `av_channel_layout_uninit` frees.
-        self.set(ChannelLayoutVal::new(ChannelLayout::from_parts(raw)));
+        self.set(unsafe { ChannelLayoutVal::new(ChannelLayout::from_parts(raw)) });
         Ok(())
     }
 
@@ -3518,14 +3538,16 @@ mod unit_tests {
             format!("{value:?}").starts_with("ChannelLayout { order: CUSTOM, nb_channels: 1, ")
         );
         // `into_inner` gave up disposal: hand the map back to an owner.
-        drop(ChannelLayoutVal::new(value));
+        // SAFETY: `value` came out of `into_inner`, the sole owner of its map.
+        drop(unsafe { ChannelLayoutVal::new(value) });
         let unknown = ChannelLayout::masked(
             ChannelOrder::from_raw(ffi::AVChannelOrder(9)),
             0,
             0,
             ptr::null_mut(),
         );
-        let unknown = ChannelLayout::from_parts(unknown);
+        // SAFETY: `masked` builds a layout with no map.
+        let unknown = unsafe { ChannelLayout::from_parts(unknown) };
         assert_eq!(
             format!("{:?}", unknown.as_ref().details()),
             "Unknown(ChannelOrder(9))"
@@ -3962,7 +3984,9 @@ mod unit_tests {
             },
             opaque: cookie(40),
         };
-        let mut l = ChannelLayoutVal::new(ChannelLayout::from_parts(raw));
+        // SAFETY: the map is NULL, so the layout owns nothing, and
+        // `av_channel_layout_uninit` frees NULL harmlessly.
+        let mut l = unsafe { ChannelLayoutVal::new(ChannelLayout::from_parts(raw)) };
         assert_eq!(l.as_ref().subset(u64::MAX), 0);
         assert_eq!(l.as_ref().subset(0), 0);
         for order in [
@@ -4004,7 +4028,10 @@ mod unit_tests {
     /// no user pointer: states no safe path leaves, for the readers' guards.
     fn raw_layout(order: ChannelOrder, nb_channels: c_int, u: u64) -> ChannelLayoutVal {
         let raw = ChannelLayout::masked(order, nb_channels, u, ptr::null_mut());
-        ChannelLayoutVal::new(ChannelLayout::from_parts(raw))
+        // SAFETY: `u` is a union of bits here, never a map this test frees
+        // twice: in custom order only `u == 0` is passed, a NULL map, which
+        // `av_channel_layout_uninit` frees harmlessly.
+        unsafe { ChannelLayoutVal::new(ChannelLayout::from_parts(raw)) }
     }
 
     /// Every reader refuses, before calling C.
@@ -4039,7 +4066,9 @@ mod unit_tests {
             u: ffi::AVChannelLayout__bindgen_ty_1 { map: map.cast() },
             opaque: ptr::null_mut(),
         };
-        let negative = ChannelLayoutVal::new(ChannelLayout::from_parts(raw));
+        // SAFETY: the layout takes sole ownership of the `HeapVec`'s block,
+        // released by `into_raw_parts`, which `av_channel_layout_uninit` frees.
+        let negative = unsafe { ChannelLayoutVal::new(ChannelLayout::from_parts(raw)) };
         assert_refused(negative.as_ref());
         assert!(!negative.as_ref().is_valid());
         assert!(negative.as_ref() != mapless.as_ref());
