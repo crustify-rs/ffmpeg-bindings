@@ -75,6 +75,12 @@ the campaign's.
 - `batch` / `review` — in the Overview, the computed cost of the sub-campaign's
   translation batches and of its review batches; `—` where it ran none
 - `total` — `batch` + `review`; for the orchestrator, its own cost
+- `orchestrator` — the Overview row for every orchestrator session of the campaign, priced
+  from the `orchestrator-*.usage.json` records in its campaign dir; `total` is their sum. A
+  session that died before writing its record is recovered from its transcript (Notes)
+- `Σ recorded agents` / `Σ campaign` — the batch and review agents alone, then those plus the
+  orchestrator. `$/type` and `$/sym` are given for the agents only, since the orchestrator's
+  cost cannot be split by unit kind
 - `$/type` / `$/sym` — in the Overview, a sub-campaign's cost over the types or
   symbols it was scheduled for; `—` where it was scheduled for none
 - `+LoC` — the landed batch's Rust-source insertions/deletions relative to its
@@ -156,15 +162,15 @@ Implementation `openrouter/anthropic/claude-opus-5.5` via `claude` (`openrouter/
 |---|---:|---:|---|---:|---:|---:|---:|---:|---:|---:|---:|
 | `raw-lifetime-void` | `0` | `6` | `78m48s` | `$8.46` | `15.34M` | `$4.69` | `11.85M` | `$13.15` | `27.19M` | — | `$2.19` |
 | `raw-lifetime-string` | `0` | `3` | `48m03s` | `$3.77` | `8.84M` | `$5.25` | `13.08M` | `$9.02` | `21.92M` | — | `$3.01` |
-| `libavutil/core` | `21` | `159` | `47h12m32s` | `$214.04` | `537.07M` | `$207.73` | `246.61M` | `$421.77` | `783.68M` | `$7.10` | `$1.72` |
+| `libavutil/core` | `21` | `159` | `47h12m32s` | `$214.04` | `537.07M` | `$211.19` | `247.77M` | `$425.23` | `784.84M` | `$7.10` | `$1.74` |
 | `libavutil/formats` | `19` | `100` | `21h42m45s` | `$142.10` | `365.22M` | `$336.68` | `288.82M` | `$478.78` | `654.04M` | `$11.31` | `$2.64` |
 | `libavutil/options` | `6` | `78` | `6h15m34s` | `$122.01` | `366.96M` | `$63.52` | `181.86M` | `$185.53` | `548.82M` | `$6.15` | `$1.91` |
 | `libavutil/crypto` | `19` | `103` | `4h26m50s` | `$46.14` | `171.31M` | `$38.22` | `108.22M` | `$84.36` | `279.52M` | `$2.48` | `$0.36` |
 | `libavutil/buffer-frame` | `12` | `58` | `10h58m03s` | `$130.04` | `372.78M` | `$89.40` | `226.96M` | `$219.44` | `599.74M` | `$8.59` | `$2.01` |
 | `libavutil/hwcontext` | `5` | `18` | `5h15m53s` | `$66.73` | `200.49M` | `$51.09` | `132.67M` | `$117.82` | `333.17M` | `$14.64` | `$2.48` |
-| `<link-unit>/<subsystem>` | `<n>` | `<n>` | `<n>h<n>m<n>s` | `$<n>` | `<n>M` | `$<n>` | `<n>M` | `$<n>` | `<n>M` | `$<n>` | `$<n>` |
-| orchestrator | `<n>` | `<n>` | — | — | — | — | — | `$<n>`+ | `<n>M`+ | — | — |
-| **Σ recorded agents** | **`<n>`** | **`<n>`** | **`<n>h<n>m`** | **`$<n>`** | **`<n>M`** | **`$<n>`** | **`<n>M`** | **`$<n>`** | **`<n>M`** | **`$<n>`** | **`$<n>`** |
+| orchestrator | — | — | — | — | — | — | — | `$500.92` | `772.74M` | — | — |
+| **Σ recorded agents** | **`82`** | **`525`** | **`97h58m`** | **`$733.32`** | **`2038.01M`** | **`$800.05`** | **`1211.23M`** | **`$1533.36`** | **`3249.24M`** | **`$7.61`** | **`$1.73`** |
+| **Σ campaign** | **`82`** | **`525`** | **`97h58m`** | **`$733.32`** | **`2038.01M`** | **`$800.05`** | **`1211.23M`** | **`$2034.28`** | **`4021.98M`** | — | — |
 
 ## Raw lifetime discovery
 
@@ -1153,7 +1159,8 @@ The user chose `openrouter/openai/gpt-6-astra` (via `codex`) for this wave:
   the wave-0 `memcpy-backptr-block-length-overflow` report (ASan `negative-size-param` and
   UBSan traces) alongside its own instructions to write UB reproducers. That attempt cost
   `$3.46` for 1.16M tokens; its log and usage record are kept under
-  `review-wave-1/batch-1/attempt-0-gpt-6-astra/`, and it is in no table above.
+  `review-wave-1/batch-1/attempt-0-gpt-6-astra/`. It is in no batch table above, but the
+  Overview's `libavutil/core` review cost includes it.
 - **Symbols re-run:** at the user's direction, on `openrouter/anthropic/claude-fable-5.1` (via
   `claude`), from the review tip after the types landing. That is the symbol row above.
 
@@ -2120,3 +2127,21 @@ and every Rust figure in the `Batches` tables was rewritten from those runs: the
 sum of their rows' changes, and the sub-campaign totals above. Each row was first mapped to its
 landing commit and reproduced exactly from the old measurements, and no C figure, count or other
 cell changed. `core`'s first 9 measured commits predate the include and were not affected.
+
+### Orchestrator cost
+
+The Overview's orchestrator row sums the 10 `orchestrator-*.usage.json` records in
+`crustify/campaigns/20261005/`: `$500.92` for `772.74M` tokens over `181.9h` of session wall, all
+`openrouter/anthropic/claude-opus-5.5`. Three of them were recovered from the session transcripts
+under the container's `/work/.claude/projects/-target/`, each marked with `recovered_from`:
+
+- `orchestrator-20261011-011120`, session `7997f6c9`: the running orchestrator, `$197.87` and
+  `320.33M` through its last request at `2026-10-12T21:45:51Z`. The container exited on
+  `2026-10-13` before the session ended, so it never wrote its record.
+- `orchestrator-20261008-170823` (`550bb3c6`, `$0.75`) and `orchestrator-20261010-000824`
+  (`003e77eb`, `$0.27`): launches that left a transcript but no log, each minutes before the
+  relaunch that has one.
+
+Every orchestrator log in the campaign dir now has a record, so the row carries no `+`. It
+excludes the CLI's auxiliary requests, which the transcript does not record.
+
