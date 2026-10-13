@@ -4823,7 +4823,9 @@ impl FrameMut<'_> {
                 .cast::<ChannelLayout>()
                 .replace(new)
         };
-        Ok(ChannelLayoutVal::new(old))
+        // SAFETY: `old` moved out of the frame whole, so it is the sole owner of
+        // the map the frame held, if any.
+        Ok(unsafe { ChannelLayoutVal::new(old) })
     }
 
     /// Field: AVFrame.ch_layout

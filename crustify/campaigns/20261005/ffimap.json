@@ -13,19 +13,19 @@
     "windows_sys"
   ],
   "counts": {
-    "code_lines": 17848,
+    "code_lines": 17852,
     "total_stmts": 3839,
     "safe_fns_pub": 1586,
-    "safe_fns_priv": 559,
-    "unsafe_blocks": 1733,
+    "safe_fns_priv": 558,
+    "unsafe_blocks": 1741,
     "unsafe_block_stmts": 100,
-    "unsafe_block_lines": 2932,
-    "unsafe_block_code_lines": 2885,
-    "unsafe_blocks_wrapper_impl": 1078,
+    "unsafe_block_lines": 2954,
+    "unsafe_block_code_lines": 2907,
+    "unsafe_blocks_wrapper_impl": 1085,
     "unsafe_blocks_ffi_export": 29,
-    "unsafe_fns": 247,
+    "unsafe_fns": 248,
     "unsafe_fns_pub": 32,
-    "unsafe_fns_priv": 215,
+    "unsafe_fns_priv": 216,
     "unsafe_impls": 404,
     "unsafe_traits": 1,
     "ty_wrapper": 59,
@@ -279,8 +279,8 @@
     }
   },
   "undocumented_unsafe": {
-    "sites": 4152,
-    "documented": 4128,
+    "sites": 4165,
+    "documented": 4141,
     "undocumented": 24,
     "per_file": {
       "ffmpeg/libavutil/opt.rs": 4,
@@ -307,11 +307,11 @@
   "derived": {
     "fns_pub": 1618,
     "fns_priv": 774,
-    "unsafe_fn_pub_ratio": 0.1296,
+    "unsafe_fn_pub_ratio": 0.129,
     "unsafe_fn_share_of_pub_fns": 0.0198,
     "raw_ptr_pub": 51,
     "raw_ptr_pub_safe_interface": 20,
-    "unsafe_loc_ratio": 0.1616,
+    "unsafe_loc_ratio": 0.1628,
     "loc_per_unsafe_block": 10.3
   }
 }

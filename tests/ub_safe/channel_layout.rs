@@ -1168,7 +1168,7 @@ mod layout {
                 .set_id(Channel::BACK_LEFT);
             assert_eq!(walk(m.as_ref()), 2);
         }
-        let owned = ChannelLayoutVal::new(bare);
+        let owned = ChannelLayoutVal::from(bare);
         let (a, b) = (owned.as_ref(), owned.as_ref());
         assert_eq!(a.channel_count(), b.channel_count());
         drop(owned);
