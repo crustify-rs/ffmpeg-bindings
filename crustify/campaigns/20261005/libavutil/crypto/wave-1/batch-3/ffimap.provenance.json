@@ -1,0 +1,12 @@
+{
+  "level": "batch",
+  "branch": "crustify/batches/20261005/libavutil/crypto/wave-1/batch-3",
+  "scan": "828f6bdbf7e6b6e170e04ff62827f26d6e2d2b38",
+  "base": "c55b9c574ce5d4d115b28d32d407de85d84c793c",
+  "base_from": "previous landed tip",
+  "crustify": "1a7d4341901fd962d54e979178941898547b09e7",
+  "command": "crustify ffimap <workdir> --json --ffibox",
+  "ffibox": "196c5fb",
+  "ffibox_base": "196c5fb",
+  "ffibox_rule": "latest ffibox commit at or before the scanned commit's committer time"
+}

@@ -1,333 +1,194 @@
 {
-  "crate_path": "/target/crustify/.worktrees/orchestrator/core-wave-0-gate/crustify/rust",
+  "crate_path": "/target/crustify/rust",
+  "sys_crates": [
+    "clang_sys",
+    "libavcodec_sys",
+    "libavdevice_sys",
+    "libavfilter_sys",
+    "libavformat_sys",
+    "libavutil_sys",
+    "libswresample_sys",
+    "libswscale_sys",
+    "prettyplease",
+    "windows_sys"
+  ],
   "counts": {
+    "code_lines": 1470,
+    "total_stmts": 238,
+    "safe_fns_pub": 207,
+    "safe_fns_priv": 48,
     "unsafe_blocks": 214,
     "unsafe_block_stmts": 0,
     "unsafe_block_lines": 228,
     "unsafe_block_code_lines": 223,
     "unsafe_blocks_wrapper_impl": 133,
     "unsafe_blocks_ffi_export": 0,
-    "unsafe_fns": 47,
-    "unsafe_fns_seam": 33,
-    "unsafe_fns_pub": 11,
+    "unsafe_fns": 40,
+    "unsafe_fns_pub": 4,
+    "unsafe_fns_priv": 36,
     "unsafe_impls": 85,
     "unsafe_traits": 0,
-    "ffi_calls": 63,
-    "wrapper_newtypes": 11,
-    "wrapper_newtypes_declared": 11,
-    "wrapper_declared_nonconformant": 0,
-    "wrapper_newtypes_undeclared": 0,
-    "raw_ptr_args": 42,
-    "raw_ptr_rets": 45,
-    "raw_ptr_seam": 77,
-    "raw_ptr_wrapped": 0,
-    "raw_ptr_in_wrapper": 2,
-    "ref_to_type_wrapper": 51,
-    "field_ref_wrapped": 0,
-    "field_proj_wrapped": 57,
-    "field_proj_outside_impl": 0,
-    "void_ptr_sanctioned": 33,
-    "void_ptr_smell": 4,
+    "ty_wrapper": 11,
+    "ty_wrapper_borrow_sanctioned": 51,
+    "ty_wrapper_borrow_non_sanctioned": 0,
+    "ty_wrapper_by_val_fn_sig_pub": 24,
+    "ty_wrapper_by_val_fn_sig_priv": 0,
+    "ty_wrapper_by_val_ty_pub_fields_pub": 0,
+    "ty_wrapper_by_val_ty_pub_fields_priv": 0,
+    "ty_wrapper_by_val_ty_priv": 0,
+    "ty_wrapper_std_owner_fn_sig_pub": 0,
+    "ty_wrapper_std_owner_fn_sig_priv": 0,
+    "ty_wrapper_std_owner_ty_pub_fields_pub": 0,
+    "ty_wrapper_std_owner_ty_pub_fields_priv": 0,
+    "ty_wrapper_std_owner_ty_priv": 0,
+    "ty_non_wrapper_borrow_pub_safe": 126,
+    "ty_non_wrapper_borrow_pub_unsafe": 4,
+    "ty_non_wrapper_borrow_priv_safe": 47,
+    "ty_non_wrapper_borrow_priv_unsafe": 1,
+    "raw_ptr_ty_pub_fields_pub": 0,
+    "raw_ptr_ty_pub_fields_priv": 2,
+    "raw_ptr_ty_priv": 0,
+    "raw_ptr_fn_pub_safe": 2,
+    "raw_ptr_fn_pub_unsafe": 4,
+    "raw_ptr_fn_priv_safe": 44,
+    "raw_ptr_fn_priv_unsafe": 37,
+    "raw_ptr_has_ty_wrapper": 44,
     "raw_ptr_derefs": 57,
     "raw_ptr_derefs_outside_impl": 0,
-    "total_stmts": 238,
-    "code_lines": 1470,
-    "raw_ptr_sites": [],
-    "void_ptr_sites": [
-      {
-        "file": "ffmpeg/libavutil/log.rs",
-        "count": 2,
-        "lines": [
-          378,
-          398
-        ]
-      },
-      {
-        "file": "ffmpeg/libavutil/opt.rs",
-        "count": 2,
-        "lines": [
-          293,
-          322
-        ]
-      }
-    ],
-    "field_proj_sites": [],
-    "field_ref_sites": [],
-    "raw_deref_sites": []
+    "void_ptr_ty_pub_fields_pub": 0,
+    "void_ptr_ty_pub_fields_priv": 0,
+    "void_ptr_ty_priv": 0,
+    "void_ptr_fn_pub_safe": 0,
+    "void_ptr_fn_pub_unsafe": 4,
+    "void_ptr_fn_priv_safe": 22,
+    "void_ptr_fn_priv_unsafe": 11,
+    "ty_field_proj_wrapped": 57,
+    "ty_field_proj_outside_impl": 0,
+    "ty_field_borrow_wrapped": 0,
+    "deref_impl_on_wrapper": 0,
+    "ffi_calls": 63
   },
   "counts_unavailable": null,
-  "seed": "--name av_append_path_component av_asprintf av_basename av_bessel_i0 av_bswap16 av_bswap32 av_bswap64 av_calloc av_ceil_log2_c av_clip64_c av_clip_c av_clip_int16_c av_clip_int8_c av_clip_intp2_c av_clip_uint16_c av_clip_uint8_c av_clip_uintp2_c av_clipd_c av_clipf_c av_clipl_int32_c av_compare_mod av_cpu_count av_cpu_force_count av_cpu_max_align av_default_item_name",
-  "entries": [
-    {
-      "name": "av_append_path_component",
-      "raw_ptr_sites": [],
-      "raw_deref_sites": [],
-      "deref_impl_sites": [],
-      "deref_mut_impl_sites": [],
-      "slice_ref_sites": [],
-      "slice_mut_sites": [],
-      "crate": "ffmpeg"
+  "ffibox": {
+    "counts": {
+      "fn_sig_ffibox_owner_pub": 10,
+      "fn_sig_ffibox_owner_priv": 0,
+      "fn_sig_ffibox_handle_pub": 130,
+      "fn_sig_ffibox_handle_priv": 77,
+      "fn_sig_non_ffibox_owner_pub": 0,
+      "fn_sig_non_ffibox_owner_priv": 0,
+      "fn_sig_non_ffibox_handle_pub": 1,
+      "fn_sig_non_ffibox_handle_priv": 0,
+      "ty_pub_fields_pub_ffibox_owner": 0,
+      "ty_pub_fields_priv_ffibox_owner": 0,
+      "ty_priv_ffibox_owner": 0,
+      "ty_pub_fields_pub_ffibox_handle": 0,
+      "ty_pub_fields_priv_ffibox_handle": 22,
+      "ty_priv_ffibox_handle": 0,
+      "ty_pub_fields_pub_non_ffibox_owner": 0,
+      "ty_pub_fields_priv_non_ffibox_owner": 0,
+      "ty_priv_non_ffibox_owner": 0,
+      "ty_pub_fields_pub_non_ffibox_handle": 0,
+      "ty_pub_fields_priv_non_ffibox_handle": 0,
+      "ty_priv_non_ffibox_handle": 0,
+      "ffibox_impl_macro": 14,
+      "ffibox_impl_manual": 17,
+      "ffibox_define_ctype_macro": 11,
+      "ffibox_define_ctype_manual": 0,
+      "ffibox_ccell_not_layout": 0,
+      "ffibox_layout_not_ccell": 0,
+      "drop_impl": 0,
+      "clone_impl": 0
     },
-    {
-      "name": "av_asprintf",
-      "raw_ptr_sites": [],
-      "raw_deref_sites": [],
-      "deref_impl_sites": [],
-      "deref_mut_impl_sites": [],
-      "slice_ref_sites": [],
-      "slice_mut_sites": [],
-      "crate": "ffmpeg"
-    },
-    {
-      "name": "av_basename",
-      "raw_ptr_sites": [],
-      "raw_deref_sites": [],
-      "deref_impl_sites": [],
-      "deref_mut_impl_sites": [],
-      "slice_ref_sites": [],
-      "slice_mut_sites": [],
-      "crate": "ffmpeg"
-    },
-    {
-      "name": "av_bessel_i0",
-      "raw_ptr_sites": [],
-      "raw_deref_sites": [],
-      "deref_impl_sites": [],
-      "deref_mut_impl_sites": [],
-      "slice_ref_sites": [],
-      "slice_mut_sites": [],
-      "crate": "ffmpeg"
-    },
-    {
-      "name": "av_bswap16",
-      "raw_ptr_sites": [],
-      "raw_deref_sites": [],
-      "deref_impl_sites": [],
-      "deref_mut_impl_sites": [],
-      "slice_ref_sites": [],
-      "slice_mut_sites": [],
-      "crate": "ffmpeg"
-    },
-    {
-      "name": "av_bswap32",
-      "raw_ptr_sites": [],
-      "raw_deref_sites": [],
-      "deref_impl_sites": [],
-      "deref_mut_impl_sites": [],
-      "slice_ref_sites": [],
-      "slice_mut_sites": [],
-      "crate": "ffmpeg"
-    },
-    {
-      "name": "av_bswap64",
-      "raw_ptr_sites": [],
-      "raw_deref_sites": [],
-      "deref_impl_sites": [],
-      "deref_mut_impl_sites": [],
-      "slice_ref_sites": [],
-      "slice_mut_sites": [],
-      "crate": "ffmpeg"
-    },
-    {
-      "name": "av_calloc",
-      "raw_ptr_sites": [],
-      "raw_deref_sites": [],
-      "deref_impl_sites": [],
-      "deref_mut_impl_sites": [],
-      "slice_ref_sites": [],
-      "slice_mut_sites": [],
-      "crate": "ffmpeg"
-    },
-    {
-      "name": "av_ceil_log2_c",
-      "raw_ptr_sites": [],
-      "raw_deref_sites": [],
-      "deref_impl_sites": [],
-      "deref_mut_impl_sites": [],
-      "slice_ref_sites": [],
-      "slice_mut_sites": [],
-      "crate": "ffmpeg"
-    },
-    {
-      "name": "av_clip64_c",
-      "raw_ptr_sites": [],
-      "raw_deref_sites": [],
-      "deref_impl_sites": [],
-      "deref_mut_impl_sites": [],
-      "slice_ref_sites": [],
-      "slice_mut_sites": [],
-      "crate": "ffmpeg"
-    },
-    {
-      "name": "av_clip_c",
-      "raw_ptr_sites": [],
-      "raw_deref_sites": [],
-      "deref_impl_sites": [],
-      "deref_mut_impl_sites": [],
-      "slice_ref_sites": [],
-      "slice_mut_sites": [],
-      "crate": "ffmpeg"
-    },
-    {
-      "name": "av_clip_int16_c",
-      "raw_ptr_sites": [],
-      "raw_deref_sites": [],
-      "deref_impl_sites": [],
-      "deref_mut_impl_sites": [],
-      "slice_ref_sites": [],
-      "slice_mut_sites": [],
-      "crate": "ffmpeg"
-    },
-    {
-      "name": "av_clip_int8_c",
-      "raw_ptr_sites": [],
-      "raw_deref_sites": [],
-      "deref_impl_sites": [],
-      "deref_mut_impl_sites": [],
-      "slice_ref_sites": [],
-      "slice_mut_sites": [],
-      "crate": "ffmpeg"
-    },
-    {
-      "name": "av_clip_intp2_c",
-      "raw_ptr_sites": [],
-      "raw_deref_sites": [],
-      "deref_impl_sites": [],
-      "deref_mut_impl_sites": [],
-      "slice_ref_sites": [],
-      "slice_mut_sites": [],
-      "crate": "ffmpeg"
-    },
-    {
-      "name": "av_clip_uint16_c",
-      "raw_ptr_sites": [],
-      "raw_deref_sites": [],
-      "deref_impl_sites": [],
-      "deref_mut_impl_sites": [],
-      "slice_ref_sites": [],
-      "slice_mut_sites": [],
-      "crate": "ffmpeg"
-    },
-    {
-      "name": "av_clip_uint8_c",
-      "raw_ptr_sites": [],
-      "raw_deref_sites": [],
-      "deref_impl_sites": [],
-      "deref_mut_impl_sites": [],
-      "slice_ref_sites": [],
-      "slice_mut_sites": [],
-      "crate": "ffmpeg"
-    },
-    {
-      "name": "av_clip_uintp2_c",
-      "raw_ptr_sites": [],
-      "raw_deref_sites": [],
-      "deref_impl_sites": [],
-      "deref_mut_impl_sites": [],
-      "slice_ref_sites": [],
-      "slice_mut_sites": [],
-      "crate": "ffmpeg"
-    },
-    {
-      "name": "av_clipd_c",
-      "raw_ptr_sites": [],
-      "raw_deref_sites": [],
-      "deref_impl_sites": [],
-      "deref_mut_impl_sites": [],
-      "slice_ref_sites": [],
-      "slice_mut_sites": [],
-      "crate": "ffmpeg"
-    },
-    {
-      "name": "av_clipf_c",
-      "raw_ptr_sites": [],
-      "raw_deref_sites": [],
-      "deref_impl_sites": [],
-      "deref_mut_impl_sites": [],
-      "slice_ref_sites": [],
-      "slice_mut_sites": [],
-      "crate": "ffmpeg"
-    },
-    {
-      "name": "av_clipl_int32_c",
-      "raw_ptr_sites": [],
-      "raw_deref_sites": [],
-      "deref_impl_sites": [],
-      "deref_mut_impl_sites": [],
-      "slice_ref_sites": [],
-      "slice_mut_sites": [],
-      "crate": "ffmpeg"
-    },
-    {
-      "name": "av_compare_mod",
-      "raw_ptr_sites": [],
-      "raw_deref_sites": [],
-      "deref_impl_sites": [],
-      "deref_mut_impl_sites": [],
-      "slice_ref_sites": [],
-      "slice_mut_sites": [],
-      "crate": "ffmpeg"
-    },
-    {
-      "name": "av_cpu_count",
-      "raw_ptr_sites": [],
-      "raw_deref_sites": [],
-      "deref_impl_sites": [],
-      "deref_mut_impl_sites": [],
-      "slice_ref_sites": [],
-      "slice_mut_sites": [],
-      "crate": "ffmpeg"
-    },
-    {
-      "name": "av_cpu_force_count",
-      "raw_ptr_sites": [],
-      "raw_deref_sites": [],
-      "deref_impl_sites": [],
-      "deref_mut_impl_sites": [],
-      "slice_ref_sites": [],
-      "slice_mut_sites": [],
-      "crate": "ffmpeg"
-    },
-    {
-      "name": "av_cpu_max_align",
-      "raw_ptr_sites": [],
-      "raw_deref_sites": [],
-      "deref_impl_sites": [],
-      "deref_mut_impl_sites": [],
-      "slice_ref_sites": [],
-      "slice_mut_sites": [],
-      "crate": "ffmpeg"
-    },
-    {
-      "name": "av_default_item_name",
-      "raw_ptr_sites": [
-        {
-          "file": "ffmpeg/libavutil/log.rs",
-          "count": 1,
-          "lines": [
-            398
-          ]
-        }
-      ],
-      "raw_deref_sites": [],
-      "deref_impl_sites": [],
-      "deref_mut_impl_sites": [],
-      "slice_ref_sites": [],
-      "slice_mut_sites": [],
-      "crate": "ffmpeg"
+    "by": {
+      "fn_sig_ffibox_owner_pub": {
+        "CBox": 2,
+        "CStrBox": 4,
+        "CVec": 4
+      },
+      "fn_sig_ffibox_owner_priv": {},
+      "fn_sig_ffibox_handle_pub": {
+        "CSlice": 1,
+        "Mut": 69,
+        "Ref": 60
+      },
+      "fn_sig_ffibox_handle_priv": {
+        "Mut": 33,
+        "Ref": 44
+      },
+      "fn_sig_non_ffibox_owner_pub": {},
+      "fn_sig_non_ffibox_owner_priv": {},
+      "fn_sig_non_ffibox_handle_pub": {
+        "libavutil::opt::OptionDefault": 1
+      },
+      "fn_sig_non_ffibox_handle_priv": {},
+      "ty_pub_fields_pub_ffibox_owner": {},
+      "ty_pub_fields_priv_ffibox_owner": {},
+      "ty_priv_ffibox_owner": {},
+      "ty_pub_fields_pub_ffibox_handle": {},
+      "ty_pub_fields_priv_ffibox_handle": {
+        "CBorrowedPtr": 11,
+        "Ref": 11
+      },
+      "ty_priv_ffibox_handle": {},
+      "ty_pub_fields_pub_non_ffibox_owner": {},
+      "ty_pub_fields_priv_non_ffibox_owner": {},
+      "ty_priv_non_ffibox_owner": {},
+      "ty_pub_fields_pub_non_ffibox_handle": {},
+      "ty_pub_fields_priv_non_ffibox_handle": {},
+      "ty_priv_non_ffibox_handle": {},
+      "ffibox_impl_macro": {
+        "CCell": 11,
+        "CDupClone": 1,
+        "CLenClone": 1,
+        "CLenDrop": 1
+      },
+      "ffibox_impl_manual": {
+        "CAlloc": 1,
+        "CAllocZeroed": 1,
+        "CDrop": 3,
+        "CDupClone": 1,
+        "CPlainElem": 2,
+        "CZeroable": 9
+      },
+      "ffibox_define_ctype_macro": {
+        "libavutil::intfloat::IntFloat32": 1,
+        "libavutil::intfloat::IntFloat64": 1,
+        "libavutil::intreadwrite::Alias16": 1,
+        "libavutil::intreadwrite::Alias32": 1,
+        "libavutil::intreadwrite::Alias64": 1,
+        "libavutil::intreadwrite::Unaligned16": 1,
+        "libavutil::intreadwrite::Unaligned32": 1,
+        "libavutil::intreadwrite::Unaligned64": 1,
+        "libavutil::opt::OptionDef": 1,
+        "libavutil::opt::OptionRanges": 1,
+        "libavutil::rational::Rational": 1
+      },
+      "ffibox_define_ctype_manual": {},
+      "ffibox_ccell_not_layout": {},
+      "ffibox_layout_not_ccell": {},
+      "drop_impl": {},
+      "clone_impl": {}
     }
-  ],
+  },
   "undocumented_unsafe": {
-    "sites": 0,
-    "documented": 0,
-    "undocumented": 0,
-    "per_file": {}
+    "sites": 538,
+    "documented": 532,
+    "undocumented": 6,
+    "per_file": {
+      "ffmpeg/libavutil/opt.rs": 3,
+      "ffmpeg/libavutil/avstring.rs": 1,
+      "ffmpeg/tests/common/opt.rs": 1,
+      "ffmpeg/tests/equiv/avstring.rs": 1
+    }
   },
   "derived": {
-    "unsafe_fn_pub_ratio": 0.234,
-    "unsafe_fn_smell": 14,
-    "raw_ptr_smell": 10,
-    "raw_ptr_seam_ratio": 0.8851,
+    "fns_pub": 211,
+    "fns_priv": 84,
+    "unsafe_fn_pub_ratio": 0.1,
+    "unsafe_fn_share_of_pub_fns": 0.019,
+    "raw_ptr_pub": 8,
+    "raw_ptr_pub_safe_interface": 2,
     "unsafe_loc_ratio": 0.1517,
     "loc_per_unsafe_block": 6.9
   }

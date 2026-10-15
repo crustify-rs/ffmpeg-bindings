@@ -1,0 +1,12 @@
+{
+  "level": "review-wave",
+  "branch": "crustify/reviews/20261005/libavutil/raw-lifetime-string/wave-0",
+  "scan": "8bdf2c713898a3f57b0d7f75fa67079a9d25dd34",
+  "base": "a95b9e32202a1c1e00922abb5ce205667e580a42",
+  "base_from": "recorded base = reflog",
+  "crustify": "1a7d4341901fd962d54e979178941898547b09e7",
+  "command": "crustify ffimap <workdir> --json --ffibox",
+  "ffibox": "695d52d",
+  "ffibox_base": "695d52d",
+  "ffibox_rule": "latest ffibox commit at or before the scanned commit's committer time"
+}
