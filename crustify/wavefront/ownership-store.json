@@ -670,7 +670,7 @@
    "_comment_agent": "Opaque outside eval.c (public eval.h only forward-declares it). A parsed expression is a tree of av_mallocz'd nodes; av_expr_parse av_reallocs the root into an AVExprRoot (cast to/from) holding two owned av_mallocz blocks, var[VARS] (st/ld registers, written by av_expr_eval) and prng_state[VARS]. Lifecycle: av_expr_parse (alloc constructor through AVExpr **) and av_expr_free (recursive dropper, NULL-tolerant); no clone. Constant names and function-name arrays are read only during parsing; const_index records the position, so av_expr_eval reads const_values[const_index] unchecked. Rust: CBox<Expr, ExprFree> (crustify/rust/ffmpeg/libavutil/eval.rs, options wave 0 batch 1).",
    "fields": [
     {
-     "name": "(unknown field).func0",
+     "name": "func0",
      "ptr": {
       "scalar": {
        "by_val": true
@@ -687,7 +687,7 @@
      }
     },
     {
-     "name": "(unknown field).func1",
+     "name": "func1",
      "ptr": {
       "scalar": {
        "by_val": true
@@ -704,7 +704,7 @@
      }
     },
     {
-     "name": "(unknown field).func2",
+     "name": "func2",
      "ptr": {
       "scalar": {
        "by_val": true
