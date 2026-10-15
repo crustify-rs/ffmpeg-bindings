@@ -1,384 +1,211 @@
 {
-  "crate_path": "/target/crustify/.worktrees/orchestrator/core-wave-0-gate/crustify/rust",
+  "crate_path": "/target/crustify/rust",
+  "sys_crates": [
+    "clang_sys",
+    "libavcodec_sys",
+    "libavdevice_sys",
+    "libavfilter_sys",
+    "libavformat_sys",
+    "libavutil_sys",
+    "libswresample_sys",
+    "libswscale_sys",
+    "prettyplease",
+    "windows_sys"
+  ],
   "counts": {
+    "code_lines": 8473,
+    "total_stmts": 1602,
+    "safe_fns_pub": 751,
+    "safe_fns_priv": 198,
     "unsafe_blocks": 741,
     "unsafe_block_stmts": 9,
     "unsafe_block_lines": 1164,
     "unsafe_block_code_lines": 1138,
     "unsafe_blocks_wrapper_impl": 406,
     "unsafe_blocks_ffi_export": 0,
-    "unsafe_fns": 107,
-    "unsafe_fns_seam": 82,
-    "unsafe_fns_pub_smell": 16,
-    "unsafe_fns_priv_smell": 9,
+    "unsafe_fns": 96,
+    "unsafe_fns_pub": 17,
+    "unsafe_fns_priv": 79,
     "unsafe_impls": 212,
     "unsafe_traits": 0,
-    "ffi_calls": 279,
-    "wrapper_newtypes": 23,
-    "wrapper_newtypes_declared": 23,
-    "wrapper_declared_nonconformant": 0,
-    "wrapper_newtypes_undeclared": 0,
-    "raw_ptr_args": 103,
-    "raw_ptr_rets": 116,
-    "raw_ptr_seam": 169,
-    "raw_ptr_wrapped": 3,
-    "raw_ptr_pub_smell": 22,
-    "raw_ptr_priv_smell": 36,
-    "ref_to_type_wrapper_sanctioned": 127,
-    "ref_to_type_wrapper_smell": 1,
-    "ref_to_type_wrapper_body_smell": 0,
-    "deref_impl_on_wrapper": 0,
-    "raw_ptr_fields": 8,
-    "field_ref_wrapped": 0,
-    "field_proj_wrapped": 179,
-    "field_proj_outside_impl": 0,
-    "void_ptr_seam": 71,
-    "void_ptr_pub_smell": 20,
-    "void_ptr_priv_smell": 6,
+    "ty_wrapper": 23,
+    "ty_wrapper_borrow_sanctioned": 127,
+    "ty_wrapper_borrow_non_sanctioned": 1,
+    "ty_wrapper_by_val_fn_sig_pub": 109,
+    "ty_wrapper_by_val_fn_sig_priv": 2,
+    "ty_wrapper_by_val_ty_pub_fields_pub": 1,
+    "ty_wrapper_by_val_ty_pub_fields_priv": 0,
+    "ty_wrapper_by_val_ty_priv": 0,
+    "ty_wrapper_std_owner_fn_sig_pub": 0,
+    "ty_wrapper_std_owner_fn_sig_priv": 0,
+    "ty_wrapper_std_owner_ty_pub_fields_pub": 0,
+    "ty_wrapper_std_owner_ty_pub_fields_priv": 0,
+    "ty_wrapper_std_owner_ty_priv": 0,
+    "ty_non_wrapper_borrow_pub_safe": 523,
+    "ty_non_wrapper_borrow_pub_unsafe": 11,
+    "ty_non_wrapper_borrow_priv_safe": 173,
+    "ty_non_wrapper_borrow_priv_unsafe": 2,
+    "raw_ptr_ty_pub_fields_pub": 0,
+    "raw_ptr_ty_pub_fields_priv": 8,
+    "raw_ptr_ty_priv": 0,
+    "raw_ptr_fn_pub_safe": 8,
+    "raw_ptr_fn_pub_unsafe": 15,
+    "raw_ptr_fn_priv_safe": 113,
+    "raw_ptr_fn_priv_unsafe": 80,
+    "raw_ptr_has_ty_wrapper": 96,
     "raw_ptr_derefs": 182,
     "raw_ptr_derefs_outside_impl": 0,
-    "total_stmts": 1602,
-    "code_lines": 8473
+    "void_ptr_ty_pub_fields_pub": 0,
+    "void_ptr_ty_pub_fields_priv": 2,
+    "void_ptr_ty_priv": 0,
+    "void_ptr_fn_pub_safe": 5,
+    "void_ptr_fn_pub_unsafe": 15,
+    "void_ptr_fn_priv_safe": 51,
+    "void_ptr_fn_priv_unsafe": 24,
+    "ty_field_proj_wrapped": 179,
+    "ty_field_proj_outside_impl": 0,
+    "ty_field_borrow_wrapped": 0,
+    "deref_impl_on_wrapper": 0,
+    "ffi_calls": 279
   },
   "counts_unavailable": null,
-  "sites": {
-    "unsafe_fns_pub_smell": [
-      {
-        "file": "ffmpeg/libavutil/bprint.rs",
-        "count": 1,
-        "lines": [
-          296
-        ]
+  "ffibox": {
+    "counts": {
+      "fn_sig_ffibox_owner_pub": 53,
+      "fn_sig_ffibox_owner_priv": 5,
+      "fn_sig_ffibox_handle_pub": 426,
+      "fn_sig_ffibox_handle_priv": 181,
+      "fn_sig_non_ffibox_owner_pub": 1,
+      "fn_sig_non_ffibox_owner_priv": 0,
+      "fn_sig_non_ffibox_handle_pub": 10,
+      "fn_sig_non_ffibox_handle_priv": 1,
+      "ty_pub_fields_pub_ffibox_owner": 0,
+      "ty_pub_fields_priv_ffibox_owner": 5,
+      "ty_priv_ffibox_owner": 0,
+      "ty_pub_fields_pub_ffibox_handle": 1,
+      "ty_pub_fields_priv_ffibox_handle": 48,
+      "ty_priv_ffibox_handle": 2,
+      "ty_pub_fields_pub_non_ffibox_owner": 0,
+      "ty_pub_fields_priv_non_ffibox_owner": 0,
+      "ty_priv_non_ffibox_owner": 0,
+      "ty_pub_fields_pub_non_ffibox_handle": 0,
+      "ty_pub_fields_priv_non_ffibox_handle": 0,
+      "ty_priv_non_ffibox_handle": 0,
+      "ffibox_impl_macro": 30,
+      "ffibox_impl_manual": 38,
+      "ffibox_define_ctype_macro": 23,
+      "ffibox_define_ctype_manual": 0,
+      "ffibox_ccell_not_layout": 0,
+      "ffibox_layout_not_ccell": 0,
+      "drop_impl": 2,
+      "clone_impl": 0
+    },
+    "by": {
+      "fn_sig_ffibox_owner_pub": {
+        "CBox": 7,
+        "CStrBox": 8,
+        "CVal": 11,
+        "CVec": 27
       },
-      {
-        "file": "ffmpeg/libavutil/cpu.rs",
-        "count": 1,
-        "lines": [
-          90
-        ]
+      "fn_sig_ffibox_owner_priv": {
+        "CBox": 2,
+        "CVal": 1,
+        "CVec": 2
       },
-      {
-        "file": "ffmpeg/libavutil/file.rs",
-        "count": 1,
-        "lines": [
-          63
-        ]
+      "fn_sig_ffibox_handle_pub": {
+        "CSlice": 4,
+        "CSliceMut": 5,
+        "Mut": 218,
+        "Ref": 199
       },
-      {
-        "file": "ffmpeg/libavutil/imgutils.rs",
-        "count": 2,
-        "lines": [
-          75,
-          586
-        ]
+      "fn_sig_ffibox_handle_priv": {
+        "Mut": 72,
+        "Ref": 109
       },
-      {
-        "file": "ffmpeg/libavutil/log.rs",
-        "count": 9,
-        "lines": [
-          649,
-          673,
-          707,
-          751,
-          1065,
-          1097,
-          1135,
-          1454,
-          1482
-        ]
+      "fn_sig_non_ffibox_owner_pub": {
+        "libavutil::mem::DynArray": 1
       },
-      {
-        "file": "ffmpeg/libavutil/opt.rs",
-        "count": 2,
-        "lines": [
-          353,
-          383
-        ]
-      }
-    ],
-    "unsafe_fns_priv_smell": [
-      {
-        "file": "ffmpeg/libavutil/bprint.rs",
-        "count": 3,
-        "lines": [
-          404,
-          453,
-          504
-        ]
+      "fn_sig_non_ffibox_owner_priv": {},
+      "fn_sig_non_ffibox_handle_pub": {
+        "libavutil::log::ChildClasses": 1,
+        "libavutil::log::Record": 8,
+        "libavutil::opt::OptionDefault": 1
       },
-      {
-        "file": "ffmpeg/libavutil/file.rs",
-        "count": 1,
-        "lines": [
-          26
-        ]
+      "fn_sig_non_ffibox_handle_priv": {
+        "libavutil::log::Record": 1
       },
-      {
-        "file": "ffmpeg/libavutil/mem.rs",
-        "count": 3,
-        "lines": [
-          97,
-          109,
-          781
-        ]
+      "ty_pub_fields_pub_ffibox_owner": {},
+      "ty_pub_fields_priv_ffibox_owner": {
+        "CVec": 5
       },
-      {
-        "file": "ffmpeg/libavutil/opt.rs",
-        "count": 1,
-        "lines": [
-          71
-        ]
+      "ty_priv_ffibox_owner": {},
+      "ty_pub_fields_pub_ffibox_handle": {
+        "CSlice": 1
       },
-      {
-        "file": "ffmpeg/libavutil/pixdesc.rs",
-        "count": 1,
-        "lines": [
-          950
-        ]
-      }
-    ],
-    "raw_ptr_pub_smell": [
-      {
-        "file": "ffmpeg/libavutil/channel_layout.rs",
-        "count": 4,
-        "lines": [
-          755,
-          841,
-          1880,
-          1914
-        ]
+      "ty_pub_fields_priv_ffibox_handle": {
+        "CBorrowedPtr": 23,
+        "Ref": 25
       },
-      {
-        "file": "ffmpeg/libavutil/file.rs",
-        "count": 1,
-        "lines": [
-          63
-        ]
+      "ty_priv_ffibox_handle": {
+        "CSlice": 1,
+        "Mut": 1
       },
-      {
-        "file": "ffmpeg/libavutil/imgutils.rs",
-        "count": 2,
-        "lines": [
-          75,
-          586
-        ]
+      "ty_pub_fields_pub_non_ffibox_owner": {},
+      "ty_pub_fields_priv_non_ffibox_owner": {},
+      "ty_priv_non_ffibox_owner": {},
+      "ty_pub_fields_pub_non_ffibox_handle": {},
+      "ty_pub_fields_priv_non_ffibox_handle": {},
+      "ty_priv_non_ffibox_handle": {},
+      "ffibox_impl_macro": {
+        "CCell": 23,
+        "CDispose": 1,
+        "CDrop": 2,
+        "CDupClone": 1,
+        "CLenClone": 1,
+        "CLenDrop": 2
       },
-      {
-        "file": "ffmpeg/libavutil/log.rs",
-        "count": 11,
-        "lines": [
-          649,
-          673,
-          707,
-          751,
-          1065,
-          1097,
-          1135,
-          1242,
-          1454,
-          1482
-        ]
+      "ffibox_impl_manual": {
+        "CAlloc": 1,
+        "CAllocZeroed": 1,
+        "CDrop": 3,
+        "CDupClone": 1,
+        "CPlainElem": 13,
+        "CZeroable": 19
       },
-      {
-        "file": "ffmpeg/libavutil/opt.rs",
-        "count": 4,
-        "lines": [
-          353,
-          383,
-          433,
-          458
-        ]
-      }
-    ],
-    "raw_ptr_priv_smell": [
-      {
-        "file": "ffmpeg/libavutil/avstring.rs",
-        "count": 3,
-        "lines": [
-          394,
-          396,
-          930
-        ]
+      "ffibox_define_ctype_macro": {
+        "libavutil::bprint::BPrint": 1,
+        "libavutil::bprint::BPrintFields": 1,
+        "libavutil::bprint::Tm": 1,
+        "libavutil::channel_layout::ChannelCustom": 1,
+        "libavutil::channel_layout::ChannelLayout": 1,
+        "libavutil::csp::CieXy": 1,
+        "libavutil::csp::ColorPrimariesDescriptor": 1,
+        "libavutil::csp::LumaCoefficients": 1,
+        "libavutil::csp::PrimaryCoefficients": 1,
+        "libavutil::intfloat::IntFloat32": 1,
+        "libavutil::intfloat::IntFloat64": 1,
+        "libavutil::intreadwrite::Alias16": 1,
+        "libavutil::intreadwrite::Alias32": 1,
+        "libavutil::intreadwrite::Alias64": 1,
+        "libavutil::intreadwrite::Unaligned16": 1,
+        "libavutil::intreadwrite::Unaligned32": 1,
+        "libavutil::intreadwrite::Unaligned64": 1,
+        "libavutil::log::Class": 1,
+        "libavutil::opt::OptionDef": 1,
+        "libavutil::opt::OptionRanges": 1,
+        "libavutil::pixdesc::ComponentDescriptor": 1,
+        "libavutil::pixdesc::PixelFormatDescriptor": 1,
+        "libavutil::rational::Rational": 1
       },
-      {
-        "file": "ffmpeg/libavutil/bprint.rs",
-        "count": 4,
-        "lines": [
-          404,
-          453,
-          570,
-          640
-        ]
+      "ffibox_define_ctype_manual": {},
+      "ffibox_ccell_not_layout": {},
+      "ffibox_layout_not_ccell": {},
+      "drop_impl": {
+        "libavutil::bprint::Terminate": 1,
+        "libavutil::mem::DynArray": 1
       },
-      {
-        "file": "ffmpeg/libavutil/channel_layout.rs",
-        "count": 3,
-        "lines": [
-          959,
-          1442,
-          1811
-        ]
-      },
-      {
-        "file": "ffmpeg/libavutil/file.rs",
-        "count": 1,
-        "lines": [
-          26
-        ]
-      },
-      {
-        "file": "ffmpeg/libavutil/imgutils.rs",
-        "count": 5,
-        "lines": [
-          1252,
-          1265,
-          1295,
-          1538
-        ]
-      },
-      {
-        "file": "ffmpeg/libavutil/log.rs",
-        "count": 5,
-        "lines": [
-          763,
-          1225,
-          1227,
-          1228,
-          1379
-        ]
-      },
-      {
-        "file": "ffmpeg/libavutil/mem.rs",
-        "count": 9,
-        "lines": [
-          97,
-          109,
-          356,
-          387,
-          393,
-          593
-        ]
-      },
-      {
-        "file": "ffmpeg/libavutil/opt.rs",
-        "count": 1,
-        "lines": [
-          71
-        ]
-      },
-      {
-        "file": "ffmpeg/libavutil/pixdesc.rs",
-        "count": 1,
-        "lines": [
-          950
-        ]
-      },
-      {
-        "file": "ffmpeg/libavutil/samplefmt.rs",
-        "count": 4,
-        "lines": [
-          359,
-          377,
-          854,
-          938
-        ]
-      }
-    ],
-    "void_ptr_pub_smell": [
-      {
-        "file": "ffmpeg/libavutil/channel_layout.rs",
-        "count": 4,
-        "lines": [
-          755,
-          841,
-          1880,
-          1914
-        ]
-      },
-      {
-        "file": "ffmpeg/libavutil/file.rs",
-        "count": 1,
-        "lines": [
-          63
-        ]
-      },
-      {
-        "file": "ffmpeg/libavutil/imgutils.rs",
-        "count": 2,
-        "lines": [
-          75,
-          586
-        ]
-      },
-      {
-        "file": "ffmpeg/libavutil/log.rs",
-        "count": 11,
-        "lines": [
-          649,
-          673,
-          707,
-          751,
-          1065,
-          1097,
-          1135,
-          1242,
-          1454,
-          1482
-        ]
-      },
-      {
-        "file": "ffmpeg/libavutil/opt.rs",
-        "count": 2,
-        "lines": [
-          353,
-          383
-        ]
-      }
-    ],
-    "void_ptr_priv_smell": [
-      {
-        "file": "ffmpeg/libavutil/avstring.rs",
-        "count": 1,
-        "lines": [
-          930
-        ]
-      },
-      {
-        "file": "ffmpeg/libavutil/channel_layout.rs",
-        "count": 1,
-        "lines": [
-          1442
-        ]
-      },
-      {
-        "file": "ffmpeg/libavutil/log.rs",
-        "count": 2,
-        "lines": [
-          763,
-          1225
-        ]
-      },
-      {
-        "file": "ffmpeg/libavutil/mem.rs",
-        "count": 2,
-        "lines": [
-          387,
-          393
-        ]
-      }
-    ],
-    "ref_to_type_wrapper_smell": [
-      {
-        "file": "ffmpeg/libavutil/log.rs",
-        "count": 1,
-        "lines": [
-          472
-        ]
-      }
-    ],
-    "ref_to_type_wrapper_body_smell": [],
-    "deref_impl_on_wrapper": [],
-    "field_ref_wrapped": []
+      "clone_impl": {}
+    }
   },
   "undocumented_unsafe": {
     "sites": 1738,
@@ -404,10 +231,12 @@
     }
   },
   "derived": {
-    "unsafe_fn_pub_ratio": 0.1495,
-    "unsafe_fn_smell": 25,
-    "raw_ptr_smell": 58,
-    "raw_ptr_seam_ratio": 0.7445,
+    "fns_pub": 768,
+    "fns_priv": 277,
+    "unsafe_fn_pub_ratio": 0.1771,
+    "unsafe_fn_share_of_pub_fns": 0.0221,
+    "raw_ptr_pub": 31,
+    "raw_ptr_pub_safe_interface": 8,
     "unsafe_loc_ratio": 0.1343,
     "loc_per_unsafe_block": 11.4
   }

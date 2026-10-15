@@ -1,0 +1,12 @@
+{
+  "level": "subcampaign",
+  "branch": "crustify/subcampaigns/20261005/libavutil/options",
+  "scan": "34ffd7ee48996e2950389d9afc9da8e2b623bd5f",
+  "base": "0c2bf754abb48d19d6a7c5f221389b75a33336cd",
+  "base_from": "reflog creation (first wave base f391dca889)",
+  "crustify": "1a7d4341901fd962d54e979178941898547b09e7",
+  "command": "crustify ffimap <workdir> --json --ffibox",
+  "ffibox": "196c5fb",
+  "ffibox_base": "196c5fb",
+  "ffibox_rule": "latest ffibox commit at or before the scanned commit's committer time"
+}

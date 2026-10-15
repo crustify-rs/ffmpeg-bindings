@@ -1,0 +1,293 @@
+{
+  "crate_path": "/target/crustify/rust",
+  "sys_crates": [
+    "clang_sys",
+    "libavcodec_sys",
+    "libavdevice_sys",
+    "libavfilter_sys",
+    "libavformat_sys",
+    "libavutil_sys",
+    "libswresample_sys",
+    "libswscale_sys",
+    "prettyplease",
+    "windows_sys"
+  ],
+  "counts": {
+    "code_lines": 13890,
+    "total_stmts": 2742,
+    "safe_fns_pub": 1204,
+    "safe_fns_priv": 432,
+    "unsafe_blocks": 1235,
+    "unsafe_block_stmts": 13,
+    "unsafe_block_lines": 2080,
+    "unsafe_block_code_lines": 2042,
+    "unsafe_blocks_wrapper_impl": 703,
+    "unsafe_blocks_ffi_export": 4,
+    "unsafe_fns": 195,
+    "unsafe_fns_pub": 19,
+    "unsafe_fns_priv": 176,
+    "unsafe_impls": 348,
+    "unsafe_traits": 1,
+    "ty_wrapper": 50,
+    "ty_wrapper_borrow_sanctioned": 195,
+    "ty_wrapper_borrow_non_sanctioned": 1,
+    "ty_wrapper_by_val_fn_sig_pub": 134,
+    "ty_wrapper_by_val_fn_sig_priv": 6,
+    "ty_wrapper_by_val_ty_pub_fields_pub": 1,
+    "ty_wrapper_by_val_ty_pub_fields_priv": 0,
+    "ty_wrapper_by_val_ty_priv": 0,
+    "ty_wrapper_std_owner_fn_sig_pub": 0,
+    "ty_wrapper_std_owner_fn_sig_priv": 0,
+    "ty_wrapper_std_owner_ty_pub_fields_pub": 0,
+    "ty_wrapper_std_owner_ty_pub_fields_priv": 0,
+    "ty_wrapper_std_owner_ty_priv": 0,
+    "ty_non_wrapper_borrow_pub_safe": 1089,
+    "ty_non_wrapper_borrow_pub_unsafe": 9,
+    "ty_non_wrapper_borrow_priv_safe": 383,
+    "ty_non_wrapper_borrow_priv_unsafe": 2,
+    "raw_ptr_ty_pub_fields_pub": 0,
+    "raw_ptr_ty_pub_fields_priv": 9,
+    "raw_ptr_ty_priv": 0,
+    "raw_ptr_fn_pub_safe": 12,
+    "raw_ptr_fn_pub_unsafe": 15,
+    "raw_ptr_fn_priv_safe": 231,
+    "raw_ptr_fn_priv_unsafe": 168,
+    "raw_ptr_has_ty_wrapper": 209,
+    "raw_ptr_derefs": 235,
+    "raw_ptr_derefs_outside_impl": 1,
+    "void_ptr_ty_pub_fields_pub": 0,
+    "void_ptr_ty_pub_fields_priv": 3,
+    "void_ptr_ty_priv": 0,
+    "void_ptr_fn_pub_safe": 11,
+    "void_ptr_fn_pub_unsafe": 15,
+    "void_ptr_fn_priv_safe": 108,
+    "void_ptr_fn_priv_unsafe": 55,
+    "ty_field_proj_wrapped": 229,
+    "ty_field_proj_outside_impl": 0,
+    "ty_field_borrow_wrapped": 0,
+    "deref_impl_on_wrapper": 0,
+    "ffi_calls": 491
+  },
+  "counts_unavailable": null,
+  "ffibox": {
+    "counts": {
+      "fn_sig_ffibox_owner_pub": 97,
+      "fn_sig_ffibox_owner_priv": 8,
+      "fn_sig_ffibox_handle_pub": 756,
+      "fn_sig_ffibox_handle_priv": 397,
+      "fn_sig_non_ffibox_owner_pub": 1,
+      "fn_sig_non_ffibox_owner_priv": 0,
+      "fn_sig_non_ffibox_handle_pub": 77,
+      "fn_sig_non_ffibox_handle_priv": 20,
+      "ty_pub_fields_pub_ffibox_owner": 2,
+      "ty_pub_fields_priv_ffibox_owner": 7,
+      "ty_priv_ffibox_owner": 0,
+      "ty_pub_fields_pub_ffibox_handle": 3,
+      "ty_pub_fields_priv_ffibox_handle": 110,
+      "ty_priv_ffibox_handle": 3,
+      "ty_pub_fields_pub_non_ffibox_owner": 0,
+      "ty_pub_fields_priv_non_ffibox_owner": 0,
+      "ty_priv_non_ffibox_owner": 0,
+      "ty_pub_fields_pub_non_ffibox_handle": 1,
+      "ty_pub_fields_priv_non_ffibox_handle": 3,
+      "ty_priv_non_ffibox_handle": 1,
+      "ffibox_impl_macro": 60,
+      "ffibox_impl_manual": 76,
+      "ffibox_define_ctype_macro": 50,
+      "ffibox_define_ctype_manual": 0,
+      "ffibox_ccell_not_layout": 0,
+      "ffibox_layout_not_ccell": 0,
+      "drop_impl": 2,
+      "clone_impl": 0
+    },
+    "by": {
+      "fn_sig_ffibox_owner_pub": {
+        "CArc": 8,
+        "CBox": 32,
+        "CStrBox": 17,
+        "CVal": 12,
+        "CVec": 28
+      },
+      "fn_sig_ffibox_owner_priv": {
+        "CBox": 3,
+        "CStrBox": 2,
+        "CVal": 1,
+        "CVec": 2
+      },
+      "fn_sig_ffibox_handle_pub": {
+        "CSlice": 4,
+        "CSliceMut": 6,
+        "Mut": 403,
+        "Ref": 340,
+        "libavutil::opt::BareObject": 3
+      },
+      "fn_sig_ffibox_handle_priv": {
+        "CSlice": 1,
+        "Mut": 153,
+        "Ref": 243
+      },
+      "fn_sig_non_ffibox_owner_pub": {
+        "libavutil::mem::DynArray": 1
+      },
+      "fn_sig_non_ffibox_owner_priv": {},
+      "fn_sig_non_ffibox_handle_pub": {
+        "libavutil::log::ChildClasses": 1,
+        "libavutil::log::Record": 8,
+        "libavutil::opt::ChildrenMut": 2,
+        "libavutil::opt::ObjectMut": 29,
+        "libavutil::opt::ObjectRef": 36,
+        "libavutil::opt::PotentialChildren": 1
+      },
+      "fn_sig_non_ffibox_handle_priv": {
+        "libavutil::log::Record": 1,
+        "libavutil::opt::ObjectMut": 4,
+        "libavutil::opt::ObjectRef": 15
+      },
+      "ty_pub_fields_pub_ffibox_owner": {
+        "CStrBox": 2
+      },
+      "ty_pub_fields_priv_ffibox_owner": {
+        "CBox": 2,
+        "CVec": 5
+      },
+      "ty_priv_ffibox_owner": {},
+      "ty_pub_fields_pub_ffibox_handle": {
+        "CSlice": 1,
+        "Ref": 2
+      },
+      "ty_pub_fields_priv_ffibox_handle": {
+        "CBorrowedPtr": 50,
+        "Ref": 60
+      },
+      "ty_priv_ffibox_handle": {
+        "CSlice": 1,
+        "Mut": 1,
+        "Ref": 1
+      },
+      "ty_pub_fields_pub_non_ffibox_owner": {},
+      "ty_pub_fields_priv_non_ffibox_owner": {},
+      "ty_priv_non_ffibox_owner": {},
+      "ty_pub_fields_pub_non_ffibox_handle": {
+        "libavutil::opt::ObjectRef": 1
+      },
+      "ty_pub_fields_priv_non_ffibox_handle": {
+        "libavutil::opt::ObjectRef": 3
+      },
+      "ty_priv_non_ffibox_handle": {
+        "libavutil::opt::ObjectRef": 1
+      },
+      "ffibox_impl_macro": {
+        "CCell": 50,
+        "CDispose": 1,
+        "CDrop": 5,
+        "CDupClone": 1,
+        "CLenClone": 1,
+        "CLenDrop": 2
+      },
+      "ffibox_impl_manual": {
+        "CAlloc": 3,
+        "CAllocZeroed": 2,
+        "CDrop": 19,
+        "CDupClone": 2,
+        "CNew": 5,
+        "CPlainElem": 16,
+        "CRefClone": 3,
+        "CZeroable": 26
+      },
+      "ffibox_define_ctype_macro": {
+        "libavutil::aes::Aes": 1,
+        "libavutil::aes_ctr::AesCtr": 1,
+        "libavutil::blowfish::Blowfish": 1,
+        "libavutil::bprint::BPrint": 1,
+        "libavutil::bprint::BPrintFields": 1,
+        "libavutil::bprint::Tm": 1,
+        "libavutil::buffer::Buffer": 1,
+        "libavutil::buffer::BufferPool": 1,
+        "libavutil::camellia::Camellia": 1,
+        "libavutil::cast5::Cast5": 1,
+        "libavutil::channel_layout::ChannelCustom": 1,
+        "libavutil::channel_layout::ChannelLayout": 1,
+        "libavutil::csp::CieXy": 1,
+        "libavutil::csp::ColorPrimariesDescriptor": 1,
+        "libavutil::csp::LumaCoefficients": 1,
+        "libavutil::csp::PrimaryCoefficients": 1,
+        "libavutil::des::Des": 1,
+        "libavutil::dict::Dictionary": 1,
+        "libavutil::dict::DictionaryEntry": 1,
+        "libavutil::eval::Expr": 1,
+        "libavutil::frame::SideDataDescriptor": 1,
+        "libavutil::hash::HashContext": 1,
+        "libavutil::hmac::Hmac": 1,
+        "libavutil::intfloat::IntFloat32": 1,
+        "libavutil::intfloat::IntFloat64": 1,
+        "libavutil::intreadwrite::Alias16": 1,
+        "libavutil::intreadwrite::Alias32": 1,
+        "libavutil::intreadwrite::Alias64": 1,
+        "libavutil::intreadwrite::Unaligned16": 1,
+        "libavutil::intreadwrite::Unaligned32": 1,
+        "libavutil::intreadwrite::Unaligned64": 1,
+        "libavutil::log::Class": 1,
+        "libavutil::md5::Md5": 1,
+        "libavutil::murmur3::Murmur3": 1,
+        "libavutil::opt::OptionArrayDef": 1,
+        "libavutil::opt::OptionDef": 1,
+        "libavutil::opt::OptionRange": 1,
+        "libavutil::opt::OptionRanges": 1,
+        "libavutil::pixdesc::ComponentDescriptor": 1,
+        "libavutil::pixdesc::PixelFormatDescriptor": 1,
+        "libavutil::rational::Rational": 1,
+        "libavutil::rc4::Rc4": 1,
+        "libavutil::refstruct::RefStructOpaque": 1,
+        "libavutil::refstruct::RefStructPool": 1,
+        "libavutil::ripemd::Ripemd": 1,
+        "libavutil::sha512::Sha512": 1,
+        "libavutil::sha::Sha": 1,
+        "libavutil::tea::Tea": 1,
+        "libavutil::twofish::Twofish": 1,
+        "libavutil::xtea::Xtea": 1
+      },
+      "ffibox_define_ctype_manual": {},
+      "ffibox_ccell_not_layout": {},
+      "ffibox_layout_not_ccell": {},
+      "drop_impl": {
+        "libavutil::bprint::Terminate": 1,
+        "libavutil::mem::DynArray": 1
+      },
+      "clone_impl": {}
+    }
+  },
+  "undocumented_unsafe": {
+    "sites": 2901,
+    "documented": 2879,
+    "undocumented": 22,
+    "per_file": {
+      "ffmpeg/libavutil/opt.rs": 4,
+      "ffmpeg/libavutil/avstring.rs": 2,
+      "ffmpeg/tests/equiv/mem.rs": 2,
+      "ffmpeg/libavutil/bprint.rs": 1,
+      "ffmpeg/libavutil/file.rs": 1,
+      "ffmpeg/libavutil/mem.rs": 1,
+      "ffmpeg/libavutil/pixdesc.rs": 1,
+      "ffmpeg/libavutil/pixelutils.rs": 1,
+      "ffmpeg/libavutil/rational.rs": 1,
+      "ffmpeg/libavutil/samplefmt.rs": 1,
+      "ffmpeg/tests/common/opt.rs": 1,
+      "ffmpeg/tests/equiv/avstring.rs": 1,
+      "ffmpeg/tests/equiv/file.rs": 1,
+      "ffmpeg/tests/equiv/log.rs": 1,
+      "ffmpeg/tests/equiv/opt.rs": 1,
+      "ffmpeg/tests/equiv/pixelutils.rs": 1,
+      "ffmpeg/tests/equiv/random_seed.rs": 1
+    }
+  },
+  "derived": {
+    "fns_pub": 1223,
+    "fns_priv": 608,
+    "unsafe_fn_pub_ratio": 0.0974,
+    "unsafe_fn_share_of_pub_fns": 0.0155,
+    "raw_ptr_pub": 36,
+    "raw_ptr_pub_safe_interface": 12,
+    "unsafe_loc_ratio": 0.147,
+    "loc_per_unsafe_block": 11.2
+  }
+}

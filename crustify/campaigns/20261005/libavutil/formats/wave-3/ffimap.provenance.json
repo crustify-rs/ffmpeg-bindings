@@ -1,0 +1,12 @@
+{
+  "level": "wave",
+  "branch": "crustify/waves/20261005/libavutil/formats/wave-3",
+  "scan": "0cc48b6804ed11c15fd591f70e5a57a3d7bb1e6f",
+  "base": "eba75d9a4009d560502f0d162dc02bc2f1983b82",
+  "base_from": "recorded base = reflog",
+  "crustify": "1a7d4341901fd962d54e979178941898547b09e7",
+  "command": "crustify ffimap <workdir> --json --ffibox",
+  "ffibox": "196c5fb",
+  "ffibox_base": "196c5fb",
+  "ffibox_rule": "latest ffibox commit at or before the scanned commit's committer time"
+}

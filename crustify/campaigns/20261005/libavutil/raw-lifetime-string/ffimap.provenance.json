@@ -1,0 +1,12 @@
+{
+  "level": "subcampaign",
+  "branch": "crustify/subcampaigns/20261005/libavutil/raw-lifetime-string",
+  "scan": "8bdf2c713898a3f57b0d7f75fa67079a9d25dd34",
+  "base": "4365d143e2e67c37e2876c9d61a02ce05abbcb8a",
+  "base_from": "reflog creation",
+  "crustify": "1a7d4341901fd962d54e979178941898547b09e7",
+  "command": "crustify ffimap <workdir> --json --ffibox",
+  "ffibox": "695d52d",
+  "ffibox_base": "695d52d",
+  "ffibox_rule": "latest ffibox commit at or before the scanned commit's committer time"
+}
