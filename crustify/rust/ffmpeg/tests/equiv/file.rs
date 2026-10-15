@@ -55,7 +55,7 @@ fn c_map(name: &CStr) -> (Result<Vec<u8>, c_int>, usize) {
 fn rust_map(name: &CStr) -> (Result<Vec<u8>, c_int>, usize) {
     // SAFETY: nothing writes or truncates the file while it is mapped; no
     // parent log context.
-    match unsafe { map(name, 0, core::ptr::null_mut()) } {
+    match unsafe { map(name, 0, None) } {
         Ok(m) => {
             let len = m.len();
             (Ok(m.as_slice().to_vec()), len)
@@ -118,7 +118,7 @@ fn remapping_after_each_rewrite_matches_c() {
         // A mapping, then dropped, then a fresh one, sees the new contents.
         let m: FileMap = {
             // SAFETY: the file is not written again until `m` drops.
-            unsafe { map(&f.1, 0, core::ptr::null_mut()) }.unwrap()
+            unsafe { map(&f.1, 0, None) }.unwrap()
         };
         assert_eq!(m.as_slice(), contents, "step {step}");
     }

@@ -1,7 +1,0 @@
-error[E0133]: call to unsafe function `default_category` is unsafe and requires unsafe block
- --> tests/ub_safe/compile_fail/log_default_category_needs_unsafe.rs
-  |
-  |     let _ = ffmpeg::libavutil::log::default_category(ctx);
-  |             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ call to unsafe function
-  |
-  = note: consult the function's documentation for information on how to avoid undefined behavior

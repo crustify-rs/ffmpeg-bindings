@@ -1,7 +1,8 @@
-//! UB tests for `libavutil/imgutils.h`'s unsafe `check_size_with_context`,
-//! each call within its `# Safety` contract: a NULL parent context, a
-//! class-less one, and one led by a valid class, with level offsets up to
-//! the overflow bound, on valid and invalid sizes, on several threads.
+//! UB tests for `libavutil/imgutils.h`'s `check_size_with_context`, with
+//! parent contexts adopted through the unsafe `ObjectRef::from_ptr`, each
+//! within its contract: no parent context, and a raw one led by a valid
+//! class, with level offsets up to the overflow bound, on valid and invalid
+//! sizes, on several threads. A class-less context is no `ObjectRef`.
 
 use core::ffi::{c_int, c_void};
 use core::ptr;
@@ -9,6 +10,7 @@ use std::thread;
 
 use ffmpeg::libavutil::ffi;
 use ffmpeg::libavutil::imgutils::check_size_with_context;
+use ffmpeg::libavutil::opt::ObjectRef;
 
 /// `AVERROR(EINVAL)`.
 const EINVAL: c_int = -22;
@@ -36,55 +38,55 @@ fn class() -> ffi::AVClass {
 
 /// The checks every context runs: valid and invalid sizes, at the offsets
 /// around the overflow bound.
+fn checks(ctx: Option<ObjectRef<'_>>) {
+    let max = c_int::MAX - ffi::AV_LOG_ERROR as c_int;
+    for offset in [c_int::MIN, -8, 0, 8, max] {
+        assert_eq!(check_size_with_context(64, 48, offset, ctx), Ok(()));
+        assert_eq!(check_size_with_context(0, 48, offset, ctx), Err(EINVAL));
+        assert_eq!(
+            check_size_with_context(u32::MAX, u32::MAX, offset, ctx),
+            Err(EINVAL)
+        );
+    }
+    for offset in [max + 1, c_int::MAX] {
+        // Rejected before C runs.
+        assert_eq!(check_size_with_context(64, 48, offset, ctx), Err(EINVAL));
+        assert_eq!(check_size_with_context(0, 0, offset, ctx), Err(EINVAL));
+    }
+}
+
+/// The context at `ctx` as a handle.
 ///
 /// # Safety
 ///
-/// `ctx` must be valid for `check_size_with_context` throughout.
-unsafe fn checks(ctx: *mut c_void) {
-    let max = c_int::MAX - ffi::AV_LOG_ERROR as c_int;
-    for offset in [c_int::MIN, -8, 0, 8, max] {
-        // SAFETY: the caller vouches for `ctx`.
-        unsafe {
-            assert_eq!(check_size_with_context(64, 48, offset, ctx), Ok(()));
-            assert_eq!(check_size_with_context(0, 48, offset, ctx), Err(EINVAL));
-            assert_eq!(
-                check_size_with_context(u32::MAX, u32::MAX, offset, ctx),
-                Err(EINVAL)
-            );
-        }
-    }
-    for offset in [max + 1, c_int::MAX] {
-        // SAFETY: as above; rejected before C runs.
-        unsafe {
-            assert_eq!(check_size_with_context(64, 48, offset, ctx), Err(EINVAL));
-            assert_eq!(check_size_with_context(0, 0, offset, ctx), Err(EINVAL));
-        }
-    }
+/// `ctx` is a live `Ctx` led by a valid, live class, unwritten for `'a`.
+unsafe fn object<'a>(ctx: *const Ctx) -> ObjectRef<'a> {
+    // SAFETY: a context of a named class with no options, callbacks or
+    // offsets, per the caller.
+    unsafe { ObjectRef::from_ptr(ctx.cast_mut().cast::<c_void>()) }.unwrap()
 }
 
 #[test]
 #[cfg_attr(miri, ignore = "calls C")]
 fn null_context() {
-    // SAFETY: NULL is "no parent context".
-    unsafe { checks(ptr::null_mut()) };
+    checks(None);
 }
 
 #[test]
 #[cfg_attr(miri, ignore = "calls C")]
-fn classless_context() {
+fn classless_context_is_no_object() {
     let mut ctx = Box::new(Ctx { class: ptr::null() });
-    // SAFETY: a live struct led by a NULL class pointer, unwritten while
-    // the checks run.
-    unsafe { checks((&raw mut *ctx).cast()) };
+    // SAFETY: a live struct, which `from_ptr` refuses for its NULL class.
+    assert!(unsafe { ObjectRef::from_ptr((&raw mut *ctx).cast()) }.is_none());
 }
 
 #[test]
 #[cfg_attr(miri, ignore = "calls C")]
 fn context_with_a_class() {
     let class = Box::new(class());
-    let mut ctx = Box::new(Ctx { class: &*class });
+    let ctx = Box::new(Ctx { class: &*class });
     // SAFETY: a live struct led by a pointer to a valid, live class.
-    unsafe { checks((&raw mut *ctx).cast()) };
+    checks(Some(unsafe { object(&*ctx) }));
 }
 
 #[test]
@@ -98,36 +100,31 @@ fn shared_context_on_many_threads() {
             s.spawn(move || {
                 // SAFETY: the context and its class outlive the scope and
                 // are only read, which C does too.
-                unsafe { checks(addr as *mut c_void) };
+                checks(Some(unsafe { object(addr as *const Ctx) }));
             });
         }
     });
 }
 
-/// UB tests for `check_size_max_pixels_with_context`, each call within its
-/// `# Safety` contract: NULL, class-less and classed parent contexts, with
+/// UB tests for `check_size_max_pixels_with_context`, as above: no parent
+/// context and a classed one, with
 /// level offsets up to the overflow bound, on sizes valid and invalid by
 /// dimension and by pixel count, for formats with and without linesizes,
 /// including monochrome widths whose linesize overflows in C, on several
 /// threads.
 mod max_pixels {
-    use core::ffi::{c_int, c_void};
-    use core::ptr;
+    use core::ffi::c_int;
     use std::thread;
 
     use ffmpeg::libavutil::ffi;
     use ffmpeg::libavutil::imgutils::check_size_max_pixels_with_context;
+    use ffmpeg::libavutil::opt::ObjectRef;
     use ffmpeg::libavutil::pixfmt::PixelFormat;
 
-    use super::{Ctx, EINVAL, class};
+    use super::{Ctx, EINVAL, class, object};
 
     /// The checks every context runs.
-    ///
-    /// # Safety
-    ///
-    /// `ctx` must be valid for `check_size_max_pixels_with_context`
-    /// throughout.
-    unsafe fn checks(ctx: *mut c_void) {
+    fn checks(ctx: Option<ObjectRef<'_>>) {
         let max = c_int::MAX - ffi::AV_LOG_ERROR as c_int;
         let mono = PixelFormat::MONOBLACK;
         let formats = [
@@ -138,54 +135,38 @@ mod max_pixels {
         ];
         for offset in [c_int::MIN, -8, 0, 8, max] {
             for f in formats {
-                // SAFETY: the caller vouches for `ctx`.
-                unsafe {
-                    let check =
-                        |w, h, px| check_size_max_pixels_with_context(w, h, px, f, offset, ctx);
-                    assert_eq!(check(64, 48, i64::MAX), Ok(()));
-                    assert_eq!(check(64, 48, 64 * 48), Ok(()));
-                    assert_eq!(check(64, 48, 64 * 48 - 1), Err(EINVAL));
-                    assert_eq!(check(64, 48, i64::MIN), Err(EINVAL));
-                    assert_eq!(check(0, 48, i64::MAX), Err(EINVAL));
-                    assert_eq!(check(u32::MAX, u32::MAX, i64::MAX), Err(EINVAL));
-                    for w in [i32::MAX as u32 - 6, i32::MAX as u32, 536_870_911] {
-                        assert_eq!(check(w, 1, i64::MAX), Err(EINVAL));
-                    }
+                let check = |w, h, px| check_size_max_pixels_with_context(w, h, px, f, offset, ctx);
+                assert_eq!(check(64, 48, i64::MAX), Ok(()));
+                assert_eq!(check(64, 48, 64 * 48), Ok(()));
+                assert_eq!(check(64, 48, 64 * 48 - 1), Err(EINVAL));
+                assert_eq!(check(64, 48, i64::MIN), Err(EINVAL));
+                assert_eq!(check(0, 48, i64::MAX), Err(EINVAL));
+                assert_eq!(check(u32::MAX, u32::MAX, i64::MAX), Err(EINVAL));
+                for w in [i32::MAX as u32 - 6, i32::MAX as u32, 536_870_911] {
+                    assert_eq!(check(w, 1, i64::MAX), Err(EINVAL));
                 }
             }
         }
         for offset in [max + 1, c_int::MAX] {
-            // SAFETY: as above; rejected before C runs.
-            unsafe {
-                let r = check_size_max_pixels_with_context(64, 48, i64::MAX, mono, offset, ctx);
-                assert_eq!(r, Err(EINVAL));
-            }
+            // Rejected before C runs.
+            let r = check_size_max_pixels_with_context(64, 48, i64::MAX, mono, offset, ctx);
+            assert_eq!(r, Err(EINVAL));
         }
     }
 
     #[test]
     #[cfg_attr(miri, ignore = "calls C")]
     fn null_context() {
-        // SAFETY: NULL is "no parent context".
-        unsafe { checks(ptr::null_mut()) };
-    }
-
-    #[test]
-    #[cfg_attr(miri, ignore = "calls C")]
-    fn classless_context() {
-        let mut ctx = Box::new(Ctx { class: ptr::null() });
-        // SAFETY: a live struct led by a NULL class pointer, unwritten while
-        // the checks run.
-        unsafe { checks((&raw mut *ctx).cast()) };
+        checks(None);
     }
 
     #[test]
     #[cfg_attr(miri, ignore = "calls C")]
     fn context_with_a_class() {
         let class = Box::new(class());
-        let mut ctx = Box::new(Ctx { class: &*class });
+        let ctx = Box::new(Ctx { class: &*class });
         // SAFETY: a live struct led by a pointer to a valid, live class.
-        unsafe { checks((&raw mut *ctx).cast()) };
+        checks(Some(unsafe { object(&*ctx) }));
     }
 
     #[test]
@@ -199,7 +180,7 @@ mod max_pixels {
                 s.spawn(move || {
                     // SAFETY: the context and its class outlive the scope
                     // and are only read, which C does too.
-                    unsafe { checks(addr as *mut c_void) };
+                    checks(Some(unsafe { object(addr as *const Ctx) }));
                 });
             }
         });

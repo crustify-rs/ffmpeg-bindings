@@ -1,0 +1,8 @@
+error[E0515]: cannot return value referencing function parameter `dev`
+ --> tests/ub_safe/compile_fail/opt_object_outlives_device_context.rs
+  |
+  |     ObjectRef::from(dev.context())
+  |     ^^^^^^^^^^^^^^^^---^^^^^^^^^^^
+  |     |               |
+  |     |               `dev` is borrowed here
+  |     returns a value referencing data owned by the current function

@@ -1,13 +1,15 @@
 //! UB tests for `libavutil/file.h`'s unsafe `map`, each call within its
-//! `# Safety` contract: no file is written while a mapping of it lives, and
-//! the parent log context is NULL or a struct led by a (NULL) class pointer.
+//! `# Safety` contract: no file is written while a mapping of it lives. The
+//! parent log context is none, or a safe `BareObject`.
 
-use core::ffi::{CStr, c_int, c_void};
+use core::ffi::{CStr, c_int};
 use std::ffi::CString;
 use std::path::PathBuf;
 use std::thread;
 
 use ffmpeg::libavutil::file::{FileMap, map};
+use ffmpeg::libavutil::log::{Class, ClassCategory};
+use ffmpeg::libavutil::opt::BareObject;
 
 /// `AVERROR(EINVAL)` and `AVERROR(ENOENT)`.
 const EINVAL: c_int = -22;
@@ -36,8 +38,8 @@ impl Drop for TempFile {
 /// write the file while the result lives.
 fn map_plain(name: &CStr) -> Result<FileMap, c_int> {
     // SAFETY: per each caller, nothing writes or truncates the file while the
-    // mapping lives; NULL is a valid log context.
-    unsafe { map(name, 0, core::ptr::null_mut()) }
+    // mapping lives.
+    unsafe { map(name, 0, None) }
 }
 
 /// The path of a file that does not exist.
@@ -95,38 +97,28 @@ fn failures_leave_nothing_mapped() {
 fn log_offsets_at_every_edge() {
     let name = missing();
     for offset in [c_int::MIN, -16, 0, 8, c_int::MAX - 16] {
-        // SAFETY: the file does not exist, so nothing is mapped; NULL is a
-        // valid log context. The error is logged at `16 + offset`.
-        let r = unsafe { map(&name, offset, core::ptr::null_mut()) };
+        // SAFETY: the file does not exist, so nothing is mapped. The error is
+        // logged at `16 + offset`.
+        let r = unsafe { map(&name, offset, None) };
         assert_eq!(r.unwrap_err(), ENOENT, "{offset}");
     }
     for offset in [c_int::MAX - 15, c_int::MAX] {
         // SAFETY: as above; Rust rejects the offset before C runs.
-        let r = unsafe { map(&name, offset, core::ptr::null_mut()) };
+        let r = unsafe { map(&name, offset, None) };
         assert_eq!(r.unwrap_err(), EINVAL, "{offset}");
     }
 }
 
 #[test]
 #[cfg_attr(miri, ignore = "calls C")]
-fn parent_log_context_led_by_a_null_class() {
-    /// A log context: its first member is the (NULL) `const AVClass *`.
-    #[repr(C)]
-    struct Parent {
-        class: *const c_void,
-        payload: u64,
-    }
-    let mut parent = Parent {
-        class: core::ptr::null(),
-        payload: 0,
-    };
-    let ctx = (&raw mut parent).cast::<c_void>();
-    // SAFETY: `ctx` points to a live struct whose first member is a NULL
-    // class pointer; the file does not exist, so nothing is mapped.
-    assert_eq!(unsafe { map(&missing(), 0, ctx) }.unwrap_err(), ENOENT);
+fn parent_log_context_of_a_bare_object() {
+    static CLASS: Class = Class::new(c"ub-file-parent", ClassCategory::NA);
+    let parent = BareObject::new(CLASS.as_ref()).unwrap();
+    // SAFETY: the file does not exist, so nothing is mapped.
+    let r = unsafe { map(&missing(), 0, Some(parent.as_object())) };
+    assert_eq!(r.unwrap_err(), ENOENT);
     let f = TempFile::new("with-parent", b"parented");
-    // SAFETY: as above, and nothing writes the file while `m` lives.
-    let m = unsafe { map(&f.1, -8, ctx) }.unwrap();
+    // SAFETY: nothing writes the file while `m` lives.
+    let m = unsafe { map(&f.1, -8, Some(parent.as_object())) }.unwrap();
     assert_eq!(m.as_slice(), b"parented");
-    assert_eq!(parent.payload, 0);
 }

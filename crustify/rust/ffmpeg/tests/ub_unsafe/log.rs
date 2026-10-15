@@ -1,8 +1,9 @@
-//! UB tests for `libavutil/log.h`'s unsafe context logging, each call within
-//! its `# Safety` contract: NULL, class-less and parented contexts, item-name
-//! and category callbacks, level offsets up to the overflow bound, through a
-//! formatting Rust callback and through the default callback in every colour
-//! mode.
+//! UB tests for `libavutil/log.h`'s context logging with raw contexts, each
+//! adopted through the unsafe `ObjectRef::from_ptr` within its contract:
+//! parented contexts, item-name and category callbacks, level offsets up to
+//! the overflow bound, through a formatting Rust callback and through the
+//! default callback in every colour mode. A NULL context, or one whose class
+//! is NULL, is no object: it logs through the general log.
 
 use core::ffi::{CStr, c_char, c_int, c_void};
 use core::mem::offset_of;
@@ -13,6 +14,60 @@ use std::thread;
 
 use ffmpeg::libavutil::ffi;
 use ffmpeg::libavutil::log::{self, Callback, Flags, Level, Record};
+use ffmpeg::libavutil::opt::ObjectRef;
+
+/// The handle of the raw context `ctx`; `None` for NULL or a context whose
+/// class pointer is NULL, which is no object.
+///
+/// # Safety
+///
+/// `ctx` is NULL, or satisfies `ObjectRef`'s contract for `'a` when its
+/// class pointer is not NULL.
+pub(crate) unsafe fn object<'a>(ctx: *mut c_void) -> Option<ObjectRef<'a>> {
+    // SAFETY: the caller's contract.
+    unsafe { ObjectRef::from_ptr(ctx) }
+}
+
+/// `log_with_context` in the context of `ctx`, or `log` for no object.
+///
+/// # Safety
+///
+/// As [`object`], for the call.
+pub(crate) unsafe fn log_in(ctx: *mut c_void, level: Level, message: &CStr) {
+    // SAFETY: the caller's contract.
+    match unsafe { object(ctx) } {
+        Some(obj) => log::log_with_context(obj, level, message),
+        None => log::log(level, message),
+    }
+}
+
+/// `log_fmt_with_context` in the context of `ctx`, or `log_fmt` for no
+/// object.
+///
+/// # Safety
+///
+/// As [`object`], for the call.
+unsafe fn log_fmt_in(ctx: *mut c_void, level: Level, args: core::fmt::Arguments<'_>) {
+    // SAFETY: the caller's contract.
+    match unsafe { object(ctx) } {
+        Some(obj) => log::log_fmt_with_context(obj, level, args),
+        None => log::log_fmt(level, args),
+    }
+}
+
+/// `log_once_with_context` in the context of `ctx`, or `log_once` for no
+/// object.
+///
+/// # Safety
+///
+/// As [`object`], for the call.
+unsafe fn log_once_in(ctx: *mut c_void, a: Level, b: Level, state: &mut bool, message: &CStr) {
+    // SAFETY: the caller's contract.
+    match unsafe { object(ctx) } {
+        Some(obj) => log::log_once_with_context(obj, a, b, state, message),
+        None => log::log_once(a, b, state, message),
+    }
+}
 
 /// Serializes the tests here that touch the process-wide log callback, level
 /// or flags; restores the defaults when dropped.
@@ -108,7 +163,7 @@ const OFFSETS: [(c_int, &[c_int]); 5] = [
     (0, &[c_int::MIN, -8, 0, 8, 56, c_int::MAX]),
     (8, &[-8, 0, 8, 48]),
     (-16, &[-8, 8, 16, c_int::MAX]),
-    (c_int::MAX - 8, &[c_int::MIN, -8, 7, 8]),
+    (c_int::MAX - 56, &[c_int::MIN, -8, 7, 56]),
     (c_int::MIN, &[-8, 8, 56, c_int::MAX]),
 ];
 
@@ -241,7 +296,7 @@ mod log_with_context {
             // callback keeps below NB, an `int` at the level offset that
             // `level` plus it does not overflow from FATAL up, and a NULL or
             // live parent context; nothing writes them during the call.
-            unsafe { log::log_with_context((&raw mut *ctx).cast(), Level::from_raw(level), msg) };
+            unsafe { log_in((&raw mut *ctx).cast(), Level::from_raw(level), msg) };
         }
     }
 
@@ -251,7 +306,7 @@ mod log_with_context {
         let _s = LogState::lock();
         let lines = capture(|| {
             // SAFETY: a NULL context is always valid.
-            unsafe { log::log_with_context(ptr::null_mut(), Level::ERROR, c"general\n") };
+            unsafe { log_in(ptr::null_mut(), Level::ERROR, c"general\n") };
         });
         assert_eq!(lines.len(), 1);
         assert_eq!((lines[0].0, lines[0].1), (Level::ERROR, 0));
@@ -283,7 +338,7 @@ mod log_with_context {
         let classes = classes();
         let mut ctx = Ctx {
             class: &classes[0],
-            level_offset: c_int::MAX - 8,
+            level_offset: c_int::MAX - 56,
             parent: ptr::null_mut(),
         };
         let lines = capture(|| log_all(&mut ctx, c"x\n"));
@@ -314,9 +369,7 @@ mod log_with_context {
                     for &a in addrs {
                         // SAFETY: as in `log_all`; the contexts outlive the
                         // scope and no thread writes them.
-                        unsafe {
-                            log::log_with_context(a as *mut c_void, Level::ERROR, c"shared\n")
-                        };
+                        unsafe { log_in(a as *mut c_void, Level::ERROR, c"shared\n") };
                     }
                 });
             }
@@ -361,7 +414,7 @@ mod log_fmt_with_context {
         for &level in levels {
             // SAFETY: as for `log_with_context` in its suite's `log_all`.
             unsafe {
-                log::log_fmt_with_context(
+                log_fmt_in(
                     (&raw mut *ctx).cast(),
                     Level::from_raw(level),
                     format_args!("{n:>4} %s %n {:.3}\0hidden\n", 1.0 / 3.0),
@@ -376,9 +429,7 @@ mod log_fmt_with_context {
         let _s = LogState::lock();
         let lines = capture(|| {
             // SAFETY: a NULL context is always valid.
-            unsafe {
-                log::log_fmt_with_context(ptr::null_mut(), Level::ERROR, format_args!("{}\n", 7))
-            };
+            unsafe { log_fmt_in(ptr::null_mut(), Level::ERROR, format_args!("{}\n", 7)) };
         });
         assert_eq!(lines.len(), 1);
         assert_eq!((lines[0].0, lines[0].1), (Level::ERROR, 0));
@@ -419,11 +470,7 @@ mod log_fmt_with_context {
                         // SAFETY: as in `log_all`; the contexts outlive the
                         // scope and no thread writes them.
                         unsafe {
-                            log::log_fmt_with_context(
-                                a as *mut c_void,
-                                Level::ERROR,
-                                format_args!("thread {t}\n"),
-                            )
+                            log_fmt_in(a as *mut c_void, Level::ERROR, format_args!("thread {t}\n"))
                         };
                     }
                 });
@@ -474,7 +521,7 @@ mod log_once_with_context {
                         // SAFETY: as for `log_with_context` in `log_all`;
                         // `state` is this call's own.
                         unsafe {
-                            log::log_once_with_context(
+                            log_once_in(
                                 (&raw mut *ctx).cast(),
                                 Level::from_raw(a),
                                 Level::from_raw(b),
@@ -499,7 +546,7 @@ mod log_once_with_context {
             for _ in 0..3 {
                 // SAFETY: a NULL context is always valid.
                 unsafe {
-                    log::log_once_with_context(
+                    log_once_in(
                         ptr::null_mut(),
                         Level::ERROR,
                         Level::DEBUG,
@@ -549,7 +596,7 @@ mod log_once_with_context {
                             // the scope, no thread writes them, and `state`
                             // is this thread's own.
                             unsafe {
-                                log::log_once_with_context(
+                                log_once_in(
                                     a as *mut c_void,
                                     Level::WARNING,
                                     Level::TRACE,
@@ -594,7 +641,9 @@ mod vlog {
     use std::thread;
 
     use ffmpeg::libavutil::ffi;
-    use ffmpeg::libavutil::log::{Level, log_with_context};
+    use ffmpeg::libavutil::log::Level;
+
+    use super::log_in;
 
     const INFO: c_int = ffi::AV_LOG_INFO as c_int;
     const DEBUG: c_int = ffi::AV_LOG_DEBUG as c_int;
@@ -663,11 +712,11 @@ mod vlog {
     ///
     /// # Safety
     ///
-    /// As [`log_with_context`], for every level.
+    /// As [`log_in`], for every level.
     unsafe fn log_all(obj: *mut c_void, levels: &[c_int], message: &CStr) {
         for &level in levels {
             // SAFETY: the caller's contract.
-            unsafe { log_with_context(obj, Level::from_raw(level), message) };
+            unsafe { log_in(obj, Level::from_raw(level), message) };
         }
     }
 
@@ -777,7 +826,7 @@ mod vlog {
                         // SAFETY: the context and class outlive the threads,
                         // which only read them; the offset keeps levels in range.
                         unsafe {
-                            log_with_context(
+                            log_in(
                                 addr as *mut c_void,
                                 Level::from_raw(level),
                                 c"crustify ub_unsafe vlog: threads\n",
@@ -796,16 +845,25 @@ mod vlog {
     }
 }
 
-/// UB tests for `libavutil/log.h`'s unsafe `default_item_name`, called within
-/// its `# Safety` contract: static and heap classes, NULL names, objects
-/// larger than their class pointer, and concurrent readers.
+/// UB tests for `libavutil/log.h`'s `default_item_name`, on raw objects
+/// adopted within `ObjectRef::from_ptr`'s contract: static and heap classes,
+/// objects larger than their class pointer, and concurrent readers.
 mod item_name {
     use core::ffi::{CStr, c_void};
-    use core::ptr::null;
     use std::ffi::CString;
 
     use ffmpeg::libavutil::ffi;
-    use ffmpeg::libavutil::log::default_item_name;
+
+    /// `default_item_name` of the raw object `ctx`.
+    ///
+    /// # Safety
+    ///
+    /// `ctx` satisfies `ObjectRef`'s contract for `'a`, with a class.
+    unsafe fn default_item_name<'a>(ctx: *const c_void) -> Option<&'a CStr> {
+        // SAFETY: the caller's contract.
+        let obj = unsafe { super::object(ctx.cast_mut()) }.expect("a class");
+        ffmpeg::libavutil::log::default_item_name(obj)
+    }
 
     /// A class, `Sync` to live in a `static`.
     struct Class(ffi::AVClass);
@@ -886,19 +944,6 @@ mod item_name {
         let name = unsafe { default_item_name(ctx) };
         assert_eq!(name, Some(c"ub-unsafe-class"));
         assert_eq!((outer.prefix[0], outer.payload), (0x5a, 7));
-    }
-
-    #[test]
-    #[cfg_attr(miri, ignore = "calls C")]
-    fn null_class_name_reads_as_none() {
-        let cls = ffi::AVClass {
-            class_name: null(),
-            ..Default::default()
-        };
-        let obj = Obj::new(&cls);
-        // SAFETY: `obj` starts with a non-NULL pointer to the live `cls`, which
-        // stores NULL as its name.
-        assert_eq!(unsafe { default_item_name(obj.ctx()) }, None);
     }
 
     #[test]
@@ -1028,8 +1073,10 @@ mod class_callbacks {
             assert!(class.as_ref().item_name().is_none());
             use ffmpeg::libavutil::log::default_item_name;
             // SAFETY: `obj` is a live object whose first member points to
-            // `class`; the name is the class's `'static` literal.
-            let got: Option<&'static CStr> = unsafe { default_item_name(obj.as_obj()) };
+            // `class`, built by `Class::new`; the name is its `'static`
+            // literal.
+            let obj = unsafe { super::object(obj.as_obj()) }.unwrap();
+            let got: Option<&'static CStr> = default_item_name(obj);
             assert_eq!(got, class.as_ref().name());
             assert_eq!(
                 got.unwrap().as_ptr(),
@@ -1196,15 +1243,26 @@ mod class_callbacks {
     }
 }
 
-/// `default_category` (core wave 1, batch 2), each call within its `# Safety`
-/// contract: static and heap classes, the smallest and an embedded class
+/// `default_category` (core wave 1, batch 2), on raw objects within
+/// `ObjectRef::from_ptr`'s contract: static and heap classes, the smallest and an embedded class
 /// pointer slot, every category value, a class switched between calls, and
 /// concurrent readers.
 mod default_category {
     use core::ffi::c_void;
 
     use ffmpeg::libavutil::ffi;
-    use ffmpeg::libavutil::log::{ClassCategory, default_category};
+    use ffmpeg::libavutil::log::ClassCategory;
+
+    /// `default_category` of the raw object `ctx`.
+    ///
+    /// # Safety
+    ///
+    /// `ctx` satisfies `ObjectRef`'s contract for the call, with a class.
+    unsafe fn default_category(ctx: *const c_void) -> ClassCategory {
+        // SAFETY: the caller's contract.
+        let obj = unsafe { super::object(ctx.cast_mut()) }.expect("a class");
+        ffmpeg::libavutil::log::default_category(obj)
+    }
 
     /// A class, `Sync` to live in a `static`.
     struct Class(ffi::AVClass);
@@ -1289,6 +1347,7 @@ mod default_category {
         let values = (0..=u32::from(u8::MAX)).chain([1 << 16, u32::MAX - 1, u32::MAX]);
         for v in values {
             let cls = Box::new(ffi::AVClass {
+                class_name: c"ub-unsafe-heap".as_ptr(),
                 category: ffi::AVClassCategory(v),
                 ..Default::default()
             });
@@ -1306,6 +1365,7 @@ mod default_category {
     #[cfg_attr(miri, ignore = "calls C")]
     fn object_class_switches_between_calls() {
         let other = ffi::AVClass {
+            class_name: c"other".as_ptr(),
             category: ffi::AVClassCategory::AV_CLASS_CATEGORY_ENCODER,
             ..Default::default()
         };

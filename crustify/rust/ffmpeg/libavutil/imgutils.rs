@@ -23,7 +23,7 @@
 //! format's layout before C touches them, and refuses the arguments on which
 //! C's own arithmetic overflows.
 
-use core::ffi::{c_int, c_void};
+use core::ffi::c_int;
 use core::fmt;
 use core::mem::MaybeUninit;
 use core::ops::Range;
@@ -31,6 +31,7 @@ use core::ptr;
 
 use super::ffi;
 use super::mem::HeapVec;
+use super::opt::ObjectRef;
 use super::pixdesc::{InvalidDescriptor, PixelFormatDescriptorRef};
 use super::pixfmt::{ColorRange, PixelFormat};
 use super::rational::Rational;
@@ -63,26 +64,20 @@ pub fn check_size(width: u32, height: u32) -> Result<(), i32> {
 /// A `log_offset` above `INT_MAX - AV_LOG_ERROR`, which would overflow the
 /// level C logs at, is rejected with `AVERROR(EINVAL)` before C runs.
 ///
-/// `log_ctx` stays a raw seam while logging contexts have no safe handle:
-/// pass NULL for no parent context.
-///
-/// # Safety
-///
-/// `log_ctx` must be NULL or point to a live struct whose first member is a
-/// `const AVClass *` (NULL, or a valid class) that `av_log` and the installed
-/// log callback may read during the call, as `parent_log_context_offset`
-/// contexts require.
-pub unsafe fn check_size_with_context(
+/// `log_ctx` is the parent log context, `None` for none.
+pub fn check_size_with_context(
     width: u32,
     height: u32,
     log_offset: i32,
-    log_ctx: *mut c_void,
+    log_ctx: Option<ObjectRef<'_>>,
 ) -> Result<(), i32> {
     if log_offset > c_int::MAX - ffi::AV_LOG_ERROR as c_int {
         return Err(AVERROR_EINVAL);
     }
-    // SAFETY: the caller vouches for `log_ctx`, which C only reads while
-    // logging; `log_offset` cannot overflow the error level C adds it to.
+    let log_ctx = log_ctx.map_or(ptr::null_mut(), |o| o.as_ptr());
+    // SAFETY: `log_ctx` is NULL or a logging context, as its handle
+    // guarantees, which C only reads while logging; `log_offset` cannot
+    // overflow the error level C adds it to.
     let ret = unsafe { ffi::av_image_check_size(width, height, log_offset, log_ctx) };
     if ret < 0 { Err(ret) } else { Ok(()) }
 }
@@ -559,11 +554,7 @@ pub fn check_size_max_pixels(
     max_pixels: i64,
     format: PixelFormat,
 ) -> Result<(), i32> {
-    // SAFETY: a NULL log context is "no parent context", and a zero offset
-    // leaves the error level unchanged.
-    unsafe {
-        check_size_max_pixels_with_context(width, height, max_pixels, format, 0, ptr::null_mut())
-    }
+    check_size_max_pixels_with_context(width, height, max_pixels, format, 0, None)
 }
 
 /// Wraps: av_image_check_size2
@@ -574,22 +565,14 @@ pub fn check_size_max_pixels(
 /// A `log_offset` above `INT_MAX - AV_LOG_ERROR`, which would overflow the
 /// level C logs at, is rejected with `AVERROR(EINVAL)` before C runs.
 ///
-/// `log_ctx` stays a raw seam while logging contexts have no safe handle:
-/// pass NULL for no parent context.
-///
-/// # Safety
-///
-/// `log_ctx` must be NULL or point to a live struct whose first member is a
-/// `const AVClass *` (NULL, or a valid class) that `av_log` and the installed
-/// log callback may read during the call, as `parent_log_context_offset`
-/// contexts require.
-pub unsafe fn check_size_max_pixels_with_context(
+/// `log_ctx` is the parent log context, `None` for none.
+pub fn check_size_max_pixels_with_context(
     width: u32,
     height: u32,
     max_pixels: i64,
     format: PixelFormat,
     log_offset: i32,
-    log_ctx: *mut c_void,
+    log_ctx: Option<ObjectRef<'_>>,
 ) -> Result<(), i32> {
     if log_offset > c_int::MAX - ffi::AV_LOG_ERROR as c_int {
         return Err(AVERROR_EINVAL);
@@ -602,9 +585,11 @@ pub unsafe fn check_size_max_pixels_with_context(
         Some(g) if g.linesize_overflows(width as c_int, 0) => PixelFormat::NONE,
         _ => format,
     };
-    // SAFETY: the caller vouches for `log_ctx`, which C only reads while
-    // logging; `log_offset` cannot overflow the error level C adds it to,
-    // and no width overflows the linesize C computes for `format`.
+    let log_ctx = log_ctx.map_or(ptr::null_mut(), |o| o.as_ptr());
+    // SAFETY: `log_ctx` is NULL or a logging context, as its handle
+    // guarantees, which C only reads while logging; `log_offset` cannot
+    // overflow the error level C adds it to, and no width overflows the
+    // linesize C computes for `format`.
     let ret = unsafe {
         ffi::av_image_check_size2(
             width,
@@ -1908,14 +1893,12 @@ mod unit_tests {
     #[cfg_attr(miri, ignore = "calls C")]
     fn overflowing_log_offsets_are_rejected_before_c() {
         let max = c_int::MAX - ffi::AV_LOG_ERROR as c_int;
-        // SAFETY: a NULL log context.
-        let r = unsafe { check_size_with_context(0, 0, max + 1, core::ptr::null_mut()) };
+        let r = check_size_with_context(0, 0, max + 1, None);
         assert_eq!(r, Err(AVERROR_EINVAL));
-        // SAFETY: as above; the size is valid, so nothing is logged.
-        let r = unsafe { check_size_with_context(16, 16, c_int::MAX, core::ptr::null_mut()) };
+        // The size is valid, so nothing is logged.
+        let r = check_size_with_context(16, 16, c_int::MAX, None);
         assert_eq!(r, Err(AVERROR_EINVAL));
-        // SAFETY: as above.
-        let r = unsafe { check_size_with_context(16, 16, max, core::ptr::null_mut()) };
+        let r = check_size_with_context(16, 16, max, None);
         assert_eq!(r, Ok(()));
         assert_eq!(AVERROR_EINVAL, -22);
     }
