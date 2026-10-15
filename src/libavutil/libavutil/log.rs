@@ -30,7 +30,6 @@
 use core::ffi::{CStr, c_char, c_int, c_uint, c_void};
 use core::fmt;
 use core::marker::PhantomData;
-use core::mem::align_of;
 use core::num::NonZeroI32;
 use core::ops::{BitAnd, BitAndAssign, BitOr, BitOrAssign, Sub, SubAssign};
 use core::ptr::{self, NonNull, addr_of, addr_of_mut};
@@ -40,7 +39,7 @@ use ffibox::{CSlice, define_ctype};
 
 use super::avstring::text_until_nul;
 use super::ffi;
-use super::opt::{AVERROR_BUG, OptionDef, OptionRangesBox};
+use super::opt::{AVERROR_BUG, ObjectRef, OptionDef, OptionRangesBox};
 
 /// Wraps: AVClassCategory
 /// Handwritten
@@ -1048,39 +1047,55 @@ pub fn log(level: Level, message: &CStr) {
 /// default callback prefixes the line with the object's name and address,
 /// and its parent's, and colours it by category.
 ///
-/// The context is an `AVClass`-enabled object, raw until the types that
-/// carry an `AVClass` are wrapped.
+/// The context is an `AVClass`-enabled object: a wrapped one through `From`
+/// its handle (a [`ClassObject`](super::opt::ClassObject)), a
+/// [`BareObject`](super::opt::BareObject), or a raw one adopted with
+/// [`ObjectRef::from_ptr`], whose contract makes it a logging context. The
+/// installed callback receives the object as is: the default and Rust
+/// callbacks only read it as `av_vlog` does, and a raw C callback installed
+/// through `ffi` must accept it.
 ///
-/// # Safety
+/// ```
+/// use ffmpeg::libavutil::log::{self, Class, ClassCategory, Level};
+/// use ffmpeg::libavutil::opt::BareObject;
+/// static CLASS: Class = Class::new(c"MyContext", ClassCategory::NA);
+/// let obj = BareObject::new(CLASS.as_ref()).unwrap();
+/// log::log_with_context(obj.as_object(), Level::DEBUG, c"in context\n");
+/// ```
 ///
-/// `obj` must be NULL, or address a live object whose first member is a
-/// `const AVClass *` that is NULL or points to a live `AVClass` such that,
-/// for the whole call:
-///
-/// - its `item_name` callback, if any, may be called with `obj` and
-///   returns a NUL-terminated string; without one, its `class_name` is one;
-/// - its `get_category` callback, if any, may be called with `obj` and
-///   returns a category below `AV_CLASS_CATEGORY_NB` (the default callback
-///   indexes its colour table with it, unchecked);
-/// - neither callback logs: the default callback calls them holding its
-///   lock, which C does not let a thread take twice;
-/// - a non-zero `log_level_offset_offset` (in a class of version 50.15.2 or
-///   later) is the offset of a readable `int` within the object which, when
-///   `level` is at least [`Level::FATAL`], C adds to `level` without
-///   overflowing an `int`;
-/// - a non-zero `parent_log_context_offset` is the offset of a readable
-///   pointer within the object that is NULL or addresses a parent object,
-///   whose first member is a `const AVClass *` that is NULL or meets the
-///   three callback requirements above for the parent.
-///
-/// No other thread may write those members while the call runs. The
-/// installed callback receives `obj` as is: the default and Rust
-/// callbacks only read it as above, and a raw C callback installed through
-/// `ffi` must accept it.
-pub unsafe fn log_with_context(obj: *mut c_void, level: Level, message: &CStr) {
-    // SAFETY: the caller vouches for `obj`, which `av_vlog` and the default
-    // callback only read; the format is as for `log`.
-    unsafe { ffi::crustify_av_vlog(obj, level.0, c"%s".as_ptr(), message.as_ptr()) }
+/// A message whose level C would shift past `INT_MAX` with the object's
+/// level offset is dropped: C's addition would overflow.
+pub fn log_with_context(obj: ObjectRef<'_>, level: Level, message: &CStr) {
+    if shift_overflows(obj, level) {
+        return;
+    }
+    // SAFETY: the handle's contract makes `obj` a logging context, which
+    // `av_vlog` and the default callback only read during the borrow, and
+    // `level` plus its level offset does not overflow; the format is as for
+    // `log`.
+    unsafe { ffi::crustify_av_vlog(obj.as_ptr(), level.0, c"%s".as_ptr(), message.as_ptr()) }
+}
+
+/// Whether `av_vlog` would overflow an `int` adding `obj`'s level offset to
+/// `level`, as it does from [`Level::FATAL`] up for a class of version
+/// 50.15.2 or later with a `log_level_offset_offset`.
+fn shift_overflows(obj: ObjectRef<'_>, level: Level) -> bool {
+    let class = obj.class();
+    let Some(offset) = class.log_level_offset_offset() else {
+        return false;
+    };
+    if class.version() < (50 << 16 | 15 << 8 | 2) || level < Level::FATAL {
+        return false;
+    }
+    // SAFETY: the handle's contract makes the offset address an aligned
+    // `int` of the live object, which nothing writes during the borrow.
+    let shift = unsafe {
+        obj.as_ptr()
+            .byte_offset(offset.get() as isize)
+            .cast::<c_int>()
+            .read()
+    };
+    level.0.checked_add(shift).is_none()
 }
 
 /// Wraps: av_log
@@ -1105,15 +1120,15 @@ pub fn log_fmt(level: Level, args: fmt::Arguments<'_>) {
 ///
 /// [`log_fmt`] with a logging context, as [`log_with_context`] sends a
 /// string with one.
-///
-/// # Safety
-///
-/// As [`log_with_context`].
-pub unsafe fn log_fmt_with_context(obj: *mut c_void, level: Level, args: fmt::Arguments<'_>) {
+pub fn log_fmt_with_context(obj: ObjectRef<'_>, level: Level, args: fmt::Arguments<'_>) {
+    if shift_overflows(obj, level) {
+        return;
+    }
     let text = text_until_nul(args);
-    // SAFETY: the caller vouches for `obj`; `"%s"` consumes exactly the one
-    // argument passed, a live NUL-terminated string.
-    unsafe { ffi::av_log(obj, level.0, c"%s".as_ptr(), text.as_ptr()) }
+    // SAFETY: as for `log_with_context`, for `obj` and `level`; `"%s"`
+    // consumes exactly the one argument passed, a live NUL-terminated
+    // string.
+    unsafe { ffi::av_log(obj.as_ptr(), level.0, c"%s".as_ptr(), text.as_ptr()) }
 }
 
 /// Wraps: av_log_once
@@ -1142,25 +1157,34 @@ pub fn log_once(initial_level: Level, subsequent_level: Level, state: &mut bool,
 
 /// Wraps: av_log_once
 ///
-/// [`log_once`] with a logging context, as [`log_with_context`].
-///
-/// # Safety
-///
-/// As [`log_with_context`].
-pub unsafe fn log_once_with_context(
-    obj: *mut c_void,
+/// [`log_once`] with a logging context, as [`log_with_context`], which
+/// drops the message, but still sets `state`, when its level would
+/// overflow.
+pub fn log_once_with_context(
+    obj: ObjectRef<'_>,
     initial_level: Level,
     subsequent_level: Level,
     state: &mut bool,
     message: &CStr,
 ) {
+    if shift_overflows(
+        obj,
+        if *state {
+            subsequent_level
+        } else {
+            initial_level
+        },
+    ) {
+        *state = true;
+        return;
+    }
     let mut c_state = c_int::from(*state);
-    // SAFETY: the caller vouches for `obj`; `c_state` is a writable
-    // `int` for the call; `"%s"` consumes exactly the one live
-    // NUL-terminated string passed.
+    // SAFETY: as for `log_with_context`, for `obj` and the level C picks by
+    // `c_state`; `c_state` is a writable `int` for the call; `"%s"` consumes
+    // exactly the one live NUL-terminated string passed.
     unsafe {
         ffi::av_log_once(
-            obj,
+            obj.as_ptr(),
             initial_level.0,
             subsequent_level.0,
             &mut c_state,
@@ -1452,58 +1476,30 @@ pub fn clear_callback() {
 
 /// Wraps: av_default_item_name
 ///
-/// The `class_name` of the `AVClass` that the object `ctx` points to: the
-/// name `av_log` prints for an object whose class has no `item_name`
-/// callback. `None` when the class stores NULL there.
-///
-/// # Safety
-///
-/// `ctx` must address a live `AVClass`-enabled object: a `const AVClass *`
-/// first member, readable and aligned for a pointer (C loads it as
-/// `*(AVClass **) ctx`, so a byte offset into a buffer does not qualify),
-/// holding a non-NULL pointer to a live class. The class's `class_name`, when
-/// non-NULL, must be a NUL-terminated string that stays alive and unmodified
-/// for `'a`; a string literal, which every FFmpeg class stores, satisfies any
-/// `'a`. No other thread may write the object's class pointer or the class's
-/// `class_name` during the call.
-pub unsafe fn default_item_name<'a>(ctx: *const c_void) -> Option<&'a CStr> {
-    debug_assert!(
-        ctx.addr().is_multiple_of(align_of::<*const ffi::AVClass>()),
-        "context {ctx:p} is not aligned for its class pointer"
-    );
-    // SAFETY: the caller vouches that `ctx` is an aligned, readable class
-    // pointer slot holding a valid pointer to a live class;
-    // `av_default_item_name` only reads both.
-    let name = unsafe { ffi::av_default_item_name(ctx.cast_mut()) };
+/// The `class_name` of the class of the object `ctx`: the name `av_log`
+/// prints for an object whose class has no `item_name` callback. `None` when
+/// the class stores NULL there. It lives as long as the class, which
+/// outlives the borrow.
+pub fn default_item_name<'a>(ctx: ObjectRef<'a>) -> Option<&'a CStr> {
+    // SAFETY: the handle's contract makes `ctx` a live object whose first
+    // member is an aligned, non-NULL pointer to a live class, neither written
+    // during the borrow; `av_default_item_name` only reads both.
+    let name = unsafe { ffi::av_default_item_name(ctx.as_ptr()) };
     // SAFETY: a non-NULL `name` is the class's `class_name`, a NUL-terminated
-    // string the caller guarantees alive and unmodified for `'a`.
+    // string that lives, unwritten, as long as the class: past `'a`.
     (!name.is_null()).then(|| unsafe { CStr::from_ptr(name) })
 }
 
 /// Wraps: av_default_get_category
 ///
-/// The `category` of the `AVClass` that the object `ctx` points to: the
-/// category `av_log` colours a message by when the class has no
-/// `get_category` callback. Any value the class stores is returned, named or
-/// not.
-///
-/// # Safety
-///
-/// `ctx` must address a live `AVClass`-enabled object: a `const AVClass *`
-/// first member, readable and aligned for a pointer (C loads it as
-/// `*(AVClass **) ctx`, so a byte offset into a buffer does not qualify),
-/// holding a non-NULL pointer to a live class. No other thread may write the
-/// object's class pointer or the class's `category` during the call.
-pub unsafe fn default_category(ctx: *const c_void) -> ClassCategory {
-    debug_assert!(
-        ctx.addr().is_multiple_of(align_of::<*const ffi::AVClass>()),
-        "context {ctx:p} is not aligned for its class pointer"
-    );
-    // SAFETY: the caller vouches that `ctx` is an aligned, readable class
-    // pointer slot holding a valid pointer to a live class;
-    // `av_default_get_category` only reads both, and returns the enum by
-    // value.
-    ClassCategory::from(unsafe { ffi::av_default_get_category(ctx.cast_mut()) })
+/// The `category` of the class of the object `ctx`: the category `av_log`
+/// colours a message by when the class has no `get_category` callback. Any
+/// value the class stores is returned, named or not.
+pub fn default_category(ctx: ObjectRef<'_>) -> ClassCategory {
+    // SAFETY: as in `default_item_name`; `av_default_get_category` only
+    // reads the class pointer and the class's `category`, and returns the
+    // enum by value.
+    ClassCategory::from(unsafe { ffi::av_default_get_category(ctx.as_ptr()) })
 }
 
 #[cfg(test)]
@@ -1523,42 +1519,15 @@ mod unit_tests {
     #[cfg_attr(miri, ignore = "calls C")]
     fn default_item_name_reads_the_class_name() {
         let named = class(Some(c"unit-class"));
-        let obj: *const ffi::AVClass = &named;
+        let mut obj: *const ffi::AVClass = &named;
         // SAFETY: `obj` is a live object starting with a non-NULL class
-        // pointer to `named`, whose name is a literal.
-        let name = unsafe { default_item_name((&raw const obj).cast()) };
+        // pointer to `named`, a named class with no options, callbacks or
+        // offsets, which outlives the borrow.
+        let ctx = unsafe { ObjectRef::from_ptr((&raw mut obj).cast()) }.unwrap();
+        let name = default_item_name(ctx);
         assert_eq!(name, Some(c"unit-class"));
         // The name is the class's own string, not a copy.
         assert_eq!(name.unwrap().as_ptr(), named.class_name);
-
-        let nameless = class(None);
-        let obj: *const ffi::AVClass = &nameless;
-        // SAFETY: as above; the class stores NULL as its name.
-        assert_eq!(unsafe { default_item_name((&raw const obj).cast()) }, None);
-    }
-
-    /// A context whose class pointer slot is misaligned is outside the
-    /// contract; the debug assertion reports it before C loads the pointer,
-    /// so no misaligned read happens.
-    #[cfg(debug_assertions)]
-    #[test]
-    #[should_panic(expected = "not aligned for its class pointer")]
-    fn default_item_name_rejects_a_misaligned_context_before_c() {
-        #[repr(C, align(8))]
-        struct Buf([u8; 16]);
-
-        let named = class(Some(c"unit-class"));
-        let mut buf = Buf([0; 16]);
-        let slot = buf
-            .0
-            .as_mut_ptr()
-            .wrapping_add(1)
-            .cast::<*const ffi::AVClass>();
-        // SAFETY: `slot` addresses bytes 1..9 of `buf`, inside the buffer.
-        unsafe { slot.write_unaligned(&raw const named) };
-        // SAFETY: `slot` breaks the alignment obligation on purpose; the
-        // debug assertion panics before the FFI call, so C never reads it.
-        let _ = unsafe { default_item_name(slot.cast()) };
     }
 
     #[test]
@@ -1969,12 +1938,11 @@ mod unit_tests {
         };
         let mut ctx: *const ffi::AVClass = &class;
         let ctx_ptr = (&raw mut ctx).cast::<c_void>();
-        let seen = capture(|| {
-            // SAFETY: `ctx` starts with a pointer to `class`, which outlives
-            // the call; its `item_name` returns static strings and it has no
-            // offsets for C to follow.
-            unsafe { log_with_context(ctx_ptr, Level::ERROR, c"m\n") };
-        });
+        // SAFETY: `ctx` starts with a pointer to `class`, which outlives the
+        // borrow; its `item_name` returns static strings and does not log, and
+        // it has no options or offsets for C to follow.
+        let obj = unsafe { ObjectRef::from_ptr(ctx_ptr) }.unwrap();
+        let seen = capture(|| log_with_context(obj, Level::ERROR, c"m\n"));
         assert_eq!(seen.len(), 1);
         assert_eq!(seen[0].context, ctx_ptr);
         let line = seen[0].line.to_str().unwrap();
@@ -2175,13 +2143,15 @@ mod unit_tests {
             ClassCategory::from_value(4242),
         ] {
             let class = ffi::AVClass {
+                class_name: c"unit-class".as_ptr(),
                 category: category.into(),
                 ..Default::default()
             };
-            let ctx: *const ffi::AVClass = &class;
-            // SAFETY: `ctx` is a live, aligned class pointer slot holding a
-            // pointer to the live `class`; nothing writes either.
-            let got = unsafe { default_category((&raw const ctx).cast()) };
+            let mut obj: *const ffi::AVClass = &class;
+            // SAFETY: `obj` starts with a pointer to the live `class`, named,
+            // with no options, callbacks or offsets; nothing writes either.
+            let ctx = unsafe { ObjectRef::from_ptr((&raw mut obj).cast()) }.unwrap();
+            let got = default_category(ctx);
             assert_eq!(got, category);
         }
     }

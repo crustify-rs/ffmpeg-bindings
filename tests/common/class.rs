@@ -7,7 +7,9 @@
 use core::cell::Cell;
 use core::ffi::c_void;
 
+use ffmpeg::libavutil::ffi;
 use ffmpeg::libavutil::log::{self, Callback, ClassRef, Level, Record};
+use ffmpeg::libavutil::opt::ObjectRef;
 
 /// The visitor [`with_class`] lent this thread's callback, lifetime erased.
 type Visitor = *mut (dyn FnMut(Option<ClassRef<'_>>) + 'static);
@@ -37,7 +39,8 @@ impl Callback for Visit {
 ///
 /// # Safety
 ///
-/// `obj` must be a logging context valid for `log_with_context`.
+/// `obj` must be NULL, a struct led by a NULL class pointer, or satisfy
+/// `ObjectRef::from_ptr`'s contract for the call.
 pub unsafe fn with_class<R>(obj: *mut c_void, f: impl FnOnce(Option<ClassRef<'_>>) -> R) -> R {
     let mut f = Some(f);
     let mut out = None;
@@ -49,8 +52,13 @@ pub unsafe fn with_class<R>(obj: *mut c_void, f: impl FnOnce(Option<ClassRef<'_>
     let visit: Visitor = unsafe { core::mem::transmute(visit) };
     VISIT.with(|v| v.set(Some(visit)));
     log::set_callback::<Visit>();
-    // SAFETY: the caller vouches for `obj`.
-    unsafe { log::log_with_context(obj, Level::INFO, c"class\n") };
+    // SAFETY: the caller vouches for `obj`: NULL, led by a NULL class
+    // pointer, or an object as `ObjectRef::from_ptr` takes one.
+    match unsafe { ObjectRef::from_ptr(obj) } {
+        Some(o) => log::log_with_context(o, Level::INFO, c"class\n"),
+        // SAFETY: as above; C reads only the NULL class pointer, if any.
+        None => unsafe { ffi::av_log(obj, Level::INFO.raw(), c"%s".as_ptr(), c"class\n".as_ptr()) },
+    }
     log::set_default_callback();
     VISIT.with(|v| v.set(None));
     out.expect("the log callback visited the class")

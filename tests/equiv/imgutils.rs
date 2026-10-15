@@ -14,6 +14,7 @@ use ffmpeg::libavutil::imgutils::{
     check_size, check_size_with_context, copy_plane, copy_plane_from_uncacheable,
 };
 use ffmpeg::libavutil::log::{self, Callback, Record};
+use ffmpeg::libavutil::opt::ObjectRef;
 
 use crate::log::LogState;
 
@@ -240,8 +241,7 @@ fn check_size_matches_c() {
             let c = unsafe { ffi::av_image_check_size(w, h, 0, ptr::null_mut()) };
             let c = if c < 0 { Err(c) } else { Ok(()) };
             assert_eq!(check_size(w, h), c, "{w}x{h}");
-            // SAFETY: as above.
-            let with_context = unsafe { check_size_with_context(w, h, 0, ptr::null_mut()) };
+            let with_context = check_size_with_context(w, h, 0, None);
             assert_eq!(with_context, c, "{w}x{h}");
         }
     }
@@ -353,8 +353,10 @@ fn check_size_logs_as_c() {
         (64, 64, 0, parent),
     ] {
         let mut rust_ret = Ok(());
-        // SAFETY: `ctx` is NULL or a live context led by a valid class.
-        let rust = captured(|| rust_ret = unsafe { check_size_with_context(w, h, offset, ctx) });
+        // SAFETY: `ctx` is NULL or a live context led by a valid class with
+        // no options, callbacks or offsets, unwritten during the borrow.
+        let obj = unsafe { ObjectRef::from_ptr(ctx) };
+        let rust = captured(|| rust_ret = check_size_with_context(w, h, offset, obj));
         let mut c_ret = 0;
         // SAFETY: as above.
         let c = captured(|| c_ret = unsafe { ffi::av_image_check_size(w, h, offset, ctx) });
@@ -389,6 +391,7 @@ mod images {
         fill_black, fill_color, fill_linesizes, fill_plane_sizes, fill_pointers, fill_pointers_mut,
         linesize,
     };
+    use ffmpeg::libavutil::opt::ObjectRef;
     use ffmpeg::libavutil::pixfmt::{ColorRange, PixelFormat};
     use ffmpeg::libavutil::rational::Rational;
 
@@ -793,11 +796,11 @@ mod images {
             (640, 480, 1, -8, parent),
         ] {
             let mut rust_ret = Ok(());
+            // SAFETY: `ctx` is NULL or a live context led by a valid class
+            // with no options, callbacks or offsets, unwritten meanwhile.
+            let obj = unsafe { ObjectRef::from_ptr(ctx) };
             let rust = captured(|| {
-                let check = check_size_max_pixels_with_context;
-                // SAFETY: `ctx` is NULL or a live context led by a valid
-                // class.
-                rust_ret = unsafe { check(w, h, max, yuv, offset, ctx) };
+                rust_ret = check_size_max_pixels_with_context(w, h, max, yuv, offset, obj);
             });
             let mut c_ret = 0;
             let c = captured(|| {

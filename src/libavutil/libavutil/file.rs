@@ -4,11 +4,12 @@
 //! buffer that `av_file_unmap` releases on drop through the [`FileUnmap`]
 //! policy.
 
-use core::ffi::{CStr, c_int, c_void};
+use core::ffi::{CStr, c_int};
 
 use ffibox::{CVec, impl_clendrop};
 
 use super::ffi;
+use super::opt::ObjectRef;
 
 /// The release policy of a [`FileMap`]: `av_file_unmap`, given the mapping's
 /// size back.
@@ -48,32 +49,29 @@ const AVERROR_EINVAL: c_int = -(ffi::EINVAL as c_int);
 /// A `log_offset` above `INT_MAX - AV_LOG_ERROR`, which would overflow the
 /// level C logs at, is rejected with `AVERROR(EINVAL)` before C runs.
 ///
-/// `log_ctx` is a raw seam until `AVClass` is wrapped (core wave 1): pass
-/// NULL for no parent context.
+/// `log_ctx` is the parent log context, `None` for none.
 ///
 /// # Safety
 ///
-/// - No process may write to or truncate the file while the returned
-///   [`FileMap`] lives: its bytes are pages of the file, read through `&[u8]`,
-///   which other writers would change behind the borrow, and truncation
-///   unmaps them.
-/// - `log_ctx` must be NULL or point to a live struct whose first member is a
-///   `const AVClass *` (NULL, or a valid class) that `av_log` may read, as
-///   `parent_log_context_offset` contexts require.
+/// No process may write to or truncate the file while the returned
+/// [`FileMap`] lives: its bytes are pages of the file, read through `&[u8]`,
+/// which other writers would change behind the borrow, and truncation
+/// unmaps them.
 pub unsafe fn map(
     filename: &CStr,
     log_offset: c_int,
-    log_ctx: *mut c_void,
+    log_ctx: Option<ObjectRef<'_>>,
 ) -> Result<FileMap, c_int> {
     if log_offset > c_int::MAX - ffi::AV_LOG_ERROR as c_int {
         return Err(AVERROR_EINVAL);
     }
     let mut buf = core::ptr::null_mut();
     let mut size = 0;
+    let log_ctx = log_ctx.map_or(core::ptr::null_mut(), |o| o.as_ptr());
     // SAFETY: `filename` is a live NUL-terminated string, only read; `buf`
-    // and `size` are writable out-parameters; the caller vouches for
-    // `log_ctx`, and `log_offset` cannot overflow the error level C adds it
-    // to.
+    // and `size` are writable out-parameters; `log_ctx` is NULL or a logging
+    // context, as its handle guarantees, which C only reads while logging;
+    // and `log_offset` cannot overflow the error level C adds it to.
     let ret =
         unsafe { ffi::av_file_map(filename.as_ptr(), &mut buf, &mut size, log_offset, log_ctx) };
     if ret < 0 {
@@ -117,13 +115,13 @@ mod unit_tests {
         let f = TempFile::new("offsets", b"data");
         for offset in [c_int::MAX, c_int::MAX - 15] {
             // SAFETY: nothing is mapped (the offset is rejected first), and
-            // NULL is a valid log context.
-            let r = unsafe { map(&f.1, offset, core::ptr::null_mut()) };
+            // No log context.
+            let r = unsafe { map(&f.1, offset, None) };
             assert_eq!(r.unwrap_err(), AVERROR_EINVAL);
         }
         // SAFETY: as above; this one maps, and the file is not written while
         // the mapping lives.
-        let m = unsafe { map(&f.1, c_int::MAX - 16, core::ptr::null_mut()) }.unwrap();
+        let m = unsafe { map(&f.1, c_int::MAX - 16, None) }.unwrap();
         assert_eq!(m.as_slice(), b"data");
         assert_eq!(AVERROR_EINVAL, -22);
     }
@@ -133,14 +131,14 @@ mod unit_tests {
     fn unmap_policy_releases_a_surrendered_mapping() {
         let f = TempFile::new("surrendered", &[3; 5000]);
         // SAFETY: the file is not written while the mapping lives.
-        let m = unsafe { map(&f.1, 0, core::ptr::null_mut()) }.unwrap();
+        let m = unsafe { map(&f.1, 0, None) }.unwrap();
         let (ptr, len) = m.into_raw_parts();
         assert_eq!(len, 5000);
         // SAFETY: `ptr` and `len` are the mapping `map` returned, now ours.
         unsafe { FileUnmap.c_drop_len(ptr, len) };
 
         // SAFETY: as above.
-        let m = unsafe { map(&f.1, 0, core::ptr::null_mut()) }.unwrap();
+        let m = unsafe { map(&f.1, 0, None) }.unwrap();
         let (ptr, len) = m.into_raw_parts();
         // SAFETY: as above, through the adapter itself.
         unsafe { unmap(ptr, len) };
@@ -151,7 +149,7 @@ mod unit_tests {
     fn empty_files_map_to_a_null_buffer() {
         let f = TempFile::new("empty", b"");
         // SAFETY: the file is not written while the mapping lives.
-        let m = unsafe { map(&f.1, 0, core::ptr::null_mut()) }.unwrap();
+        let m = unsafe { map(&f.1, 0, None) }.unwrap();
         assert!(m.is_empty() && m.as_ptr().is_null());
         fn send_sync<T: Send + Sync>() {}
         send_sync::<FileMap>();

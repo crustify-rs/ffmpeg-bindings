@@ -543,6 +543,7 @@ mod vlog {
 
     use ffmpeg::libavutil::ffi;
     use ffmpeg::libavutil::log::{Level, log, log_with_context};
+    use ffmpeg::libavutil::opt::ObjectRef;
 
     use super::LogState;
 
@@ -741,13 +742,8 @@ mod vlog {
                         // SAFETY: `mine` is a live context whose class names
                         // itself, its offset `int` stays far from overflow
                         // and its parent pointer addresses a classed parent.
-                        unsafe {
-                            log_with_context(
-                                (&raw mut mine).cast(),
-                                Level::from_raw(level),
-                                message,
-                            )
-                        };
+                        let obj = unsafe { ObjectRef::from_ptr((&raw mut mine).cast()) };
+                        log_with_context(obj.unwrap(), Level::from_raw(level), message);
                         let rust = cap.take();
                         assert_eq!(c.len(), 1);
                         // The contexts differ only in address.
@@ -766,21 +762,6 @@ mod vlog {
             }
         }
     }
-
-    #[test]
-    #[cfg_attr(miri, ignore = "calls C")]
-    fn null_context_is_the_general_log() {
-        let cap = Installed::new();
-        for level in LEVELS {
-            // SAFETY: a NULL context is the general log.
-            unsafe { log_with_context(core::ptr::null_mut(), Level::from_raw(level), MESSAGES[0]) };
-            let ctx = cap.take();
-            log(Level::from_raw(level), MESSAGES[0]);
-            assert_eq!(cap.take(), ctx);
-            assert_eq!(ctx.len(), 1);
-            assert_eq!(ctx[0].0, 0);
-        }
-    }
 }
 
 /// `default_item_name` against `av_default_item_name` on the same objects.
@@ -790,6 +771,7 @@ mod item_name {
 
     use ffmpeg::libavutil::ffi;
     use ffmpeg::libavutil::log::default_item_name;
+    use ffmpeg::libavutil::opt::ObjectRef;
 
     /// A class named `name`, every other member zero.
     fn class(name: Option<&'static CStr>) -> ffi::AVClass {
@@ -812,9 +794,10 @@ mod item_name {
         // SAFETY: `obj` starts with a non-NULL class pointer to a live class,
         // which `av_default_item_name` only reads.
         let c = unsafe { ffi::av_default_item_name(ctx.cast_mut()) };
-        // SAFETY: as above; every class here stores a literal or NULL, so the
-        // name lives for `'static`.
-        let r = unsafe { default_item_name(ctx) };
+        // SAFETY: as above, of a named class with no options, callbacks or
+        // offsets; every class here stores a literal, so the name lives for
+        // `'static`.
+        let r = default_item_name(unsafe { ObjectRef::from_ptr(ctx.cast_mut()) }.unwrap());
         (c, r)
     }
 
@@ -823,7 +806,6 @@ mod item_name {
     fn names_read_alike_as_the_class_changes() {
         let classes = [
             class(Some(c"first")),
-            class(None),
             class(Some(c"")),
             class(Some(c"second-class")),
         ];
@@ -862,8 +844,9 @@ mod item_name {
         // SAFETY: `ctx` addresses a live object whose class pointer reaches
         // `cls`, which `av_default_item_name` only reads.
         let c = unsafe { ffi::av_default_item_name(ctx.cast_mut()) };
-        // SAFETY: as above; `name` outlives every use of the result below.
-        let r = unsafe { default_item_name(ctx) }.unwrap();
+        // SAFETY: as above, of a named class with no options, callbacks or
+        // offsets; `name` outlives every use of the result below.
+        let r = default_item_name(unsafe { ObjectRef::from_ptr(ctx.cast_mut()) }.unwrap()).unwrap();
         assert_eq!(r.as_ptr(), c);
         assert_eq!(r, name.as_c_str());
     }
@@ -1389,15 +1372,11 @@ fn contexts_shift_levels_and_prefix_lines_like_c() {
         level_offset: -16,
         parent: ptr::null_mut(),
     };
-    let mut classless = LogCtx {
-        class: ptr::null(),
-        level_offset: 0,
-        parent: ptr::null_mut(),
-    };
-    let contexts: [*mut c_void; 4] = [
+    // A context whose class is NULL is no `ObjectRef`, so no Rust call
+    // takes one; NULL is the general log.
+    let contexts: [*mut c_void; 3] = [
         (&raw mut ctx).cast(),
         (&raw mut orphan).cast(),
-        (&raw mut classless).cast(),
         ptr::null_mut(),
     ];
     let msgs = [c"one\n", c"part ", c"two\n", c"%p\n"];
@@ -1408,15 +1387,23 @@ fn contexts_shift_levels_and_prefix_lines_like_c() {
                 for level in [Level::QUIET, Level::PANIC, Level::FATAL, Level::INFO] {
                     let mut once = false;
                     for msg in msgs {
-                        // SAFETY: `cx` is NULL or a live `LogCtx` whose class
-                        // pointer is NULL or a well-formed class with no
-                        // callbacks, an `int` at its level offset and a NULL
-                        // or valid parent context; nothing writes them.
-                        unsafe {
-                            log::log_with_context(cx, level, msg);
-                            let text = msg.to_str().unwrap();
-                            log::log_fmt_with_context(cx, level, format_args!("{text}"));
-                            log::log_once_with_context(cx, level, Level::TRACE, &mut once, msg);
+                        let text = msg.to_str().unwrap();
+                        // SAFETY: `cx` is NULL, the general log, or a live
+                        // `LogCtx` of a named class with no callbacks or
+                        // options, an `int` at its level offset far from
+                        // overflow and a NULL or valid parent context;
+                        // nothing writes them.
+                        match unsafe { ffmpeg::libavutil::opt::ObjectRef::from_ptr(cx) } {
+                            Some(o) => {
+                                log::log_with_context(o, level, msg);
+                                log::log_fmt_with_context(o, level, format_args!("{text}"));
+                                log::log_once_with_context(o, level, Level::TRACE, &mut once, msg);
+                            }
+                            None => {
+                                log::log(level, msg);
+                                log::log_fmt(level, format_args!("{text}"));
+                                log::log_once(level, Level::TRACE, &mut once, msg);
+                            }
                         }
                         states.0.push(once);
                     }
@@ -1893,9 +1880,13 @@ mod default_category {
             state_flags: 0,
             value: 0,
         };
-        // SAFETY: `ctx` starts with an aligned pointer to the live `class`;
-        // nothing writes either during the call.
-        unsafe { default_category((&raw const ctx).cast()) }
+        // SAFETY: `ctx` starts with an aligned pointer to the live `class`,
+        // whose options address `ctx`'s members; nothing writes either during
+        // the call.
+        let obj = unsafe {
+            ffmpeg::libavutil::opt::ObjectRef::from_ptr((&raw const ctx).cast_mut().cast())
+        };
+        default_category(obj.unwrap())
     }
 
     #[test]

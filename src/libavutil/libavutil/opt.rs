@@ -1225,9 +1225,25 @@ impl BitOr for SerializeFlags {
 ///   object; `child_next` returns NULL or children that satisfy this contract
 ///   for the borrow too and that the object owns, and a non-zero
 ///   `state_flags_offset` addresses an `unsigned` of the object;
+/// - the object is a logging context, which C logs in (its option routines
+///   report errors in the object's context) and the default log callback
+///   reads: its class's `item_name` and `get_category` callbacks do not
+///   log, and the latter returns a category below `AV_CLASS_CATEGORY_NB`; a
+///   non-zero `log_level_offset_offset` (in a class of version 50.15.2 or
+///   later) addresses an aligned `int` of the object of at most
+///   `INT_MAX - AV_LOG_TRACE`, which C adds to the level of every message
+///   from `AV_LOG_FATAL` up ([`log_with_context`](super::log::log_with_context)
+///   checks the levels it is given against it); a non-zero
+///   `parent_log_context_offset` addresses a pointer of the object that is
+///   NULL or addresses a parent whose first member is a `const AVClass *`
+///   that is NULL or meets these callback requirements for the parent;
 /// - for a shared handle, nothing writes the object or its children during
 ///   the borrow, the class callbacks a getter runs included; for an
 ///   exclusive one, nothing else accesses them.
+///
+/// The wrapped C types whose first member is their class pointer, the
+/// [`ClassObject`] types, hand these handles out safely: `From` their own
+/// shared handles, as [`BareObject::as_object`] does.
 ///
 /// Not `Send` or `Sync`: whether an object may move between threads is its
 /// concrete type's to say.
@@ -1248,6 +1264,75 @@ pub struct ObjectMut<'a> {
     obj: NonNull<c_void>,
     _borrow: PhantomData<&'a mut c_void>,
 }
+
+/// Handwritten
+///
+/// A wrapped C type that is an `AVClass`-enabled object: a struct whose
+/// first member is its `const AVClass *`, which C's allocator sets to the
+/// class whose option table and callbacks describe the struct. Its shared
+/// and exclusive handles convert into an [`ObjectRef`] and an [`ObjectMut`]
+/// with `From`, so the logging and option routines take it without a raw
+/// pointer.
+///
+/// Implemented by `impl_class_object!`, which checks at compile time that
+/// the member it names is a `*const AVClass` at offset 0, and adds the
+/// conversions.
+///
+/// # Safety
+///
+/// Every handle to a `Self` addresses an object that satisfies
+/// [`ObjectRef`]'s contract for the handle's borrow. For a C type, that
+/// holds when:
+///
+/// - only C's allocator sets the class pointer, and no safe Rust writes it;
+/// - every object a handle addresses is one that allocator made, at its
+///   full size: FFmpeg's class callbacks may read the private struct a
+///   public one heads (`AVHWDeviceContext`'s `item_name` reads the
+///   `FFHWDeviceContext` around it), so a Rust-owned value of the public
+///   struct alone is not an object, and `Self` must not be constructible by
+///   value (no `CZeroable`, no handle from a raw pointer outside the crate);
+/// - the class is one FFmpeg defines, whose options, callbacks and offsets
+///   describe the struct, as C itself trusts them to.
+pub unsafe trait ClassObject: ffibox::CCell {}
+
+/// Implements [`ClassObject`] for the layout type `$ty`, whose handles are
+/// `$rf` and `$mt`, asserting at compile time that `$field` is a
+/// `*const AVClass` at offset 0 of the C struct, and adds `From<$rf>` for
+/// [`ObjectRef`] and `From<$mt>` for [`ObjectMut`].
+///
+/// The invocation asserts the rest of [`ClassObject`]'s contract, in a
+/// `// SAFETY:` comment before it.
+macro_rules! impl_class_object {
+    ($ty:ty, $rf:ident, $mt:ident, $field:ident) => {
+        const _: () = assert!(
+            ::core::mem::offset_of!(<$ty as ::ffibox::CCell>::C, $field) == 0,
+            "the class pointer is not the struct's first member"
+        );
+        const _: fn(&<$ty as ::ffibox::CCell>::C) -> *const $crate::libavutil::ffi::AVClass =
+            |c| c.$field;
+
+        // SAFETY: the offset and type checks above, and the invocation's
+        // own `// SAFETY:` comment for the rest of the contract.
+        unsafe impl $crate::libavutil::opt::ClassObject for $ty {}
+
+        impl<'a> ::core::convert::From<$rf<'a>> for $crate::libavutil::opt::ObjectRef<'a> {
+            fn from(h: $rf<'a>) -> Self {
+                // SAFETY: a handle to a `ClassObject` addresses an object that
+                // satisfies `ObjectRef`'s contract for its borrow.
+                unsafe { Self::from_class_object(h.as_ptr().cast_mut().cast()) }
+            }
+        }
+
+        impl<'a> ::core::convert::From<$mt<'a>> for $crate::libavutil::opt::ObjectMut<'a> {
+            fn from(mut h: $mt<'a>) -> Self {
+                // SAFETY: as for `ObjectRef`, from an exclusive handle, whose
+                // borrow the result takes over.
+                unsafe { Self::from_class_object(h.as_mut_ptr().cast()) }
+            }
+        }
+    };
+}
+pub(crate) use impl_class_object;
 
 impl fmt::Debug for ObjectRef<'_> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
@@ -1282,6 +1367,20 @@ impl<'a> ObjectRef<'a> {
             obj,
             _borrow: PhantomData,
         })
+    }
+
+    /// The handle of a [`ClassObject`]'s object at `obj`, for
+    /// `impl_class_object!`.
+    ///
+    /// # Safety
+    ///
+    /// `obj` addresses an object that satisfies [`ObjectRef`]'s contract for
+    /// a shared borrow of `'a`, as a `ClassObject` handle's does.
+    pub(crate) unsafe fn from_class_object(obj: *mut c_void) -> Self {
+        // SAFETY: by the caller's contract, which also makes `obj` and its
+        // class pointer non-NULL.
+        let obj = unsafe { Self::from_ptr(obj) };
+        obj.expect("a ClassObject handle addresses an object with a class")
     }
 
     /// The object as the `void *` the `av_opt_*` routines take.
@@ -1683,6 +1782,21 @@ impl<'a> ObjectMut<'a> {
             obj: shared.obj,
             _borrow: PhantomData,
         })
+    }
+
+    /// The exclusive handle of a [`ClassObject`]'s object at `obj`, for
+    /// `impl_class_object!`.
+    ///
+    /// # Safety
+    ///
+    /// `obj` addresses an object that satisfies [`ObjectRef`]'s contract for
+    /// an exclusive borrow of `'a`, as an exclusive `ClassObject` handle's
+    /// does.
+    pub(crate) unsafe fn from_class_object(obj: *mut c_void) -> Self {
+        // SAFETY: by the caller's contract, which also makes `obj` and its
+        // class pointer non-NULL.
+        let obj = unsafe { Self::from_ptr(obj) };
+        obj.expect("a ClassObject handle addresses an object with a class")
     }
 
     /// The object as the `void *` the `av_opt_*` routines take.

@@ -2145,6 +2145,107 @@ mod device_context {
     }
 }
 
+/// The safe logging-context route to a device context, `ObjectRef::from` its
+/// handles, against C reading and logging in a raw context of the same fake
+/// backend.
+mod device_class_object {
+    use core::cell::RefCell;
+    use core::ffi::c_void;
+
+    use ffmpeg::libavutil::ffi;
+    use ffmpeg::libavutil::hwcontext::UninitDevice;
+    use ffmpeg::libavutil::log::{
+        self, Callback, ClassCategory, Level, Record, default_category, default_item_name,
+    };
+    use ffmpeg::libavutil::opt::{ObjectMut, ObjectRef};
+
+    use super::hwdevice;
+    use crate::log::LogState;
+
+    thread_local! {
+        /// The context and line of each message this thread logged.
+        static SEEN: RefCell<Vec<(usize, Vec<u8>)>> = const { RefCell::new(Vec::new()) };
+    }
+
+    /// Records each message's context and formatted line.
+    struct Seen;
+
+    impl Callback for Seen {
+        fn log(record: Record<'_>) {
+            let line = record.to_line(&mut true).unwrap_or_default();
+            let entry = (record.context() as usize, line.into_bytes());
+            SEEN.with(|s| s.borrow_mut().push(entry));
+        }
+    }
+
+    /// The line logged with the context address spelled `@ ctx`.
+    fn normalized((ctx, line): (usize, Vec<u8>)) -> String {
+        let line = String::from_utf8(line).unwrap();
+        line.replace(&format!("{:p}", ctx as *const c_void), "ctx")
+    }
+
+    /// Runs `f` with [`Seen`] installed; returns this thread's lines.
+    fn seen(f: impl FnOnce()) -> Vec<String> {
+        SEEN.with(|s| s.borrow_mut().clear());
+        log::set_callback::<Seen>();
+        f();
+        log::set_default_callback();
+        SEEN.with(|s| s.take())
+            .into_iter()
+            .map(normalized)
+            .collect()
+    }
+
+    #[test]
+    #[cfg_attr(miri, ignore = "calls C")]
+    fn device_context_is_the_object_c_logs_in() {
+        let _state = LogState::lock();
+        let mut buf = hwdevice::fake_device();
+        // SAFETY: a live reference to a fake context.
+        let raw = unsafe { hwdevice::context(buf) }.cast::<c_void>();
+        // SAFETY: the only reference to a fresh, uninitialised fake context.
+        let mut dev = unsafe { UninitDevice::from_c(hwdevice::fake_device()) }.unwrap();
+
+        let obj = ObjectRef::from(dev.context());
+        assert!(obj.class().ptr_eq(dev.context().class().unwrap()));
+        // SAFETY: `raw` is a live context led by its class, which C only reads.
+        let (c_name, c_category) = unsafe {
+            (
+                ffi::av_default_item_name(raw),
+                ffi::av_default_get_category(raw),
+            )
+        };
+        assert_eq!(default_item_name(obj).unwrap().as_ptr(), c_name);
+        assert_eq!(default_category(obj), ClassCategory::from(c_category));
+        assert_eq!(default_category(obj), ClassCategory::HWDEVICE);
+
+        let c = seen(|| {
+            // SAFETY: as above; `"%s"` consumes the one string passed.
+            unsafe {
+                ffi::av_log(
+                    raw,
+                    Level::ERROR.raw(),
+                    c"%s".as_ptr(),
+                    c"in device\n".as_ptr(),
+                )
+            }
+        });
+        let rust = seen(|| log::log_with_context(obj, Level::ERROR, c"in device\n"));
+        assert_eq!(rust, c);
+        // The default callback names the context by its backend.
+        assert!(rust[0].contains("@ ctx]"), "{rust:?}");
+
+        // The exclusive handle is the same object.
+        let obj = ObjectMut::from(dev.context_mut());
+        let rust = seen(|| log::log_with_context(obj.as_ref(), Level::ERROR, c"in device\n"));
+        assert_eq!(rust, c);
+
+        drop(dev);
+        // SAFETY: the C side's only reference.
+        unsafe { ffi::av_buffer_unref(&mut buf) };
+    }
+}
+
 /// [`FramesConstraints`] from C's `av_hwdevice_get_hwframe_constraints`
 /// against the wrapper's, on independent equivalent fake devices, then
 /// edited in step by C-style writes and the setters, and released by

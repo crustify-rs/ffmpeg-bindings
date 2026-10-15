@@ -57,6 +57,7 @@ use super::frame::{
 };
 use super::log::ClassRef;
 use super::mem::{HeapVec, alloc_array_from_fn};
+use super::opt::impl_class_object;
 use super::pixdesc::PixelFormatFlags;
 use super::pixfmt::PixelFormat;
 
@@ -1987,6 +1988,16 @@ define_ctype!(
     ffi::AVHWDeviceContext
 );
 
+// SAFETY: `av_hwdevice_ctx_alloc` sets `av_class` to its static
+// `hwdevice_ctx_class` (no options, children or offsets; an `item_name`
+// that reads the backend's name from the `FFHWDeviceContext` the context
+// heads, and does not log), and nothing here writes it. Every handle
+// addresses a context that allocator made, inside its `FFHWDeviceContext`:
+// handles are lent only by the reference owners, which adopt C's contexts,
+// and `DeviceContext` is never a Rust value (no `CZeroable`, and the
+// handles' `from_ptr` is the crate's).
+impl_class_object!(DeviceContext, DeviceContextRef, DeviceContextMut, av_class);
+
 /// A device context's free callback, as
 /// [`take_free_callback`](DeviceContextMut::take_free_callback) hands it back:
 /// called once, with the context, when its last reference is released.
@@ -2807,6 +2818,13 @@ define_ctype!(
     FramesContextMut,
     ffi::AVHWFramesContext
 );
+
+// SAFETY: `av_hwframe_ctx_alloc` sets `av_class` to its static
+// `hwframe_ctx_class` (no options, children or offsets, and
+// `av_default_item_name`), and nothing here writes it. Every handle
+// addresses a context that allocator made, inside its `FFHWFramesContext`,
+// as for `DeviceContext`.
+impl_class_object!(FramesContext, FramesContextRef, FramesContextMut, av_class);
 
 /// A frames context's free callback, as
 /// [`take_free_callback`](FramesContextMut::take_free_callback) hands it back:
