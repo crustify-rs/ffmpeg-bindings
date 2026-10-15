@@ -72,7 +72,7 @@ use ffibox::{CBox, CDrop, CSlice, CZeroable, define_ctype};
 use super::channel_layout::{ChannelLayout, ChannelLayoutRef, ChannelLayoutVal};
 use super::dict::{Dict, DictionaryBox, DictionaryRef};
 use super::ffi;
-use super::log::{ClassRef, ItemNameFn};
+use super::log::{ClassCategory, ClassRef, ItemNameFn};
 use super::mem::HeapString;
 use super::pixfmt::PixelFormat;
 use super::rational::Rational;
@@ -1204,10 +1204,13 @@ impl BitOr for SerializeFlags {
 /// whose option table describes the struct's own fields. Its getters read
 /// option values by name; [`ObjectMut`] adds the setters.
 ///
-/// The concrete objects (codec, format and filter contexts, ...) are wrapped
-/// by later layers, which hand out these handles over them. Until then a
-/// handle is adopted from a raw pointer with [`from_ptr`](Self::from_ptr),
-/// the raw seam whose contract every handle upholds for its lifetime:
+/// The wrapped objects hand these handles out safely (see [`ClassObject`]).
+/// A raw object is adopted with [`from_ptr`](Self::from_ptr), the seam whose
+/// contract every handle upholds for its lifetime. It is for the objects no
+/// wrapper hands out: those of link units not wrapped yet (codec, format,
+/// filter and scaler contexts, until their types are `ClassObject`s), those
+/// foreign C code builds, and the context a log callback receives
+/// ([`Record::context`](super::log::Record::context)). The contract:
 ///
 /// - the object is live, and its first member a non-NULL pointer to a class
 ///   valid for [`ClassRef`] that outlives the borrow and has a name;
@@ -1386,6 +1389,34 @@ impl<'a> ObjectRef<'a> {
     /// The object as the `void *` the `av_opt_*` routines take.
     pub(crate) fn as_ptr(&self) -> *mut c_void {
         self.obj.as_ptr()
+    }
+
+    /// The object's name, as the default log callback prints it: what its
+    /// class's `item_name` callback returns for it, or, for a class without
+    /// one, the class name (`av_default_item_name`); `None` when that is
+    /// NULL. It lives as long as the borrow.
+    pub fn item_name(&self) -> Option<&'a CStr> {
+        let class = self.class();
+        match class.item_name() {
+            // SAFETY: the handle's contract makes the class's callbacks honour
+            // their contracts for this object, which nothing writes during the
+            // borrow: the callback accepts it, and returns NULL or a string
+            // alive and unwritten while the object is, past `'a`.
+            Some(f) => unsafe { f.call(self.as_ptr()) },
+            None => class.name(),
+        }
+    }
+
+    /// The object's log category: what its class's `get_category` callback
+    /// returns for it, or, for a class without one, the class's `category`
+    /// (`av_default_get_category`).
+    pub fn category(&self) -> ClassCategory {
+        let class = self.class();
+        match class.get_category() {
+            // SAFETY: as in `item_name`; the callback accepts the object.
+            Some(f) => unsafe { f.call(self.as_ptr()) },
+            None => class.category(),
+        }
     }
 
     /// The object's class.
