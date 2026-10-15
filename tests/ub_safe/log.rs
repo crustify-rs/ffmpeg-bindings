@@ -750,7 +750,11 @@ mod object_context {
     impl Callback for Seen {
         fn log(record: Record<'_>) {
             let line = record.to_line(&mut true).unwrap_or_default();
-            let entry = (record.level().raw(), record.context() as usize, line.into_string().unwrap());
+            let entry = (
+                record.level().raw(),
+                record.context() as usize,
+                line.into_string().unwrap(),
+            );
             SEEN.with(|s| s.borrow_mut().push(entry));
         }
     }
@@ -783,7 +787,11 @@ mod object_context {
         for (i, (level, ctx, line)) in seen.iter().enumerate() {
             // No level offset: every message keeps its level; the once
             // message's second call logs at TRACE.
-            let want = if i % 4 == 3 { Level::TRACE.raw() } else { LEVELS[i / 4] };
+            let want = if i % 4 == 3 {
+                Level::TRACE.raw()
+            } else {
+                LEVELS[i / 4]
+            };
             assert_eq!((*level, *ctx), (want, addr), "{i}");
             assert!(line.starts_with("[ub-safe-object @ 0x"), "{line}");
         }
@@ -799,6 +807,35 @@ mod object_context {
         log_all(&obj);
     }
 
+    /// The object's own name and category, through `ObjectRef::item_name`
+    /// and `ObjectRef::category`, for classes of every category value up
+    /// to `NB` and of an empty name; a bare object has no children.
+    #[test]
+    #[cfg_attr(miri, ignore = "calls C")]
+    fn objects_name_and_categorise_themselves() {
+        static EMPTY: Class = Class::new(c"", ClassCategory::from_value(45));
+        let obj = BareObject::new(CLASS.as_ref()).unwrap();
+        let o = obj.as_object();
+        assert_eq!(o.item_name(), Some(c"ub-safe-object"));
+        assert_eq!(
+            o.item_name().unwrap().as_ptr(),
+            CLASS.as_ref().name().unwrap().as_ptr()
+        );
+        assert_eq!(o.category(), ClassCategory::ENCODER);
+        assert_eq!(o.item_name(), default_item_name(o));
+        assert_eq!(o.category(), default_category(o));
+        assert_eq!(o.children().count(), 0);
+        let empty = BareObject::new(EMPTY.as_ref()).unwrap();
+        assert_eq!(empty.as_object().item_name(), Some(c""));
+        assert_eq!(empty.as_object().category().value(), 45);
+        // The name outlives the handle that read it, as long as the object.
+        let name = {
+            let handle = obj.as_object();
+            handle.item_name().unwrap()
+        };
+        assert_eq!(name, c"ub-safe-object");
+    }
+
     #[test]
     #[cfg_attr(miri, ignore = "calls C")]
     fn names_and_categories_read_on_many_threads() {
@@ -812,6 +849,8 @@ mod object_context {
                         let name = default_item_name(obj.as_object()).unwrap();
                         assert_eq!(name.as_ptr(), CLASS.as_ref().name().unwrap().as_ptr());
                         assert_eq!(default_category(obj.as_object()), ClassCategory::ENCODER);
+                        assert_eq!(obj.as_object().item_name(), Some(c"ub-safe-object"));
+                        assert_eq!(obj.as_object().category(), ClassCategory::ENCODER);
                         log::log_with_context(obj.as_object(), Level::ERROR, c"quiet\n");
                     }
                 });

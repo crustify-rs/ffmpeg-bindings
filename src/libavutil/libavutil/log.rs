@@ -32,14 +32,14 @@ use core::fmt;
 use core::marker::PhantomData;
 use core::num::NonZeroI32;
 use core::ops::{BitAnd, BitAndAssign, BitOr, BitOrAssign, Sub, SubAssign};
-use core::ptr::{self, NonNull, addr_of, addr_of_mut};
+use core::ptr::{self, NonNull, addr_of};
 use std::ffi::CString;
 
 use ffibox::{CSlice, define_ctype};
 
 use super::avstring::text_until_nul;
 use super::ffi;
-use super::opt::{AVERROR_BUG, ObjectRef, OptionDef, OptionRangesBox};
+use super::opt::{ObjectRef, OptionDef};
 
 /// Wraps: AVClassCategory
 /// Handwritten
@@ -633,10 +633,8 @@ impl fmt::Debug for ClassRef<'_> {
 pub struct ItemNameFn(unsafe extern "C" fn(*mut c_void) -> *const c_char);
 
 impl ItemNameFn {
-    /// The name of `obj`; `None` when the callback returns NULL.
-    ///
-    /// The object is raw until the types that carry an `AVClass` are
-    /// wrapped.
+    /// The name of `obj`; `None` when the callback returns NULL. Outside
+    /// the crate, [`ObjectRef::item_name`] runs an object's own callback.
     ///
     /// # Safety
     ///
@@ -647,7 +645,7 @@ impl ItemNameFn {
     /// during the call. The string the callback returns, if any, must stay
     /// alive and unwritten for `'o`; FFmpeg's callbacks return the class
     /// name or a string of the object, alive while the object is.
-    pub unsafe fn call<'o>(self, obj: *mut c_void) -> Option<&'o CStr> {
+    pub(crate) unsafe fn call<'o>(self, obj: *mut c_void) -> Option<&'o CStr> {
         // SAFETY: the caller vouches that the callback accepts `obj`.
         let name = unsafe { (self.0)(obj) };
         // SAFETY: a non-NULL result is a NUL-terminated string the caller
@@ -674,17 +672,15 @@ impl ItemNameFn {
 pub struct GetCategoryFn(unsafe extern "C" fn(*mut c_void) -> ffi::AVClassCategory);
 
 impl GetCategoryFn {
-    /// The category of `obj`.
-    ///
-    /// The object is raw until the types that carry an `AVClass` are
-    /// wrapped.
+    /// The category of `obj`. Outside the crate, [`ObjectRef::category`]
+    /// runs an object's own callback.
     ///
     /// # Safety
     ///
     /// `obj` must be an object the callback accepts for the whole call: for
     /// FFmpeg's classes, a live object of the class the callback came from,
     /// which no other thread writes during the call.
-    pub unsafe fn call(self, obj: *mut c_void) -> ClassCategory {
+    pub(crate) unsafe fn call(self, obj: *mut c_void) -> ClassCategory {
         // SAFETY: the caller vouches that the callback accepts `obj`; any
         // returned value is a valid (open) category.
         ClassCategory(unsafe { (self.0)(obj) })
@@ -693,68 +689,29 @@ impl GetCategoryFn {
 
 /// A class's `query_ranges` callback, from [`ClassRef::query_ranges`].
 #[derive(Clone, Copy, Debug)]
+#[expect(
+    dead_code,
+    reason = "C runs this callback (`av_opt_query_ranges`): `ObjectRef::option_ranges` and `ClassRef::option_ranges` query through it"
+)]
 pub struct QueryRangesFn(
     unsafe extern "C" fn(*mut *mut ffi::AVOptionRanges, *mut c_void, *const c_char, c_int) -> c_int,
 );
 
-impl QueryRangesFn {
-    /// The allowed ranges of option `key` of `obj`, as `av_opt_query_ranges`
-    /// returns them for a class with this callback: the list's component
-    /// count is the callback's return value with
-    /// `AV_OPT_MULTI_COMPONENT_RANGE` in `flags`, and 1 without. Fails with
-    /// the callback's `AVERROR` code, or `AVERROR_BUG` when it succeeds
-    /// without a list.
-    ///
-    /// The object is raw until the types that carry an `AVClass` are
-    /// wrapped.
-    ///
-    /// # Safety
-    ///
-    /// `obj` must be an object the callback accepts for the whole call: for
-    /// FFmpeg's classes, a live object of the class the callback came from
-    /// or, with `AV_OPT_SEARCH_FAKE_OBJ` in `flags`, a pointer to a live
-    /// `const AVClass *` addressing that class. No other thread may write
-    /// it during the call. The callback must honour `av_opt_query_ranges`'
-    /// contract: on success, store a fresh list that `av_opt_freep_ranges`
-    /// releases and that holds `nb_ranges` ranges for each of the components
-    /// counted as above.
-    pub unsafe fn call(
-        self,
-        obj: *mut c_void,
-        key: &CStr,
-        flags: i32,
-    ) -> Result<OptionRangesBox, i32> {
-        let mut ranges = ptr::null_mut();
-        // SAFETY: `ranges` is a writable slot, `key` a live NUL-terminated
-        // string, and the caller vouches for `obj` and the callback.
-        let ret = unsafe { (self.0)(&mut ranges, obj, key.as_ptr(), flags) };
-        if ret < 0 {
-            return Err(ret);
-        }
-        // SAFETY: on success `ranges` is a fresh list the caller owns,
-        // released by `av_opt_freep_ranges`; NULL is reported as a bug.
-        let list = unsafe { OptionRangesBox::from_c(ranges) }.ok_or(AVERROR_BUG)?;
-        let multi = flags & ffi::AV_OPT_MULTI_COMPONENT_RANGE as c_int != 0;
-        // SAFETY: a write of a projected field of the list we own, as
-        // `av_opt_query_ranges` records the count; the callback allocated
-        // that many components, per the caller.
-        unsafe {
-            addr_of_mut!((*list.as_c_ptr()).nb_components).write(if multi { ret } else { 1 })
-        };
-        Ok(list)
-    }
-}
-
 /// A class's `child_next` callback, from [`ClassRef::child_next`].
 #[derive(Clone, Copy, Debug)]
+#[cfg_attr(
+    not(test),
+    expect(
+        dead_code,
+        reason = "C runs this callback (`av_opt_child_next`), and `ObjectRef::children` walks through it; only the unit tests call it directly"
+    )
+)]
 pub struct ChildNextFn(unsafe extern "C" fn(*mut c_void, *mut c_void) -> *mut c_void);
 
 impl ChildNextFn {
     /// The child of `obj` after `prev`, or its first child when `prev` is
     /// NULL; `None` after the last one. The child is borrowed from `obj`.
-    ///
-    /// The objects are raw until the types that carry an `AVClass` are
-    /// wrapped.
+    /// Outside the crate, [`ObjectRef::children`] walks an object's own.
     ///
     /// # Safety
     ///
@@ -762,7 +719,12 @@ impl ChildNextFn {
     /// FFmpeg's classes, a live object of the class the callback came from,
     /// which no other thread writes during the call. `prev` must be NULL or a
     /// child an earlier call returned for `obj`, which `obj` still holds.
-    pub unsafe fn call(self, obj: *mut c_void, prev: *mut c_void) -> Option<NonNull<c_void>> {
+    #[cfg(test)]
+    pub(crate) unsafe fn call(
+        self,
+        obj: *mut c_void,
+        prev: *mut c_void,
+    ) -> Option<NonNull<c_void>> {
         // SAFETY: the caller vouches for `obj` and `prev`.
         NonNull::new(unsafe { (self.0)(obj, prev) })
     }
