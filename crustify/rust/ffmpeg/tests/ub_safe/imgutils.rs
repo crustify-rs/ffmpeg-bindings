@@ -902,3 +902,64 @@ mod pixel_steps {
         }
     }
 }
+
+/// UB tests of the size checks with a parent log context through the safe
+/// API: a `BareObject`'s `ObjectRef`, with level offsets up to and past the
+/// overflow bound, on valid and invalid sizes and formats, on several
+/// threads.
+mod with_context {
+    use core::ffi::c_int;
+    use std::thread;
+
+    use ffmpeg::libavutil::ffi;
+    use ffmpeg::libavutil::imgutils::{check_size_max_pixels_with_context, check_size_with_context};
+    use ffmpeg::libavutil::log::{Class, ClassCategory};
+    use ffmpeg::libavutil::opt::{BareObject, ObjectRef};
+    use ffmpeg::libavutil::pixfmt::PixelFormat;
+
+    const EINVAL: c_int = -22;
+
+    static CLASS: Class = Class::new(c"ub-safe-imgutils-parent", ClassCategory::NA);
+
+    /// The checks, in `ctx`'s context or none.
+    fn checks(ctx: Option<ObjectRef<'_>>) {
+        let max = c_int::MAX - ffi::AV_LOG_ERROR as c_int;
+        for offset in [c_int::MIN, -8, 0, 8, max] {
+            assert_eq!(check_size_with_context(64, 48, offset, ctx), Ok(()));
+            assert_eq!(check_size_with_context(0, 48, offset, ctx), Err(EINVAL));
+            assert_eq!(check_size_with_context(u32::MAX, u32::MAX, offset, ctx), Err(EINVAL));
+            for f in [PixelFormat::YUV420P, PixelFormat::MONOBLACK, PixelFormat::NONE] {
+                let check = |w, h, px| check_size_max_pixels_with_context(w, h, px, f, offset, ctx);
+                assert_eq!(check(64, 48, 64 * 48), Ok(()));
+                assert_eq!(check(64, 48, 64 * 48 - 1), Err(EINVAL));
+                assert_eq!(check(i32::MAX as u32, 1, i64::MAX), Err(EINVAL));
+            }
+        }
+        for offset in [max + 1, c_int::MAX] {
+            // Rejected before C runs.
+            assert_eq!(check_size_with_context(0, 0, offset, ctx), Err(EINVAL));
+            let f = PixelFormat::YUV420P;
+            assert_eq!(check_size_max_pixels_with_context(0, 0, 1, f, offset, ctx), Err(EINVAL));
+        }
+    }
+
+    #[test]
+    #[cfg_attr(miri, ignore = "calls C")]
+    fn no_parent_and_a_bare_object_parent() {
+        checks(None);
+        let parent = BareObject::new(CLASS.as_ref()).unwrap();
+        checks(Some(parent.as_object()));
+    }
+
+    #[test]
+    #[cfg_attr(miri, ignore = "calls C")]
+    fn one_parent_shared_across_threads() {
+        let parent = BareObject::new(CLASS.as_ref()).unwrap();
+        thread::scope(|s| {
+            for _ in 0..4 {
+                let parent = &parent;
+                s.spawn(move || checks(Some(parent.as_object())));
+            }
+        });
+    }
+}

@@ -400,6 +400,73 @@ mod log_with_context {
     }
 }
 
+/// The level check of the context routines: a message whose level C would
+/// shift past `INT_MAX` with the object's level offset is dropped before C
+/// adds it, in each routine, at the bound and past it.
+mod overflowing_shifts {
+    use super::*;
+
+    /// The levels each routine logged at, for `ctx` and every level of
+    /// `levels`; `log_once_with_context` from both starting states, whose
+    /// state ends set either way.
+    fn logged(ctx: &mut Ctx, levels: &[c_int]) -> Vec<c_int> {
+        // SAFETY: a live `Ctx` of `classes()[0]`, named, with an `int` at its
+        // level offset within the bound and no parent; nothing writes it
+        // while the handle lives.
+        let obj = unsafe { object((&raw mut *ctx).cast()) }.unwrap();
+        let lines = capture(|| {
+            for &raw in levels {
+                let level = Level::from_raw(raw);
+                log::log_with_context(obj, level, c"plain\n");
+                log::log_fmt_with_context(obj, level, format_args!("fmt\n"));
+                for start in [false, true] {
+                    let mut state = start;
+                    log::log_once_with_context(obj, level, level, &mut state, c"once\n");
+                    assert!(state);
+                }
+            }
+        });
+        lines.iter().map(|l| l.0.raw()).collect()
+    }
+
+    #[test]
+    #[cfg_attr(miri, ignore = "calls C")]
+    fn shifts_past_int_max_are_dropped() {
+        let _s = LogState::lock();
+        let classes = classes();
+        let bound = c_int::MAX - ffi::AV_LOG_TRACE as c_int;
+        let mut ctx = Ctx {
+            class: &classes[0],
+            level_offset: bound,
+            parent: ptr::null_mut(),
+        };
+        // Below FATAL nothing is added; from FATAL up to TRACE the sum stays
+        // within `int`; past TRACE it would overflow, and is dropped.
+        let levels = [c_int::MIN, -8, 7, 8, 56, 57, 1000, c_int::MAX];
+        let got = logged(&mut ctx, &levels);
+        let want: Vec<c_int> = [c_int::MIN, -8, 7, bound + 8, c_int::MAX]
+            .iter()
+            .flat_map(|&l| [l; 4])
+            .collect();
+        assert_eq!(got, want);
+    }
+
+    #[test]
+    #[cfg_attr(miri, ignore = "calls C")]
+    fn negative_offsets_never_overflow() {
+        let _s = LogState::lock();
+        let classes = classes();
+        let mut ctx = Ctx {
+            class: &classes[0],
+            level_offset: c_int::MIN,
+            parent: ptr::null_mut(),
+        };
+        let got = logged(&mut ctx, &[8, c_int::MAX]);
+        let want: Vec<c_int> = [c_int::MIN + 8, -1].iter().flat_map(|&l| [l; 4]).collect();
+        assert_eq!(got, want);
+    }
+}
+
 /// `log::log_fmt_with_context` (`av_log`), within its contract.
 mod log_fmt_with_context {
     use super::*;

@@ -715,3 +715,107 @@ fn local_class_handles_can_be_reborrowed_on_scoped_threads() {
     });
     assert_eq!(m.as_ref().category(), ClassCategory::FILTER);
 }
+
+/// UB tests of logging in an object's context through the safe API: a
+/// `BareObject`'s `ObjectRef` taken by `log_with_context`,
+/// `log_fmt_with_context` and `log_once_with_context` at every level
+/// boundary, through a Rust and the default callback, and read by
+/// `default_item_name` and `default_category`, on several threads.
+mod object_context {
+    use core::ffi::c_int;
+    use std::cell::RefCell;
+    use std::thread;
+
+    use ffmpeg::libavutil::log::{
+        self, Callback, Class, ClassCategory, Level, Record, default_category, default_item_name,
+    };
+    use ffmpeg::libavutil::opt::BareObject;
+
+    use super::{Forward, LogState};
+
+    static CLASS: Class = Class::new(c"ub-safe-object", ClassCategory::ENCODER);
+
+    /// Levels at and around every boundary C and the default callback
+    /// distinguish, the integer extremes included.
+    const LEVELS: [c_int; 11] = [c_int::MIN, -9, -8, 0, 8, 16, 32, 56, 57, 0x1ff, c_int::MAX];
+
+    thread_local! {
+        /// The level and context of each record this thread logged.
+        static SEEN: RefCell<Vec<(c_int, usize, String)>> = const { RefCell::new(Vec::new()) };
+    }
+
+    /// Records each record's level, context and line.
+    struct Seen;
+
+    impl Callback for Seen {
+        fn log(record: Record<'_>) {
+            let line = record.to_line(&mut true).unwrap_or_default();
+            let entry = (record.level().raw(), record.context() as usize, line.into_string().unwrap());
+            SEEN.with(|s| s.borrow_mut().push(entry));
+        }
+    }
+
+    /// Logs through each context routine at every level.
+    fn log_all(obj: &BareObject<'_>) {
+        for raw in LEVELS {
+            let level = Level::from_raw(raw);
+            log::log_with_context(obj.as_object(), level, c"plain\n");
+            log::log_fmt_with_context(obj.as_object(), level, format_args!("fmt {raw}\n"));
+            let mut state = false;
+            log::log_once_with_context(obj.as_object(), level, Level::TRACE, &mut state, c"once\n");
+            assert!(state);
+            log::log_once_with_context(obj.as_object(), level, Level::TRACE, &mut state, c"once\n");
+        }
+    }
+
+    #[test]
+    #[cfg_attr(miri, ignore = "calls C")]
+    fn every_level_reaches_a_rust_callback_unshifted() {
+        let _s = LogState::lock();
+        let obj = BareObject::new(CLASS.as_ref()).unwrap();
+        let addr = &raw const obj as usize;
+        SEEN.with(|s| s.borrow_mut().clear());
+        log::set_callback::<Seen>();
+        log_all(&obj);
+        log::set_default_callback();
+        let seen = SEEN.with(|s| s.take());
+        assert_eq!(seen.len(), LEVELS.len() * 4);
+        for (i, (level, ctx, line)) in seen.iter().enumerate() {
+            // No level offset: every message keeps its level; the once
+            // message's second call logs at TRACE.
+            let want = if i % 4 == 3 { Level::TRACE.raw() } else { LEVELS[i / 4] };
+            assert_eq!((*level, *ctx), (want, addr), "{i}");
+            assert!(line.starts_with("[ub-safe-object @ 0x"), "{line}");
+        }
+    }
+
+    #[test]
+    #[cfg_attr(miri, ignore = "calls C")]
+    fn every_level_reaches_the_default_callback() {
+        let _s = LogState::lock();
+        let obj = BareObject::new(CLASS.as_ref()).unwrap();
+        log::set_callback::<Forward>();
+        log::set_level(Level::from_raw(c_int::MAX));
+        log_all(&obj);
+    }
+
+    #[test]
+    #[cfg_attr(miri, ignore = "calls C")]
+    fn names_and_categories_read_on_many_threads() {
+        let _s = LogState::lock();
+        log::set_level(Level::QUIET);
+        thread::scope(|s| {
+            for _ in 0..4 {
+                s.spawn(|| {
+                    let obj = BareObject::new(CLASS.as_ref()).unwrap();
+                    for _ in 0..200 {
+                        let name = default_item_name(obj.as_object()).unwrap();
+                        assert_eq!(name.as_ptr(), CLASS.as_ref().name().unwrap().as_ptr());
+                        assert_eq!(default_category(obj.as_object()), ClassCategory::ENCODER);
+                        log::log_with_context(obj.as_object(), Level::ERROR, c"quiet\n");
+                    }
+                });
+            }
+        });
+    }
+}
