@@ -22,7 +22,7 @@
 
 5. **Do you want agentic review after translated work lands? If so, which
    model and billing should perform each review?** (`id: review-agent`)
-   - Answer: `openrouter/anthropic/claude-fable-5.1, api`, after each wave
+   - Answer: `openrouter/anthropic/claude-opus-5.5, api`, after each wave
 
 6. **Should I run fully autonomously end to end?** (`id: autonomy`)
    - Answer: `no`
@@ -36,7 +36,7 @@ Unanswered optional questions use their defaults.
 7. **Should the campaign use the default batching and parallelism settings, or
    customize them?** (`id: workload`)
    - Answer: `max-types: 2, max-syms: 25, max-loc: 500`, at least 20 fields per type
-     batch; parallelism is orchestrator's choice
+     batch; parallelism up to 16 agents.
 
 8. **What batch caps should review agents use? We recommend the same caps as
    translation by default.** (`id: review-workload`)
