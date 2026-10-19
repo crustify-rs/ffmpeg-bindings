@@ -1,7 +1,0 @@
-batch-1 exit 0 at 21:21
-purged crustify/.worktrees/crustify/batches/20261005/libavutil/buffer-frame/wave-3/batch-1
-batch-1 scan-unsafe.json 
-batch-0 exit 0 at 21:57
-purged crustify/.worktrees/crustify/batches/20261005/libavutil/buffer-frame/wave-3/batch-0
-batch-0 scan-unsafe.json 
-all 2 batches exited
