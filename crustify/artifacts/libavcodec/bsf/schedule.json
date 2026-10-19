@@ -1,0 +1,383 @@
+{
+  "schema_version": 2,
+  "waves": [
+    {
+      "index": 0,
+      "batches": [
+        {
+          "objective": "wrap",
+          "items": [
+            {
+              "name": "AVBSFList",
+              "defined_in": "libavcodec/bsf.c",
+              "kind": "type",
+              "field_anchors": [],
+              "home": "crustify/rust/ffmpeg/libavcodec/bsf.rs"
+            },
+            {
+              "name": "AVBitStreamFilterLink",
+              "defined_in": "libavcodec/bsf/filters.h",
+              "kind": "type",
+              "field_anchors": [],
+              "home": "crustify/rust/ffmpeg/libavcodec/bsf.rs"
+            }
+          ]
+        },
+        {
+          "objective": "wrap",
+          "items": [
+            {
+              "name": "AVBitStreamFilterPad",
+              "defined_in": "libavcodec/bsf/filters.h",
+              "kind": "type",
+              "field_anchors": [],
+              "home": "crustify/rust/ffmpeg/libavcodec/bsf.rs"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "index": 1,
+      "batches": [
+        {
+          "objective": "wrap",
+          "items": [
+            {
+              "name": "AVBitStreamFilter",
+              "defined_in": "libavcodec/bsf.h",
+              "kind": "type",
+              "field_anchors": [
+                "name",
+                "priv_class",
+                "codec_ids"
+              ],
+              "home": "crustify/rust/ffmpeg/libavcodec/bsf.rs"
+            },
+            {
+              "name": "AVBitStreamFilterGraph",
+              "defined_in": "libavcodec/bsf.h",
+              "kind": "type",
+              "field_anchors": [
+                "av_class",
+                "filters",
+                "nb_filters",
+                "max_buffered_packets"
+              ],
+              "home": "crustify/rust/ffmpeg/libavcodec/bsf.rs"
+            }
+          ]
+        },
+        {
+          "objective": "wrap",
+          "items": [
+            {
+              "name": "av_bsf_get_class",
+              "defined_in": "libavcodec/bsf.c",
+              "kind": "symbol",
+              "field_anchors": [],
+              "home": "crustify/rust/ffmpeg/libavcodec/bsf.rs"
+            },
+            {
+              "name": "av_bsf_list_alloc",
+              "defined_in": "libavcodec/bsf.c",
+              "kind": "symbol",
+              "field_anchors": [],
+              "home": "crustify/rust/ffmpeg/libavcodec/bsf.rs"
+            },
+            {
+              "name": "av_bsf_list_append2",
+              "defined_in": "libavcodec/bsf.c",
+              "kind": "symbol",
+              "field_anchors": [],
+              "home": "crustify/rust/ffmpeg/libavcodec/bsf.rs"
+            },
+            {
+              "name": "av_bsf_list_free",
+              "defined_in": "libavcodec/bsf.c",
+              "kind": "symbol",
+              "field_anchors": [],
+              "home": "crustify/rust/ffmpeg/libavcodec/bsf.rs"
+            },
+            {
+              "name": "av_bsf_pad_get_codec_ids",
+              "defined_in": "libavcodec/bitstreamfilter.c",
+              "kind": "symbol",
+              "field_anchors": [],
+              "home": "crustify/rust/ffmpeg/libavcodec/bsf.rs"
+            },
+            {
+              "name": "av_bsf_pad_get_name",
+              "defined_in": "libavcodec/bitstreamfilter.c",
+              "kind": "symbol",
+              "field_anchors": [],
+              "home": "crustify/rust/ffmpeg/libavcodec/bsf.rs"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "index": 2,
+      "batches": [
+        {
+          "objective": "wrap",
+          "items": [
+            {
+              "name": "AVBSFContext",
+              "defined_in": "libavcodec/bsf.h",
+              "kind": "type",
+              "field_anchors": [
+                "par_in",
+                "priv_data",
+                "av_class",
+                "filter",
+                "time_base_out",
+                "time_base_in",
+                "par_out"
+              ],
+              "home": "crustify/rust/ffmpeg/libavcodec/bsf.rs"
+            },
+            {
+              "name": "AVBitStreamFilterContext",
+              "defined_in": "libavcodec/bsf.h",
+              "kind": "type",
+              "field_anchors": [
+                "graph",
+                "name",
+                "nb_inputs",
+                "nb_outputs",
+                "priv_data",
+                "av_class",
+                "filter",
+                "outputs",
+                "inputs",
+                "output_pads",
+                "input_pads"
+              ],
+              "home": "crustify/rust/ffmpeg/libavcodec/bsf.rs"
+            }
+          ]
+        },
+        {
+          "objective": "wrap",
+          "items": [
+            {
+              "name": "av_bsf_get_by_name",
+              "defined_in": "libavcodec/bitstream_filters.c",
+              "kind": "symbol",
+              "field_anchors": [],
+              "home": "crustify/rust/ffmpeg/libavcodec/bsf.rs"
+            },
+            {
+              "name": "av_bsf_graph_alloc",
+              "defined_in": "libavcodec/bsfgraph.c",
+              "kind": "symbol",
+              "field_anchors": [],
+              "home": "crustify/rust/ffmpeg/libavcodec/bsf.rs"
+            },
+            {
+              "name": "av_bsf_graph_config",
+              "defined_in": "libavcodec/bsfgraph.c",
+              "kind": "symbol",
+              "field_anchors": [],
+              "home": "crustify/rust/ffmpeg/libavcodec/bsf.rs"
+            },
+            {
+              "name": "av_bsf_graph_free",
+              "defined_in": "libavcodec/bsfgraph.c",
+              "kind": "symbol",
+              "field_anchors": [],
+              "home": "crustify/rust/ffmpeg/libavcodec/bsf.rs"
+            },
+            {
+              "name": "av_bsf_graph_source_needs_input",
+              "defined_in": "libavcodec/bsfgraph.c",
+              "kind": "symbol",
+              "field_anchors": [],
+              "home": "crustify/rust/ffmpeg/libavcodec/bsf.rs"
+            },
+            {
+              "name": "av_bsf_iterate",
+              "defined_in": "libavcodec/bitstream_filters.c",
+              "kind": "symbol",
+              "field_anchors": [],
+              "home": "crustify/rust/ffmpeg/libavcodec/bsf.rs"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "index": 3,
+      "batches": [
+        {
+          "objective": "wrap",
+          "items": [
+            {
+              "name": "av_bsf_alloc",
+              "defined_in": "libavcodec/bsf.c",
+              "kind": "symbol",
+              "field_anchors": [],
+              "home": "crustify/rust/ffmpeg/libavcodec/bsf.rs"
+            },
+            {
+              "name": "av_bsf_flush",
+              "defined_in": "libavcodec/bsf.c",
+              "kind": "symbol",
+              "field_anchors": [],
+              "home": "crustify/rust/ffmpeg/libavcodec/bsf.rs"
+            },
+            {
+              "name": "av_bsf_free",
+              "defined_in": "libavcodec/bsf.c",
+              "kind": "symbol",
+              "field_anchors": [],
+              "home": "crustify/rust/ffmpeg/libavcodec/bsf.rs"
+            },
+            {
+              "name": "av_bsf_get_null_filter",
+              "defined_in": "libavcodec/bsf.c",
+              "kind": "symbol",
+              "field_anchors": [],
+              "home": "crustify/rust/ffmpeg/libavcodec/bsf.rs"
+            },
+            {
+              "name": "av_bsf_graph_alloc_filter",
+              "defined_in": "libavcodec/bsfgraph.c",
+              "kind": "symbol",
+              "field_anchors": [],
+              "home": "crustify/rust/ffmpeg/libavcodec/bsf.rs"
+            },
+            {
+              "name": "av_bsf_graph_create_filter",
+              "defined_in": "libavcodec/bsfgraph.c",
+              "kind": "symbol",
+              "field_anchors": [],
+              "home": "crustify/rust/ffmpeg/libavcodec/bsf.rs"
+            },
+            {
+              "name": "av_bsf_graph_get_filter",
+              "defined_in": "libavcodec/bsfgraph.c",
+              "kind": "symbol",
+              "field_anchors": [],
+              "home": "crustify/rust/ffmpeg/libavcodec/bsf.rs"
+            },
+            {
+              "name": "av_bsf_init",
+              "defined_in": "libavcodec/bsf.c",
+              "kind": "symbol",
+              "field_anchors": [],
+              "home": "crustify/rust/ffmpeg/libavcodec/bsf.rs"
+            },
+            {
+              "name": "av_bsf_init_dict",
+              "defined_in": "libavcodec/bitstreamfilter.c",
+              "kind": "symbol",
+              "field_anchors": [],
+              "home": "crustify/rust/ffmpeg/libavcodec/bsf.rs"
+            },
+            {
+              "name": "av_bsf_init_str",
+              "defined_in": "libavcodec/bitstreamfilter.c",
+              "kind": "symbol",
+              "field_anchors": [],
+              "home": "crustify/rust/ffmpeg/libavcodec/bsf.rs"
+            },
+            {
+              "name": "av_bsf_link",
+              "defined_in": "libavcodec/bitstreamfilter.c",
+              "kind": "symbol",
+              "field_anchors": [],
+              "home": "crustify/rust/ffmpeg/libavcodec/bsf.rs"
+            },
+            {
+              "name": "av_bsf_list_append",
+              "defined_in": "libavcodec/bsf.c",
+              "kind": "symbol",
+              "field_anchors": [],
+              "home": "crustify/rust/ffmpeg/libavcodec/bsf.rs"
+            },
+            {
+              "name": "av_bsf_list_finalize",
+              "defined_in": "libavcodec/bsf.c",
+              "kind": "symbol",
+              "field_anchors": [],
+              "home": "crustify/rust/ffmpeg/libavcodec/bsf.rs"
+            },
+            {
+              "name": "av_bsf_list_parse_str",
+              "defined_in": "libavcodec/bsf.c",
+              "kind": "symbol",
+              "field_anchors": [],
+              "home": "crustify/rust/ffmpeg/libavcodec/bsf.rs"
+            },
+            {
+              "name": "av_bsf_receive_packet",
+              "defined_in": "libavcodec/bsf.c",
+              "kind": "symbol",
+              "field_anchors": [],
+              "home": "crustify/rust/ffmpeg/libavcodec/bsf.rs"
+            },
+            {
+              "name": "av_bsf_send_packet",
+              "defined_in": "libavcodec/bsf.c",
+              "kind": "symbol",
+              "field_anchors": [],
+              "home": "crustify/rust/ffmpeg/libavcodec/bsf.rs"
+            },
+            {
+              "name": "av_bsf_sink_get_packet",
+              "defined_in": "libavcodec/bsf/sink.c",
+              "kind": "symbol",
+              "field_anchors": [],
+              "home": "crustify/rust/ffmpeg/libavcodec/bsf.rs"
+            },
+            {
+              "name": "av_bsf_sink_get_parameters",
+              "defined_in": "libavcodec/bsf/sink.c",
+              "kind": "symbol",
+              "field_anchors": [],
+              "home": "crustify/rust/ffmpeg/libavcodec/bsf.rs"
+            },
+            {
+              "name": "av_bsf_sink_get_time_base",
+              "defined_in": "libavcodec/bsf/sink.c",
+              "kind": "symbol",
+              "field_anchors": [],
+              "home": "crustify/rust/ffmpeg/libavcodec/bsf.rs"
+            },
+            {
+              "name": "av_bsf_source_add_packet",
+              "defined_in": "libavcodec/bsf/source.c",
+              "kind": "symbol",
+              "field_anchors": [],
+              "home": "crustify/rust/ffmpeg/libavcodec/bsf.rs"
+            },
+            {
+              "name": "av_bsf_source_close",
+              "defined_in": "libavcodec/bsf/source.c",
+              "kind": "symbol",
+              "field_anchors": [],
+              "home": "crustify/rust/ffmpeg/libavcodec/bsf.rs"
+            },
+            {
+              "name": "av_bsf_source_get_status",
+              "defined_in": "libavcodec/bsf/source.c",
+              "kind": "symbol",
+              "field_anchors": [],
+              "home": "crustify/rust/ffmpeg/libavcodec/bsf.rs"
+            },
+            {
+              "name": "av_bsf_source_parameters_set",
+              "defined_in": "libavcodec/bsf/source.c",
+              "kind": "symbol",
+              "field_anchors": [],
+              "home": "crustify/rust/ffmpeg/libavcodec/bsf.rs"
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

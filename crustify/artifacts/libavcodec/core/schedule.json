@@ -1,0 +1,1347 @@
+{
+  "schema_version": 2,
+  "waves": [
+    {
+      "index": 0,
+      "batches": [
+        {
+          "objective": "wrap",
+          "items": [
+            {
+              "name": "AVAudioServiceType",
+              "defined_in": "libavcodec/defs.h",
+              "kind": "type",
+              "field_anchors": [],
+              "home": "crustify/rust/ffmpeg/libavcodec/defs.rs"
+            }
+          ]
+        },
+        {
+          "objective": "wrap",
+          "items": [
+            {
+              "name": "AVCPBProperties",
+              "defined_in": "libavcodec/defs.h",
+              "kind": "type",
+              "field_anchors": [
+                "buffer_size",
+                "avg_bitrate",
+                "max_bitrate",
+                "min_bitrate",
+                "vbv_delay"
+              ],
+              "home": "crustify/rust/ffmpeg/libavcodec/defs.rs"
+            }
+          ]
+        },
+        {
+          "objective": "wrap",
+          "items": [
+            {
+              "name": "AVCodecConfig",
+              "defined_in": "libavcodec/avcodec.h",
+              "kind": "type",
+              "field_anchors": [],
+              "home": "crustify/rust/ffmpeg/libavcodec/avcodec.rs"
+            }
+          ]
+        },
+        {
+          "objective": "wrap",
+          "items": [
+            {
+              "name": "AVCodecID",
+              "defined_in": "libavcodec/codec_id.h",
+              "kind": "type",
+              "field_anchors": [],
+              "home": "crustify/rust/ffmpeg/libavcodec/codec_id.rs"
+            }
+          ]
+        },
+        {
+          "objective": "wrap",
+          "items": [
+            {
+              "name": "AVCodecInternal",
+              "defined_in": "libavcodec/internal.h",
+              "kind": "type",
+              "field_anchors": [],
+              "home": "crustify/rust/ffmpeg/libavcodec/avcodec.rs"
+            }
+          ]
+        },
+        {
+          "objective": "wrap",
+          "items": [
+            {
+              "name": "AVDiscard",
+              "defined_in": "libavcodec/defs.h",
+              "kind": "type",
+              "field_anchors": [],
+              "home": "crustify/rust/ffmpeg/libavcodec/defs.rs"
+            },
+            {
+              "name": "AVFieldOrder",
+              "defined_in": "libavcodec/defs.h",
+              "kind": "type",
+              "field_anchors": [],
+              "home": "crustify/rust/ffmpeg/libavcodec/defs.rs"
+            }
+          ]
+        },
+        {
+          "objective": "wrap",
+          "items": [
+            {
+              "name": "AVPacketSideDataType",
+              "defined_in": "libavcodec/packet.h",
+              "kind": "type",
+              "field_anchors": [],
+              "home": "crustify/rust/ffmpeg/libavcodec/packet.rs"
+            }
+          ]
+        },
+        {
+          "objective": "wrap",
+          "items": [
+            {
+              "name": "AVPanScan",
+              "defined_in": "libavcodec/defs.h",
+              "kind": "type",
+              "field_anchors": [
+                "height",
+                "id",
+                "width",
+                "position"
+              ],
+              "home": "crustify/rust/ffmpeg/libavcodec/defs.rs"
+            },
+            {
+              "name": "AVPictureStructure",
+              "defined_in": "libavcodec/avcodec.h",
+              "kind": "type",
+              "field_anchors": [],
+              "home": "crustify/rust/ffmpeg/libavcodec/avcodec.rs"
+            }
+          ]
+        },
+        {
+          "objective": "wrap",
+          "items": [
+            {
+              "name": "AVProducerReferenceTime",
+              "defined_in": "libavcodec/defs.h",
+              "kind": "type",
+              "field_anchors": [
+                "flags",
+                "wallclock"
+              ],
+              "home": "crustify/rust/ffmpeg/libavcodec/defs.rs"
+            }
+          ]
+        },
+        {
+          "objective": "wrap",
+          "items": [
+            {
+              "name": "AVProfile",
+              "defined_in": "libavcodec/codec.h",
+              "kind": "type",
+              "field_anchors": [
+                "name",
+                "profile"
+              ],
+              "home": "crustify/rust/ffmpeg/libavcodec/codec.rs"
+            },
+            {
+              "name": "AVRTCPSenderReport",
+              "defined_in": "libavcodec/defs.h",
+              "kind": "type",
+              "field_anchors": [
+                "ssrc",
+                "sender_nb_bytes",
+                "sender_nb_packets",
+                "rtp_timestamp",
+                "ntp_timestamp"
+              ],
+              "home": "crustify/rust/ffmpeg/libavcodec/defs.rs"
+            }
+          ]
+        },
+        {
+          "objective": "wrap",
+          "items": [
+            {
+              "name": "AVSideDataParamChangeFlags",
+              "defined_in": "libavcodec/packet.h",
+              "kind": "type",
+              "field_anchors": [],
+              "home": "crustify/rust/ffmpeg/libavcodec/packet.rs"
+            },
+            {
+              "name": "AVSubtitleType",
+              "defined_in": "libavcodec/avcodec.h",
+              "kind": "type",
+              "field_anchors": [],
+              "home": "crustify/rust/ffmpeg/libavcodec/avcodec.rs"
+            }
+          ]
+        },
+        {
+          "objective": "wrap",
+          "items": [
+            {
+              "name": "RcOverride",
+              "defined_in": "libavcodec/avcodec.h",
+              "kind": "type",
+              "field_anchors": [
+                "quality_factor",
+                "qscale",
+                "end_frame",
+                "start_frame"
+              ],
+              "home": "crustify/rust/ffmpeg/libavcodec/avcodec.rs"
+            }
+          ]
+        },
+        {
+          "objective": "wrap",
+          "items": [
+            {
+              "name": "av_fast_padded_malloc",
+              "defined_in": "libavcodec/utils.c",
+              "kind": "symbol",
+              "field_anchors": [],
+              "home": "crustify/rust/ffmpeg/libavcodec/avcodec.rs"
+            },
+            {
+              "name": "av_fast_padded_mallocz",
+              "defined_in": "libavcodec/utils.c",
+              "kind": "symbol",
+              "field_anchors": [],
+              "home": "crustify/rust/ffmpeg/libavcodec/avcodec.rs"
+            },
+            {
+              "name": "av_xiphlacing",
+              "defined_in": "libavcodec/utils.c",
+              "kind": "symbol",
+              "field_anchors": [],
+              "home": "crustify/rust/ffmpeg/libavcodec/defs.rs"
+            },
+            {
+              "name": "avcodec_configuration",
+              "defined_in": "libavcodec/version.c",
+              "kind": "symbol",
+              "field_anchors": [],
+              "home": "crustify/rust/ffmpeg/libavcodec/avcodec.rs"
+            },
+            {
+              "name": "avcodec_license",
+              "defined_in": "libavcodec/version.c",
+              "kind": "symbol",
+              "field_anchors": [],
+              "home": "crustify/rust/ffmpeg/libavcodec/avcodec.rs"
+            },
+            {
+              "name": "avcodec_version",
+              "defined_in": "libavcodec/version.c",
+              "kind": "symbol",
+              "field_anchors": [],
+              "home": "crustify/rust/ffmpeg/libavcodec/avcodec.rs"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "index": 1,
+      "batches": [
+        {
+          "objective": "wrap",
+          "items": [
+            {
+              "name": "AVCodec",
+              "defined_in": "libavcodec/codec.h",
+              "kind": "type",
+              "field_anchors": [
+                "name",
+                "type",
+                "priv_class",
+                "id",
+                "long_name",
+                "capabilities",
+                "profiles",
+                "wrapper_name",
+                "max_lowres"
+              ],
+              "home": "crustify/rust/ffmpeg/libavcodec/codec.rs"
+            },
+            {
+              "name": "AVCodecDescriptor",
+              "defined_in": "libavcodec/codec_desc.h",
+              "kind": "type",
+              "field_anchors": [
+                "name",
+                "type",
+                "id",
+                "long_name",
+                "props",
+                "profiles",
+                "mime_types"
+              ],
+              "home": "crustify/rust/ffmpeg/libavcodec/codec_desc.rs"
+            }
+          ]
+        },
+        {
+          "objective": "wrap",
+          "items": [
+            {
+              "name": "AVCodecHWConfig",
+              "defined_in": "libavcodec/codec.h",
+              "kind": "type",
+              "field_anchors": [
+                "pix_fmt",
+                "device_type",
+                "methods"
+              ],
+              "home": "crustify/rust/ffmpeg/libavcodec/codec.rs"
+            },
+            {
+              "name": "AVCodecParser",
+              "defined_in": "libavcodec/avcodec.h",
+              "kind": "type",
+              "field_anchors": [
+                "codec_ids"
+              ],
+              "home": "crustify/rust/ffmpeg/libavcodec/avcodec.rs"
+            }
+          ]
+        },
+        {
+          "objective": "wrap",
+          "items": [
+            {
+              "name": "AVHWAccel",
+              "defined_in": "libavcodec/avcodec.h",
+              "kind": "type",
+              "field_anchors": [
+                "name",
+                "type",
+                "id",
+                "capabilities",
+                "pix_fmt"
+              ],
+              "home": "crustify/rust/ffmpeg/libavcodec/avcodec.rs"
+            },
+            {
+              "name": "AVPacketSideData",
+              "defined_in": "libavcodec/packet.h",
+              "kind": "type",
+              "field_anchors": [
+                "type",
+                "data",
+                "size"
+              ],
+              "home": "crustify/rust/ffmpeg/libavcodec/packet.rs"
+            }
+          ]
+        },
+        {
+          "objective": "wrap",
+          "items": [
+            {
+              "name": "AVSubtitleRect",
+              "defined_in": "libavcodec/avcodec.h",
+              "kind": "type",
+              "field_anchors": [
+                "type",
+                "data",
+                "flags",
+                "h",
+                "x",
+                "y",
+                "ass",
+                "text",
+                "linesize",
+                "nb_colors",
+                "w"
+              ],
+              "home": "crustify/rust/ffmpeg/libavcodec/avcodec.rs"
+            }
+          ]
+        },
+        {
+          "objective": "wrap",
+          "items": [
+            {
+              "name": "av_container_fifo_alloc_avpacket",
+              "defined_in": "libavcodec/packet.c",
+              "kind": "symbol",
+              "field_anchors": [],
+              "home": "crustify/rust/ffmpeg/libavcodec/packet.rs"
+            },
+            {
+              "name": "av_cpb_properties_alloc",
+              "defined_in": "libavcodec/utils.c",
+              "kind": "symbol",
+              "field_anchors": [],
+              "home": "crustify/rust/ffmpeg/libavcodec/defs.rs"
+            },
+            {
+              "name": "av_get_bits_per_sample",
+              "defined_in": "libavcodec/utils.c",
+              "kind": "symbol",
+              "field_anchors": [],
+              "home": "crustify/rust/ffmpeg/libavcodec/codec_id.rs"
+            },
+            {
+              "name": "av_get_exact_bits_per_sample",
+              "defined_in": "libavcodec/utils.c",
+              "kind": "symbol",
+              "field_anchors": [],
+              "home": "crustify/rust/ffmpeg/libavcodec/codec_id.rs"
+            },
+            {
+              "name": "av_get_pcm_codec",
+              "defined_in": "libavcodec/utils.c",
+              "kind": "symbol",
+              "field_anchors": [],
+              "home": "crustify/rust/ffmpeg/libavcodec/codec_id.rs"
+            },
+            {
+              "name": "av_packet_pack_dictionary",
+              "defined_in": "libavcodec/packet.c",
+              "kind": "symbol",
+              "field_anchors": [],
+              "home": "crustify/rust/ffmpeg/libavcodec/packet.rs"
+            },
+            {
+              "name": "av_packet_side_data_name",
+              "defined_in": "libavcodec/packet.c",
+              "kind": "symbol",
+              "field_anchors": [],
+              "home": "crustify/rust/ffmpeg/libavcodec/packet.rs"
+            },
+            {
+              "name": "av_packet_unpack_dictionary",
+              "defined_in": "libavcodec/packet.c",
+              "kind": "symbol",
+              "field_anchors": [],
+              "home": "crustify/rust/ffmpeg/libavcodec/packet.rs"
+            },
+            {
+              "name": "avcodec_fill_audio_frame",
+              "defined_in": "libavcodec/utils.c",
+              "kind": "symbol",
+              "field_anchors": [],
+              "home": "crustify/rust/ffmpeg/libavcodec/avcodec.rs"
+            },
+            {
+              "name": "avcodec_find_best_pix_fmt_of_list",
+              "defined_in": "libavcodec/imgconvert.c",
+              "kind": "symbol",
+              "field_anchors": [],
+              "home": "crustify/rust/ffmpeg/libavcodec/avcodec.rs"
+            },
+            {
+              "name": "avcodec_get_class",
+              "defined_in": "libavcodec/options.c",
+              "kind": "symbol",
+              "field_anchors": [],
+              "home": "crustify/rust/ffmpeg/libavcodec/avcodec.rs"
+            },
+            {
+              "name": "avcodec_get_name",
+              "defined_in": "libavcodec/utils.c",
+              "kind": "symbol",
+              "field_anchors": [],
+              "home": "crustify/rust/ffmpeg/libavcodec/codec_id.rs"
+            },
+            {
+              "name": "avcodec_get_subtitle_rect_class",
+              "defined_in": "libavcodec/options.c",
+              "kind": "symbol",
+              "field_anchors": [],
+              "home": "crustify/rust/ffmpeg/libavcodec/avcodec.rs"
+            },
+            {
+              "name": "avcodec_get_type",
+              "defined_in": "libavcodec/codec_desc.c",
+              "kind": "symbol",
+              "field_anchors": [],
+              "home": "crustify/rust/ffmpeg/libavcodec/codec_id.rs"
+            },
+            {
+              "name": "avcodec_pix_fmt_to_codec_tag",
+              "defined_in": "libavcodec/raw.c",
+              "kind": "symbol",
+              "field_anchors": [],
+              "home": "crustify/rust/ffmpeg/libavcodec/avcodec.rs"
+            },
+            {
+              "name": "avcodec_profile_name",
+              "defined_in": "libavcodec/utils.c",
+              "kind": "symbol",
+              "field_anchors": [],
+              "home": "crustify/rust/ffmpeg/libavcodec/codec_id.rs"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "index": 2,
+      "batches": [
+        {
+          "objective": "wrap",
+          "items": [
+            {
+              "name": "AVCodecParameters",
+              "defined_in": "libavcodec/codec_par.h",
+              "kind": "type",
+              "field_anchors": [
+                "height",
+                "level",
+                "frame_size",
+                "bit_rate",
+                "format",
+                "width",
+                "field_order",
+                "nb_coded_side_data",
+                "coded_side_data",
+                "sample_aspect_ratio",
+                "codec_id",
+                "alpha_mode",
+                "codec_tag",
+                "profile",
+                "bits_per_raw_sample",
+                "bits_per_coded_sample",
+                "sample_rate",
+                "seek_preroll",
+                "trailing_padding",
+                "initial_padding",
+                "block_align",
+                "ch_layout",
+                "framerate",
+                "color_range",
+                "color_trc",
+                "color_primaries",
+                "extradata_size",
+                "extradata",
+                "codec_type",
+                "chroma_location",
+                "color_space",
+                "video_delay"
+              ],
+              "home": "crustify/rust/ffmpeg/libavcodec/codec_par.rs"
+            }
+          ]
+        },
+        {
+          "objective": "wrap",
+          "items": [
+            {
+              "name": "AVCodecParserContext",
+              "defined_in": "libavcodec/avcodec.h",
+              "kind": "type",
+              "field_anchors": [
+                "flags",
+                "height",
+                "duration",
+                "pict_type",
+                "offset",
+                "priv_data",
+                "format",
+                "coded_height",
+                "coded_width",
+                "width",
+                "output_picture_number",
+                "picture_structure",
+                "field_order",
+                "last_pos",
+                "pos",
+                "cur_frame_pos",
+                "pts_dts_delta",
+                "dts_ref_dts_delta",
+                "dts_sync_point",
+                "key_frame",
+                "cur_frame_end",
+                "cur_frame_dts",
+                "cur_frame_pts",
+                "cur_frame_offset",
+                "cur_frame_start_index",
+                "fetch_timestamp",
+                "last_dts",
+                "last_pts",
+                "dts",
+                "pts",
+                "repeat_pict",
+                "next_frame_offset",
+                "cur_offset",
+                "frame_offset",
+                "parser"
+              ],
+              "home": "crustify/rust/ffmpeg/libavcodec/avcodec.rs"
+            }
+          ]
+        },
+        {
+          "objective": "wrap",
+          "items": [
+            {
+              "name": "AVPacket",
+              "defined_in": "libavcodec/packet.h",
+              "kind": "type",
+              "field_anchors": [
+                "data",
+                "buf",
+                "flags",
+                "duration",
+                "size",
+                "opaque",
+                "time_base",
+                "stream_index",
+                "pos",
+                "dts",
+                "pts",
+                "opaque_ref",
+                "side_data",
+                "side_data_elems"
+              ],
+              "home": "crustify/rust/ffmpeg/libavcodec/packet.rs"
+            },
+            {
+              "name": "AVSubtitle",
+              "defined_in": "libavcodec/avcodec.h",
+              "kind": "type",
+              "field_anchors": [
+                "format",
+                "pts",
+                "rects",
+                "num_rects",
+                "end_display_time",
+                "start_display_time"
+              ],
+              "home": "crustify/rust/ffmpeg/libavcodec/avcodec.rs"
+            }
+          ]
+        },
+        {
+          "objective": "wrap",
+          "items": [
+            {
+              "name": "av_codec_is_decoder",
+              "defined_in": "libavcodec/utils.c",
+              "kind": "symbol",
+              "field_anchors": [],
+              "home": "crustify/rust/ffmpeg/libavcodec/codec.rs"
+            },
+            {
+              "name": "av_codec_is_encoder",
+              "defined_in": "libavcodec/utils.c",
+              "kind": "symbol",
+              "field_anchors": [],
+              "home": "crustify/rust/ffmpeg/libavcodec/codec.rs"
+            },
+            {
+              "name": "av_codec_iterate",
+              "defined_in": "libavcodec/allcodecs.c",
+              "kind": "symbol",
+              "field_anchors": [],
+              "home": "crustify/rust/ffmpeg/libavcodec/codec.rs"
+            },
+            {
+              "name": "av_get_profile_name",
+              "defined_in": "libavcodec/utils.c",
+              "kind": "symbol",
+              "field_anchors": [],
+              "home": "crustify/rust/ffmpeg/libavcodec/codec.rs"
+            },
+            {
+              "name": "av_packet_side_data_add",
+              "defined_in": "libavcodec/packet.c",
+              "kind": "symbol",
+              "field_anchors": [],
+              "home": "crustify/rust/ffmpeg/libavcodec/packet.rs"
+            },
+            {
+              "name": "av_packet_side_data_free",
+              "defined_in": "libavcodec/packet.c",
+              "kind": "symbol",
+              "field_anchors": [],
+              "home": "crustify/rust/ffmpeg/libavcodec/packet.rs"
+            },
+            {
+              "name": "av_packet_side_data_from_frame",
+              "defined_in": "libavcodec/avcodec.c",
+              "kind": "symbol",
+              "field_anchors": [],
+              "home": "crustify/rust/ffmpeg/libavcodec/packet.rs"
+            },
+            {
+              "name": "av_packet_side_data_get",
+              "defined_in": "libavcodec/packet.c",
+              "kind": "symbol",
+              "field_anchors": [],
+              "home": "crustify/rust/ffmpeg/libavcodec/packet.rs"
+            },
+            {
+              "name": "av_packet_side_data_new",
+              "defined_in": "libavcodec/packet.c",
+              "kind": "symbol",
+              "field_anchors": [],
+              "home": "crustify/rust/ffmpeg/libavcodec/packet.rs"
+            },
+            {
+              "name": "av_packet_side_data_remove",
+              "defined_in": "libavcodec/packet.c",
+              "kind": "symbol",
+              "field_anchors": [],
+              "home": "crustify/rust/ffmpeg/libavcodec/packet.rs"
+            },
+            {
+              "name": "av_packet_side_data_to_frame",
+              "defined_in": "libavcodec/avcodec.c",
+              "kind": "symbol",
+              "field_anchors": [],
+              "home": "crustify/rust/ffmpeg/libavcodec/packet.rs"
+            },
+            {
+              "name": "av_parser_iterate",
+              "defined_in": "libavcodec/parsers.c",
+              "kind": "symbol",
+              "field_anchors": [],
+              "home": "crustify/rust/ffmpeg/libavcodec/avcodec.rs"
+            },
+            {
+              "name": "avcodec_descriptor_get",
+              "defined_in": "libavcodec/codec_desc.c",
+              "kind": "symbol",
+              "field_anchors": [],
+              "home": "crustify/rust/ffmpeg/libavcodec/codec_desc.rs"
+            },
+            {
+              "name": "avcodec_descriptor_get_by_name",
+              "defined_in": "libavcodec/codec_desc.c",
+              "kind": "symbol",
+              "field_anchors": [],
+              "home": "crustify/rust/ffmpeg/libavcodec/codec_desc.rs"
+            },
+            {
+              "name": "avcodec_descriptor_next",
+              "defined_in": "libavcodec/codec_desc.c",
+              "kind": "symbol",
+              "field_anchors": [],
+              "home": "crustify/rust/ffmpeg/libavcodec/codec_desc.rs"
+            },
+            {
+              "name": "avcodec_find_decoder",
+              "defined_in": "libavcodec/allcodecs.c",
+              "kind": "symbol",
+              "field_anchors": [],
+              "home": "crustify/rust/ffmpeg/libavcodec/codec.rs"
+            },
+            {
+              "name": "avcodec_find_decoder_by_name",
+              "defined_in": "libavcodec/allcodecs.c",
+              "kind": "symbol",
+              "field_anchors": [],
+              "home": "crustify/rust/ffmpeg/libavcodec/codec.rs"
+            },
+            {
+              "name": "avcodec_find_encoder",
+              "defined_in": "libavcodec/allcodecs.c",
+              "kind": "symbol",
+              "field_anchors": [],
+              "home": "crustify/rust/ffmpeg/libavcodec/codec.rs"
+            },
+            {
+              "name": "avcodec_find_encoder_by_name",
+              "defined_in": "libavcodec/allcodecs.c",
+              "kind": "symbol",
+              "field_anchors": [],
+              "home": "crustify/rust/ffmpeg/libavcodec/codec.rs"
+            },
+            {
+              "name": "avcodec_get_hw_config",
+              "defined_in": "libavcodec/utils.c",
+              "kind": "symbol",
+              "field_anchors": [],
+              "home": "crustify/rust/ffmpeg/libavcodec/codec.rs"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "index": 3,
+      "batches": [
+        {
+          "objective": "wrap",
+          "items": [
+            {
+              "name": "AVCodecContext",
+              "defined_in": "libavcodec/avcodec.h",
+              "kind": "type",
+              "field_anchors": [
+                "flags",
+                "height",
+                "level",
+                "frame_size",
+                "error",
+                "dump_separator",
+                "opaque",
+                "codec_whitelist",
+                "strict_std_compliance",
+                "debug",
+                "bit_rate",
+                "time_base",
+                "priv_data",
+                "av_class",
+                "coded_height",
+                "coded_width",
+                "width",
+                "field_order",
+                "nb_coded_side_data",
+                "coded_side_data",
+                "sample_aspect_ratio",
+                "codec_id",
+                "codec",
+                "alpha_mode",
+                "nb_decoded_side_data",
+                "decoded_side_data",
+                "nb_side_data_prefer_packet",
+                "side_data_prefer_packet",
+                "frame_num",
+                "codec_tag",
+                "get_encode_buffer",
+                "max_samples",
+                "discard_damaged_percentage",
+                "apply_cropping",
+                "max_pixels",
+                "export_side_data",
+                "subtitle_header",
+                "subtitle_header_size",
+                "sub_charenc_mode",
+                "sub_charenc",
+                "codec_descriptor",
+                "lowres",
+                "skip_bottom",
+                "skip_top",
+                "skip_alpha",
+                "skip_frame",
+                "skip_idct",
+                "skip_loop_filter",
+                "profile",
+                "execute2",
+                "execute",
+                "active_thread_type",
+                "thread_type",
+                "thread_count",
+                "bits_per_raw_sample",
+                "bits_per_coded_sample",
+                "idct_algo",
+                "dct_algo",
+                "extra_hw_frames",
+                "hwaccel_flags",
+                "hw_device_ctx",
+                "hw_frames_ctx",
+                "hwaccel_context",
+                "hwaccel",
+                "pix_fmt",
+                "err_recognition",
+                "sample_rate",
+                "error_concealment",
+                "workaround_bugs",
+                "stats_in",
+                "stats_out",
+                "trellis",
+                "rc_initial_buffer_occupancy",
+                "rc_min_vbv_overflow_use",
+                "rc_max_available_vbv_use",
+                "rc_min_rate",
+                "rc_max_rate",
+                "rc_override",
+                "rc_override_count",
+                "rc_buffer_size",
+                "max_qdiff",
+                "qmax",
+                "qmin",
+                "qblur",
+                "qcompress",
+                "compression_level",
+                "global_quality",
+                "bit_rate_tolerance",
+                "get_buffer2",
+                "seek_preroll",
+                "trailing_padding",
+                "initial_padding",
+                "request_sample_fmt",
+                "audio_service_type",
+                "cutoff",
+                "block_align",
+                "ch_layout",
+                "sample_fmt",
+                "slices",
+                "mv0_threshold",
+                "gop_size",
+                "keyint_min",
+                "bidir_refine",
+                "mb_lmax",
+                "mb_lmin",
+                "chroma_intra_matrix",
+                "inter_matrix",
+                "intra_matrix",
+                "mb_decision",
+                "me_range",
+                "me_subpel_quality",
+                "pre_dia_size",
+                "me_pre_cmp",
+                "last_predictor_count",
+                "framerate",
+                "dia_size",
+                "ildct_cmp",
+                "mb_cmp",
+                "me_sub_cmp",
+                "me_cmp",
+                "nsse_weight",
+                "dark_masking",
+                "p_masking",
+                "spatial_cplx_masking",
+                "temporal_cplx_masking",
+                "lumi_masking",
+                "i_quant_offset",
+                "i_quant_factor",
+                "b_quant_offset",
+                "b_quant_factor",
+                "max_b_frames",
+                "get_format",
+                "draw_horiz_band",
+                "slice_flags",
+                "has_b_frames",
+                "refs",
+                "chroma_sample_location",
+                "color_range",
+                "colorspace",
+                "color_trc",
+                "color_primaries",
+                "sw_pix_fmt",
+                "delay",
+                "pkt_timebase",
+                "extradata_size",
+                "extradata",
+                "flags2",
+                "internal",
+                "codec_type",
+                "log_level_offset"
+              ],
+              "home": "crustify/rust/ffmpeg/libavcodec/avcodec.rs"
+            }
+          ]
+        },
+        {
+          "objective": "wrap",
+          "items": [
+            {
+              "name": "av_get_audio_frame_duration2",
+              "defined_in": "libavcodec/utils.c",
+              "kind": "symbol",
+              "field_anchors": [],
+              "home": "crustify/rust/ffmpeg/libavcodec/codec_par.rs"
+            },
+            {
+              "name": "av_grow_packet",
+              "defined_in": "libavcodec/packet.c",
+              "kind": "symbol",
+              "field_anchors": [],
+              "home": "crustify/rust/ffmpeg/libavcodec/packet.rs"
+            },
+            {
+              "name": "av_new_packet",
+              "defined_in": "libavcodec/packet.c",
+              "kind": "symbol",
+              "field_anchors": [],
+              "home": "crustify/rust/ffmpeg/libavcodec/packet.rs"
+            },
+            {
+              "name": "av_packet_add_side_data",
+              "defined_in": "libavcodec/packet.c",
+              "kind": "symbol",
+              "field_anchors": [],
+              "home": "crustify/rust/ffmpeg/libavcodec/packet.rs"
+            },
+            {
+              "name": "av_packet_alloc",
+              "defined_in": "libavcodec/packet.c",
+              "kind": "symbol",
+              "field_anchors": [],
+              "home": "crustify/rust/ffmpeg/libavcodec/packet.rs"
+            },
+            {
+              "name": "av_packet_clone",
+              "defined_in": "libavcodec/packet.c",
+              "kind": "symbol",
+              "field_anchors": [],
+              "home": "crustify/rust/ffmpeg/libavcodec/packet.rs"
+            },
+            {
+              "name": "av_packet_copy_props",
+              "defined_in": "libavcodec/packet.c",
+              "kind": "symbol",
+              "field_anchors": [],
+              "home": "crustify/rust/ffmpeg/libavcodec/packet.rs"
+            },
+            {
+              "name": "av_packet_free",
+              "defined_in": "libavcodec/packet.c",
+              "kind": "symbol",
+              "field_anchors": [],
+              "home": "crustify/rust/ffmpeg/libavcodec/packet.rs"
+            },
+            {
+              "name": "av_packet_free_side_data",
+              "defined_in": "libavcodec/packet.c",
+              "kind": "symbol",
+              "field_anchors": [],
+              "home": "crustify/rust/ffmpeg/libavcodec/packet.rs"
+            },
+            {
+              "name": "av_packet_from_data",
+              "defined_in": "libavcodec/packet.c",
+              "kind": "symbol",
+              "field_anchors": [],
+              "home": "crustify/rust/ffmpeg/libavcodec/packet.rs"
+            },
+            {
+              "name": "av_packet_get_side_data",
+              "defined_in": "libavcodec/packet.c",
+              "kind": "symbol",
+              "field_anchors": [],
+              "home": "crustify/rust/ffmpeg/libavcodec/packet.rs"
+            },
+            {
+              "name": "av_packet_make_refcounted",
+              "defined_in": "libavcodec/packet.c",
+              "kind": "symbol",
+              "field_anchors": [],
+              "home": "crustify/rust/ffmpeg/libavcodec/packet.rs"
+            },
+            {
+              "name": "av_packet_make_writable",
+              "defined_in": "libavcodec/packet.c",
+              "kind": "symbol",
+              "field_anchors": [],
+              "home": "crustify/rust/ffmpeg/libavcodec/packet.rs"
+            },
+            {
+              "name": "av_packet_move_ref",
+              "defined_in": "libavcodec/packet.c",
+              "kind": "symbol",
+              "field_anchors": [],
+              "home": "crustify/rust/ffmpeg/libavcodec/packet.rs"
+            },
+            {
+              "name": "av_packet_new_side_data",
+              "defined_in": "libavcodec/packet.c",
+              "kind": "symbol",
+              "field_anchors": [],
+              "home": "crustify/rust/ffmpeg/libavcodec/packet.rs"
+            },
+            {
+              "name": "av_packet_ref",
+              "defined_in": "libavcodec/packet.c",
+              "kind": "symbol",
+              "field_anchors": [],
+              "home": "crustify/rust/ffmpeg/libavcodec/packet.rs"
+            },
+            {
+              "name": "av_packet_rescale_ts",
+              "defined_in": "libavcodec/packet.c",
+              "kind": "symbol",
+              "field_anchors": [],
+              "home": "crustify/rust/ffmpeg/libavcodec/packet.rs"
+            },
+            {
+              "name": "av_packet_shrink_side_data",
+              "defined_in": "libavcodec/packet.c",
+              "kind": "symbol",
+              "field_anchors": [],
+              "home": "crustify/rust/ffmpeg/libavcodec/packet.rs"
+            },
+            {
+              "name": "av_packet_unref",
+              "defined_in": "libavcodec/packet.c",
+              "kind": "symbol",
+              "field_anchors": [],
+              "home": "crustify/rust/ffmpeg/libavcodec/packet.rs"
+            },
+            {
+              "name": "av_parser_close",
+              "defined_in": "libavcodec/parser.c",
+              "kind": "symbol",
+              "field_anchors": [],
+              "home": "crustify/rust/ffmpeg/libavcodec/avcodec.rs"
+            },
+            {
+              "name": "av_parser_init",
+              "defined_in": "libavcodec/parser.c",
+              "kind": "symbol",
+              "field_anchors": [],
+              "home": "crustify/rust/ffmpeg/libavcodec/avcodec.rs"
+            },
+            {
+              "name": "av_shrink_packet",
+              "defined_in": "libavcodec/packet.c",
+              "kind": "symbol",
+              "field_anchors": [],
+              "home": "crustify/rust/ffmpeg/libavcodec/packet.rs"
+            },
+            {
+              "name": "avcodec_parameters_alloc",
+              "defined_in": "libavcodec/codec_par.c",
+              "kind": "symbol",
+              "field_anchors": [],
+              "home": "crustify/rust/ffmpeg/libavcodec/codec_par.rs"
+            },
+            {
+              "name": "avcodec_parameters_copy",
+              "defined_in": "libavcodec/codec_par.c",
+              "kind": "symbol",
+              "field_anchors": [],
+              "home": "crustify/rust/ffmpeg/libavcodec/codec_par.rs"
+            },
+            {
+              "name": "avcodec_parameters_free",
+              "defined_in": "libavcodec/codec_par.c",
+              "kind": "symbol",
+              "field_anchors": [],
+              "home": "crustify/rust/ffmpeg/libavcodec/codec_par.rs"
+            }
+          ]
+        },
+        {
+          "objective": "wrap",
+          "items": [
+            {
+              "name": "avsubtitle_free",
+              "defined_in": "libavcodec/avcodec.c",
+              "kind": "symbol",
+              "field_anchors": [],
+              "home": "crustify/rust/ffmpeg/libavcodec/avcodec.rs"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "index": 4,
+      "batches": [
+        {
+          "objective": "wrap",
+          "items": [
+            {
+              "name": "av_get_audio_frame_duration",
+              "defined_in": "libavcodec/utils.c",
+              "kind": "symbol",
+              "field_anchors": [],
+              "home": "crustify/rust/ffmpeg/libavcodec/avcodec.rs"
+            },
+            {
+              "name": "av_parser_parse2",
+              "defined_in": "libavcodec/parser.c",
+              "kind": "symbol",
+              "field_anchors": [],
+              "home": "crustify/rust/ffmpeg/libavcodec/avcodec.rs"
+            },
+            {
+              "name": "avcodec_align_dimensions",
+              "defined_in": "libavcodec/utils.c",
+              "kind": "symbol",
+              "field_anchors": [],
+              "home": "crustify/rust/ffmpeg/libavcodec/avcodec.rs"
+            },
+            {
+              "name": "avcodec_align_dimensions2",
+              "defined_in": "libavcodec/utils.c",
+              "kind": "symbol",
+              "field_anchors": [],
+              "home": "crustify/rust/ffmpeg/libavcodec/avcodec.rs"
+            },
+            {
+              "name": "avcodec_alloc_context3",
+              "defined_in": "libavcodec/options.c",
+              "kind": "symbol",
+              "field_anchors": [],
+              "home": "crustify/rust/ffmpeg/libavcodec/avcodec.rs"
+            },
+            {
+              "name": "avcodec_decode_subtitle2",
+              "defined_in": "libavcodec/decode.c",
+              "kind": "symbol",
+              "field_anchors": [],
+              "home": "crustify/rust/ffmpeg/libavcodec/avcodec.rs"
+            },
+            {
+              "name": "avcodec_default_execute",
+              "defined_in": "libavcodec/avcodec.c",
+              "kind": "symbol",
+              "field_anchors": [],
+              "home": "crustify/rust/ffmpeg/libavcodec/avcodec.rs"
+            },
+            {
+              "name": "avcodec_default_execute2",
+              "defined_in": "libavcodec/avcodec.c",
+              "kind": "symbol",
+              "field_anchors": [],
+              "home": "crustify/rust/ffmpeg/libavcodec/avcodec.rs"
+            },
+            {
+              "name": "avcodec_default_get_buffer2",
+              "defined_in": "libavcodec/get_buffer.c",
+              "kind": "symbol",
+              "field_anchors": [],
+              "home": "crustify/rust/ffmpeg/libavcodec/avcodec.rs"
+            },
+            {
+              "name": "avcodec_default_get_encode_buffer",
+              "defined_in": "libavcodec/encode.c",
+              "kind": "symbol",
+              "field_anchors": [],
+              "home": "crustify/rust/ffmpeg/libavcodec/avcodec.rs"
+            }
+          ]
+        },
+        {
+          "objective": "wrap",
+          "items": [
+            {
+              "name": "avcodec_default_get_format",
+              "defined_in": "libavcodec/decode.c",
+              "kind": "symbol",
+              "field_anchors": [],
+              "home": "crustify/rust/ffmpeg/libavcodec/avcodec.rs"
+            },
+            {
+              "name": "avcodec_encode_reconfigure",
+              "defined_in": "libavcodec/encode.c",
+              "kind": "symbol",
+              "field_anchors": [],
+              "home": "crustify/rust/ffmpeg/libavcodec/avcodec.rs"
+            },
+            {
+              "name": "avcodec_encode_subtitle",
+              "defined_in": "libavcodec/encode.c",
+              "kind": "symbol",
+              "field_anchors": [],
+              "home": "crustify/rust/ffmpeg/libavcodec/avcodec.rs"
+            },
+            {
+              "name": "avcodec_flush_buffers",
+              "defined_in": "libavcodec/avcodec.c",
+              "kind": "symbol",
+              "field_anchors": [],
+              "home": "crustify/rust/ffmpeg/libavcodec/avcodec.rs"
+            },
+            {
+              "name": "avcodec_free_context",
+              "defined_in": "libavcodec/options.c",
+              "kind": "symbol",
+              "field_anchors": [],
+              "home": "crustify/rust/ffmpeg/libavcodec/avcodec.rs"
+            },
+            {
+              "name": "avcodec_get_hw_frames_parameters",
+              "defined_in": "libavcodec/decode.c",
+              "kind": "symbol",
+              "field_anchors": [],
+              "home": "crustify/rust/ffmpeg/libavcodec/avcodec.rs"
+            },
+            {
+              "name": "avcodec_get_supported_config",
+              "defined_in": "libavcodec/avcodec.c",
+              "kind": "symbol",
+              "field_anchors": [],
+              "home": "crustify/rust/ffmpeg/libavcodec/avcodec.rs"
+            },
+            {
+              "name": "avcodec_is_open",
+              "defined_in": "libavcodec/avcodec.c",
+              "kind": "symbol",
+              "field_anchors": [],
+              "home": "crustify/rust/ffmpeg/libavcodec/avcodec.rs"
+            },
+            {
+              "name": "avcodec_open2",
+              "defined_in": "libavcodec/avcodec.c",
+              "kind": "symbol",
+              "field_anchors": [],
+              "home": "crustify/rust/ffmpeg/libavcodec/avcodec.rs"
+            }
+          ]
+        },
+        {
+          "objective": "wrap",
+          "items": [
+            {
+              "name": "avcodec_parameters_from_context",
+              "defined_in": "libavcodec/codec_par.c",
+              "kind": "symbol",
+              "field_anchors": [],
+              "home": "crustify/rust/ffmpeg/libavcodec/avcodec.rs"
+            },
+            {
+              "name": "avcodec_parameters_to_context",
+              "defined_in": "libavcodec/codec_par.c",
+              "kind": "symbol",
+              "field_anchors": [],
+              "home": "crustify/rust/ffmpeg/libavcodec/avcodec.rs"
+            },
+            {
+              "name": "avcodec_receive_frame",
+              "defined_in": "libavcodec/avcodec.c",
+              "kind": "symbol",
+              "field_anchors": [],
+              "home": "crustify/rust/ffmpeg/libavcodec/avcodec.rs"
+            },
+            {
+              "name": "avcodec_receive_frame_flags",
+              "defined_in": "libavcodec/avcodec.c",
+              "kind": "symbol",
+              "field_anchors": [],
+              "home": "crustify/rust/ffmpeg/libavcodec/avcodec.rs"
+            },
+            {
+              "name": "avcodec_receive_packet",
+              "defined_in": "libavcodec/encode.c",
+              "kind": "symbol",
+              "field_anchors": [],
+              "home": "crustify/rust/ffmpeg/libavcodec/avcodec.rs"
+            },
+            {
+              "name": "avcodec_send_frame",
+              "defined_in": "libavcodec/encode.c",
+              "kind": "symbol",
+              "field_anchors": [],
+              "home": "crustify/rust/ffmpeg/libavcodec/avcodec.rs"
+            },
+            {
+              "name": "avcodec_send_packet",
+              "defined_in": "libavcodec/decode.c",
+              "kind": "symbol",
+              "field_anchors": [],
+              "home": "crustify/rust/ffmpeg/libavcodec/avcodec.rs"
+            },
+            {
+              "name": "avcodec_string",
+              "defined_in": "libavcodec/avcodec.c",
+              "kind": "symbol",
+              "field_anchors": [],
+              "home": "crustify/rust/ffmpeg/libavcodec/avcodec.rs"
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

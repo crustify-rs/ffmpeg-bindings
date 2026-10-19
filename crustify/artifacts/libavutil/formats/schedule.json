@@ -1,0 +1,1000 @@
+{
+  "schema_version": 2,
+  "waves": [
+    {
+      "index": 0,
+      "batches": [
+        {
+          "objective": "wrap",
+          "items": [
+            {
+              "name": "AVAlphaMode",
+              "defined_in": "libavutil/pixfmt.h",
+              "kind": "type",
+              "field_anchors": [],
+              "home": "crustify/rust/ffmpeg/libavutil/pixfmt.rs"
+            },
+            {
+              "name": "AVChannel",
+              "defined_in": "libavutil/channel_layout.h",
+              "kind": "type",
+              "field_anchors": [],
+              "home": "crustify/rust/ffmpeg/libavutil/channel_layout.rs"
+            }
+          ]
+        },
+        {
+          "objective": "wrap",
+          "items": [
+            {
+              "name": "AVChannelOrder",
+              "defined_in": "libavutil/channel_layout.h",
+              "kind": "type",
+              "field_anchors": [],
+              "home": "crustify/rust/ffmpeg/libavutil/channel_layout.rs"
+            },
+            {
+              "name": "AVChromaLocation",
+              "defined_in": "libavutil/pixfmt.h",
+              "kind": "type",
+              "field_anchors": [],
+              "home": "crustify/rust/ffmpeg/libavutil/pixfmt.rs"
+            }
+          ]
+        },
+        {
+          "objective": "wrap",
+          "items": [
+            {
+              "name": "AVColorPrimaries",
+              "defined_in": "libavutil/pixfmt.h",
+              "kind": "type",
+              "field_anchors": [],
+              "home": "crustify/rust/ffmpeg/libavutil/pixfmt.rs"
+            },
+            {
+              "name": "AVColorRange",
+              "defined_in": "libavutil/pixfmt.h",
+              "kind": "type",
+              "field_anchors": [],
+              "home": "crustify/rust/ffmpeg/libavutil/pixfmt.rs"
+            }
+          ]
+        },
+        {
+          "objective": "wrap",
+          "items": [
+            {
+              "name": "AVColorSpace",
+              "defined_in": "libavutil/pixfmt.h",
+              "kind": "type",
+              "field_anchors": [],
+              "home": "crustify/rust/ffmpeg/libavutil/pixfmt.rs"
+            },
+            {
+              "name": "AVColorTransferCharacteristic",
+              "defined_in": "libavutil/pixfmt.h",
+              "kind": "type",
+              "field_anchors": [],
+              "home": "crustify/rust/ffmpeg/libavutil/pixfmt.rs"
+            }
+          ]
+        },
+        {
+          "objective": "wrap",
+          "items": [
+            {
+              "name": "AVComponentDescriptor",
+              "defined_in": "libavutil/pixdesc.h",
+              "kind": "type",
+              "field_anchors": [
+                "offset",
+                "plane",
+                "shift",
+                "depth",
+                "step"
+              ],
+              "home": "crustify/rust/ffmpeg/libavutil/pixdesc.rs"
+            },
+            {
+              "name": "AVMatrixEncoding",
+              "defined_in": "libavutil/channel_layout.h",
+              "kind": "type",
+              "field_anchors": [],
+              "home": "crustify/rust/ffmpeg/libavutil/channel_layout.rs"
+            }
+          ]
+        },
+        {
+          "objective": "wrap",
+          "items": [
+            {
+              "name": "AVPixelFormat",
+              "defined_in": "libavutil/pixfmt.h",
+              "kind": "type",
+              "field_anchors": [],
+              "home": "crustify/rust/ffmpeg/libavutil/pixfmt.rs"
+            }
+          ]
+        },
+        {
+          "objective": "wrap",
+          "items": [
+            {
+              "name": "AVSampleFormat",
+              "defined_in": "libavutil/samplefmt.h",
+              "kind": "type",
+              "field_anchors": [],
+              "home": "crustify/rust/ffmpeg/libavutil/samplefmt.rs"
+            }
+          ]
+        },
+        {
+          "objective": "wrap",
+          "items": [
+            {
+              "name": "av_chroma_location_from_name",
+              "defined_in": "libavutil/pixdesc.c",
+              "kind": "symbol",
+              "field_anchors": [],
+              "home": "crustify/rust/ffmpeg/libavutil/pixdesc.rs"
+            },
+            {
+              "name": "av_color_primaries_from_name",
+              "defined_in": "libavutil/pixdesc.c",
+              "kind": "symbol",
+              "field_anchors": [],
+              "home": "crustify/rust/ffmpeg/libavutil/pixdesc.rs"
+            },
+            {
+              "name": "av_color_range_from_name",
+              "defined_in": "libavutil/pixdesc.c",
+              "kind": "symbol",
+              "field_anchors": [],
+              "home": "crustify/rust/ffmpeg/libavutil/pixdesc.rs"
+            },
+            {
+              "name": "av_color_space_from_name",
+              "defined_in": "libavutil/pixdesc.c",
+              "kind": "symbol",
+              "field_anchors": [],
+              "home": "crustify/rust/ffmpeg/libavutil/pixdesc.rs"
+            },
+            {
+              "name": "av_color_transfer_from_name",
+              "defined_in": "libavutil/pixdesc.c",
+              "kind": "symbol",
+              "field_anchors": [],
+              "home": "crustify/rust/ffmpeg/libavutil/pixdesc.rs"
+            },
+            {
+              "name": "av_csp_eotf_function",
+              "defined_in": "libavutil/csp.h",
+              "kind": "callback",
+              "field_anchors": [],
+              "home": "crustify/rust/ffmpeg/libavutil/csp.rs"
+            },
+            {
+              "name": "av_csp_trc_function",
+              "defined_in": "libavutil/csp.h",
+              "kind": "callback",
+              "field_anchors": [],
+              "home": "crustify/rust/ffmpeg/libavutil/csp.rs"
+            },
+            {
+              "name": "av_image_check_size",
+              "defined_in": "libavutil/imgutils.c",
+              "kind": "symbol",
+              "field_anchors": [],
+              "home": "crustify/rust/ffmpeg/libavutil/imgutils.rs"
+            },
+            {
+              "name": "av_image_copy_plane",
+              "defined_in": "libavutil/imgutils.c",
+              "kind": "symbol",
+              "field_anchors": [],
+              "home": "crustify/rust/ffmpeg/libavutil/imgutils.rs"
+            },
+            {
+              "name": "av_image_copy_plane_uc_from",
+              "defined_in": "libavutil/imgutils.c",
+              "kind": "symbol",
+              "field_anchors": [],
+              "home": "crustify/rust/ffmpeg/libavutil/imgutils.rs"
+            },
+            {
+              "name": "av_pixelutils_sad_fn",
+              "defined_in": "libavutil/pixelutils.h",
+              "kind": "callback",
+              "field_anchors": [],
+              "home": "crustify/rust/ffmpeg/libavutil/pixelutils.rs"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "index": 1,
+      "batches": [
+        {
+          "objective": "wrap",
+          "items": [
+            {
+              "name": "AVCIExy",
+              "defined_in": "libavutil/csp.h",
+              "kind": "type",
+              "field_anchors": [
+                "x",
+                "y"
+              ],
+              "home": "crustify/rust/ffmpeg/libavutil/csp.rs"
+            }
+          ]
+        },
+        {
+          "objective": "wrap",
+          "items": [
+            {
+              "name": "AVChannelCustom",
+              "defined_in": "libavutil/channel_layout.h",
+              "kind": "type",
+              "field_anchors": [
+                "name",
+                "id",
+                "opaque"
+              ],
+              "home": "crustify/rust/ffmpeg/libavutil/channel_layout.rs"
+            },
+            {
+              "name": "AVLumaCoefficients",
+              "defined_in": "libavutil/csp.h",
+              "kind": "type",
+              "field_anchors": [
+                "cb",
+                "cr",
+                "cg"
+              ],
+              "home": "crustify/rust/ffmpeg/libavutil/csp.rs"
+            }
+          ]
+        },
+        {
+          "objective": "wrap",
+          "items": [
+            {
+              "name": "AVPixFmtDescriptor",
+              "defined_in": "libavutil/pixdesc.h",
+              "kind": "type",
+              "field_anchors": [
+                "name",
+                "flags",
+                "nb_components",
+                "log2_chroma_w",
+                "log2_chroma_h",
+                "comp",
+                "alias"
+              ],
+              "home": "crustify/rust/ffmpeg/libavutil/pixdesc.rs"
+            }
+          ]
+        },
+        {
+          "objective": "wrap",
+          "items": [
+            {
+              "name": "av_alpha_mode_from_name",
+              "defined_in": "libavutil/pixdesc.c",
+              "kind": "symbol",
+              "field_anchors": [],
+              "home": "crustify/rust/ffmpeg/libavutil/pixdesc.rs"
+            },
+            {
+              "name": "av_alpha_mode_name",
+              "defined_in": "libavutil/pixdesc.c",
+              "kind": "symbol",
+              "field_anchors": [],
+              "home": "crustify/rust/ffmpeg/libavutil/pixdesc.rs"
+            },
+            {
+              "name": "av_channel_description",
+              "defined_in": "libavutil/channel_layout.c",
+              "kind": "symbol",
+              "field_anchors": [],
+              "home": "crustify/rust/ffmpeg/libavutil/channel_layout.rs"
+            },
+            {
+              "name": "av_channel_from_string",
+              "defined_in": "libavutil/channel_layout.c",
+              "kind": "symbol",
+              "field_anchors": [],
+              "home": "crustify/rust/ffmpeg/libavutil/channel_layout.rs"
+            },
+            {
+              "name": "av_channel_name",
+              "defined_in": "libavutil/channel_layout.c",
+              "kind": "symbol",
+              "field_anchors": [],
+              "home": "crustify/rust/ffmpeg/libavutil/channel_layout.rs"
+            },
+            {
+              "name": "av_chroma_location_enum_to_pos",
+              "defined_in": "libavutil/pixdesc.c",
+              "kind": "symbol",
+              "field_anchors": [],
+              "home": "crustify/rust/ffmpeg/libavutil/pixdesc.rs"
+            },
+            {
+              "name": "av_chroma_location_name",
+              "defined_in": "libavutil/pixdesc.c",
+              "kind": "symbol",
+              "field_anchors": [],
+              "home": "crustify/rust/ffmpeg/libavutil/pixdesc.rs"
+            },
+            {
+              "name": "av_chroma_location_pos_to_enum",
+              "defined_in": "libavutil/pixdesc.c",
+              "kind": "symbol",
+              "field_anchors": [],
+              "home": "crustify/rust/ffmpeg/libavutil/pixdesc.rs"
+            },
+            {
+              "name": "av_color_primaries_name",
+              "defined_in": "libavutil/pixdesc.c",
+              "kind": "symbol",
+              "field_anchors": [],
+              "home": "crustify/rust/ffmpeg/libavutil/pixdesc.rs"
+            },
+            {
+              "name": "av_color_range_name",
+              "defined_in": "libavutil/pixdesc.c",
+              "kind": "symbol",
+              "field_anchors": [],
+              "home": "crustify/rust/ffmpeg/libavutil/pixdesc.rs"
+            },
+            {
+              "name": "av_color_space_name",
+              "defined_in": "libavutil/pixdesc.c",
+              "kind": "symbol",
+              "field_anchors": [],
+              "home": "crustify/rust/ffmpeg/libavutil/pixdesc.rs"
+            },
+            {
+              "name": "av_color_transfer_name",
+              "defined_in": "libavutil/pixdesc.c",
+              "kind": "symbol",
+              "field_anchors": [],
+              "home": "crustify/rust/ffmpeg/libavutil/pixdesc.rs"
+            },
+            {
+              "name": "av_csp_approximate_eotf_gamma",
+              "defined_in": "libavutil/csp.c",
+              "kind": "symbol",
+              "field_anchors": [],
+              "home": "crustify/rust/ffmpeg/libavutil/csp.rs"
+            },
+            {
+              "name": "av_csp_approximate_trc_gamma",
+              "defined_in": "libavutil/csp.c",
+              "kind": "symbol",
+              "field_anchors": [],
+              "home": "crustify/rust/ffmpeg/libavutil/csp.rs"
+            },
+            {
+              "name": "av_csp_itu_eotf",
+              "defined_in": "libavutil/csp.c",
+              "kind": "symbol",
+              "field_anchors": [],
+              "home": "crustify/rust/ffmpeg/libavutil/csp.rs"
+            },
+            {
+              "name": "av_csp_itu_eotf_inv",
+              "defined_in": "libavutil/csp.c",
+              "kind": "symbol",
+              "field_anchors": [],
+              "home": "crustify/rust/ffmpeg/libavutil/csp.rs"
+            },
+            {
+              "name": "av_csp_trc_func_from_id",
+              "defined_in": "libavutil/csp.c",
+              "kind": "symbol",
+              "field_anchors": [],
+              "home": "crustify/rust/ffmpeg/libavutil/csp.rs"
+            },
+            {
+              "name": "av_csp_trc_func_inv_from_id",
+              "defined_in": "libavutil/csp.c",
+              "kind": "symbol",
+              "field_anchors": [],
+              "home": "crustify/rust/ffmpeg/libavutil/csp.rs"
+            },
+            {
+              "name": "av_find_best_pix_fmt_of_2",
+              "defined_in": "libavutil/pixdesc.c",
+              "kind": "symbol",
+              "field_anchors": [],
+              "home": "crustify/rust/ffmpeg/libavutil/pixdesc.rs"
+            },
+            {
+              "name": "av_get_alt_sample_fmt",
+              "defined_in": "libavutil/samplefmt.c",
+              "kind": "symbol",
+              "field_anchors": [],
+              "home": "crustify/rust/ffmpeg/libavutil/samplefmt.rs"
+            },
+            {
+              "name": "av_get_bytes_per_sample",
+              "defined_in": "libavutil/samplefmt.c",
+              "kind": "symbol",
+              "field_anchors": [],
+              "home": "crustify/rust/ffmpeg/libavutil/samplefmt.rs"
+            },
+            {
+              "name": "av_get_packed_sample_fmt",
+              "defined_in": "libavutil/samplefmt.c",
+              "kind": "symbol",
+              "field_anchors": [],
+              "home": "crustify/rust/ffmpeg/libavutil/samplefmt.rs"
+            },
+            {
+              "name": "av_get_pix_fmt",
+              "defined_in": "libavutil/pixdesc.c",
+              "kind": "symbol",
+              "field_anchors": [],
+              "home": "crustify/rust/ffmpeg/libavutil/pixdesc.rs"
+            },
+            {
+              "name": "av_get_pix_fmt_loss",
+              "defined_in": "libavutil/pixdesc.c",
+              "kind": "symbol",
+              "field_anchors": [],
+              "home": "crustify/rust/ffmpeg/libavutil/pixdesc.rs"
+            },
+            {
+              "name": "av_get_pix_fmt_name",
+              "defined_in": "libavutil/pixdesc.c",
+              "kind": "symbol",
+              "field_anchors": [],
+              "home": "crustify/rust/ffmpeg/libavutil/pixdesc.rs"
+            }
+          ]
+        },
+        {
+          "objective": "wrap",
+          "items": [
+            {
+              "name": "av_get_pix_fmt_string",
+              "defined_in": "libavutil/pixdesc.c",
+              "kind": "symbol",
+              "field_anchors": [],
+              "home": "crustify/rust/ffmpeg/libavutil/pixdesc.rs"
+            },
+            {
+              "name": "av_get_planar_sample_fmt",
+              "defined_in": "libavutil/samplefmt.c",
+              "kind": "symbol",
+              "field_anchors": [],
+              "home": "crustify/rust/ffmpeg/libavutil/samplefmt.rs"
+            },
+            {
+              "name": "av_get_sample_fmt",
+              "defined_in": "libavutil/samplefmt.c",
+              "kind": "symbol",
+              "field_anchors": [],
+              "home": "crustify/rust/ffmpeg/libavutil/samplefmt.rs"
+            },
+            {
+              "name": "av_get_sample_fmt_name",
+              "defined_in": "libavutil/samplefmt.c",
+              "kind": "symbol",
+              "field_anchors": [],
+              "home": "crustify/rust/ffmpeg/libavutil/samplefmt.rs"
+            },
+            {
+              "name": "av_get_sample_fmt_string",
+              "defined_in": "libavutil/samplefmt.c",
+              "kind": "symbol",
+              "field_anchors": [],
+              "home": "crustify/rust/ffmpeg/libavutil/samplefmt.rs"
+            },
+            {
+              "name": "av_image_alloc",
+              "defined_in": "libavutil/imgutils.c",
+              "kind": "symbol",
+              "field_anchors": [],
+              "home": "crustify/rust/ffmpeg/libavutil/imgutils.rs"
+            },
+            {
+              "name": "av_image_check_sar",
+              "defined_in": "libavutil/imgutils.c",
+              "kind": "symbol",
+              "field_anchors": [],
+              "home": "crustify/rust/ffmpeg/libavutil/imgutils.rs"
+            },
+            {
+              "name": "av_image_check_size2",
+              "defined_in": "libavutil/imgutils.c",
+              "kind": "symbol",
+              "field_anchors": [],
+              "home": "crustify/rust/ffmpeg/libavutil/imgutils.rs"
+            },
+            {
+              "name": "av_image_copy",
+              "defined_in": "libavutil/imgutils.c",
+              "kind": "symbol",
+              "field_anchors": [],
+              "home": "crustify/rust/ffmpeg/libavutil/imgutils.rs"
+            },
+            {
+              "name": "av_image_copy2",
+              "defined_in": "libavutil/imgutils.h",
+              "kind": "symbol",
+              "field_anchors": [],
+              "home": "crustify/rust/ffmpeg/libavutil/imgutils.rs"
+            },
+            {
+              "name": "av_image_copy_to_buffer",
+              "defined_in": "libavutil/imgutils.c",
+              "kind": "symbol",
+              "field_anchors": [],
+              "home": "crustify/rust/ffmpeg/libavutil/imgutils.rs"
+            },
+            {
+              "name": "av_image_copy_uc_from",
+              "defined_in": "libavutil/imgutils.c",
+              "kind": "symbol",
+              "field_anchors": [],
+              "home": "crustify/rust/ffmpeg/libavutil/imgutils.rs"
+            },
+            {
+              "name": "av_image_fill_arrays",
+              "defined_in": "libavutil/imgutils.c",
+              "kind": "symbol",
+              "field_anchors": [],
+              "home": "crustify/rust/ffmpeg/libavutil/imgutils.rs"
+            },
+            {
+              "name": "av_image_fill_black",
+              "defined_in": "libavutil/imgutils.c",
+              "kind": "symbol",
+              "field_anchors": [],
+              "home": "crustify/rust/ffmpeg/libavutil/imgutils.rs"
+            },
+            {
+              "name": "av_image_fill_color",
+              "defined_in": "libavutil/imgutils.c",
+              "kind": "symbol",
+              "field_anchors": [],
+              "home": "crustify/rust/ffmpeg/libavutil/imgutils.rs"
+            },
+            {
+              "name": "av_image_fill_linesizes",
+              "defined_in": "libavutil/imgutils.c",
+              "kind": "symbol",
+              "field_anchors": [],
+              "home": "crustify/rust/ffmpeg/libavutil/imgutils.rs"
+            },
+            {
+              "name": "av_image_fill_plane_sizes",
+              "defined_in": "libavutil/imgutils.c",
+              "kind": "symbol",
+              "field_anchors": [],
+              "home": "crustify/rust/ffmpeg/libavutil/imgutils.rs"
+            },
+            {
+              "name": "av_image_fill_pointers",
+              "defined_in": "libavutil/imgutils.c",
+              "kind": "symbol",
+              "field_anchors": [],
+              "home": "crustify/rust/ffmpeg/libavutil/imgutils.rs"
+            },
+            {
+              "name": "av_image_get_buffer_size",
+              "defined_in": "libavutil/imgutils.c",
+              "kind": "symbol",
+              "field_anchors": [],
+              "home": "crustify/rust/ffmpeg/libavutil/imgutils.rs"
+            },
+            {
+              "name": "av_image_get_linesize",
+              "defined_in": "libavutil/imgutils.c",
+              "kind": "symbol",
+              "field_anchors": [],
+              "home": "crustify/rust/ffmpeg/libavutil/imgutils.rs"
+            },
+            {
+              "name": "av_pix_fmt_count_planes",
+              "defined_in": "libavutil/pixdesc.c",
+              "kind": "symbol",
+              "field_anchors": [],
+              "home": "crustify/rust/ffmpeg/libavutil/pixdesc.rs"
+            },
+            {
+              "name": "av_pix_fmt_get_chroma_sub_sample",
+              "defined_in": "libavutil/pixdesc.c",
+              "kind": "symbol",
+              "field_anchors": [],
+              "home": "crustify/rust/ffmpeg/libavutil/pixdesc.rs"
+            }
+          ]
+        },
+        {
+          "objective": "wrap",
+          "items": [
+            {
+              "name": "av_pix_fmt_swap_endianness",
+              "defined_in": "libavutil/pixdesc.c",
+              "kind": "symbol",
+              "field_anchors": [],
+              "home": "crustify/rust/ffmpeg/libavutil/pixdesc.rs"
+            },
+            {
+              "name": "av_pixelutils_get_sad_fn",
+              "defined_in": "libavutil/pixelutils.c",
+              "kind": "symbol",
+              "field_anchors": [],
+              "home": "crustify/rust/ffmpeg/libavutil/pixelutils.rs"
+            },
+            {
+              "name": "av_sample_fmt_is_planar",
+              "defined_in": "libavutil/samplefmt.c",
+              "kind": "symbol",
+              "field_anchors": [],
+              "home": "crustify/rust/ffmpeg/libavutil/samplefmt.rs"
+            },
+            {
+              "name": "av_samples_alloc",
+              "defined_in": "libavutil/samplefmt.c",
+              "kind": "symbol",
+              "field_anchors": [],
+              "home": "crustify/rust/ffmpeg/libavutil/samplefmt.rs"
+            },
+            {
+              "name": "av_samples_alloc_array_and_samples",
+              "defined_in": "libavutil/samplefmt.c",
+              "kind": "symbol",
+              "field_anchors": [],
+              "home": "crustify/rust/ffmpeg/libavutil/samplefmt.rs"
+            },
+            {
+              "name": "av_samples_copy",
+              "defined_in": "libavutil/samplefmt.c",
+              "kind": "symbol",
+              "field_anchors": [],
+              "home": "crustify/rust/ffmpeg/libavutil/samplefmt.rs"
+            },
+            {
+              "name": "av_samples_fill_arrays",
+              "defined_in": "libavutil/samplefmt.c",
+              "kind": "symbol",
+              "field_anchors": [],
+              "home": "crustify/rust/ffmpeg/libavutil/samplefmt.rs"
+            },
+            {
+              "name": "av_samples_get_buffer_size",
+              "defined_in": "libavutil/samplefmt.c",
+              "kind": "symbol",
+              "field_anchors": [],
+              "home": "crustify/rust/ffmpeg/libavutil/samplefmt.rs"
+            },
+            {
+              "name": "av_samples_set_silence",
+              "defined_in": "libavutil/samplefmt.c",
+              "kind": "symbol",
+              "field_anchors": [],
+              "home": "crustify/rust/ffmpeg/libavutil/samplefmt.rs"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "index": 2,
+      "batches": [
+        {
+          "objective": "wrap",
+          "items": [
+            {
+              "name": "AVChannelLayout",
+              "defined_in": "libavutil/channel_layout.h",
+              "kind": "type",
+              "field_anchors": [
+                "opaque",
+                "nb_channels",
+                "order",
+                "u"
+              ],
+              "home": "crustify/rust/ffmpeg/libavutil/channel_layout.rs"
+            },
+            {
+              "name": "AVPrimaryCoefficients",
+              "defined_in": "libavutil/csp.h",
+              "kind": "type",
+              "field_anchors": [
+                "b",
+                "g",
+                "r"
+              ],
+              "home": "crustify/rust/ffmpeg/libavutil/csp.rs"
+            }
+          ]
+        },
+        {
+          "objective": "wrap",
+          "items": [
+            {
+              "name": "av_channel_description_bprint",
+              "defined_in": "libavutil/channel_layout.c",
+              "kind": "symbol",
+              "field_anchors": [],
+              "home": "crustify/rust/ffmpeg/libavutil/channel_layout.rs"
+            },
+            {
+              "name": "av_channel_name_bprint",
+              "defined_in": "libavutil/channel_layout.c",
+              "kind": "symbol",
+              "field_anchors": [],
+              "home": "crustify/rust/ffmpeg/libavutil/channel_layout.rs"
+            },
+            {
+              "name": "av_csp_luma_coeffs_from_avcsp",
+              "defined_in": "libavutil/csp.c",
+              "kind": "symbol",
+              "field_anchors": [],
+              "home": "crustify/rust/ffmpeg/libavutil/csp.rs"
+            },
+            {
+              "name": "av_get_bits_per_pixel",
+              "defined_in": "libavutil/pixdesc.c",
+              "kind": "symbol",
+              "field_anchors": [],
+              "home": "crustify/rust/ffmpeg/libavutil/pixdesc.rs"
+            },
+            {
+              "name": "av_get_padded_bits_per_pixel",
+              "defined_in": "libavutil/pixdesc.c",
+              "kind": "symbol",
+              "field_anchors": [],
+              "home": "crustify/rust/ffmpeg/libavutil/pixdesc.rs"
+            },
+            {
+              "name": "av_image_fill_max_pixsteps",
+              "defined_in": "libavutil/imgutils.c",
+              "kind": "symbol",
+              "field_anchors": [],
+              "home": "crustify/rust/ffmpeg/libavutil/imgutils.rs"
+            },
+            {
+              "name": "av_pix_fmt_desc_get",
+              "defined_in": "libavutil/pixdesc.c",
+              "kind": "symbol",
+              "field_anchors": [],
+              "home": "crustify/rust/ffmpeg/libavutil/pixdesc.rs"
+            },
+            {
+              "name": "av_pix_fmt_desc_get_id",
+              "defined_in": "libavutil/pixdesc.c",
+              "kind": "symbol",
+              "field_anchors": [],
+              "home": "crustify/rust/ffmpeg/libavutil/pixdesc.rs"
+            },
+            {
+              "name": "av_pix_fmt_desc_next",
+              "defined_in": "libavutil/pixdesc.c",
+              "kind": "symbol",
+              "field_anchors": [],
+              "home": "crustify/rust/ffmpeg/libavutil/pixdesc.rs"
+            },
+            {
+              "name": "av_read_image_line",
+              "defined_in": "libavutil/pixdesc.c",
+              "kind": "symbol",
+              "field_anchors": [],
+              "home": "crustify/rust/ffmpeg/libavutil/pixdesc.rs"
+            },
+            {
+              "name": "av_read_image_line2",
+              "defined_in": "libavutil/pixdesc.c",
+              "kind": "symbol",
+              "field_anchors": [],
+              "home": "crustify/rust/ffmpeg/libavutil/pixdesc.rs"
+            },
+            {
+              "name": "av_write_image_line",
+              "defined_in": "libavutil/pixdesc.c",
+              "kind": "symbol",
+              "field_anchors": [],
+              "home": "crustify/rust/ffmpeg/libavutil/pixdesc.rs"
+            },
+            {
+              "name": "av_write_image_line2",
+              "defined_in": "libavutil/pixdesc.c",
+              "kind": "symbol",
+              "field_anchors": [],
+              "home": "crustify/rust/ffmpeg/libavutil/pixdesc.rs"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "index": 3,
+      "batches": [
+        {
+          "objective": "wrap",
+          "items": [
+            {
+              "name": "AVColorPrimariesDesc",
+              "defined_in": "libavutil/csp.h",
+              "kind": "type",
+              "field_anchors": [
+                "prim",
+                "wp"
+              ],
+              "home": "crustify/rust/ffmpeg/libavutil/csp.rs"
+            }
+          ]
+        },
+        {
+          "objective": "wrap",
+          "items": [
+            {
+              "name": "av_channel_layout_ambisonic_order",
+              "defined_in": "libavutil/channel_layout.c",
+              "kind": "symbol",
+              "field_anchors": [],
+              "home": "crustify/rust/ffmpeg/libavutil/channel_layout.rs"
+            },
+            {
+              "name": "av_channel_layout_channel_from_index",
+              "defined_in": "libavutil/channel_layout.c",
+              "kind": "symbol",
+              "field_anchors": [],
+              "home": "crustify/rust/ffmpeg/libavutil/channel_layout.rs"
+            },
+            {
+              "name": "av_channel_layout_channel_from_string",
+              "defined_in": "libavutil/channel_layout.c",
+              "kind": "symbol",
+              "field_anchors": [],
+              "home": "crustify/rust/ffmpeg/libavutil/channel_layout.rs"
+            },
+            {
+              "name": "av_channel_layout_check",
+              "defined_in": "libavutil/channel_layout.c",
+              "kind": "symbol",
+              "field_anchors": [],
+              "home": "crustify/rust/ffmpeg/libavutil/channel_layout.rs"
+            },
+            {
+              "name": "av_channel_layout_compare",
+              "defined_in": "libavutil/channel_layout.c",
+              "kind": "symbol",
+              "field_anchors": [],
+              "home": "crustify/rust/ffmpeg/libavutil/channel_layout.rs"
+            },
+            {
+              "name": "av_channel_layout_copy",
+              "defined_in": "libavutil/channel_layout.c",
+              "kind": "symbol",
+              "field_anchors": [],
+              "home": "crustify/rust/ffmpeg/libavutil/channel_layout.rs"
+            },
+            {
+              "name": "av_channel_layout_custom_init",
+              "defined_in": "libavutil/channel_layout.c",
+              "kind": "symbol",
+              "field_anchors": [],
+              "home": "crustify/rust/ffmpeg/libavutil/channel_layout.rs"
+            },
+            {
+              "name": "av_channel_layout_default",
+              "defined_in": "libavutil/channel_layout.c",
+              "kind": "symbol",
+              "field_anchors": [],
+              "home": "crustify/rust/ffmpeg/libavutil/channel_layout.rs"
+            },
+            {
+              "name": "av_channel_layout_describe",
+              "defined_in": "libavutil/channel_layout.c",
+              "kind": "symbol",
+              "field_anchors": [],
+              "home": "crustify/rust/ffmpeg/libavutil/channel_layout.rs"
+            },
+            {
+              "name": "av_channel_layout_describe_bprint",
+              "defined_in": "libavutil/channel_layout.c",
+              "kind": "symbol",
+              "field_anchors": [],
+              "home": "crustify/rust/ffmpeg/libavutil/channel_layout.rs"
+            },
+            {
+              "name": "av_channel_layout_from_mask",
+              "defined_in": "libavutil/channel_layout.c",
+              "kind": "symbol",
+              "field_anchors": [],
+              "home": "crustify/rust/ffmpeg/libavutil/channel_layout.rs"
+            },
+            {
+              "name": "av_channel_layout_from_string",
+              "defined_in": "libavutil/channel_layout.c",
+              "kind": "symbol",
+              "field_anchors": [],
+              "home": "crustify/rust/ffmpeg/libavutil/channel_layout.rs"
+            },
+            {
+              "name": "av_channel_layout_index_from_channel",
+              "defined_in": "libavutil/channel_layout.c",
+              "kind": "symbol",
+              "field_anchors": [],
+              "home": "crustify/rust/ffmpeg/libavutil/channel_layout.rs"
+            },
+            {
+              "name": "av_channel_layout_index_from_string",
+              "defined_in": "libavutil/channel_layout.c",
+              "kind": "symbol",
+              "field_anchors": [],
+              "home": "crustify/rust/ffmpeg/libavutil/channel_layout.rs"
+            }
+          ]
+        },
+        {
+          "objective": "wrap",
+          "items": [
+            {
+              "name": "av_channel_layout_retype",
+              "defined_in": "libavutil/channel_layout.c",
+              "kind": "symbol",
+              "field_anchors": [],
+              "home": "crustify/rust/ffmpeg/libavutil/channel_layout.rs"
+            },
+            {
+              "name": "av_channel_layout_standard",
+              "defined_in": "libavutil/channel_layout.c",
+              "kind": "symbol",
+              "field_anchors": [],
+              "home": "crustify/rust/ffmpeg/libavutil/channel_layout.rs"
+            },
+            {
+              "name": "av_channel_layout_subset",
+              "defined_in": "libavutil/channel_layout.c",
+              "kind": "symbol",
+              "field_anchors": [],
+              "home": "crustify/rust/ffmpeg/libavutil/channel_layout.rs"
+            },
+            {
+              "name": "av_channel_layout_uninit",
+              "defined_in": "libavutil/channel_layout.c",
+              "kind": "symbol",
+              "field_anchors": [],
+              "home": "crustify/rust/ffmpeg/libavutil/channel_layout.rs"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "index": 4,
+      "batches": [
+        {
+          "objective": "wrap",
+          "items": [
+            {
+              "name": "av_csp_primaries_desc_from_id",
+              "defined_in": "libavutil/csp.c",
+              "kind": "symbol",
+              "field_anchors": [],
+              "home": "crustify/rust/ffmpeg/libavutil/csp.rs"
+            },
+            {
+              "name": "av_csp_primaries_id_from_desc",
+              "defined_in": "libavutil/csp.c",
+              "kind": "symbol",
+              "field_anchors": [],
+              "home": "crustify/rust/ffmpeg/libavutil/csp.rs"
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

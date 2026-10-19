@@ -2,11 +2,21 @@
   "version": "1019f8f036602a8464185baa4857654337eeca14",
   "link_units": [
     {
+      "index": 0,
       "name": "libavutil",
       "kind": "library",
       "linkage": "shared",
       "subsystems": [
         {
+          "index": 0,
+          "name": "raw-lifetime-void"
+        },
+        {
+          "index": 1,
+          "name": "raw-lifetime-string"
+        },
+        {
+          "index": 2,
           "name": "core",
           "objective": {
             "objective": "wrap",
@@ -207,6 +217,7 @@
           }
         },
         {
+          "index": 3,
           "name": "formats",
           "objective": {
             "objective": "wrap",
@@ -350,6 +361,7 @@
           }
         },
         {
+          "index": 4,
           "name": "options",
           "objective": {
             "objective": "wrap",
@@ -478,6 +490,7 @@
           }
         },
         {
+          "index": 5,
           "name": "crypto",
           "objective": {
             "objective": "wrap",
@@ -628,6 +641,7 @@
           }
         },
         {
+          "index": 6,
           "name": "buffer-frame",
           "objective": {
             "objective": "wrap",
@@ -775,6 +789,7 @@
           }
         },
         {
+          "index": 7,
           "name": "hwcontext",
           "objective": {
             "objective": "wrap",
@@ -917,6 +932,7 @@
           }
         },
         {
+          "index": 8,
           "name": "metadata",
           "objective": {
             "objective": "wrap",
@@ -1137,6 +1153,7 @@
           }
         },
         {
+          "index": 9,
           "name": "containers",
           "objective": {
             "objective": "wrap",
@@ -1276,6 +1293,7 @@
           }
         },
         {
+          "index": 10,
           "name": "dsp",
           "objective": {
             "objective": "wrap",
@@ -1439,11 +1457,13 @@
       ]
     },
     {
+      "index": 1,
       "name": "libswresample",
       "kind": "library",
       "linkage": "shared",
       "subsystems": [
         {
+          "index": 0,
           "name": "swresample",
           "objective": {
             "objective": "wrap",
@@ -1620,11 +1640,13 @@
       ]
     },
     {
+      "index": 2,
       "name": "libswscale",
       "kind": "library",
       "linkage": "shared",
       "subsystems": [
         {
+          "index": 0,
           "name": "swscale",
           "objective": {
             "objective": "wrap",
@@ -1895,11 +1917,13 @@
       ]
     },
     {
+      "index": 3,
       "name": "libavcodec",
       "kind": "library",
       "linkage": "shared",
       "subsystems": [
         {
+          "index": 0,
           "name": "core",
           "objective": {
             "objective": "wrap",
@@ -2156,6 +2180,536 @@
           }
         },
         {
+          "index": 1,
+          "name": "utils",
+          "objective": {
+            "objective": "wrap",
+            "rust_native_equivalent": []
+          },
+          "implementation_files": [
+            "libavcodec/ac3_parser.c",
+            "libavcodec/adts_parser.c",
+            "libavcodec/avdct.c",
+            "libavcodec/dirac.c",
+            "libavcodec/dv_profile.c",
+            "libavcodec/exif.c",
+            "libavcodec/smpte_436m.c",
+            "libavcodec/vorbis_parser.c"
+          ],
+          "api_headers": [
+            "libavcodec/ac3_parser.h",
+            "libavcodec/adts_parser.h",
+            "libavcodec/avdct.h",
+            "libavcodec/dirac.h",
+            "libavcodec/dv_profile.h",
+            "libavcodec/exif.h",
+            "libavcodec/smpte_436m.h",
+            "libavcodec/vorbis_parser.h"
+          ],
+          "counters": {
+            "implementation": {
+              "files": 8,
+              "loc": 3004,
+              "structs": 5,
+              "functions": 73,
+              "global_variables": 34,
+              "enums": 0,
+              "unions": 0,
+              "callbacks": 0,
+              "macros": 24
+            },
+            "api": {
+              "files": 8,
+              "loc": 294,
+              "structs": 10,
+              "opaque_structs": 1,
+              "functions": 37,
+              "global_variables": 0,
+              "enums": 5,
+              "unions": 0,
+              "callbacks": 0,
+              "macros": 20
+            }
+          },
+          "imported_deps": {
+            "in_tree": [
+              {
+                "link_unit": "libavcodec",
+                "subsystem": "codecs",
+                "outgoing_edges": 133,
+                "incoming_edges": 74,
+                "counters": {
+                  "structs": 11,
+                  "functions": 41,
+                  "global_variables": 7,
+                  "enums": 0,
+                  "unions": 0,
+                  "callbacks": 0,
+                  "macros": 10
+                }
+              },
+              {
+                "link_unit": "libavcodec",
+                "subsystem": "core",
+                "outgoing_edges": 34,
+                "incoming_edges": 29,
+                "counters": {
+                  "structs": 4,
+                  "functions": 4,
+                  "global_variables": 0,
+                  "enums": 0,
+                  "unions": 0,
+                  "callbacks": 0,
+                  "macros": 20
+                }
+              },
+              {
+                "link_unit": "libavutil",
+                "subsystem": "buffer-frame",
+                "outgoing_edges": 13,
+                "incoming_edges": 0,
+                "counters": {
+                  "structs": 3,
+                  "functions": 4,
+                  "global_variables": 0,
+                  "enums": 1,
+                  "unions": 0,
+                  "callbacks": 0,
+                  "macros": 0
+                }
+              },
+              {
+                "link_unit": "libavutil",
+                "subsystem": "core",
+                "outgoing_edges": 328,
+                "incoming_edges": 0,
+                "counters": {
+                  "structs": 5,
+                  "functions": 24,
+                  "global_variables": 0,
+                  "enums": 0,
+                  "unions": 2,
+                  "callbacks": 0,
+                  "macros": 54
+                }
+              },
+              {
+                "link_unit": "libavutil",
+                "subsystem": "crypto",
+                "outgoing_edges": 2,
+                "incoming_edges": 0,
+                "counters": {
+                  "structs": 0,
+                  "functions": 1,
+                  "global_variables": 0,
+                  "enums": 1,
+                  "unions": 0,
+                  "callbacks": 0,
+                  "macros": 0
+                }
+              },
+              {
+                "link_unit": "libavutil",
+                "subsystem": "formats",
+                "outgoing_edges": 23,
+                "incoming_edges": 0,
+                "counters": {
+                  "structs": 0,
+                  "functions": 2,
+                  "global_variables": 0,
+                  "enums": 5,
+                  "unions": 0,
+                  "callbacks": 0,
+                  "macros": 8
+                }
+              },
+              {
+                "link_unit": "libavutil",
+                "subsystem": "metadata",
+                "outgoing_edges": 3,
+                "incoming_edges": 0,
+                "counters": {
+                  "structs": 0,
+                  "functions": 3,
+                  "global_variables": 0,
+                  "enums": 0,
+                  "unions": 0,
+                  "callbacks": 0,
+                  "macros": 0
+                }
+              },
+              {
+                "link_unit": "libavutil",
+                "subsystem": "options",
+                "outgoing_edges": 10,
+                "incoming_edges": 0,
+                "counters": {
+                  "structs": 2,
+                  "functions": 2,
+                  "global_variables": 0,
+                  "enums": 0,
+                  "unions": 0,
+                  "callbacks": 0,
+                  "macros": 5
+                }
+              }
+            ],
+            "out_of_tree": [
+              {
+                "library": "gcc builtins",
+                "counters": {
+                  "structs": 0,
+                  "functions": 0,
+                  "global_variables": 0,
+                  "enums": 0,
+                  "unions": 0,
+                  "callbacks": 0,
+                  "macros": 4
+                }
+              },
+              {
+                "library": "libc",
+                "counters": {
+                  "structs": 8,
+                  "functions": 6,
+                  "global_variables": 0,
+                  "enums": 0,
+                  "unions": 0,
+                  "callbacks": 0,
+                  "macros": 7
+                }
+              },
+              {
+                "library": "libm",
+                "counters": {
+                  "structs": 0,
+                  "functions": 0,
+                  "global_variables": 0,
+                  "enums": 0,
+                  "unions": 0,
+                  "callbacks": 0,
+                  "macros": 1
+                }
+              },
+              {
+                "library": "linux-uapi (headers only)",
+                "counters": {
+                  "structs": 0,
+                  "functions": 0,
+                  "global_variables": 0,
+                  "enums": 0,
+                  "unions": 0,
+                  "callbacks": 0,
+                  "macros": 3
+                }
+              }
+            ]
+          }
+        },
+        {
+          "index": 2,
+          "name": "bsf",
+          "objective": {
+            "objective": "wrap",
+            "rust_native_equivalent": []
+          },
+          "implementation_files": [
+            "libavcodec/bitstream_filters.c",
+            "libavcodec/bitstreamfilter.c",
+            "libavcodec/bsf.c",
+            "libavcodec/bsf/aac_adtstoasc.c",
+            "libavcodec/bsf/apv_metadata.c",
+            "libavcodec/bsf/av1_frame_merge.c",
+            "libavcodec/bsf/av1_frame_split.c",
+            "libavcodec/bsf/av1_metadata.c",
+            "libavcodec/bsf/chomp.c",
+            "libavcodec/bsf/dca_core.c",
+            "libavcodec/bsf/dovi_rpu.c",
+            "libavcodec/bsf/dovi_split.c",
+            "libavcodec/bsf/dts2pts.c",
+            "libavcodec/bsf/dump_extradata.c",
+            "libavcodec/bsf/dv_error_marker.c",
+            "libavcodec/bsf/eac3_core.c",
+            "libavcodec/bsf/eia608_to_smpte436m.c",
+            "libavcodec/bsf/evc_frame_merge.c",
+            "libavcodec/bsf/extract_extradata.c",
+            "libavcodec/bsf/filter_units.c",
+            "libavcodec/bsf/filters.h",
+            "libavcodec/bsf/h264_metadata.c",
+            "libavcodec/bsf/h264_mp4toannexb.c",
+            "libavcodec/bsf/h264_redundant_pps.c",
+            "libavcodec/bsf/h265_metadata.c",
+            "libavcodec/bsf/h266_metadata.c",
+            "libavcodec/bsf/hapqa_extract.c",
+            "libavcodec/bsf/hevc_mp4toannexb.c",
+            "libavcodec/bsf/imx_dump_header.c",
+            "libavcodec/bsf/lcevc_merge.c",
+            "libavcodec/bsf/lcevc_metadata.c",
+            "libavcodec/bsf/media100_to_mjpegb.c",
+            "libavcodec/bsf/mjpeg2jpeg.c",
+            "libavcodec/bsf/mjpega_dump_header.c",
+            "libavcodec/bsf/movsub.c",
+            "libavcodec/bsf/mpeg2_metadata.c",
+            "libavcodec/bsf/mpeg4_unpack_bframes.c",
+            "libavcodec/bsf/noise.c",
+            "libavcodec/bsf/null.c",
+            "libavcodec/bsf/opus_metadata.c",
+            "libavcodec/bsf/packetsync.c",
+            "libavcodec/bsf/packetsync.h",
+            "libavcodec/bsf/pcm_rechunk.c",
+            "libavcodec/bsf/pgs_frame_merge.c",
+            "libavcodec/bsf/prores_metadata.c",
+            "libavcodec/bsf/remove_extradata.c",
+            "libavcodec/bsf/setts.c",
+            "libavcodec/bsf/showinfo.c",
+            "libavcodec/bsf/sink.c",
+            "libavcodec/bsf/smpte436m_to_eia608.c",
+            "libavcodec/bsf/source.c",
+            "libavcodec/bsf/trace_headers.c",
+            "libavcodec/bsf/truehd_core.c",
+            "libavcodec/bsf/vp9_metadata.c",
+            "libavcodec/bsf/vp9_raw_reorder.c",
+            "libavcodec/bsf/vp9_superframe.c",
+            "libavcodec/bsf/vp9_superframe_split.c",
+            "libavcodec/bsf/vvc_mp4toannexb.c",
+            "libavcodec/bsf_internal.h",
+            "libavcodec/bsfgraph.c"
+          ],
+          "api_headers": [
+            "libavcodec/bsf.h"
+          ],
+          "counters": {
+            "implementation": {
+              "files": 60,
+              "loc": 10945,
+              "structs": 64,
+              "functions": 320,
+              "global_variables": 170,
+              "enums": 15,
+              "unions": 0,
+              "callbacks": 0,
+              "macros": 84
+            },
+            "api": {
+              "files": 1,
+              "loc": 99,
+              "structs": 4,
+              "opaque_structs": 3,
+              "functions": 35,
+              "global_variables": 0,
+              "enums": 1,
+              "unions": 0,
+              "callbacks": 0,
+              "macros": 4
+            }
+          },
+          "imported_deps": {
+            "in_tree": [
+              {
+                "link_unit": "libavcodec",
+                "subsystem": "codecs",
+                "outgoing_edges": 545,
+                "incoming_edges": 7,
+                "counters": {
+                  "structs": 83,
+                  "functions": 101,
+                  "global_variables": 8,
+                  "enums": 2,
+                  "unions": 0,
+                  "callbacks": 0,
+                  "macros": 17
+                }
+              },
+              {
+                "link_unit": "libavcodec",
+                "subsystem": "core",
+                "outgoing_edges": 421,
+                "incoming_edges": 8,
+                "counters": {
+                  "structs": 4,
+                  "functions": 25,
+                  "global_variables": 0,
+                  "enums": 3,
+                  "unions": 0,
+                  "callbacks": 0,
+                  "macros": 5
+                }
+              },
+              {
+                "link_unit": "libavcodec",
+                "subsystem": "utils",
+                "outgoing_edges": 23,
+                "incoming_edges": 0,
+                "counters": {
+                  "structs": 5,
+                  "functions": 8,
+                  "global_variables": 0,
+                  "enums": 0,
+                  "unions": 0,
+                  "callbacks": 0,
+                  "macros": 2
+                }
+              },
+              {
+                "link_unit": "libavutil",
+                "subsystem": "buffer-frame",
+                "outgoing_edges": 38,
+                "incoming_edges": 0,
+                "counters": {
+                  "structs": 2,
+                  "functions": 11,
+                  "global_variables": 0,
+                  "enums": 0,
+                  "unions": 0,
+                  "callbacks": 0,
+                  "macros": 2
+                }
+              },
+              {
+                "link_unit": "libavutil",
+                "subsystem": "containers",
+                "outgoing_edges": 51,
+                "incoming_edges": 0,
+                "counters": {
+                  "structs": 3,
+                  "functions": 15,
+                  "global_variables": 0,
+                  "enums": 0,
+                  "unions": 0,
+                  "callbacks": 0,
+                  "macros": 0
+                }
+              },
+              {
+                "link_unit": "libavutil",
+                "subsystem": "core",
+                "outgoing_edges": 1038,
+                "incoming_edges": 0,
+                "counters": {
+                  "structs": 3,
+                  "functions": 37,
+                  "global_variables": 0,
+                  "enums": 2,
+                  "unions": 2,
+                  "callbacks": 0,
+                  "macros": 70
+                }
+              },
+              {
+                "link_unit": "libavutil",
+                "subsystem": "crypto",
+                "outgoing_edges": 2,
+                "incoming_edges": 0,
+                "counters": {
+                  "structs": 1,
+                  "functions": 1,
+                  "global_variables": 0,
+                  "enums": 0,
+                  "unions": 0,
+                  "callbacks": 0,
+                  "macros": 0
+                }
+              },
+              {
+                "link_unit": "libavutil",
+                "subsystem": "formats",
+                "outgoing_edges": 7,
+                "incoming_edges": 0,
+                "counters": {
+                  "structs": 1,
+                  "functions": 0,
+                  "global_variables": 0,
+                  "enums": 0,
+                  "unions": 0,
+                  "callbacks": 0,
+                  "macros": 6
+                }
+              },
+              {
+                "link_unit": "libavutil",
+                "subsystem": "metadata",
+                "outgoing_edges": 7,
+                "incoming_edges": 0,
+                "counters": {
+                  "structs": 2,
+                  "functions": 2,
+                  "global_variables": 0,
+                  "enums": 1,
+                  "unions": 0,
+                  "callbacks": 0,
+                  "macros": 0
+                }
+              },
+              {
+                "link_unit": "libavutil",
+                "subsystem": "options",
+                "outgoing_edges": 61,
+                "incoming_edges": 0,
+                "counters": {
+                  "structs": 4,
+                  "functions": 12,
+                  "global_variables": 0,
+                  "enums": 0,
+                  "unions": 0,
+                  "callbacks": 0,
+                  "macros": 8
+                }
+              }
+            ],
+            "out_of_tree": [
+              {
+                "library": "gcc builtins",
+                "counters": {
+                  "structs": 0,
+                  "functions": 0,
+                  "global_variables": 0,
+                  "enums": 0,
+                  "unions": 0,
+                  "callbacks": 0,
+                  "macros": 8
+                }
+              },
+              {
+                "library": "libc",
+                "counters": {
+                  "structs": 7,
+                  "functions": 7,
+                  "global_variables": 0,
+                  "enums": 0,
+                  "unions": 0,
+                  "callbacks": 0,
+                  "macros": 15
+                }
+              },
+              {
+                "library": "libm",
+                "counters": {
+                  "structs": 0,
+                  "functions": 4,
+                  "global_variables": 0,
+                  "enums": 0,
+                  "unions": 0,
+                  "callbacks": 0,
+                  "macros": 3
+                }
+              },
+              {
+                "library": "linux-uapi (headers only)",
+                "counters": {
+                  "structs": 0,
+                  "functions": 0,
+                  "global_variables": 0,
+                  "enums": 0,
+                  "unions": 0,
+                  "callbacks": 0,
+                  "macros": 6
+                }
+              }
+            ]
+          }
+        },
+        {
+          "index": 3,
           "name": "codecs",
           "objective": {
             "objective": "wrap",
@@ -4119,542 +4673,17 @@
               }
             ]
           }
-        },
-        {
-          "name": "utils",
-          "objective": {
-            "objective": "wrap",
-            "rust_native_equivalent": []
-          },
-          "implementation_files": [
-            "libavcodec/ac3_parser.c",
-            "libavcodec/adts_parser.c",
-            "libavcodec/avdct.c",
-            "libavcodec/dirac.c",
-            "libavcodec/dv_profile.c",
-            "libavcodec/exif.c",
-            "libavcodec/smpte_436m.c",
-            "libavcodec/vorbis_parser.c"
-          ],
-          "api_headers": [
-            "libavcodec/ac3_parser.h",
-            "libavcodec/adts_parser.h",
-            "libavcodec/avdct.h",
-            "libavcodec/dirac.h",
-            "libavcodec/dv_profile.h",
-            "libavcodec/exif.h",
-            "libavcodec/smpte_436m.h",
-            "libavcodec/vorbis_parser.h"
-          ],
-          "counters": {
-            "implementation": {
-              "files": 8,
-              "loc": 3004,
-              "structs": 5,
-              "functions": 73,
-              "global_variables": 34,
-              "enums": 0,
-              "unions": 0,
-              "callbacks": 0,
-              "macros": 24
-            },
-            "api": {
-              "files": 8,
-              "loc": 294,
-              "structs": 10,
-              "opaque_structs": 1,
-              "functions": 37,
-              "global_variables": 0,
-              "enums": 5,
-              "unions": 0,
-              "callbacks": 0,
-              "macros": 20
-            }
-          },
-          "imported_deps": {
-            "in_tree": [
-              {
-                "link_unit": "libavcodec",
-                "subsystem": "codecs",
-                "outgoing_edges": 133,
-                "incoming_edges": 74,
-                "counters": {
-                  "structs": 11,
-                  "functions": 41,
-                  "global_variables": 7,
-                  "enums": 0,
-                  "unions": 0,
-                  "callbacks": 0,
-                  "macros": 10
-                }
-              },
-              {
-                "link_unit": "libavcodec",
-                "subsystem": "core",
-                "outgoing_edges": 34,
-                "incoming_edges": 29,
-                "counters": {
-                  "structs": 4,
-                  "functions": 4,
-                  "global_variables": 0,
-                  "enums": 0,
-                  "unions": 0,
-                  "callbacks": 0,
-                  "macros": 20
-                }
-              },
-              {
-                "link_unit": "libavutil",
-                "subsystem": "buffer-frame",
-                "outgoing_edges": 13,
-                "incoming_edges": 0,
-                "counters": {
-                  "structs": 3,
-                  "functions": 4,
-                  "global_variables": 0,
-                  "enums": 1,
-                  "unions": 0,
-                  "callbacks": 0,
-                  "macros": 0
-                }
-              },
-              {
-                "link_unit": "libavutil",
-                "subsystem": "core",
-                "outgoing_edges": 328,
-                "incoming_edges": 0,
-                "counters": {
-                  "structs": 5,
-                  "functions": 24,
-                  "global_variables": 0,
-                  "enums": 0,
-                  "unions": 2,
-                  "callbacks": 0,
-                  "macros": 54
-                }
-              },
-              {
-                "link_unit": "libavutil",
-                "subsystem": "crypto",
-                "outgoing_edges": 2,
-                "incoming_edges": 0,
-                "counters": {
-                  "structs": 0,
-                  "functions": 1,
-                  "global_variables": 0,
-                  "enums": 1,
-                  "unions": 0,
-                  "callbacks": 0,
-                  "macros": 0
-                }
-              },
-              {
-                "link_unit": "libavutil",
-                "subsystem": "formats",
-                "outgoing_edges": 23,
-                "incoming_edges": 0,
-                "counters": {
-                  "structs": 0,
-                  "functions": 2,
-                  "global_variables": 0,
-                  "enums": 5,
-                  "unions": 0,
-                  "callbacks": 0,
-                  "macros": 8
-                }
-              },
-              {
-                "link_unit": "libavutil",
-                "subsystem": "metadata",
-                "outgoing_edges": 3,
-                "incoming_edges": 0,
-                "counters": {
-                  "structs": 0,
-                  "functions": 3,
-                  "global_variables": 0,
-                  "enums": 0,
-                  "unions": 0,
-                  "callbacks": 0,
-                  "macros": 0
-                }
-              },
-              {
-                "link_unit": "libavutil",
-                "subsystem": "options",
-                "outgoing_edges": 10,
-                "incoming_edges": 0,
-                "counters": {
-                  "structs": 2,
-                  "functions": 2,
-                  "global_variables": 0,
-                  "enums": 0,
-                  "unions": 0,
-                  "callbacks": 0,
-                  "macros": 5
-                }
-              }
-            ],
-            "out_of_tree": [
-              {
-                "library": "gcc builtins",
-                "counters": {
-                  "structs": 0,
-                  "functions": 0,
-                  "global_variables": 0,
-                  "enums": 0,
-                  "unions": 0,
-                  "callbacks": 0,
-                  "macros": 4
-                }
-              },
-              {
-                "library": "libc",
-                "counters": {
-                  "structs": 8,
-                  "functions": 6,
-                  "global_variables": 0,
-                  "enums": 0,
-                  "unions": 0,
-                  "callbacks": 0,
-                  "macros": 7
-                }
-              },
-              {
-                "library": "libm",
-                "counters": {
-                  "structs": 0,
-                  "functions": 0,
-                  "global_variables": 0,
-                  "enums": 0,
-                  "unions": 0,
-                  "callbacks": 0,
-                  "macros": 1
-                }
-              },
-              {
-                "library": "linux-uapi (headers only)",
-                "counters": {
-                  "structs": 0,
-                  "functions": 0,
-                  "global_variables": 0,
-                  "enums": 0,
-                  "unions": 0,
-                  "callbacks": 0,
-                  "macros": 3
-                }
-              }
-            ]
-          }
-        },
-        {
-          "name": "bsf",
-          "objective": {
-            "objective": "wrap",
-            "rust_native_equivalent": []
-          },
-          "implementation_files": [
-            "libavcodec/bitstream_filters.c",
-            "libavcodec/bitstreamfilter.c",
-            "libavcodec/bsf.c",
-            "libavcodec/bsf/aac_adtstoasc.c",
-            "libavcodec/bsf/apv_metadata.c",
-            "libavcodec/bsf/av1_frame_merge.c",
-            "libavcodec/bsf/av1_frame_split.c",
-            "libavcodec/bsf/av1_metadata.c",
-            "libavcodec/bsf/chomp.c",
-            "libavcodec/bsf/dca_core.c",
-            "libavcodec/bsf/dovi_rpu.c",
-            "libavcodec/bsf/dovi_split.c",
-            "libavcodec/bsf/dts2pts.c",
-            "libavcodec/bsf/dump_extradata.c",
-            "libavcodec/bsf/dv_error_marker.c",
-            "libavcodec/bsf/eac3_core.c",
-            "libavcodec/bsf/eia608_to_smpte436m.c",
-            "libavcodec/bsf/evc_frame_merge.c",
-            "libavcodec/bsf/extract_extradata.c",
-            "libavcodec/bsf/filter_units.c",
-            "libavcodec/bsf/filters.h",
-            "libavcodec/bsf/h264_metadata.c",
-            "libavcodec/bsf/h264_mp4toannexb.c",
-            "libavcodec/bsf/h264_redundant_pps.c",
-            "libavcodec/bsf/h265_metadata.c",
-            "libavcodec/bsf/h266_metadata.c",
-            "libavcodec/bsf/hapqa_extract.c",
-            "libavcodec/bsf/hevc_mp4toannexb.c",
-            "libavcodec/bsf/imx_dump_header.c",
-            "libavcodec/bsf/lcevc_merge.c",
-            "libavcodec/bsf/lcevc_metadata.c",
-            "libavcodec/bsf/media100_to_mjpegb.c",
-            "libavcodec/bsf/mjpeg2jpeg.c",
-            "libavcodec/bsf/mjpega_dump_header.c",
-            "libavcodec/bsf/movsub.c",
-            "libavcodec/bsf/mpeg2_metadata.c",
-            "libavcodec/bsf/mpeg4_unpack_bframes.c",
-            "libavcodec/bsf/noise.c",
-            "libavcodec/bsf/null.c",
-            "libavcodec/bsf/opus_metadata.c",
-            "libavcodec/bsf/packetsync.c",
-            "libavcodec/bsf/packetsync.h",
-            "libavcodec/bsf/pcm_rechunk.c",
-            "libavcodec/bsf/pgs_frame_merge.c",
-            "libavcodec/bsf/prores_metadata.c",
-            "libavcodec/bsf/remove_extradata.c",
-            "libavcodec/bsf/setts.c",
-            "libavcodec/bsf/showinfo.c",
-            "libavcodec/bsf/sink.c",
-            "libavcodec/bsf/smpte436m_to_eia608.c",
-            "libavcodec/bsf/source.c",
-            "libavcodec/bsf/trace_headers.c",
-            "libavcodec/bsf/truehd_core.c",
-            "libavcodec/bsf/vp9_metadata.c",
-            "libavcodec/bsf/vp9_raw_reorder.c",
-            "libavcodec/bsf/vp9_superframe.c",
-            "libavcodec/bsf/vp9_superframe_split.c",
-            "libavcodec/bsf/vvc_mp4toannexb.c",
-            "libavcodec/bsf_internal.h",
-            "libavcodec/bsfgraph.c"
-          ],
-          "api_headers": [
-            "libavcodec/bsf.h"
-          ],
-          "counters": {
-            "implementation": {
-              "files": 60,
-              "loc": 10945,
-              "structs": 64,
-              "functions": 320,
-              "global_variables": 170,
-              "enums": 15,
-              "unions": 0,
-              "callbacks": 0,
-              "macros": 84
-            },
-            "api": {
-              "files": 1,
-              "loc": 99,
-              "structs": 4,
-              "opaque_structs": 3,
-              "functions": 35,
-              "global_variables": 0,
-              "enums": 1,
-              "unions": 0,
-              "callbacks": 0,
-              "macros": 4
-            }
-          },
-          "imported_deps": {
-            "in_tree": [
-              {
-                "link_unit": "libavcodec",
-                "subsystem": "codecs",
-                "outgoing_edges": 545,
-                "incoming_edges": 7,
-                "counters": {
-                  "structs": 83,
-                  "functions": 101,
-                  "global_variables": 8,
-                  "enums": 2,
-                  "unions": 0,
-                  "callbacks": 0,
-                  "macros": 17
-                }
-              },
-              {
-                "link_unit": "libavcodec",
-                "subsystem": "core",
-                "outgoing_edges": 421,
-                "incoming_edges": 8,
-                "counters": {
-                  "structs": 4,
-                  "functions": 25,
-                  "global_variables": 0,
-                  "enums": 3,
-                  "unions": 0,
-                  "callbacks": 0,
-                  "macros": 5
-                }
-              },
-              {
-                "link_unit": "libavcodec",
-                "subsystem": "utils",
-                "outgoing_edges": 23,
-                "incoming_edges": 0,
-                "counters": {
-                  "structs": 5,
-                  "functions": 8,
-                  "global_variables": 0,
-                  "enums": 0,
-                  "unions": 0,
-                  "callbacks": 0,
-                  "macros": 2
-                }
-              },
-              {
-                "link_unit": "libavutil",
-                "subsystem": "buffer-frame",
-                "outgoing_edges": 38,
-                "incoming_edges": 0,
-                "counters": {
-                  "structs": 2,
-                  "functions": 11,
-                  "global_variables": 0,
-                  "enums": 0,
-                  "unions": 0,
-                  "callbacks": 0,
-                  "macros": 2
-                }
-              },
-              {
-                "link_unit": "libavutil",
-                "subsystem": "containers",
-                "outgoing_edges": 51,
-                "incoming_edges": 0,
-                "counters": {
-                  "structs": 3,
-                  "functions": 15,
-                  "global_variables": 0,
-                  "enums": 0,
-                  "unions": 0,
-                  "callbacks": 0,
-                  "macros": 0
-                }
-              },
-              {
-                "link_unit": "libavutil",
-                "subsystem": "core",
-                "outgoing_edges": 1038,
-                "incoming_edges": 0,
-                "counters": {
-                  "structs": 3,
-                  "functions": 37,
-                  "global_variables": 0,
-                  "enums": 2,
-                  "unions": 2,
-                  "callbacks": 0,
-                  "macros": 70
-                }
-              },
-              {
-                "link_unit": "libavutil",
-                "subsystem": "crypto",
-                "outgoing_edges": 2,
-                "incoming_edges": 0,
-                "counters": {
-                  "structs": 1,
-                  "functions": 1,
-                  "global_variables": 0,
-                  "enums": 0,
-                  "unions": 0,
-                  "callbacks": 0,
-                  "macros": 0
-                }
-              },
-              {
-                "link_unit": "libavutil",
-                "subsystem": "formats",
-                "outgoing_edges": 7,
-                "incoming_edges": 0,
-                "counters": {
-                  "structs": 1,
-                  "functions": 0,
-                  "global_variables": 0,
-                  "enums": 0,
-                  "unions": 0,
-                  "callbacks": 0,
-                  "macros": 6
-                }
-              },
-              {
-                "link_unit": "libavutil",
-                "subsystem": "metadata",
-                "outgoing_edges": 7,
-                "incoming_edges": 0,
-                "counters": {
-                  "structs": 2,
-                  "functions": 2,
-                  "global_variables": 0,
-                  "enums": 1,
-                  "unions": 0,
-                  "callbacks": 0,
-                  "macros": 0
-                }
-              },
-              {
-                "link_unit": "libavutil",
-                "subsystem": "options",
-                "outgoing_edges": 61,
-                "incoming_edges": 0,
-                "counters": {
-                  "structs": 4,
-                  "functions": 12,
-                  "global_variables": 0,
-                  "enums": 0,
-                  "unions": 0,
-                  "callbacks": 0,
-                  "macros": 8
-                }
-              }
-            ],
-            "out_of_tree": [
-              {
-                "library": "gcc builtins",
-                "counters": {
-                  "structs": 0,
-                  "functions": 0,
-                  "global_variables": 0,
-                  "enums": 0,
-                  "unions": 0,
-                  "callbacks": 0,
-                  "macros": 8
-                }
-              },
-              {
-                "library": "libc",
-                "counters": {
-                  "structs": 7,
-                  "functions": 7,
-                  "global_variables": 0,
-                  "enums": 0,
-                  "unions": 0,
-                  "callbacks": 0,
-                  "macros": 15
-                }
-              },
-              {
-                "library": "libm",
-                "counters": {
-                  "structs": 0,
-                  "functions": 4,
-                  "global_variables": 0,
-                  "enums": 0,
-                  "unions": 0,
-                  "callbacks": 0,
-                  "macros": 3
-                }
-              },
-              {
-                "library": "linux-uapi (headers only)",
-                "counters": {
-                  "structs": 0,
-                  "functions": 0,
-                  "global_variables": 0,
-                  "enums": 0,
-                  "unions": 0,
-                  "callbacks": 0,
-                  "macros": 6
-                }
-              }
-            ]
-          }
         }
       ]
     },
     {
+      "index": 4,
       "name": "libavformat",
       "kind": "library",
       "linkage": "shared",
       "subsystems": [
         {
+          "index": 0,
           "name": "avio",
           "objective": {
             "objective": "wrap",
@@ -4812,6 +4841,7 @@
           }
         },
         {
+          "index": 1,
           "name": "core",
           "objective": {
             "objective": "wrap",
@@ -5104,6 +5134,7 @@
           }
         },
         {
+          "index": 2,
           "name": "formats",
           "objective": {
             "objective": "wrap",
@@ -6059,11 +6090,13 @@
       ]
     },
     {
+      "index": 5,
       "name": "libavfilter",
       "kind": "library",
       "linkage": "shared",
       "subsystems": [
         {
+          "index": 0,
           "name": "core",
           "objective": {
             "objective": "wrap",
@@ -6257,6 +6290,7 @@
           }
         },
         {
+          "index": 1,
           "name": "filters",
           "objective": {
             "objective": "wrap",
@@ -7088,11 +7122,13 @@
       ]
     },
     {
+      "index": 6,
       "name": "libavdevice",
       "kind": "library",
       "linkage": "shared",
       "subsystems": [
         {
+          "index": 0,
           "name": "core",
           "objective": {
             "objective": "wrap",
@@ -7237,6 +7273,7 @@
           }
         },
         {
+          "index": 1,
           "name": "devices",
           "objective": {
             "objective": "wrap",
@@ -7480,12 +7517,14 @@
       ]
     },
     {
+      "index": 7,
       "name": "ffmpeg",
       "kind": "executable",
       "linkage": null,
       "subsystems": []
     },
     {
+      "index": 8,
       "name": "ffprobe",
       "kind": "executable",
       "linkage": null,

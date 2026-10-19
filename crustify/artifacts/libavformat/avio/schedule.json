@@ -1,0 +1,564 @@
+{
+  "schema_version": 2,
+  "waves": [
+    {
+      "index": 0,
+      "batches": [
+        {
+          "objective": "wrap",
+          "items": [
+            {
+              "name": "AVIODataMarkerType",
+              "defined_in": "libavformat/avio.h",
+              "kind": "type",
+              "field_anchors": [],
+              "home": "crustify/rust/ffmpeg/libavformat/avio.rs"
+            },
+            {
+              "name": "AVIODirContext",
+              "defined_in": "libavformat/avio.c",
+              "kind": "type",
+              "field_anchors": [],
+              "home": "crustify/rust/ffmpeg/libavformat/avio.rs"
+            }
+          ]
+        },
+        {
+          "objective": "wrap",
+          "items": [
+            {
+              "name": "AVIODirEntry",
+              "defined_in": "libavformat/avio.h",
+              "kind": "type",
+              "field_anchors": [
+                "name",
+                "type",
+                "size",
+                "group_id",
+                "filemode",
+                "user_id",
+                "status_change_timestamp",
+                "access_timestamp",
+                "modification_timestamp",
+                "utf8"
+              ],
+              "home": "crustify/rust/ffmpeg/libavformat/avio.rs"
+            },
+            {
+              "name": "AVIODirEntryType",
+              "defined_in": "libavformat/avio.h",
+              "kind": "type",
+              "field_anchors": [],
+              "home": "crustify/rust/ffmpeg/libavformat/avio.rs"
+            }
+          ]
+        },
+        {
+          "objective": "wrap",
+          "items": [
+            {
+              "name": "AVIOInterruptCB",
+              "defined_in": "libavformat/avio.h",
+              "kind": "type",
+              "field_anchors": [
+                "opaque",
+                "callback"
+              ],
+              "home": "crustify/rust/ffmpeg/libavformat/avio.rs"
+            }
+          ]
+        },
+        {
+          "objective": "wrap",
+          "items": [
+            {
+              "name": "avio_check",
+              "defined_in": "libavformat/avio.c",
+              "kind": "symbol",
+              "field_anchors": [],
+              "home": "crustify/rust/ffmpeg/libavformat/avio.rs"
+            },
+            {
+              "name": "avio_enum_protocols",
+              "defined_in": "libavformat/protocols.c",
+              "kind": "symbol",
+              "field_anchors": [],
+              "home": "crustify/rust/ffmpeg/libavformat/avio.rs"
+            },
+            {
+              "name": "avio_find_protocol_name",
+              "defined_in": "libavformat/avio.c",
+              "kind": "symbol",
+              "field_anchors": [],
+              "home": "crustify/rust/ffmpeg/libavformat/avio.rs"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "index": 1,
+      "batches": [
+        {
+          "objective": "wrap",
+          "items": [
+            {
+              "name": "AVIOContext",
+              "defined_in": "libavformat/avio.h",
+              "kind": "type",
+              "field_anchors": [
+                "buffer",
+                "error",
+                "opaque",
+                "protocol_blacklist",
+                "protocol_whitelist",
+                "av_class",
+                "pos",
+                "buf_end",
+                "buffer_size",
+                "write_packet",
+                "buf_ptr",
+                "bytes_read",
+                "read_packet",
+                "checksum",
+                "seek",
+                "bytes_written",
+                "max_packet_size",
+                "direct",
+                "read_seek",
+                "buf_ptr_max",
+                "ignore_boundary_point",
+                "write_data_type",
+                "seekable",
+                "read_pause",
+                "update_checksum",
+                "checksum_ptr",
+                "min_packet_size",
+                "write_flag",
+                "eof_reached"
+              ],
+              "home": "crustify/rust/ffmpeg/libavformat/avio.rs"
+            }
+          ]
+        },
+        {
+          "objective": "wrap",
+          "items": [
+            {
+              "name": "avio_close_dir",
+              "defined_in": "libavformat/avio.c",
+              "kind": "symbol",
+              "field_anchors": [],
+              "home": "crustify/rust/ffmpeg/libavformat/avio.rs"
+            },
+            {
+              "name": "avio_free_directory_entry",
+              "defined_in": "libavformat/avio.c",
+              "kind": "symbol",
+              "field_anchors": [],
+              "home": "crustify/rust/ffmpeg/libavformat/avio.rs"
+            },
+            {
+              "name": "avio_open_dir",
+              "defined_in": "libavformat/avio.c",
+              "kind": "symbol",
+              "field_anchors": [],
+              "home": "crustify/rust/ffmpeg/libavformat/avio.rs"
+            },
+            {
+              "name": "avio_protocol_get_class",
+              "defined_in": "libavformat/protocols.c",
+              "kind": "symbol",
+              "field_anchors": [],
+              "home": "crustify/rust/ffmpeg/libavformat/avio.rs"
+            },
+            {
+              "name": "avio_read_dir",
+              "defined_in": "libavformat/avio.c",
+              "kind": "symbol",
+              "field_anchors": [],
+              "home": "crustify/rust/ffmpeg/libavformat/avio.rs"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "index": 2,
+      "batches": [
+        {
+          "objective": "wrap",
+          "items": [
+            {
+              "name": "avio_accept",
+              "defined_in": "libavformat/avio.c",
+              "kind": "symbol",
+              "field_anchors": [],
+              "home": "crustify/rust/ffmpeg/libavformat/avio.rs"
+            },
+            {
+              "name": "avio_alloc_context",
+              "defined_in": "libavformat/aviobuf.c",
+              "kind": "symbol",
+              "field_anchors": [],
+              "home": "crustify/rust/ffmpeg/libavformat/avio.rs"
+            },
+            {
+              "name": "avio_close",
+              "defined_in": "libavformat/avio.c",
+              "kind": "symbol",
+              "field_anchors": [],
+              "home": "crustify/rust/ffmpeg/libavformat/avio.rs"
+            },
+            {
+              "name": "avio_close_dyn_buf",
+              "defined_in": "libavformat/aviobuf.c",
+              "kind": "symbol",
+              "field_anchors": [],
+              "home": "crustify/rust/ffmpeg/libavformat/avio.rs"
+            },
+            {
+              "name": "avio_closep",
+              "defined_in": "libavformat/avio.c",
+              "kind": "symbol",
+              "field_anchors": [],
+              "home": "crustify/rust/ffmpeg/libavformat/avio.rs"
+            },
+            {
+              "name": "avio_context_free",
+              "defined_in": "libavformat/aviobuf.c",
+              "kind": "symbol",
+              "field_anchors": [],
+              "home": "crustify/rust/ffmpeg/libavformat/avio.rs"
+            },
+            {
+              "name": "avio_feof",
+              "defined_in": "libavformat/aviobuf.c",
+              "kind": "symbol",
+              "field_anchors": [],
+              "home": "crustify/rust/ffmpeg/libavformat/avio.rs"
+            },
+            {
+              "name": "avio_flush",
+              "defined_in": "libavformat/aviobuf.c",
+              "kind": "symbol",
+              "field_anchors": [],
+              "home": "crustify/rust/ffmpeg/libavformat/avio.rs"
+            },
+            {
+              "name": "avio_get_dyn_buf",
+              "defined_in": "libavformat/aviobuf.c",
+              "kind": "symbol",
+              "field_anchors": [],
+              "home": "crustify/rust/ffmpeg/libavformat/avio.rs"
+            },
+            {
+              "name": "avio_get_str",
+              "defined_in": "libavformat/aviobuf.c",
+              "kind": "symbol",
+              "field_anchors": [],
+              "home": "crustify/rust/ffmpeg/libavformat/avio.rs"
+            },
+            {
+              "name": "avio_get_str16be",
+              "defined_in": "libavformat/aviobuf.c",
+              "kind": "symbol",
+              "field_anchors": [],
+              "home": "crustify/rust/ffmpeg/libavformat/avio.rs"
+            },
+            {
+              "name": "avio_get_str16le",
+              "defined_in": "libavformat/aviobuf.c",
+              "kind": "symbol",
+              "field_anchors": [],
+              "home": "crustify/rust/ffmpeg/libavformat/avio.rs"
+            },
+            {
+              "name": "avio_handshake",
+              "defined_in": "libavformat/avio.c",
+              "kind": "symbol",
+              "field_anchors": [],
+              "home": "crustify/rust/ffmpeg/libavformat/avio.rs"
+            },
+            {
+              "name": "avio_open",
+              "defined_in": "libavformat/avio.c",
+              "kind": "symbol",
+              "field_anchors": [],
+              "home": "crustify/rust/ffmpeg/libavformat/avio.rs"
+            },
+            {
+              "name": "avio_open2",
+              "defined_in": "libavformat/avio.c",
+              "kind": "symbol",
+              "field_anchors": [],
+              "home": "crustify/rust/ffmpeg/libavformat/avio.rs"
+            },
+            {
+              "name": "avio_open_dyn_buf",
+              "defined_in": "libavformat/aviobuf.c",
+              "kind": "symbol",
+              "field_anchors": [],
+              "home": "crustify/rust/ffmpeg/libavformat/avio.rs"
+            },
+            {
+              "name": "avio_pause",
+              "defined_in": "libavformat/aviobuf.c",
+              "kind": "symbol",
+              "field_anchors": [],
+              "home": "crustify/rust/ffmpeg/libavformat/avio.rs"
+            },
+            {
+              "name": "avio_print_string_array",
+              "defined_in": "libavformat/aviobuf.c",
+              "kind": "symbol",
+              "field_anchors": [],
+              "home": "crustify/rust/ffmpeg/libavformat/avio.rs"
+            },
+            {
+              "name": "avio_printf",
+              "defined_in": "libavformat/aviobuf.c",
+              "kind": "symbol",
+              "field_anchors": [],
+              "home": "crustify/rust/ffmpeg/libavformat/avio.rs"
+            },
+            {
+              "name": "avio_put_str",
+              "defined_in": "libavformat/aviobuf.c",
+              "kind": "symbol",
+              "field_anchors": [],
+              "home": "crustify/rust/ffmpeg/libavformat/avio.rs"
+            },
+            {
+              "name": "avio_put_str16be",
+              "defined_in": "libavformat/aviobuf.c",
+              "kind": "symbol",
+              "field_anchors": [],
+              "home": "crustify/rust/ffmpeg/libavformat/avio.rs"
+            },
+            {
+              "name": "avio_put_str16le",
+              "defined_in": "libavformat/aviobuf.c",
+              "kind": "symbol",
+              "field_anchors": [],
+              "home": "crustify/rust/ffmpeg/libavformat/avio.rs"
+            },
+            {
+              "name": "avio_r8",
+              "defined_in": "libavformat/aviobuf.c",
+              "kind": "symbol",
+              "field_anchors": [],
+              "home": "crustify/rust/ffmpeg/libavformat/avio.rs"
+            },
+            {
+              "name": "avio_rb16",
+              "defined_in": "libavformat/aviobuf.c",
+              "kind": "symbol",
+              "field_anchors": [],
+              "home": "crustify/rust/ffmpeg/libavformat/avio.rs"
+            },
+            {
+              "name": "avio_rb24",
+              "defined_in": "libavformat/aviobuf.c",
+              "kind": "symbol",
+              "field_anchors": [],
+              "home": "crustify/rust/ffmpeg/libavformat/avio.rs"
+            }
+          ]
+        },
+        {
+          "objective": "wrap",
+          "items": [
+            {
+              "name": "avio_rb32",
+              "defined_in": "libavformat/aviobuf.c",
+              "kind": "symbol",
+              "field_anchors": [],
+              "home": "crustify/rust/ffmpeg/libavformat/avio.rs"
+            },
+            {
+              "name": "avio_rb64",
+              "defined_in": "libavformat/aviobuf.c",
+              "kind": "symbol",
+              "field_anchors": [],
+              "home": "crustify/rust/ffmpeg/libavformat/avio.rs"
+            },
+            {
+              "name": "avio_read",
+              "defined_in": "libavformat/aviobuf.c",
+              "kind": "symbol",
+              "field_anchors": [],
+              "home": "crustify/rust/ffmpeg/libavformat/avio.rs"
+            },
+            {
+              "name": "avio_read_partial",
+              "defined_in": "libavformat/aviobuf.c",
+              "kind": "symbol",
+              "field_anchors": [],
+              "home": "crustify/rust/ffmpeg/libavformat/avio.rs"
+            },
+            {
+              "name": "avio_read_to_bprint",
+              "defined_in": "libavformat/aviobuf.c",
+              "kind": "symbol",
+              "field_anchors": [],
+              "home": "crustify/rust/ffmpeg/libavformat/avio.rs"
+            },
+            {
+              "name": "avio_rl16",
+              "defined_in": "libavformat/aviobuf.c",
+              "kind": "symbol",
+              "field_anchors": [],
+              "home": "crustify/rust/ffmpeg/libavformat/avio.rs"
+            },
+            {
+              "name": "avio_rl24",
+              "defined_in": "libavformat/aviobuf.c",
+              "kind": "symbol",
+              "field_anchors": [],
+              "home": "crustify/rust/ffmpeg/libavformat/avio.rs"
+            },
+            {
+              "name": "avio_rl32",
+              "defined_in": "libavformat/aviobuf.c",
+              "kind": "symbol",
+              "field_anchors": [],
+              "home": "crustify/rust/ffmpeg/libavformat/avio.rs"
+            },
+            {
+              "name": "avio_rl64",
+              "defined_in": "libavformat/aviobuf.c",
+              "kind": "symbol",
+              "field_anchors": [],
+              "home": "crustify/rust/ffmpeg/libavformat/avio.rs"
+            },
+            {
+              "name": "avio_seek",
+              "defined_in": "libavformat/aviobuf.c",
+              "kind": "symbol",
+              "field_anchors": [],
+              "home": "crustify/rust/ffmpeg/libavformat/avio.rs"
+            },
+            {
+              "name": "avio_seek_time",
+              "defined_in": "libavformat/aviobuf.c",
+              "kind": "symbol",
+              "field_anchors": [],
+              "home": "crustify/rust/ffmpeg/libavformat/avio.rs"
+            },
+            {
+              "name": "avio_size",
+              "defined_in": "libavformat/aviobuf.c",
+              "kind": "symbol",
+              "field_anchors": [],
+              "home": "crustify/rust/ffmpeg/libavformat/avio.rs"
+            },
+            {
+              "name": "avio_skip",
+              "defined_in": "libavformat/aviobuf.c",
+              "kind": "symbol",
+              "field_anchors": [],
+              "home": "crustify/rust/ffmpeg/libavformat/avio.rs"
+            },
+            {
+              "name": "avio_tell",
+              "defined_in": "libavformat/avio.h",
+              "kind": "symbol",
+              "field_anchors": [],
+              "home": "crustify/rust/ffmpeg/libavformat/avio.rs"
+            },
+            {
+              "name": "avio_vprintf",
+              "defined_in": "libavformat/aviobuf.c",
+              "kind": "symbol",
+              "field_anchors": [],
+              "home": "crustify/rust/ffmpeg/libavformat/avio.rs"
+            },
+            {
+              "name": "avio_w8",
+              "defined_in": "libavformat/aviobuf.c",
+              "kind": "symbol",
+              "field_anchors": [],
+              "home": "crustify/rust/ffmpeg/libavformat/avio.rs"
+            },
+            {
+              "name": "avio_wb16",
+              "defined_in": "libavformat/aviobuf.c",
+              "kind": "symbol",
+              "field_anchors": [],
+              "home": "crustify/rust/ffmpeg/libavformat/avio.rs"
+            },
+            {
+              "name": "avio_wb24",
+              "defined_in": "libavformat/aviobuf.c",
+              "kind": "symbol",
+              "field_anchors": [],
+              "home": "crustify/rust/ffmpeg/libavformat/avio.rs"
+            },
+            {
+              "name": "avio_wb32",
+              "defined_in": "libavformat/aviobuf.c",
+              "kind": "symbol",
+              "field_anchors": [],
+              "home": "crustify/rust/ffmpeg/libavformat/avio.rs"
+            },
+            {
+              "name": "avio_wb64",
+              "defined_in": "libavformat/aviobuf.c",
+              "kind": "symbol",
+              "field_anchors": [],
+              "home": "crustify/rust/ffmpeg/libavformat/avio.rs"
+            },
+            {
+              "name": "avio_wl16",
+              "defined_in": "libavformat/aviobuf.c",
+              "kind": "symbol",
+              "field_anchors": [],
+              "home": "crustify/rust/ffmpeg/libavformat/avio.rs"
+            },
+            {
+              "name": "avio_wl24",
+              "defined_in": "libavformat/aviobuf.c",
+              "kind": "symbol",
+              "field_anchors": [],
+              "home": "crustify/rust/ffmpeg/libavformat/avio.rs"
+            },
+            {
+              "name": "avio_wl32",
+              "defined_in": "libavformat/aviobuf.c",
+              "kind": "symbol",
+              "field_anchors": [],
+              "home": "crustify/rust/ffmpeg/libavformat/avio.rs"
+            },
+            {
+              "name": "avio_wl64",
+              "defined_in": "libavformat/aviobuf.c",
+              "kind": "symbol",
+              "field_anchors": [],
+              "home": "crustify/rust/ffmpeg/libavformat/avio.rs"
+            },
+            {
+              "name": "avio_write",
+              "defined_in": "libavformat/aviobuf.c",
+              "kind": "symbol",
+              "field_anchors": [],
+              "home": "crustify/rust/ffmpeg/libavformat/avio.rs"
+            }
+          ]
+        },
+        {
+          "objective": "wrap",
+          "items": [
+            {
+              "name": "avio_write_marker",
+              "defined_in": "libavformat/aviobuf.c",
+              "kind": "symbol",
+              "field_anchors": [],
+              "home": "crustify/rust/ffmpeg/libavformat/avio.rs"
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

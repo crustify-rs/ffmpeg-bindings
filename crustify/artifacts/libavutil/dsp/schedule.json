@@ -1,0 +1,157 @@
+{
+  "schema_version": 2,
+  "waves": [
+    {
+      "index": 0,
+      "batches": [
+        {
+          "objective": "wrap",
+          "items": [
+            {
+              "name": "AVComplexDouble",
+              "defined_in": "libavutil/tx.h",
+              "kind": "type",
+              "field_anchors": [
+                "re",
+                "im"
+              ],
+              "home": "crustify/rust/ffmpeg/libavutil/tx.rs"
+            },
+            {
+              "name": "AVComplexFloat",
+              "defined_in": "libavutil/tx.h",
+              "kind": "type",
+              "field_anchors": [
+                "re",
+                "im"
+              ],
+              "home": "crustify/rust/ffmpeg/libavutil/tx.rs"
+            }
+          ]
+        },
+        {
+          "objective": "wrap",
+          "items": [
+            {
+              "name": "AVComplexInt32",
+              "defined_in": "libavutil/tx.h",
+              "kind": "type",
+              "field_anchors": [
+                "re",
+                "im"
+              ],
+              "home": "crustify/rust/ffmpeg/libavutil/tx.rs"
+            },
+            {
+              "name": "AVLFG",
+              "defined_in": "libavutil/lfg.h",
+              "kind": "type",
+              "field_anchors": [
+                "state",
+                "index"
+              ],
+              "home": "crustify/rust/ffmpeg/libavutil/lfg.rs"
+            }
+          ]
+        },
+        {
+          "objective": "wrap",
+          "items": [
+            {
+              "name": "AVTXContext",
+              "defined_in": "libavutil/tx_priv.h",
+              "kind": "type",
+              "field_anchors": [],
+              "home": "crustify/rust/ffmpeg/libavutil/tx.rs"
+            },
+            {
+              "name": "AVTXFlags",
+              "defined_in": "libavutil/tx.h",
+              "kind": "type",
+              "field_anchors": [],
+              "home": "crustify/rust/ffmpeg/libavutil/tx.rs"
+            }
+          ]
+        },
+        {
+          "objective": "wrap",
+          "items": [
+            {
+              "name": "AVTXType",
+              "defined_in": "libavutil/tx.h",
+              "kind": "type",
+              "field_anchors": [],
+              "home": "crustify/rust/ffmpeg/libavutil/tx.rs"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "index": 1,
+      "batches": [
+        {
+          "objective": "wrap",
+          "items": [
+            {
+              "name": "av_bmg_get",
+              "defined_in": "libavutil/lfg.c",
+              "kind": "symbol",
+              "field_anchors": [],
+              "home": "crustify/rust/ffmpeg/libavutil/lfg.rs"
+            },
+            {
+              "name": "av_lfg_get",
+              "defined_in": "libavutil/lfg.h",
+              "kind": "symbol",
+              "field_anchors": [],
+              "home": "crustify/rust/ffmpeg/libavutil/lfg.rs"
+            },
+            {
+              "name": "av_lfg_init",
+              "defined_in": "libavutil/lfg.c",
+              "kind": "symbol",
+              "field_anchors": [],
+              "home": "crustify/rust/ffmpeg/libavutil/lfg.rs"
+            },
+            {
+              "name": "av_lfg_init_from_data",
+              "defined_in": "libavutil/lfg.c",
+              "kind": "symbol",
+              "field_anchors": [],
+              "home": "crustify/rust/ffmpeg/libavutil/lfg.rs"
+            },
+            {
+              "name": "av_mlfg_get",
+              "defined_in": "libavutil/lfg.h",
+              "kind": "symbol",
+              "field_anchors": [],
+              "home": "crustify/rust/ffmpeg/libavutil/lfg.rs"
+            },
+            {
+              "name": "av_tx_fn",
+              "defined_in": "libavutil/tx.h",
+              "kind": "callback",
+              "field_anchors": [],
+              "home": "crustify/rust/ffmpeg/libavutil/tx.rs"
+            },
+            {
+              "name": "av_tx_uninit",
+              "defined_in": "libavutil/tx.c",
+              "kind": "symbol",
+              "field_anchors": [],
+              "home": "crustify/rust/ffmpeg/libavutil/tx.rs"
+            },
+            {
+              "name": "av_tx_init",
+              "defined_in": "libavutil/tx.c",
+              "kind": "symbol",
+              "field_anchors": [],
+              "home": "crustify/rust/ffmpeg/libavutil/tx.rs"
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

@@ -1,0 +1,227 @@
+{
+  "schema_version": 2,
+  "waves": [
+    {
+      "index": 0,
+      "batches": [
+        {
+          "objective": "wrap",
+          "items": [
+            {
+              "name": "SwrContext",
+              "defined_in": "libswresample/swresample_internal.h",
+              "kind": "type",
+              "field_anchors": [],
+              "home": "crustify/rust/ffmpeg/libswresample/swresample.rs"
+            }
+          ]
+        },
+        {
+          "objective": "wrap",
+          "items": [
+            {
+              "name": "SwrDitherType",
+              "defined_in": "libswresample/swresample.h",
+              "kind": "type",
+              "field_anchors": [],
+              "home": "crustify/rust/ffmpeg/libswresample/swresample.rs"
+            },
+            {
+              "name": "SwrEngine",
+              "defined_in": "libswresample/swresample.h",
+              "kind": "type",
+              "field_anchors": [],
+              "home": "crustify/rust/ffmpeg/libswresample/swresample.rs"
+            }
+          ]
+        },
+        {
+          "objective": "wrap",
+          "items": [
+            {
+              "name": "SwrFilterType",
+              "defined_in": "libswresample/swresample.h",
+              "kind": "type",
+              "field_anchors": [],
+              "home": "crustify/rust/ffmpeg/libswresample/swresample.rs"
+            }
+          ]
+        },
+        {
+          "objective": "wrap",
+          "items": [
+            {
+              "name": "swresample_configuration",
+              "defined_in": "libswresample/version.c",
+              "kind": "symbol",
+              "field_anchors": [],
+              "home": "crustify/rust/ffmpeg/libswresample/swresample.rs"
+            },
+            {
+              "name": "swresample_license",
+              "defined_in": "libswresample/version.c",
+              "kind": "symbol",
+              "field_anchors": [],
+              "home": "crustify/rust/ffmpeg/libswresample/swresample.rs"
+            },
+            {
+              "name": "swresample_version",
+              "defined_in": "libswresample/version.c",
+              "kind": "symbol",
+              "field_anchors": [],
+              "home": "crustify/rust/ffmpeg/libswresample/swresample.rs"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "index": 1,
+      "batches": [
+        {
+          "objective": "wrap",
+          "items": [
+            {
+              "name": "swr_alloc",
+              "defined_in": "libswresample/options.c",
+              "kind": "symbol",
+              "field_anchors": [],
+              "home": "crustify/rust/ffmpeg/libswresample/swresample.rs"
+            },
+            {
+              "name": "swr_alloc_set_opts2",
+              "defined_in": "libswresample/swresample.c",
+              "kind": "symbol",
+              "field_anchors": [],
+              "home": "crustify/rust/ffmpeg/libswresample/swresample.rs"
+            },
+            {
+              "name": "swr_build_matrix2",
+              "defined_in": "libswresample/rematrix.c",
+              "kind": "symbol",
+              "field_anchors": [],
+              "home": "crustify/rust/ffmpeg/libswresample/swresample.rs"
+            },
+            {
+              "name": "swr_close",
+              "defined_in": "libswresample/swresample.c",
+              "kind": "symbol",
+              "field_anchors": [],
+              "home": "crustify/rust/ffmpeg/libswresample/swresample.rs"
+            },
+            {
+              "name": "swr_config_frame",
+              "defined_in": "libswresample/swresample_frame.c",
+              "kind": "symbol",
+              "field_anchors": [],
+              "home": "crustify/rust/ffmpeg/libswresample/swresample.rs"
+            },
+            {
+              "name": "swr_convert",
+              "defined_in": "libswresample/swresample.c",
+              "kind": "symbol",
+              "field_anchors": [],
+              "home": "crustify/rust/ffmpeg/libswresample/swresample.rs"
+            },
+            {
+              "name": "swr_convert_frame",
+              "defined_in": "libswresample/swresample_frame.c",
+              "kind": "symbol",
+              "field_anchors": [],
+              "home": "crustify/rust/ffmpeg/libswresample/swresample.rs"
+            },
+            {
+              "name": "swr_drop_output",
+              "defined_in": "libswresample/swresample.c",
+              "kind": "symbol",
+              "field_anchors": [],
+              "home": "crustify/rust/ffmpeg/libswresample/swresample.rs"
+            },
+            {
+              "name": "swr_free",
+              "defined_in": "libswresample/swresample.c",
+              "kind": "symbol",
+              "field_anchors": [],
+              "home": "crustify/rust/ffmpeg/libswresample/swresample.rs"
+            },
+            {
+              "name": "swr_get_class",
+              "defined_in": "libswresample/options.c",
+              "kind": "symbol",
+              "field_anchors": [],
+              "home": "crustify/rust/ffmpeg/libswresample/swresample.rs"
+            },
+            {
+              "name": "swr_get_delay",
+              "defined_in": "libswresample/swresample.c",
+              "kind": "symbol",
+              "field_anchors": [],
+              "home": "crustify/rust/ffmpeg/libswresample/swresample.rs"
+            },
+            {
+              "name": "swr_get_out_samples",
+              "defined_in": "libswresample/swresample.c",
+              "kind": "symbol",
+              "field_anchors": [],
+              "home": "crustify/rust/ffmpeg/libswresample/swresample.rs"
+            }
+          ]
+        },
+        {
+          "objective": "wrap",
+          "items": [
+            {
+              "name": "swr_init",
+              "defined_in": "libswresample/swresample.c",
+              "kind": "symbol",
+              "field_anchors": [],
+              "home": "crustify/rust/ffmpeg/libswresample/swresample.rs"
+            },
+            {
+              "name": "swr_inject_silence",
+              "defined_in": "libswresample/swresample.c",
+              "kind": "symbol",
+              "field_anchors": [],
+              "home": "crustify/rust/ffmpeg/libswresample/swresample.rs"
+            },
+            {
+              "name": "swr_is_initialized",
+              "defined_in": "libswresample/swresample.c",
+              "kind": "symbol",
+              "field_anchors": [],
+              "home": "crustify/rust/ffmpeg/libswresample/swresample.rs"
+            },
+            {
+              "name": "swr_next_pts",
+              "defined_in": "libswresample/swresample.c",
+              "kind": "symbol",
+              "field_anchors": [],
+              "home": "crustify/rust/ffmpeg/libswresample/swresample.rs"
+            },
+            {
+              "name": "swr_set_channel_mapping",
+              "defined_in": "libswresample/swresample.c",
+              "kind": "symbol",
+              "field_anchors": [],
+              "home": "crustify/rust/ffmpeg/libswresample/swresample.rs"
+            },
+            {
+              "name": "swr_set_compensation",
+              "defined_in": "libswresample/swresample.c",
+              "kind": "symbol",
+              "field_anchors": [],
+              "home": "crustify/rust/ffmpeg/libswresample/swresample.rs"
+            },
+            {
+              "name": "swr_set_matrix",
+              "defined_in": "libswresample/rematrix.c",
+              "kind": "symbol",
+              "field_anchors": [],
+              "home": "crustify/rust/ffmpeg/libswresample/swresample.rs"
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}
