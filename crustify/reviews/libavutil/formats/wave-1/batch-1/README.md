@@ -1,7 +1,7 @@
 # Review: formats wave-1 symbols (image layout, copies and fills; sample buffers; pixel, sample, channel, colour and csp queries)
 
 Route: **symbol** (56 items). Objective: **review**. Affected base:
-`2f6e60458d` (the wave's head, holding translation batches 3, 4 and 5, which
+`0a2fbf9bb7` (the wave's head, holding translation batches 3, 4 and 5, which
 landed all 56 items).
 
 Items and homes:
@@ -174,9 +174,9 @@ report), and `crustify scan-unsafe`.
 | `cargo test --workspace` (plain) | lib 501, equiv 419, ub_safe 416 (compile_fail included), ub_unsafe 72, doctests 54 + 17 |
 | ASan/UBSan (`-Zbuild-std`, all four binaries) | lib 501, equiv 419, ub_safe 415, ub_unsafe 72; no report, no `runtime error:` |
 | TSan (`-Zbuild-std`, all four binaries) | same counts; no report |
-| BSan, whole binaries (`cargo bsan test`, the four run in parallel on one host, `gc_hang_threshold_ms=600000`) | lib 501 in 71 s; ub_unsafe 72 in 171 s; ub_safe 415 in 1807 s; equiv 419 in 2461 s; no report. The `equiv` tail after ~25 min is one types-batch test (`pixdesc::pixel_format_descriptor::descriptors_rebuilt_through_setters_read_like_c_s_table`), which the gate at `2f6e60458d` also finished; the symbol tests of this workset are all done within the first 20 min |
+| BSan, whole binaries (`cargo bsan test`, the four run in parallel on one host, `gc_hang_threshold_ms=600000`) | lib 501 in 71 s; ub_unsafe 72 in 171 s; ub_safe 415 in 1807 s; equiv 419 in 2461 s; no report. The `equiv` tail after ~25 min is one types-batch test (`pixdesc::pixel_format_descriptor::descriptors_rebuilt_through_setters_read_like_c_s_table`), which the gate at `0a2fbf9bb7` also finished; the symbol tests of this workset are all done within the first 20 min |
 | Miri, FFI-free unit tests of `imgutils.rs` and `samplefmt.rs` | 17 passed |
 | `crustify scan-unsafe` | one unsafe block added (`Image::alloc`'s `write_bytes`, documented); undocumented sites 25 -> 24 (`conventions/`) |
 
-The reviewed base `2f6e60458d` is the wave head; the wave branch had not
+The reviewed base `0a2fbf9bb7` is the wave head; the wave branch had not
 moved when this landed, so no rebase was needed.

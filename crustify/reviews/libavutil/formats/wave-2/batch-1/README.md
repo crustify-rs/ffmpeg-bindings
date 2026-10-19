@@ -1,8 +1,8 @@
 # Review: formats wave-2 symbols (descriptor lookups, image lines, bit counters, pixel steps, luma coefficients, channel name appenders)
 
 Route: **symbol** (13 items). Objective: **review**. Affected base:
-`693ccef878` (the wave's head; the items landed in translation batch 1,
-`c1518f9fe0`).
+`ac34a06476` (the wave's head; the items landed in translation batch 1,
+`57c0cc8756`).
 
 Items and homes:
 
@@ -133,5 +133,5 @@ On the final tree (the doc fixes and the new equivalence test applied):
 | random-lines probe, plain and ASan/UBSan, 300 000 rounds each | 0 mismatches, no report |
 | `crustify scan-unsafe` | no new site |
 
-The reviewed base `693ccef878` is the wave head at landing time unless the
+The reviewed base `ac34a06476` is the wave head at landing time unless the
 types review (batch 0) lands first, in which case this was rebased onto it.

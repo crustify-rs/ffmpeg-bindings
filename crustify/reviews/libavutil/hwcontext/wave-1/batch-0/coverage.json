@@ -6,7 +6,7 @@
   },
   "rust": {
     "libavutil/hwcontext.rs": {
-      "base b9dbecd340": {
+      "base bfce8a115b": {
         "regions": {"count": 2988, "missed": 29, "percent": 99.03},
         "functions": {"count": 244, "missed": 5, "percent": 97.95},
         "lines": {"count": 2208, "missed": 14, "percent": 99.37}

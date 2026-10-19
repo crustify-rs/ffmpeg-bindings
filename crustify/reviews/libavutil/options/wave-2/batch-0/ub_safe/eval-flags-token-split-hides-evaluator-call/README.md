@@ -2,7 +2,7 @@
 
 - File: `crustify/rust/ffmpeg/libavutil/opt.rs` (`flags_refusal`, reached
   through `elem_refusal`)
-- Affected commit: `1d434aef61` (options wave-2 tip at review time, its one
+- Affected commit: `abf526dc98` (options wave-2 tip at review time, its one
   translation batch); the setter half of the path is options wave 0's
 - Items: `av_opt_eval_flags` (`OptionDefRef::eval_flags`, a safe API); the
   same refusal guards `av_opt_set` and the key-value appliers

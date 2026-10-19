@@ -2,8 +2,8 @@
 
 - Files: `crustify/rust/ffmpeg/libavutil/{des,tea,twofish,xtea,rc4}.rs` (and
   their `tests/equiv` and `tests/ub_safe` suites)
-- Affected commits: `828f6bdbf7` (XTEA, batch 3), `71c9f8836e` (RC4, TEA,
-  Twofish, batch 2), `e71508dc3c` (DES, batch 1)
+- Affected commits: `1ab47283f1` (XTEA, batch 3), `ca48444648` (RC4, TEA,
+  Twofish, batch 2), `0896e41211` (DES, batch 1)
 - Items: `DesRef::{crypt, crypt_in_place, crypt_zeros, mac}`,
   `TeaRef::{crypt, crypt_in_place}`, `TwofishRef::{crypt, crypt_in_place}`,
   `XteaRef::{crypt, crypt_in_place, crypt_le, crypt_le_in_place}`,

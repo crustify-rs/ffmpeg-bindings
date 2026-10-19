@@ -11,12 +11,12 @@ Copy this template into the campaign checkout, then fill it as work lands.
 - **`api_headers`** — `122 installed headers, excluding the platform/vendor hwcontext_*.h backends, libavcodec/{d3d11va,dxva2,jni,mediacodec,qsv,vdpau,videotoolbox}.h and the generated avconfig.h/ffversion.h`
 - **agent backend** — `claude`; `codex` for `libavutil/crypto`
 - **model** — `openrouter/anthropic/claude-opus-5.5`; `openrouter/openai/gpt-6.1-sol` for `libavutil/crypto`
-- **`--billing`** — `api`
+- **billing** — `api`
 - **`--max-types`** — `2`
 - **`--max-syms`** — `25`
 - **`--max-loc`** — `500`
 - **`--min-fields`** — `20`
-- **orchestrator parallelism** — up to `16` concurrent batch processes from `libavutil/options`; `10` before
+- **assistant parallelism** — up to `16` concurrent batch processes from `libavutil/options`; `10` before
 - **branch** — `crustify/main`, tip `<sha>`
 - **deps** — crustify `12b8cab` (`main`, plus an uncommitted `translator.md` edit), ffibox `196c5fb` (`main`)
 - **build version** — `3`
@@ -24,17 +24,17 @@ Copy this template into the campaign checkout, then fill it as work lands.
 
 ## Review pass
 
-Thin batches with `"objective": "review"`, LLM-as-a-Judge over each landed wave.
+Review batches run by `crustify spawn-reviewer`, LLM-as-a-Judge over each landed wave.
 
 - **agent backend** — `claude`
 - **model** — `openrouter/anthropic/claude-opus-5.5` from `libavutil/options`; `openrouter/anthropic/claude-fable-5.1` before (see Notes)
-- **`--billing`** — `api`
+- **billing** — `api`
 - **`--max-types`** — `2` (wave 0); the wave's types from wave 1
 - **`--max-syms`** — `25` (wave 0); the wave's symbols from wave 1
 - **`--max-loc`** — `500` (wave 0); unbounded from wave 1
 - **`--min-fields`** — `20`
-- **orchestrator parallelism** — up to `16` concurrent batch processes from `libavutil/options`; `10` before
-- **branch** — `crustify/reviews/libavutil/hwcontext/wave-2`, tip `053a37e435`
+- **assistant parallelism** — up to `16` concurrent batch processes from `libavutil/options`; `10` before
+- **branch** — `crustify/reviews/libavutil/hwcontext/wave-2`, tip `2a1f7d6d5a`
 - **agents** — `51` (one stopped by the provider), over `23` wave(s)
 
 `rv`-prefixed columns below carry the review pass; the unprefixed ones remain
@@ -45,13 +45,14 @@ the campaign's.
 - `objective` — what the batch's agents were told to do: `wrap`, `port`, or
   `raw lifetime`. The Types tables are split by it, so it appears as a column
   only in the Symbols `Batches` table, which mixes the two
-- `subsystem` — in the Types and Symbols tables, the batch's sub-campaign as
-  `<link-unit>/<subsystem>`, the same name as its Overview row; with `wave` and `batch`
-  it keys the row to `schedule.json`
-- `wave` / `batch` — the batch's position in its sub-campaign's plan: the index
+- `subsystem` — `<link-unit>/<subsystem>`, or `raw-lifetime-void` /
+  `raw-lifetime-string`. In the Types and Symbols tables it names the batch's subsystem,
+  the same name as its Overview row, and with `wave` and `batch` keys the row to
+  the subsystem's `schedule.json`
+- `wave` / `batch` — the batch's position in its subsystem's plan: the index
   of its wave in `waves` and of the batch within that wave's `batches`, so a
-  batch row joins to `schedule.json`, to the agent that landed it, and to its
-  Overview sub-campaign row. Schema-v2 plans carry `steps` and `plan_items`
+  batch row joins to its subsystem's `schedule.json`, to the agent that landed it, and to its
+  Overview subsystem row. Schema-v2 plans carry `steps` and `plan_items`
   rather than indexed waves and batches, so historical rows leave both blank
 - `types` / `symbols` — scheduler units in the batch. Callbacks are scheduled
   in symbol batches and counted there
@@ -66,28 +67,26 @@ the campaign's.
   its in-scope fields, or its `loc`
 - `tokens` / `rv tokens` / `batch tokens` / `review tokens` / `total tokens` — the
   tokens behind the `$` cell to their left, in millions: input + output + cache read +
-  cache write, summed over the agent's `usage.json` requests (the figure `crustify cost`
+  cache write, summed over the agent's `usage.json` requests (the figure `crustify usage`
   reports). Cache reads dominate it
-- `sub-campaign` — the Overview row's `<link-unit>/<subsystem>`, or
-  `raw-lifetime-void` / `raw-lifetime-string`
-- `sub-campaign wall` — from its first batch launch through its final review
+- `subsystem wall` — from its first batch launch through its final review
   and regression gate
-- `batch` / `review` — in the Overview, the computed cost of the sub-campaign's
+- `batch` / `review` — in the Overview, the computed cost of the subsystem's
   translation batches and of its review batches; `—` where it ran none
-- `total` — `batch` + `review`; for the orchestrator, its own cost
-- `orchestrator` — the Overview row for every orchestrator session of the campaign, priced
-  from the `orchestrator-*.usage.json` records in `crustify/artifacts/orchestrator/`; `total` is their sum. A
+- `total` — `batch` + `review`; for the assistant, its own cost
+- `assistant` — the Overview row for every assistant session of the campaign, priced
+  from the `assistant-*.usage.json` records in `crustify/artifacts/assistant/`; `total` is their sum. A
   session that died before writing its record is recovered from its transcript (Notes)
 - `Σ recorded agents` / `Σ campaign` — the batch and review agents alone, then those plus the
-  orchestrator. `$/type` and `$/sym` are given for the agents only, since the orchestrator's
+  assistant. `$/type` and `$/sym` are given for the agents only, since the assistant's
   cost cannot be split by unit kind
-- `$/type` / `$/sym` — in the Overview, a sub-campaign's cost over the types or
+- `$/type` / `$/sym` — in the Overview, a subsystem's cost over the types or
   symbols it was scheduled for; `—` where it was scheduled for none
 - `+LoC` — the landed batch's Rust-source insertions/deletions relative to its
   wave's base
 - `cov (C/Rust)` — in a `Batches` table, the absolute line coverage right after
   that batch landed, from ONE run of all four test workloads together (their
-  union): C over the sub-campaign link unit's TUs in the `coverage` prebuild,
+  union): C over the subsystem link unit's TUs in the `coverage` prebuild,
   Rust over the authored non-test sources. Its **Σ** cell is the coverage at the
   table's last landing, not a sum
 - `+UB safe tests` / `+UB unsafe tests` / `+equiv tests` / `+unit tests` — in a
@@ -101,7 +100,7 @@ the campaign's.
   `+lifecycle` covers type and raw-lifetime items only, so it reads `—` for
   symbols. `total` is the row's sum
 - `+rejected PoCs` — the `ub_safe`, `ub_unsafe` and `equiv` PoCs that review
-  batch filed which the orchestrator rejected after rerunning them: they did not
+  batch filed which the assistant rejected after rerunning them: they did not
   reproduce, or did not show a real bug, and their fixes were reverted. They
   stay counted in their categories; `total` minus this column is the confirmed
   defects
@@ -125,8 +124,8 @@ the campaign's.
   It is a reach figure only — it mixes four verdict sources and so bounds no
   single obligation, which is why the four stay reported apart above it
 - `total types` / `total symbols` — the units the target's public API exports, deprecated
-  items excluded: every type, and every symbol and callback, scheduled across all of
-  `schedule.json`, raw-lifetime items aside. They are fixed for the campaign
+  items excluded: every type, and every symbol and callback, scheduled across all the
+  subsystems' `schedule.json`, raw-lifetime items aside. They are fixed for the campaign
 - `wrapped types` / `wrapped symbols` — scheduled units whose `Wraps:` or `Replaces:` anchor
   is present at the campaign tip; the parenthesized share is of `total types` /
   `total symbols`
@@ -154,7 +153,7 @@ in Notes.
 Implementation `openrouter/anthropic/claude-opus-5.5` via `claude` (`openrouter/openai/gpt-6.1-sol` via `codex` for `libavutil/crypto`); review
 `openrouter/anthropic/claude-opus-5.5` via `claude`.
 
-| sub-campaign | nr types | nr symbols | sub-campaign wall | batch | batch tokens | review | review tokens | total | total tokens | $/type | $/sym |
+| subsystem | nr types | nr symbols | subsystem wall | batch | batch tokens | review | review tokens | total | total tokens | $/type | $/sym |
 |---|---:|---:|---|---:|---:|---:|---:|---:|---:|---:|---:|
 | `raw-lifetime-void` | `0` | `6` | `78m48s` | `$8.46` | `15.34M` | `$4.69` | `11.85M` | `$13.15` | `27.19M` | — | `$2.19` |
 | `raw-lifetime-string` | `0` | `3` | `48m03s` | `$3.77` | `8.84M` | `$5.25` | `13.08M` | `$9.02` | `21.92M` | — | `$3.01` |
@@ -164,7 +163,7 @@ Implementation `openrouter/anthropic/claude-opus-5.5` via `claude` (`openrouter/
 | `libavutil/crypto` | `19` | `103` | `4h26m50s` | `$46.14` | `171.31M` | `$38.22` | `108.22M` | `$84.36` | `279.52M` | `$2.48` | `$0.36` |
 | `libavutil/buffer-frame` | `12` | `58` | `10h58m03s` | `$130.04` | `372.78M` | `$89.40` | `226.96M` | `$219.44` | `599.74M` | `$8.59` | `$2.01` |
 | `libavutil/hwcontext` | `5` | `18` | `5h15m53s` | `$66.73` | `200.49M` | `$51.09` | `132.67M` | `$117.82` | `333.17M` | `$14.64` | `$2.48` |
-| orchestrator | — | — | — | — | — | — | — | `$500.92` | `772.74M` | — | — |
+| assistant | — | — | — | — | — | — | — | `$500.92` | `772.74M` | — | — |
 | **Σ recorded agents** | **`82`** | **`525`** | **`97h58m`** | **`$733.32`** | **`2038.01M`** | **`$800.05`** | **`1211.23M`** | **`$1533.36`** | **`3249.24M`** | **`$7.61`** | **`$1.73`** |
 | **Σ campaign** | **`82`** | **`525`** | **`97h58m`** | **`$733.32`** | **`2038.01M`** | **`$800.05`** | **`1211.23M`** | **`$2034.28`** | **`4021.98M`** | — | — |
 
@@ -854,7 +853,7 @@ filter stops the `codex` reviewer on this workload.
 
 ### `raw-lifetime-void`
 
-The translation batch (`77473b8574`, `+775/-0` `.rs`) bound `av_free` as the release policy
+The translation batch (`42bb68057f`, `+775/-0` `.rs`) bound `av_free` as the release policy
 `Heap` for single objects (`CDrop`) and arrays (`impl_clendrop!`), and `av_memdup` as the
 array clone strategy (`impl_clenclone!`): the 3 strategies counted above. It also bound the
 allocators `av_malloc` (`CAlloc`), `av_mallocz` (`CAllocZeroed`), `av_malloc_array` and
@@ -879,7 +878,7 @@ over it grew the process without bound (about 180 GB in 12 minutes), while 4 KiB
 clean; the translator attributes it to the bsan runtime, and the equivalence tests keep
 successful allocations at 4 KiB or less.
 
-The review (`72abd2c241`, `9cdb9f2a73`) filed three defects, all confirmed on rerun:
+The review (`6ae24c32fa`, `b8afddd2e6`) filed three defects, all confirmed on rerun:
 
 - `lifecycle/void`: `av_memdup` was bound only as the array cloner, so `HeapBox<T>` could not
   be cloned although FFmpeg copies single objects with it (`dnxhdenc.c`, `mpegvideo.c`). Fixed
@@ -899,7 +898,7 @@ No reproducer was rejected. The promoted tip passes `clippy`, the plain test sui
 
 ### `raw-lifetime-string`
 
-The translation batch (`a95b9e3220`, `+429/-4` `.rs`) added `HeapString`, ffibox's `CStrBox`
+The translation batch (`271811c5bb`, `+429/-4` `.rs`) added `HeapString`, ffibox's `CStrBox`
 under a separate `StringHeap` policy: `av_free` releases it and `av_strdup` clones it, the 2
 strategies counted above. `Heap` could not carry the string clone beside its singleton
 `CDupClone` (`E0119`). Safe constructors wrap `av_strdup` (`string_from_c_str`) and
@@ -912,7 +911,7 @@ scheduled as `libavutil/core` symbols. Seeded with `av_free av_strdup av_strndup
 moved the `unsafe fn` smell by `+2` and the raw-pointer smell by `0`; the review moved
 neither.
 
-The review (`f337203e0d`, `8bdf2c7138`) filed three reports and no reproducer, so none was
+The review (`a1b075fd7d`, `8cda7b6b96`) filed three reports and no reproducer, so none was
 rerun or rejected:
 
 - `wavefront/string-out-param-constructors`: six functions that return a new string through
@@ -938,7 +937,7 @@ plain test suites and the `asan-ubsan` suites.
 
 Both raw-lifetime tiers were translated and reviewed against ffibox `508e478`. After the
 string tier, ffibox `main` took the `CVec::clone` alignment fix (`695d52d`), and the gates were
-rerun at `050c2adfa0` against it: `clippy` clean, and the plain, `asan-ubsan`, `tsan` and `bsan`
+rerun at `46e92abb02` against it: `clippy` clean, and the plain, `asan-ubsan`, `tsan` and `bsan`
 suites pass. The void review's reproducer no longer compiles (`E0080`).
 
 ### `libavutil/core` wave 0
@@ -947,8 +946,8 @@ Wave 0 is 15 batches: 10 type batches (18 types, 21 scheduled field anchors) and
 batches (121 symbols), all `wrap`. The interrupted session launched batches 0–2 and 4–9 at
 02:54Z on 2026-10-08; all nine landed by 03:27Z. It never prepared batch 3 or batches 10–14 and
 left no record of why. The resumed session launched those six at 18:46Z from the wave tip
-`6ae1112aa5`; they landed between 19:15Z and 21:45Z. All 139 scheduled items carry their anchor
-on the wave tip `3770f8f483`. Translation cost `$172.86` for 424.5M tokens and 13h41m of agent
+`61e011df35`; they landed between 19:15Z and 21:45Z. All 139 scheduled items carry their anchor
+on the wave tip `5d0c0b3b31`. Translation cost `$172.86` for 424.5M tokens and 13h41m of agent
 wall time.
 
 The wave tip passes `clippy --all-targets -D warnings`, the plain suites (`compile_fail`
@@ -1012,7 +1011,7 @@ Effects and fixes:
 
 - **Stable `rustc`.** It added a "struct named `Rounding` exists in another namespace" note to
   one trybuild `.stderr` (batch 4), and its clippy flagged a deliberate `Clone::clone` on a
-  `Copy` type in batch 7's tests. Commit `6ae1112aa5` re-blessed the `.stderr` and allowed
+  `Copy` type in batch 7's tests. Commit `61e011df35` re-blessed the `.stderr` and allowed
   `clone_on_copy` on that statement. Both are test-only.
 - **BSan prebuild.** It was rebuilt with the unchanged `build.json` commands (still version 3)
   after reinstalling `zlib1g-dev`; its `CONFIG_*` set is identical. The new runtime no longer
@@ -1043,7 +1042,7 @@ them is from this wave. The review reused the 15 translation batches unchanged
 Results:
 
 - **Landings:** 14 of 15 reviewers landed 27 commits on
-  `crustify/reviews/libavutil/core/wave-0` (tip `0604718bba`). The batch-1 reviewer
+  `crustify/reviews/libavutil/core/wave-0` (tip `4cc197e17e`). The batch-1 reviewer
   checked `AVEscapeMode` and `AVMediaType` under every sanitizer, found nothing and landed no
   commit; its row reads `+0/-0` and `—` for `cov`.
 - **Reports:** 29 defect reports plus 4 batch summaries. The PoC tables count 22. They have no
@@ -1052,18 +1051,18 @@ Results:
   `kind: struct` (`av_alias64`, `av_intfloat32`, `unaligned_64`).
 - **Reproducers:** all five runnable ones were rerun on their affected commit and on the
   reviewed tip, and all five hold, so none is rejected:
-  - `ub_safe/memcpy-backptr-block-length-overflow` (batch 12). On `3770f8f483`, safe
+  - `ub_safe/memcpy-backptr-block-length-overflow` (batch 12). On `5d0c0b3b31`, safe
     `copy_back_reference` with a distance of 2^30 and a run one byte longer makes C's `int`
     block length overflow (UBSan, `mem.c:466`). `memcpy` then runs with a negative size
-    (ASan). On `0604718bba` it fills the run and exits 0: the wrapper now splits such runs
+    (ASan). On `4cc197e17e` it fills the run and exits 0: the wrapper now splits such runs
     into calls within the bound.
   - `equiv/parse-cpu-caps-prefixed-operand-rounds` (batch 13). `parse_cpu_caps` rounded `+`/`-`
     operands where C truncates them, and rejected some that C accepts: 10 inputs diverged on
-    `6978702856`, and all agree on the reviewed tip.
+    `9c3345929b`, and all agree on the reviewed tip.
   - `unsafe/default-item-name-alignment-unstated` (batch 10). A misaligned context that
     satisfied the old `# Safety` text triggers UBSan's misaligned load at `log.c:243` on
-    `35f30a7185`. The contract now requires alignment.
-  - `misc/option-ranges-box-not-send-sync` (batch 2): 15 `E0277` errors on `ad7acaeaca`; builds
+    `4ec92d5001`. The contract now requires alignment.
+  - `misc/option-ranges-box-not-send-sync` (batch 2): 15 `E0277` errors on `ab1d2518bf`; builds
     on the reviewed tip.
   - `misc/ffibox-cslice-to-cvec-plain-only` (batch 3): `E0599` against ffibox `695d52d`. The fix,
     ffibox `196c5fb`, was merged into `main` on 2026-10-09; the reproducer then builds and exits 0.
@@ -1094,7 +1093,7 @@ agents' transcripts. Most of it is the full suite rerun after each rebase.
 
 ### `libavutil/core` wave 1
 
-Wave 1 is 4 `wrap` batches based on the reviewed wave-0 tip `0604718bba`:
+Wave 1 is 4 `wrap` batches based on the reviewed wave-0 tip `4cc197e17e`:
 
 - batch 0: `AVBPrint` and `AVClass`, 18 fields;
 - batch 1: `ff_pad_helper_AVBPrint`, 5 fields;
@@ -1102,13 +1101,13 @@ Wave 1 is 4 `wrap` batches based on the reviewed wave-0 tip `0604718bba`:
 - batch 3: `av_ts_make_time_string2`.
 
 All four landed between 00:42Z and 01:36Z on 2026-10-09, and every scheduled item and field
-carries its anchor on the wave tip `23dc07587c`. Translation cost `$33.60` for 91.7M tokens and
+carries its anchor on the wave tip `b2cff27cd6`. Translation cost `$33.60` for 91.7M tokens and
 2h19m of agent wall time.
 
 Notes on the wave:
 
 - `av_make_q`, scheduled in batch 2, was already anchored by wave 0's `AVRational` batch
-  (`7f5c7edf52`); batch 2 left it as completed work.
+  (`2823f72b7c`); batch 2 left it as completed work.
 - The 25-symbol batch took 64 minutes, against 86–179 in wave 0, with no sibling landing in its
   homes.
 - Batch 0 accounts for most of the wave's smell growth (`+9` `unsafe fn`, `+7` raw pointer):
@@ -1119,8 +1118,8 @@ Notes on the wave:
   reviewed base (21 and 20). No undocumented `unsafe`: the workspace denies
   `clippy::undocumented_unsafe_blocks` and `clippy -D warnings` passes (the scan's own
   `undocumented_unsafe` count reads 0 of 0 for every crustify campaign; see below).
-- The Σ `cov` cells now read wave 1's last type and symbol landings: batch 0 (`364c59df9b`) and
-  batch 2 (`23dc07587c`, the wave tip). The rows' `cov` and `: tests` figures continue the
+- The Σ `cov` cells now read wave 1's last type and symbol landings: batch 0 (`c530b56cec`) and
+  batch 2 (`b2cff27cd6`, the wave tip). The rows' `cov` and `: tests` figures continue the
   wave-0 method.
 
 The wave tip passes `clippy --all-targets -D warnings` and the plain, `asan-ubsan`, `tsan` and
@@ -1150,8 +1149,8 @@ batches, not the translation batches.
 
 The user chose `openrouter/openai/gpt-6-astra` (via `codex`) for this wave:
 
-- **Types reviewer:** ran 13m21s without any provider intervention and landed `3624aef099` and
-  `13ae407387`. Its 5 reports are 2 `misc` (a `BPrint` doctest that did not compile, `AVClass`
+- **Types reviewer:** ran 13m21s without any provider intervention and landed `fd0282416a` and
+  `b877190f99`. Its 5 reports are 2 `misc` (a `BPrint` doctest that did not compile, `AVClass`
   docs that assumed `'static` classes) and 3 `wavefront`. It found no UB or equivalence
   defect, added `BPrint` allocation-failure and `ClassRef` lifetime tests, and brought
   `bprint.rs` to full Rust line coverage.
@@ -1171,7 +1170,7 @@ Findings:
 - **Equivalence drift (batch 1):** `equiv/nearest-refuses-lists-c-finishes`. `Rational::nearest`
   refused every candidate list holding two `i32::MIN` denominators. C overflows only when it
   compares that pair, which happens only when the first of them is the nearest so far.
-  Rerun on `23dc07587c`: 3 lists where C returns an index and Rust `None`. On `532c537e67` all
+  Rerun on `b2cff27cd6`: 3 lists where C returns an index and Rust `None`. On `1c02ec54b0` all
   agree, and the C calls run clean under `asan-ubsan`. Not rejected. The fix walks C's
   loop with `cmp_distance` (C's `av_nearer_q`), so `None` now means exactly that C would
   overflow.
@@ -1191,7 +1190,7 @@ The scan's lexical `undocumented_unsafe` walker skips every path that has a `cru
 directory component (`_SKIP_DIRS` in `crustify_audit/unsafe_scan.py`, meant to exclude
 the audit tree's reproducers). A crustify campaign keeps its whole Rust workspace under
 `<repo>/crustify/rust/`, so the walker skips every file and reports `sites: 0` on every
-scan in this campaign, while the driver counts 431 `unsafe` blocks at `ffda06bb23`. The
+scan in this campaign, while the driver counts 431 `unsafe` blocks at `aedcb9f1a5`. The
 driver's counts and the smells are unaffected. Statements here that no `unsafe` block lacks a
 `// SAFETY:` comment rest on `clippy::undocumented_unsafe_blocks`, which the workspace denies
 and which every gated tip passes.
@@ -1246,13 +1245,13 @@ wrapped in `libavutil/options`.
 
 ### `libavutil/core` wave 2
 
-Wave 2 is one `wrap` batch of 12 `bprint.h` symbols, based on `0f140fccf2` (the reviewed
-wave-1 tip `532c537e67` plus the updated task settings). It landed `9ff8fb29d7` at 00:47Z on
+Wave 2 is one `wrap` batch of 12 `bprint.h` symbols, based on `c0589fdcbf` (the reviewed
+wave-1 tip `1c02ec54b0` plus the updated task settings). It landed `06a7548c5c` at 00:47Z on
 2026-10-10 on its first push, and every scheduled item carries its anchor there. Translation
 cost `$7.58` for 20.9M tokens and 31m30s of agent wall time.
 
 - `av_bprint_init`, `av_bprint_init_for_buffer` and `av_bprint_finalize` were already anchored
-  by wave 1's `AVBPrint` type batch (`364c59df9b`) as `BPrint`'s constructors and finalizers;
+  by wave 1's `AVBPrint` type batch (`c530b56cec`) as `BPrint`'s constructors and finalizers;
   the batch left them as completed work. It wrapped the other nine as `BPrintMut` and
   `BPrintRef` methods, routed `av_vbprintf` through a new `crustify_av_vbprintf` shim (Rust
   cannot build a `va_list`), and implemented `fmt::Write` on `BPrintMut`.
@@ -1277,8 +1276,8 @@ From this wave on, per the updated task, every review runs on
 to the wave. Wave 2 has symbols only, so its review is one batch over the translation batch's
 12 items.
 
-- **Landings:** the reviewer ran 20m24s for `$10.25` (13.5M tokens) and landed `d4608c5e90`
-  (reports) and `d12fc40bb3` (fixes).
+- **Landings:** the reviewer ran 20m24s for `$10.25` (13.5M tokens) and landed `cf7e1e63d8`
+  (reports) and `91e3426ac9` (fixes).
 - **Reports:** 2 `misc`, both documentation. `is-complete-doc-count-only`: `is_complete`'s doc
   implied a fresh count-only buffer is complete, where C's `len < size` is false at `size` 0
   from initialisation. `tm-zone-doc-null-zone`: `TmRef::zone`'s doc said a NULL `tm_zone`
@@ -1287,7 +1286,7 @@ to the wave. Wave 2 has symbols only, so its review is one batch over the transl
   C's `av_bprint_is_complete` and the reviewer's glibc harness. Nothing was rejected.
 - **Probe:** `probe/` is a differential sweep, not a defect reproducer: random appender
   sequences over every init shape, with `av_max_alloc` switched mid-sequence, compared after
-  every step. Rerun on `d12fc40bb3`: 20 000 sequences, 0 failures.
+  every step. Rerun on `91e3426ac9`: 20 000 sequences, 0 failures.
 - **Observation, not changed:** `BPrint::into_string` and `into_bytes` consume the owner, so when
   `av_bprint_finalize` fails to copy an inline string out (`ENOMEM`, reachable only through
   `av_max_alloc`) the string is lost, where C's caller keeps a usable buffer. Changing it would
@@ -1314,13 +1313,13 @@ sub-campaign to `crustify/main`.
 
 ### `libavutil/formats` wave 0
 
-`formats` is based on `84e7cf00b8`: the campaign tip `7d5cdc7138` plus the `channel_layout`,
+`formats` is based on `9faf0c31a2`: the campaign tip `20f9b4c307` plus the `channel_layout`,
 `csp`, `imgutils`, `pixdesc`, `pixelutils`, `pixfmt` and `samplefmt` header modules. Its rows
 follow `core`'s in each `Batches` table; the `subsystem` column, added to every Types and
 Symbols table after wave 3, tells them apart.
 
 Wave 0 is 7 type batches (12 enums and `AVComponentDescriptor`) and one batch of 8 symbols and
-3 callbacks. All 8 landed between 02:58Z and 03:25Z on 2026-10-10, ending at `7317de905c`, and
+3 callbacks. All 8 landed between 02:58Z and 03:25Z on 2026-10-10, ending at `17c012afcd`, and
 every scheduled item carries its anchor there. Translation cost `$35.09` for 82.9M tokens and
 3h02m of agent wall time.
 
@@ -1353,14 +1352,14 @@ It passes single-threaded (348/348), for either half alone, and for every other 
 Two `openrouter/anthropic/claude-fable-5.1` reviewers covered the wave: batch 0 the 12 types,
 batch 1 the 11 symbols and callbacks. Together they cost `$93.08` for 73.0M tokens and 3h20m.
 
-- **Types reviewer** (44m08s, `$21.19`): landed `69a511f255` (reports) and `2fbea8578a`
+- **Types reviewer** (44m08s, `$21.19`): landed `5449fae712` (reports) and `71419a9128`
   (fixes). `missing-default-on-none-valued-enums`: `PixelFormat`, `SampleFormat`, `Channel`
   and `MatrixEncoding` lacked the `Default` that the wave's other eight enums carry. Each now
   defaults to `NONE`, the value C gives an unset field, checked against `av_frame_alloc`,
   `av_channel_from_string` and libswresample's option default. A `wavefront` report corrected
   `AVMatrixEncoding`'s recorded encoding (`c_uint`, not `c_int`); as with `core`, the PoC table
   does not count it.
-- **Symbols reviewer** (2h35m57s, `$71.89`): landed `ab10e6cb89` (reports) and `4a0594e7f2`
+- **Symbols reviewer** (2h35m57s, `$71.89`): landed `6cd65a43ce` (reports) and `ba5d176528`
   (fix). Its one report,
   `misc/bsan-stale-provenance-in-av-strtod-under-rust-log-callback`, triages the gate failure
   as a sanitizer artifact. gdb shows the flagged read is byte 3 of the live 4-byte block that
@@ -1376,7 +1375,7 @@ batch 1 the 11 symbols and callbacks. Together they cost `$93.08` for 73.0M toke
   reproducer, so nothing was rejected or reverted. `equiv/log.rs` and `ub_unsafe/log.rs`
   still install callbacks without that isolation.
 
-The reviewed tip `4a0594e7f2` passes `clippy --all-targets -D warnings` and the plain,
+The reviewed tip `ba5d176528` passes `clippy --all-targets -D warnings` and the plain,
 `asan-ubsan`, `tsan` and `bsan` suites: under `bsan` 395 unit, 351 equivalence, 324 `ub_safe`
 and 63 `ub_unsafe` tests. The equivalence run took 13m26s and `ub_safe` 24m26s. It was
 promoted to `crustify/subsystems/libavutil/formats`. Wave wall time, from the first
@@ -1385,9 +1384,9 @@ launch (02:47Z) to the reviewed gate (07:07Z), was 4h19m54s.
 ### `libavutil/formats` wave 1
 
 Wave 1 has 3 type batches (`AVCIExy`, `AVChannelCustom` with `AVLumaCoefficients`, and
-`AVPixFmtDescriptor`) and 3 symbol batches (25, 22 and 9 symbols). It is based on `87495678f5`,
+`AVPixFmtDescriptor`) and 3 symbol batches (25, 22 and 9 symbols). It is based on `f9fbba11e6`,
 the reviewed wave-0 tip plus its records. All 6 batches landed between 07:31Z and 08:16Z,
-ending at `2f6e60458d`, and all 60 scheduled items carry their anchors there. Translation cost
+ending at `0a2fbf9bb7`, and all 60 scheduled items carry their anchors there. Translation cost
 `$60.34` for 153.7M tokens and 3h53m of agent wall time.
 
 - `CieXy`, `LumaCoefficients` and `ChannelCustom` are ffibox value types owned through the
@@ -1421,7 +1420,7 @@ as `review-wave-1/bsan-gate.log`.
 Two `openrouter/anthropic/claude-fable-5.1` reviewers: batch 0 took the 4 types and batch 1
 the 56 symbols. Together they cost `$101.41` for 89.5M tokens and 4h21m.
 
-- **Types reviewer** (2h33m50s, `$54.06`): landed `911a225c4d` (reports) and `d19f33b673`
+- **Types reviewer** (2h33m50s, `$54.06`): landed `264c66a4b2` (reports) and `d4a373233b`
   (fixes). Three reports. `channel-custom-eq-without-hash`: `ChannelCustom` was the only `Eq`
   value type of the subsystem without `Hash`. `bsan-quadratic-pixdesc-descriptor-equiv-tests`:
   two `pixdesc` equivalence tests walked plane bytes through slice iterators and took 215 s and
@@ -1429,7 +1428,7 @@ the 56 symbols. Together they cost `$101.41` for 89.5M tokens and 4h21m.
   `internal/descriptor-unit-tests-assume-literal-address-identity`: two unit tests compared a
   stored pointer with a second occurrence of the same literal, whose address Rust does not
   promise to share; they failed under Miri for seeds 0–5 (before/after logs kept).
-- **Symbols reviewer** (1h47m37s, `$47.36`): landed `06c8c47263` (reports) and `c4729d2e40`
+- **Symbols reviewer** (1h47m37s, `$47.36`): landed `02894b1296` (reports) and `2610fa70e5`
   (fix). `bsan-gate-per-byte-retags-in-image-alloc-and-sweeps`: `Image::alloc` zeroed its
   `av_malloc` block with `[MaybeUninit<u8>]::fill`, one `&mut` retag per byte, which made
   every image sweep run away under BSan. It now writes the block once with
@@ -1441,7 +1440,7 @@ the 56 symbols. Together they cost `$101.41` for 89.5M tokens and 4h21m.
   counted as undocumented. It found no UB, equivalence or lifecycle defect.
 - No report has a runnable reproducer, so nothing was rerun or rejected.
 
-The reviewed tip `d19f33b673` passes `clippy --all-targets -D warnings` and the plain,
+The reviewed tip `d4a373233b` passes `clippy --all-targets -D warnings` and the plain,
 `asan-ubsan`, `tsan` and `bsan` suites: under `bsan` 502 unit, 419 equivalence (19m21s), 415
 `ub_safe` (29m17s) and 72 `ub_unsafe` tests. It was promoted to
 `crustify/subsystems/libavutil/formats`. Wave wall time, from the first launch
@@ -1451,8 +1450,8 @@ triage.
 ### `libavutil/formats` wave 2
 
 Wave 2 has one type batch (`AVChannelLayout`, `AVPrimaryCoefficients`) and one batch of 13
-symbols. It is based on `5f6c71ab8b`, the reviewed wave-1 tip plus its records. Both landed by
-14:33Z, ending at `693ccef878`, and all 15 items carry their anchors there. Translation cost
+symbols. It is based on `459b29cb71`, the reviewed wave-1 tip plus its records. Both landed by
+14:33Z, ending at `ac34a06476`, and all 15 items carry their anchors there. Translation cost
 `$23.18` for 65.7M tokens and 1h17m of agent wall time.
 
 - `ChannelLayout` is owned by value as `ChannelLayoutVal`, released by
@@ -1480,7 +1479,7 @@ pure-C program built with the bsan toolchain reproduced the report. Both went to
 Two `openrouter/anthropic/claude-fable-5.1` reviewers: batch 0 took the 2 types and batch 1
 the 13 symbols. Together they cost `$56.63` for 68.9M tokens and 2h08m.
 
-- **Types reviewer** (1h38m46s, `$43.74`): landed `9d8e9a76da` (reports) and `4b75b3ceb8`
+- **Types reviewer** (1h38m46s, `$43.74`): landed `f86b75cbd7` (reports) and `3a92203413`
   (fixes). `bsan-stale-stack-shadow-under-glibc-strtol-end-pointers`: the gate's aborts are a
   sequence-dependent BSan artifact. The end pointers are uninitialised locals that
   uninstrumented glibc writes, and their shadow keeps the freed `av_strdup` block that an
@@ -1492,7 +1491,7 @@ the 13 symbols. Together they cost `$56.63` for 68.9M tokens and 2h08m.
   wavefront schedules no macro. The reviewer added `Channel::mask`, `channel_layout::masks`,
   40 `ChannelLayout` constants and `ChannelLayout::native`, with table shims as the C
   reference.
-- **Symbols reviewer** (29m40s, `$12.88`): landed `97b4d57382` (reports) and `f21afd7905`
+- **Symbols reviewer** (29m40s, `$12.88`): landed `05e88ed90e` (reports) and `1740c18750`
   (fixes). One `misc` report (two doc omissions in `PixelFormat::descriptor` and the line
   readers), a randomized equivalence test of the line readers and writers against a
   transliteration of C's loops, and a kept differential `probe/` (300k rounds plain and
@@ -1504,7 +1503,7 @@ the 13 symbols. Together they cost `$56.63` for 68.9M tokens and 2h08m.
   On 2026-10-10 the user ruled that reviewers no longer run BSan suites, only a candidate
   reproducer; only the orchestrator runs the workspace under BSan.
 
-The reviewed tip `4b75b3ceb8` passes `clippy --all-targets -D warnings` and the plain,
+The reviewed tip `3a92203413` passes `clippy --all-targets -D warnings` and the plain,
 `asan-ubsan`, `tsan` and `bsan` suites: under `bsan` 542 unit, 449 equivalence (21m36s), 453
 `ub_safe` (35m48s) and 72 `ub_unsafe` tests. It was promoted to
 `crustify/subsystems/libavutil/formats`. Wave wall time, from the first launch
@@ -1513,12 +1512,12 @@ The reviewed tip `4b75b3ceb8` passes `clippy --all-targets -D warnings` and the 
 ### `libavutil/formats` wave 3
 
 Wave 3 has one type batch (`AVColorPrimariesDesc`) and two symbol batches (14 and 4
-`av_channel_layout_*` symbols). It is based on `eba75d9a40`, the reviewed wave-2 tip plus its
-records. It launched at 16:54Z on 2026-10-10. Batches 0 and 2 landed (`355935c6a3`,
-`0e2797fe0a`) before the user stopped the wave. Batch 1 was killed mid-rebase, and its
+`av_channel_layout_*` symbols). It is based on `cf76bab78e`, the reviewed wave-2 tip plus its
+records. It launched at 16:54Z on 2026-10-10. Batches 0 and 2 landed (`0545d10678`,
+`3d65561a6e`) before the user stopped the wave. Batch 1 was killed mid-rebase, and its
 unlanded commit, worktree, branch and artifact dir were purged. That attempt's cost is not
 recorded: it was killed before the harness wrote its usage file. At the user's request batch 1
-was re-run from the wave tip and landed `0cc48b6804` at 18:13Z. All 19 items carry their
+was re-run from the wave tip and landed `e0a75b5d7f` at 18:13Z. All 19 items carry their
 anchors there. The recorded translation cost is `$18.74` for 52.4M tokens and 1h24m of agent
 wall time; batch 1's row is the re-run.
 
@@ -1540,23 +1539,23 @@ Two `openrouter/anthropic/claude-fable-5.1` reviewers: batch 0 took the type and
 investigation: 24 and 21 BSan-related commands, against 46–92 for the investigating reviewers
 of waves 0–2.
 
-- **Symbols reviewer** (1h32m19s, `$37.27`): landed `82befe187c` (reports and reproducer) and
-  `261a549a64` (fixes). `ub_safe/parse-ambisonic-int-max-order-overflow` is the first real
+- **Symbols reviewer** (1h32m19s, `$37.27`): landed `d002d02b8a` (reports and reproducer) and
+  `c3ad0048d6` (fixes). `ub_safe/parse-ambisonic-int-max-order-overflow` is the first real
   defect in `formats`. `ChannelLayout::parse("ambisonic 2147483647")` reaches the `order + 1`
   signed `int` overflow in C's `av_channel_layout_from_string` (`channel_layout.c:341`, then
   `:346`), after which C accepts a layout of no channels. Rerun by the orchestrator, the
-  reproducer exits 1 on `0cc48b6804` with UBSan's `signed integer overflow: 2147483647 + 1`
-  and 0 on `261a549a64`, so it is accepted. The fix refuses that order before C, mirroring
+  reproducer exits 1 on `e0a75b5d7f` with UBSan's `signed integer overflow: 2147483647 + 1`
+  and 0 on `c3ad0048d6`, so it is accepted. The fix refuses that order before C, mirroring
   glibc's `strtol` and C's walk of the `+` chain, and returns `EINVAL` as C does for the next
   order down. A `ub_safe` regression covers it. Also one `misc` doc fix
   (`index_by_name`/`channel_by_name`) and one `wavefront` correction recording the hazard.
-- **Types reviewer** (2h15m32s, `$36.04`): landed `4be070ab92` (review record) and
-  `ffb42cd0b6` (an equivalence test of a descriptor embedded in a C-layout parent). It found
+- **Types reviewer** (2h15m32s, `$36.04`): landed `c03ff99e85` (review record) and
+  `aaf8fa4727` (an equivalence test of a descriptor embedded in a C-layout parent). It found
   no defect. Most of its wall time went to its two workspace BSan gates, waited on 18 times,
   which is what moved the gate to sub-campaign end.
 
 The reviewers' BSan gates on the wave tip and on their landed trees passed, as recorded in
-their READMEs; the orchestrator ran none. The reviewed tip `ffb42cd0b6` was promoted to
+their READMEs; the orchestrator ran none. The reviewed tip `aaf8fa4727` was promoted to
 `crustify/subsystems/libavutil/formats`. Wave wall time, from the first launch
 (16:54Z) to the last review landing (20:29Z), was 3h34m, including the stop and the batch-1
 re-run.
@@ -1564,7 +1563,7 @@ re-run.
 ### `libavutil/formats` wave 4
 
 Wave 4, the sub-campaign's last, is one batch of the two colorspace primaries lookups. It is
-based on `0e2bf0a968`, the reviewed wave-3 tip plus its records. It landed `7cf5d6fc5d` at
+based on `45cde5ae94`, the reviewed wave-3 tip plus its records. It landed `cfa4db1026` at
 23:31Z, with both items anchored, for `$4.76` (10.5M tokens, 28m11s).
 `ColorPrimaries::descriptor` hands out `'static` handles into C's gamut table.
 `ColorPrimariesDescriptorRef::identify` deliberately diverges from C: C reads the unordered
@@ -1574,7 +1573,7 @@ all-zero description as BT.709, while the wrapper returns `None`. Neither smell 
 ### `libavutil/formats` review wave 4
 
 One `openrouter/anthropic/claude-fable-5.1` reviewer for the 2 symbols (57m14s, `$12.25`,
-9.0M tokens) landed `bca0a1d8ca` (report) and `ecedfd8867` (fix). Its one `misc` report,
+9.0M tokens) landed `860917635b` (report) and `804edf7d05` (fix). Its one `misc` report,
 `identify-doc-promised-exact-rational-sums`, is about documentation. The doc promised exact
 rational sums, but C reduces every term to `int` rationals, so descriptions about 2e-13 inside
 the 1/1000 tolerance are judged as C judges them. It also narrowed the divergence to a 0/0
@@ -1585,9 +1584,9 @@ runnable reproducer to rerun.
 As the sub-campaign's last wave, under the updated `translator.md`, this reviewer ran the
 workspace BSan gate covering all of `formats`. It was clean on the wave tip before any change
 (lib 565, equivalence 468, `ub_safe` 481, `ub_unsafe` 72) and on its landed tree. The wave
-forked before the results restructure `960b335168` landed on the sub-campaign branch, so the
-reviewed tip was promoted with the merge commit `749652a1d1`, whose Rust tree equals
-`ecedfd8867`.
+forked before the results restructure `81b07a7405` landed on the sub-campaign branch, so the
+reviewed tip was promoted with the merge commit `ab73e8a433`, whose Rust tree equals
+`804edf7d05`.
 
 ### `libavutil/formats` sub-campaign totals
 
@@ -1610,7 +1609,7 @@ reviewed tip was promoted with the merge commit `749652a1d1`, whose Rust tree eq
 
 ### `libavutil/options` wave 0
 
-`options` is based on `f391dca889`: the campaign tip `0c2bf754ab` plus the `dict`, `eval` and
+`options` is based on `33edf63f19`: the campaign tip `9cc23338f5` plus the `dict`, `eval` and
 `parseutils` header modules (`opt.rs` already existed). From this sub-campaign on, at the
 user's direction (TASK.md, 2026-10-11), every review runs on
 `openrouter/anthropic/claude-opus-5.5` instead of Fable 5.1, and orchestrator parallelism is
@@ -1619,7 +1618,7 @@ up to 16; no `options` wave had more than 5 batches.
 Wave 0 is 3 type batches (`AVDictionary` with `AVDictionaryEntry`, `AVExpr` with
 `AVOptionArrayDef`, `AVOptionRange` with `AVOptionType`) and two symbol batches (24 and 5
 symbols). It launched at 01:28Z on 2026-10-11, and all 5 batches landed between 01:52Z and
-03:02Z, ending at `dc97af2db7`. All 35 scheduled items carry their anchors there. Translation
+03:02Z, ending at `cde88fc249`. All 35 scheduled items carry their anchors there. Translation
 cost `$70.60` for 201.1M tokens and 4h12m of agent wall time.
 
 - `Dictionary` is owned as `DictionaryBox` (never empty) or `Dict` (C's nullable
@@ -1654,26 +1653,26 @@ cost `$70.60` for 201.1M tokens and 4h12m of agent wall time.
 Two `openrouter/anthropic/claude-opus-5.5` reviewers: batch 0 took the 6 types and batch 1 the
 29 symbols. Together they cost `$34.83` for 97.6M tokens and 1h46m.
 
-- **Types reviewer** (32m55s, `$8.34`): landed `a4e1df7363` (reports) and `9ff1ec06ed`
+- **Types reviewer** (32m55s, `$8.34`): landed `6b173399d0` (reports) and `382c43ab9b`
   (fix). `unsafe/expr-parse-with-context-raw-log-context`: batch 3's `ObjectRef` made the raw
   parent log context obsolete, so `Expr::parse_with_context` is now safe over
   `Option<ObjectRef>`. `conventions/expr-send-safety-comment-past-scan-window`: `Expr`'s
   nine-line `SAFETY:` block exceeded `ffimap`'s six-line window. No UB or equivalence
   defect.
-- **Symbols reviewer** (73m04s, `$26.49`): landed `2e5089333e` (reports and reproducers) and
-  `6fe884cbf0` (fixes). Three UB defects, each in a safe method on an object adopted within
+- **Symbols reviewer** (73m04s, `$26.49`): landed `dc2706cfb2` (reports and reproducers) and
+  `eabd316be0` (fixes). Three UB defects, each in a safe method on an object adopted within
   the seam's contract, each rerun by the orchestrator under `asan-ubsan`:
   - `set-flag-operand-clock-race`: `ObjectMut::set` previews a flag operand to refuse C's
     unchecked conversion, then C evaluates it again, and an operand calling `time()` changes
-    value in between. Exits 1 on `dc97af2db7` (UBSan `opt.c:508`, `1e+30 is outside the range
-    of representable values of type 'long'`) and 0 on `6fe884cbf0`. Previews now refuse
+    value in between. Exits 1 on `cde88fc249` (UBSan `opt.c:508`, `1e+30 is outside the range
+    of representable values of type 'long'`) and 0 on `eabd316be0`. Previews now refuse
     expressions that read the clock.
   - `set-array-default-constant-mismatch`: the preview evaluated an array option's `default`
     as 0, but C's `DEFAULT_NUMVAL` reads the definition's address bits. Same UBSan report on
-    `dc97af2db7`, 0 on `6fe884cbf0`.
+    `cde88fc249`, 0 on `eabd316be0`.
   - `bare-object-foreign-callbacks-read-past-object`: `BareObject::new` accepted classes whose
     `item_name`/`get_category` read their object, so logging read past the 8-byte bare
-    object. ASan heap-buffer-overflow on `dc97af2db7`, 0 on `6fe884cbf0`.
+    object. ASan heap-buffer-overflow on `cde88fc249`, 0 on `eabd316be0`.
 
   Two `unsafe` reports made `set_options_string` (now `ObjectMut::set_options_string`) and
   `parse_color_with_context` safe, and two `wavefront` reports corrected the log-context and
@@ -1681,14 +1680,14 @@ Two `openrouter/anthropic/claude-opus-5.5` reviewers: batch 0 took the 6 types a
   a failed image size, copies C's uninitialised stack buffer into the field (seen under TSan
   only), so both are masked after a failing set.
 - All three reproducers held, so all are accepted. The review brought the smells back to 25
-  `unsafe fn` and 57 raw pointers. The reviewed tip `6fe884cbf0` was promoted to
+  `unsafe fn` and 57 raw pointers. The reviewed tip `eabd316be0` was promoted to
   `crustify/subsystems/libavutil/options`. Wave wall time, from the first launch
   (01:28Z) to the last review landing (04:17Z), was 2h48m11s.
 
 ### `libavutil/options` wave 1
 
-Wave 1 is two symbol batches (22 and 13 symbols), based on `6fe884cbf0`. It launched at 04:20Z,
-and both batches landed (`cb5f693dd4` at 04:59Z, `f589c22d1d` at 05:08Z). All 35 items carry
+Wave 1 is two symbol batches (22 and 13 symbols), based on `eabd316be0`. It launched at 04:20Z,
+and both batches landed (`a2aace4c3d` at 04:59Z, `c771c3e8bd` at 05:08Z). All 35 items carry
 their anchors there. Translation cost `$37.85` for 124.5M tokens and 1h28m of agent wall time.
 
 - `dict.rs` gained the readers and writers (`len`, `iter`, `get`/`get_all`, `serialize`,
@@ -1710,12 +1709,12 @@ their anchors there. Translation cost `$37.85` for 124.5M tokens and 1h28m of ag
 ### `libavutil/options` review wave 1
 
 One `openrouter/anthropic/claude-opus-5.5` reviewer for the 35 symbols (26m24s, `$13.35`,
-45.1M tokens) landed `c63e0d92cb` (reports and reproducer) and `47e76c2f3d` (fix).
+45.1M tokens) landed `c84c90c508` (reports and reproducer) and `4ea36e8629` (fix).
 `ub_unsafe/remove-array-shrink-failure-double-free`: `av_opt_set_array`'s removal frees and
 shifts the elements before its shrinking `av_realloc_array`. Under an `av_max_alloc` limit,
 which safe code can set, that call fails with `ENOMEM` and C keeps the old count, so
 `av_opt_free` frees a shifted string twice. Rerun by the orchestrator, the reproducer exits 1
-on `f589c22d1d` (ASan `attempting double-free`) and 0 on `47e76c2f3d`, so it is accepted.
+on `c771c3e8bd` (ASan `attempting double-free`) and 0 on `4ea36e8629`, so it is accepted.
 `remove_array` now writes the new count back after that failure; this is a correction beyond C.
 A `misc` report fixed `insert_array`'s doc (C stores a rational into an integer-like element
 as `llrint(1/den)*num`), and a `wavefront` report corrected three records. Neither smell
@@ -1723,8 +1722,8 @@ moved. The reviewed tip was promoted; wave wall time (04:20Z to 05:37Z) was 1h16
 
 ### `libavutil/options` wave 2
 
-Wave 2, the sub-campaign's last, is one batch of 14 `opt.c` symbols, based on `281ee40415`
-(the reviewed wave-1 tip plus its records). It launched at 05:40Z and landed `1d434aef61` at
+Wave 2, the sub-campaign's last, is one batch of 14 `opt.c` symbols, based on `3019565384`
+(the reviewed wave-1 tip plus its records). It launched at 05:40Z and landed `abf526dc98` at
 06:20Z, with all 14 items anchored, for `$13.57` (41.4M tokens, 40m30s). It wrapped the option
 lookups (`find`, `find_with_target`, and `ClassRef::find` through C's fake object), the option
 walk, the per-option default check (which refuses an option outside the object's own table,
@@ -1736,12 +1735,12 @@ pointers.
 ### `libavutil/options` review wave 2
 
 One `openrouter/anthropic/claude-opus-5.5` reviewer for the 14 symbols (81m25s, `$15.34`,
-39.1M tokens) landed `8558dbce7c` (reports and reproducer) and `be8e0f1a23` (fixes).
+39.1M tokens) landed `ad02fe43af` (reports and reproducer) and `2a848962bc` (fixes).
 `ub_safe/eval-flags-token-split-hides-evaluator-call` is reachable from safe code: C cuts a
 flags value into tokens of at most 255 bytes, and the refusal checked the whole value, so
 `0*` + 253 zeros + `ld(1e300)` reached `ld`'s unchecked `(int)1e300` through `eval_flags` on
-C's `cpuflags` class. Rerun by the orchestrator, the reproducer exits 1 on `1d434aef61` (UBSan
-`eval.c:206`) and 0 on `be8e0f1a23`, so it is accepted. The fix checks every token, for
+C's `cpuflags` class. Rerun by the orchestrator, the reproducer exits 1 on `abf526dc98` (UBSan
+`eval.c:206`) and 0 on `2a848962bc`, so it is accepted. The fix checks every token, for
 `eval_flags` and for the setters that share the refusal. A `wavefront` report corrected
 `av_opt_eval_flags`' record.
 
@@ -1778,14 +1777,14 @@ bytes instead of four under BSan. The reviewed tip was promoted; wave wall time 
 
 ### `libavutil/crypto` wave 0
 
-`crypto` is based on `7f98285377`: the campaign tip `34ffd7ee48` plus 22 header modules. At the
+`crypto` is based on `26c563ecc2`: the campaign tip `6daed536cb` plus 22 header modules. At the
 user's direction (2026-10-11) its translators ran on `openrouter/openai/gpt-6.1-sol` via
 `codex` (api billing); reviews stayed on `openrouter/anthropic/claude-opus-5.5`.
 
 Wave 0 is 10 type batches (19 types: the cipher, hash and checksum contexts, `AVCRCId` and
 `AVHMACType`) and one batch of 24 symbols (checksums, base64, CRC tables, LZO, MD5 sum, UUIDs,
 hash names and the nine context-size globals). It launched at 07:53Z on 2026-10-11, and all 11
-batches landed between 08:03Z and 08:48Z, ending at `7935c403e0`. All 43 scheduled items carry
+batches landed between 08:03Z and 08:48Z, ending at `c45fd5b3d1`. All 43 scheduled items carry
 their anchors there. Translation cost `$37.44` for 135.4M tokens and 5h41m of agent wall time:
 `$3.40` per batch, against `$14.12` per batch in `options` wave 0 on Opus 5.5.
 
@@ -1808,7 +1807,7 @@ their anchors there. Translation cost `$37.44` for 135.4M tokens and 5h41m of ag
 Two `openrouter/anthropic/claude-opus-5.5` reviewers: batch 0 took the 19 types and batch 1
 the 24 symbols. Together they cost `$19.83` for 58.2M tokens and 1h09m.
 
-- **Types reviewer** (42m30s, `$14.00`): landed `60394391f0` (reports) and `e1da21ef9f`
+- **Types reviewer** (42m30s, `$14.00`): landed `82f93237f0` (reports) and `99811e0ab3`
   (fixes). `lifecycle/avdes`: `AVDES` had no clone strategy; `Des` is now `Clone`/`Copy` and
   `DesBox` clones through `av_memdup`. `unsafe/opaque-contexts-offer-rust-sized-allocation`:
   the SHA, SHA-512, Camellia, TEA and Twofish owners used the `Heap` policy over a zero-sized
@@ -1818,35 +1817,35 @@ the 24 symbols. Together they cost `$19.83` for 58.2M tokens and 1h09m.
   Two `conventions` reports (a wrapped `SAFETY` block, `clippy --all-targets` failures in the
   SHA equivalence tests), one `wavefront` correction (`av_hash_alloc` as the constructor) and
   three `misc` reports (two drifted trybuild snapshots, the translator notes above).
-- **Symbols reviewer** (26m34s, `$5.82`): landed `e9dc8e3abf` (reports and reproducer) and
-  `776e95e556` (fix). `equiv/base64-rejects-outputs-beyond-int-max`: `base64::encode` and
+- **Symbols reviewer** (26m34s, `$5.82`): landed `c3a3e29251` (reports and reproducer) and
+  `a4a081f276` (fix). `equiv/base64-rejects-outputs-beyond-int-max`: `base64::encode` and
   `decode` refused any output buffer longer than `INT_MAX` bytes with `EINVAL`, where C, given
-  `INT_MAX`, succeeds. Rerun by the orchestrator, the reproducer exits 1 on `7935c403e0`
-  (`Rust Err(-22): DIFFER` for both) and 0 on `e1da21ef9f`, so it is accepted. Three
+  `INT_MAX`, succeeds. Rerun by the orchestrator, the reproducer exits 1 on `c45fd5b3d1`
+  (`Rust Err(-22): DIFFER` for both) and 0 on `99811e0ab3`, so it is accepted. Three
   `conventions` reports (wrappers placed after the `unit_tests` module, which fails
   `clippy::items_after_test_module`; UUID `copy`/`equal`/`nil` anchored `Wraps` though they
   never call C; equivalence-test `SAFETY` comments) and one `wavefront` correction.
-- No UB was found. The reviewed tip `e1da21ef9f` was promoted. Wave wall time, from the first
+- No UB was found. The reviewed tip `99811e0ab3` was promoted. Wave wall time, from the first
   launch (07:53Z) to the last review landing (09:33Z), was 1h40m33s.
 
 ### `libavutil/crypto` wave 1
 
 Wave 1, the sub-campaign's last, is 4 symbol batches (25, 25, 25 and 4 symbols: block
 processing, CTR IVs, streaming hashes, HMAC and the cipher `crypt` routines), based on
-`c55b9c574c`. It launched at 09:39Z, and all 4 batches landed between 09:47Z and 10:02Z, ending
-at `e71508dc3c`. All 79 items carry their anchors there. Translation cost `$8.70` for 35.9M
+`10c0222a0d`. It launched at 09:39Z, and all 4 batches landed between 09:47Z and 10:02Z, ending
+at `0896e41211`. All 79 items carry their anchors there. Translation cost `$8.70` for 35.9M
 tokens and 1h11m of agent wall time (7–26 minutes per agent). Neither smell moved, and no
 `ub_unsafe` test was added: the wave adds no public unsafe API.
 
 ### `libavutil/crypto` review wave 1
 
 One `openrouter/anthropic/claude-opus-5.5` reviewer for the 79 symbols (2h11m00s, `$18.39`,
-50.0M tokens) landed `7e64818be7` (reports and reproducer) and `b7201f7c3f` (fixes).
+50.0M tokens) landed `f60d669d34` (reports and reproducer) and `75d235c777` (fixes).
 
 - `equiv/hash-and-hmac-reject-outputs-beyond-c-ranges`: the hash `finalize_bin`/`hex`/`b64`
   wrappers refused outputs over `INT_MAX` and HMAC `finalize`/`calculate` over `UINT_MAX`,
   where C succeeds, the same shape as wave 0's base64 finding. Rerun by the orchestrator, the
-  reproducer exits 1 on `e71508dc3c` (5 cases `DIFFER`) and 0 on `b7201f7c3f` (all agree), so
+  reproducer exits 1 on `0896e41211` (5 cases `DIFFER`) and 0 on `75d235c777` (all agree), so
   it is accepted.
 - `internal/xtea-in-place-source-pointer-taken-before-exclusive-retag`: XTEA's in-place path
   derived C's source pointer from a shared reborrow before the exclusive one. That is UB under
@@ -1889,15 +1888,15 @@ wave wall time (09:39Z to 12:18Z) was 2h38m56s.
 
 ### `libavutil/buffer-frame` wave 0
 
-`buffer-frame` is based on `309488f337`: the campaign tip `8da383c893` plus the `buffer`, `frame` and
+`buffer-frame` is based on `200821da7c`: the campaign tip `d6b6eab6e2` plus the `buffer`, `frame` and
 `refstruct` header modules. Translators and reviewers ran on `openrouter/anthropic/claude-opus-5.5`
-(api billing). The campaign branch was merged into the sub-campaign twice (`ddba6032bc`, `03e027355e`)
+(api billing). The campaign branch was merged into the sub-campaign twice (`ba0b233ccf`, `98495065e5`)
 to carry the campaign-wide scan and results structure commits, so its promotion stays a fast-forward.
 
 Wave 0 is 5 type batches (`AVBuffer`, `AVBufferPool`, `AVRefStructOpaque`, `AVRefStructPool`,
 `AVSideDataDescriptor`, `AVSideDataProps`, `AVFrameSideDataType`, `AVActiveFormatDescription`) and one
 batch of 7 symbols (the `av_refstruct_*` reference routines and `av_buffer_default_free`). It launched
-at 16:19Z on 2026-10-11, and all 6 batches landed by 17:13Z, ending at `2161c1d053`, with all 15
+at 16:19Z on 2026-10-11, and all 6 batches landed by 17:13Z, ending at `adfecd6c81`, with all 15
 items anchored. Translation cost `$38.93` for 106.5M tokens and 3h38m of agent wall time. Smells went
 from 35 to 36 `unsafe fn` and from 65 to 71 raw pointers.
 
@@ -1905,7 +1904,7 @@ from 35 to 36 `unsafe fn` and from 65 to 71 raw pointers.
 
 Two `openrouter/anthropic/claude-opus-5.5` reviewers (8 types, 7 symbols) cost `$13.10` for 35.9M tokens.
 
-- **Symbols reviewer** (18m00s, `$5.52`): landed `121132ed95` and `e9a17781a4`.
+- **Symbols reviewer** (18m00s, `$5.52`): landed `867ce88ed7` and `edd9025228`.
   `unsafe/refstruct-count-wrap-by-leaked-references`: C increments RefStruct's `uintptr_t` count
   unchecked, and safe code can leak references with `mem::forget`, so on targets narrower than 64 bits
   a loop of leaked clones wraps it and the next release frees a live object. Every counted up-ref now
@@ -1913,18 +1912,18 @@ Two `openrouter/anthropic/claude-opus-5.5` reviewers (8 types, 7 symbols) cost `
   `CRefClone` contract never forbade a wrapping count. Its pure-Rust reproducer, rerun by the
   orchestrator, fails under Miri with a use after free after 255 leaked clones of an 8-bit count; the
   contract fix was merged into ffibox `main` as `630f4a5`.
-- **Types reviewer** (30m49s, `$7.57`): landed `139f845860` and `a41e9e08ea`.
+- **Types reviewer** (30m49s, `$7.57`): landed `d171e9db69` and `13a178b7db`.
   `unsafe/buffer-pool-allocator-free-callback-under-pool-lock`: `BufferPool::with_allocator`'s
   `# Safety` let a buffer's free callback call into its own pool, which `av_buffer_pool_uninit` runs
   under the pool mutex, so it self-deadlocked. The reproducer, rerun by the orchestrator, exits 1
-  through its watchdog on `2161c1d053`; it is a contract fix, so it still deadlocks afterwards by
+  through its watchdog on `adfecd6c81`; it is a contract fix, so it still deadlocks afterwards by
   design. Also one `wavefront` correction and one `conventions` fix.
 - Wave wall time (16:19Z to 17:46Z) was 1h26m51s.
 
 ### `libavutil/buffer-frame` wave 1
 
 One type batch (`AVBufferRef`, `AVRegionOfInterest`) and one batch of 10 symbols (RefStruct allocators
-and pools, `av_buffer_pool_uninit`, side data name and descriptor lookups), based on `16af9594fc`.
+and pools, `av_buffer_pool_uninit`, side data name and descriptor lookups), based on `f4f372d373`.
 Both landed between 18:29Z and 18:45Z, all 12 items anchored, for `$23.55` (66.2M tokens, 1h25m).
 `AVBufferRef` is `BufferReferenceBox`; its `try_clone` refuses once `av_buffer_get_ref_count` reaches
 a limit, so `AVBuffer`'s unchecked `atomic_uint` cannot wrap either. Allocations that hand out
@@ -1941,7 +1940,7 @@ the typed pools' zeroing argument and a `SAFETY` comment past the scanner's look
 
 ### `libavutil/buffer-frame` wave 2
 
-One type batch (`AVFrameSideData`) and one batch of 15 `av_buffer_*` symbols, based on `03e027355e`.
+One type batch (`AVFrameSideData`) and one batch of 15 `av_buffer_*` symbols, based on `98495065e5`.
 Both landed by 20:11Z, all 16 items anchored, for `$19.64` (53.1M tokens, 1h11m). Raw pointers went
 from 71 to 78.
 
@@ -1952,7 +1951,7 @@ Two reviewers (1 type, 15 symbols) cost `$17.10` for 51.1M tokens.
 `BufferPool::with_allocator(n, alloc_resizable)` hands out buffers C keeps
 `BUFFER_FLAG_REALLOCATABLE`, so the safe resize let `av_buffer_realloc` move one under its pool entry
 and the pool recycled the freed block. Rerun by the orchestrator, the reproducer exits 1 on
-`13730d672b` (ASan heap-use-after-free) and 0 on `c09d4fd353`, so it is accepted; buffers with an
+`83bd5f2e64` (ASan heap-use-after-free) and 0 on `b3cfd5dbd2`, so it is accepted; buffers with an
 opaque now resize by copy. `misc/uninit-view-over-initialised-rust-owner`: `UninitBuffer::try_from`
 exposed an owner's initialised bytes as uninitialised; it now refuses buffers with an opaque, and
 `UninitBuffer::from_owner` covers pool allocators. The types reviewer submitted `AVFrameSideData`'s
@@ -1961,7 +1960,7 @@ missing lifecycle roles. Wave wall time (19:33Z to 20:43Z) was 1h09m52s.
 ### `libavutil/buffer-frame` wave 3
 
 One type batch (`AVFrame`, 40 fields) and one batch of 8 `av_frame_side_data_*` symbols, based on
-`41c360ce53`. Both landed by 21:53Z, all 9 items anchored, for `$25.35` (75.0M tokens, 1h32m). The
+`6224fd5a23`. Both landed by 21:53Z, all 9 items anchored, for `$25.35` (75.0M tokens, 1h32m). The
 largest smell move of the sub-campaign: 37 to 42 `unsafe fn` and 78 to 95 raw pointers, mostly the
 `AVFrame` batch's public `set_data_ptr` / `set_extended_data_ptr` / `replace_hw_frames_context` and
 private layout projections.
@@ -1975,32 +1974,32 @@ the orchestrator and accepted:
 
 - `ub_unsafe/clone-reads-planar-channels-past-data`: planar audio with more than 8 lent channels and
   `extended_data` still `data` made `try_clone`'s `av_frame_copy` read past `data[8]` (ASan SEGV at
-  `0x40` on `e14aea15ed`, exit 0 on `39f7f8db25`). `try_clone` now refuses such frames.
+  `0x40` on `4b205d72ec`, exit 0 on `82371ac8e1`). `try_clone` now refuses such frames.
 - `ub_unsafe/extended-data-keeps-a-replaced-external-plane`: `alloc_extended_data` copied lent planes,
-  so a replaced and freed plane stayed and a clone read it (heap-use-after-free on `e14aea15ed`, exit 0
-  on `39f7f8db25`).
+  so a replaced and freed plane stayed and a clone read it (heap-use-after-free on `4b205d72ec`, exit 0
+  on `82371ac8e1`).
 - `ub_safe/side-data-clone-replace-leaks-partial-metadata`: `add_clone` with REPLACE leaked C's partial
-  metadata copy when `av_dict_copy` failed after its first entry (LSan, 36 bytes, on `2a232726c8`; exit
-  0 on `533a33baa6`). Rust now runs that path itself and frees the partial copy.
+  metadata copy when `av_dict_copy` failed after its first entry (LSan, 36 bytes, on `4f959b26a4`; exit
+  0 on `e0117458b2`). Rust now runs that path itself and frees the partial copy.
 
 `replace_hw_frames_context`'s contract was also tightened, and a private raw-pointer return removed
 (94 raw pointers after review). Wave wall time (20:52Z to 22:31Z) was 1h39m00s.
 
 ### `libavutil/buffer-frame` wave 4
 
-Wave 4, the sub-campaign's last, is one batch of 18 `av_frame_*` routines, based on `6eadfd2e74`. It
-landed `c6e25ecf93` at 23:43Z, all 18 items anchored, for `$22.57` (72.0M tokens, 1h03m). Neither
+Wave 4, the sub-campaign's last, is one batch of 18 `av_frame_*` routines, based on `6bc1e235fc`. It
+landed `2453c27798` at 23:43Z, all 18 items anchored, for `$22.57` (72.0M tokens, 1h03m). Neither
 smell moved.
 
 ### `libavutil/buffer-frame` review wave 4
 
 One reviewer for the 18 symbols (3h31m34s, `$26.77`, 48.3M tokens; most of the wall time was the BSan
-gate) landed `07a094b840` and `a7d919e1f2`.
+gate) landed `e9fad85f29` and `686a30f88a`.
 `ub_safe/audio-copy-sample-count-rounding-overflow`: `alloc_buffers` guarded C's
 `FFALIGN(nb_samples, 32)` overflow at `INT_MAX - 31` samples, but `make_writable`, `try_clone` and
 `try_clone_from` reached it through the `av_frame_get_buffer` call inside `av_frame_ref` and the
-wrapper's copy helper. Rerun by the orchestrator, the reproducer exits 1 on `c6e25ecf93` (UBSan
-`samplefmt.c:137`, `2147483616 + 32 cannot be represented in type 'int'`) and 0 on `a7d919e1f2`, so it
+wrapper's copy helper. Rerun by the orchestrator, the reproducer exits 1 on `2453c27798` (UBSan
+`samplefmt.c:137`, `2147483616 + 32 cannot be represented in type 'int'`) and 0 on `686a30f88a`, so it
 is accepted. One `misc` doc fix and four `wavefront` corrections.
 
 As the sub-campaign's last wave, this reviewer ran the workspace BSan gate covering all of
@@ -2031,20 +2030,20 @@ Wave wall time (22:40Z to 03:16Z on 2026-10-12) was 4h36m16s.
 - After the review, at the user's request, the orchestrator moved `refstruct.rs`'s four typed-pool and
   release trampolines off their one-element-slice workaround (`CSliceMut::from_raw_parts(p, 1)`) onto
   `T::mut_from_void_ptr` / `T::mut_from_ptr`, the generic handle constructors ffibox `5a98173` gave
-  `CCell` (`7fd89a4fc6`). It was validated with clippy, the whole plain suite, and the refstruct tests
+  `CCell` (`b36c196b9b`). It was validated with clippy, the whole plain suite, and the refstruct tests
   under ASan/UBSan, TSan and BSan; no smell moved. The sub-campaign and campaign-wide scans were taken
   on that tree.
 
 ### `libavutil/hwcontext` wave 0
 
-`hwcontext` is based on `51d267324b`: the campaign tip `f5e8195b9b` plus the `hwcontext` header module.
+`hwcontext` is based on `23002c771a`: the campaign tip `e7a860fd68` plus the `hwcontext` header module.
 Translators and reviewers ran on `openrouter/anthropic/claude-opus-5.5`. Every campaign build is
 configured with `--disable-autodetect` and no hardware backend, so FFmpeg's backend table is empty:
 `av_hwdevice_ctx_alloc` and `create` fail for every device type and no real device or frames context
 exists. The translators therefore built three fake backends in `tests/common/` that mirror the C
 backend structs, so the lifecycle, map, derive, transfer and constraints paths run through C.
 
-Wave 0 is one type batch (`AVHWDeviceType`, `AVHWFrameTransferDirection`). It landed `01f8b6fdbf` at
+Wave 0 is one type batch (`AVHWDeviceType`, `AVHWFrameTransferDirection`). It landed `b681e8e946` at
 03:49Z on 2026-10-12, both items anchored, for `$2.84` (6.6M tokens, 12m09s). Its reviewer (`$2.28`,
 9m50s) corrected `DeviceType`'s docs: `AVHWDeviceContext.type` is read-only after allocation (the
 backends cast `hwctx` by it), so the context gets no type setter. No code defect. Wave wall time was
@@ -2053,7 +2052,7 @@ backends cast `hwctx` by it), so the context gets no type setter. No code defect
 ### `libavutil/hwcontext` wave 1
 
 One type batch (`AVHWDeviceContext`, `AVHWFramesConstraints`) and two symbol batches (14 device and
-frames-context routines; the transfer pair), based on `6d40d98d24`. All 3 landed between 04:44Z and
+frames-context routines; the transfer pair), based on `6974541d1e`. All 3 landed between 04:44Z and
 05:29Z, all 18 items anchored, for `$50.94` (156.2M tokens, 3h05m); the type batch alone took
 `$25.46`. The type batch and a symbol batch both designed owners for the same C object, and the
 later landing kept one. `unsafe fn` went from 42 to 47.
@@ -2070,9 +2069,9 @@ Wave wall time (04:05Z to 06:06Z) was 2h01m31s.
 ### `libavutil/hwcontext` wave 2
 
 Wave 2, the sub-campaign's last, is one type batch (`AVHWFramesContext`) and one batch of 2 symbols,
-based on `2003c9654e`. The symbol batch found both symbols already bound by wave 1's type batch as
-`FramesConstraints`' constructor and release, and recorded that (`3897b00e38`, `$1.88`). The type batch
-landed `126a47005b` at 06:52Z for `$11.06` (33.3M tokens, 41m54s). `unsafe fn` went to 50.
+based on `ec0ec293a8`. The symbol batch found both symbols already bound by wave 1's type batch as
+`FramesConstraints`' constructor and release, and recorded that (`45c1736871`, `$1.88`). The type batch
+landed `ad5932bb53` at 06:52Z for `$11.06` (33.3M tokens, 41m54s). `unsafe fn` went to 50.
 
 ### `libavutil/hwcontext` review wave 2
 
@@ -2080,11 +2079,11 @@ Two reviewers cost `$28.95` for 66.9M tokens. With two last-wave reviewers, only
 ran the workspace BSan gate; the symbols reviewer ran BSan only on its own test (the orchestrator's
 reading of the gate policy, to avoid two concurrent gates).
 
-- **Types reviewer** (1h56m00s, `$24.69`): landed `493e8ef6b8` and `053a37e435`.
+- **Types reviewer** (1h56m00s, `$24.69`): landed `47c3eea0f4` and `2a1f7d6d5a`.
   `unsafe/frame-hw-frames-context-seam-left-untyped`: `frame.rs` had kept `AVFrame.hw_frames_ctx` as a
   byte-view getter and an untyped unsafe setter until this type existed, and that setter's contract let
   the safe `FrameRef::try_clone` of a frame without `buf[0]` reach C's unchecked `transfer_data_from`
-  call through the context's backend. Rerun by the orchestrator, the reproducer exits 1 on `126a47005b`
+  call through the context's backend. Rerun by the orchestrator, the reproducer exits 1 on `ad5932bb53`
   (ASan SEGV in `libavutil.so`); on the fixed tree it no longer compiles, because the setter now takes a
   `FramesReferenceBox` and is safe, and the same scenario through the safe API is a unit test that dies
   with SIGSEGV without the new refusal. Accepted. Copies of frames holding a frames context are refused
@@ -2115,7 +2114,7 @@ more instance of the documented `strtol` end-pointer false positive
 
 The coverage measurement filtered test files by a literal `tests/` path prefix. The library's unit
 tests include four `tests/common` helpers through `#[cfg(test)] #[path = "../tests/common/.."]`:
-`opt.rs` since `ad7acaeaca` (`core`, 2026-10-08), and the fake hardware backends `hwdevice.rs`,
+`opt.rs` since `ab1d2518bf` (`core`, 2026-10-08), and the fake hardware backends `hwdevice.rs`,
 `hwframes.rs` and `hwbackend.rs` since `hwcontext` wave 1. They reached the profile as
 `libavutil/../tests/common/..`, so their lines counted as library code: 110 lines at first, 293 at
 `buffer-frame`'s end, 1049 at `hwcontext`'s end. Every recorded Rust figure was therefore

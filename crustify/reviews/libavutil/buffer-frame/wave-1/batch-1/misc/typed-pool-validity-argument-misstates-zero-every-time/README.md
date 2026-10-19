@@ -2,7 +2,7 @@
 
 - File: `crustify/rust/ffmpeg/libavutil/refstruct.rs`, the `TypedRefStructPool`
   type documentation
-- Affected commit: `0ea2c20f1f` (buffer-frame wave 1, symbol batch 1)
+- Affected commit: `5804b1d443` (buffer-frame wave 1, symbol batch 1)
 
 ## Finding
 

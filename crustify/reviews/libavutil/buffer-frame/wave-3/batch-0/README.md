@@ -5,8 +5,8 @@
   `FrameBox = CBox<Frame, FrameFree>` (`av_frame_alloc`/`av_frame_free`),
   `FrameMut::reset` (`av_frame_unref`), `FrameRef::try_clone`
   (`av_frame_clone`), `FrameFlags`, `DecodeErrorFlags` and `PlaneError`.
-  Wrapped by translation batch 0 (`2a232726c8`).
-- Reviewed commit: the wave tip `2a232726c8`. The symbol review (batch 1)
+  Wrapped by translation batch 0 (`4f959b26a4`).
+- Reviewed commit: the wave tip `4f959b26a4`. The symbol review (batch 1)
   landed while this one ran, and this review is rebased onto it.
 - Wave 3 is not the sub-campaign's last wave: `schedule.json` lists waves
   0-4 for `buffer-frame`. BSan therefore ran only on this review's two

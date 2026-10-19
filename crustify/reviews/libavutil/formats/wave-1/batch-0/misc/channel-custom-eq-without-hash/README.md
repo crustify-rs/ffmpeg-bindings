@@ -1,7 +1,7 @@
 # `ChannelCustom` is `Eq` but not `Hash`
 
-Affected base: `2f6e60458d` (the wave tip; `ChannelCustom` landed in
-`0bbd0f7f6b`, formats wave 1 batch 1). Home:
+Affected base: `0a2fbf9bb7` (the wave tip; `ChannelCustom` landed in
+`fac2331574`, formats wave 1 batch 1). Home:
 `crustify/rust/ffmpeg/libavutil/channel_layout.rs`.
 
 `ChannelCustom` (`AVChannelCustom`) implements `PartialEq` and `Eq` over

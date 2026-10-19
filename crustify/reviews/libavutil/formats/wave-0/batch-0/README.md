@@ -5,9 +5,9 @@
   `AVColorTransferCharacteristic`, `AVComponentDescriptor`,
   `AVMatrixEncoding`, `AVPixelFormat`, `AVSampleFormat`.
 - Homes: `crustify/rust/ffmpeg/libavutil/{pixfmt,channel_layout,pixdesc,samplefmt}.rs`.
-- Reviewed commit: the wave tip `7317de905c` (types landed by batches 0-6:
-  `2639963171`, `67e9b821de`, `1a599f3fe6`, `4c70e125ee`, `c087115626`,
-  `14815d9164`, `7e499d9c61`).
+- Reviewed commit: the wave tip `17c012afcd` (types landed by batches 0-6:
+  `41844f9750`, `33cbfb768a`, `eb9a1ebc0c`, `889a1ec70f`, `653bf3f6d0`,
+  `0c753e50ee`, `b39657734d`).
 - Reports: `misc/missing-default-on-none-valued-enums` (fixed) and
   `wavefront/matrix-encoding-underlying-type` (finding resubmitted). Every
   other step below found nothing to report.

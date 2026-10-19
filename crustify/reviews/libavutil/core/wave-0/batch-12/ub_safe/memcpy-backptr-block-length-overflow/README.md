@@ -1,7 +1,7 @@
 # `copy_back_reference` reaches `av_memcpy_backptr`'s block-length overflow
 
 - File: `crustify/rust/ffmpeg/libavutil/mem.rs`
-- Affected commit: `3770f8f483` (wave-0 head at review time)
+- Affected commit: `5d0c0b3b31` (wave-0 head at review time)
 - Item: `copy_back_reference` (`Wraps: av_memcpy_backptr`)
 - Sanitizers: UBSan (`left shift of 1073741824 by 1 places cannot be
   represented in type 'int'`), then ASan (`negative-size-param` in

@@ -1,7 +1,7 @@
 # AVMatrixEncoding's finding named the wrong underlying integer type
 
-Affected base: `7317de905cd9a976e6a17b3650ba4182f2fe170c` (finding submitted
-by formats wave-0 batch 4, `c087115626`).
+Affected base: `17c012afcd0e1e6fab63a97ac3e622e16db2cfba` (finding submitted
+by formats wave-0 batch 4, `653bf3f6d0`).
 
 The previous `_comment_agent` for `AVMatrixEncoding` ended with "CPlainElem
 (every c_int bit pattern valid)". The enum has no negative enumerator

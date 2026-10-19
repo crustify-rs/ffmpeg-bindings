@@ -1,7 +1,7 @@
 # Misc: string constructors misstated the `av_max_alloc` boundary
 
 - File: `crustify/rust/ffmpeg/libavutil/mem.rs`
-- Affected commit: `a95b9e3220`
+- Affected commit: `271811c5bb`
 - Items: `string_from_c_str` (`av_strdup`), `string_from_bytes_until_nul`
   (`av_strndup`)
 

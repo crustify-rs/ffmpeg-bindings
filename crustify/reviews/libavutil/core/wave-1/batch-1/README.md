@@ -1,7 +1,7 @@
 # Review: rational arithmetic, rescaling, names, escape, time strings
 
 Route: **symbol** (26 items). Objective: **review**. Affected base:
-`23dc07587c751c8f7c82729839a4b0065c66bb5f` (`av_make_q`, `av_rescale_rnd`
+`b2cff27cd691af1482bd36e8c2edab9d5e25fcf8` (`av_make_q`, `av_rescale_rnd`
 and `av_ts_make_time_string2` were wrapped earlier and re-checked here).
 
 ## Findings and scope

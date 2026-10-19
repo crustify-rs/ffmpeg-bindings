@@ -2,7 +2,7 @@
   "method": {
     "rust": "RUSTFLAGS=-C instrument-coverage, nightly llvm-profdata merge + llvm-cov report over the lib, equiv, ub_safe and ub_unsafe test binaries (cargo +nightly test -p ffmpeg --lib --tests -- dict eval opt --skip compile_fail), reported for the three home files",
     "c": "the same run with CRUSTIFY_FFMPEG_VARIANT=coverage and GCOV_PREFIX; gcov -b -c -f over libavutil/dict.c, eval.c and opt.c, reported for the workset's lifecycle routines and the readers of its fields",
-    "note": "one measurement on the review's tree (the wave tip dc97af2db7 plus this review's changes)"
+    "note": "one measurement on the review's tree (the wave tip cde88fc249 plus this review's changes)"
   },
   "rust": {
     "libavutil/dict.rs": { "regions": { "count": 322, "percent": 100.0 }, "functions": { "count": 36, "percent": 100.0 }, "lines": { "count": 222, "percent": 100.0 } },

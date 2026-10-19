@@ -1,11 +1,11 @@
 # Misc (not fixed): wave-1 translators again committed notes under `crustify/campaigns/`
 
 - Paths, all under `crustify/artifacts/libavutil/crypto/wave-1/`:
-  - `batch-0/translator-notes/validation.md` (`5f76ee7dca`)
-  - `batch-1/translator-notes/validation.md` (`e71508dc3c`)
-  - `batch-2-validation.md` (`71c9f8836e`), at the wave level, outside any
+  - `batch-0/translator-notes/validation.md` (`72aa992e7f`)
+  - `batch-1/translator-notes/validation.md` (`0896e41211`)
+  - `batch-2-validation.md` (`ca48444648`), at the wave level, outside any
     batch directory
-  - `batch-3/translator-notes/validation.md` (`828f6bdbf7`)
+  - `batch-3/translator-notes/validation.md` (`1ab47283f1`)
 - Previous report: `../../../../wave-0/batch-0/misc/translator-notes-in-orchestrator-record-dirs`
 
 ## Finding

@@ -1,7 +1,7 @@
 # Conventions: an `equiv/frame.rs` unsafe block whose `// SAFETY:` comment sat above another line
 
 - File: `crustify/rust/ffmpeg/tests/equiv/frame.rs`, `side_data_type::Frame::get`
-- Affected commit: `af4b72cf9e` (buffer-frame wave 0, type batch 2,
+- Affected commit: `36bcce3d6a` (buffer-frame wave 0, type batch 2,
   `AVFrameSideDataType`)
 
 ## Finding
@@ -17,7 +17,7 @@ already put the `(!sd.is_null())` line between them. Clippy's
 `undocumented_unsafe_blocks` accepts that. `crustify scan-unsafe` does not: it
 wants the `// SAFETY:` line directly above the line holding `unsafe {`, and it
 counted the site in `undocumented_unsafe.per_file["ffmpeg/tests/equiv/frame.rs"]`,
-the only count against the wave's files at the wave tip `2161c1d053`.
+the only count against the wave's files at the wave tip `adfecd6c81`.
 
 ## Fix
 

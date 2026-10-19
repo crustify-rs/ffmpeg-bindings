@@ -1,7 +1,7 @@
 # Review: options wave-0 symbols (option object API, evaluator, parsers)
 
 Route: **symbol** (29 items). Objective: **review**. Affected base:
-`dc97af2db7784834f60a23ec4667e9b11f57e9b9` (the wave's head, translation
+`cde88fc2499d97939c1e62f795ed004ebde5439a` (the wave's head, translation
 batches 2 and 3 holding the 29 items).
 
 Items and homes:
@@ -86,7 +86,7 @@ ones, and numeric pixel/sample format values to the setter corpus.
 
 ## Validation
 
-On the tree rebased onto the wave tip `9ff1ec06ed` (the type review's
+On the tree rebased onto the wave tip `382c43ab9b` (the type review's
 `Expr::parse_with_context` change; no conflict):
 
 - `cargo check --workspace`, `cargo clippy --workspace --all-targets -- -D
@@ -101,7 +101,7 @@ On the tree rebased onto the wave tip `9ff1ec06ed` (the type review's
   filters.
 - Miri: `eval::unit_tests::clock_readers_are_found_by_name` (the only new
   FFI-free test).
-- Reproducers: each exits non-zero on `dc97af2db7` (UBSan `opt.c:508:30`
+- Reproducers: each exits non-zero on `cde88fc249` (UBSan `opt.c:508:30`
   twice, ASan heap-buffer-overflow) and 0 on the fixed tree, built with
   `CRUSTIFY_FFMPEG_VARIANT=asan-ubsan RUSTFLAGS=-Zsanitizer=address`.
 - BSan, each reproducer alone on the fixed tree:

@@ -3,7 +3,7 @@
 - Items: `AVBufferRef` (`buffer.rs`: `BufferReference`, `BufferReferenceBox`,
   `BufferUnref`, `UninitBuffer`), `AVRegionOfInterest` (`frame.rs`:
   `RegionOfInterest`)
-- Reviewed: wave tip `1a9271f931` (type batch 0). The symbol share of the wave
+- Reviewed: wave tip `6fd5597711` (type batch 0). The symbol share of the wave
   belongs to review batch 1. Wave 1 is not the sub-campaign's last wave (the
   schedule runs to wave 4), so BSan ran on no suite. This review emits no Rust
   reproducer to run under it.

@@ -1,7 +1,7 @@
 # Two `PixelFormatDescriptor` equivalence tests cost 28 minutes under BSan
 
-Affected base: `2f6e60458d` (the wave tip; the tests landed in
-`a60ec0cb84`, formats wave 1 batch 2). File:
+Affected base: `0a2fbf9bb7` (the wave tip; the tests landed in
+`287eeecb28`, formats wave 1 batch 2). File:
 `crustify/rust/ffmpeg/tests/equiv/pixdesc.rs`, module
 `pixel_format_descriptor`.
 

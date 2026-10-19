@@ -1,7 +1,7 @@
 # Conventions: `avstring.rs`'s module doc had an ambiguous intra-doc link
 
 - File: `crustify/rust/ffmpeg/libavutil/avstring.rs`, line 3
-- Affected commit: `3770f8f483`
+- Affected commit: `5d0c0b3b31`
 - Home of this batch's `av_isgraph`, `av_isspace`, `av_isxdigit`,
   `av_match_name` and `av_match_list`
 

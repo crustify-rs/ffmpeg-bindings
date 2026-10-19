@@ -1,6 +1,6 @@
 # Review: libavutil/core wave-0 batch-14 (string, version, timestamp, sleep and vlog symbols)
 
-Workset (symbol route, objective `review`, translated in `ccdbbc0a77`):
+Workset (symbol route, objective `review`, translated in `083c4d43d0`):
 `av_strlcat`, `av_strlcatf`, `av_strlcpy`, `av_strncasecmp`, `av_strnlen`,
 `av_strnstr`, `av_strstart`, `av_strtok`, `av_tolower`, `av_toupper`,
 `av_utf8_decode` (`avstring.rs`); `av_strndup` (`mem.rs`);

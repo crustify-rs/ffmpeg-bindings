@@ -2,7 +2,7 @@
   "method": {
     "rust": "RUSTFLAGS=-C instrument-coverage, nightly llvm-profdata merge + llvm-cov report over the lib, equiv, ub_safe and ub_unsafe test binaries (cargo +nightly test -p ffmpeg --lib --tests -- aes blowfish camellia cast5 crc des hash hmac md5 murmur3 rc4 ripemd sha tea twofish xtea --skip compile_fail), reported for the 18 home files",
     "c": "the same run with CRUSTIFY_FFMPEG_VARIANT=coverage and GCOV_PREFIX; gcov -b -c -f over the workset's .c files, reported for the lifecycle routines (alloc/init/free) and the metadata getters of the types",
-    "note": "measured on the review's tree (wave tip 7935c403e0 plus this review's changes); av_hash_alloc re-measured after adding its allocation-limit test"
+    "note": "measured on the review's tree (wave tip c45fd5b3d1 plus this review's changes); av_hash_alloc re-measured after adding its allocation-limit test"
   },
   "rust": {
     "libavutil/aes.rs": {

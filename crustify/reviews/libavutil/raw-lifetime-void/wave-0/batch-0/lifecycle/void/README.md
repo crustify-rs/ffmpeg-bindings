@@ -1,7 +1,7 @@
 # Lifecycle gap: no singleton clone strategy for `av_memdup`
 
 - Item: `void` (raw-lifetime), home `crustify/rust/ffmpeg/libavutil/mem.rs`
-- Affected commit: `77473b8574` ("wrap libavutil's void raw-lifetime primitives")
+- Affected commit: `42bb68057f` ("wrap libavutil's void raw-lifetime primitives")
 - Kind: missing lifetime representation
 
 ## Finding

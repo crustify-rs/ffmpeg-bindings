@@ -1,7 +1,7 @@
 # Conventions: native UUID replacements anchored as `Wraps:`
 
 - File: `crustify/rust/ffmpeg/libavutil/uuid.rs`
-- Affected commit: `c51ba553a2` (crypto wave-0 batch 10)
+- Affected commit: `00728268f2` (crypto wave-0 batch 10)
 - Items: `copy` (`av_uuid_copy`), `equal` (`av_uuid_equal`), `nil` (`av_uuid_nil`)
 
 ## Finding

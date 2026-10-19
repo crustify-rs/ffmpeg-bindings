@@ -4,7 +4,7 @@
   the hand-written owner `SideDataArray`, its handles `SideDataArrayRef`/
   `SideDataArrayMut`, the iterators, `SideDataFlags`, and
   `SideDataArrayMut::add`/`SideDataArray::add` over `av_frame_side_data_add`)
-- Reviewed: wave tip `13730d672b` (type batch 0). The wave's symbol share
+- Reviewed: wave tip `83bd5f2e64` (type batch 0). The wave's symbol share
   belongs to review batch 1. The schedule runs to wave 4, so wave 2 is not
   the sub-campaign's last wave and BSan ran on no suite. This review emits
   no Rust reproducer to run under it.

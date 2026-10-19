@@ -2,7 +2,7 @@
 
 - Files: `crustify/rust/ffmpeg/libavutil/intfloat.rs`,
   `crustify/rust/ffmpeg/libavutil/intreadwrite.rs`
-- Affected commit: `3d6c6818f7` ("wrap libavutil av_alias64 and av_intfloat32")
+- Affected commit: `d96b454a0c` ("wrap libavutil av_alias64 and av_intfloat32")
 - Items: `av_intfloat32` (`IntFloat32`), `av_alias64` (`Alias64`)
 
 ## Finding

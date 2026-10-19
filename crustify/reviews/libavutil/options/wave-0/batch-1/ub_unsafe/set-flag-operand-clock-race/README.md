@@ -1,7 +1,7 @@
 # `ObjectMut::set` previews a `+`/`-` flag operand that C then evaluates to another value
 
 - File: `crustify/rust/ffmpeg/libavutil/opt.rs`
-- Affected commit: `dc97af2db7` (options wave-0 head at review time; the
+- Affected commit: `cde88fc249` (options wave-0 head at review time; the
   object API landed with it, translation batch 3)
 - Items: `av_opt_set` (`ObjectMut::set`), and through the same check
   `av_opt_set_from_string` (`ObjectMut::set_from_string`) and

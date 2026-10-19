@@ -5,13 +5,13 @@
   `av_frame_side_data_free`, `av_frame_side_data_get` (static inline),
   `av_frame_side_data_get_c`, `av_frame_side_data_new`,
   `av_frame_side_data_remove` and `av_frame_side_data_remove_by_props`.
-  Translation batch 1 (`63d684f623`) wrapped six of them:
+  Translation batch 1 (`356733671e`) wrapped six of them:
   `SideDataArrayRef::find`, `SideDataArrayMut::{find_mut, remove,
   remove_by_props, add_clone, alloc_zeroed, alloc_from_slice}`, and the
-  owner twins. The wave-2 type run (`13730d672b`) had already emitted
+  owner twins. The wave-2 type run (`83bd5f2e64`) had already emitted
   `_add` (`SideDataArrayMut::add`) and `_free` (`SideDataArray`'s `Drop`).
   This review covers all eight.
-- Reviewed commit: the wave tip `2a232726c8`.
+- Reviewed commit: the wave tip `4f959b26a4`.
 - Wave 3 is not the sub-campaign's last wave: `schedule.json` lists waves
   0-4 for `buffer-frame`. BSan therefore ran only on this review's
   reproducer.

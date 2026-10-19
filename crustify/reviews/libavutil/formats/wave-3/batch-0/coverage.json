@@ -2,7 +2,7 @@
   "method": {
     "rust": "RUSTFLAGS=-C instrument-coverage, nightly llvm-profdata merge + llvm-cov report over the lib, equiv, ub_safe and ub_unsafe test binaries (cargo +nightly test -p ffmpeg --lib --tests -- csp --skip compile_fail), reported for the home file",
     "c": "CRUSTIFY_FFMPEG_VARIANT=coverage with GCOV_PREFIX, the csp tests of the four binaries, gcov -b -c -f over libavutil/csp.c; AVColorPrimariesDesc has no C routine of its own, so its two readers (wave-4 symbols) are reported as context",
-    "note": "one measurement at the reviewed wave tip 0cc48b6804; the review's added equivalence test exercises already-covered lines (the embedded-field form of the same accessors), so the figures are unchanged at the landed tree"
+    "note": "one measurement at the reviewed wave tip e0a75b5d7f; the review's added equivalence test exercises already-covered lines (the embedded-field form of the same accessors), so the figures are unchanged at the landed tree"
   },
   "rust": {
     "libavutil/csp.rs": { "lines": { "count": 944, "percent": 100.0 }, "regions": { "count": 1592, "percent": 100.0 }, "functions": { "count": 165, "percent": 100.0 } },

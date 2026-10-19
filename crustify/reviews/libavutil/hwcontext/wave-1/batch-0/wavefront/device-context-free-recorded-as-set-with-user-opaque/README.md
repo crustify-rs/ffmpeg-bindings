@@ -1,7 +1,7 @@
 # Wavefront: `AVHWDeviceContext.free` recorded as always set together with `user_opaque`
 
 - Type: `AVHWDeviceContext` (`libavutil/hwcontext.h`). Its field findings
-  were submitted by translation batch 0 of hwcontext wave 1 (`b9dbecd340`).
+  were submitted by translation batch 0 of hwcontext wave 1 (`bfce8a115b`).
 - Status: resubmitted. `submission.json` here is the corrected set, applied
   with `query types --name AVHWDeviceContext --update`. The submission keeps
   the translator's `_comment_agent`, corrects its backend sentence, and

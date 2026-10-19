@@ -1,7 +1,7 @@
 # Lifecycle: `av_alias32` had no borrowed form over caller bytes
 
 - File: `crustify/rust/ffmpeg/libavutil/intreadwrite.rs`
-- Affected commit: `8a4ef630c5` (wrap of `av_alias16` / `av_alias32`)
+- Affected commit: `5e81aab756` (wrap of `av_alias16` / `av_alias32`)
 - Item: `av_alias32` (`Alias32`, `Alias32Ref`, `Alias32Mut`)
 
 ## Finding

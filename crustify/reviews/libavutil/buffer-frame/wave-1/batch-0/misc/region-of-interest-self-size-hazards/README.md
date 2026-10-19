@@ -1,7 +1,7 @@
 # Misc: `RegionOfInterest` misstated how C readers handle `self_size`
 
 - Item: type `AVRegionOfInterest` (`frame.rs`, `RegionOfInterest`)
-- Affected commit: `1a9271f931` (buffer-frame wave 1, type batch 0)
+- Affected commit: `6fd5597711` (buffer-frame wave 1, type batch 0)
 - Kind: documentation and safety-justification defect. No Rust UB is
   reachable yet. No safe API in the crate hands a
   `REGIONS_OF_INTEREST` payload to C, because libavfilter and libavcodec are

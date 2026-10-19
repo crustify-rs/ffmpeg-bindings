@@ -1,8 +1,8 @@
 # Misc: a trybuild E0277 snapshot broke when the wave added a `CAlloc` impl
 
 - File: `crustify/rust/ffmpeg/tests/ub_safe/compile_fail/hash_context_no_rust_sized_allocation.{rs,stderr}`
-- Affected commits: `b3706b37fc` (the case, MD5/Murmur3 batch) broken by
-  `99acee9c92` (`AesFree`/`AesCtrFree: CAlloc`, AES batch); wave tip `7935c403e0`
+- Affected commits: `e6ffc11569` (the case, MD5/Murmur3 batch) broken by
+  `876addbd5e` (`AesFree`/`AesCtrFree: CAlloc`, AES batch); wave tip `c45fd5b3d1`
 - Items: `AVMD5` (`Md5Box`), `AVMurMur3` (`Murmur3Box`)
 
 ## Finding

@@ -2,7 +2,7 @@
 
 - Store: `crustify/wavefront/ownership-store.json`, record
   `ff_pad_helper_AVBPrint` (`libavutil/bprint.h`)
-- Affected commit: `ce6afb6d6c` (core wave 0, batch 4), which submitted the
+- Affected commit: `9de9d5c5ce` (core wave 0, batch 4), which submitted the
   record on behalf of the `FF_PAD_STRUCTURE` item: the generator has no
   Wavefront record of its own, so the translator analysed the sizing helper
   it defines and mirrored `AVBPrint.str` onto it

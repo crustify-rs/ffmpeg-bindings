@@ -2,7 +2,7 @@
 
 - File: `crustify/rust/ffmpeg/libavutil/frame.rs`, the `define_ctype!` docs
   of `SideData` (`AVFrameSideData`)
-- Affected commit: `13730d672b` (buffer-frame wave 2, type batch 0)
+- Affected commit: `83bd5f2e64` (buffer-frame wave 2, type batch 0)
 
 ## Finding
 

@@ -1,4 +1,4 @@
-# BSan gate of libavutil/formats wave 0 at 7317de905c — FAILED (equiv binary only)
+# BSan gate of libavutil/formats wave 0 at 17c012afcd — FAILED (equiv binary only)
 
 Gate: clippy, plain, asan-ubsan, tsan, bsan lib/ub_safe/ub_unsafe all pass; `bsan` equiv fails.
 Command: BSAN_OPTIONS=gc_hang_threshold_ms=600000 CRUSTIFY_FFMPEG_VARIANT=bsan cargo bsan test --test equiv -- --skip compile_fail

@@ -2,7 +2,7 @@
 
 - File: `crustify/rust/ffmpeg/tests/equiv/frame.rs`,
   `side_data::c_adders_on_the_rust_array_match_c_arrays`
-- Affected commit: `13730d672b` (buffer-frame wave 2, type batch 0)
+- Affected commit: `83bd5f2e64` (buffer-frame wave 2, type batch 0)
 
 ## Finding
 

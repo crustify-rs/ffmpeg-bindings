@@ -1,8 +1,8 @@
 # Review: libavutil/options wave 1, batch 0 (the wave's symbols)
 
 Route: **symbol** (35 items). Objective: **review**. Reviewed commit: the
-wave tip `f589c22d1d` (translation batches 0 `cb5f693dd4` and 1
-`f589c22d1d`).
+wave tip `c771c3e8bd` (translation batches 0 `a2aace4c3d` and 1
+`c771c3e8bd`).
 
 Items and homes:
 
@@ -82,7 +82,7 @@ lines. The new repair path of `remove_array` is covered.
   `opt::...::array_elements_name_their_c_types`,
   `opt::...::write_refusal_mirrors_write_number`,
   `parseutils::...::timegm_terms_flag_every_int_overflow`).
-- Reproducer: exits 1 on `f589c22d1d` (ASan double free; BSan also reports
+- Reproducer: exits 1 on `c771c3e8bd` (ASan double free; BSan also reports
   the second `av_free`) and 0 on the fixed tree under ASan and under BSan,
   run alone.
 - BSan: only the reproducer, alone (not the sub-campaign's last wave).

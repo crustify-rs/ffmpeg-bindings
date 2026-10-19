@@ -1,4 +1,4 @@
-# BSan gate of libavutil/formats wave 2 at 693ccef878 — FAILED (lib, equiv, ub_safe)
+# BSan gate of libavutil/formats wave 2 at ac34a06476 — FAILED (lib, equiv, ub_safe)
 
 Gate: clippy, plain, asan-ubsan, tsan pass. `bsan` lib (1 failed of 539), equiv and ub_safe abort on
 "access an allocation that has been freed" inside C's av_channel_layout_from_string:

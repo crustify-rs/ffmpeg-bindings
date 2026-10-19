@@ -2,8 +2,8 @@
 
 - Item: `av_frame_side_data_add` (`SideDataArrayMut::add` /
   `SideDataArray::add`, `crustify/rust/ffmpeg/libavutil/frame.rs`). It was
-  emitted by the wave-2 type run (`13730d672b`), and translation batch 1 of
-  wave 3 (`63d684f623`) reused it.
+  emitted by the wave-2 type run (`83bd5f2e64`), and translation batch 1 of
+  wave 3 (`356733671e`) reused it.
 - Counter: `raw_ptr_priv_smell`, one site, at `frame.rs:2030` on the
   affected commit.
 - Status: fixed.

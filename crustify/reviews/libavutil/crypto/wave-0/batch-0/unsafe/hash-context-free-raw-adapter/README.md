@@ -1,7 +1,7 @@
 # Safe boundary: `HashContextFree` went through a private raw-pointer `unsafe fn`
 
 - File: `crustify/rust/ffmpeg/libavutil/hash.rs`
-- Affected commit: `5da4d94447` (wave tip `7935c403e0`)
+- Affected commit: `cc91f6866d` (wave tip `c45fd5b3d1`)
 - Item: `AVHashContext` (`HashContextFree`, the `av_hash_freep` policy)
 
 ## Finding

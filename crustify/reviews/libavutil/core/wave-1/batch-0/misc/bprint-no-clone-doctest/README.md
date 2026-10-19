@@ -1,6 +1,6 @@
 # BPrintBox's no-Clone doctest checked the wrong expression
 
-Affected base: `23dc07587c751c8f7c82729839a4b0065c66bb5f`.
+Affected base: `b2cff27cd691af1482bd36e8c2edab9d5e25fcf8`.
 Home: `bprint.rs`, BPrintBox compile-fail doctest.
 
 The test requested E0599 (missing clone method), but `b: &BPrintBox` has

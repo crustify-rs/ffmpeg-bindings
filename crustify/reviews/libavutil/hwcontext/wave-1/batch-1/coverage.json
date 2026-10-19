@@ -2,7 +2,7 @@
   "method": {
     "rust": "RUSTFLAGS='-C instrument-coverage' CRUSTIFY_FFMPEG_VARIANT=coverage cargo +nightly test --lib --tests -- hwcontext --skip compile_fail; nightly llvm-profdata merge + llvm-cov report over the four test binaries, for libavutil/hwcontext.rs",
     "c": "the same run, GCOV_PREFIX into a private dir; gcov 13 -b -c -f over src/libavutil/hwcontext.c with the coverage build's .gcno",
-    "note": "base = the wave tip b9dbecd340; fixed = this review's tree. The home also holds the wave's types (batch 0) and the wave-0 enums, so the Rust figures cover the whole file."
+    "note": "base = the wave tip bfce8a115b; fixed = this review's tree. The home also holds the wave's types (batch 0) and the wave-0 enums, so the Rust figures cover the whole file."
   },
   "rust": {
     "libavutil/hwcontext.rs": {

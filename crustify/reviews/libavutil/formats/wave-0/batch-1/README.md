@@ -1,7 +1,7 @@
 # Review: formats wave-0 symbols (name lookups, image size check, plane copies, csp and SAD callbacks)
 
 Route: **symbol** (11 items). Objective: **review**. Affected base:
-`7317de905cd9a976e6a17b3650ba4182f2fe170c` (the wave's head, which landed
+`17c012afcd0e1e6fab63a97ac3e622e16db2cfba` (the wave's head, which landed
 translation batch 7 holding all 11 items).
 
 Items and homes:

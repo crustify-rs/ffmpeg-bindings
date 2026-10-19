@@ -1,7 +1,7 @@
 # `index_by_name`'s doc described a narrower refusal than the guard makes
 
 - File: `crustify/rust/ffmpeg/libavutil/channel_layout.rs`
-- Affected commit: `0cc48b6804`
+- Affected commit: `e0a75b5d7f`
 - Item: `ChannelLayoutRef::index_by_name` (`Wraps:
   av_channel_layout_index_from_string`), shared by `channel_by_name`
 

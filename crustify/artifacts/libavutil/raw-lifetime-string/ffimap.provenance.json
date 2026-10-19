@@ -1,8 +1,8 @@
 {
   "level": "subcampaign",
   "branch": "crustify/subcampaigns/20261005/libavutil/raw-lifetime-string",
-  "scan": "8bdf2c713898a3f57b0d7f75fa67079a9d25dd34",
-  "base": "4365d143e2e67c37e2876c9d61a02ce05abbcb8a",
+  "scan": "8cda7b6b960c24a001de62bae8d5bf86c56280b1",
+  "base": "b84af9f092d390787fea22e759eb2b88db2441eb",
   "base_from": "reflog creation",
   "crustify": "1a7d4341901fd962d54e979178941898547b09e7",
   "command": "crustify ffimap <workdir> --json --ffibox",

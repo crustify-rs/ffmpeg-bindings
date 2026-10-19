@@ -1,7 +1,7 @@
 # Equivalence: hash and HMAC finalizers refused outputs longer than C's size type
 
 - Files: `crustify/rust/ffmpeg/libavutil/hash.rs`, `crustify/rust/ffmpeg/libavutil/hmac.rs`
-- Affected commit: `e71508dc3c` ("wrap DES, generic hashing and HMAC
+- Affected commit: `0896e41211` ("wrap DES, generic hashing and HMAC
   operations safely", crypto wave-1 batch 1), the wave tip at review time
 - Items: `HashContextMut::finalize_bin` (`Wraps: av_hash_final_bin`),
   `finalize_hex` (`av_hash_final_hex`), `finalize_b64` (`av_hash_final_b64`),

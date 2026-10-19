@@ -1,8 +1,8 @@
 # Unsafe: `Expr::parse_with_context` kept a raw `void *` log context after a safe handle landed
 
 - File: `crustify/rust/ffmpeg/libavutil/eval.rs`
-- Affected commit: `f9ad1d8e7f` (options wave 0, batch 1); still at the
-  reviewed wave tip `dc97af2db7`
+- Affected commit: `66fa3604d1` (options wave 0, batch 1); still at the
+  reviewed wave tip `cde88fc249`
 - Item: `AVExpr`'s constructor `Expr::parse_with_context` (`av_expr_parse`)
 - Kind: public `unsafe fn` and raw pointer that a safe handle now replaces
   (`crustify scan-unsafe`: `unsafe_fns_pub_smell`, `raw_ptr_pub_smell` and

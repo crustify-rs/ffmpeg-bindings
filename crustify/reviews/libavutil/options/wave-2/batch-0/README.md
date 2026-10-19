@@ -1,7 +1,7 @@
 # Review: libavutil/options wave 2, batch 0 (the wave's symbols)
 
 Route: **symbol** (14 items). Objective: **review**. Reviewed commit: the
-wave tip `1d434aef61` (the wave's one translation batch).
+wave tip `abf526dc98` (the wave's one translation batch).
 
 Items, all homed in `crustify/rust/ffmpeg/libavutil/opt.rs`:
 
@@ -63,14 +63,14 @@ test-harness arms.
   `runtime error:` and no AddressSanitizer, LeakSanitizer or ThreadSanitizer
   report. The later BSan-only thinning of one lib test changes nothing in
   these builds (it was rerun plain).
-- Reproducer: exits 1 on `1d434aef61` (UBSan `eval.c:206:57`
+- Reproducer: exits 1 on `abf526dc98` (UBSan `eval.c:206:57`
   float-cast-overflow, `halt_on_error=1`) and 0 on the fixed tree, ASan/UBSan
   build.
 - Miri: `opt::unit_tests::lookups::flags_refusal_checks_every_cut_token`
   (the per-token check, FFI-free).
 - BSan gate (`cargo bsan`, bsan C build, `gc_hang_threshold_ms=600000`, one
   invocation per binary under `timeout 7000`):
-  - Wave tip `1d434aef61`, before any change, four binaries in parallel:
+  - Wave tip `abf526dc98`, before any change, four binaries in parallel:
     each stopped at its first false positive (lib 15 s, equiv 18 s, ub_safe
     91 s, ub_unsafe 2 s). Then every test alone (1882 runs): 44 reports, all
     at the five glibc `strto*` end-pointer sites. One test,

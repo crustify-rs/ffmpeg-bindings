@@ -1,8 +1,8 @@
 # Conventions: `zero_extend` spelled its bit-position bound differently from its siblings
 
 - File: `crustify/rust/ffmpeg/libavutil/common.rs`
-- Affected commit: `ccdbbc0a77` (core wave 0, batch 14); the siblings
-  landed in `35f30a7185` (batch 10, `av_clip_intp2_c` / `av_clip_uintp2_c`)
+- Affected commit: `083c4d43d0` (core wave 0, batch 14); the siblings
+  landed in `4ec92d5001` (batch 10, `av_clip_intp2_c` / `av_clip_uintp2_c`)
 - Item: `av_zero_extend_c` (symbol route, wrap)
 
 ## Finding

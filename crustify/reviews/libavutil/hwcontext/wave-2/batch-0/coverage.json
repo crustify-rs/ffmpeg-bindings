@@ -2,12 +2,12 @@
   "method": {
     "rust": "RUSTFLAGS=-C instrument-coverage CRUSTIFY_FFMPEG_VARIANT=coverage; cargo +nightly test -p ffmpeg --lib --tests --no-fail-fast -- --skip compile_fail; nightly llvm-profdata merge + llvm-cov report/show over the lib, equiv, ub_safe and ub_unsafe binaries, for libavutil/hwcontext.rs (the workset is its lines 2746-3489: FramesContext, its hooks and pool, DeviceReferenceRef::create_frames, FramesReferenceRef::context) and libavutil/frame.rs (the review's typed hw_frames_ctx accessors and copy refusal)",
     "c": "the same run with GCOV_PREFIX into a private dir; gcov 13 -b -c -f over src/libavutil/hwcontext.c and src/libavutil/frame.c with the coverage build's .gcno",
-    "trees": "base: the wave tip 126a47005b; fixed: the landed tree (the tip after the symbol review's test commit e81926af2a, plus this review)",
+    "trees": "base: the wave tip ad5932bb53; fixed: the landed tree (the tip after the symbol review's test commit 32b6b94e4d, plus this review)",
     "note": "Inside the workset's range the only line never run is release_frames_hooks' NULL-handle arm (hwcontext.rs:2879): hwframe_ctx_free always passes the live context, so it is unreachable. The review's new unit test alloc_fails_whole_when_the_backend_struct_does_not_fit covers av_hwframe_ctx_alloc's failure on the backend's frames struct and its fail path (hwcontext.c:279, 302-306) through a test backend whose frames struct (4 KiB, as Vulkan's private one) is larger than the context. The two remaining misses there (hwcontext.c:284 av_buffer_ref of the device, :290 av_buffer_create) are allocations smaller than the context, which no av_max_alloc limit isolates. The rest of hwcontext.c's misses are backend paths: hw_table is empty under --disable-autodetect."
   },
   "rust": {
     "libavutil/hwcontext.rs": {
-      "base 126a47005b": {
+      "base ad5932bb53": {
         "regions": {"count": 4256, "missed": 40, "percent": 99.06},
         "functions": {"count": 330, "missed": 9, "percent": 97.27},
         "lines": {"count": 3106, "missed": 21, "percent": 99.32}
@@ -20,7 +20,7 @@
       "workset_lines_missed": [2879]
     },
     "libavutil/frame.rs": {
-      "base 126a47005b": {
+      "base ad5932bb53": {
         "regions": {"count": 5123, "missed": 28, "percent": 99.45},
         "functions": {"count": 506, "missed": 0, "percent": 100.0},
         "lines": {"count": 3893, "missed": 15, "percent": 99.61}
@@ -35,7 +35,7 @@
   },
   "c": {
     "libavutil/hwcontext.c": {
-      "base 126a47005b": {
+      "base ad5932bb53": {
         "file_lines_percent": 78.27,
         "functions_lines_percent": {
           "av_hwframe_ctx_alloc": 74.19,
@@ -60,7 +60,7 @@
       "lines": 428
     },
     "libavutil/frame.c": {
-      "base 126a47005b": {"file_lines_percent": 96.88},
+      "base ad5932bb53": {"file_lines_percent": 96.88},
       "fixed": {"file_lines_percent": 96.88},
       "lines": 480
     }

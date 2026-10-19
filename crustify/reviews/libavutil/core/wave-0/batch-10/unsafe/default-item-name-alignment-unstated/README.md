@@ -1,7 +1,7 @@
 # Unsafe: `default_item_name`'s contract did not require an aligned context
 
 - File: `crustify/rust/ffmpeg/libavutil/log.rs`
-- Affected commit: `35f30a7185`
+- Affected commit: `4ec92d5001`
 - Item: `default_item_name` (`av_default_item_name`), the batch's one
   `pub unsafe fn`
 - Sanitizer: UBSan (`-fsanitize=alignment`) in the `asan-ubsan` library

@@ -1,7 +1,7 @@
 # Review: AVBPrint appenders, initialisers and finalizer (core wave 2)
 
 Route: **symbol** (12 items, all homed in `crustify/rust/ffmpeg/libavutil/bprint.rs`).
-Objective: **review**. Affected base: `9ff8fb29d7ea1c3174abaac31e506c229f3f9115`.
+Objective: **review**. Affected base: `06a7548c5c439c49f36f434a7251d23939b53462`.
 No BSan gate log was filed for the wave, so there was no candidate to start from.
 
 Items: `av_bprint_append_data` (`BPrintMut::append_bytes`), `av_bprint_chars`

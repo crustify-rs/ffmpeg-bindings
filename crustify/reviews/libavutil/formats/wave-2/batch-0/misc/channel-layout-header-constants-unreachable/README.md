@@ -4,7 +4,7 @@
   `crustify/rust/libavutil-sys/shim.{h,c}`,
   `crustify/rust/ffmpeg/tests/common/channel_layout.rs`,
   `crustify/rust/ffmpeg/tests/{equiv,ub_safe}/channel_layout.rs`
-- Affected commit: `693ccef878` (wave 2 batch 0, `AVChannelLayout`)
+- Affected commit: `ac34a06476` (wave 2 batch 0, `AVChannelLayout`)
 - Item: `AVChannelLayout` (`ChannelLayout`), and `AVChannel` (`Channel`)
   for the per-channel bits
 

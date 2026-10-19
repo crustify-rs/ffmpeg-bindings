@@ -3,8 +3,8 @@
 Kind: misc (documentation). Items: `av_pix_fmt_desc_get`
 (`PixelFormat::descriptor`), `av_read_image_line2` / `av_write_image_line2`
 (`pixdesc::read_image_line`, `write_image_line`). Home:
-`crustify/rust/ffmpeg/libavutil/pixdesc.rs`. Affected commit: `c1518f9fe0`
-(wave-2 batch 1), reviewed at `693ccef878`.
+`crustify/rust/ffmpeg/libavutil/pixdesc.rs`. Affected commit: `57c0cc8756`
+(wave-2 batch 1), reviewed at `ac34a06476`.
 
 ## Finding
 

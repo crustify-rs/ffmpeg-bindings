@@ -2,7 +2,7 @@
 
 - Entity: type `AVFrameSideData` (`libavutil/frame.h`), and the routines
   that build, copy and free its entries (`libavutil/side_data.c`)
-- Earlier submission: buffer-frame wave 2, type batch 0 (`13730d672b`)
+- Earlier submission: buffer-frame wave 2, type batch 0 (`83bd5f2e64`)
 - Resubmitted: `submission.json` here. It has one record per symbol, each
   sent through `query symbols --name <symbol> --update`.
 

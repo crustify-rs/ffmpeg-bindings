@@ -1,7 +1,7 @@
 # Review: libavutil core wave 0, batch 5 (`av_alias16`, `av_alias32`)
 
 Objective `review` of the `type` route items `av_alias16` and `av_alias32`
-(`crustify/rust/ffmpeg/libavutil/intreadwrite.rs`, wrapped in `8a4ef630c5`).
+(`crustify/rust/ffmpeg/libavutil/intreadwrite.rs`, wrapped in `5e81aab756`).
 
 Findings with a fix and a report:
 

@@ -1,8 +1,8 @@
 # Equivalence: `base64::encode`/`decode` refused outputs longer than `INT_MAX`
 
 - File: `crustify/rust/ffmpeg/libavutil/base64.rs`
-- Affected commit: `c51ba553a2` ("wrap crypto checksums, encodings, UUIDs and
-  immutable size globals"); wave tip at review time `7935c403e0`
+- Affected commit: `00728268f2` ("wrap crypto checksums, encodings, UUIDs and
+  immutable size globals"); wave tip at review time `c45fd5b3d1`
 - Items: `encode` (`Wraps: av_base64_encode`), `decode` (`Wraps: av_base64_decode`)
 - Kind: functional divergence from C on well-defined input (no UB on either side)
 

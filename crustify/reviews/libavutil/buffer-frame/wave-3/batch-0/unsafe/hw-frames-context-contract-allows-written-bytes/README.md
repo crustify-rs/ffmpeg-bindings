@@ -3,7 +3,7 @@
 - Item: `AVFrame.hw_frames_ctx` (`FrameMut::replace_hw_frames_context`,
   unsafe; `FrameRef::hw_frames_context`, safe), homed in
   `crustify/rust/ffmpeg/libavutil/frame.rs`.
-- Affected commit: the wave tip `2a232726c8` (translation batch 0).
+- Affected commit: the wave tip `4f959b26a4` (translation batch 0).
 - Status: `# Safety` fixed (documentation only). No reproducer: this build
   has no hardware device type, so no frames context can be made
   (`av_hwframe_ctx_alloc` needs a device), and no prepared instrument can

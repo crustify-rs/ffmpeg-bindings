@@ -1,7 +1,7 @@
 # Equivalence: `Rational::nearest` refused lists `av_find_nearest_q_idx` finishes
 
 - File: `crustify/rust/ffmpeg/libavutil/rational.rs`
-- Affected commit: `23dc07587c` ("wrap libavutil core wave-1 batch 2 (rational,
+- Affected commit: `b2cff27cd6` ("wrap libavutil core wave-1 batch 2 (rational,
   rescaling, names, escape)")
 - Item: `Rational::nearest` (`av_find_nearest_q_idx`)
 - Kind: over-rejection of well-defined C input (the wrapper returns `None`

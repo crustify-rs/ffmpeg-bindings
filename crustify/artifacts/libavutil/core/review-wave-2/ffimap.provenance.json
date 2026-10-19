@@ -1,8 +1,8 @@
 {
   "level": "review-wave",
   "branch": "crustify/reviews/20261005/libavutil/core/wave-2",
-  "scan": "d12fc40bb31d38e0796d32e4845516a65b997f58",
-  "base": "9ff8fb29d7ea1c3174abaac31e506c229f3f9115",
+  "scan": "91e3426ac914923439f3d0099f59bd23c281e6e1",
+  "base": "06a7548c5c439c49f36f434a7251d23939b53462",
   "base_from": "recorded base = reflog",
   "crustify": "1a7d4341901fd962d54e979178941898547b09e7",
   "command": "crustify ffimap <workdir> --json --ffibox",

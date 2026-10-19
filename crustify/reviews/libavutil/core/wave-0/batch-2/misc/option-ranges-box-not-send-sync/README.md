@@ -1,7 +1,7 @@
 # Misc: option tables and range lists could not cross threads
 
 - File: `crustify/rust/ffmpeg/libavutil/opt.rs`
-- Affected commit: `ad7acaeaca` ("wrap libavutil's AVOption and AVOptionRanges")
+- Affected commit: `ab1d2518bf` ("wrap libavutil's AVOption and AVOptionRanges")
 - Items: `OptionDef` / `OptionDefRef` / `OptionDefMut`, `OptionDefault`,
   `OptionRanges` / `OptionRangesRef` / `OptionRangesMut`, `OptionRangesBox`
 - Kind: missing `Send` / `Sync` (API ergonomics; no unsoundness)

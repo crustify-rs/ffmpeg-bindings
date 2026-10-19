@@ -1,7 +1,7 @@
 # Conventions: misplaced `// SAFETY:` comments in two equivalence tests
 
 - Files: `crustify/rust/ffmpeg/tests/equiv/base64.rs`, `tests/equiv/adler32.rs`
-- Affected commit: `c51ba553a2` (crypto wave-0 batch 10)
+- Affected commit: `00728268f2` (crypto wave-0 batch 10)
 
 ## Finding
 

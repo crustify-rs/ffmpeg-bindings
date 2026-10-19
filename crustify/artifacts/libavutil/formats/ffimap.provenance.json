@@ -1,9 +1,9 @@
 {
   "level": "subcampaign",
   "branch": "crustify/subcampaigns/20261005/libavutil/formats",
-  "scan": "0c2bf754abb48d19d6a7c5f221389b75a33336cd",
-  "base": "7d5cdc7138324b27d32d8ede5efca0ba4d088d37",
-  "base_from": "reflog creation (first wave base 84e7cf00b8)",
+  "scan": "9cc23338f5e106be1664e8016913382e0fd7b673",
+  "base": "20f9b4c307e089cc03dd87ac140adbaaa1909a74",
+  "base_from": "reflog creation (first wave base 9faf0c31a2)",
   "crustify": "1a7d4341901fd962d54e979178941898547b09e7",
   "command": "crustify ffimap <workdir> --json --ffibox",
   "ffibox": "196c5fb",

@@ -1,6 +1,6 @@
 # Not every AVClass or class name is static
 
-Affected base: `23dc07587c751c8f7c82729839a4b0065c66bb5f`.
+Affected base: `b2cff27cd691af1482bd36e8c2edab9d5e25fcf8`.
 
 The previous AVClass comment claimed every in-tree instance was file-scope
 static const, and `class_name` was always a static literal. At

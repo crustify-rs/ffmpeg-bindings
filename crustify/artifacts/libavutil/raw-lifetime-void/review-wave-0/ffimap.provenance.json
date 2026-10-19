@@ -1,8 +1,8 @@
 {
   "level": "review-wave",
   "branch": "crustify/reviews/20261005/libavutil/raw-lifetime-void/wave-0",
-  "scan": "9cdb9f2a73cd2caa55ef1ef8f7f1f92020782197",
-  "base": "77473b85748f8866cd233c578c21c5494128ec5a",
+  "scan": "b8afddd2e65ee62cc7f79effd71d8283a2227c7c",
+  "base": "42bb68057f9b1455042f80dd3386492228fc8ce7",
   "base_from": "recorded base = reflog",
   "crustify": "1a7d4341901fd962d54e979178941898547b09e7",
   "command": "crustify ffimap <workdir> --json --ffibox",

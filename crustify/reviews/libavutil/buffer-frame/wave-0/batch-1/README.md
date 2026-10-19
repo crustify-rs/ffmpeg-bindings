@@ -1,15 +1,15 @@
 # Review: libavutil/buffer-frame wave 0, batch 1 (the wave's symbols)
 
-- Items (7), all from translation batch 5 (`2161c1d053`):
+- Items (7), all from translation batch 5 (`adfecd6c81`):
   - `av_buffer_default_free`, homed in `crustify/rust/ffmpeg/libavutil/buffer.rs`;
   - `av_refstruct_allocz`, `av_refstruct_exclusive`, `av_refstruct_ref`,
     `av_refstruct_ref_c`, `av_refstruct_replace` and `av_refstruct_unref`,
     homed in `crustify/rust/ffmpeg/libavutil/refstruct.rs`.
 
   `av_refstruct_ref` and `av_refstruct_unref` also back type batch 3's
-  `RefStructPoolArc` policy (`aa7314ae80`). Those two wrappers were reviewed
+  `RefStructPoolArc` policy (`b32232d00c`). Those two wrappers were reviewed
   here as well.
-- Reviewed commit: the wave tip `2161c1d053`.
+- Reviewed commit: the wave tip `adfecd6c81`.
 - Wave 0 is not the sub-campaign's last wave (`schedule.json` lists waves
   0-4 for `buffer-frame`), so BSan ran only on this review's reproducer.
 - Reports:

@@ -1,7 +1,7 @@
 # Wavefront: `av_calloc` and `av_memdup` miss their single-object paths
 
 - Store: `crustify/wavefront/ownership-store.json`
-- Affected commit: `77473b8574`
+- Affected commit: `42bb68057f`
 - Records: `av_calloc` (`ptr_ret`), `av_memdup` (`ptr_args[0]` `p`, `ptr_ret`)
 
 ## Finding

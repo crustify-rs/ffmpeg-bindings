@@ -2,7 +2,7 @@
 
 - File: `crustify/rust/ffmpeg/libavutil/samplefmt.rs`, `SampleBuffer::new`
   (`Wraps: av_samples_alloc`)
-- Affected commit: `2f6e60458d` (landed by formats wave-1 batch 5)
+- Affected commit: `0a2fbf9bb7` (landed by formats wave-1 batch 5)
 - Severity: convention only; no behaviour change.
 
 ## Finding

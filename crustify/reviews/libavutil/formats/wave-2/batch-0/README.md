@@ -4,8 +4,8 @@
   `ChannelLayoutVal`, `ChannelLayoutUninit`, `LayoutDetails`) and
   `AVPrimaryCoefficients` (`csp::PrimaryCoefficients`).
 - Homes: `crustify/rust/ffmpeg/libavutil/{channel_layout,csp}.rs`.
-- Reviewed commit: the wave tip `693ccef878` (types landed by batch 0;
-  batch 1 `c1518f9fe0` landed the wave's symbols).
+- Reviewed commit: the wave tip `ac34a06476` (types landed by batch 0;
+  batch 1 `57c0cc8756` landed the wave's symbols).
 - Reports: `misc/bsan-stale-stack-shadow-under-glibc-strtol-end-pointers`
   (the gate failure; tests only) and
   `misc/channel-layout-header-constants-unreachable` (fixed: the header's

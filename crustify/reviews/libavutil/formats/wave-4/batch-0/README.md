@@ -4,7 +4,7 @@
   `av_csp_primaries_id_from_desc` (`ColorPrimariesDescriptorRef::identify`),
   route `symbol`.
 - Home: `crustify/rust/ffmpeg/libavutil/csp.rs`.
-- Reviewed commit: the wave tip `7cf5d6fc5d` (the wave's one batch).
+- Reviewed commit: the wave tip `cfa4db1026` (the wave's one batch).
 - Wave 4 is the formats sub-campaign's last wave, so this review ran the
   sub-campaign's BSan gate (figures below).
 - Reports: one, `misc/identify-doc-promised-exact-rational-sums` (a doc
@@ -14,7 +14,7 @@
 
 | step | finding |
 |---|---|
-| BSan gate | Clean on the wave tip `7cf5d6fc5d` before any change: `lib`, `equiv`, `ub_safe` and `ub_unsafe` each exit 0 under `cargo bsan test` (bsan C build, `gc_hang_threshold_ms=600000`, one invocation per binary in parallel under `timeout`), no report on any wave's items. Re-run clean on the landed tree (figures below). |
+| BSan gate | Clean on the wave tip `cfa4db1026` before any change: `lib`, `equiv`, `ub_safe` and `ub_unsafe` each exit 0 under `cargo bsan test` (bsan C build, `gc_hang_threshold_ms=600000`, one invocation per binary in parallel under `timeout`), no report on any wave's items. Re-run clean on the landed tree (figures below). |
 | wavefront | Both findings match the C. `av_csp_primaries_desc_from_id`: a nullable, immutable, `'static` borrowed return into `csp.c`'s two `static const` tables (`(unsigned)` range checks on both, NULL for a slot whose `prim.r.x.num` is 0); every caller (`pngenc`, `libjxlenc`, `fflcms2`, `vf_colorspace`, `vf_tonemap_opencl`, swscale `format`/`cms`) reads or copies by value. `av_csp_primaries_id_from_desc`: one non-nullable, read-only, unretained `const AVColorPrimariesDesc *` argument, dereferenced unconditionally. The UB claim (every `int` input is defined) re-derived: `av_sub_q`'s cross products are at most `INT_MAX * 100000`, `av_add_q`'s at most `INT_MAX^2` each, so `int64` never overflows, and `av_reduce` bounds every numerator by `INT_MAX`, so `abs()` is defined. Nothing to resubmit. |
 | lifecycle | Not applicable: a symbol-only workset over value types; `descriptor` lends C's table entries as `'static` shared handles, nothing is allocated or freed. |
 | unsafe boundary | No public `unsafe fn` or raw pointer on either item; `crustify scan-unsafe --sites` reports no smell counter and no undocumented unsafe site in `csp.rs`. Both unsafe blocks are the FFI calls with specific `SAFETY:` comments (checked against the C: by-value enum in, pointer into a never-written `static const` table out; a read-only dereference of the handle's pointer during the call). |
@@ -47,7 +47,7 @@ The landed tree is the wave tip plus this review's doc fix and test
   `runtime error:` and no sanitizer report.
 - BSan (`cargo bsan`, bsan C build, whole crate, one invocation per binary
   under `timeout 7000`, the four in parallel): on the wave tip
-  `7cf5d6fc5d`, before any change: lib 565 (97 s), equiv 468 (26 min),
+  `cfa4db1026`, before any change: lib 565 (97 s), equiv 468 (26 min),
   ub_safe 481 (40 min), ub_unsafe 72 (3 min), each exit 0, no report; on
   the landed tree: 565 (94 s) / 469 (22 min) / 481 (36 min) / 72 (3 min),
   each exit 0, no report. The added test runs in 2.2 s alone under BSan.

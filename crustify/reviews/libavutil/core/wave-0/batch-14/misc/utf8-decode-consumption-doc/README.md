@@ -1,7 +1,7 @@
 # Misc: `utf8_decode` misdescribed what a malformed sequence consumes
 
 - File: `crustify/rust/ffmpeg/libavutil/avstring.rs`
-- Affected commit: `ccdbbc0a77` (core wave 0, batch 14)
+- Affected commit: `083c4d43d0` (core wave 0, batch 14)
 - Item: `av_utf8_decode` (symbol route, wrap), the `utf8_decode` wrapper
 
 ## Finding

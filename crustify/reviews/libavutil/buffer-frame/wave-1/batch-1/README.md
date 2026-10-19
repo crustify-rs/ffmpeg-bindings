@@ -1,6 +1,6 @@
 # Review: libavutil/buffer-frame wave 1, batch 1 (the wave's symbols)
 
-- Items (10), all from translation batch 1 (`0ea2c20f1f`):
+- Items (10), all from translation batch 1 (`5804b1d443`):
   - `av_buffer_pool_uninit`, homed in `crustify/rust/ffmpeg/libavutil/buffer.rs`;
   - `av_frame_side_data_desc` and `av_frame_side_data_name`, homed in
     `crustify/rust/ffmpeg/libavutil/frame.rs`;
@@ -16,7 +16,7 @@
   batch 1 did not re-emit them. They were reviewed here against wave 1's
   changes (`BufferPool::with_allocator` now returns `UninitBuffer`s, wave-1
   type batch 0; `TypedRefStructPool` is built on the other two).
-- Reviewed commit: the wave tip `1a9271f931`.
+- Reviewed commit: the wave tip `6fd5597711`.
 - Wave 1 is not the sub-campaign's last wave (`schedule.json` lists waves
   0-4 for `buffer-frame`). This review emits no reproducer, so BSan did not
   run.
@@ -53,7 +53,7 @@ pool from inside a free_entry callback.
 
 ## Validation at the landed tree
 
-Run on the review's tree rebased onto the wave tip `6c1903319b` (the
+Run on the review's tree rebased onto the wave tip `7c2bfc1069` (the
 wave-1 type review's fixes):
 
 - `cargo check --workspace` and `cargo clippy --workspace --all-targets -- -D warnings`

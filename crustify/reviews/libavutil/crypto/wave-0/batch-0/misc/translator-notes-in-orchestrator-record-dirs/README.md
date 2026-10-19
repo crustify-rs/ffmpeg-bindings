@@ -5,7 +5,7 @@
   `safety-scan.json`, `scan-unsafe.json`, `findings/*.json`,
   `trybuild-mismatches.txt`)
 - Affected commits: every crypto wave-0 translation commit
-  (`b76d1bb41d` .. `7935c403e0`)
+  (`e64817a386` .. `c45fd5b3d1`)
 
 ## Finding
 

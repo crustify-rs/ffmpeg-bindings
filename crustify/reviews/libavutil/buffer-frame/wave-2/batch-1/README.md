@@ -6,11 +6,11 @@
   `av_buffer_make_writable`, `av_buffer_pool_buffer_get_opaque`,
   `av_buffer_pool_get`, `av_buffer_pool_init`, `av_buffer_pool_init2`,
   `av_buffer_realloc`, `av_buffer_ref`, `av_buffer_replace` and
-  `av_buffer_unref`. Translation batch 1 (`0265949f74`) wrapped eight of them.
-  The type runs of waves 0 and 1 (`c68b39206c`, `1a9271f931`) had already
+  `av_buffer_unref`. Translation batch 1 (`758666d156`) wrapped eight of them.
+  The type runs of waves 0 and 1 (`1edb133adb`, `6fd5597711`) had already
   wrapped the other seven (`alloc`, `allocz`, `create`, `pool_init`,
   `pool_init2`, `ref`, `unref`). This review covers all fifteen.
-- Reviewed commit: the wave tip `13730d672b`.
+- Reviewed commit: the wave tip `83bd5f2e64`.
 - Wave 2 is not the sub-campaign's last wave (`schedule.json` lists waves 0-4
   for `buffer-frame`), so BSan ran only on this review's reproducer.
 - Reports:

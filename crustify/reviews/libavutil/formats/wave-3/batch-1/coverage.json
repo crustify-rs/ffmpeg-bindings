@@ -1,6 +1,6 @@
 {
   "method": {
-    "c": "CRUSTIFY_FFMPEG_VARIANT=coverage (gcc gcov build), GCOV_PREFIX=/tmp/fw3r1/cov/gcov GCOV_PREFIX_STRIP=0, gcov 13 -b -c -f over channel_layout.c, driven by the module-filtered lib, equiv, ub_safe and ub_unsafe tests (cargo test -p ffmpeg --lib --tests -- channel_layout --skip compile_fail: 72 + 59 + 47 + 0 tests) on the reviewed tree (0cc48b6804) plus this review's unit tests, before the three parser inputs below were added",
+    "c": "CRUSTIFY_FFMPEG_VARIANT=coverage (gcc gcov build), GCOV_PREFIX=/tmp/fw3r1/cov/gcov GCOV_PREFIX_STRIP=0, gcov 13 -b -c -f over channel_layout.c, driven by the module-filtered lib, equiv, ub_safe and ub_unsafe tests (cargo test -p ffmpeg --lib --tests -- channel_layout --skip compile_fail: 72 + 59 + 47 + 0 tests) on the reviewed tree (e0a75b5d7f) plus this review's unit tests, before the three parser inputs below were added",
     "rust": "RUSTFLAGS=-C instrument-coverage, nightly llvm-profdata merge + llvm-cov report/show over the same four test binaries and the home file, same tree",
     "note": "the review adds parser inputs that take three reachable C branches the measured run left untaken (`ambisonic 1x`: a byte other than `+` after the order, channel_layout.c:342; `18446744073709551616`: strtoull/strtol set errno, :417/:426/:433; `2 channels (FL+FR`: no closing parenthesis, :405), and a unit test that takes the native index walk off the end of the mask (:693, a count above the mask's bits, which no safe path builds)"
   },

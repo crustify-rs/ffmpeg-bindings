@@ -2,7 +2,7 @@
   "method": {
     "rust": "RUSTFLAGS=-C instrument-coverage; cargo +nightly test -p ffmpeg --lib --tests -- --skip compile_fail (whole crate); nightly llvm-profdata merge + llvm-cov export -summary-only over the lib, equiv, ub_safe and ub_unsafe binaries, reported for the 18 crypto homes and random_seed.rs",
     "c": "the same run with CRUSTIFY_FFMPEG_VARIANT=coverage and GCOV_PREFIX; gcov -b -c -f over the workset's 18 .c files (whole files)",
-    "note": "measured on the landed tree (wave tip e71508dc3c plus this review). Every C line executes; the untaken C branches are inputs the wrappers refuse before C (invalid key bits for AES/Camellia/CAST5/RC4, unknown SHA/SHA-512 digest sizes, NULL *ctx in av_hash_freep, DES NULL source, AES-CTR zero count, hash switch defaults) and CRC table branches selected by CPU features. Missed Rust lines are C-failure arms unreachable for validated inputs (AES/AES-CTR/CAST5 init errors, SHA/SHA-512/RIPEMD init failure after alloc), the random-source error arm, and closing braces of 32-bit-only test arms."
+    "note": "measured on the landed tree (wave tip 0896e41211 plus this review). Every C line executes; the untaken C branches are inputs the wrappers refuse before C (invalid key bits for AES/Camellia/CAST5/RC4, unknown SHA/SHA-512 digest sizes, NULL *ctx in av_hash_freep, DES NULL source, AES-CTR zero count, hash switch defaults) and CRC table branches selected by CPU features. Missed Rust lines are C-failure arms unreachable for validated inputs (AES/AES-CTR/CAST5 init errors, SHA/SHA-512/RIPEMD init failure after alloc), the random-source error arm, and closing braces of 32-bit-only test arms."
   },
   "rust": {
     "libavutil/aes.rs": {

@@ -1,6 +1,6 @@
 # The sizeof helper does not own AVBPrint storage
 
-Affected base: `23dc07587c751c8f7c82729839a4b0065c66bb5f`.
+Affected base: `b2cff27cd691af1482bd36e8c2edab9d5e25fcf8`.
 
 The previous `ff_pad_helper_AVBPrint.str` block said `owned: true`,
 `borrowed.lifetime: self`, `mutable: true`, and both `string` and `array`.

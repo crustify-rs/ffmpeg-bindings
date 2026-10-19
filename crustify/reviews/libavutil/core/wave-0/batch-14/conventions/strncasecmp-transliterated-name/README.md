@@ -1,8 +1,8 @@
 # Conventions: `strncasecmp` kept its C name beside `cmp_ignore_ascii_case`
 
 - File: `crustify/rust/ffmpeg/libavutil/avstring.rs`
-- Affected commit: `ccdbbc0a77` (core wave 0, batch 14); the sibling it
-  diverges from landed in `35f30a7185` (batch 10, `av_strcasecmp`)
+- Affected commit: `083c4d43d0` (core wave 0, batch 14); the sibling it
+  diverges from landed in `4ec92d5001` (batch 10, `av_strcasecmp`)
 - Item: `av_strncasecmp` (symbol route, wrap)
 
 ## Finding

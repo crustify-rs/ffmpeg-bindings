@@ -1,7 +1,7 @@
 # Conventions: the SHA equivalence tests fail `clippy --all-targets -D warnings`
 
 - Files: `crustify/rust/ffmpeg/tests/equiv/{sha,sha512}.rs`
-- Affected commit: `eccfa5bb34` (the AVSHA / AVSHA512 batch); wave tip `7935c403e0`
+- Affected commit: `bac05c73cf` (the AVSHA / AVSHA512 batch); wave tip `c45fd5b3d1`
 - Items: `AVSHA`, `AVSHA512` (their equivalence suites)
 
 ## Finding

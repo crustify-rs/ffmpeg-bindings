@@ -1,8 +1,8 @@
 {
   "level": "wave",
   "branch": "crustify/waves/20261005/libavutil/options/wave-0",
-  "scan": "dc97af2db7784834f60a23ec4667e9b11f57e9b9",
-  "base": "f391dca88975c54f6f7c594411263cea85e1a549",
+  "scan": "cde88fc2499d97939c1e62f795ed004ebde5439a",
+  "base": "33edf63f193ef9b84d278140d50d267a11d0908a",
   "base_from": "recorded base = reflog",
   "crustify": "1a7d4341901fd962d54e979178941898547b09e7",
   "command": "crustify ffimap <workdir> --json --ffibox",

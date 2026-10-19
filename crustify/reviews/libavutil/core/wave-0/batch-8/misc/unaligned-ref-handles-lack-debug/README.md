@@ -1,7 +1,7 @@
 # Misc: `Unaligned16Ref` / `Unaligned32Ref` had no `Debug`
 
 - File: `crustify/rust/ffmpeg/libavutil/intreadwrite.rs`
-- Affected commit: `809f4922ae` (wrap of `unaligned_16` and `unaligned_32`)
+- Affected commit: `058790db28` (wrap of `unaligned_16` and `unaligned_32`)
 - Items: `Unaligned16Ref<'a>`, `Unaligned32Ref<'a>` (the shared handles of
   `Wraps: unaligned_16` / `Wraps: unaligned_32`)
 
@@ -35,7 +35,7 @@ defect: the C union has no observable formatting, and the fix adds no
 on it (`Unaligned16(4660)`, the same rendering the value already had); the
 value's `Debug` delegates to its handle, as `Alias16` does. The exclusive
 handles stay without `Debug`, as every sibling `*Mut` handle in the crate.
-The `unaligned_64` review (`5a5c971ca4`) moved `Unaligned64` onto the same
+The `unaligned_64` review (`4ff1c470a1`) moved `Unaligned64` onto the same
 macro meanwhile, so after rebasing onto it `Unaligned64Ref` gets the same
 `Debug` through the shared macro.
 

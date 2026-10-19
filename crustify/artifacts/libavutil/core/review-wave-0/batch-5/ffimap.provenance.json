@@ -1,8 +1,8 @@
 {
   "level": "review-batch",
   "branch": "crustify/review-batches/20261005/libavutil/core/wave-0/batch-5",
-  "scan": "8f3b32494803033996b9b19b22faa7ddde98d89e",
-  "base": "787b0ebff4bbc86d8d8d630636eb938041275e70",
+  "scan": "3a2dd637f9e7e881c4aeb8438a378f0583e7058b",
+  "base": "1e46d0d2476cb91ccedb4fb7192941c9968d6e9b",
   "base_from": "previous landed tip",
   "crustify": "1a7d4341901fd962d54e979178941898547b09e7",
   "command": "crustify ffimap <workdir> --json --ffibox",

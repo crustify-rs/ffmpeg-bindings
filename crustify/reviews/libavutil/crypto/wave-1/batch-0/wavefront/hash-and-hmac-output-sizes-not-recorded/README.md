@@ -5,7 +5,7 @@
   (`libavutil/hmac.c`, arg 1 `out`), `av_hmac_calc` (args 1 `data`, 3 `key`,
   5 `out`)
 - Store: `crustify/wavefront/ownership-store.json`
-- Submitted by: crypto wave-1 batch 1 (`e71508dc3c`)
+- Submitted by: crypto wave-1 batch 1 (`0896e41211`)
 - Resubmitted with `query symbols --name <symbol> --update <symbol>.json`;
   the six submissions are kept beside this report, and
   `notes-before-after.txt` lists every changed note (only `note` changed; all

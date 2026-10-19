@@ -1,9 +1,9 @@
 {
   "level": "subcampaign",
   "branch": "crustify/subcampaigns/20261005/libavutil/hwcontext",
-  "scan": "1a441943aa045f89bf742c784a97f987d83c9b4c",
-  "base": "f5e8195b9b444d15398958cb661c3aa0fc4562c8",
-  "base_from": "reflog creation (first wave base 51d267324b)",
+  "scan": "f90c4f03bb4e91f79eca225c0582b1071d5b59e7",
+  "base": "e7a860fd68eea86044dfa24e7788dd6bbd3681b2",
+  "base_from": "reflog creation (first wave base 23002c771a)",
   "crustify": "1a7d4341901fd962d54e979178941898547b09e7",
   "command": "crustify ffimap <workdir> --json --ffibox",
   "ffibox": "5a98173",

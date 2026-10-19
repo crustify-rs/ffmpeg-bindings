@@ -2,8 +2,8 @@
 
 - Item: `av_frame_side_data_clone`, wrapped by `SideDataArrayMut::add_clone` in
   `crustify/rust/ffmpeg/libavutil/frame.rs`.
-- Affected commit: the wave tip `2a232726c8`. The wrapper came from translation
-  batch 1, `63d684f623`.
+- Affected commit: the wave tip `4f959b26a4`. The wrapper came from translation
+  batch 1, `356733671e`.
 - Instrument: LeakSanitizer, part of the asan-ubsan build. The trace is in
   `asan.trace`. This is a leak, not undefined behaviour. The campaign lists
   leaks among the ASan obligations, and a safe call reaches this one.

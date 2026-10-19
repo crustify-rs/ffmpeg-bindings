@@ -1,8 +1,8 @@
 # Misc: two older trybuild snapshots predate rustc 1.99's `thread::spawn` note
 
 - Files: `crustify/rust/ffmpeg/tests/ub_safe/compile_fail/{intfloat_mut_handle_sent_past_value,intreadwrite_view_sent_past_bytes}.stderr`
-- Affected commit: present at the wave base `34ffd7ee48` and the tip
-  `7935c403e0` under the installed stable `rustc 1.99.0 (b940084d7 2026-09-28)`
+- Affected commit: present at the wave base `6daed536cb` and the tip
+  `c45fd5b3d1` under the installed stable `rustc 1.99.0 (b940084d7 2026-09-28)`
 - Items: none of this workset (core wave `intfloat` / `intreadwrite` cases);
   fixed because the review's `cargo test --workspace` gate cannot pass otherwise
 

@@ -1,7 +1,7 @@
 # Wavefront: `AVRegionOfInterest`'s record misstated what C readers check
 
 - Entity: type `AVRegionOfInterest` (`libavutil/frame.h`)
-- Earlier submission: buffer-frame wave 1, type batch 0 (`1a9271f931`)
+- Earlier submission: buffer-frame wave 1, type batch 0 (`6fd5597711`)
 - Resubmitted: `submission.json` here, through `query types --name
   AVRegionOfInterest --update`. The fields have no pointer and their
   properties are unchanged. Only `_comment_agent` is corrected.

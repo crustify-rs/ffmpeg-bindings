@@ -2,7 +2,7 @@
 
 - Entity: type `AVBufferPool` (`libavutil/buffer_internal.h`), fields `alloc`
   and `alloc2`
-- Earlier submission: buffer-frame wave 0, type batch 1 (`c68b39206c`)
+- Earlier submission: buffer-frame wave 0, type batch 1 (`1edb133adb`)
 - Resubmitted: `submission.json` here, through `query types --name
   AVBufferPool --update`. Only the two fields' `note`s change; every ownership
   property, the other fields and `_comment_agent` are kept verbatim.

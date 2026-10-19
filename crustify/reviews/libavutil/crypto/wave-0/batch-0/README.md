@@ -11,9 +11,9 @@
   (`sha512::Sha512`), `AVTEA` (`tea::Tea`), `AVTWOFISH` (`twofish::Twofish`),
   `AVXTEA` (`xtea::Xtea`, field `key`).
 - Homes: `crustify/rust/ffmpeg/libavutil/{aes,aes_ctr,blowfish,camellia,cast5,crc,des,hash,hmac,md5,murmur3,rc4,ripemd,sha,sha512,tea,twofish,xtea}.rs`.
-- Reviewed commit: the wave tip `7935c403e0` (types landed by batches 0-9,
-  `b76d1bb41d` .. `7935c403e0`; batch 10's symbols `c51ba553a2` share the homes),
-  rebased onto the symbols review (`776e95e556`) before landing.
+- Reviewed commit: the wave tip `c45fd5b3d1` (types landed by batches 0-9,
+  `e64817a386` .. `c45fd5b3d1`; batch 10's symbols `00728268f2` share the homes),
+  rebased onto the symbols review (`a4a081f276`) before landing.
 - Not the sub-campaign's last wave (crypto has waves 0-1), so no BSan gate:
   BSan runs only on reproducers, and this review emits none.
 - Reports:
@@ -53,7 +53,7 @@ path).
 
 ## Validation at the landed tree
 
-On the wave branch after the symbols review (`776e95e556`) plus this review:
+On the wave branch after the symbols review (`a4a081f276`) plus this review:
 
 - `cargo check --workspace`, `cargo clippy --workspace --all-targets -- -D warnings`,
   `RUSTDOCFLAGS=-D warnings cargo doc -p ffmpeg --no-deps`: clean (clippy

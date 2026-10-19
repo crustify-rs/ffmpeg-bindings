@@ -1,7 +1,7 @@
 # Equivalence: `parse_cpu_caps` rounded a `+`/`-` operand where C truncates it
 
 - File: `crustify/rust/ffmpeg/libavutil/cpu.rs`
-- Affected commit: `6978702856` ("wrap libavutil's realloc, scan, search,
+- Affected commit: `9c3345929b` ("wrap libavutil's realloc, scan, search,
   rational and saturating symbols")
 - Item: `parse_cpu_caps` (`av_parse_cpu_caps`)
 - Kind: functional divergence from C on well-defined input (no UB on either

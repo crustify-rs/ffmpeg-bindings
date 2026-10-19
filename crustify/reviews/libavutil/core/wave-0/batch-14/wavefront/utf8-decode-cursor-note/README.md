@@ -2,7 +2,7 @@
 
 - Store: `crustify/wavefront/ownership-store.json`, record `av_utf8_decode`
   (`libavutil/avstring.c`), `ptr_args` position 1 (`bufp`)
-- Affected commit: `ccdbbc0a77` (core wave 0, batch 14), which submitted
+- Affected commit: `083c4d43d0` (core wave 0, batch 14), which submitted
   the record
 - Item: `av_utf8_decode` (symbol route, wrap)
 

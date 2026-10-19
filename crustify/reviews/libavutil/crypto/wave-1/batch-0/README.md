@@ -6,8 +6,8 @@
   The lifecycle routines among them (`*_alloc`, `*_init`, `*_free`) were
   emitted by wave 0's type runs and reviewed there; they were re-read here
   against the cipher and hash wrappers that build on them.
-- Reviewed commit: the wave tip `e71508dc3c` (batches 3, 0, 2, 1:
-  `828f6bdbf7`, `5f76ee7dca`, `71c9f8836e`, `e71508dc3c`).
+- Reviewed commit: the wave tip `0896e41211` (batches 3, 0, 2, 1:
+  `1ab47283f1`, `72aa992e7f`, `ca48444648`, `0896e41211`).
 - Wave 1 is the crypto sub-campaign's last wave (`schedule.json` lists waves
   0-1), so this review ran the sub-campaign's BSan gate, on the tip and on the
   landed tree.
@@ -50,7 +50,7 @@ with `--test-threads=1`, skipping `compile_fail` and the 48 known `strto*`
 end-pointer false positives listed in
 `../../../options/wave-2/batch-0/misc/bsan-gate-strto-end-pointer-false-positives/skip-list.txt`.
 
-- Wave tip `e71508dc3c`, before any change: `lib` 752 passed (380 s),
+- Wave tip `0896e41211`, before any change: `lib` 752 passed (380 s),
   `ub_safe` 642 passed (3170 s), `ub_unsafe` 95 passed (163 s), the seven
   `-sys` binaries passed; `equiv` stopped at its first report, a true
   positive in test code (`misc/bsan-gate-equiv-iv-pointer-reused-across-reborrow`).

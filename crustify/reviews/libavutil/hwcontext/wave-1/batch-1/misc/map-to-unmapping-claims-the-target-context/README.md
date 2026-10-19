@@ -2,8 +2,8 @@
 
 - Item: `av_hwframe_map` (`HardwareFrame::map_to`), homed in
   `crustify/rust/ffmpeg/libavutil/hwcontext.rs` by translation batch 1
-  (`62b80e7a1d`).
-- Affected commit: the wave tip `b9dbecd340`.
+  (`dc1ebb6900`).
+- Affected commit: the wave tip `bfce8a115b`.
 - Status: documentation and a comment fixed, with a regression unit test.
   This is not a soundness defect: the result is still a hardware frame of
   the context it holds, which is all `HardwareFrame`'s invariant asks.

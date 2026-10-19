@@ -1,6 +1,6 @@
 # Class documentation overstated static lifetime
 
-Affected base: `23dc07587c751c8f7c82729839a4b0065c66bb5f`.
+Affected base: `b2cff27cd691af1482bd36e8c2edab9d5e25fcf8`.
 Home: `crustify/rust/ffmpeg/libavutil/log.rs`, AVClass anchor/module docs.
 
 The docs called every FFmpeg class static const and described Class only as

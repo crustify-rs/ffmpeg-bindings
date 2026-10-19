@@ -3,7 +3,7 @@
 - Items: `AVFrame` (`FrameRef::try_clone`, safe, over `av_frame_clone`; and
   `FrameMut::set_data_ptr`, unsafe), homed in
   `crustify/rust/ffmpeg/libavutil/frame.rs`.
-- Affected commit: the wave tip `2a232726c8` (translation batch 0).
+- Affected commit: the wave tip `4f959b26a4` (translation batch 0).
 - Instrument: ASan (SEGV on a wild read). BSan reports the same SEGV. Both
   traces are kept here as `asan.trace` and `bsan.trace`.
 - Status: fixed in `frame.rs` (`FrameRef::try_clone` now refuses such a

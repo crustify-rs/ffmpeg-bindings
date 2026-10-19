@@ -1,14 +1,14 @@
 # `set_options_string` kept a raw `*mut c_void` context after `ObjectMut` landed
 
 - File: `crustify/rust/ffmpeg/libavutil/opt.rs`
-- Affected commit: `dc97af2db7`
+- Affected commit: `cde88fc249`
 - Item: `av_set_options_string`
 - Smell: `crustify scan-unsafe` `unsafe_fns_pub_smell`, `raw_ptr_pub_smell`,
   `void_ptr_pub_smell` at `opt.rs:1175`
 
 ## Finding
 
-`av_set_options_string` landed with translation batch 2 (`abf7b39488`),
+`av_set_options_string` landed with translation batch 2 (`ae14a85553`),
 before the object API existed, as
 
 ```rust
@@ -17,7 +17,7 @@ pub unsafe fn set_options_string(ctx: *mut c_void, opts: &CStr,
 ```
 
 documenting `ctx` as "a raw seam while `AVClass`-enabled objects have no
-safe handle". Batch 3 (`dc97af2db7`, same wave) added that handle,
+safe handle". Batch 3 (`cde88fc249`, same wave) added that handle,
 `ObjectMut`, whose safe setters (`set`, `set_from_string`) refuse the values
 C parses with undefined behaviour. `set_options_string` was not moved onto
 it: every caller still had to adopt a raw object and discharge a

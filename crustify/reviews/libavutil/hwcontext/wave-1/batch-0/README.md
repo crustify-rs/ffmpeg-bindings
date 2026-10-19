@@ -3,7 +3,7 @@
 - Items: `AVHWDeviceContext` and `AVHWFramesConstraints`
   (`libavutil/hwcontext.h`), homed in
   `crustify/rust/ffmpeg/libavutil/hwcontext.rs`. Translation batch 0 wrapped
-  both (`b9dbecd340`):
+  both (`bfce8a115b`):
   - `DeviceContext{,Ref,Mut}`, lent by `UninitDevice::context`/`context_mut`
     and `DeviceReferenceRef::context`. It has the getters `device_type`,
     `class`, `has_free_callback`, `user_data` and the unsafe `hwctx`; the
@@ -17,7 +17,7 @@
     `FramesConstraints::new` and by `DeviceReferenceRef::frames_constraints` /
     `frames_constraints_for_config` (`av_hwdevice_get_hwframe_constraints`).
     It has list and size getters, setters and takers, and is `Send + Sync`.
-- Reviewed commit: the wave tip `b9dbecd340`.
+- Reviewed commit: the wave tip `bfce8a115b`.
 - Wave 1 is not the sub-campaign's last wave, because `schedule.json` lists
   waves 0-2 for `hwcontext`. This review emits no reproducer, so BSan did not
   run.

@@ -4,8 +4,8 @@
   `ColorPrimariesDescriptorRef` / `ColorPrimariesDescriptorMut`), field
   anchors `wp` and `prim`.
 - Home: `crustify/rust/ffmpeg/libavutil/csp.rs`.
-- Reviewed commit: the wave tip `0cc48b6804` (the type landed by batch 0
-  `355935c6a3`; batches 2 `0e2797fe0a` and 1 `0cc48b6804` landed the wave's
+- Reviewed commit: the wave tip `e0a75b5d7f` (the type landed by batch 0
+  `0545d10678`; batches 2 `3d65561a6e` and 1 `e0a75b5d7f` landed the wave's
   symbols).
 - Reports: none. No step below found a defect to report; the review adds one
   equivalence test (below) and this record.
@@ -36,7 +36,7 @@ Nothing left to fill. Details in `coverage.json`.
 ## Validation at the landed tree
 
 The landed tree is this review rebased onto the symbol review's fixes
-(`261a549a64`), which add five lib, one ub_safe and no equiv tests of
+(`c3ad0048d6`), which add five lib, one ub_safe and no equiv tests of
 their own; every pass below was re-run after that rebase.
 
 - `cargo check --workspace`, `cargo clippy --workspace --all-targets -- -D warnings`,
@@ -47,7 +47,7 @@ their own; every pass below was re-run after that rebase.
   crate): 563 / 463 / 477 / 72 each, no `runtime error:` and no sanitizer
   report.
 - BSan (`cargo bsan`, bsan C build, whole crate, one invocation per binary
-  under `timeout`): on the wave tip `0cc48b6804`, before any change: lib
+  under `timeout`): on the wave tip `e0a75b5d7f`, before any change: lib
   558 (79 s), equiv 462 (24 min), ub_safe 476 (41 min), ub_unsafe 72
   (4 min), each exit 0, no report; on the landed tree: 563 (2 min) / 463
   (22 min) / 477 (37 min) / 72 (4 min), each exit 0, no report. The added

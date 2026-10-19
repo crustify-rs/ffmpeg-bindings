@@ -4,8 +4,8 @@
   (`DeviceReferenceRef::alloc_frames` -> `UninitFrames`, the raw seam
   `UninitFrames::as_mut_ptr`, the safe `UninitFrames::init`), homed in
   `crustify/rust/ffmpeg/libavutil/hwcontext.rs` by translation batch 1
-  (`62b80e7a1d`).
-- Affected commit: the wave tip `b9dbecd340`.
+  (`dc1ebb6900`).
+- Affected commit: the wave tip `bfce8a115b`.
 - Status: contract fixed (documentation only). No reproducer: these builds
   compile no backend, and the test backends' `frames_init` ignores their
   `hwctx`. The hazard lives in real backends' code.

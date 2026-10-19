@@ -1,7 +1,7 @@
 # Misc: `ClassCategory` left out the header's two device predicates
 
 - File: `crustify/rust/ffmpeg/libavutil/log.rs`
-- Affected commit: `25fe7bf146` ("wrap libavutil/log.h's AVClassCategory and
+- Affected commit: `d511f2ca48` ("wrap libavutil/log.h's AVClassCategory and
   AVClassStateFlags")
 - Item: `AVClassCategory` (`ClassCategory`)
 

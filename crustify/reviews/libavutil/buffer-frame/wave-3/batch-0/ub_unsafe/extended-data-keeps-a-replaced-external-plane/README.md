@@ -3,7 +3,7 @@
 - Items: `AVFrame` (`FrameMut::alloc_extended_data`, safe;
   `FrameMut::set_data_ptr`, unsafe; `FrameRef::try_clone`, safe), homed in
   `crustify/rust/ffmpeg/libavutil/frame.rs`.
-- Affected commit: the wave tip `2a232726c8` (translation batch 0).
+- Affected commit: the wave tip `4f959b26a4` (translation batch 0).
 - Instrument: ASan (heap-use-after-free). BSan reports the same access
   ("trying to access an allocation that has been freed"). Both traces are
   kept here as `asan.trace` and `bsan.trace`.

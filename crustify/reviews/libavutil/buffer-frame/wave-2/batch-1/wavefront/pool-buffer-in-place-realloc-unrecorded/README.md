@@ -5,7 +5,7 @@
   `av_buffer_create` (a Rust-mapping update only); type `AVBufferPool`
   (fields `alloc`, `alloc2`).
 - Earlier submissions: buffer-frame wave 2, translation batch 1
-  (`0265949f74`), and for `pool_init`/`init2` the wave-0/1 type and symbol
+  (`758666d156`), and for `pool_init`/`init2` the wave-0/1 type and symbol
   runs.
 - Resubmitted: one `<symbol>.json` here per entity, through `query symbols
   --name <symbol> --file libavutil/buffer.c --update <file>`. Only `note`

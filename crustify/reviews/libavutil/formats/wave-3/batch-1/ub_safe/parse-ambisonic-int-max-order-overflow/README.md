@@ -1,7 +1,7 @@
 # `ChannelLayout::parse` reaches `av_channel_layout_from_string`'s `order + 1` overflow
 
 - File: `crustify/rust/ffmpeg/libavutil/channel_layout.rs`
-- Affected commit: `0cc48b6804` (formats wave-3 head at review time; the
+- Affected commit: `e0a75b5d7f` (formats wave-3 head at review time; the
   wrapper landed with the wave-2 type batch, `AVChannelLayout`, and is the
   wave-3 item `av_channel_layout_from_string`)
 - Item: `ChannelLayout::parse` (`Wraps: av_channel_layout_from_string`)

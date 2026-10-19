@@ -1,7 +1,7 @@
 # Conventions: CAST5's ECB-only `crypt` SAFETY comments described an IV and CBC
 
 - File: `crustify/rust/ffmpeg/libavutil/cast5.rs`
-- Affected commit: `5f76ee7dca` (crypto wave-1 batch 0)
+- Affected commit: `72aa992e7f` (crypto wave-1 batch 0)
 - Items: `Cast5Ref::crypt`, `Cast5Ref::crypt_in_place` (`Wraps: av_cast5_crypt`)
 
 ## Finding

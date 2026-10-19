@@ -4,7 +4,7 @@
   `Wraps: av_image_alloc`); `crustify/rust/ffmpeg/tests/equiv/imgutils.rs`,
   `crustify/rust/ffmpeg/tests/ub_safe/imgutils.rs`,
   `crustify/rust/ffmpeg/tests/ub_safe/samplefmt.rs`
-- Affected commit: `2f6e60458d` (formats wave-1 head; the gate log is
+- Affected commit: `0a2fbf9bb7` (formats wave-1 head; the gate log is
   `crustify/artifacts/libavutil/formats/review-wave-1/bsan-gate.log`)
 - Items: `av_image_alloc`, and the tests of `av_image_copy`, `av_image_copy2`,
   `av_image_copy_uc_from`, `av_image_copy_to_buffer`, `av_image_fill_color`,

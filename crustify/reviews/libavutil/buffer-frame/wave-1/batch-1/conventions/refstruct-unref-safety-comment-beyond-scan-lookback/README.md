@@ -1,7 +1,7 @@
 # Conventions: `RefStructUnref`'s `CDrop` `// SAFETY:` block was too long for `scan-unsafe` to find
 
 - File: `crustify/rust/ffmpeg/libavutil/refstruct.rs`, `unsafe impl<T> CDrop<T> for RefStructUnref`
-- Affected commit: `0ea2c20f1f` (buffer-frame wave 1, symbol batch 1). It
+- Affected commit: `5804b1d443` (buffer-frame wave 1, symbol batch 1). It
   extended the comment to cover the new `alloc_with_release`, `CAlloc` and
   typed-pool sources.
 
@@ -12,7 +12,7 @@ The comment above the `unsafe impl` was 10 lines long, starting with
 `unsafe impl` line for the word `SAFETY`, so it reported the site as
 undocumented. Clippy's `undocumented_unsafe_blocks` accepts the block, but
 the scan does not. The count went from 22 at the wave-0 review to 23 at the
-wave-1 tip `1a9271f931`
+wave-1 tip `6fd5597711`
 (`undocumented_unsafe.per_file["ffmpeg/libavutil/refstruct.rs"] == 1`). This
 was the only new site in the wave's symbol homes.
 

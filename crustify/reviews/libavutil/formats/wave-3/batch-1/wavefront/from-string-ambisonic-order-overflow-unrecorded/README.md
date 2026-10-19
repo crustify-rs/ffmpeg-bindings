@@ -1,6 +1,6 @@
 # `av_channel_layout_from_string`'s `str` finding recorded no undefined input
 
-Affected base: `0cc48b6804` (finding submitted by formats wave-2 batch 0
+Affected base: `e0a75b5d7f` (finding submitted by formats wave-2 batch 0
 with the `AVChannelLayout` type run, carried unchanged through wave 3).
 
 The `str` note said only "The layout description, a NUL-terminated string

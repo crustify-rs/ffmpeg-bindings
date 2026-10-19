@@ -9,8 +9,8 @@
   - `TransferDirection`, a closed Rust `enum {From, To}` with
     `into_raw`.
 
-  Both were wrapped by translation batch 0 (`01f8b6fdbf`).
-- Reviewed commit: the wave tip `01f8b6fdbf`.
+  Both were wrapped by translation batch 0 (`b681e8e946`).
+- Reviewed commit: the wave tip `b681e8e946`.
 - Wave 0 is not the sub-campaign's last wave, because `schedule.json`
   lists waves 0-2 for `hwcontext`. This review emits no reproducer, so
   BSan did not run.

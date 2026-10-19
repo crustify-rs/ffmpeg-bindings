@@ -1,9 +1,9 @@
 {
   "level": "subcampaign",
   "branch": "crustify/subcampaigns/20261005/libavutil/options",
-  "scan": "34ffd7ee48996e2950389d9afc9da8e2b623bd5f",
-  "base": "0c2bf754abb48d19d6a7c5f221389b75a33336cd",
-  "base_from": "reflog creation (first wave base f391dca889)",
+  "scan": "6daed536cb100a422e7082e48e0582e0b82d37bd",
+  "base": "9cc23338f5e106be1664e8016913382e0fd7b673",
+  "base_from": "reflog creation (first wave base 33edf63f19)",
   "crustify": "1a7d4341901fd962d54e979178941898547b09e7",
   "command": "crustify ffimap <workdir> --json --ffibox",
   "ffibox": "196c5fb",

@@ -2,7 +2,7 @@
 
 - File: `crustify/rust/ffmpeg/libavutil/opt.rs` (`unit_tests`),
   `crustify/rust/ffmpeg/tests/common/opt.rs`
-- Affected commit: `ad7acaeaca`
+- Affected commit: `ab1d2518bf`
 - Item: `unit_tests::grown_defaults_agree_with_av_opt_set_defaults`
   (`OptionDefRef::default_value` for `DICT` and array options against
   `av_opt_set_defaults2`)

@@ -1,7 +1,7 @@
 # Wavefront: `AVFrame.extended_data`'s note missed C's per-channel reads of `data`
 
 - Item: `AVFrame` (type record, field `extended_data`), submitted by
-  translation batch 0 (`2a232726c8`).
+  translation batch 0 (`4f959b26a4`).
 - Status: resubmitted (`submission.json` in this directory, applied with
   `query types --name AVFrame --update`). Only the field's `note` changed:
   the structural properties (`array.by_val`, `owned`,

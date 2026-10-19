@@ -1,7 +1,7 @@
 # Conventions: `Send for Expr`'s safety comment counted as undocumented
 
 - File: `crustify/rust/ffmpeg/libavutil/eval.rs`
-- Affected commit: `f9ad1d8e7f`
+- Affected commit: `66fa3604d1`
 - Item: `unsafe impl Send for Expr` (`AVExpr`)
 
 ## Finding

@@ -1,7 +1,7 @@
 # `ObjectMut::set` previews an array option's `default` as 0; C reads the definition's address
 
 - File: `crustify/rust/ffmpeg/libavutil/opt.rs`
-- Affected commit: `dc97af2db7` (options wave-0 head at review time;
+- Affected commit: `cde88fc249` (options wave-0 head at review time;
   translation batch 3)
 - Items: `av_opt_set` (`ObjectMut::set`), and through the same check
   `av_opt_set_from_string` and `av_set_options_string`

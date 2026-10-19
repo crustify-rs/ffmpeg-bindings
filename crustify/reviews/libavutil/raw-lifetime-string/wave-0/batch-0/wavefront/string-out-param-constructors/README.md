@@ -1,7 +1,7 @@
 # Wavefront: out-parameter string constructors were never analyzed
 
 - Store: `crustify/wavefront/ownership-store.json`
-- Affected commit: `a95b9e3220` ("wrap libavutil's string raw-lifetime primitives")
+- Affected commit: `271811c5bb` ("wrap libavutil's string raw-lifetime primitives")
 - Records: `av_escape`, `av_dict_get_string`, `av_opt_serialize`, `av_opt_get`,
   `av_opt_get_key_value`, `av_bprint_finalize` (no record before); `av_strdup`
   (`ptr_ret` note)

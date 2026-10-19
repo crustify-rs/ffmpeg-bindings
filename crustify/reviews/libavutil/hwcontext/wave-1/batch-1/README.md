@@ -4,11 +4,11 @@
   `_ctx_create_derived_opts`, `_ctx_init`, `_find_type_by_name`,
   `_get_type_name`, `_hwconfig_alloc`, `_iterate_types`;
   `av_hwframe_ctx_alloc`, `_ctx_create_derived`, `_ctx_init`,
-  `_get_buffer`, `_map` (translation batch 1, `62b80e7a1d`); and
+  `_get_buffer`, `_map` (translation batch 1, `dc1ebb6900`); and
   `av_hwframe_transfer_data` and `_transfer_get_formats` (translation
-  batch 2, `bf7c454c03`). All are homed in
+  batch 2, `1f9a8c35f0`). All are homed in
   `crustify/rust/ffmpeg/libavutil/hwcontext.rs`.
-- Reviewed commit: the wave tip `b9dbecd340`.
+- Reviewed commit: the wave tip `bfce8a115b`.
 - Wave 1 is not the sub-campaign's last wave: `schedule.json` lists waves
   0-2 for `hwcontext`. This review emits no reproducer, so BSan did not run.
 - Reports:
@@ -36,7 +36,7 @@
 
 ## Validation
 
-These runs used the landed tree, rebased onto the wave tip `79a4c7744c`
+These runs used the landed tree, rebased onto the wave tip `09fa152580`
 (the type review, which changed only hook docs, one unit test and
 wavefront records).
 

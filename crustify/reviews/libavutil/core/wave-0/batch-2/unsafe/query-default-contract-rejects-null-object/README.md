@@ -1,7 +1,7 @@
 # Unsafe: `OptionRanges::query_default`'s contract rejected the NULL object C accepts
 
 - File: `crustify/rust/ffmpeg/libavutil/opt.rs`
-- Affected commit: `ad7acaeaca`
+- Affected commit: `ab1d2518bf`
 - Item: `OptionRanges::query_default` (`av_opt_query_ranges_default`)
 - Kind: `# Safety` obligation stricter than the C contract (sound, but it
   forbids a legal input)

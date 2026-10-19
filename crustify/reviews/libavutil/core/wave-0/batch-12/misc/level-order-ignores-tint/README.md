@@ -1,7 +1,7 @@
 # Misc: `Level`'s doc overstated what its order decides
 
 - File: `crustify/rust/ffmpeg/libavutil/log.rs`
-- Affected commit: `3770f8f483`
+- Affected commit: `5d0c0b3b31`
 - Item: `Level` (the `int` of `av_log_set_level` / `av_log_get_level` and
   the log functions)
 

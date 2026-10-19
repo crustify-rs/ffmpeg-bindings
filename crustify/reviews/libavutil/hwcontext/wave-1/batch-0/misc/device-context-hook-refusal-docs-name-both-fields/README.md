@@ -1,7 +1,7 @@
 # Misc: the hook setters' docs read as refusing only when both `free` and `user_opaque` are foreign
 
 - Item: `AVHWDeviceContext`, wrapped as `hwcontext::DeviceContext` by
-  translation batch 0 of hwcontext wave 1 (`b9dbecd340`), in
+  translation batch 0 of hwcontext wave 1 (`bfce8a115b`), in
   `crustify/rust/ffmpeg/libavutil/hwcontext.rs`.
 - Status: fixed. Only rustdoc changed, plus one regression unit test.
 

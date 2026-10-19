@@ -5,7 +5,7 @@
   `TryFrom<BufferReferenceBox> for UninitBuffer` conversion that `get`
   relies on (buffer-frame wave 1 batch 0), all in
   `crustify/rust/ffmpeg/libavutil/buffer.rs`.
-- Affected commit: the wave tip `13730d672b`.
+- Affected commit: the wave tip `83bd5f2e64`.
 - Filed as `misc`, not `ub_safe`: the UB is a read of uninitialised `u8`s
   in Rust. None of the prepared instruments detects that: ASan, UBSan, TSan
   and BSan do not track initialisation, MSan is not prepared, and Miri

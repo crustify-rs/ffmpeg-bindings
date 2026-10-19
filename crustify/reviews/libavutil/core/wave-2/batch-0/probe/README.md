@@ -21,7 +21,7 @@ twenty `%c`s), `av_bprint_get_buffer` committed as `pngdec.c` does against
 `INT_MAX` switched mid-sequence so growth, the strftime fallbacks and the
 finalizers fail on both sides alike.
 
-Results on the affected base `9ff8fb29d7ea1c3174abaac31e506c229f3f9115`:
+Results on the affected base `06a7548c5c439c49f36f434a7251d23939b53462`:
 20 000 sequences on the plain build (seed `0x9e3779b97f4a7c15`) and 15 000
 under ASan/UBSan against the `asan-ubsan` library (seed `12345`,
 `RUSTFLAGS=-Zsanitizer=address cargo +nightly build -Zbuild-std`): no

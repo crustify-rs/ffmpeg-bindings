@@ -1,7 +1,7 @@
 # `parse_color_with_context` kept a raw `*mut c_void` log context
 
 - File: `crustify/rust/ffmpeg/libavutil/parseutils.rs`
-- Affected commit: `dc97af2db7`
+- Affected commit: `cde88fc249`
 - Item: `av_parse_color`
 - Smell: `crustify scan-unsafe` `unsafe_fns_pub_smell`, `raw_ptr_pub_smell`,
   `void_ptr_pub_smell` at `parseutils.rs:160`
@@ -38,7 +38,7 @@ safe sweep with `BareObject` contexts is in `tests/ub_safe/parseutils.rs`
 (`colors_with_log_contexts`). The `equiv` comparisons pass `None` or an
 adopted context.
 
-Outside this workset, the wave's type review (batch 0, `9ff1ec06ed`) made
+Outside this workset, the wave's type review (batch 0, `382c43ab9b`) made
 `Expr::parse_with_context` (`av_expr_parse`) safe over `ObjectRef` the same
 way; `OptionRanges::query` / `query_default` (`av_opt_query_ranges*`, type
 item `AVOptionRanges`) keep a raw object seam.

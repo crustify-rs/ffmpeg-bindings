@@ -1,7 +1,7 @@
 # Misc: `PaddedStruct` did not say that C's buffer runs past `reserved_padding`
 
 - File: `crustify/rust/ffmpeg/libavutil/bprint.rs`
-- Affected commit: `ce6afb6d6c` (core wave 0, batch 4)
+- Affected commit: `9de9d5c5ce` (core wave 0, batch 4)
 - Item: `FF_PAD_STRUCTURE` (type route, wrap), the `PaddedStruct` trait
 
 ## Finding

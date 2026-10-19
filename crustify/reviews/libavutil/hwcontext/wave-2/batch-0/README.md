@@ -1,8 +1,8 @@
 # Review: libavutil/hwcontext wave 2, batch 0 (the wave's types)
 
 Route: **type** (1 item). Objective: **review**. Reviewed commit: the wave
-tip `126a47005b`, which is the wave's type translation batch. The symbol
-review (batch 1) landed `53d9eda85e` and `e81926af2a` while this one ran.
+tip `ad5932bb53`, which is the wave's type translation batch. The symbol
+review (batch 1) landed `70e3284e9c` and `32b6b94e4d` while this one ran.
 This review is rebased on them.
 
 Item: `AVHWFramesContext` (`libavutil/hwcontext.h`), homed in
@@ -64,13 +64,13 @@ plus `misc/bsan-gate-lib-constraints-enomem-runaway/extra-skips.txt` (one
 more instance of that class). BSan reported nothing outside those false
 positives on either tree.
 
-- Wave tip `126a47005b`, before any change: `equiv` 697 passed (4688 s),
+- Wave tip `ad5932bb53`, before any change: `equiv` 697 passed (4688 s),
   `ub_safe` 799 passed (2983 s), `ub_unsafe` 170 passed (242 s), and the
   seven `-sys` binaries passed. `lib` first stopped at the
   `channel_layout.c:417` false positive. With it skipped, 953 tests passed.
   The runaway hwcontext test was stopped after 32 minutes, which made it
   fail (see `misc/`).
-- Landed tree (the symbol review's `e81926af2a` plus this review; the wave
+- Landed tree (the symbol review's `32b6b94e4d` plus this review; the wave
   branch did not move afterwards): `equiv` 699 passed (4417 s; the new
   `frame_hw_frames_context` test and the symbol review's test included),
   `ub_safe` 800 passed (2773 s), `ub_unsafe` 169 passed (272 s; one test
@@ -93,7 +93,7 @@ positives on either tree.
   `runtime error:` and no AddressSanitizer, LeakSanitizer or
   ThreadSanitizer report. The coverage test added afterwards was rerun
   under both (`--lib -- hwcontext`: 84 passed, clean).
-- Reproducer: exits 1 on `126a47005b` (ASan SEGV at `hwcontext.c:490`,
+- Reproducer: exits 1 on `ad5932bb53` (ASan SEGV at `hwcontext.c:490`,
   through the safe `FrameRef::try_clone`), ASan/UBSan build. On the fixed
   tree it does not compile, because the seam it uses is gone. The
   regression unit test runs the same scenario through the safe API. It

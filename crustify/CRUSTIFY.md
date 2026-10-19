@@ -1,3 +1,7 @@
+
+Fill in as many answers as you want before starting Crustify. It will ask only
+for campaign decisions that remain unresolved.
+
 # Mandatory questions
 
 ## Campaign
@@ -7,7 +11,7 @@
      revision
 
 2. **Should this campaign port the C implementation to Rust, or create safe
-   Rust wrappers?** (`id: objective`)
+   Rust wrappers?** (`id: campaign`)
    - Answer: `wrap`
 
 3. **What should this campaign target: a named subset of subsystems, or a named
@@ -19,6 +23,16 @@
 4. **Which model and billing should do the translation work?**
    (`id: translate-agent`)
    - Answer: `openrouter/anthropic/claude-opus-5.5, api`
+   - Format: `<provider/model, api | subscription>`, e.g.
+     `openrouter/anthropic/claude-opus-5, api`. The provider is the first
+     segment and selects both the billing rate table and the backend CLI.
+     Supported providers:
+     - `anthropic/<model>` — Anthropic direct, driven by Claude Code;
+     - `openai/<model>` — OpenAI direct, driven by Codex;
+     - `openrouter/<vendor>/<model>` — OpenRouter, which resells every vendor
+       behind one key, so the vendor segment picks the CLI: `anthropic/*` is
+       driven by Claude Code and everything else by Codex. OpenRouter
+       supports `api` billing only.
 
 5. **Do you want agentic review after translated work lands? If so, which
    model and billing should perform each review?** (`id: review-agent`)
@@ -34,10 +48,11 @@ Unanswered optional questions use their defaults.
 ## Campaign execution
 
 7. **Which model and billing should plan the campaign, and how many planner runs
-   should it make? The first run emits the plan; each later run reviews and amends
-   what the runs before it committed.** (`id: plan-agent`)
+   should it make? Each run emits what the plan lacks and corrects what the runs
+   before it committed.** (`id: plan-agent`)
    - Answer: the translation model and billing, 2 runs. The subsystems already
      planned were planned by the orchestrator, before planners existed.
+   - By default: the translation model and billing, 2 runs.
 
 8. **Should the campaign use the default batching and parallelism settings, or
    customize them?** (`id: workload`)
@@ -64,13 +79,14 @@ Unanswered optional questions use their defaults.
     - Answer: the configuration `crustify/artifacts/build.json` records: shared
       libraries only, autodetection off, pthreads and zlib on, docs off, and the FATE
       samples in `crustify/fate-suite`.
+    - By default: the target's default configuration, with deprecated features disabled.
 
 ## Autonomy (if question 6 is answered `no`)
 
 Answer these approval-gate questions only if question 6 is answered `no`.
 
 13. **Should I wait for your approval before starting the setup phase?** (`id: gates.setup`)
-   - Answer: `no`
+    - Answer: `no`
 14. **Should I wait for your approval before starting the translation phase?**
     (`id: gates.translation`)
     - Answer: `yes`
@@ -87,3 +103,4 @@ Answer these approval-gate questions only if question 6 is answered `no`.
 # Additional instructions
 
 Unless otherwise stated, preserve the format of the dashboard exactly.
+

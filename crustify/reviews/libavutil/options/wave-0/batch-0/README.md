@@ -8,9 +8,9 @@
   `component_max`, `component_min`, `value_max`, `value_min`) and
   `AVOptionType` (`opt::OptionType`).
 - Homes: `crustify/rust/ffmpeg/libavutil/{dict,eval,opt}.rs`.
-- Reviewed commit: the wave tip `dc97af2db7` (types landed by batches 0
-  `06a90df6aa`, 1 `f9ad1d8e7f` and 2 `5872e7fc5d`; symbols by batches 4
-  `abf7b39488` and 3 `dc97af2db7`).
+- Reviewed commit: the wave tip `cde88fc249` (types landed by batches 0
+  `aa6053aec5`, 1 `66fa3604d1` and 2 `e605248b0c`; symbols by batches 4
+  `ae14a85553` and 3 `cde88fc249`).
 - Reports: `unsafe/expr-parse-with-context-raw-log-context`,
   `conventions/expr-send-safety-comment-past-scan-window`.
 - Not the sub-campaign's last wave (options has waves 0-2), so no BSan gate:

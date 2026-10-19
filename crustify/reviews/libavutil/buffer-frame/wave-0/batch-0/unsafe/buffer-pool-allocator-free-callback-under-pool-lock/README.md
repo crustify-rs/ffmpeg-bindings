@@ -1,8 +1,8 @@
 # Unsafe: `with_allocator`'s contract let the allocator's buffers re-lock the pool
 
 - File: `crustify/rust/ffmpeg/libavutil/buffer.rs`
-- Affected commit: `c68b39206c` (buffer-frame wave 0, type batch 1), as landed
-  on the wave branch at `2161c1d053`
+- Affected commit: `1edb133adb` (buffer-frame wave 0, type batch 1), as landed
+  on the wave branch at `adfecd6c81`
 - Item: `BufferPool::with_allocator` (`av_buffer_pool_init2`), the workset's
   one `pub unsafe fn` on a type (its raw `*mut AVBufferRef` return is a seam
   until wave 1 wraps `AVBufferRef`)

@@ -1,7 +1,7 @@
 # Four of the wave's twelve enum newtypes had no `Default`
 
-Affected base: `7317de905cd9a976e6a17b3650ba4182f2fe170c` (the wave tip; the
-types landed in `2639963171`, `c087115626`, `14815d9164` and `7e499d9c61`).
+Affected base: `17c012afcd0e1e6fab63a97ac3e622e16db2cfba` (the wave tip; the
+types landed in `41844f9750`, `653bf3f6d0`, `0c753e50ee` and `b39657734d`).
 Homes: `crustify/rust/ffmpeg/libavutil/{pixfmt,samplefmt,channel_layout}.rs`.
 
 `ColorSpace`, `ColorTransfer`, `AlphaMode`, `ColorPrimaries`, `ColorRange`,

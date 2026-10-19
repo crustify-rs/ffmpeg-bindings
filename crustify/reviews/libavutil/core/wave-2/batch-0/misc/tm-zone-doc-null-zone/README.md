@@ -1,6 +1,6 @@
 # `TmRef::zone` documented a NULL `tm_zone` as always naming the local zone
 
-Affected base: `9ff8fb29d7ea1c3174abaac31e506c229f3f9115` (core wave 2, batch 0).
+Affected base: `06a7548c5c439c49f36f434a7251d23939b53462` (core wave 2, batch 0).
 Home: `crustify/rust/ffmpeg/libavutil/bprint.rs`, `TmRef::zone`
 (`Handwritten` `Tm`, the `struct tm` `BPrintMut::append_strftime` formats)
 and the `CZeroable for Tm` safety comment.

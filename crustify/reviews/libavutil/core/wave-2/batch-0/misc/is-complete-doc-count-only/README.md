@@ -1,6 +1,6 @@
 # `BPrintRef::is_complete` documented a count-only buffer as complete until appended to
 
-Affected base: `9ff8fb29d7ea1c3174abaac31e506c229f3f9115` (core wave 2, batch 0).
+Affected base: `06a7548c5c439c49f36f434a7251d23939b53462` (core wave 2, batch 0).
 Home: `crustify/rust/ffmpeg/libavutil/bprint.rs`, `BPrintRef::is_complete`
 (`Wraps: av_bprint_is_complete`) and `BPrintMut::clear`.
 

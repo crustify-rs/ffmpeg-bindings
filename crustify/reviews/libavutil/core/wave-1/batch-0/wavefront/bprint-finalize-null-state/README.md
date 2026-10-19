@@ -1,6 +1,6 @@
 # Finalize can clear str without transferring it
 
-Affected base: `23dc07587c751c8f7c82729839a4b0065c66bb5f`.
+Affected base: `b2cff27cd691af1482bd36e8c2edab9d5e25fcf8`.
 
 The AVBPrint.str finding said NULL occurs only when finalize hands the
 allocation out. `libavutil/bprint.c:av_bprint_finalize` also calls

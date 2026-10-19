@@ -1,8 +1,8 @@
 # Misc: `Unaligned64` lacked the value traits its siblings carry
 
 - File: `crustify/rust/ffmpeg/libavutil/intreadwrite.rs`
-- Affected commit: `3770f8f483` (wave head); introduced by `7a060ef8a0`
-  (`unaligned_64`) and left behind by `809f4922ae` (`unaligned_16` /
+- Affected commit: `5d0c0b3b31` (wave head); introduced by `98db507a23`
+  (`unaligned_64`) and left behind by `058790db28` (`unaligned_16` /
   `unaligned_32`)
 - Item: `unaligned_64` (`Unaligned64`, `Unaligned64Ref`, `Unaligned64Mut`)
 
@@ -10,7 +10,7 @@
 
 The three `unaligned_N` unions have the same shape (one packed native-endian
 integer, no pointer, no lifecycle routine) and the module wraps them the same
-way. `809f4922ae` added `impl_value_traits!`, which gives a layout type
+way. `058790db28` added `impl_value_traits!`, which gives a layout type
 `Debug`, `Default`, `PartialEq`, `Eq`, `Hash`, `From<int>` and
 `From<Self> for int`, all through the integer, and applied it to
 `Unaligned16` and `Unaligned32`. `Unaligned64`, wrapped one batch earlier,

@@ -5,7 +5,7 @@
   path), `av_frame_clone` (`FrameRef::try_clone`, from the wave-3 type run),
   all in `crustify/rust/ffmpeg/libavutil/frame.rs`. The root is
   `av_frame_get_buffer`, which C runs from each of them.
-- Affected commit: the wave tip `c6e25ecf93` (translation batch 0).
+- Affected commit: the wave tip `2453c27798` (translation batch 0).
 - Instrument: UBSan (asan-ubsan build), `signed-integer-overflow`. Trace in
   `ubsan.trace`.
 - Status: fixed in `frame.rs`. Regression tests:
@@ -70,7 +70,7 @@ used small sample counts.
 
 ## Reproducer
 
-`cargo run` exits 1 on `c6e25ecf93` and 0 on the fixed tree. `main` runs the
+`cargo run` exits 1 on `2453c27798` and 0 on the fixed tree. `main` runs the
 scenario again in a child with `UBSAN_OPTIONS=halt_on_error=1`, because
 UBSan only prints its reports otherwise. Build it against the asan-ubsan C
 build:

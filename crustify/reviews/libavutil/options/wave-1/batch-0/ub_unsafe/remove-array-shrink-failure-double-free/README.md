@@ -1,7 +1,7 @@
 # `ObjectMut::remove_array` leaves a stale count when C cannot shrink the array: double free
 
 - File: `crustify/rust/ffmpeg/libavutil/opt.rs`
-- Affected commit: `f589c22d1d` (options wave-1 head at review time;
+- Affected commit: `c771c3e8bd` (options wave-1 head at review time;
   translation batch 1)
 - Item: `av_opt_set_array` (`ObjectMut::remove_array`, its NULL-`val`
   removal path)

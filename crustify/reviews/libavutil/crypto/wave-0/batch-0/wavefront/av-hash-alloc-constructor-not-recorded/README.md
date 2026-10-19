@@ -1,7 +1,7 @@
 # Wavefront: `av_hash_alloc` is not recorded as `AVHashContext`'s constructor
 
 - Store: `crustify/wavefront/ownership-store.json`
-- Affected commit: `5da4d94447` (hash/HMAC batch); wave tip `7935c403e0`
+- Affected commit: `cc91f6866d` (hash/HMAC batch); wave tip `c45fd5b3d1`
 - Items: `AVHashContext` (lifecycle), symbol `av_hash_alloc` (`libavutil/hash.c`)
 
 ## Finding

@@ -1,8 +1,8 @@
 {
   "level": "subcampaign",
   "branch": "crustify/subcampaigns/20261005/libavutil/core",
-  "scan": "7d5cdc7138324b27d32d8ede5efca0ba4d088d37",
-  "base": "b9283df9a97dbfbf5c81826ef6987b3d4293af02",
+  "scan": "20f9b4c307e089cc03dd87ac140adbaaa1909a74",
+  "base": "0903e4f48cca6df236ec6c7ac0798d9dd0ece6f3",
   "base_from": "reflog creation",
   "crustify": "1a7d4341901fd962d54e979178941898547b09e7",
   "command": "crustify ffimap <workdir> --json --ffibox",

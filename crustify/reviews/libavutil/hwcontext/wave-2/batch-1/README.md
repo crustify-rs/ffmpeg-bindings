@@ -3,9 +3,9 @@
 - Items (2): `av_hwdevice_get_hwframe_constraints` and
   `av_hwframe_constraints_free` (`libavutil/hwcontext.c`), homed in
   `crustify/rust/ffmpeg/libavutil/hwcontext.rs`. Translation batch 1 of
-  wave 2 added no code (`3897b00e38`). The wave-1 type batch had already
+  wave 2 added no code (`45c1736871`). The wave-1 type batch had already
   bound both routines when it wrapped `AVHWFramesConstraints`
-  (`b9dbecd340`), and the wave-1 type review reviewed them as that type's
+  (`bfce8a115b`), and the wave-1 type review reviewed them as that type's
   lifecycle:
   - `DeviceReferenceRef::frames_constraints` (NULL configuration) and
     `frames_constraints_for_config(&HwConfig)`. The second refuses a
@@ -13,7 +13,7 @@
     `Option<FramesConstraintsBox>`.
   - `FramesConstraintsFree`, the `CDrop` (with a Rust `CNew`) behind
     `FramesConstraintsBox = CBox<FramesConstraints, FramesConstraintsFree>`.
-- Reviewed commit: the wave tip `126a47005b`.
+- Reviewed commit: the wave tip `ad5932bb53`.
 - Wave 2 is the sub-campaign's last wave, since `schedule.json` lists
   waves 0-2 for `hwcontext`. This wave has two review batches. Under the
   orchestrator's rule for that case (2026-10-12), batch 0 (the types) runs

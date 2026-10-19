@@ -1,7 +1,7 @@
 # Two `PixelFormatDescriptor` unit tests assume two occurrences of one literal share an address
 
-Affected base: `2f6e60458d` (the wave tip; the tests landed in
-`a60ec0cb84`, formats wave 1 batch 2). File:
+Affected base: `0a2fbf9bb7` (the wave tip; the tests landed in
+`287eeecb28`, formats wave 1 batch 2). File:
 `crustify/rust/ffmpeg/libavutil/pixdesc.rs`, `mod unit_tests`.
 
 `pixel_format_descriptor_raw_round_trip_keeps_every_field` built a

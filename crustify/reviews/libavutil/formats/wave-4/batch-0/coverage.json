@@ -2,7 +2,7 @@
   "method": {
     "rust": "RUSTFLAGS=-C instrument-coverage, nightly llvm-profdata merge + llvm-cov report over the lib, equiv and ub_safe test binaries (cargo +nightly test -p ffmpeg --lib --test equiv --test ub_safe -- csp), reported for the home file",
     "c": "CRUSTIFY_FFMPEG_VARIANT=coverage with GCOV_PREFIX, the csp tests of the same three binaries, gcov -b -c over libavutil/csp.c",
-    "note": "one measurement at the reviewed wave tip 7cf5d6fc5d; the review's added equivalence test exercises already-covered lines (av_csp_primaries_id_from_desc's reduction path with one coordinate at a large denominator), so the figures are unchanged at the landed tree"
+    "note": "one measurement at the reviewed wave tip cfa4db1026; the review's added equivalence test exercises already-covered lines (av_csp_primaries_id_from_desc's reduction path with one coordinate at a large denominator), so the figures are unchanged at the landed tree"
   },
   "rust": {
     "libavutil/csp.rs": { "lines": { "count": 1006, "percent": 100.0 }, "regions": { "count": 1676, "percent": 100.0 }, "functions": { "count": 173, "percent": 100.0 } },

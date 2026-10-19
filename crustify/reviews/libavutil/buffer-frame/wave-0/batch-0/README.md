@@ -4,10 +4,10 @@
   `AVSideDataDescriptor`, `AVSideDataProps` (`frame.rs`); `AVBuffer`,
   `AVBufferPool` (`buffer.rs`); `AVRefStructOpaque`, `AVRefStructPool`
   (`refstruct.rs`)
-- Reviewed: wave tip `2161c1d053` (type batches `645cccb60a`, `c68b39206c`,
-  `af4b72cf9e`, `aa7314ae80`, `3d49f5055f`). The symbol share of the wave
+- Reviewed: wave tip `adfecd6c81` (type batches `7526d99dbd`, `1edb133adb`,
+  `36bcce3d6a`, `b32232d00c`, `f27390c8ed`). The symbol share of the wave
   (`av_buffer_default_free`, the `av_refstruct_*` references) belongs to
-  review batch 1. Its fix `e9a17781a4` (landed before this review) also
+  review batch 1. Its fix `edd9025228` (landed before this review) also
   gates `RefStructPoolUnref::c_up_ref`, this workset's pool clone, on
   `COUNT_IS_WIDE`. I checked it: on narrow targets it refuses the up-ref at
   run time (`try_clone` -> `None`); on this 64-bit build nothing changes.

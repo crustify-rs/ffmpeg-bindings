@@ -2,7 +2,7 @@
 
 - Item: `av_intfloat64` (`libavutil/intfloat.h`), reviewed on branch
   `crustify/review-batches/libavutil/core/wave-0/batch-7`
-- Affected commit: `3770f8f483` (the wave-0 head; the record has been wrong
+- Affected commit: `5d0c0b3b31` (the wave-0 head; the record has been wrong
   since the T1 extraction, independent of any commit in this repository)
 - Tool: wavefront `ac2f85c`, `src/entities/types.ql`
 

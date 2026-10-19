@@ -2,13 +2,13 @@
 
 - Files: `crustify/rust/ffmpeg/tests/equiv/{aes,blowfish,camellia,cast5}.rs`,
   test `buffer_sequences_match_c` in each
-- Affected commit: `5f76ee7dca` (crypto wave-1 batch 0)
+- Affected commit: `72aa992e7f` (crypto wave-1 batch 0)
 - Kind: aliasing UB in test code (the raw C reference side), found by the
   sub-campaign's BSan gate; not a defect of the safe API
 
 ## What the gate saw
 
-On the wave tip `e71508dc3c`, before any change, the `equiv` binary stopped
+On the wave tip `0896e41211`, before any change, the `equiv` binary stopped
 at its first report (`bsan-trace.txt`); BSan has no recover mode, so every
 `equiv` test after it went ungated on the tip. `lib` (752 tests,
 single-threaded), `ub_safe` (642), `ub_unsafe` (95) and the seven `-sys`

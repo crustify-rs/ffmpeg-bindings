@@ -4,7 +4,7 @@
   `av_md5_sum` (`libavutil/md5.c`, args 0 `dst` and 1 `src`),
   `av_uuid_unparse` (`libavutil/uuid.c`, arg 1 `out`)
 - Store: `crustify/wavefront/ownership-store.json`
-- Submitted by: crypto wave-0 batch 10 (`c51ba553a2`)
+- Submitted by: crypto wave-0 batch 10 (`00728268f2`)
 - Resubmitted with `query symbols --name <symbol> --update <symbol>.json`
   (the three submissions are kept beside this report)
 

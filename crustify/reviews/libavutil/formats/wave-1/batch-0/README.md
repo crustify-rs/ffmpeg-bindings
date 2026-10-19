@@ -6,8 +6,8 @@
   `AVPixFmtDescriptor` (`pixdesc::PixelFormatDescriptor`, with
   `PixelFormatFlags`).
 - Homes: `crustify/rust/ffmpeg/libavutil/{csp,channel_layout,pixdesc}.rs`.
-- Reviewed commit: the wave tip `2f6e60458d` (types landed by batches 0-2:
-  `b5a98ab3b9`, `0bbd0f7f6b`, `a60ec0cb84`).
+- Reviewed commit: the wave tip `0a2fbf9bb7` (types landed by batches 0-2:
+  `1d1d7dd308`, `fac2331574`, `287eeecb28`).
 - Reports: `misc/channel-custom-eq-without-hash` (fixed),
   `misc/bsan-quadratic-pixdesc-descriptor-equiv-tests` (fixed, tests
   only) and `internal/descriptor-unit-tests-assume-literal-address-identity`

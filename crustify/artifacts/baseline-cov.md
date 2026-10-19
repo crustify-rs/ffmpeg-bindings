@@ -398,7 +398,7 @@ How to read it:
   `tests/`, which these crates' `src/` scope already leaves out.
 - ¹ The unsafe-surface rows are not restated: all three are fresh scans with
   the same driver (crustify `7a84ee6`), the campaign's at the active campaign's
-  tip (`ffmpeg-wrap-20261005`, `crustify/main` at `1a441943aa`,
+  tip (`ffmpeg-wrap-20261005`, `crustify/main` at `f90c4f03bb`,
   `crustify/artifacts/ffimap.json`). They count only what each
   crate defines, so ffibox's own conversions and the `pub(crate)` constructors
   `define_ctype!` emits are outside the campaign's public figures by

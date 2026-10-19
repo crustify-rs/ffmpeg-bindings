@@ -1,8 +1,8 @@
 # Review: formats wave-3 symbols (channel layout initialisers, readers, describers, compare, retype, subset, standard table, uninit)
 
 Route: **symbol** (18 items). Objective: **review**. Affected base:
-`0cc48b6804` (the wave's head; the items landed in translation batches 1,
-`0cc48b6804`, and 2, `0e2797fe0a`; the five initialisers and `uninit`
+`e0a75b5d7f` (the wave's head; the items landed in translation batches 1,
+`e0a75b5d7f`, and 2, `3d65561a6e`; the five initialisers and `uninit`
 were wrapped by the wave-2 `AVChannelLayout` type run and carried into
 this wave's worklist).
 
@@ -32,7 +32,7 @@ Items and homes, all in `crustify/rust/ffmpeg/libavutil/channel_layout.rs`:
 
 ## Findings and scope
 
-- **BSan gate.** Run on the wave tip (`0cc48b6804`) and on the landed
+- **BSan gate.** Run on the wave tip (`e0a75b5d7f`) and on the landed
   tree, one `cargo bsan test` per test binary in parallel under
   `timeout 7200` with `gc_hang_threshold_ms=600000`; see Validation.
 - **One UB defect, fixed:**
@@ -130,9 +130,9 @@ On the final tree (the fix, the doc rewording and the new tests applied):
 | `cargo test --workspace` (plain) | lib 563, equiv 462, ub_safe 478 (compile_fail included), ub_unsafe 72, doctests 83 |
 | ASan/UBSan (`-Zbuild-std`, four binaries, `--skip compile_fail`) | lib 563, equiv 462, ub_safe 477, ub_unsafe 72; no report, no `runtime error:` |
 | TSan (same) | same counts; no report |
-| BSan gate on the wave tip `0cc48b6804` (per binary, in parallel) | lib 558 (76 s), equiv 462 (1541 s), ub_safe 476 (2524 s), ub_unsafe 72 (218 s); no report |
+| BSan gate on the wave tip `e0a75b5d7f` (per binary, in parallel) | lib 558 (76 s), equiv 462 (1541 s), ub_safe 476 (2524 s), ub_unsafe 72 (218 s); no report |
 | BSan gate on the landed tree (per binary, in parallel) | lib 563 (99 s), equiv 462 (1603 s), ub_safe 477 (2604 s), ub_unsafe 72 (275 s); no report |
 | Miri, FFI-free `channel_layout` unit tests (`c_strtol_reads_as_glibc_does`, `ambisonic_order_overflow_is_found_where_c_reads_the_order`, `map_names_are_compared_only_after_an_at_with_text`) | 3 passed |
-| reproducer, asan-ubsan build | exit 1 on `0cc48b6804`, exit 0 on the landed tree |
+| reproducer, asan-ubsan build | exit 1 on `e0a75b5d7f`, exit 0 on the landed tree |
 | C parser fuzz, 300 000 rounds under ASan/UBSan | only `channel_layout.c:341`/`:346` |
 | `crustify scan-unsafe` | no new site |

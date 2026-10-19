@@ -1,7 +1,7 @@
 # Review: libavutil/core wave 0, batch 0 (`AVClassCategory`, `AVClassStateFlags`)
 
 - Home: `crustify/rust/ffmpeg/libavutil/log.rs` (`ClassCategory`, `ClassStateFlags`)
-- Reviewed commit: `25fe7bf146` as landed on the wave branch at `3770f8f483`
+- Reviewed commit: `d511f2ca48` as landed on the wave branch at `5d0c0b3b31`
 - Reports: one, `misc/class-category-device-predicates` (the header's two
   predicates over the category were not wrapped). Every other step below
   found nothing to report.

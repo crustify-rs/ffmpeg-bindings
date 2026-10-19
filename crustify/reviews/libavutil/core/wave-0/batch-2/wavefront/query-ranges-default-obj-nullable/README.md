@@ -1,7 +1,7 @@
 # Wavefront: `av_opt_query_ranges_default.obj` was recorded as non-nullable
 
 - Store: `crustify/wavefront/ownership-store.json`
-- Affected commit: `ad7acaeaca`
+- Affected commit: `ab1d2518bf`
 - Entry: symbol `av_opt_query_ranges_default` (`libavutil/opt.c`),
   `ptr_args` position 1 (`obj`)
 

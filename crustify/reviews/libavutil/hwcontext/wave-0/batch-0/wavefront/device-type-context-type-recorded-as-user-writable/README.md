@@ -1,7 +1,7 @@
 # Wavefront: `AVHWDeviceType` record calls `AVHWDeviceContext.type` user-writable
 
 - Type: `AVHWDeviceType` (`libavutil/hwcontext.h`). Its findings were
-  submitted by translation batch 0 of hwcontext wave 0 (`01f8b6fdbf`).
+  submitted by translation batch 0 of hwcontext wave 0 (`b681e8e946`).
 - Status: resubmitted. `submission.json` here is the corrected set,
   applied with
   `query types --name AVHWDeviceType --file libavutil/hwcontext.h --update`.

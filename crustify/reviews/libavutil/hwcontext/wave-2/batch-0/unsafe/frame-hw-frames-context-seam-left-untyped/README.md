@@ -5,8 +5,8 @@
   the seams in `crustify/rust/ffmpeg/libavutil/frame.rs` that were waiting
   for it: `FrameRef::hw_frames_context`, `FrameMut::replace_hw_frames_context`
   and `FrameMut::take_hw_frames_context` (buffer-frame wave 3, batch 0,
-  `2a232726c8`).
-- Affected commit: the wave tip `126a47005b`.
+  `4f959b26a4`).
+- Affected commit: the wave tip `ad5932bb53`.
 - Kind: a raw seam the type run should have replaced (cut SCC), plus a
   safety contract that did not cover what the safe API then does.
 - Status: fixed. The accessors are typed and safe, and copies that would
@@ -130,7 +130,7 @@ CRUSTIFY_FFMPEG_VARIANT=asan-ubsan RUSTFLAGS=-Zsanitizer=address \
 ```
 
 with `LD_LIBRARY_PATH` set to the asan-ubsan build's `lib*` directories
-(`crustify/builds/asan-ubsan`). It exits 1 on `126a47005b`, with the trace
+(`crustify/builds/asan-ubsan`). It exits 1 on `ad5932bb53`, with the trace
 above. On the fixed tree it no longer compiles, because the setter now takes
 a `FramesReferenceBox` and is no longer `unsafe`. The same scenario through
 the safe API is the unit test above.

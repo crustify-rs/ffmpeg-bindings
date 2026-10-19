@@ -10,7 +10,7 @@
 
 ## What the gate saw
 
-On the wave tip `1d434aef61`, before any change, each of the four test
+On the wave tip `abf526dc98`, before any change, each of the four test
 binaries (`cargo bsan test -p ffmpeg --lib` / `--test equiv` / `--test
 ub_safe` / `--test ub_unsafe`, `-- --skip compile_fail`,
 `gc_hang_threshold_ms=600000`, in parallel) stopped at its first report

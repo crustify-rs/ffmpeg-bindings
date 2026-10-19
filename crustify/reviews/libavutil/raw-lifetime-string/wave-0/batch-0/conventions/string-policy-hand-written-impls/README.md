@@ -1,7 +1,7 @@
 # Conventions: `StringHeap` hand-wrote what ffibox's string macros bind
 
 - File: `crustify/rust/ffmpeg/libavutil/mem.rs`
-- Affected commit: `a95b9e3220`
+- Affected commit: `271811c5bb`
 - Items: `CDrop<c_char> for StringHeap` (`av_free`), `CDupClone<c_char> for
   StringHeap` (`av_strdup`)
 

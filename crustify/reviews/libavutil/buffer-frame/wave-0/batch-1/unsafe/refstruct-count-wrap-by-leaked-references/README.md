@@ -1,7 +1,7 @@
 # RefStruct up-refs justified "the count cannot overflow", which leaked clones break
 
 - File: `crustify/rust/ffmpeg/libavutil/refstruct.rs`
-- Affected commit: `2161c1d053` (wave tip). The pool policy dates from `aa7314ae80`.
+- Affected commit: `adfecd6c81` (wave tip). The pool policy dates from `b32232d00c`.
 - Items: `av_refstruct_ref`, `av_refstruct_ref_c`, `av_refstruct_replace`,
   through every wrapper that adds a counted reference:
   - `CRefClone for RefStructUnref`, which drives `RefStructArc::clone` /

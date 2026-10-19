@@ -1,7 +1,7 @@
 # Wavefront: `AVHWDeviceContext`'s releaser was never recorded
 
 - Type: `AVHWDeviceContext` (`libavutil/hwcontext.h`), wrapped by
-  translation batch 0 of hwcontext wave 1 (`b9dbecd340`).
+  translation batch 0 of hwcontext wave 1 (`bfce8a115b`).
 - Symbol: `hwdevice_ctx_free` (`libavutil/hwcontext.c:157`, static).
 - Status: recorded. `submission.json` here is the finding, applied with
   `query symbols --name hwdevice_ctx_free --update`.

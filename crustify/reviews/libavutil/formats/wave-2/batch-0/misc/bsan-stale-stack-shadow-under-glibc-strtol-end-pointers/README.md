@@ -3,7 +3,7 @@
 - Files: `crustify/rust/ffmpeg/tests/common/channel_layout.rs` (new),
   `crustify/rust/ffmpeg/tests/{equiv,ub_safe}/channel_layout.rs`,
   `crustify/rust/ffmpeg/libavutil/channel_layout.rs` (unit tests only)
-- Affected commit: `693ccef878` (wave 2 batch 0, `ChannelLayout::parse`);
+- Affected commit: `ac34a06476` (wave 2 batch 0, `ChannelLayout::parse`);
   the wave-1 equivalence tests of `channel_order` reach the same C lines.
 - Item: `AVChannelLayout` (`ChannelLayout::parse`, which wraps
   `av_channel_layout_from_string`)
@@ -90,7 +90,7 @@ slot).
 ## Evidence
 
 - Before: `cargo bsan test -p ffmpeg --lib --tests -- channel_layout` at
-  `693ccef878` fails the isolated child of
+  `ac34a06476` fails the isolated child of
   `channel_layout_allocation_failures_leave_valid_layouts` at `:342`
   (`/tmp/fw2b0/logs/bsan-cl-base.log` in the review session; the gate log
   has the `equiv` and `ub_safe` aborts at `:417`).

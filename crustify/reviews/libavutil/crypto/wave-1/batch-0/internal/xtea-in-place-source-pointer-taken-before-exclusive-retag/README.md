@@ -1,7 +1,7 @@
 # Internal: XTEA's in-place path took its source pointer before the exclusive retag
 
 - File: `crustify/rust/ffmpeg/libavutil/xtea.rs`, private `XteaRef::process`
-- Affected commit: `828f6bdbf7` ("wrap XTEA block ciphers with checked safe
+- Affected commit: `1ab47283f1` ("wrap XTEA block ciphers with checked safe
   buffer APIs", crypto wave-1 batch 3)
 - Public entry points reaching it: `XteaRef::crypt_in_place`,
   `XteaRef::crypt_le_in_place` (`Wraps: av_xtea_crypt` / `av_xtea_le_crypt`)

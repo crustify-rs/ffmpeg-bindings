@@ -1,7 +1,7 @@
 # Wavefront: `av_refstruct_pool_get`'s return note ignored `ZERO_EVERY_TIME`
 
 - Entity: symbol `av_refstruct_pool_get` (`libavutil/refstruct.c`), `ptr_ret`
-- Earlier submission: buffer-frame wave 1, symbol batch 1 (`0ea2c20f1f`)
+- Earlier submission: buffer-frame wave 1, symbol batch 1 (`5804b1d443`)
 - Resubmitted: `submission.json` here, through `query symbols --name
   av_refstruct_pool_get --update`. Only `ptr_ret.ptr.note` changes. Every
   ownership property, the `pool` argument and the lifetime role are kept

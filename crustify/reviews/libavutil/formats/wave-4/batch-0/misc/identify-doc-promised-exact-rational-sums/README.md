@@ -1,7 +1,7 @@
 # `identify`'s doc promised an exact rational sum; C reduces it to `int`
 
 - File: `crustify/rust/ffmpeg/libavutil/csp.rs`
-- Affected commit: `7cf5d6fc5d` (the wave tip)
+- Affected commit: `cfa4db1026` (the wave tip)
 - Item: `ColorPrimariesDescriptorRef::identify` (`Wraps:
   av_csp_primaries_id_from_desc`)
 

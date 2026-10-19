@@ -1,6 +1,6 @@
 {
   "method": {
-    "c": "CRUSTIFY_FFMPEG_VARIANT=coverage (gcc gcov build), GCOV_PREFIX=/tmp/fw2b1/cov/gcov GCOV_PREFIX_STRIP=0, gcov 13 -b -c -f over pixdesc.c, imgutils.c, csp.c and channel_layout.c, driven by the module-filtered lib, equiv, ub_safe and ub_unsafe tests (cargo test -p ffmpeg --lib --tests -- pixdesc imgutils csp channel_layout --skip compile_fail: 162 + 105 + 146 + 13 tests) on the reviewed tree (693ccef878), before this review's test was added",
+    "c": "CRUSTIFY_FFMPEG_VARIANT=coverage (gcc gcov build), GCOV_PREFIX=/tmp/fw2b1/cov/gcov GCOV_PREFIX_STRIP=0, gcov 13 -b -c -f over pixdesc.c, imgutils.c, csp.c and channel_layout.c, driven by the module-filtered lib, equiv, ub_safe and ub_unsafe tests (cargo test -p ffmpeg --lib --tests -- pixdesc imgutils csp channel_layout --skip compile_fail: 162 + 105 + 146 + 13 tests) on the reviewed tree (ac34a06476), before this review's test was added",
     "rust": "RUSTFLAGS=-C instrument-coverage, nightly llvm-profdata merge + llvm-cov report/show over the same four test binaries and the four home files, same tree",
     "note": "the review adds one equivalence test (tests/equiv/pixdesc.rs::random_lines) that exercises the wrappers' refusal arms at random; the measured tree already reached every line of them through the unit tests and the ub_safe edge sweeps"
   },

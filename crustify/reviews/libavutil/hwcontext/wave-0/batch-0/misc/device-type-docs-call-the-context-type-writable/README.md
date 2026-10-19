@@ -2,7 +2,7 @@
 
 - Item: `AVHWDeviceType`, wrapped as `hwcontext::DeviceType` in
   `crustify/rust/ffmpeg/libavutil/hwcontext.rs` by translation batch 0 of
-  hwcontext wave 0 (`01f8b6fdbf`).
+  hwcontext wave 0 (`b681e8e946`).
 - Status: fixed (documentation only; no code or test changes).
 
 ## What was wrong

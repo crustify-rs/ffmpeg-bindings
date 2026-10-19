@@ -1,7 +1,7 @@
 # Conventions: symbol wrappers appended after the `unit_tests` module
 
 - Files: `crustify/rust/ffmpeg/libavutil/{aes,cast5,hash,md5,sha,sha512,crc}.rs`
-- Affected commit: `c51ba553a2` (crypto wave-0 batch 10)
+- Affected commit: `00728268f2` (crypto wave-0 batch 10)
 - Items: `context_size` (`av_aes_size`, `av_cast5_size`, `av_md5_size`,
   `av_sha_size`, `av_sha512_size`), `hash::name` (`av_hash_names`),
   `md5::sum` (`av_md5_sum`), `crc::Table` (`av_crc_init`, `av_crc`)

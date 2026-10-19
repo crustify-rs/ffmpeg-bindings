@@ -1,7 +1,7 @@
 # Review: libavutil/buffer-frame wave 4, batch 0 (the wave's symbols)
 
 Route: **symbol** (18 items). Objective: **review**. Reviewed commit: the
-wave tip `c6e25ecf93`, which is the wave's one translation batch.
+wave tip `2453c27798`, which is the wave's one translation batch.
 
 Items, all homed in `crustify/rust/ffmpeg/libavutil/frame.rs`:
 
@@ -68,7 +68,7 @@ false positives listed in
 `../../../options/wave-2/batch-0/misc/bsan-gate-strto-end-pointer-false-positives/skip-list.txt`
 were skipped.
 
-- Wave tip `c6e25ecf93`, before any change: `lib` 873 passed (493 s),
+- Wave tip `2453c27798`, before any change: `lib` 873 passed (493 s),
   `ub_safe` 781 passed (3892 s), `ub_unsafe` 129 passed (217 s), and the
   seven `-sys` binaries passed. `equiv` was stopped at 7200 s. Its log has
   an `ok` for 655 of the 656 selected tests, and no failure or BSan report.
@@ -95,7 +95,7 @@ were skipped.
   `runtime error:` and no AddressSanitizer, LeakSanitizer or ThreadSanitizer
   report. The later BSan-only change to `equiv/buffer.rs` was rerun under
   plain and ASan (`buffer::`, 11 passed).
-- Reproducer: exits 1 on `c6e25ecf93` (UBSan `samplefmt.c:137:22`,
+- Reproducer: exits 1 on `2453c27798` (UBSan `samplefmt.c:137:22`,
   `halt_on_error=1`) and 0 on the fixed tree (`make_writable: Err(-12)`),
   ASan/UBSan build. The regression test fails on the unfixed wrapper (its
   child exits 1 on the same report) and passes on the fixed one.

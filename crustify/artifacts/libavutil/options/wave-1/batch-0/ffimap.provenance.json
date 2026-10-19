@@ -1,8 +1,8 @@
 {
   "level": "batch",
   "branch": "crustify/batches/20261005/libavutil/options/wave-1/batch-0",
-  "scan": "cb5f693dd4c1d07f0c180da52e68abdbeb351ee7",
-  "base": "6fe884cbf0f9cc4cc2e0facf5d36d0887eaa8b8c",
+  "scan": "a2aace4c3d53140696ff600207acacbd421e6107",
+  "base": "eabd316be05a86e41c64a3a141829c70a866d264",
   "base_from": "previous landed tip",
   "crustify": "1a7d4341901fd962d54e979178941898547b09e7",
   "command": "crustify ffimap <workdir> --json --ffibox",

@@ -3,8 +3,8 @@
 - Items: `av_buffer_pool_init2` (`BufferPool::with_allocator`, unsafe) and
   `av_buffer_realloc` (`UninitBuffer::resize`, `BufferReferenceMut::resize`,
   safe), both homed in `crustify/rust/ffmpeg/libavutil/buffer.rs`.
-- Affected commit: the wave tip `13730d672b`. The resize wrappers came from
-  translation batch 1, `0265949f74`.
+- Affected commit: the wave tip `83bd5f2e64`. The resize wrappers came from
+  translation batch 1, `758666d156`.
 - Instrument: ASan (heap-use-after-free). BSan reports the same access
   ("trying to access an allocation that has been freed"). Both traces are
   kept here as `asan.trace` and `bsan.trace`.

@@ -1,7 +1,7 @@
 # `insert_array` / `replace_array` documented rationals as converted "as by `set_rational`"
 
 - File: `crustify/rust/ffmpeg/libavutil/opt.rs`
-- Affected commit: `f589c22d1d` (translation batch 1)
+- Affected commit: `c771c3e8bd` (translation batch 1)
 - Items: `av_opt_set_array` (`ObjectMut::insert_array`,
   `ObjectMut::replace_array`), `av_opt_set_q` (`ObjectMut::set_rational`)
 - Regression: `tests/equiv/opt.rs`,

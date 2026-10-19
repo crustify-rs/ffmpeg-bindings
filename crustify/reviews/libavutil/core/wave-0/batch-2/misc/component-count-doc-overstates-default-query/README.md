@@ -1,7 +1,7 @@
 # Misc: `component_count` documented components the default query never returns
 
 - File: `crustify/rust/ffmpeg/libavutil/opt.rs`
-- Affected commit: `ad7acaeaca`
+- Affected commit: `ab1d2518bf`
 - Item: `OptionRangesRef::component_count` (`AVOptionRanges.nb_components`)
 
 ## Finding

@@ -1,7 +1,7 @@
 # `BareObject::new` accepts classes whose logging callbacks read a full object
 
 - File: `crustify/rust/ffmpeg/libavutil/opt.rs`
-- Affected commit: `dc97af2db7` (options wave-0 head at review time;
+- Affected commit: `cde88fc249` (options wave-0 head at review time;
   translation batch 3)
 - Items: `av_opt_show2` (`ObjectRef::show`) and `av_expr_parse_and_eval`
   (`eval::parse_and_eval`), whose log contexts `BareObject` provides;

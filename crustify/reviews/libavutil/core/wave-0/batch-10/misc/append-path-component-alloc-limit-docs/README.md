@@ -1,7 +1,7 @@
 # Misc: `append_path_component` misstated its `av_max_alloc` boundary
 
 - File: `crustify/rust/ffmpeg/libavutil/avstring.rs`
-- Affected commit: `35f30a7185`
+- Affected commit: `4ec92d5001`
 - Item: `append_path_component` (`av_append_path_component`)
 
 ## Finding

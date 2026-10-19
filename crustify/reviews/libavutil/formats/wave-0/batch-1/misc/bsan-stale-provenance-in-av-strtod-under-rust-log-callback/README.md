@@ -2,7 +2,7 @@
 
 - Files: `crustify/rust/ffmpeg/tests/equiv/imgutils.rs`;
   `crustify/rust/ffmpeg/tests/ub_safe/log.rs` for the same pattern (below)
-- Affected commit: `7317de905c` (formats wave-0 head; the gate log is
+- Affected commit: `17c012afcd` (formats wave-0 head; the gate log is
   `crustify/artifacts/libavutil/formats/review-wave-0/bsan-gate.log`)
 - Items: `check_size`, `check_size_with_context` (`Wraps: av_image_check_size`);
   the test `check_size_logs_as_c` compares the lines C logs
@@ -113,7 +113,7 @@ plain build, ASan/UBSan, TSan and BSan (see the review commit message).
 ## The same pattern in `ub_safe`
 
 The pattern is not specific to `equiv/imgutils.rs`. On the rebased tree
-(`2fbea8578a`, the wave head after the types review, plus this batch's
+(`71419a9128`, the wave head after the types review, plus this batch's
 commits) the `ub_safe` binary reported the same line three times out of
 three, within its first two minutes, and `ub_safe cpu:: log::` alone on the
 second run. `ub_safe`'s `imgutils` tests install no callback: there, core's
@@ -123,7 +123,7 @@ lock (`records_format_into_exact_size_buffers`,
 `logging_races_with_callback_level_and_flag_changes`,
 `class::the_cpuflags_class_reaches_a_callback`) while `ub_safe/cpu.rs`'s
 `parse_caps` tests reach `av_strtod` through `av_parse_cpu_caps`. The gate
-had passed that binary at `7317de905c`; the types review's `Default`
+had passed that binary at `17c012afcd`; the types review's `Default`
 impls shifted the timing. Those four tests now run alone in a child through
 the same `isolated` helper, beside the binary's existing `ISOLATED` marker
 that `default_callback_takes_every_level_flag_and_colour_mode` already used
@@ -140,7 +140,7 @@ orchestrator found passes) is the other option.
 ## Reproduce on the affected commit
 
 ```console
-$ git checkout 7317de905c -- crustify/rust/ffmpeg/tests/equiv/imgutils.rs
+$ git checkout 17c012afcd -- crustify/rust/ffmpeg/tests/equiv/imgutils.rs
 $ cd crustify/rust
 $ BSAN_OPTIONS=gc_hang_threshold_ms=600000 CRUSTIFY_FFMPEG_VARIANT=bsan \
   cargo bsan test --test equiv -- --exact \

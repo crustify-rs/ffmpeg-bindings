@@ -1,8 +1,8 @@
 {
   "level": "batch",
   "branch": "crustify/batches/20261005/libavutil/crypto/wave-0/batch-6",
-  "scan": "7935c403e0b5bb9e424a99d75e321092f252378b",
-  "base": "83f598388c76754ac16240ea6f0d5e848ce4a8b9",
+  "scan": "c45fd5b3d1332745fd7dae0f8bbb2070af37b170",
+  "base": "808a4656fda582c9338e0516a8fcac19ff2ef8e8",
   "base_from": "previous landed tip",
   "crustify": "1a7d4341901fd962d54e979178941898547b09e7",
   "command": "crustify ffimap <workdir> --json --ffibox",

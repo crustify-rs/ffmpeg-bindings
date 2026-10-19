@@ -2,7 +2,7 @@
 
 - Symbol: `av_frame_side_data_clone` (`libavutil/side_data.c`). Its findings
   were submitted by translation batch 1 of buffer-frame wave 3
-  (`63d684f623`).
+  (`356733671e`).
 - Status: resubmitted. `submission.json` here is the corrected set,
   applied with `query symbols --name av_frame_side_data_clone --update`.
 

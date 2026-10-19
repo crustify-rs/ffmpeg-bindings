@@ -13,7 +13,7 @@ This review ran the sub-campaign's BSan gate: one invocation per test
 binary, in parallel, each under `timeout 7200`, with the 48 known `strto*`
 false positives skipped (`../../../../options/wave-2/batch-0/misc/bsan-gate-strto-end-pointer-false-positives/skip-list.txt`).
 
-On the wave tip `c6e25ecf93`, `lib`, `ub_safe`, `ub_unsafe` and the seven
+On the wave tip `2453c27798`, `lib`, `ub_safe`, `ub_unsafe` and the seven
 `-sys` binaries passed. `equiv` was still running when the two-hour limit
 stopped it. Every one of its 656 selected tests had reported `ok` except
 this one. It was the binary's only thread left, and it had used about 2600

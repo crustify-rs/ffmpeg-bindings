@@ -1,8 +1,8 @@
 # Safe boundary: five opaque contexts offer a Rust-sized allocator
 
 - Files: `crustify/rust/ffmpeg/libavutil/{sha,sha512,camellia,tea,twofish}.rs`
-- Affected commits: `eccfa5bb34` (`AVSHA`, `AVSHA512`), `83f598388c`
-  (`AVCAMELLIA`), `24e96ff52f` (`AVTEA`, `AVTWOFISH`); wave tip `7935c403e0`
+- Affected commits: `bac05c73cf` (`AVSHA`, `AVSHA512`), `808a4656fd`
+  (`AVCAMELLIA`), `1c0c4305c9` (`AVTEA`, `AVTWOFISH`); wave tip `c45fd5b3d1`
 - Items: `AVSHA` (`ShaBox`), `AVSHA512` (`Sha512Box`), `AVCAMELLIA`
   (`CamelliaBox`), `AVTEA` (`TeaBox`), `AVTWOFISH` (`TwofishBox`)
 

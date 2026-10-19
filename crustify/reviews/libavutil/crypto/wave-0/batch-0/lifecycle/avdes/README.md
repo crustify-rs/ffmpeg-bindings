@@ -1,7 +1,7 @@
 # Lifecycle: `AVDES` has no copy or clone strategy
 
 - File: `crustify/rust/ffmpeg/libavutil/des.rs`
-- Affected commit: `f7cdef0c4d` (wave tip `7935c403e0`)
+- Affected commit: `421b17b707` (wave tip `c45fd5b3d1`)
 - Item: `AVDES` (`des::Des`, owned as `DesBox = HeapBox<Des>`)
 
 ## Finding

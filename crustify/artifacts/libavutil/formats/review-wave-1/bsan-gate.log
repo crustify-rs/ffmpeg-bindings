@@ -1,4 +1,4 @@
-# BSan gate of libavutil/formats wave 1 at 2f6e60458d — FAILED (timeouts, equiv and ub_safe)
+# BSan gate of libavutil/formats wave 1 at 0a2fbf9bb7 — FAILED (timeouts, equiv and ub_safe)
 
 Gate: clippy, plain, asan-ubsan, tsan, bsan lib (501) and ub_unsafe (72) pass. `bsan` equiv and
 ub_safe hit the gate's 7200 s timeout (exit 124); at wave 0 they took 13m26s and 24m26s.

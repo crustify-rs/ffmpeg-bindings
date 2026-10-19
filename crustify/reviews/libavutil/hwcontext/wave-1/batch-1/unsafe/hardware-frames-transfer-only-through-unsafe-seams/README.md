@@ -1,10 +1,10 @@
 # Unsafe boundary: hardware frames transfer only through `unsafe` seams
 
 - Items: `av_hwframe_transfer_data` and `av_hwframe_transfer_get_formats`
-  (translation batch 2, `bf7c454c03`), next to `av_hwframe_get_buffer` and
-  `av_hwframe_map` (translation batch 1, `62b80e7a1d`), all homed in
+  (translation batch 2, `1f9a8c35f0`), next to `av_hwframe_get_buffer` and
+  `av_hwframe_map` (translation batch 1, `dc1ebb6900`), all homed in
   `crustify/rust/ffmpeg/libavutil/hwcontext.rs`.
-- Affected commit: the wave tip `b9dbecd340`.
+- Affected commit: the wave tip `bfce8a115b`.
 - Status: fixed. The safe forms were added and the obsolete `unsafe` free
   function was removed.
 
