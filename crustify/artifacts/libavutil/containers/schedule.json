@@ -51,12 +51,7 @@
               "kind": "type",
               "field_anchors": [],
               "home": "crustify/rust/ffmpeg/libavutil/fifo.rs"
-            }
-          ]
-        },
-        {
-          "objective": "wrap",
-          "items": [
+            },
             {
               "name": "AVTask",
               "defined_in": "libavutil/executor.h",
@@ -65,10 +60,22 @@
                 "next"
               ],
               "home": "crustify/rust/ffmpeg/libavutil/executor.rs"
-            },
+            }
+          ]
+        },
+        {
+          "objective": "wrap",
+          "items": [
             {
               "name": "AVThreadMessageFlags",
               "defined_in": "libavutil/threadmessage.h",
+              "kind": "type",
+              "field_anchors": [],
+              "home": "crustify/rust/ffmpeg/libavutil/threadmessage.rs"
+            },
+            {
+              "name": "AVThreadMessageQueue",
+              "defined_in": "libavutil/threadmessage.c",
               "kind": "type",
               "field_anchors": [],
               "home": "crustify/rust/ffmpeg/libavutil/threadmessage.rs"
@@ -78,13 +85,6 @@
         {
           "objective": "wrap",
           "items": [
-            {
-              "name": "AVThreadMessageQueue",
-              "defined_in": "libavutil/threadmessage.c",
-              "kind": "type",
-              "field_anchors": [],
-              "home": "crustify/rust/ffmpeg/libavutil/threadmessage.rs"
-            },
             {
               "name": "AVTreeNode",
               "defined_in": "libavutil/tree.c",

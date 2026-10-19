@@ -13,31 +13,26 @@
               "kind": "type",
               "field_anchors": [],
               "home": "crustify/rust/ffmpeg/libavfilter/avfilter.rs"
-            }
-          ]
-        },
-        {
-          "objective": "wrap",
-          "items": [
+            },
             {
               "name": "AVFilterFormats",
               "defined_in": "libavfilter/formats.h",
               "kind": "type",
               "field_anchors": [],
               "home": "crustify/rust/ffmpeg/libavfilter/avfilter.rs"
-            },
-            {
-              "name": "AVFilterPad",
-              "defined_in": "libavfilter/filters.h",
-              "kind": "type",
-              "field_anchors": [],
-              "home": "crustify/rust/ffmpeg/libavfilter/avfilter.rs"
             }
           ]
         },
         {
           "objective": "wrap",
           "items": [
+            {
+              "name": "AVFilterPad",
+              "defined_in": "libavfilter/filters.h",
+              "kind": "type",
+              "field_anchors": [],
+              "home": "crustify/rust/ffmpeg/libavfilter/avfilter.rs"
+            },
             {
               "name": "AVFilterPadParams",
               "defined_in": "libavfilter/avfilter.h",

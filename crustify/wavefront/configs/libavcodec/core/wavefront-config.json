@@ -1,5 +1,6 @@
 {
   "state_dir": "crustify/wavefront",
+  "t3_dir": "t3",
   "impl_files": [
     "libavcodec/allcodecs.c",
     "libavcodec/avcodec.c",
@@ -11,6 +12,7 @@
     "libavcodec/encode.h",
     "libavcodec/get_buffer.c",
     "libavcodec/imgconvert.c",
+    "libavcodec/internal.h",
     "libavcodec/options.c",
     "libavcodec/packet.c",
     "libavcodec/parser.c",

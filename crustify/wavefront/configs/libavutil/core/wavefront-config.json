@@ -1,5 +1,6 @@
 {
   "state_dir": "crustify/wavefront",
+  "t3_dir": "t3",
   "impl_files": [
     "libavutil/aarch64/cpu.h",
     "libavutil/attributes_internal.h",

@@ -1,5 +1,6 @@
 {
   "state_dir": "crustify/wavefront",
+  "t3_dir": "t3",
   "impl_files": [
     "libavdevice/fbdev_common.c",
     "libavdevice/fbdev_common.h",

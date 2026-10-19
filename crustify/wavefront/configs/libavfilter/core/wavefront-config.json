@@ -1,11 +1,14 @@
 {
   "state_dir": "crustify/wavefront",
+  "t3_dir": "t3",
   "impl_files": [
     "libavfilter/allfilters.c",
     "libavfilter/avfilter.c",
     "libavfilter/avfiltergraph.c",
     "libavfilter/buffersink.c",
     "libavfilter/buffersrc.c",
+    "libavfilter/filters.h",
+    "libavfilter/formats.h",
     "libavfilter/graphdump.c",
     "libavfilter/graphparser.c",
     "libavfilter/version.c"

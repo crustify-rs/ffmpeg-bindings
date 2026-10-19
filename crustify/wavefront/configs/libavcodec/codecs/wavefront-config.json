@@ -1,5 +1,6 @@
 {
   "state_dir": "crustify/wavefront",
+  "t3_dir": "t3",
   "impl_files": [
     "libavcodec/012v.c",
     "libavcodec/4xm.c",
@@ -1304,7 +1305,6 @@
     "libavcodec/vorbis_data.c",
     "libavcodec/vorbis_data.h",
     "libavcodec/vorbis_enc_data.h",
-    "libavcodec/vorbis_parser_internal.h",
     "libavcodec/vorbisdec.c",
     "libavcodec/vorbisdsp.c",
     "libavcodec/vorbisdsp.h",

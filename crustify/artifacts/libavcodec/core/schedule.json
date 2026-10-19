@@ -13,30 +13,7 @@
               "kind": "type",
               "field_anchors": [],
               "home": "crustify/rust/ffmpeg/libavcodec/defs.rs"
-            }
-          ]
-        },
-        {
-          "objective": "wrap",
-          "items": [
-            {
-              "name": "AVCPBProperties",
-              "defined_in": "libavcodec/defs.h",
-              "kind": "type",
-              "field_anchors": [
-                "buffer_size",
-                "avg_bitrate",
-                "max_bitrate",
-                "min_bitrate",
-                "vbv_delay"
-              ],
-              "home": "crustify/rust/ffmpeg/libavcodec/defs.rs"
-            }
-          ]
-        },
-        {
-          "objective": "wrap",
-          "items": [
+            },
             {
               "name": "AVCodecConfig",
               "defined_in": "libavcodec/avcodec.h",
@@ -98,12 +75,7 @@
               "kind": "type",
               "field_anchors": [],
               "home": "crustify/rust/ffmpeg/libavcodec/packet.rs"
-            }
-          ]
-        },
-        {
-          "objective": "wrap",
-          "items": [
+            },
             {
               "name": "AVPanScan",
               "defined_in": "libavcodec/defs.h",
@@ -115,19 +87,19 @@
                 "position"
               ],
               "home": "crustify/rust/ffmpeg/libavcodec/defs.rs"
-            },
-            {
-              "name": "AVPictureStructure",
-              "defined_in": "libavcodec/avcodec.h",
-              "kind": "type",
-              "field_anchors": [],
-              "home": "crustify/rust/ffmpeg/libavcodec/avcodec.rs"
             }
           ]
         },
         {
           "objective": "wrap",
           "items": [
+            {
+              "name": "AVPictureStructure",
+              "defined_in": "libavcodec/avcodec.h",
+              "kind": "type",
+              "field_anchors": [],
+              "home": "crustify/rust/ffmpeg/libavcodec/avcodec.rs"
+            },
             {
               "name": "AVProducerReferenceTime",
               "defined_in": "libavcodec/defs.h",
@@ -382,13 +354,6 @@
               "home": "crustify/rust/ffmpeg/libavcodec/packet.rs"
             },
             {
-              "name": "av_cpb_properties_alloc",
-              "defined_in": "libavcodec/utils.c",
-              "kind": "symbol",
-              "field_anchors": [],
-              "home": "crustify/rust/ffmpeg/libavcodec/defs.rs"
-            },
-            {
               "name": "av_get_bits_per_sample",
               "defined_in": "libavcodec/utils.c",
               "kind": "symbol",
@@ -493,6 +458,24 @@
     {
       "index": 2,
       "batches": [
+        {
+          "objective": "wrap",
+          "items": [
+            {
+              "name": "AVCPBProperties",
+              "defined_in": "libavcodec/defs.h",
+              "kind": "type",
+              "field_anchors": [
+                "buffer_size",
+                "avg_bitrate",
+                "max_bitrate",
+                "min_bitrate",
+                "vbv_delay"
+              ],
+              "home": "crustify/rust/ffmpeg/libavcodec/defs.rs"
+            }
+          ]
+        },
         {
           "objective": "wrap",
           "items": [
@@ -944,6 +927,13 @@
           "objective": "wrap",
           "items": [
             {
+              "name": "av_cpb_properties_alloc",
+              "defined_in": "libavcodec/utils.c",
+              "kind": "symbol",
+              "field_anchors": [],
+              "home": "crustify/rust/ffmpeg/libavcodec/defs.rs"
+            },
+            {
               "name": "av_get_audio_frame_duration2",
               "defined_in": "libavcodec/utils.c",
               "kind": "symbol",
@@ -1110,19 +1100,19 @@
               "kind": "symbol",
               "field_anchors": [],
               "home": "crustify/rust/ffmpeg/libavcodec/codec_par.rs"
-            },
-            {
-              "name": "avcodec_parameters_free",
-              "defined_in": "libavcodec/codec_par.c",
-              "kind": "symbol",
-              "field_anchors": [],
-              "home": "crustify/rust/ffmpeg/libavcodec/codec_par.rs"
             }
           ]
         },
         {
           "objective": "wrap",
           "items": [
+            {
+              "name": "avcodec_parameters_free",
+              "defined_in": "libavcodec/codec_par.c",
+              "kind": "symbol",
+              "field_anchors": [],
+              "home": "crustify/rust/ffmpeg/libavcodec/codec_par.rs"
+            },
             {
               "name": "avsubtitle_free",
               "defined_in": "libavcodec/avcodec.c",

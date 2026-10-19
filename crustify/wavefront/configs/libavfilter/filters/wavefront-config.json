@@ -1,5 +1,6 @@
 {
   "state_dir": "crustify/wavefront",
+  "t3_dir": "t3",
   "impl_files": [
     "libavfilter/aeval.c",
     "libavfilter/af_aap.c",

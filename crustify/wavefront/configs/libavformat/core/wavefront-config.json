@@ -1,5 +1,6 @@
 {
   "state_dir": "crustify/wavefront",
+  "t3_dir": "t3",
   "impl_files": [
     "libavformat/allformats.c",
     "libavformat/avformat.c",
@@ -9,6 +10,7 @@
     "libavformat/demux_utils.c",
     "libavformat/dump.c",
     "libavformat/format.c",
+    "libavformat/internal.h",
     "libavformat/isom_tags.c",
     "libavformat/mux.c",
     "libavformat/mux.h",

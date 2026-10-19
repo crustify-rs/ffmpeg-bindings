@@ -51,19 +51,19 @@
                 "MaxCLL"
               ],
               "home": "crustify/rust/ffmpeg/libavutil/mastering_display_metadata.rs"
-            }
-          ]
-        },
-        {
-          "objective": "wrap",
-          "items": [
+            },
             {
               "name": "AVDOVICompression",
               "defined_in": "libavutil/dovi_meta.h",
               "kind": "type",
               "field_anchors": [],
               "home": "crustify/rust/ffmpeg/libavutil/dovi_meta.rs"
-            },
+            }
+          ]
+        },
+        {
+          "objective": "wrap",
+          "items": [
             {
               "name": "AVDOVIDecoderConfigurationRecord",
               "defined_in": "libavutil/dovi_meta.h",
@@ -80,12 +80,7 @@
                 "dv_md_compression"
               ],
               "home": "crustify/rust/ffmpeg/libavutil/dovi_meta.rs"
-            }
-          ]
-        },
-        {
-          "objective": "wrap",
-          "items": [
+            },
             {
               "name": "AVDOVIDmLevel1",
               "defined_in": "libavutil/dovi_meta.h",
@@ -96,7 +91,12 @@
                 "min_pq"
               ],
               "home": "crustify/rust/ffmpeg/libavutil/dovi_meta.rs"
-            },
+            }
+          ]
+        },
+        {
+          "objective": "wrap",
+          "items": [
             {
               "name": "AVDOVIDmLevel11",
               "defined_in": "libavutil/dovi_meta.h",
@@ -107,12 +107,7 @@
                 "whitepoint"
               ],
               "home": "crustify/rust/ffmpeg/libavutil/dovi_meta.rs"
-            }
-          ]
-        },
-        {
-          "objective": "wrap",
-          "items": [
+            },
             {
               "name": "AVDOVIDmLevel2",
               "defined_in": "libavutil/dovi_meta.h",
@@ -127,7 +122,12 @@
                 "trim_slope"
               ],
               "home": "crustify/rust/ffmpeg/libavutil/dovi_meta.rs"
-            },
+            }
+          ]
+        },
+        {
+          "objective": "wrap",
+          "items": [
             {
               "name": "AVDOVIDmLevel254",
               "defined_in": "libavutil/dovi_meta.h",
@@ -137,12 +137,7 @@
                 "dm_mode"
               ],
               "home": "crustify/rust/ffmpeg/libavutil/dovi_meta.rs"
-            }
-          ]
-        },
-        {
-          "objective": "wrap",
-          "items": [
+            },
             {
               "name": "AVDOVIDmLevel255",
               "defined_in": "libavutil/dovi_meta.h",
@@ -153,7 +148,12 @@
                 "dm_run_mode"
               ],
               "home": "crustify/rust/ffmpeg/libavutil/dovi_meta.rs"
-            },
+            }
+          ]
+        },
+        {
+          "objective": "wrap",
+          "items": [
             {
               "name": "AVDOVIDmLevel3",
               "defined_in": "libavutil/dovi_meta.h",
@@ -164,12 +164,7 @@
                 "min_pq_offset"
               ],
               "home": "crustify/rust/ffmpeg/libavutil/dovi_meta.rs"
-            }
-          ]
-        },
-        {
-          "objective": "wrap",
-          "items": [
+            },
             {
               "name": "AVDOVIDmLevel4",
               "defined_in": "libavutil/dovi_meta.h",
@@ -179,7 +174,12 @@
                 "anchor_pq"
               ],
               "home": "crustify/rust/ffmpeg/libavutil/dovi_meta.rs"
-            },
+            }
+          ]
+        },
+        {
+          "objective": "wrap",
+          "items": [
             {
               "name": "AVDOVIDmLevel5",
               "defined_in": "libavutil/dovi_meta.h",
@@ -191,12 +191,7 @@
                 "left_offset"
               ],
               "home": "crustify/rust/ffmpeg/libavutil/dovi_meta.rs"
-            }
-          ]
-        },
-        {
-          "objective": "wrap",
-          "items": [
+            },
             {
               "name": "AVDOVIDmLevel6",
               "defined_in": "libavutil/dovi_meta.h",
@@ -208,7 +203,12 @@
                 "max_fall"
               ],
               "home": "crustify/rust/ffmpeg/libavutil/dovi_meta.rs"
-            },
+            }
+          ]
+        },
+        {
+          "objective": "wrap",
+          "items": [
             {
               "name": "AVDOVIDmLevel8",
               "defined_in": "libavutil/dovi_meta.h",
@@ -227,19 +227,19 @@
                 "trim_slope"
               ],
               "home": "crustify/rust/ffmpeg/libavutil/dovi_meta.rs"
-            }
-          ]
-        },
-        {
-          "objective": "wrap",
-          "items": [
+            },
             {
               "name": "AVDOVIMappingMethod",
               "defined_in": "libavutil/dovi_meta.h",
               "kind": "type",
               "field_anchors": [],
               "home": "crustify/rust/ffmpeg/libavutil/dovi_meta.rs"
-            },
+            }
+          ]
+        },
+        {
+          "objective": "wrap",
+          "items": [
             {
               "name": "AVDOVIMetadata",
               "defined_in": "libavutil/dovi_meta.h",
@@ -253,19 +253,19 @@
                 "mapping_offset"
               ],
               "home": "crustify/rust/ffmpeg/libavutil/dovi_meta.rs"
-            }
-          ]
-        },
-        {
-          "objective": "wrap",
-          "items": [
+            },
             {
               "name": "AVDOVINLQMethod",
               "defined_in": "libavutil/dovi_meta.h",
               "kind": "type",
               "field_anchors": [],
               "home": "crustify/rust/ffmpeg/libavutil/dovi_meta.rs"
-            },
+            }
+          ]
+        },
+        {
+          "objective": "wrap",
+          "items": [
             {
               "name": "AVDOVINLQParams",
               "defined_in": "libavutil/dovi_meta.h",
@@ -277,12 +277,7 @@
                 "linear_deadzone_threshold"
               ],
               "home": "crustify/rust/ffmpeg/libavutil/dovi_meta.rs"
-            }
-          ]
-        },
-        {
-          "objective": "wrap",
-          "items": [
+            },
             {
               "name": "AVDOVIRpuDataHeader",
               "defined_in": "libavutil/dovi_meta.h",
@@ -307,7 +302,12 @@
                 "ext_mapping_idc_0_4"
               ],
               "home": "crustify/rust/ffmpeg/libavutil/dovi_meta.rs"
-            },
+            }
+          ]
+        },
+        {
+          "objective": "wrap",
+          "items": [
             {
               "name": "AVDetectionBBoxHeader",
               "defined_in": "libavutil/detection_bbox.h",
@@ -319,12 +319,7 @@
                 "nb_bboxes"
               ],
               "home": "crustify/rust/ffmpeg/libavutil/detection_bbox.rs"
-            }
-          ]
-        },
-        {
-          "objective": "wrap",
-          "items": [
+            },
             {
               "name": "AVDownmixType",
               "defined_in": "libavutil/downmix_info.h",
@@ -539,12 +534,7 @@
               "kind": "type",
               "field_anchors": [],
               "home": "crustify/rust/ffmpeg/libavutil/raw_color_params.rs"
-            }
-          ]
-        },
-        {
-          "objective": "wrap",
-          "items": [
+            },
             {
               "name": "AVReplayGain",
               "defined_in": "libavutil/replaygain.h",
@@ -556,28 +546,40 @@
                 "album_gain"
               ],
               "home": "crustify/rust/ffmpeg/libavutil/replaygain.rs"
-            },
+            }
+          ]
+        },
+        {
+          "objective": "wrap",
+          "items": [
             {
               "name": "AVSphericalProjection",
               "defined_in": "libavutil/spherical.h",
               "kind": "type",
               "field_anchors": [],
               "home": "crustify/rust/ffmpeg/libavutil/spherical.rs"
-            }
-          ]
-        },
-        {
-          "objective": "wrap",
-          "items": [
+            },
             {
               "name": "AVStereo3DPrimaryEye",
               "defined_in": "libavutil/stereo3d.h",
               "kind": "type",
               "field_anchors": [],
               "home": "crustify/rust/ffmpeg/libavutil/stereo3d.rs"
-            },
+            }
+          ]
+        },
+        {
+          "objective": "wrap",
+          "items": [
             {
               "name": "AVStereo3DType",
+              "defined_in": "libavutil/stereo3d.h",
+              "kind": "type",
+              "field_anchors": [],
+              "home": "crustify/rust/ffmpeg/libavutil/stereo3d.rs"
+            },
+            {
+              "name": "AVStereo3DView",
               "defined_in": "libavutil/stereo3d.h",
               "kind": "type",
               "field_anchors": [],
@@ -588,13 +590,6 @@
         {
           "objective": "wrap",
           "items": [
-            {
-              "name": "AVStereo3DView",
-              "defined_in": "libavutil/stereo3d.h",
-              "kind": "type",
-              "field_anchors": [],
-              "home": "crustify/rust/ffmpeg/libavutil/stereo3d.rs"
-            },
             {
               "name": "AVSubsampleEncryptionInfo",
               "defined_in": "libavutil/encryption_info.h",
@@ -604,19 +599,19 @@
                 "bytes_of_clear_data"
               ],
               "home": "crustify/rust/ffmpeg/libavutil/encryption_info.rs"
-            }
-          ]
-        },
-        {
-          "objective": "wrap",
-          "items": [
+            },
             {
               "name": "AVTimecodeFlag",
               "defined_in": "libavutil/timecode.h",
               "kind": "type",
               "field_anchors": [],
               "home": "crustify/rust/ffmpeg/libavutil/timecode.rs"
-            },
+            }
+          ]
+        },
+        {
+          "objective": "wrap",
+          "items": [
             {
               "name": "AVVideoBlockParams",
               "defined_in": "libavutil/video_enc_params.h",
@@ -629,31 +624,26 @@
                 "delta_qp"
               ],
               "home": "crustify/rust/ffmpeg/libavutil/video_enc_params.rs"
-            }
-          ]
-        },
-        {
-          "objective": "wrap",
-          "items": [
+            },
             {
               "name": "AVVideoEncParamsType",
               "defined_in": "libavutil/video_enc_params.h",
               "kind": "type",
               "field_anchors": [],
               "home": "crustify/rust/ffmpeg/libavutil/video_enc_params.rs"
-            },
-            {
-              "name": "AVVideoHintType",
-              "defined_in": "libavutil/video_hint.h",
-              "kind": "type",
-              "field_anchors": [],
-              "home": "crustify/rust/ffmpeg/libavutil/video_hint.rs"
             }
           ]
         },
         {
           "objective": "wrap",
           "items": [
+            {
+              "name": "AVVideoHintType",
+              "defined_in": "libavutil/video_hint.h",
+              "kind": "type",
+              "field_anchors": [],
+              "home": "crustify/rust/ffmpeg/libavutil/video_hint.rs"
+            },
             {
               "name": "AVVideoRect",
               "defined_in": "libavutil/video_hint.h",
@@ -1404,18 +1394,18 @@
               "kind": "type",
               "field_anchors": [
                 "level",
-                "l8",
-                "l9",
-                "l10",
-                "l3",
-                "l11",
-                "l254",
                 "l1",
                 "l2",
+                "l3",
                 "l4",
                 "l5",
                 "l6",
-                "l255"
+                "l8",
+                "l255",
+                "l254",
+                "l11",
+                "l10",
+                "l9"
               ],
               "home": "crustify/rust/ffmpeg/libavutil/dovi_meta.rs"
             }

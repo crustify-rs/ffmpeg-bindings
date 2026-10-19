@@ -1,0 +1,649 @@
+{
+  "schema_version": 2,
+  "waves": [
+    {
+      "index": 0,
+      "batches": [
+        {
+          "objective": "wrap",
+          "items": [
+            {
+              "name": "AVActiveFormatDescription",
+              "defined_in": "libavutil/frame.h",
+              "kind": "type",
+              "field_anchors": [],
+              "home": "crustify/rust/ffmpeg/libavutil/frame.rs"
+            },
+            {
+              "name": "AVBuffer",
+              "defined_in": "libavutil/buffer_internal.h",
+              "kind": "type",
+              "field_anchors": [],
+              "home": "crustify/rust/ffmpeg/libavutil/buffer.rs"
+            }
+          ]
+        },
+        {
+          "objective": "wrap",
+          "items": [
+            {
+              "name": "AVBufferPool",
+              "defined_in": "libavutil/buffer_internal.h",
+              "kind": "type",
+              "field_anchors": [],
+              "home": "crustify/rust/ffmpeg/libavutil/buffer.rs"
+            },
+            {
+              "name": "AVFrameSideDataType",
+              "defined_in": "libavutil/frame.h",
+              "kind": "type",
+              "field_anchors": [],
+              "home": "crustify/rust/ffmpeg/libavutil/frame.rs"
+            }
+          ]
+        },
+        {
+          "objective": "wrap",
+          "items": [
+            {
+              "name": "AVRefStructOpaque",
+              "defined_in": "libavutil/refstruct.h",
+              "kind": "type",
+              "field_anchors": [
+                "c",
+                "nc"
+              ],
+              "home": "crustify/rust/ffmpeg/libavutil/refstruct.rs"
+            },
+            {
+              "name": "AVRefStructPool",
+              "defined_in": "libavutil/refstruct.c",
+              "kind": "type",
+              "field_anchors": [],
+              "home": "crustify/rust/ffmpeg/libavutil/refstruct.rs"
+            }
+          ]
+        },
+        {
+          "objective": "wrap",
+          "items": [
+            {
+              "name": "AVSideDataDescriptor",
+              "defined_in": "libavutil/frame.h",
+              "kind": "type",
+              "field_anchors": [
+                "name",
+                "props"
+              ],
+              "home": "crustify/rust/ffmpeg/libavutil/frame.rs"
+            },
+            {
+              "name": "AVSideDataProps",
+              "defined_in": "libavutil/frame.h",
+              "kind": "type",
+              "field_anchors": [],
+              "home": "crustify/rust/ffmpeg/libavutil/frame.rs"
+            }
+          ]
+        },
+        {
+          "objective": "wrap",
+          "items": [
+            {
+              "name": "av_buffer_default_free",
+              "defined_in": "libavutil/buffer.c",
+              "kind": "symbol",
+              "field_anchors": [],
+              "home": "crustify/rust/ffmpeg/libavutil/buffer.rs"
+            },
+            {
+              "name": "av_refstruct_allocz",
+              "defined_in": "libavutil/refstruct.h",
+              "kind": "symbol",
+              "field_anchors": [],
+              "home": "crustify/rust/ffmpeg/libavutil/refstruct.rs"
+            },
+            {
+              "name": "av_refstruct_exclusive",
+              "defined_in": "libavutil/refstruct.c",
+              "kind": "symbol",
+              "field_anchors": [],
+              "home": "crustify/rust/ffmpeg/libavutil/refstruct.rs"
+            },
+            {
+              "name": "av_refstruct_ref",
+              "defined_in": "libavutil/refstruct.c",
+              "kind": "symbol",
+              "field_anchors": [],
+              "home": "crustify/rust/ffmpeg/libavutil/refstruct.rs"
+            },
+            {
+              "name": "av_refstruct_ref_c",
+              "defined_in": "libavutil/refstruct.c",
+              "kind": "symbol",
+              "field_anchors": [],
+              "home": "crustify/rust/ffmpeg/libavutil/refstruct.rs"
+            },
+            {
+              "name": "av_refstruct_replace",
+              "defined_in": "libavutil/refstruct.c",
+              "kind": "symbol",
+              "field_anchors": [],
+              "home": "crustify/rust/ffmpeg/libavutil/refstruct.rs"
+            },
+            {
+              "name": "av_refstruct_unref",
+              "defined_in": "libavutil/refstruct.c",
+              "kind": "symbol",
+              "field_anchors": [],
+              "home": "crustify/rust/ffmpeg/libavutil/refstruct.rs"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "index": 1,
+      "batches": [
+        {
+          "objective": "wrap",
+          "items": [
+            {
+              "name": "AVBufferRef",
+              "defined_in": "libavutil/buffer.h",
+              "kind": "type",
+              "field_anchors": [
+                "data",
+                "buffer",
+                "size"
+              ],
+              "home": "crustify/rust/ffmpeg/libavutil/buffer.rs"
+            }
+          ]
+        },
+        {
+          "objective": "wrap",
+          "items": [
+            {
+              "name": "av_buffer_pool_uninit",
+              "defined_in": "libavutil/buffer.c",
+              "kind": "symbol",
+              "field_anchors": [],
+              "home": "crustify/rust/ffmpeg/libavutil/buffer.rs"
+            },
+            {
+              "name": "av_frame_side_data_desc",
+              "defined_in": "libavutil/side_data.c",
+              "kind": "symbol",
+              "field_anchors": [],
+              "home": "crustify/rust/ffmpeg/libavutil/frame.rs"
+            },
+            {
+              "name": "av_frame_side_data_name",
+              "defined_in": "libavutil/side_data.c",
+              "kind": "symbol",
+              "field_anchors": [],
+              "home": "crustify/rust/ffmpeg/libavutil/frame.rs"
+            },
+            {
+              "name": "av_refstruct_alloc_ext",
+              "defined_in": "libavutil/refstruct.h",
+              "kind": "symbol",
+              "field_anchors": [],
+              "home": "crustify/rust/ffmpeg/libavutil/refstruct.rs"
+            },
+            {
+              "name": "av_refstruct_alloc_ext_c",
+              "defined_in": "libavutil/refstruct.c",
+              "kind": "symbol",
+              "field_anchors": [],
+              "home": "crustify/rust/ffmpeg/libavutil/refstruct.rs"
+            },
+            {
+              "name": "av_refstruct_pool_alloc",
+              "defined_in": "libavutil/refstruct.c",
+              "kind": "symbol",
+              "field_anchors": [],
+              "home": "crustify/rust/ffmpeg/libavutil/refstruct.rs"
+            },
+            {
+              "name": "av_refstruct_pool_alloc_ext",
+              "defined_in": "libavutil/refstruct.h",
+              "kind": "symbol",
+              "field_anchors": [],
+              "home": "crustify/rust/ffmpeg/libavutil/refstruct.rs"
+            },
+            {
+              "name": "av_refstruct_pool_alloc_ext_c",
+              "defined_in": "libavutil/refstruct.c",
+              "kind": "symbol",
+              "field_anchors": [],
+              "home": "crustify/rust/ffmpeg/libavutil/refstruct.rs"
+            },
+            {
+              "name": "av_refstruct_pool_get",
+              "defined_in": "libavutil/refstruct.c",
+              "kind": "symbol",
+              "field_anchors": [],
+              "home": "crustify/rust/ffmpeg/libavutil/refstruct.rs"
+            },
+            {
+              "name": "av_refstruct_pool_uninit",
+              "defined_in": "libavutil/refstruct.h",
+              "kind": "symbol",
+              "field_anchors": [],
+              "home": "crustify/rust/ffmpeg/libavutil/refstruct.rs"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "index": 2,
+      "batches": [
+        {
+          "objective": "wrap",
+          "items": [
+            {
+              "name": "AVFrameSideData",
+              "defined_in": "libavutil/frame.h",
+              "kind": "type",
+              "field_anchors": [
+                "type",
+                "data",
+                "buf",
+                "size",
+                "metadata"
+              ],
+              "home": "crustify/rust/ffmpeg/libavutil/frame.rs"
+            }
+          ]
+        },
+        {
+          "objective": "wrap",
+          "items": [
+            {
+              "name": "av_buffer_alloc",
+              "defined_in": "libavutil/buffer.c",
+              "kind": "symbol",
+              "field_anchors": [],
+              "home": "crustify/rust/ffmpeg/libavutil/buffer.rs"
+            },
+            {
+              "name": "av_buffer_allocz",
+              "defined_in": "libavutil/buffer.c",
+              "kind": "symbol",
+              "field_anchors": [],
+              "home": "crustify/rust/ffmpeg/libavutil/buffer.rs"
+            },
+            {
+              "name": "av_buffer_create",
+              "defined_in": "libavutil/buffer.c",
+              "kind": "symbol",
+              "field_anchors": [],
+              "home": "crustify/rust/ffmpeg/libavutil/buffer.rs"
+            },
+            {
+              "name": "av_buffer_get_opaque",
+              "defined_in": "libavutil/buffer.c",
+              "kind": "symbol",
+              "field_anchors": [],
+              "home": "crustify/rust/ffmpeg/libavutil/buffer.rs"
+            },
+            {
+              "name": "av_buffer_get_ref_count",
+              "defined_in": "libavutil/buffer.c",
+              "kind": "symbol",
+              "field_anchors": [],
+              "home": "crustify/rust/ffmpeg/libavutil/buffer.rs"
+            },
+            {
+              "name": "av_buffer_is_writable",
+              "defined_in": "libavutil/buffer.c",
+              "kind": "symbol",
+              "field_anchors": [],
+              "home": "crustify/rust/ffmpeg/libavutil/buffer.rs"
+            },
+            {
+              "name": "av_buffer_make_writable",
+              "defined_in": "libavutil/buffer.c",
+              "kind": "symbol",
+              "field_anchors": [],
+              "home": "crustify/rust/ffmpeg/libavutil/buffer.rs"
+            },
+            {
+              "name": "av_buffer_pool_buffer_get_opaque",
+              "defined_in": "libavutil/buffer.c",
+              "kind": "symbol",
+              "field_anchors": [],
+              "home": "crustify/rust/ffmpeg/libavutil/buffer.rs"
+            },
+            {
+              "name": "av_buffer_pool_get",
+              "defined_in": "libavutil/buffer.c",
+              "kind": "symbol",
+              "field_anchors": [],
+              "home": "crustify/rust/ffmpeg/libavutil/buffer.rs"
+            },
+            {
+              "name": "av_buffer_pool_init",
+              "defined_in": "libavutil/buffer.c",
+              "kind": "symbol",
+              "field_anchors": [],
+              "home": "crustify/rust/ffmpeg/libavutil/buffer.rs"
+            },
+            {
+              "name": "av_buffer_pool_init2",
+              "defined_in": "libavutil/buffer.c",
+              "kind": "symbol",
+              "field_anchors": [],
+              "home": "crustify/rust/ffmpeg/libavutil/buffer.rs"
+            },
+            {
+              "name": "av_buffer_realloc",
+              "defined_in": "libavutil/buffer.c",
+              "kind": "symbol",
+              "field_anchors": [],
+              "home": "crustify/rust/ffmpeg/libavutil/buffer.rs"
+            },
+            {
+              "name": "av_buffer_ref",
+              "defined_in": "libavutil/buffer.c",
+              "kind": "symbol",
+              "field_anchors": [],
+              "home": "crustify/rust/ffmpeg/libavutil/buffer.rs"
+            },
+            {
+              "name": "av_buffer_replace",
+              "defined_in": "libavutil/buffer.c",
+              "kind": "symbol",
+              "field_anchors": [],
+              "home": "crustify/rust/ffmpeg/libavutil/buffer.rs"
+            },
+            {
+              "name": "av_buffer_unref",
+              "defined_in": "libavutil/buffer.c",
+              "kind": "symbol",
+              "field_anchors": [],
+              "home": "crustify/rust/ffmpeg/libavutil/buffer.rs"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "index": 3,
+      "batches": [
+        {
+          "objective": "wrap",
+          "items": [
+            {
+              "name": "AVFrame",
+              "defined_in": "libavutil/frame.h",
+              "kind": "type",
+              "field_anchors": [
+                "data",
+                "buf",
+                "flags",
+                "height",
+                "duration",
+                "quality",
+                "pict_type",
+                "opaque",
+                "nb_samples",
+                "metadata",
+                "time_base",
+                "format",
+                "width",
+                "pts",
+                "repeat_pict",
+                "sample_aspect_ratio",
+                "linesize",
+                "alpha_mode",
+                "hw_frames_ctx",
+                "sample_rate",
+                "ch_layout",
+                "color_range",
+                "colorspace",
+                "color_trc",
+                "color_primaries",
+                "private_ref",
+                "crop_right",
+                "crop_left",
+                "crop_bottom",
+                "crop_top",
+                "opaque_ref",
+                "decode_error_flags",
+                "best_effort_timestamp",
+                "chroma_location",
+                "nb_side_data",
+                "side_data",
+                "nb_extended_buf",
+                "extended_buf",
+                "pkt_dts",
+                "extended_data"
+              ],
+              "home": "crustify/rust/ffmpeg/libavutil/frame.rs"
+            }
+          ]
+        },
+        {
+          "objective": "wrap",
+          "items": [
+            {
+              "name": "AVRegionOfInterest",
+              "defined_in": "libavutil/frame.h",
+              "kind": "type",
+              "field_anchors": [
+                "qoffset",
+                "right",
+                "left",
+                "bottom",
+                "top",
+                "self_size"
+              ],
+              "home": "crustify/rust/ffmpeg/libavutil/frame.rs"
+            }
+          ]
+        },
+        {
+          "objective": "wrap",
+          "items": [
+            {
+              "name": "av_frame_side_data_add",
+              "defined_in": "libavutil/side_data.c",
+              "kind": "symbol",
+              "field_anchors": [],
+              "home": "crustify/rust/ffmpeg/libavutil/frame.rs"
+            },
+            {
+              "name": "av_frame_side_data_clone",
+              "defined_in": "libavutil/side_data.c",
+              "kind": "symbol",
+              "field_anchors": [],
+              "home": "crustify/rust/ffmpeg/libavutil/frame.rs"
+            },
+            {
+              "name": "av_frame_side_data_free",
+              "defined_in": "libavutil/side_data.c",
+              "kind": "symbol",
+              "field_anchors": [],
+              "home": "crustify/rust/ffmpeg/libavutil/frame.rs"
+            },
+            {
+              "name": "av_frame_side_data_get",
+              "defined_in": "libavutil/frame.h",
+              "kind": "symbol",
+              "field_anchors": [],
+              "home": "crustify/rust/ffmpeg/libavutil/frame.rs"
+            },
+            {
+              "name": "av_frame_side_data_get_c",
+              "defined_in": "libavutil/side_data.c",
+              "kind": "symbol",
+              "field_anchors": [],
+              "home": "crustify/rust/ffmpeg/libavutil/frame.rs"
+            },
+            {
+              "name": "av_frame_side_data_new",
+              "defined_in": "libavutil/side_data.c",
+              "kind": "symbol",
+              "field_anchors": [],
+              "home": "crustify/rust/ffmpeg/libavutil/frame.rs"
+            },
+            {
+              "name": "av_frame_side_data_remove",
+              "defined_in": "libavutil/side_data.c",
+              "kind": "symbol",
+              "field_anchors": [],
+              "home": "crustify/rust/ffmpeg/libavutil/frame.rs"
+            },
+            {
+              "name": "av_frame_side_data_remove_by_props",
+              "defined_in": "libavutil/side_data.c",
+              "kind": "symbol",
+              "field_anchors": [],
+              "home": "crustify/rust/ffmpeg/libavutil/frame.rs"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "index": 4,
+      "batches": [
+        {
+          "objective": "wrap",
+          "items": [
+            {
+              "name": "av_frame_alloc",
+              "defined_in": "libavutil/frame.c",
+              "kind": "symbol",
+              "field_anchors": [],
+              "home": "crustify/rust/ffmpeg/libavutil/frame.rs"
+            },
+            {
+              "name": "av_frame_apply_cropping",
+              "defined_in": "libavutil/frame.c",
+              "kind": "symbol",
+              "field_anchors": [],
+              "home": "crustify/rust/ffmpeg/libavutil/frame.rs"
+            },
+            {
+              "name": "av_frame_clone",
+              "defined_in": "libavutil/frame.c",
+              "kind": "symbol",
+              "field_anchors": [],
+              "home": "crustify/rust/ffmpeg/libavutil/frame.rs"
+            },
+            {
+              "name": "av_frame_copy",
+              "defined_in": "libavutil/frame.c",
+              "kind": "symbol",
+              "field_anchors": [],
+              "home": "crustify/rust/ffmpeg/libavutil/frame.rs"
+            },
+            {
+              "name": "av_frame_copy_props",
+              "defined_in": "libavutil/frame.c",
+              "kind": "symbol",
+              "field_anchors": [],
+              "home": "crustify/rust/ffmpeg/libavutil/frame.rs"
+            },
+            {
+              "name": "av_frame_free",
+              "defined_in": "libavutil/frame.c",
+              "kind": "symbol",
+              "field_anchors": [],
+              "home": "crustify/rust/ffmpeg/libavutil/frame.rs"
+            },
+            {
+              "name": "av_frame_get_buffer",
+              "defined_in": "libavutil/frame.c",
+              "kind": "symbol",
+              "field_anchors": [],
+              "home": "crustify/rust/ffmpeg/libavutil/frame.rs"
+            },
+            {
+              "name": "av_frame_get_plane_buffer",
+              "defined_in": "libavutil/frame.c",
+              "kind": "symbol",
+              "field_anchors": [],
+              "home": "crustify/rust/ffmpeg/libavutil/frame.rs"
+            },
+            {
+              "name": "av_frame_get_side_data",
+              "defined_in": "libavutil/frame.c",
+              "kind": "symbol",
+              "field_anchors": [],
+              "home": "crustify/rust/ffmpeg/libavutil/frame.rs"
+            },
+            {
+              "name": "av_frame_is_writable",
+              "defined_in": "libavutil/frame.c",
+              "kind": "symbol",
+              "field_anchors": [],
+              "home": "crustify/rust/ffmpeg/libavutil/frame.rs"
+            },
+            {
+              "name": "av_frame_make_writable",
+              "defined_in": "libavutil/frame.c",
+              "kind": "symbol",
+              "field_anchors": [],
+              "home": "crustify/rust/ffmpeg/libavutil/frame.rs"
+            },
+            {
+              "name": "av_frame_move_ref",
+              "defined_in": "libavutil/frame.c",
+              "kind": "symbol",
+              "field_anchors": [],
+              "home": "crustify/rust/ffmpeg/libavutil/frame.rs"
+            },
+            {
+              "name": "av_frame_new_side_data",
+              "defined_in": "libavutil/frame.c",
+              "kind": "symbol",
+              "field_anchors": [],
+              "home": "crustify/rust/ffmpeg/libavutil/frame.rs"
+            },
+            {
+              "name": "av_frame_new_side_data_from_buf",
+              "defined_in": "libavutil/frame.c",
+              "kind": "symbol",
+              "field_anchors": [],
+              "home": "crustify/rust/ffmpeg/libavutil/frame.rs"
+            },
+            {
+              "name": "av_frame_ref",
+              "defined_in": "libavutil/frame.c",
+              "kind": "symbol",
+              "field_anchors": [],
+              "home": "crustify/rust/ffmpeg/libavutil/frame.rs"
+            },
+            {
+              "name": "av_frame_remove_side_data",
+              "defined_in": "libavutil/frame.c",
+              "kind": "symbol",
+              "field_anchors": [],
+              "home": "crustify/rust/ffmpeg/libavutil/frame.rs"
+            },
+            {
+              "name": "av_frame_replace",
+              "defined_in": "libavutil/frame.c",
+              "kind": "symbol",
+              "field_anchors": [],
+              "home": "crustify/rust/ffmpeg/libavutil/frame.rs"
+            },
+            {
+              "name": "av_frame_unref",
+              "defined_in": "libavutil/frame.c",
+              "kind": "symbol",
+              "field_anchors": [],
+              "home": "crustify/rust/ffmpeg/libavutil/frame.rs"
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

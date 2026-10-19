@@ -13,40 +13,47 @@
               "kind": "type",
               "field_anchors": [],
               "home": "crustify/rust/ffmpeg/libswscale/swscale.rs"
-            }
-          ]
-        },
-        {
-          "objective": "wrap",
-          "items": [
+            },
             {
               "name": "SwsBackend",
               "defined_in": "libswscale/swscale.h",
               "kind": "type",
               "field_anchors": [],
               "home": "crustify/rust/ffmpeg/libswscale/swscale.rs"
-            },
+            }
+          ]
+        },
+        {
+          "objective": "wrap",
+          "items": [
             {
               "name": "SwsDither",
               "defined_in": "libswscale/swscale.h",
               "kind": "type",
               "field_anchors": [],
               "home": "crustify/rust/ffmpeg/libswscale/swscale.rs"
-            }
-          ]
-        },
-        {
-          "objective": "wrap",
-          "items": [
+            },
             {
               "name": "SwsFlags",
               "defined_in": "libswscale/swscale.h",
               "kind": "type",
               "field_anchors": [],
               "home": "crustify/rust/ffmpeg/libswscale/swscale.rs"
-            },
+            }
+          ]
+        },
+        {
+          "objective": "wrap",
+          "items": [
             {
               "name": "SwsIntent",
+              "defined_in": "libswscale/swscale.h",
+              "kind": "type",
+              "field_anchors": [],
+              "home": "crustify/rust/ffmpeg/libswscale/swscale.rs"
+            },
+            {
+              "name": "SwsScaler",
               "defined_in": "libswscale/swscale.h",
               "kind": "type",
               "field_anchors": [],
@@ -57,13 +64,6 @@
         {
           "objective": "wrap",
           "items": [
-            {
-              "name": "SwsScaler",
-              "defined_in": "libswscale/swscale.h",
-              "kind": "type",
-              "field_anchors": [],
-              "home": "crustify/rust/ffmpeg/libswscale/swscale.rs"
-            },
             {
               "name": "SwsVector",
               "defined_in": "libswscale/swscale.h",

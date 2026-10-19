@@ -1298,8 +1298,7 @@
           "objective": {
             "objective": "wrap",
             "rust_native_equivalent": [
-              "rustfft",
-              "rand"
+              "rustfft"
             ]
           },
           "implementation_files": [
@@ -1940,6 +1939,7 @@
             "libavcodec/encode.h",
             "libavcodec/get_buffer.c",
             "libavcodec/imgconvert.c",
+            "libavcodec/internal.h",
             "libavcodec/options.c",
             "libavcodec/packet.c",
             "libavcodec/parser.c",
@@ -1963,15 +1963,15 @@
           ],
           "counters": {
             "implementation": {
-              "files": 19,
-              "loc": 11036,
-              "structs": 7,
+              "files": 20,
+              "loc": 11092,
+              "structs": 8,
               "functions": 238,
               "global_variables": 12,
               "enums": 1,
               "unions": 0,
               "callbacks": 0,
-              "macros": 17
+              "macros": 20
             },
             "api": {
               "files": 9,
@@ -1991,7 +1991,7 @@
               {
                 "link_unit": "libavcodec",
                 "subsystem": "bsf",
-                "outgoing_edges": 8,
+                "outgoing_edges": 9,
                 "incoming_edges": 421,
                 "counters": {
                   "structs": 1,
@@ -2006,16 +2006,16 @@
               {
                 "link_unit": "libavcodec",
                 "subsystem": "codecs",
-                "outgoing_edges": 232,
-                "incoming_edges": 5286,
+                "outgoing_edges": 185,
+                "incoming_edges": 5335,
                 "counters": {
-                  "structs": 14,
+                  "structs": 13,
                   "functions": 23,
                   "global_variables": 21,
                   "enums": 0,
                   "unions": 0,
                   "callbacks": 0,
-                  "macros": 14
+                  "macros": 12
                 }
               },
               {
@@ -2036,10 +2036,10 @@
               {
                 "link_unit": "libavutil",
                 "subsystem": "buffer-frame",
-                "outgoing_edges": 262,
+                "outgoing_edges": 264,
                 "incoming_edges": 0,
                 "counters": {
-                  "structs": 5,
+                  "structs": 6,
                   "functions": 40,
                   "global_variables": 0,
                   "enums": 1,
@@ -2194,7 +2194,8 @@
             "libavcodec/dv_profile.c",
             "libavcodec/exif.c",
             "libavcodec/smpte_436m.c",
-            "libavcodec/vorbis_parser.c"
+            "libavcodec/vorbis_parser.c",
+            "libavcodec/vorbis_parser_internal.h"
           ],
           "api_headers": [
             "libavcodec/ac3_parser.h",
@@ -2208,15 +2209,15 @@
           ],
           "counters": {
             "implementation": {
-              "files": 8,
-              "loc": 3004,
-              "structs": 5,
+              "files": 9,
+              "loc": 3022,
+              "structs": 6,
               "functions": 73,
               "global_variables": 34,
               "enums": 0,
               "unions": 0,
               "callbacks": 0,
-              "macros": 24
+              "macros": 25
             },
             "api": {
               "files": 8,
@@ -2236,10 +2237,10 @@
               {
                 "link_unit": "libavcodec",
                 "subsystem": "codecs",
-                "outgoing_edges": 133,
+                "outgoing_edges": 127,
                 "incoming_edges": 74,
                 "counters": {
-                  "structs": 11,
+                  "structs": 10,
                   "functions": 41,
                   "global_variables": 7,
                   "enums": 0,
@@ -2281,7 +2282,7 @@
               {
                 "link_unit": "libavutil",
                 "subsystem": "core",
-                "outgoing_edges": 328,
+                "outgoing_edges": 329,
                 "incoming_edges": 0,
                 "counters": {
                   "structs": 5,
@@ -2509,7 +2510,7 @@
                 "link_unit": "libavcodec",
                 "subsystem": "codecs",
                 "outgoing_edges": 545,
-                "incoming_edges": 7,
+                "incoming_edges": 6,
                 "counters": {
                   "structs": 83,
                   "functions": 101,
@@ -2524,7 +2525,7 @@
                 "link_unit": "libavcodec",
                 "subsystem": "core",
                 "outgoing_edges": 421,
-                "incoming_edges": 8,
+                "incoming_edges": 9,
                 "counters": {
                   "structs": 4,
                   "functions": 25,
@@ -4019,7 +4020,6 @@
             "libavcodec/vorbis_data.c",
             "libavcodec/vorbis_data.h",
             "libavcodec/vorbis_enc_data.h",
-            "libavcodec/vorbis_parser_internal.h",
             "libavcodec/vorbisdec.c",
             "libavcodec/vorbisdsp.c",
             "libavcodec/vorbisdsp.h",
@@ -4374,15 +4374,15 @@
           "api_headers": [],
           "counters": {
             "implementation": {
-              "files": 1654,
-              "loc": 558543,
-              "structs": 1568,
+              "files": 1653,
+              "loc": 558525,
+              "structs": 1566,
               "functions": 12058,
               "global_variables": 4347,
               "enums": 355,
               "unions": 2,
               "callbacks": 76,
-              "macros": 5820
+              "macros": 5816
             },
             "api": {
               "files": 0,
@@ -4402,7 +4402,7 @@
               {
                 "link_unit": "libavcodec",
                 "subsystem": "bsf",
-                "outgoing_edges": 7,
+                "outgoing_edges": 6,
                 "incoming_edges": 545,
                 "counters": {
                   "structs": 1,
@@ -4417,8 +4417,8 @@
               {
                 "link_unit": "libavcodec",
                 "subsystem": "core",
-                "outgoing_edges": 5286,
-                "incoming_edges": 232,
+                "outgoing_edges": 5335,
+                "incoming_edges": 185,
                 "counters": {
                   "structs": 19,
                   "functions": 88,
@@ -4426,14 +4426,14 @@
                   "enums": 9,
                   "unions": 0,
                   "callbacks": 0,
-                  "macros": 290
+                  "macros": 292
                 }
               },
               {
                 "link_unit": "libavcodec",
                 "subsystem": "utils",
                 "outgoing_edges": 74,
-                "incoming_edges": 133,
+                "incoming_edges": 127,
                 "counters": {
                   "structs": 4,
                   "functions": 10,
@@ -4463,7 +4463,7 @@
                 "link_unit": "libavformat",
                 "subsystem": "formats",
                 "outgoing_edges": 22,
-                "incoming_edges": 1146,
+                "incoming_edges": 1138,
                 "counters": {
                   "structs": 0,
                   "functions": 0,
@@ -4477,7 +4477,7 @@
               {
                 "link_unit": "libavutil",
                 "subsystem": "buffer-frame",
-                "outgoing_edges": 2209,
+                "outgoing_edges": 2207,
                 "incoming_edges": 0,
                 "counters": {
                   "structs": 6,
@@ -4507,7 +4507,7 @@
               {
                 "link_unit": "libavutil",
                 "subsystem": "core",
-                "outgoing_edges": 23121,
+                "outgoing_edges": 23120,
                 "incoming_edges": 0,
                 "counters": {
                   "structs": 12,
@@ -4856,6 +4856,7 @@
             "libavformat/demux_utils.c",
             "libavformat/dump.c",
             "libavformat/format.c",
+            "libavformat/internal.h",
             "libavformat/isom_tags.c",
             "libavformat/mux.c",
             "libavformat/mux.h",
@@ -4875,15 +4876,15 @@
           ],
           "counters": {
             "implementation": {
-              "files": 19,
-              "loc": 10513,
-              "structs": 7,
-              "functions": 275,
+              "files": 20,
+              "loc": 10681,
+              "structs": 13,
+              "functions": 278,
               "global_variables": 25,
-              "enums": 5,
+              "enums": 6,
               "unions": 0,
-              "callbacks": 0,
-              "macros": 37
+              "callbacks": 1,
+              "macros": 48
             },
             "api": {
               "files": 3,
@@ -4903,7 +4904,7 @@
               {
                 "link_unit": "libavcodec",
                 "subsystem": "bsf",
-                "outgoing_edges": 22,
+                "outgoing_edges": 23,
                 "incoming_edges": 0,
                 "counters": {
                   "structs": 2,
@@ -4933,7 +4934,7 @@
               {
                 "link_unit": "libavcodec",
                 "subsystem": "core",
-                "outgoing_edges": 378,
+                "outgoing_edges": 385,
                 "incoming_edges": 0,
                 "counters": {
                   "structs": 9,
@@ -4978,16 +4979,16 @@
               {
                 "link_unit": "libavformat",
                 "subsystem": "formats",
-                "outgoing_edges": 443,
-                "incoming_edges": 6558,
+                "outgoing_edges": 234,
+                "incoming_edges": 7139,
                 "counters": {
-                  "structs": 18,
-                  "functions": 33,
+                  "structs": 13,
+                  "functions": 30,
                   "global_variables": 1,
-                  "enums": 1,
+                  "enums": 0,
                   "unions": 0,
-                  "callbacks": 1,
-                  "macros": 13
+                  "callbacks": 0,
+                  "macros": 6
                 }
               },
               {
@@ -5008,7 +5009,7 @@
               {
                 "link_unit": "libavutil",
                 "subsystem": "core",
-                "outgoing_edges": 885,
+                "outgoing_edges": 886,
                 "incoming_edges": 0,
                 "counters": {
                   "structs": 3,
@@ -5068,7 +5069,7 @@
               {
                 "link_unit": "libavutil",
                 "subsystem": "options",
-                "outgoing_edges": 118,
+                "outgoing_edges": 119,
                 "incoming_edges": 0,
                 "counters": {
                   "structs": 4,
@@ -5789,13 +5790,13 @@
             "implementation": {
               "files": 642,
               "loc": 172624,
-              "structs": 722,
-              "functions": 4280,
+              "structs": 716,
+              "functions": 4277,
               "global_variables": 1333,
-              "enums": 148,
+              "enums": 147,
               "unions": 1,
-              "callbacks": 7,
-              "macros": 2118
+              "callbacks": 6,
+              "macros": 2107
             },
             "api": {
               "files": 0,
@@ -5815,7 +5816,7 @@
               {
                 "link_unit": "libavcodec",
                 "subsystem": "bsf",
-                "outgoing_edges": 44,
+                "outgoing_edges": 43,
                 "incoming_edges": 0,
                 "counters": {
                   "structs": 2,
@@ -5830,7 +5831,7 @@
               {
                 "link_unit": "libavcodec",
                 "subsystem": "codecs",
-                "outgoing_edges": 1146,
+                "outgoing_edges": 1138,
                 "incoming_edges": 22,
                 "counters": {
                   "structs": 32,
@@ -5839,13 +5840,13 @@
                   "enums": 4,
                   "unions": 0,
                   "callbacks": 0,
-                  "macros": 71
+                  "macros": 70
                 }
               },
               {
                 "link_unit": "libavcodec",
                 "subsystem": "core",
-                "outgoing_edges": 3280,
+                "outgoing_edges": 3281,
                 "incoming_edges": 0,
                 "counters": {
                   "structs": 10,
@@ -5854,7 +5855,7 @@
                   "enums": 6,
                   "unions": 0,
                   "callbacks": 0,
-                  "macros": 51
+                  "macros": 52
                 }
               },
               {
@@ -5890,16 +5891,16 @@
               {
                 "link_unit": "libavformat",
                 "subsystem": "core",
-                "outgoing_edges": 6558,
-                "incoming_edges": 443,
+                "outgoing_edges": 7139,
+                "incoming_edges": 234,
                 "counters": {
-                  "structs": 20,
-                  "functions": 105,
+                  "structs": 23,
+                  "functions": 108,
                   "global_variables": 9,
-                  "enums": 6,
+                  "enums": 7,
                   "unions": 0,
                   "callbacks": 0,
-                  "macros": 95
+                  "macros": 103
                 }
               },
               {
@@ -5935,7 +5936,7 @@
               {
                 "link_unit": "libavutil",
                 "subsystem": "core",
-                "outgoing_edges": 16288,
+                "outgoing_edges": 16287,
                 "incoming_edges": 0,
                 "counters": {
                   "structs": 7,
@@ -6010,7 +6011,7 @@
               {
                 "link_unit": "libavutil",
                 "subsystem": "options",
-                "outgoing_edges": 1027,
+                "outgoing_edges": 1026,
                 "incoming_edges": 0,
                 "counters": {
                   "structs": 3,
@@ -6108,6 +6109,8 @@
             "libavfilter/avfiltergraph.c",
             "libavfilter/buffersink.c",
             "libavfilter/buffersrc.c",
+            "libavfilter/filters.h",
+            "libavfilter/formats.h",
             "libavfilter/graphdump.c",
             "libavfilter/graphparser.c",
             "libavfilter/version.c"
@@ -6121,15 +6124,15 @@
           ],
           "counters": {
             "implementation": {
-              "files": 8,
-              "loc": 5026,
-              "structs": 2,
-              "functions": 188,
+              "files": 10,
+              "loc": 5457,
+              "structs": 10,
+              "functions": 192,
               "global_variables": 22,
-              "enums": 1,
+              "enums": 2,
               "unions": 0,
               "callbacks": 0,
-              "macros": 27
+              "macros": 62
             },
             "api": {
               "files": 5,
@@ -6149,22 +6152,22 @@
               {
                 "link_unit": "libavfilter",
                 "subsystem": "filters",
-                "outgoing_edges": 363,
-                "incoming_edges": 2636,
+                "outgoing_edges": 208,
+                "incoming_edges": 3787,
                 "counters": {
-                  "structs": 15,
-                  "functions": 48,
+                  "structs": 6,
+                  "functions": 45,
                   "global_variables": 1,
                   "enums": 1,
                   "unions": 0,
                   "callbacks": 0,
-                  "macros": 16
+                  "macros": 2
                 }
               },
               {
                 "link_unit": "libavutil",
                 "subsystem": "buffer-frame",
-                "outgoing_edges": 73,
+                "outgoing_edges": 75,
                 "incoming_edges": 0,
                 "counters": {
                   "structs": 3,
@@ -6179,7 +6182,7 @@
               {
                 "link_unit": "libavutil",
                 "subsystem": "core",
-                "outgoing_edges": 545,
+                "outgoing_edges": 549,
                 "incoming_edges": 0,
                 "counters": {
                   "structs": 3,
@@ -6188,13 +6191,13 @@
                   "enums": 1,
                   "unions": 0,
                   "callbacks": 0,
-                  "macros": 47
+                  "macros": 48
                 }
               },
               {
                 "link_unit": "libavutil",
                 "subsystem": "formats",
-                "outgoing_edges": 146,
+                "outgoing_edges": 149,
                 "incoming_edges": 0,
                 "counters": {
                   "structs": 3,
@@ -6803,13 +6806,13 @@
             "implementation": {
               "files": 500,
               "loc": 151499,
-              "structs": 641,
-              "functions": 4654,
+              "structs": 633,
+              "functions": 4650,
               "global_variables": 2119,
-              "enums": 234,
+              "enums": 233,
               "unions": 1,
               "callbacks": 16,
-              "macros": 1902
+              "macros": 1867
             },
             "api": {
               "files": 0,
@@ -6859,16 +6862,16 @@
               {
                 "link_unit": "libavfilter",
                 "subsystem": "core",
-                "outgoing_edges": 2636,
-                "incoming_edges": 363,
+                "outgoing_edges": 3787,
+                "incoming_edges": 208,
                 "counters": {
-                  "structs": 8,
-                  "functions": 27,
+                  "structs": 16,
+                  "functions": 30,
                   "global_variables": 0,
                   "enums": 0,
                   "unions": 0,
                   "callbacks": 2,
-                  "macros": 8
+                  "macros": 40
                 }
               },
               {
@@ -6904,7 +6907,7 @@
               {
                 "link_unit": "libavutil",
                 "subsystem": "buffer-frame",
-                "outgoing_edges": 1509,
+                "outgoing_edges": 1507,
                 "incoming_edges": 0,
                 "counters": {
                   "structs": 5,
@@ -6934,7 +6937,7 @@
               {
                 "link_unit": "libavutil",
                 "subsystem": "core",
-                "outgoing_edges": 6505,
+                "outgoing_edges": 6502,
                 "incoming_edges": 0,
                 "counters": {
                   "structs": 7,
@@ -6979,7 +6982,7 @@
               {
                 "link_unit": "libavutil",
                 "subsystem": "formats",
-                "outgoing_edges": 1439,
+                "outgoing_edges": 1436,
                 "incoming_edges": 0,
                 "counters": {
                   "structs": 10,

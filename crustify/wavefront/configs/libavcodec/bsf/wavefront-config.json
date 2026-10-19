@@ -1,5 +1,6 @@
 {
   "state_dir": "crustify/wavefront",
+  "t3_dir": "t3",
   "impl_files": [
     "libavcodec/bitstream_filters.c",
     "libavcodec/bitstreamfilter.c",

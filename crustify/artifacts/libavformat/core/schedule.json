@@ -13,12 +13,7 @@
               "kind": "type",
               "field_anchors": [],
               "home": "crustify/rust/ffmpeg/libavformat/avformat.rs"
-            }
-          ]
-        },
-        {
-          "objective": "wrap",
-          "items": [
+            },
             {
               "name": "AVDurationEstimationMethod",
               "defined_in": "libavformat/avformat.h",
@@ -37,12 +32,7 @@
               "kind": "type",
               "field_anchors": [],
               "home": "crustify/rust/ffmpeg/libavformat/avformat.rs"
-            }
-          ]
-        },
-        {
-          "objective": "wrap",
-          "items": [
+            },
             {
               "name": "AVIndexEntry",
               "defined_in": "libavformat/avformat.h",
@@ -72,12 +62,7 @@
                 "mime_type"
               ],
               "home": "crustify/rust/ffmpeg/libavformat/avformat.rs"
-            }
-          ]
-        },
-        {
-          "objective": "wrap",
-          "items": [
+            },
             {
               "name": "AVRTSPResponse",
               "defined_in": "libavformat/avformat.h",
@@ -145,13 +130,6 @@
             {
               "name": "av_get_frame_filename2",
               "defined_in": "libavformat/utils.c",
-              "kind": "symbol",
-              "field_anchors": [],
-              "home": "crustify/rust/ffmpeg/libavformat/avformat.rs"
-            },
-            {
-              "name": "av_hex_dump_log",
-              "defined_in": "libavformat/dump.c",
               "kind": "symbol",
               "field_anchors": [],
               "home": "crustify/rust/ffmpeg/libavformat/avformat.rs"
@@ -227,12 +205,7 @@
                 "start"
               ],
               "home": "crustify/rust/ffmpeg/libavformat/avformat.rs"
-            }
-          ]
-        },
-        {
-          "objective": "wrap",
-          "items": [
+            },
             {
               "name": "AVInputFormat",
               "defined_in": "libavformat/avformat.h",
@@ -247,7 +220,12 @@
                 "long_name"
               ],
               "home": "crustify/rust/ffmpeg/libavformat/avformat.rs"
-            },
+            }
+          ]
+        },
+        {
+          "objective": "wrap",
+          "items": [
             {
               "name": "AVOutputFormat",
               "defined_in": "libavformat/avformat.h",
@@ -265,12 +243,7 @@
                 "long_name"
               ],
               "home": "crustify/rust/ffmpeg/libavformat/avformat.rs"
-            }
-          ]
-        },
-        {
-          "objective": "wrap",
-          "items": [
+            },
             {
               "name": "AVProgram",
               "defined_in": "libavformat/avformat.h",
@@ -292,7 +265,12 @@
                 "discard"
               ],
               "home": "crustify/rust/ffmpeg/libavformat/avformat.rs"
-            },
+            }
+          ]
+        },
+        {
+          "objective": "wrap",
+          "items": [
             {
               "name": "AVRTSPCommandRequest",
               "defined_in": "libavformat/avformat.h",
@@ -303,12 +281,7 @@
                 "headers"
               ],
               "home": "crustify/rust/ffmpeg/libavformat/avformat.rs"
-            }
-          ]
-        },
-        {
-          "objective": "wrap",
-          "items": [
+            },
             {
               "name": "AVStream",
               "defined_in": "libavformat/avformat.h",
@@ -334,7 +307,12 @@
                 "codecpar"
               ],
               "home": "crustify/rust/ffmpeg/libavformat/avformat.rs"
-            },
+            }
+          ]
+        },
+        {
+          "objective": "wrap",
+          "items": [
             {
               "name": "AVStreamGroupLayeredVideo",
               "defined_in": "libavformat/avformat.h",
@@ -346,12 +324,7 @@
                 "el_index"
               ],
               "home": "crustify/rust/ffmpeg/libavformat/avformat.rs"
-            }
-          ]
-        },
-        {
-          "objective": "wrap",
-          "items": [
+            },
             {
               "name": "AVStreamGroupTREF",
               "defined_in": "libavformat/avformat.h",
@@ -361,7 +334,12 @@
                 "metadata_index"
               ],
               "home": "crustify/rust/ffmpeg/libavformat/avformat.rs"
-            },
+            }
+          ]
+        },
+        {
+          "objective": "wrap",
+          "items": [
             {
               "name": "AVStreamGroupTileGrid",
               "defined_in": "libavformat/avformat.h",
@@ -425,6 +403,20 @@
             {
               "name": "av_hex_dump",
               "defined_in": "libavformat/dump.c",
+              "kind": "symbol",
+              "field_anchors": [],
+              "home": "crustify/rust/ffmpeg/libavformat/avformat.rs"
+            },
+            {
+              "name": "av_hex_dump_log",
+              "defined_in": "libavformat/dump.c",
+              "kind": "symbol",
+              "field_anchors": [],
+              "home": "crustify/rust/ffmpeg/libavformat/avformat.rs"
+            },
+            {
+              "name": "av_mime_codec_str",
+              "defined_in": "libavformat/codecstring.c",
               "kind": "symbol",
               "field_anchors": [],
               "home": "crustify/rust/ffmpeg/libavformat/avformat.rs"
@@ -556,13 +548,6 @@
             {
               "name": "av_index_search_timestamp",
               "defined_in": "libavformat/seek.c",
-              "kind": "symbol",
-              "field_anchors": [],
-              "home": "crustify/rust/ffmpeg/libavformat/avformat.rs"
-            },
-            {
-              "name": "av_mime_codec_str",
-              "defined_in": "libavformat/codecstring.c",
               "kind": "symbol",
               "field_anchors": [],
               "home": "crustify/rust/ffmpeg/libavformat/avformat.rs"
@@ -775,6 +760,13 @@
           "objective": "wrap",
           "items": [
             {
+              "name": "AVOpenCallback",
+              "defined_in": "libavformat/avformat.h",
+              "kind": "callback",
+              "field_anchors": [],
+              "home": "crustify/rust/ffmpeg/libavformat/avformat.rs"
+            },
+            {
               "name": "av_dump_format",
               "defined_in": "libavformat/dump.c",
               "kind": "symbol",
@@ -799,6 +791,13 @@
               "name": "av_find_program_from_stream",
               "defined_in": "libavformat/avformat.c",
               "kind": "symbol",
+              "field_anchors": [],
+              "home": "crustify/rust/ffmpeg/libavformat/avformat.rs"
+            },
+            {
+              "name": "av_format_control_message",
+              "defined_in": "libavformat/avformat.h",
+              "kind": "callback",
               "field_anchors": [],
               "home": "crustify/rust/ffmpeg/libavformat/avformat.rs"
             },

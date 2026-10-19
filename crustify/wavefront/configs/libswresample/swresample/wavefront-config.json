@@ -1,5 +1,6 @@
 {
   "state_dir": "crustify/wavefront",
+  "t3_dir": "t3",
   "impl_files": [
     "libswresample/audioconvert.c",
     "libswresample/audioconvert.h",
