@@ -1,7 +1,7 @@
 // Build logic shared by every `*-sys` crate, `include!`d from each crate's build.rs.
 //
 // The C side is never built here: it links the prebuilt FFmpeg variant named by
-// `CRUSTIFY_FFMPEG_VARIANT` (default `plain`) from `crustify/build.json`, or the
+// `CRUSTIFY_FFMPEG_VARIANT` (default `plain`) from `crustify/artifacts/build.json`, or the
 // directory in `CRUSTIFY_FFMPEG_BUILD_DIR` for a private build.
 //
 // Bindings come from `wrapper.h` restricted to the crate's agent-owned
@@ -26,14 +26,14 @@ fn build_dir(root: &Path) -> PathBuf {
         return PathBuf::from(dir);
     }
     let variant = env::var("CRUSTIFY_FFMPEG_VARIANT").unwrap_or_else(|_| "plain".into());
-    let build_json = root.join("crustify/build.json");
+    let build_json = root.join("crustify/artifacts/build.json");
     println!("cargo:rerun-if-changed={}", build_json.display());
     let spec: serde_json::Value =
-        serde_json::from_str(&std::fs::read_to_string(&build_json).expect("crustify/build.json"))
+        serde_json::from_str(&std::fs::read_to_string(&build_json).expect("crustify/artifacts/build.json"))
             .expect("valid build.json");
     let dir = spec["variants"][&variant]["dir"]
         .as_str()
-        .unwrap_or_else(|| panic!("no variant {variant:?} in crustify/build.json"));
+        .unwrap_or_else(|| panic!("no variant {variant:?} in crustify/artifacts/build.json"));
     root.join(dir)
 }
 
@@ -71,7 +71,7 @@ pub fn build(lib: &str, deps: &[&str]) {
     let out = PathBuf::from(env::var("OUT_DIR").unwrap());
     assert!(
         build.join(lib).join(format!("{lib}.so")).exists(),
-        "{lib}.so missing under {}: build the variant first (crustify/build.json)",
+        "{lib}.so missing under {}: build the variant first (crustify/artifacts/build.json)",
         build.display()
     );
 
