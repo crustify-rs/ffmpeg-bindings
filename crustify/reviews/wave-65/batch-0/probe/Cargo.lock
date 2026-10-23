@@ -94,10 +94,15 @@ name = "ffibox"
 version = "0.1.0"
 
 [[package]]
+name = "ffibox"
+version = "0.1.0"
+source = "git+https://github.com/crustify-rs/glibc-bindings?rev=b7d01b0f5958c799b8f4677c4a6ecd95748fe6dc#b7d01b0f5958c799b8f4677c4a6ecd95748fe6dc"
+
+[[package]]
 name = "ffmpeg-bindings"
 version = "0.1.0"
 dependencies = [
- "ffibox",
+ "ffibox 0.1.0",
  "glibc-bindings",
  "libavutil-sys",
 ]
@@ -111,8 +116,9 @@ checksum = "aedcfb3409746eddb02b9e19ebda1c3394f759a152e48ee875a0844d1b955484"
 [[package]]
 name = "glibc-bindings"
 version = "0.1.0"
+source = "git+https://github.com/crustify-rs/glibc-bindings?rev=b7d01b0f5958c799b8f4677c4a6ecd95748fe6dc#b7d01b0f5958c799b8f4677c4a6ecd95748fe6dc"
 dependencies = [
- "ffibox",
+ "ffibox 0.1.0 (git+https://github.com/crustify-rs/glibc-bindings?rev=b7d01b0f5958c799b8f4677c4a6ecd95748fe6dc)",
  "libc-sys",
 ]
 
@@ -147,6 +153,7 @@ checksum = "3eaf3ede3fee6db1a4c2ee091bf8a8b4dccdc6d17f656fb07896ee72867612f2"
 [[package]]
 name = "libc-sys"
 version = "0.1.0"
+source = "git+https://github.com/crustify-rs/glibc-bindings?rev=b7d01b0f5958c799b8f4677c4a6ecd95748fe6dc#b7d01b0f5958c799b8f4677c4a6ecd95748fe6dc"
 dependencies = [
  "bindgen",
 ]
