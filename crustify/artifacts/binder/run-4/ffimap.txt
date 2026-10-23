@@ -1,2 +1,0 @@
-$ crustify scan-unsafe <batch worktree> --name AVEscapeMode AVMediaType --json
-unsafe: no sites matched --name AVEscapeMode AVMediaType

@@ -1,2 +1,0 @@
-unsafe: no sites matched --name string
-exit 1
