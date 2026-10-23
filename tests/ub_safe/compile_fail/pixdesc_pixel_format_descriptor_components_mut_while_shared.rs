@@ -1,6 +1,6 @@
 // The component slots cannot be borrowed for writing while a shared run of
 // them lives.
-use ffmpeg::libavutil::pixdesc::PixelFormatDescriptor;
+use ffmpeg_bindings::libavutil::libavutil::pixdesc::PixelFormatDescriptor;
 
 fn main() {
     let mut d = PixelFormatDescriptor::new();

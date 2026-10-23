@@ -1,5 +1,5 @@
 //! Public safe context lifecycle, input lifetimes, and exclusive reborrows.
-use ffmpeg::libavutil::md5::{Md5, Md5Box, Md5Mut, Md5Ref};
+use ffmpeg_bindings::libavutil::libavutil::md5::{Md5, Md5Box, Md5Mut, Md5Ref};
 
 #[test]
 #[cfg_attr(miri, ignore = "calls C")]
@@ -59,7 +59,7 @@ fn block_edges_and_drop_without_finalizing() {
     }
 }
 
-use ffmpeg::libavutil::md5::context_size;
+use ffmpeg_bindings::libavutil::libavutil::md5::context_size;
 
 #[test]
 #[cfg_attr(miri, ignore = "reads a C global")]
@@ -83,7 +83,7 @@ fn batch10_immutable_size_across_threads() {
 #[test]
 #[cfg_attr(miri, ignore = "calls C")]
 fn batch10_digest_boundary_lengths() {
-    use ffmpeg::libavutil::md5::sum;
+    use ffmpeg_bindings::libavutil::libavutil::md5::sum;
     let data: Vec<_> = (0..2049).map(|i| i as u8).collect();
     assert_eq!(
         sum(b""),

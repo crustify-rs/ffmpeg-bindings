@@ -1,6 +1,6 @@
 // A value cannot be written while a coordinate handle reads it.
-use ffmpeg::libavutil::csp::CieXy;
-use ffmpeg::libavutil::rational::Rational;
+use ffmpeg_bindings::libavutil::libavutil::csp::CieXy;
+use ffmpeg_bindings::libavutil::libavutil::rational::Rational;
 
 fn main() {
     let mut v = CieXy::default();

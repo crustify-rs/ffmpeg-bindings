@@ -1,6 +1,6 @@
 // A shared view keeps the buffer frozen: no exclusive view can set its
 // samples to silence while the shared one is still read.
-use ffmpeg::libavutil::samplefmt::{SampleBuffer, SampleFormat};
+use ffmpeg_bindings::libavutil::libavutil::samplefmt::{SampleBuffer, SampleFormat};
 
 fn main() {
     let mut buffer = SampleBuffer::new(1, 16, SampleFormat::U8, 0).unwrap();

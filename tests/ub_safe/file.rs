@@ -4,7 +4,7 @@
 
 use std::thread;
 
-use ffmpeg::libavutil::file::{FileMap, FileUnmap};
+use ffmpeg_bindings::libavutil::libavutil::file::{FileMap, FileUnmap};
 
 #[test]
 fn empty_map_owns_nothing_and_crosses_threads() {

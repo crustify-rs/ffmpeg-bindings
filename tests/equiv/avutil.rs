@@ -6,9 +6,9 @@
 use core::ffi::{CStr, c_int, c_void};
 use core::mem::size_of;
 
-use ffmpeg::libavutil::avutil::{MediaType, PictureType};
-use ffmpeg::libavutil::ffi;
-use ffmpeg::libavutil::mem::{HeapVec, alloc_array_zeroed};
+use ffmpeg_bindings::libavutil::libavutil::avutil::{MediaType, PictureType};
+use ffmpeg_bindings::libavutil::libavutil::ffi;
+use ffmpeg_bindings::libavutil::libavutil::mem::{HeapVec, alloc_array_zeroed};
 
 /// Every named constant beside its C enumerator and C name.
 const NAMED: [(MediaType, ffi::AVMediaType, Option<&str>); 6] = [
@@ -354,10 +354,10 @@ mod version_and_x_if_null {
     use core::ffi::{CStr, c_void};
     use core::ptr;
 
-    use ffmpeg::libavutil::avutil::{
+    use ffmpeg_bindings::libavutil::libavutil::avutil::{
         configuration, license, version, version_info, x_if_null, x_if_null_mut,
     };
-    use ffmpeg::libavutil::ffi;
+    use ffmpeg_bindings::libavutil::libavutil::ffi;
 
     #[test]
     #[cfg_attr(miri, ignore = "calls C")]
@@ -443,8 +443,8 @@ mod version_and_x_if_null {
 mod fourcc {
     use core::ffi::CStr;
 
-    use ffmpeg::libavutil::avutil::fourcc_string;
-    use ffmpeg::libavutil::ffi;
+    use ffmpeg_bindings::libavutil::libavutil::avutil::fourcc_string;
+    use ffmpeg_bindings::libavutil::libavutil::ffi;
 
     /// `av_fourcc_make_string` into `buf`: the string, which C returns as `buf`.
     fn c_fourcc(buf: &mut [u8; 32], fourcc: u32) -> Vec<u8> {
@@ -504,8 +504,8 @@ mod fourcc {
 /// The names, letters and time base C gives (core wave 1, batch 2): each safe
 /// accessor against the C function, over named and unnamed values.
 mod names {
-    use ffmpeg::libavutil::avutil::{MediaType, PictureType, time_base};
-    use ffmpeg::libavutil::ffi;
+    use ffmpeg_bindings::libavutil::libavutil::avutil::{MediaType, PictureType, time_base};
+    use ffmpeg_bindings::libavutil::libavutil::ffi;
 
     use super::{NAMED, PICTURE_NAMED, UNNAMED, c_letter, c_name, picture_values};
 

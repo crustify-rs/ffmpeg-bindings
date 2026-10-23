@@ -1,4 +1,4 @@
-use ffmpeg::libavutil::{base64, ffi};
+use ffmpeg_bindings::libavutil::libavutil::{base64, ffi};
 
 #[test]
 #[cfg_attr(miri, ignore = "calls C")]
@@ -83,7 +83,7 @@ fn batch10_decode_errors_lengths_and_all_buffer_bytes_match_c() {
 mod beyond_int_max {
     use core::ffi::CStr;
 
-    use ffmpeg::libavutil::{base64, ffi};
+    use ffmpeg_bindings::libavutil::libavutil::{base64, ffi};
 
     const LEN: usize = i32::MAX as usize + 1;
 

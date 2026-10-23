@@ -1,5 +1,5 @@
 // The delimiter set must outlive the iterator that keeps reading it.
-use ffmpeg::libavutil::avstring::tokens;
+use ffmpeg_bindings::libavutil::libavutil::avstring::tokens;
 use std::ffi::CString;
 
 fn main() {

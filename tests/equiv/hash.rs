@@ -2,7 +2,7 @@
 
 use core::ffi::CStr;
 use core::ptr;
-use ffmpeg::libavutil::{ffi, hash::HashContext};
+use ffmpeg_bindings::libavutil::libavutil::{ffi, hash::HashContext};
 
 struct Reference(*mut ffi::AVHashContext);
 impl Reference {
@@ -88,7 +88,7 @@ fn failed_allocations_match_and_clear_the_output() {
     }
 }
 
-use ffmpeg::libavutil::hash;
+use ffmpeg_bindings::libavutil::libavutil::hash;
 
 #[test]
 #[cfg_attr(miri, ignore = "calls C")]
@@ -139,7 +139,7 @@ fn allocation_failures_match_c() {
     // partial-failure path: the child allocation fails and C frees the parent.
     let mut child_failures = 0;
     for limit in [0, 1, 8, 16, 24, 32, 48, 64, 96, 128, 192, 256, 512, 4096] {
-        ffmpeg::libavutil::mem::set_max_alloc(limit);
+        ffmpeg_bindings::libavutil::libavutil::mem::set_max_alloc(limit);
         let mut failures = 0;
         let mut parent_fits = false;
         for name in names {
@@ -164,7 +164,7 @@ fn allocation_failures_match_c() {
             child_failures += failures;
         }
     }
-    ffmpeg::libavutil::mem::set_max_alloc(i32::MAX as usize);
+    ffmpeg_bindings::libavutil::libavutil::mem::set_max_alloc(i32::MAX as usize);
     assert!(
         child_failures > 0,
         "no limit separated parent and child sizes"
@@ -239,7 +239,7 @@ fn all_algorithms_output_formats_and_capacities() {
 /// `equiv/hash-and-hmac-reject-outputs-beyond-c-ranges`).
 mod beyond_int_max {
     use super::Reference;
-    use ffmpeg::libavutil::{ffi, hash::HashContext};
+    use ffmpeg_bindings::libavutil::libavutil::{ffi, hash::HashContext};
 
     const LEN: usize = i32::MAX as usize + 1;
     const HEAD: usize = 160;

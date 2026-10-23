@@ -1,5 +1,5 @@
 // A shared component run hands out shared handles only.
-use ffmpeg::libavutil::pixdesc::PixelFormatDescriptor;
+use ffmpeg_bindings::libavutil::libavutil::pixdesc::PixelFormatDescriptor;
 
 fn main() {
     let d = PixelFormatDescriptor::new();

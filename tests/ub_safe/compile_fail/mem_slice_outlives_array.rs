@@ -1,5 +1,5 @@
 // A slice borrowed from a `HeapVec` cannot outlive the array that frees it.
-use ffmpeg::libavutil::mem::alloc_array_zeroed;
+use ffmpeg_bindings::libavutil::libavutil::mem::alloc_array_zeroed;
 
 fn main() {
     let s = {

@@ -1,4 +1,4 @@
-use ffmpeg::libavutil::hwcontext::FramesReferenceBox;
+use ffmpeg_bindings::libavutil::libavutil::hwcontext::FramesReferenceBox;
 
 fn view(frames: FramesReferenceBox) {
     let ctx = frames.as_ref().context();

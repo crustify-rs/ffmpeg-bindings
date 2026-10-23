@@ -5,8 +5,8 @@ use core::ffi::{CStr, c_int};
 use std::ffi::CString;
 use std::path::PathBuf;
 
-use ffmpeg::libavutil::ffi;
-use ffmpeg::libavutil::file::{FileMap, map};
+use ffmpeg_bindings::libavutil::libavutil::ffi;
+use ffmpeg_bindings::libavutil::libavutil::file::{FileMap, map};
 
 /// A file under the temporary directory, removed on drop.
 struct TempFile(PathBuf, CString);

@@ -1,6 +1,6 @@
 // `plane_mut` borrows the whole view: two planes are written at once only
 // through `planes_mut`, whose planes are disjoint.
-use ffmpeg::libavutil::samplefmt::{SampleBuffer, SampleFormat};
+use ffmpeg_bindings::libavutil::libavutil::samplefmt::{SampleBuffer, SampleFormat};
 
 fn main() {
     let mut buffer = SampleBuffer::new(2, 16, SampleFormat::U8P, 0).unwrap();

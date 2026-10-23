@@ -90,7 +90,7 @@ use super::samplefmt::{self, SampleFormat};
 /// the values C does not name:
 ///
 /// ```
-/// use ffmpeg::libavutil::frame::SideDataType;
+/// use ffmpeg_bindings::libavutil::libavutil::frame::SideDataType;
 /// fn is_hdr_metadata(t: SideDataType) -> bool {
 ///     matches!(
 ///         t,
@@ -327,7 +327,7 @@ unsafe impl CPlainElem for SideDataType {}
 /// arm for the values C does not name:
 ///
 /// ```
-/// use ffmpeg::libavutil::frame::ActiveFormatDescription as Afd;
+/// use ffmpeg_bindings::libavutil::libavutil::frame::ActiveFormatDescription as Afd;
 /// fn is_pillarboxed_4_3(afd: Afd) -> bool {
 ///     matches!(afd, Afd::ASPECT_4_3 | Afd::ASPECT_4_3_SP_14_9)
 /// }
@@ -915,13 +915,13 @@ impl SideDataType {
     /// edit is a copy, [`get`](SideDataDescriptorRef::get):
     ///
     /// ```compile_fail,E0599
-    /// use ffmpeg::libavutil::frame::SideDataType;
+    /// use ffmpeg_bindings::libavutil::libavutil::frame::SideDataType;
     /// let mut desc = SideDataType::STEREO_3D.descriptor().unwrap();
     /// desc.set_name(None);
     /// ```
     ///
     /// ```
-    /// use ffmpeg::libavutil::frame::{SideDataProps, SideDataType};
+    /// use ffmpeg_bindings::libavutil::libavutil::frame::{SideDataProps, SideDataType};
     /// let desc = SideDataType::DISPLAY_MATRIX.descriptor().unwrap();
     /// assert_eq!(desc.name(), Some(c"3x3 displaymatrix"));
     /// assert!(desc.props().contains(SideDataProps::GLOBAL));
@@ -947,7 +947,7 @@ impl SideDataType {
     /// table has no named entry for it.
     ///
     /// ```
-    /// use ffmpeg::libavutil::frame::SideDataType;
+    /// use ffmpeg_bindings::libavutil::libavutil::frame::SideDataType;
     /// assert_eq!(SideDataType::STEREO_3D.name(), Some(c"Stereo 3D"));
     /// ```
     #[must_use]
@@ -998,7 +998,7 @@ define_ctype!(
     /// The offset's exclusive handle freezes the region's while it lives:
     ///
     /// ```compile_fail,E0499
-    /// use ffmpeg::libavutil::frame::RegionOfInterest;
+    /// use ffmpeg_bindings::libavutil::libavutil::frame::RegionOfInterest;
     /// let mut roi = RegionOfInterest::default();
     /// let mut region = roi.as_mut();
     /// let mut offset = region.qoffset_mut();
@@ -1332,7 +1332,7 @@ define_ctype!(
     /// outlive its array:
     ///
     /// ```compile_fail,E0505
-    /// use ffmpeg::libavutil::frame::SideDataArray;
+    /// use ffmpeg_bindings::libavutil::libavutil::frame::SideDataArray;
     /// let array = SideDataArray::new();
     /// let bytes = array.as_ref().get(0).unwrap().data();
     /// drop(array);
@@ -1342,8 +1342,8 @@ define_ctype!(
     /// nor survive a change of the buffer that holds them:
     ///
     /// ```compile_fail,E0502
-    /// use ffmpeg::libavutil::buffer::BufferReference;
-    /// use ffmpeg::libavutil::frame::SideDataArray;
+    /// use ffmpeg_bindings::libavutil::libavutil::buffer::BufferReference;
+    /// use ffmpeg_bindings::libavutil::libavutil::frame::SideDataArray;
     /// let mut array = SideDataArray::new();
     /// let mut entries = array.as_mut();
     /// let mut entry = entries.get_mut(0).unwrap();
@@ -1861,7 +1861,7 @@ impl<'a> IntoIterator for SideDataArrayRef<'a> {
 /// Entries it lends exclude one another, as `&mut` elements of a slice do:
 ///
 /// ```compile_fail,E0499
-/// use ffmpeg::libavutil::frame::SideDataArray;
+/// use ffmpeg_bindings::libavutil::libavutil::frame::SideDataArray;
 /// let mut array = SideDataArray::new();
 /// let mut entries = array.as_mut();
 /// let first = entries.get_mut(0).unwrap();
@@ -1872,7 +1872,7 @@ impl<'a> IntoIterator for SideDataArrayRef<'a> {
 /// and none outlives the array's exclusive borrow:
 ///
 /// ```compile_fail,E0505
-/// use ffmpeg::libavutil::frame::SideDataArray;
+/// use ffmpeg_bindings::libavutil::libavutil::frame::SideDataArray;
 /// let mut array = SideDataArray::new();
 /// let entry = array.as_mut().into_iter().next().unwrap();
 /// drop(array);
@@ -2011,8 +2011,8 @@ impl SideDataArrayMut<'_> {
     /// the new entry is the array's last, with no metadata.
     ///
     /// ```
-    /// use ffmpeg::libavutil::buffer::BufferReference;
-    /// use ffmpeg::libavutil::frame::{SideDataArray, SideDataFlags, SideDataType};
+    /// use ffmpeg_bindings::libavutil::libavutil::buffer::BufferReference;
+    /// use ffmpeg_bindings::libavutil::libavutil::frame::{SideDataArray, SideDataFlags, SideDataType};
     /// let mut array = SideDataArray::new();
     /// let mut entries = array.as_mut();
     /// let afd = BufferReference::alloc(1).unwrap().fill(8);
@@ -2330,8 +2330,8 @@ impl SideDataArrayMut<'_> {
     /// last entry.
     ///
     /// ```
-    /// use ffmpeg::libavutil::buffer::BufferReference;
-    /// use ffmpeg::libavutil::frame::{SideDataArray, SideDataFlags, SideDataType};
+    /// use ffmpeg_bindings::libavutil::libavutil::buffer::BufferReference;
+    /// use ffmpeg_bindings::libavutil::libavutil::frame::{SideDataArray, SideDataFlags, SideDataType};
     /// let mut src = SideDataArray::new();
     /// let afd = BufferReference::alloc(1).unwrap().fill(8);
     /// src.add(SideDataType::AFD, afd, SideDataFlags::NONE).unwrap();
@@ -2389,7 +2389,7 @@ impl SideDataArrayMut<'_> {
     /// entry of `kind` first, even then.
     ///
     /// ```
-    /// use ffmpeg::libavutil::frame::{SideDataArray, SideDataFlags, SideDataType};
+    /// use ffmpeg_bindings::libavutil::libavutil::frame::{SideDataArray, SideDataFlags, SideDataType};
     /// let mut array = SideDataArray::new();
     /// let mut entry = array.alloc_zeroed(SideDataType::AFD, 1, SideDataFlags::NONE).unwrap();
     /// entry.data_mut().unwrap()[0] = 10;
@@ -2824,8 +2824,8 @@ define_ctype!(
     /// A plane is borrowed from its frame:
     ///
     /// ```compile_fail,E0505
-    /// use ffmpeg::libavutil::buffer::BufferReference;
-    /// use ffmpeg::libavutil::frame::Frame;
+    /// use ffmpeg_bindings::libavutil::libavutil::buffer::BufferReference;
+    /// use ffmpeg_bindings::libavutil::libavutil::frame::Frame;
     /// let mut frame = Frame::new().unwrap();
     /// frame.as_mut().set_buffer(0, Some(BufferReference::alloc_zeroed(8).unwrap()));
     /// frame.as_mut().set_plane(0, 0, 0).unwrap();
@@ -2837,8 +2837,8 @@ define_ctype!(
     /// and frozen while a buffer change could take its bytes away:
     ///
     /// ```compile_fail,E0502
-    /// use ffmpeg::libavutil::buffer::BufferReference;
-    /// use ffmpeg::libavutil::frame::Frame;
+    /// use ffmpeg_bindings::libavutil::libavutil::buffer::BufferReference;
+    /// use ffmpeg_bindings::libavutil::libavutil::frame::Frame;
     /// let mut frame = Frame::new().unwrap();
     /// frame.as_mut().set_buffer(0, Some(BufferReference::alloc_zeroed(8).unwrap()));
     /// frame.as_mut().set_plane(0, 0, 0).unwrap();
@@ -2917,7 +2917,7 @@ unsafe fn frame_free(frame: *mut ffi::AVFrame) {
 /// copy is [`FrameRef::try_clone`].
 ///
 /// ```compile_fail,E0599
-/// use ffmpeg::libavutil::frame::Frame;
+/// use ffmpeg_bindings::libavutil::libavutil::frame::Frame;
 /// let frame = Frame::new().unwrap();
 /// let _ = frame.clone();
 /// ```
@@ -2948,7 +2948,7 @@ unsafe impl CNew<Frame> for FrameFree {
 /// Never allocated bare:
 ///
 /// ```compile_fail,E0599
-/// use ffmpeg::libavutil::frame::FrameBox;
+/// use ffmpeg_bindings::libavutil::libavutil::frame::FrameBox;
 /// let _ = FrameBox::new_zeroed();
 /// ```
 pub type FrameBox = CBox<Frame, FrameFree>;
@@ -5462,8 +5462,8 @@ impl FrameMut<'_> {
     /// refuses.
     ///
     /// ```
-    /// use ffmpeg::libavutil::buffer::BufferReference;
-    /// use ffmpeg::libavutil::frame::Frame;
+    /// use ffmpeg_bindings::libavutil::libavutil::buffer::BufferReference;
+    /// use ffmpeg_bindings::libavutil::libavutil::frame::Frame;
     /// let mut src = Frame::new().unwrap();
     /// src.as_mut().set_buffer(0, Some(BufferReference::alloc_zeroed(8).unwrap()));
     /// src.as_mut().set_pts(7);
@@ -5582,7 +5582,7 @@ impl FrameMut<'_> {
     /// when C cannot allocate the new one.
     ///
     /// ```
-    /// use ffmpeg::libavutil::frame::Frame;
+    /// use ffmpeg_bindings::libavutil::libavutil::frame::Frame;
     /// let mut frame = Frame::new().unwrap();
     /// frame.as_mut().set_pts(3);
     /// let moved = frame.as_mut().take().unwrap();
@@ -5696,8 +5696,8 @@ impl FrameMut<'_> {
     /// Planes and buffers the frame held are released first.
     ///
     /// ```
-    /// use ffmpeg::libavutil::frame::Frame;
-    /// use ffmpeg::libavutil::pixfmt::PixelFormat;
+    /// use ffmpeg_bindings::libavutil::libavutil::frame::Frame;
+    /// use ffmpeg_bindings::libavutil::libavutil::pixfmt::PixelFormat;
     /// let mut frame = Frame::new().unwrap();
     /// let mut m = frame.as_mut();
     /// m.set_pixel_format(PixelFormat::GRAY8);
@@ -5768,8 +5768,8 @@ impl FrameMut<'_> {
     /// `av_frame_copy`, `av_frame_copy_props`) without either.
     ///
     /// ```
-    /// use ffmpeg::libavutil::frame::Frame;
-    /// use ffmpeg::libavutil::pixfmt::PixelFormat;
+    /// use ffmpeg_bindings::libavutil::libavutil::frame::Frame;
+    /// use ffmpeg_bindings::libavutil::libavutil::pixfmt::PixelFormat;
     /// let mut frame = Frame::new().unwrap();
     /// let mut m = frame.as_mut();
     /// m.set_pixel_format(PixelFormat::GRAY8);
@@ -5840,8 +5840,8 @@ impl FrameMut<'_> {
     /// and `crop_top` and `crop_left` stay as they were. No byte is copied.
     ///
     /// ```
-    /// use ffmpeg::libavutil::frame::{CropFlags, Frame};
-    /// use ffmpeg::libavutil::pixfmt::PixelFormat;
+    /// use ffmpeg_bindings::libavutil::libavutil::frame::{CropFlags, Frame};
+    /// use ffmpeg_bindings::libavutil::libavutil::pixfmt::PixelFormat;
     /// let mut frame = Frame::new().unwrap();
     /// let mut m = frame.as_mut();
     /// m.set_pixel_format(PixelFormat::GRAY8);
@@ -5909,7 +5909,7 @@ impl FrameMut<'_> {
     /// `None` when C cannot allocate.
     ///
     /// ```
-    /// use ffmpeg::libavutil::frame::{Frame, SideDataType};
+    /// use ffmpeg_bindings::libavutil::libavutil::frame::{Frame, SideDataType};
     /// let mut frame = Frame::new().unwrap();
     /// let mut m = frame.as_mut();
     /// m.alloc_side_data_zeroed(SideDataType::AFD, 1).unwrap().data_mut().unwrap()[0] = 8;
@@ -6028,8 +6028,8 @@ mod unit_tests {
     use core::ptr;
     use std::collections::hash_map::RandomState;
 
-    use crate::libavutil::mem::HeapVec;
-    use crate::libavutil::opt::AVERROR_BUG;
+    use crate::libavutil::libavutil::mem::HeapVec;
+    use crate::libavutil::libavutil::opt::AVERROR_BUG;
 
     const NAMED: [(SideDataType, &str); 38] = [
         (SideDataType::PAN_SCAN, "PAN_SCAN"),
@@ -6623,7 +6623,7 @@ mod unit_tests {
     fn side_data_array(payloads: &[&[u8]]) -> SideDataArray {
         let mut a = SideDataArray::new();
         for p in payloads {
-            let buf = crate::libavutil::buffer::BufferReference::alloc(p.len())
+            let buf = crate::libavutil::libavutil::buffer::BufferReference::alloc(p.len())
                 .unwrap()
                 .copy_from_slice(p);
             let added = a.add(SideDataType::SEI_UNREGISTERED, buf, SideDataFlags::NONE);
@@ -6685,7 +6685,7 @@ mod unit_tests {
     #[cfg_attr(miri, ignore = "calls C")]
     fn side_data_takes_the_window_of_its_new_reference() {
         let mut a = side_data_array(&[b"old"]);
-        let mut buf = crate::libavutil::buffer::BufferReference::alloc(8)
+        let mut buf = crate::libavutil::libavutil::buffer::BufferReference::alloc(8)
             .unwrap()
             .copy_from_slice(b"01234567");
         buf.as_mut().advance(2);
@@ -6878,8 +6878,8 @@ mod unit_tests {
     #[test]
     #[cfg_attr(miri, ignore = "calls C")]
     fn side_data_clones_stop_at_the_reference_limit() {
-        use crate::libavutil::buffer::MAX_REFERENCES;
-        use crate::libavutil::buffer::unit_tests::{counts, set_count};
+        use crate::libavutil::libavutil::buffer::MAX_REFERENCES;
+        use crate::libavutil::libavutil::buffer::unit_tests::{counts, set_count};
         let src = side_data_array(&[b"abc"]);
         let held = src.as_ref().get(0).unwrap().buffer().try_clone().unwrap();
         let mut dst = SideDataArray::new();

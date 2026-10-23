@@ -49,7 +49,7 @@ unsafe impl CDrop<HashContext> for HashContextFree {
 ///
 /// A handle cannot outlive its owner:
 /// ```compile_fail
-/// use ffmpeg::libavutil::hash::HashContext;
+/// use ffmpeg_bindings::libavutil::libavutil::hash::HashContext;
 /// let view = {
 ///     let hash = HashContext::new(c"MD5").unwrap();
 ///     hash.as_ref()
@@ -58,7 +58,7 @@ unsafe impl CDrop<HashContext> for HashContextFree {
 /// ```
 /// Shared and exclusive handles cannot alias:
 /// ```compile_fail
-/// use ffmpeg::libavutil::hash::HashContext;
+/// use ffmpeg_bindings::libavutil::libavutil::hash::HashContext;
 /// let mut hash = HashContext::new(c"MD5").unwrap();
 /// let shared = hash.as_ref();
 /// hash.as_mut().init();
@@ -66,7 +66,7 @@ unsafe impl CDrop<HashContext> for HashContextFree {
 /// ```
 /// An exclusive reborrow freezes its parent handle:
 /// ```compile_fail
-/// use ffmpeg::libavutil::hash::HashContext;
+/// use ffmpeg_bindings::libavutil::libavutil::hash::HashContext;
 /// let mut hash = HashContext::new(c"MD5").unwrap();
 /// let mut parent = hash.as_mut();
 /// let mut child = parent.as_mut();

@@ -1,6 +1,6 @@
 // A dictionary box hands out its exclusive handle only while no shared one
 // lives.
-use ffmpeg::libavutil::dict::Dict;
+use ffmpeg_bindings::libavutil::libavutil::dict::Dict;
 
 fn main() {
     let mut b = Dict::from_entries([(c"k", c"v")]).unwrap().take().unwrap();

@@ -1,7 +1,7 @@
 // A coordinate handle cannot outlive the `av_malloc` block its `HeapBox`
 // frees.
-use ffmpeg::libavutil::csp::CieXy;
-use ffmpeg::libavutil::mem::HeapBox;
+use ffmpeg_bindings::libavutil::libavutil::csp::CieXy;
+use ffmpeg_bindings::libavutil::libavutil::mem::HeapBox;
 
 fn main() {
     let boxed = HeapBox::<CieXy>::new_zeroed().unwrap();

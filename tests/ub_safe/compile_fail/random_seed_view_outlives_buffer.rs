@@ -1,7 +1,7 @@
 // The initialised view of a filled buffer cannot outlive the buffer.
 use core::mem::MaybeUninit;
 
-use ffmpeg::libavutil::random_seed::random_bytes_uninit;
+use ffmpeg_bindings::libavutil::libavutil::random_seed::random_bytes_uninit;
 
 fn main() {
     let bytes = {

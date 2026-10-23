@@ -1,4 +1,4 @@
-use ffmpeg::libavutil::aes::{Aes, AesRef, Direction, InitError};
+use ffmpeg_bindings::libavutil::libavutil::aes::{Aes, AesRef, Direction, InitError};
 
 fn shared_views(view: AesRef<'_>) {
     let _copy = view;
@@ -61,7 +61,7 @@ fn parallel_constructors() {
                     .as_mut()
                     .init(&[seed; 32], Direction::Decrypt)
                     .unwrap();
-                let mut ctr = ffmpeg::libavutil::aes_ctr::AesCtr::new(&[seed; 16]).unwrap();
+                let mut ctr = ffmpeg_bindings::libavutil::libavutil::aes_ctr::AesCtr::new(&[seed; 16]).unwrap();
                 ctr.as_mut().init(&[seed + 1; 16]).unwrap();
             })
         })
@@ -71,7 +71,7 @@ fn parallel_constructors() {
     }
 }
 
-use ffmpeg::libavutil::aes::context_size;
+use ffmpeg_bindings::libavutil::libavutil::aes::context_size;
 
 #[test]
 #[cfg_attr(miri, ignore = "reads a C global")]

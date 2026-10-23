@@ -6,9 +6,9 @@
 use core::ffi::{CStr, c_int, c_void};
 use core::mem::size_of;
 
-use ffmpeg::libavutil::ffi;
-use ffmpeg::libavutil::mem::{HeapVec, alloc_array_zeroed};
-use ffmpeg::libavutil::samplefmt::SampleFormat;
+use ffmpeg_bindings::libavutil::libavutil::ffi;
+use ffmpeg_bindings::libavutil::libavutil::mem::{HeapVec, alloc_array_zeroed};
+use ffmpeg_bindings::libavutil::libavutil::samplefmt::SampleFormat;
 
 /// Every named constant beside its C enumerator and C name.
 const NAMED: [(SampleFormat, ffi::AVSampleFormat, Option<&CStr>); 13] = [
@@ -369,8 +369,8 @@ mod buffers {
     use core::ffi::{c_int, c_void};
     use core::ptr;
 
-    use ffmpeg::libavutil::ffi;
-    use ffmpeg::libavutil::samplefmt::{
+    use ffmpeg_bindings::libavutil::libavutil::ffi;
+    use ffmpeg_bindings::libavutil::libavutil::samplefmt::{
         BufferSize, SampleBuffer, SampleBufferWithPointers, SampleFormat, SamplesError, SamplesMut,
         SamplesRef, samples_buffer_size,
     };
@@ -967,8 +967,8 @@ mod buffers {
 mod sample_format_forms {
     use core::ffi::c_int;
 
-    use ffmpeg::libavutil::ffi;
-    use ffmpeg::libavutil::samplefmt::SampleFormat;
+    use ffmpeg_bindings::libavutil::libavutil::ffi;
+    use ffmpeg_bindings::libavutil::libavutil::samplefmt::SampleFormat;
 
     fn raws() -> impl Iterator<Item = c_int> {
         (-3..16).chain([i32::MIN, i32::MIN + 1, i32::MAX])
@@ -1046,8 +1046,8 @@ mod sample_format_forms {
 mod lookups {
     use core::ffi::{CStr, c_int};
 
-    use ffmpeg::libavutil::ffi;
-    use ffmpeg::libavutil::samplefmt::SampleFormat;
+    use ffmpeg_bindings::libavutil::libavutil::ffi;
+    use ffmpeg_bindings::libavutil::libavutil::samplefmt::SampleFormat;
 
     /// Every value worth asking about: the named ones and their neighbours.
     fn values() -> impl Iterator<Item = c_int> {

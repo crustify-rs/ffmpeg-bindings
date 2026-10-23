@@ -1,6 +1,6 @@
 // Two exclusive handles to one chromaticity cannot be made by copying one.
-use ffmpeg::libavutil::csp::CieXy;
-use ffmpeg::libavutil::rational::Rational;
+use ffmpeg_bindings::libavutil::libavutil::csp::CieXy;
+use ffmpeg_bindings::libavutil::libavutil::rational::Rational;
 
 fn main() {
     let mut v = CieXy::default();

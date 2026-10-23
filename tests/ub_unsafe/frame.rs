@@ -14,8 +14,8 @@ mod side_data_descriptor_from_raw {
     use std::sync::Mutex;
     use std::thread;
 
-    use ffmpeg::libavutil::ffi;
-    use ffmpeg::libavutil::frame::{SideDataDescriptor, SideDataProps};
+    use ffmpeg_bindings::libavutil::libavutil::ffi;
+    use ffmpeg_bindings::libavutil::libavutil::frame::{SideDataDescriptor, SideDataProps};
 
     /// `bytes` as an exactly sized heap C string that lives for the rest of
     /// the program, kept reachable from a static so that neither
@@ -188,8 +188,8 @@ mod side_data_array_from_raw_parts {
     use core::ptr;
     use std::thread;
 
-    use ffmpeg::libavutil::ffi;
-    use ffmpeg::libavutil::frame::{SideDataArray, SideDataFlags, SideDataProps, SideDataType};
+    use ffmpeg_bindings::libavutil::libavutil::ffi;
+    use ffmpeg_bindings::libavutil::libavutil::frame::{SideDataArray, SideDataFlags, SideDataProps, SideDataType};
 
     type Parts = (*mut *mut ffi::AVFrameSideData, c_int);
 
@@ -384,7 +384,7 @@ mod side_data_array_from_raw_parts {
         unsafe { ffi::av_buffer_unref(&mut buf) };
         entry.data_mut().unwrap()[0] = 1;
         assert_eq!(a.as_ref().get(0).unwrap().data()[..2], [1, 0x42]);
-        let fresh = ffmpeg::libavutil::buffer::BufferReference::alloc_zeroed(1).unwrap();
+        let fresh = ffmpeg_bindings::libavutil::libavutil::buffer::BufferReference::alloc_zeroed(1).unwrap();
         assert!(
             a.as_mut()
                 .add(SideDataType::AFD, fresh, SideDataFlags::NONE)
@@ -428,11 +428,11 @@ mod side_data_array_from_raw_parts {
 mod frame_type {
     use core::ptr;
 
-    use ffmpeg::libavutil::buffer::BufferReference;
-    use ffmpeg::libavutil::channel_layout::ChannelLayout;
-    use ffmpeg::libavutil::frame::{Frame, FrameBox, NUM_DATA_POINTERS};
-    use ffmpeg::libavutil::pixfmt::PixelFormat;
-    use ffmpeg::libavutil::samplefmt::SampleFormat;
+    use ffmpeg_bindings::libavutil::libavutil::buffer::BufferReference;
+    use ffmpeg_bindings::libavutil::libavutil::channel_layout::ChannelLayout;
+    use ffmpeg_bindings::libavutil::libavutil::frame::{Frame, FrameBox, NUM_DATA_POINTERS};
+    use ffmpeg_bindings::libavutil::libavutil::pixfmt::PixelFormat;
+    use ffmpeg_bindings::libavutil::libavutil::samplefmt::SampleFormat;
 
     /// `len` bytes, each its index times 5, plus 2.
     fn pattern(len: usize) -> Vec<u8> {

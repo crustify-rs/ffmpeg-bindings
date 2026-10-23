@@ -1,5 +1,5 @@
 // A white point reached through the shared handle is read-only.
-use ffmpeg::libavutil::csp::ColorPrimariesDescriptor;
+use ffmpeg_bindings::libavutil::libavutil::csp::ColorPrimariesDescriptor;
 
 fn main() {
     let d = ColorPrimariesDescriptor::default();

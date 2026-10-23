@@ -1,4 +1,4 @@
-use ffmpeg::libavutil::buffer::BufferReference;
+use ffmpeg_bindings::libavutil::libavutil::buffer::BufferReference;
 fn main() {
     let mut buf = BufferReference::alloc_zeroed(8).unwrap();
     let mut handle = buf.as_mut();

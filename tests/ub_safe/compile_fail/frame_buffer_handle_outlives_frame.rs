@@ -1,6 +1,6 @@
 // A frame's buffer reference is borrowed from it, so it cannot outlive it.
-use ffmpeg::libavutil::buffer::BufferReference;
-use ffmpeg::libavutil::frame::Frame;
+use ffmpeg_bindings::libavutil::libavutil::buffer::BufferReference;
+use ffmpeg_bindings::libavutil::libavutil::frame::Frame;
 
 fn main() {
     let mut frame = Frame::new().unwrap();

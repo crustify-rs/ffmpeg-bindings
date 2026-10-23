@@ -1,4 +1,4 @@
-use ffmpeg::libavutil::{
+use ffmpeg_bindings::libavutil::libavutil::{
     camellia::{self, Camellia, CamelliaBox},
     ffi,
 };
@@ -94,7 +94,7 @@ fn batch10_size_is_the_c_global() {
 
 static TEST_LOCK: std::sync::Mutex<()> = std::sync::Mutex::new(());
 
-use ffmpeg::libavutil::aes::Direction;
+use ffmpeg_bindings::libavutil::libavutil::aes::Direction;
 
 #[test]
 #[cfg_attr(miri, ignore = "calls C")]

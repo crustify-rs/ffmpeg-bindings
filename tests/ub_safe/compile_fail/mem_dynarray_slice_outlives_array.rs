@@ -1,5 +1,5 @@
 // A slice of a `DynArray` cannot outlive the array, which frees its block.
-use ffmpeg::libavutil::mem::DynArray;
+use ffmpeg_bindings::libavutil::libavutil::mem::DynArray;
 
 fn main() {
     let s = {

@@ -1,7 +1,7 @@
 // The rest `strip_prefix` returns cannot outlive the string it borrows.
 use std::ffi::{CStr, CString};
 
-use ffmpeg::libavutil::avstring::strip_prefix;
+use ffmpeg_bindings::libavutil::libavutil::avstring::strip_prefix;
 
 fn main() {
     let rest: &CStr;

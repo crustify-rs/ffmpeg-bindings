@@ -1,5 +1,5 @@
 //! Compare independent C contexts, seeds, chunking, reset and finalization.
-use ffmpeg::libavutil::{ffi, murmur3::Murmur3};
+use ffmpeg_bindings::libavutil::libavutil::{ffi, murmur3::Murmur3};
 
 #[test]
 #[cfg_attr(miri, ignore = "calls C")]

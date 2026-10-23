@@ -3,7 +3,7 @@
 /// `OptionType`: an open value type, whose every operation is defined for
 /// every `c_uint`, crossing threads by value.
 mod option_type {
-    use ffmpeg::libavutil::opt::OptionType;
+    use ffmpeg_bindings::libavutil::libavutil::opt::OptionType;
 
     /// Values around each named constant, the flag bit and the extremes.
     fn values() -> impl Iterator<Item = u32> {
@@ -30,7 +30,7 @@ mod option_type {
             if let Some(name) = name {
                 assert_eq!(debug, format!("OptionType::{name}"));
             }
-            let raw: ffmpeg::libavutil::ffi::AVOptionType = ty.into();
+            let raw: ffmpeg_bindings::libavutil::libavutil::ffi::AVOptionType = ty.into();
             assert_eq!(OptionType::from(raw), ty);
         }
     }
@@ -95,7 +95,7 @@ mod array_def {
     use std::ffi::CStr;
     use std::num::NonZeroU32;
 
-    use ffmpeg::libavutil::opt::{InvalidSeparator, OptionArrayDef, OptionArrayDefRef};
+    use ffmpeg_bindings::libavutil::libavutil::opt::{InvalidSeparator, OptionArrayDef, OptionArrayDefRef};
 
     #[test]
     fn edits_through_every_handle() {
@@ -195,8 +195,8 @@ mod objects {
     use core::ffi::CStr;
     use std::ffi::CString;
 
-    use ffmpeg::libavutil::log::{Class, ClassCategory};
-    use ffmpeg::libavutil::opt::{BareObject, SearchFlags, SerializeFlags, parse_key_value};
+    use ffmpeg_bindings::libavutil::libavutil::log::{Class, ClassCategory};
+    use ffmpeg_bindings::libavutil::libavutil::opt::{BareObject, SearchFlags, SerializeFlags, parse_key_value};
 
     static CLASS: Class = Class::new(c"crustify-opt-ub", ClassCategory::NA);
 
@@ -342,14 +342,14 @@ mod objects {
 mod getters {
     use std::thread;
 
-    use ffmpeg::libavutil::channel_layout::ChannelLayoutVal;
-    use ffmpeg::libavutil::dict::Dict;
-    use ffmpeg::libavutil::log::{Class, ClassCategory};
-    use ffmpeg::libavutil::mem::HeapString;
-    use ffmpeg::libavutil::opt::{BareObject, ObjectRef, PotentialChildren, SearchFlags};
-    use ffmpeg::libavutil::pixfmt::PixelFormat;
-    use ffmpeg::libavutil::rational::Rational;
-    use ffmpeg::libavutil::samplefmt::SampleFormat;
+    use ffmpeg_bindings::libavutil::libavutil::channel_layout::ChannelLayoutVal;
+    use ffmpeg_bindings::libavutil::libavutil::dict::Dict;
+    use ffmpeg_bindings::libavutil::libavutil::log::{Class, ClassCategory};
+    use ffmpeg_bindings::libavutil::libavutil::mem::HeapString;
+    use ffmpeg_bindings::libavutil::libavutil::opt::{BareObject, ObjectRef, PotentialChildren, SearchFlags};
+    use ffmpeg_bindings::libavutil::libavutil::pixfmt::PixelFormat;
+    use ffmpeg_bindings::libavutil::libavutil::rational::Rational;
+    use ffmpeg_bindings::libavutil::libavutil::samplefmt::SampleFormat;
 
     static CLASS: Class = Class::new(c"crustify-opt-getters-ub", ClassCategory::NA);
 
@@ -454,13 +454,13 @@ mod getters {
 /// type, refused values included, borrowed only for the call, and the
 /// dictionary handed back whole, in order, duplicates included.
 mod typed_setters {
-    use ffmpeg::libavutil::channel_layout::ChannelLayout;
-    use ffmpeg::libavutil::dict::Dict;
-    use ffmpeg::libavutil::log::{Class, ClassCategory};
-    use ffmpeg::libavutil::opt::{BareObject, SearchFlags};
-    use ffmpeg::libavutil::pixfmt::PixelFormat;
-    use ffmpeg::libavutil::rational::Rational;
-    use ffmpeg::libavutil::samplefmt::SampleFormat;
+    use ffmpeg_bindings::libavutil::libavutil::channel_layout::ChannelLayout;
+    use ffmpeg_bindings::libavutil::libavutil::dict::Dict;
+    use ffmpeg_bindings::libavutil::libavutil::log::{Class, ClassCategory};
+    use ffmpeg_bindings::libavutil::libavutil::opt::{BareObject, SearchFlags};
+    use ffmpeg_bindings::libavutil::libavutil::pixfmt::PixelFormat;
+    use ffmpeg_bindings::libavutil::libavutil::rational::Rational;
+    use ffmpeg_bindings::libavutil::libavutil::samplefmt::SampleFormat;
 
     static CLASS: Class = Class::new(c"crustify-opt-typed-ub", ClassCategory::NA);
 
@@ -600,15 +600,15 @@ mod typed_setters {
 /// and evaluators run inside the callback, which their own failures
 /// re-enter, and the flags agree with `cpu::parse_cpu_caps`.
 ///
-/// [`BareObject`]: ffmpeg::libavutil::opt::BareObject
-/// [`Class::new`]: ffmpeg::libavutil::log::Class::new
+/// [`BareObject`]: ffmpeg_bindings::libavutil::libavutil::opt::BareObject
+/// [`Class::new`]: ffmpeg_bindings::libavutil::libavutil::log::Class::new
 mod lookups {
     use core::ffi::CStr;
     use std::cell::{Cell, RefCell};
 
-    use ffmpeg::libavutil::cpu;
-    use ffmpeg::libavutil::log::{self, Callback, Class, ClassCategory, ClassRef, Record};
-    use ffmpeg::libavutil::opt::{BareObject, EvalContext, RangeFlags, SearchFlags};
+    use ffmpeg_bindings::libavutil::libavutil::cpu;
+    use ffmpeg_bindings::libavutil::libavutil::log::{self, Callback, Class, ClassCategory, ClassRef, Record};
+    use ffmpeg_bindings::libavutil::libavutil::opt::{BareObject, EvalContext, RangeFlags, SearchFlags};
 
     use crate::log::{LogState, isolated};
 
@@ -784,9 +784,9 @@ mod flag_token_split {
     use std::cell::{Cell, RefCell};
     use std::ffi::CString;
 
-    use ffmpeg::libavutil::cpu;
-    use ffmpeg::libavutil::log::{self, Callback, ClassRef, Record};
-    use ffmpeg::libavutil::opt::SearchFlags;
+    use ffmpeg_bindings::libavutil::libavutil::cpu;
+    use ffmpeg_bindings::libavutil::libavutil::log::{self, Callback, ClassRef, Record};
+    use ffmpeg_bindings::libavutil::libavutil::opt::SearchFlags;
 
     use crate::log::{LogState, isolated};
 

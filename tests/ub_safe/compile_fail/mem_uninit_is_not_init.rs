@@ -1,5 +1,5 @@
 // Fresh `av_malloc_array` storage cannot be read as initialized elements.
-use ffmpeg::libavutil::mem::alloc_array;
+use ffmpeg_bindings::libavutil::libavutil::mem::alloc_array;
 
 fn main() {
     let a = alloc_array::<u8>(4).unwrap();

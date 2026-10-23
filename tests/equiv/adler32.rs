@@ -1,4 +1,4 @@
-use ffmpeg::libavutil::{adler32, ffi};
+use ffmpeg_bindings::libavutil::libavutil::{adler32, ffi};
 
 #[test]
 #[cfg_attr(miri, ignore = "calls C")]

@@ -1,4 +1,4 @@
-use ffmpeg::libavutil::{md5::Md5, murmur3::Murmur3};
+use ffmpeg_bindings::libavutil::libavutil::{md5::Md5, murmur3::Murmur3};
 fn md5_drop() {
     let mut owner = Md5::new().unwrap();
     let mut handle = owner.as_mut();

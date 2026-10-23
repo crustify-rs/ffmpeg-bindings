@@ -1,7 +1,7 @@
 // Adopting a raw descriptor asserts its name lives for the whole program, so
 // it needs `unsafe`.
-use ffmpeg::libavutil::ffi;
-use ffmpeg::libavutil::frame::SideDataDescriptor;
+use ffmpeg_bindings::libavutil::libavutil::ffi;
+use ffmpeg_bindings::libavutil::libavutil::frame::SideDataDescriptor;
 
 fn main() {
     let raw = ffi::AVSideDataDescriptor {

@@ -1,5 +1,5 @@
 //! Compare public lifecycle and processing APIs against independently owned C state.
-use ffmpeg::libavutil::{
+use ffmpeg_bindings::libavutil::libavutil::{
     aes::{Aes, Direction},
     ffi,
 };
@@ -112,7 +112,7 @@ fn constructors_and_reinitialization_match_c() {
     }
 }
 
-use ffmpeg::libavutil::aes;
+use ffmpeg_bindings::libavutil::libavutil::aes;
 
 #[test]
 #[cfg_attr(miri, ignore = "reads a C global")]

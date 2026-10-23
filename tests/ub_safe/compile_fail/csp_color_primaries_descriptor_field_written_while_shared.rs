@@ -1,5 +1,5 @@
 // The description cannot be written while a shared field handle reads it.
-use ffmpeg::libavutil::csp::ColorPrimariesDescriptor;
+use ffmpeg_bindings::libavutil::libavutil::csp::ColorPrimariesDescriptor;
 
 fn main() {
     let mut d = ColorPrimariesDescriptor::default();

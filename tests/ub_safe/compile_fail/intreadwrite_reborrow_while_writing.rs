@@ -1,5 +1,5 @@
 // A shared reborrow of an exclusive view freezes it until the reborrow ends.
-use ffmpeg::libavutil::intreadwrite::Unaligned32Mut;
+use ffmpeg_bindings::libavutil::libavutil::intreadwrite::Unaligned32Mut;
 
 fn main() {
     let mut bytes = [0u8; 4];

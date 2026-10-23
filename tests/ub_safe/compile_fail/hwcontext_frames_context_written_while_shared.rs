@@ -1,4 +1,4 @@
-use ffmpeg::libavutil::hwcontext::UninitFrames;
+use ffmpeg_bindings::libavutil::libavutil::hwcontext::UninitFrames;
 
 fn write(mut frames: UninitFrames) {
     let shared = frames.context();

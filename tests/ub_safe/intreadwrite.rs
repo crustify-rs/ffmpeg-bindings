@@ -14,12 +14,12 @@
 use std::thread;
 
 use ffibox::CZeroable;
-use ffmpeg::libavutil::intreadwrite::{
+use ffmpeg_bindings::libavutil::libavutil::intreadwrite::{
     Alias16, Alias16Mut, Alias16Ref, Alias32, Alias32Mut, Alias32Ref, Alias64, Alias64Mut,
     Alias64Ref, Unaligned16, Unaligned16Mut, Unaligned16Ref, Unaligned32, Unaligned32Mut,
     Unaligned32Ref, Unaligned64, Unaligned64Mut, Unaligned64Ref,
 };
-use ffmpeg::libavutil::mem::{HeapBox, HeapVec, alloc_array_zeroed, alloc_cell_array_zeroed};
+use ffmpeg_bindings::libavutil::libavutil::mem::{HeapBox, HeapVec, alloc_array_zeroed, alloc_cell_array_zeroed};
 
 /// The 8-byte window of `buf` at `off`, which may be at any alignment.
 fn window(buf: &[u8], off: usize) -> Unaligned64Ref<'_> {

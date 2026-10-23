@@ -6,9 +6,9 @@
 use std::thread;
 
 use ffibox::CZeroable;
-use ffmpeg::libavutil::ffi;
-use ffmpeg::libavutil::mem::{HeapBox, HeapVec, alloc_array_from_fn, alloc_cell_array_zeroed};
-use ffmpeg::libavutil::rational::{Rational, RationalMut, RationalRef};
+use ffmpeg_bindings::libavutil::libavutil::ffi;
+use ffmpeg_bindings::libavutil::libavutil::mem::{HeapBox, HeapVec, alloc_array_from_fn, alloc_cell_array_zeroed};
+use ffmpeg_bindings::libavutil::libavutil::rational::{Rational, RationalMut, RationalRef};
 
 /// Pairs at every edge: zero and infinite forms, both signs on either part,
 /// and the `int` extremes, whose negation or division would overflow.
@@ -303,7 +303,7 @@ fn exclusive_array_views_split_and_iterate_without_aliasing() {
 /// refused before the call, and every other extreme reduces without
 /// overflow, across threads.
 mod reduce {
-    use ffmpeg::libavutil::rational::reduce;
+    use ffmpeg_bindings::libavutil::libavutil::rational::reduce;
 
     const TERMS: [i64; 11] = [
         i64::MIN,
@@ -368,7 +368,7 @@ mod arithmetic {
     use core::cmp::Ordering;
     use std::thread;
 
-    use ffmpeg::libavutil::rational::Rational;
+    use ffmpeg_bindings::libavutil::libavutil::rational::Rational;
 
     /// Each part's edges: zero, ones, the extremes and their neighbours.
     const PARTS: [i32; 12] = [

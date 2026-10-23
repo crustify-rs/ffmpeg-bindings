@@ -19,7 +19,7 @@ use super::ffi;
 /// a `_` arm for the values C does not name:
 ///
 /// ```
-/// use ffmpeg::libavutil::pixfmt::ColorSpace;
+/// use ffmpeg_bindings::libavutil::libavutil::pixfmt::ColorSpace;
 /// fn is_bt2020(c: ColorSpace) -> bool {
 ///     matches!(c, ColorSpace::BT2020_NCL | ColorSpace::BT2020_CL)
 /// }
@@ -170,7 +170,7 @@ unsafe impl CPlainElem for ColorSpace {}
 /// a `_` arm for the values C does not name:
 ///
 /// ```
-/// use ffmpeg::libavutil::pixfmt::ColorTransfer;
+/// use ffmpeg_bindings::libavutil::libavutil::pixfmt::ColorTransfer;
 /// fn is_hdr(t: ColorTransfer) -> bool {
 ///     matches!(t, ColorTransfer::SMPTE2084 | ColorTransfer::ARIB_STD_B67)
 /// }
@@ -330,7 +330,7 @@ unsafe impl CPlainElem for ColorTransfer {}
 /// does not name:
 ///
 /// ```
-/// use ffmpeg::libavutil::pixfmt::AlphaMode;
+/// use ffmpeg_bindings::libavutil::libavutil::pixfmt::AlphaMode;
 /// fn needs_unpremultiply(mode: AlphaMode) -> bool {
 ///     matches!(mode, AlphaMode::PREMULTIPLIED)
 /// }
@@ -431,7 +431,7 @@ unsafe impl CPlainElem for AlphaMode {}
 /// associated constants, with a `_` arm for the values C does not name:
 ///
 /// ```
-/// use ffmpeg::libavutil::pixfmt::PixelFormat;
+/// use ffmpeg_bindings::libavutil::libavutil::pixfmt::PixelFormat;
 /// fn is_nv12_family(f: PixelFormat) -> bool {
 ///     matches!(f, PixelFormat::NV12 | PixelFormat::NV21)
 /// }
@@ -445,7 +445,7 @@ unsafe impl CPlainElem for AlphaMode {}
 /// too, resolved for the target's byte order:
 ///
 /// ```
-/// use ffmpeg::libavutil::pixfmt::PixelFormat;
+/// use ffmpeg_bindings::libavutil::libavutil::pixfmt::PixelFormat;
 /// #[cfg(target_endian = "little")]
 /// assert_eq!(PixelFormat::GRAY16, PixelFormat::GRAY16LE);
 /// #[cfg(target_endian = "big")]
@@ -1548,7 +1548,7 @@ unsafe impl CPlainElem for PixelFormat {}
 /// constants, with a `_` arm for the values C does not name:
 ///
 /// ```
-/// use ffmpeg::libavutil::pixfmt::ColorPrimaries;
+/// use ffmpeg_bindings::libavutil::libavutil::pixfmt::ColorPrimaries;
 /// fn is_wide_gamut(p: ColorPrimaries) -> bool {
 ///     matches!(p, ColorPrimaries::BT2020 | ColorPrimaries::SMPTE432)
 /// }
@@ -1695,7 +1695,7 @@ unsafe impl CPlainElem for ColorPrimaries {}
 /// not name:
 ///
 /// ```
-/// use ffmpeg::libavutil::pixfmt::ColorRange;
+/// use ffmpeg_bindings::libavutil::libavutil::pixfmt::ColorRange;
 /// fn luma_black_8bit(r: ColorRange) -> u8 {
 ///     match r {
 ///         ColorRange::JPEG => 0,
@@ -1808,7 +1808,7 @@ unsafe impl CPlainElem for ColorRange {}
 /// constants, with a `_` arm for the values C does not name:
 ///
 /// ```
-/// use ffmpeg::libavutil::pixfmt::ChromaLocation;
+/// use ffmpeg_bindings::libavutil::libavutil::pixfmt::ChromaLocation;
 /// fn is_cosited_left(loc: ChromaLocation) -> bool {
 ///     matches!(
 ///         loc,

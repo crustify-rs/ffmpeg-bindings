@@ -1,5 +1,5 @@
 // A coefficient's field handle cannot outlive the coefficients it projects.
-use ffmpeg::libavutil::csp::LumaCoefficients;
+use ffmpeg_bindings::libavutil::libavutil::csp::LumaCoefficients;
 
 fn main() {
     let cr = {

@@ -1,6 +1,6 @@
 // Two exclusive primary handles cannot be held at once: each borrows the
 // parent handle exclusively.
-use ffmpeg::libavutil::csp::PrimaryCoefficients;
+use ffmpeg_bindings::libavutil::libavutil::csp::PrimaryCoefficients;
 
 fn main() {
     let mut p = PrimaryCoefficients::default();

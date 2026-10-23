@@ -122,7 +122,7 @@ impl_clenclone!(Heap, memdup, align = ALIGN);
 ///
 /// ```compile_fail,E0599
 /// use ffibox::define_ctype;
-/// use ffmpeg::libavutil::{ffi, mem::HeapBox};
+/// use ffmpeg_bindings::libavutil::libavutil::{ffi, mem::HeapBox};
 /// define_ctype!(Rational, RationalRef, RationalMut, ffi::AVRational); // not `Copy`
 /// fn copy(b: &HeapBox<Rational>) -> HeapBox<Rational> {
 ///     b.clone()
@@ -184,7 +184,7 @@ unsafe impl<T: CZeroable> CAllocZeroed<T> for Heap {
 /// #[repr(align(32))]
 /// #[derive(Clone, Copy)]
 /// struct Wide([u8; 32]);
-/// let _ = ffmpeg::libavutil::mem::alloc_array::<Wide>(1);
+/// let _ = ffmpeg_bindings::libavutil::libavutil::mem::alloc_array::<Wide>(1);
 /// ```
 pub fn alloc_array<T>(len: usize) -> Option<HeapVec<MaybeUninit<T>>> {
     const { assert!(align_of::<T>() <= ALIGN, "av_malloc_array cannot align T") };
@@ -218,7 +218,7 @@ pub fn alloc_array_from_fn<T>(len: usize, mut f: impl FnMut(usize) -> T) -> Opti
 /// a valid value of every [`CPlainElem`]; a reference is not one:
 ///
 /// ```compile_fail,E0277
-/// let _ = ffmpeg::libavutil::mem::alloc_array_zeroed::<&u8>(1);
+/// let _ = ffmpeg_bindings::libavutil::libavutil::mem::alloc_array_zeroed::<&u8>(1);
 /// ```
 pub fn alloc_array_zeroed<T: CPlainElem>(len: usize) -> Option<HeapVec<T>> {
     const { assert!(align_of::<T>() <= ALIGN, "av_calloc cannot align T") };
@@ -487,7 +487,7 @@ impl<T: Copy> DynArray<T> {
     /// aligned beyond `realloc`'s guarantee are rejected at compile time:
     ///
     /// ```compile_fail,E0080
-    /// let mut a = ffmpeg::libavutil::mem::DynArray::<()>::new();
+    /// let mut a = ffmpeg_bindings::libavutil::libavutil::mem::DynArray::<()>::new();
     /// let _ = a.push_or_clear(());
     /// ```
     #[must_use = "a failed append empties the array"]
@@ -532,7 +532,7 @@ impl<T: DynPtr> DynArray<T> {
     /// Only pointer elements go through `av_dynarray_add`'s `void *`:
     ///
     /// ```compile_fail,E0599
-    /// let mut a = ffmpeg::libavutil::mem::DynArray::<usize>::new();
+    /// let mut a = ffmpeg_bindings::libavutil::libavutil::mem::DynArray::<usize>::new();
     /// let _ = a.push_ptr_or_clear(0);
     /// ```
     #[must_use = "a failed append empties the array"]
@@ -829,7 +829,7 @@ pub fn realloc_bytes(
 /// at compile time:
 ///
 /// ```compile_fail,E0080
-/// use ffmpeg::libavutil::mem::{HeapVec, realloc_array};
+/// use ffmpeg_bindings::libavutil::libavutil::mem::{HeapVec, realloc_array};
 /// #[repr(align(32))]
 /// struct Wide([u8; 32]);
 /// let _ = realloc_array::<Wide>(HeapVec::empty(), 1);
@@ -1564,7 +1564,7 @@ mod unit_tests {
     fn dynarray_is_two_words_and_crosses_threads() {
         fn send_sync<T: Send + Sync>() {}
         send_sync::<DynArray<u32>>();
-        send_sync::<DynArray<crate::libavutil::intfloat::IntFloat64>>();
+        send_sync::<DynArray<crate::libavutil::libavutil::intfloat::IntFloat64>>();
         assert!(size_of::<DynArray<u8>>() <= 2 * size_of::<usize>());
         assert!(REALLOC_ALIGN >= align_of::<*const u8>() && REALLOC_ALIGN.is_power_of_two());
     }

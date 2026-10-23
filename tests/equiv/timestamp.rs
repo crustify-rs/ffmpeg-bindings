@@ -3,8 +3,8 @@
 
 use core::ffi::CStr;
 
-use ffmpeg::libavutil::ffi;
-use ffmpeg::libavutil::timestamp::make_string;
+use ffmpeg_bindings::libavutil::libavutil::ffi;
+use ffmpeg_bindings::libavutil::libavutil::timestamp::make_string;
 
 const SIZE: usize = ffi::AV_TS_MAX_STRING_SIZE as usize;
 
@@ -61,9 +61,9 @@ fn reused_buffers_agree_after_every_step() {
 mod time_string {
     use core::ffi::{CStr, c_char};
 
-    use ffmpeg::libavutil::ffi;
-    use ffmpeg::libavutil::rational::Rational;
-    use ffmpeg::libavutil::timestamp::{make_string, make_time_string};
+    use ffmpeg_bindings::libavutil::libavutil::ffi;
+    use ffmpeg_bindings::libavutil::libavutil::rational::Rational;
+    use ffmpeg_bindings::libavutil::libavutil::timestamp::{make_string, make_time_string};
 
     const SIZE: usize = ffi::AV_TS_MAX_STRING_SIZE as usize;
 
@@ -200,15 +200,15 @@ mod time_string {
     }
 }
 
-/// The safe [`make_time_string_by_ref`](ffmpeg::libavutil::timestamp::make_time_string_by_ref)
+/// The safe [`make_time_string_by_ref`](ffmpeg_bindings::libavutil::libavutil::timestamp::make_time_string_by_ref)
 /// against raw `av_ts_make_time_string` (core wave 1, batch 2), on separate
 /// buffers, compared whole after every write.
 mod time_string_by_ref {
     use core::ffi::CStr;
 
-    use ffmpeg::libavutil::ffi;
-    use ffmpeg::libavutil::rational::Rational;
-    use ffmpeg::libavutil::timestamp::make_time_string_by_ref;
+    use ffmpeg_bindings::libavutil::libavutil::ffi;
+    use ffmpeg_bindings::libavutil::libavutil::rational::Rational;
+    use ffmpeg_bindings::libavutil::libavutil::timestamp::make_time_string_by_ref;
 
     use super::{SIZE, STAMPS};
 

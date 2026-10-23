@@ -22,7 +22,7 @@ define_ctype!(
 /// No thread-safety assertion is made for the wrapped C type:
 ///
 /// ```compile_fail,E0277
-/// use ffmpeg::libavutil::rc4::Rc4Box;
+/// use ffmpeg_bindings::libavutil::libavutil::rc4::Rc4Box;
 /// fn requires_send<T: Send>() {}
 /// requires_send::<Rc4Box>();
 /// ```
@@ -161,7 +161,7 @@ impl Rc4Mut<'_> {
     ///
     /// Use the in-place method when input and output are the same buffer:
     /// ```compile_fail,E0502
-    /// use ffmpeg::libavutil::rc4::Rc4;
+    /// use ffmpeg_bindings::libavutil::libavutil::rc4::Rc4;
     /// let mut cipher = Rc4::from_key(b"key").unwrap();
     /// let mut bytes = [0; 16];
     /// cipher.as_mut().crypt(&mut bytes, &bytes).unwrap();

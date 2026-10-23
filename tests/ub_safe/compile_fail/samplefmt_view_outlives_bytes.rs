@@ -1,5 +1,5 @@
 // A view laid over a caller's bytes borrows them: it cannot outlive them.
-use ffmpeg::libavutil::samplefmt::{SampleFormat, SamplesMut};
+use ffmpeg_bindings::libavutil::libavutil::samplefmt::{SampleFormat, SamplesMut};
 
 fn main() {
     let mut view = {

@@ -1,6 +1,6 @@
-use ffmpeg::libavutil::{ffi, rc4::Rc4};
+use ffmpeg_bindings::libavutil::libavutil::{ffi, rc4::Rc4};
 
-fn check(raw: &ffi::AVRC4, wrapped: ffmpeg::libavutil::rc4::Rc4Ref<'_>) {
+fn check(raw: &ffi::AVRC4, wrapped: ffmpeg_bindings::libavutil::libavutil::rc4::Rc4Ref<'_>) {
     assert_eq!(wrapped.x(), raw.x);
     assert_eq!(wrapped.y(), raw.y);
     assert_eq!(wrapped.state().elems().collect::<Vec<_>>(), raw.state);

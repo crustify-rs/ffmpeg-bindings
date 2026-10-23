@@ -1,6 +1,6 @@
 // A run taken from a consumed handle keeps the descriptor exclusively
 // borrowed: the descriptor cannot be read while the run lives.
-use ffmpeg::libavutil::pixdesc::PixelFormatDescriptor;
+use ffmpeg_bindings::libavutil::libavutil::pixdesc::PixelFormatDescriptor;
 
 fn main() {
     let mut d = PixelFormatDescriptor::new();

@@ -1,6 +1,6 @@
 //! Public ownership and borrow paths; no foreign memory is referenced in Rust.
 
-use ffmpeg::libavutil::hash::HashContext;
+use ffmpeg_bindings::libavutil::libavutil::hash::HashContext;
 
 const NAMES: [&std::ffi::CStr; 15] = [
     c"MD5",
@@ -55,7 +55,7 @@ fn ephemeral_algorithm_name_is_not_retained() {
     assert_eq!(owner.as_ref().size(), 32);
 }
 
-use ffmpeg::libavutil::hash::name;
+use ffmpeg_bindings::libavutil::libavutil::hash::name;
 
 #[test]
 #[cfg_attr(miri, ignore = "calls C")]

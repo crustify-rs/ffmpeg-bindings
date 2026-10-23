@@ -23,7 +23,7 @@
 use core::ffi::CStr;
 use std::ffi::CString;
 
-use ffmpeg::libavutil::channel_layout::{Channel, ChannelLayout, masks};
+use ffmpeg_bindings::libavutil::libavutil::channel_layout::{Channel, ChannelLayout, masks};
 
 /// `channel_layout.c`'s `channel_layout_map` names, which
 /// `av_channel_layout_from_string` matches before parsing anything.

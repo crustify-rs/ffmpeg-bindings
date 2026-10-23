@@ -8,9 +8,9 @@ use core::ffi::c_void;
 use core::mem::{align_of, offset_of, size_of};
 
 use ffibox::CZeroable;
-use ffmpeg::libavutil::ffi;
-use ffmpeg::libavutil::mem::{HeapBox, HeapVec, alloc_array_from_fn, alloc_cell_array_zeroed};
-use ffmpeg::libavutil::rational::{Rational, RationalMut, RationalRef};
+use ffmpeg_bindings::libavutil::libavutil::ffi;
+use ffmpeg_bindings::libavutil::libavutil::mem::{HeapBox, HeapVec, alloc_array_from_fn, alloc_cell_array_zeroed};
+use ffmpeg_bindings::libavutil::libavutil::rational::{Rational, RationalMut, RationalRef};
 
 /// Pairs at the edges C stores: `0/0`, the infinities, signs on either part,
 /// the `int` extremes, and unreduced fractions.
@@ -309,8 +309,8 @@ fn copies_of_a_run_match_c_memdup_after_every_step() {
 /// Equivalence of `libavutil/rational.h`'s [`reduce`] with `av_reduce`, on
 /// every argument the wrapper passes on.
 mod reduce {
-    use ffmpeg::libavutil::ffi;
-    use ffmpeg::libavutil::rational::reduce;
+    use ffmpeg_bindings::libavutil::libavutil::ffi;
+    use ffmpeg_bindings::libavutil::libavutil::rational::reduce;
 
     /// `av_reduce` in C, on its own out-parameters: the numerator,
     /// denominator and exactness.
@@ -402,8 +402,8 @@ mod reduce {
 mod arithmetic {
     use core::cmp::Ordering;
 
-    use ffmpeg::libavutil::ffi;
-    use ffmpeg::libavutil::rational::Rational;
+    use ffmpeg_bindings::libavutil::libavutil::ffi;
+    use ffmpeg_bindings::libavutil::libavutil::rational::Rational;
 
     /// Every pair class the operations branch on: zero and infinite parts,
     /// signs on either side, the `int` extremes, unreduced fractions and

@@ -19,7 +19,7 @@ define_ctype!(
     ///
     /// Handles cannot outlive their owner:
     /// ```compile_fail
-    /// use ffmpeg::libavutil::tea::{Tea, TeaRef};
+    /// use ffmpeg_bindings::libavutil::libavutil::tea::{Tea, TeaRef};
     /// fn dangling() -> TeaRef<'static> {
     ///     let owner = Tea::new(&[0; 16], 64).unwrap();
     ///     owner.as_ref()
@@ -27,7 +27,7 @@ define_ctype!(
     /// ```
     /// Exclusive handles cannot alias:
     /// ```compile_fail
-    /// use ffmpeg::libavutil::tea::Tea;
+    /// use ffmpeg_bindings::libavutil::libavutil::tea::Tea;
     /// let mut owner = Tea::new(&[0; 16], 64).unwrap();
     /// let mut first = owner.as_mut();
     /// let mut second = owner.as_mut();
@@ -42,7 +42,7 @@ define_ctype!(
 /// The opaque layout has no Rust size, so there is no Rust-sized allocation:
 ///
 /// ```compile_fail,E0277
-/// use ffmpeg::libavutil::tea::TeaBox;
+/// use ffmpeg_bindings::libavutil::libavutil::tea::TeaBox;
 /// let _ = TeaBox::new_uninit();
 /// ```
 pub type TeaBox = CBox<Tea, TeaFree>;
@@ -146,7 +146,7 @@ impl TeaRef<'_> {
     ///
     /// The IV cannot overlap the data:
     /// ```compile_fail,E0499
-    /// use ffmpeg::libavutil::{aes::Direction, tea::Tea};
+    /// use ffmpeg_bindings::libavutil::libavutil::{aes::Direction, tea::Tea};
     /// let mut cipher = Tea::new(&[0; 16], 64).unwrap();
     /// let mut bytes = [0; 8];
     /// let direction = Direction::Encrypt;

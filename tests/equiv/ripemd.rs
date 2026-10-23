@@ -1,4 +1,4 @@
-use ffmpeg::libavutil::{
+use ffmpeg_bindings::libavutil::libavutil::{
     ffi,
     ripemd::{self, DigestBits, Ripemd, RipemdBox},
 };

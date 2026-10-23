@@ -3,8 +3,8 @@
 
 use std::thread;
 
-use ffmpeg::libavutil::ffi;
-use ffmpeg::libavutil::timestamp::make_string;
+use ffmpeg_bindings::libavutil::libavutil::ffi;
+use ffmpeg_bindings::libavutil::libavutil::timestamp::make_string;
 
 const SIZE: usize = ffi::AV_TS_MAX_STRING_SIZE as usize;
 
@@ -41,9 +41,9 @@ fn stamps_format_on_many_threads_at_once() {
 mod time_string {
     use std::thread;
 
-    use ffmpeg::libavutil::ffi;
-    use ffmpeg::libavutil::rational::Rational;
-    use ffmpeg::libavutil::timestamp::{make_string, make_time_string};
+    use ffmpeg_bindings::libavutil::libavutil::ffi;
+    use ffmpeg_bindings::libavutil::libavutil::rational::Rational;
+    use ffmpeg_bindings::libavutil::libavutil::timestamp::{make_string, make_time_string};
 
     const SIZE: usize = ffi::AV_TS_MAX_STRING_SIZE as usize;
 
@@ -134,16 +134,16 @@ mod time_string {
     }
 }
 
-/// [`make_time_string_by_ref`](ffmpeg::libavutil::timestamp::make_time_string_by_ref)
+/// [`make_time_string_by_ref`](ffmpeg_bindings::libavutil::libavutil::timestamp::make_time_string_by_ref)
 /// (core wave 1, batch 2): the text stays within the caller's buffer for
 /// every time base, the degenerate ones and those that print hundreds of
 /// digits included, here and on other threads.
 mod time_string_by_ref {
     use std::thread;
 
-    use ffmpeg::libavutil::ffi;
-    use ffmpeg::libavutil::rational::Rational;
-    use ffmpeg::libavutil::timestamp::make_time_string_by_ref;
+    use ffmpeg_bindings::libavutil::libavutil::ffi;
+    use ffmpeg_bindings::libavutil::libavutil::rational::Rational;
+    use ffmpeg_bindings::libavutil::libavutil::timestamp::make_time_string_by_ref;
 
     const SIZE: usize = ffi::AV_TS_MAX_STRING_SIZE as usize;
 

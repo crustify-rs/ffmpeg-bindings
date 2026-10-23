@@ -2,7 +2,7 @@
 // shorter borrow, which it cannot record.
 use std::ffi::CString;
 
-use ffmpeg::libavutil::bprint::BPrintFields;
+use ffmpeg_bindings::libavutil::libavutil::bprint::BPrintFields;
 
 fn main() {
     let mut f = BPrintFields::new();

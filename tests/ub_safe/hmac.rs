@@ -1,4 +1,4 @@
-use ffmpeg::libavutil::{ffi, hmac::HmacType};
+use ffmpeg_bindings::libavutil::libavutil::{ffi, hmac::HmacType};
 
 #[test]
 fn algorithms_and_unknown_values_are_plain_values() {
@@ -20,7 +20,7 @@ fn algorithms_and_unknown_values_are_plain_values() {
     }
 }
 
-use ffmpeg::libavutil::hmac::Hmac;
+use ffmpeg_bindings::libavutil::libavutil::hmac::Hmac;
 
 #[test]
 #[cfg_attr(miri, ignore = "calls C")]
@@ -89,18 +89,18 @@ fn allocation_failures_clean_up() {
     if std::env::var_os(CHILD).is_some() {
         // Isolate the process-wide (atomic) allocation cap so parallel tests
         // never inherit it. Every object still comes from its safe constructor.
-        ffmpeg::libavutil::mem::set_max_alloc(1);
+        ffmpeg_bindings::libavutil::libavutil::mem::set_max_alloc(1);
         assert!(matches!(Hmac::new(HmacType::SHA512, b"key"), Err(-12)));
         assert!(matches!(
-            ffmpeg::libavutil::des::Des::new_boxed(&[0; 24], false),
+            ffmpeg_bindings::libavutil::libavutil::des::Des::new_boxed(&[0; 24], false),
             Err(-12)
         ));
         // On the campaign ABI, AVHMAC is 176 bytes and AVSHA512 is 208.
         // This admits the parent but rejects its child hash allocation,
         // exercising C's cleanup before a Rust owner can be formed.
-        ffmpeg::libavutil::mem::set_max_alloc(200);
+        ffmpeg_bindings::libavutil::libavutil::mem::set_max_alloc(200);
         assert!(matches!(Hmac::new(HmacType::SHA512, b"key"), Err(-12)));
-        ffmpeg::libavutil::mem::set_max_alloc(usize::MAX);
+        ffmpeg_bindings::libavutil::libavutil::mem::set_max_alloc(usize::MAX);
         let _restored = Hmac::new(HmacType::SHA512, b"key").unwrap();
         return;
     }

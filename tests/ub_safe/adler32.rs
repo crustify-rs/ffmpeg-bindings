@@ -1,4 +1,4 @@
-use ffmpeg::libavutil::adler32::update;
+use ffmpeg_bindings::libavutil::libavutil::adler32::update;
 
 #[test]
 #[cfg_attr(miri, ignore = "calls C")]
@@ -23,7 +23,7 @@ fn batch10_stateless_threads_and_reborrows() {
     let workers: Vec<_> = (0..4)
         .map(|t| {
             std::thread::spawn(move || {
-                use ffmpeg::libavutil::{
+                use ffmpeg_bindings::libavutil::libavutil::{
                     base64,
                     crc::{Table, TableSize},
                     hash, lzo, md5, uuid,

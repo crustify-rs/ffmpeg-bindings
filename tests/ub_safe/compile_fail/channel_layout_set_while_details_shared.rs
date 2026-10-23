@@ -1,5 +1,5 @@
 // A layout cannot be replaced while a view of its map is held.
-use ffmpeg::libavutil::channel_layout::{ChannelLayout, LayoutDetails};
+use ffmpeg_bindings::libavutil::libavutil::channel_layout::{ChannelLayout, LayoutDetails};
 
 fn main() {
     let mut layout = ChannelLayout::parse(c"FL@a+FR@b").unwrap();

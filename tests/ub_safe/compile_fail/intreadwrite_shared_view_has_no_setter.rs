@@ -1,5 +1,5 @@
 // The shared view only reads: storing needs the exclusive one.
-use ffmpeg::libavutil::intreadwrite::Unaligned32Ref;
+use ffmpeg_bindings::libavutil::libavutil::intreadwrite::Unaligned32Ref;
 
 fn main() {
     let bytes = [0u8; 4];

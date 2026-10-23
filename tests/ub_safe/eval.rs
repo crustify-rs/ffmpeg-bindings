@@ -4,7 +4,7 @@
 
 use std::ffi::{CStr, CString};
 
-use ffmpeg::libavutil::eval::parse_number;
+use ffmpeg_bindings::libavutil::libavutil::eval::parse_number;
 
 /// `s` in a heap block of exactly its length plus the NUL.
 fn exact(s: &[u8]) -> Box<CStr> {
@@ -127,7 +127,7 @@ mod expr {
     use std::ffi::{CStr, CString, c_void};
     use std::sync::Barrier;
 
-    use ffmpeg::libavutil::eval::{BinaryFn, Expr, ExprBox, UnaryFn};
+    use ffmpeg_bindings::libavutil::libavutil::eval::{BinaryFn, Expr, ExprBox, UnaryFn};
 
     /// `AVERROR(EINVAL)`.
     const EINVAL: i32 = -22;
@@ -391,7 +391,7 @@ mod expr {
         let long = CString::new(vec!["f(X)"; 100].join("*")).unwrap();
         let mut failed = 0;
         for limit in 0..=600 {
-            ffmpeg::libavutil::mem::set_max_alloc(limit);
+            ffmpeg_bindings::libavutil::libavutil::mem::set_max_alloc(limit);
             for s in [c"1", c"g(X, f(Y)) + st(0, 1)", long.as_c_str()] {
                 match parse(s) {
                     Ok(e) => drop(e),
@@ -402,7 +402,7 @@ mod expr {
                 }
             }
         }
-        ffmpeg::libavutil::mem::set_max_alloc(i32::MAX as usize);
+        ffmpeg_bindings::libavutil::libavutil::mem::set_max_alloc(i32::MAX as usize);
         assert!(failed > 0);
         drop(parse(&long).unwrap());
     }
@@ -419,9 +419,9 @@ mod expressions {
     use core::ffi::CStr;
     use std::ffi::CString;
 
-    use ffmpeg::libavutil::eval::{Func1, Func2, MAX_FUNCS, parse_and_eval};
-    use ffmpeg::libavutil::log::{Class, ClassCategory};
-    use ffmpeg::libavutil::opt::BareObject;
+    use ffmpeg_bindings::libavutil::libavutil::eval::{Func1, Func2, MAX_FUNCS, parse_and_eval};
+    use ffmpeg_bindings::libavutil::libavutil::log::{Class, ClassCategory};
+    use ffmpeg_bindings::libavutil::libavutil::opt::BareObject;
 
     const EINVAL: i32 = -22;
 
@@ -700,10 +700,10 @@ mod parse_with_context {
     use core::ffi::{CStr, c_int, c_void};
     use std::thread;
 
-    use ffmpeg::libavutil::eval::{Expr, UnaryFn};
-    use ffmpeg::libavutil::ffi;
-    use ffmpeg::libavutil::log::{Class, ClassCategory};
-    use ffmpeg::libavutil::opt::{BareObject, ObjectRef};
+    use ffmpeg_bindings::libavutil::libavutil::eval::{Expr, UnaryFn};
+    use ffmpeg_bindings::libavutil::libavutil::ffi;
+    use ffmpeg_bindings::libavutil::libavutil::log::{Class, ClassCategory};
+    use ffmpeg_bindings::libavutil::libavutil::opt::{BareObject, ObjectRef};
 
     /// `AVERROR(EINVAL)`.
     const EINVAL: c_int = -22;
@@ -809,7 +809,7 @@ mod expression {
     use std::panic::{AssertUnwindSafe, catch_unwind};
     use std::thread;
 
-    use ffmpeg::libavutil::eval::{Arity, BinaryFn, ExprBox, Expression, UnaryFn};
+    use ffmpeg_bindings::libavutil::libavutil::eval::{Arity, BinaryFn, ExprBox, Expression, UnaryFn};
 
     /// As the other modules: BSan misreports C's number parse.
     fn under_bsan() -> bool {

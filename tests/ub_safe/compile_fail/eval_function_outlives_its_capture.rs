@@ -1,6 +1,6 @@
 // A function an expression calls borrows what it captures: the table cannot
 // outlive the captured state.
-use ffmpeg::libavutil::eval::{Func1, parse_and_eval};
+use ffmpeg_bindings::libavutil::libavutil::eval::{Func1, parse_and_eval};
 
 fn main() {
     let funcs: [Func1<'_>; 1];

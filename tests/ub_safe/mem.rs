@@ -6,8 +6,8 @@ use core::mem::MaybeUninit;
 use std::panic::{AssertUnwindSafe, catch_unwind};
 use std::thread;
 
-use ffmpeg::libavutil::intfloat::IntFloat64;
-use ffmpeg::libavutil::mem::{
+use ffmpeg_bindings::libavutil::libavutil::intfloat::IntFloat64;
+use ffmpeg_bindings::libavutil::libavutil::mem::{
     BackReferenceError, DynArray, FastBuffer, Heap, HeapBox, HeapString, HeapVec, StringHeap,
     ZeroedFastBuffer, alloc_array, alloc_array_from_fn, alloc_array_zeroed,
     alloc_cell_array_zeroed, copy_back_reference, set_max_alloc, string_from_bytes_until_nul,
@@ -484,7 +484,7 @@ mod realloc {
     use core::mem::MaybeUninit;
     use std::panic::{AssertUnwindSafe, catch_unwind};
 
-    use ffmpeg::libavutil::mem::{
+    use ffmpeg_bindings::libavutil::libavutil::mem::{
         HeapVec, alloc_array, alloc_array_from_fn, checked_size_mul, realloc_array,
         realloc_array_in_place, realloc_array_or_free, realloc_bytes, realloc_bytes_in_place,
         resize_array_with,

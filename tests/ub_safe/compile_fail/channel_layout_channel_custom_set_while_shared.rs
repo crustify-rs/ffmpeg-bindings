@@ -1,5 +1,5 @@
 // A channel cannot be written while a shared handle to it lives.
-use ffmpeg::libavutil::channel_layout::{Channel, ChannelCustom};
+use ffmpeg_bindings::libavutil::libavutil::channel_layout::{Channel, ChannelCustom};
 
 fn main() {
     let mut ch = ChannelCustom::new(Channel::FRONT_LEFT);

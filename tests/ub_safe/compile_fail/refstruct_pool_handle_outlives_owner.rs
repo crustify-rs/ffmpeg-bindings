@@ -1,4 +1,4 @@
-use ffmpeg::libavutil::refstruct::{PoolFlags, RefStructPool};
+use ffmpeg_bindings::libavutil::libavutil::refstruct::{PoolFlags, RefStructPool};
 fn main() {
     let owner = RefStructPool::new(16, PoolFlags::NONE).unwrap();
     let shared = owner.as_ref();

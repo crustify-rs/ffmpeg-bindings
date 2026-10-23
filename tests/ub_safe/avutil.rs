@@ -4,9 +4,9 @@
 
 use std::thread;
 
-use ffmpeg::libavutil::avutil::{MediaType, PictureType};
-use ffmpeg::libavutil::ffi;
-use ffmpeg::libavutil::mem::{HeapVec, alloc_array, alloc_array_from_fn, alloc_array_zeroed};
+use ffmpeg_bindings::libavutil::libavutil::avutil::{MediaType, PictureType};
+use ffmpeg_bindings::libavutil::libavutil::ffi;
+use ffmpeg_bindings::libavutil::libavutil::mem::{HeapVec, alloc_array, alloc_array_from_fn, alloc_array_zeroed};
 
 /// Named constants, `AVMEDIA_TYPE_NB` and the `int` extremes.
 fn sample() -> Vec<MediaType> {
@@ -154,7 +154,7 @@ fn picture_type_arrays_cross_and_are_shared_between_threads() {
 mod version_and_x_if_null {
     use std::thread;
 
-    use ffmpeg::libavutil::avutil::{
+    use ffmpeg_bindings::libavutil::libavutil::avutil::{
         configuration, license, version, version_info, x_if_null, x_if_null_mut,
     };
 
@@ -206,7 +206,7 @@ mod version_and_x_if_null {
 mod fourcc {
     use std::thread;
 
-    use ffmpeg::libavutil::avutil::fourcc_string;
+    use ffmpeg_bindings::libavutil::libavutil::avutil::fourcc_string;
 
     #[test]
     #[cfg_attr(miri, ignore = "calls C")]
@@ -249,8 +249,8 @@ mod fourcc {
 mod names {
     use std::thread;
 
-    use ffmpeg::libavutil::avutil::{MediaType, PictureType, time_base};
-    use ffmpeg::libavutil::ffi;
+    use ffmpeg_bindings::libavutil::libavutil::avutil::{MediaType, PictureType, time_base};
+    use ffmpeg_bindings::libavutil::libavutil::ffi;
 
     /// `int` and `unsigned` edges, as the enums' encodings.
     const VALUES: [i64; 12] = [

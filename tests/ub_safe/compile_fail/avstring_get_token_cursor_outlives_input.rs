@@ -1,5 +1,5 @@
 // `get_token`'s cursor points into its input, so cannot outlive it.
-use ffmpeg::libavutil::avstring::get_token;
+use ffmpeg_bindings::libavutil::libavutil::avstring::get_token;
 use std::ffi::{CStr, CString};
 
 fn main() {

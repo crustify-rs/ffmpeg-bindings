@@ -1,6 +1,6 @@
 // The map lent by `custom_map_mut` borrows the layout exclusively: the layout
 // cannot be cleared (freeing the map) while the view lives.
-use ffmpeg::libavutil::channel_layout::ChannelLayout;
+use ffmpeg_bindings::libavutil::libavutil::channel_layout::ChannelLayout;
 
 fn main() {
     let mut layout = ChannelLayout::custom(2).unwrap();

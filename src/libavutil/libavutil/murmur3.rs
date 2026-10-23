@@ -24,7 +24,7 @@ pub struct Murmur3Free;
 /// The opaque layout has no Rust size, so there is no Rust-sized allocation:
 ///
 /// ```compile_fail,E0277
-/// use ffmpeg::libavutil::murmur3::Murmur3Box;
+/// use ffmpeg_bindings::libavutil::libavutil::murmur3::Murmur3Box;
 /// let _ = Murmur3Box::new_uninit();
 /// ```
 pub type Murmur3Box = CBox<Murmur3, Murmur3Free>;

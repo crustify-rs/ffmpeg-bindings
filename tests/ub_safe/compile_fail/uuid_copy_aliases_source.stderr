@@ -1,8 +1,8 @@
 error[E0502]: cannot borrow `uuid` as immutable because it is also borrowed as mutable
  --> tests/ub_safe/compile_fail/uuid_copy_aliases_source.rs
   |
-  |     ffmpeg::libavutil::uuid::copy(&mut uuid, &uuid);
-  |     ----------------------------- ---------  ^^^^^ immutable borrow occurs here
-  |     |                             |
-  |     |                             mutable borrow occurs here
+  |     ffmpeg_bindings::libavutil::libavutil::uuid::copy(&mut uuid, &uuid);
+  |     ------------------------------------------------- ---------  ^^^^^ immutable borrow occurs here
+  |     |                                                 |
+  |     |                                                 mutable borrow occurs here
   |     mutable borrow later used by call

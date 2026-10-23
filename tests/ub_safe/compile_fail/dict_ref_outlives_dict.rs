@@ -1,6 +1,6 @@
 // A dictionary's shared handle borrows it: the dictionary cannot drop while
 // the handle lives.
-use ffmpeg::libavutil::dict::Dict;
+use ffmpeg_bindings::libavutil::libavutil::dict::Dict;
 
 fn main() {
     let d = Dict::from_entries([(c"k", c"v")]).unwrap();

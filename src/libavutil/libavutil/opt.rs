@@ -725,7 +725,7 @@ pub struct OptionRangesFree;
 /// Not `Clone`: C has no routine that copies a list.
 ///
 /// ```compile_fail,E0599
-/// use ffmpeg::libavutil::opt::OptionRangesBox;
+/// use ffmpeg_bindings::libavutil::libavutil::opt::OptionRangesBox;
 /// fn copy(b: &OptionRangesBox) -> OptionRangesBox {
 ///     b.clone()
 /// }
@@ -1311,14 +1311,14 @@ macro_rules! impl_class_object {
             ::core::mem::offset_of!(<$ty as ::ffibox::CCell>::C, $field) == 0,
             "the class pointer is not the struct's first member"
         );
-        const _: fn(&<$ty as ::ffibox::CCell>::C) -> *const $crate::libavutil::ffi::AVClass =
+        const _: fn(&<$ty as ::ffibox::CCell>::C) -> *const $crate::libavutil::libavutil::ffi::AVClass =
             |c| c.$field;
 
         // SAFETY: the offset and type checks above, and the invocation's
         // own `// SAFETY:` comment for the rest of the contract.
-        unsafe impl $crate::libavutil::opt::ClassObject for $ty {}
+        unsafe impl $crate::libavutil::libavutil::opt::ClassObject for $ty {}
 
-        impl<'a> ::core::convert::From<$rf<'a>> for $crate::libavutil::opt::ObjectRef<'a> {
+        impl<'a> ::core::convert::From<$rf<'a>> for $crate::libavutil::libavutil::opt::ObjectRef<'a> {
             fn from(h: $rf<'a>) -> Self {
                 // SAFETY: a handle to a `ClassObject` addresses an object that
                 // satisfies `ObjectRef`'s contract for its borrow.
@@ -1326,7 +1326,7 @@ macro_rules! impl_class_object {
             }
         }
 
-        impl<'a> ::core::convert::From<$mt<'a>> for $crate::libavutil::opt::ObjectMut<'a> {
+        impl<'a> ::core::convert::From<$mt<'a>> for $crate::libavutil::libavutil::opt::ObjectMut<'a> {
             fn from(mut h: $mt<'a>) -> Self {
                 // SAFETY: as for `ObjectRef`, from an exclusive handle, whose
                 // borrow the result takes over.
@@ -2195,8 +2195,8 @@ impl<'a> ObjectMut<'a> {
 /// the option API finds no option.
 ///
 /// ```
-/// use ffmpeg::libavutil::log::{Class, ClassCategory};
-/// use ffmpeg::libavutil::opt::{BareObject, SearchFlags};
+/// use ffmpeg_bindings::libavutil::libavutil::log::{Class, ClassCategory};
+/// use ffmpeg_bindings::libavutil::libavutil::opt::{BareObject, SearchFlags};
 /// static CLASS: Class = Class::new(c"MyContext", ClassCategory::NA);
 /// let mut obj = BareObject::new(CLASS.as_ref()).unwrap();
 /// assert!(obj.as_object().get(c"anything", SearchFlags::NONE).is_err());
@@ -3705,8 +3705,8 @@ impl ObjectRef<'_> {
 /// something: strings, layouts and dictionaries go in borrowed.
 ///
 /// ```
-/// use ffmpeg::libavutil::log::{Class, ClassCategory};
-/// use ffmpeg::libavutil::opt::{BareObject, SearchFlags};
+/// use ffmpeg_bindings::libavutil::libavutil::log::{Class, ClassCategory};
+/// use ffmpeg_bindings::libavutil::libavutil::opt::{BareObject, SearchFlags};
 /// static CLASS: Class = Class::new(c"MyContext", ClassCategory::NA);
 /// let mut obj = BareObject::new(CLASS.as_ref()).unwrap();
 /// let mut m = obj.as_object_mut();
@@ -3718,8 +3718,8 @@ impl ObjectRef<'_> {
 /// Other value types do not convert:
 ///
 /// ```compile_fail,E0277
-/// # use ffmpeg::libavutil::log::{Class, ClassCategory};
-/// # use ffmpeg::libavutil::opt::{BareObject, SearchFlags};
+/// # use ffmpeg_bindings::libavutil::libavutil::log::{Class, ClassCategory};
+/// # use ffmpeg_bindings::libavutil::libavutil::opt::{BareObject, SearchFlags};
 /// # static CLASS: Class = Class::new(c"MyContext", ClassCategory::NA);
 /// # let mut obj = BareObject::new(CLASS.as_ref()).unwrap();
 /// let _ = obj.as_object_mut().insert_array(c"list", 0, &["text"], SearchFlags::NONE);
@@ -4379,7 +4379,7 @@ impl OptionDefRef<'_> {
 }
 
 #[cfg(test)]
-#[path = "../tests/common/opt.rs"]
+#[path = "../../../tests/common/opt.rs"]
 pub(crate) mod fixture;
 
 #[cfg(test)]
@@ -4996,10 +4996,10 @@ mod unit_tests {
         let mut m = l.handle_mut();
         let mut e = m.get_mut(0, 0).unwrap();
         assert!(e.take_label().is_none());
-        e.set_label(crate::libavutil::mem::string_from_c_str(c"first"));
+        e.set_label(crate::libavutil::libavutil::mem::string_from_c_str(c"first"));
         assert_eq!(e.as_ref().label(), Some(c"first"));
         // Replacing releases the old string (LeakSanitizer reports a miss).
-        e.set_label(crate::libavutil::mem::string_from_c_str(c"second"));
+        e.set_label(crate::libavutil::libavutil::mem::string_from_c_str(c"second"));
         assert_eq!(e.as_ref().label(), Some(c"second"));
         let taken = e.take_label().unwrap();
         assert_eq!(taken.as_c_str(), c"second");
@@ -5285,7 +5285,7 @@ mod unit_tests {
     /// corrections of C's defects.
     mod objects {
         use super::*;
-        use crate::libavutil::log::Class;
+        use crate::libavutil::libavutil::log::Class;
         use fixture::{OBJ_CLASS, Owned};
 
         fn under_bsan() -> bool {
@@ -5740,7 +5740,7 @@ mod unit_tests {
         #[test]
         #[cfg_attr(miri, ignore = "calls C")]
         fn bare_objects_need_a_class_without_options() {
-            static BARE: Class = Class::new(c"bare", crate::libavutil::log::ClassCategory::NA);
+            static BARE: Class = Class::new(c"bare", crate::libavutil::libavutil::log::ClassCategory::NA);
             let mut bare = BareObject::new(BARE.as_ref()).unwrap();
             assert!(format!("{bare:?}").contains("bare"));
             let mut other = bare;
@@ -5787,7 +5787,7 @@ mod unit_tests {
     mod getters {
         use super::super::element::Element;
         use super::*;
-        use crate::libavutil::channel_layout::ChannelOrder;
+        use crate::libavutil::libavutil::channel_layout::ChannelOrder;
         use fixture::{ARR_CLASS, ARR_NAMES, ArrOwned, OBJ_CLASS, Owned};
 
         /// `AVERROR_OPTION_NOT_FOUND`.
@@ -6034,7 +6034,7 @@ mod unit_tests {
             let n = SearchFlags::NONE;
             let enomem = Some(-(ffi::ENOMEM as i32));
             // `x` and `` copy within 3 bytes; `y,z` does not.
-            crate::libavutil::mem::set_max_alloc(3);
+            crate::libavutil::libavutil::mem::set_max_alloc(3);
             let strings = r.get_array::<Option<HeapString>>(c"strs", n, 0, 3);
             assert_eq!(strings.err(), enomem);
             // A formatted number is copied out of C's stack buffer: `1` and
@@ -6043,11 +6043,11 @@ mod unit_tests {
             assert_eq!(formatted.err(), enomem);
             // A dictionary formatted by `av_dict_get_string` (`b=2:A=3` takes
             // 8 bytes), and copied (a dictionary takes 16).
-            crate::libavutil::mem::set_max_alloc(7);
+            crate::libavutil::libavutil::mem::set_max_alloc(7);
             let formatted = r.get_array::<Option<HeapString>>(c"dicts", n, 0, 2);
             assert_eq!(formatted.err(), enomem);
             assert_eq!(r.get_array::<Dict>(c"dicts", n, 0, 2).err(), enomem);
-            crate::libavutil::mem::set_max_alloc(i32::MAX as usize);
+            crate::libavutil::libavutil::mem::set_max_alloc(i32::MAX as usize);
             let strings = r.get_array::<Option<HeapString>>(c"strs", n, 0, 3).unwrap();
             assert_eq!(strings.len(), 3);
         }
@@ -6153,8 +6153,8 @@ mod unit_tests {
     /// refusals, element conversions and the corrections of C's defects.
     mod typed_setters {
         use super::*;
-        use crate::libavutil::channel_layout::ChannelLayoutVal;
-        use crate::libavutil::channel_layout::{ChannelCustom, ChannelLayout};
+        use crate::libavutil::libavutil::channel_layout::ChannelLayoutVal;
+        use crate::libavutil::libavutil::channel_layout::{ChannelCustom, ChannelLayout};
         use fixture::{Owned, OwnedArrays};
 
         /// The exclusive handle of a fixture object.
@@ -6197,7 +6197,7 @@ mod unit_tests {
                 }));
             map.get_mut(1)
                 .unwrap()
-                .set_id(crate::libavutil::channel_layout::Channel::FRONT_RIGHT);
+                .set_id(crate::libavutil::libavutil::channel_layout::Channel::FRONT_RIGHT);
             l
         }
 
@@ -6558,9 +6558,9 @@ mod unit_tests {
             let mut obj = arrays(&o);
             for f in [SearchFlags::NONE, SearchFlags::CHILDREN] {
                 obj.insert_array(c"ints", 0, &[1, 2, 3, 4], f).unwrap();
-                crate::libavutil::mem::set_max_alloc(1);
+                crate::libavutil::libavutil::mem::set_max_alloc(1);
                 let ret = obj.remove_array(c"ints", 1, 2, f);
-                crate::libavutil::mem::set_max_alloc(i32::MAX as usize);
+                crate::libavutil::libavutil::mem::set_max_alloc(i32::MAX as usize);
                 assert_eq!(ret, Err(ENOMEM));
                 let p = if f == SearchFlags::NONE {
                     o.ptr()

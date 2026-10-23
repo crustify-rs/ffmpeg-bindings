@@ -1,5 +1,5 @@
 //! Safe lifecycle exercises: no raw or unsafe FFI fixtures.
-use ffmpeg::libavutil::sha512::{Algorithm, Sha512, Sha512Box};
+use ffmpeg_bindings::libavutil::libavutil::sha512::{Algorithm, Sha512, Sha512Box};
 
 const ALGORITHMS: [Algorithm; 4] = [
     Algorithm::Sha512224,
@@ -37,7 +37,7 @@ fn allocation_failure() {
     // so other tests' live contexts and allocations are unaffected.
     const CHILD: &str = "CRUSTIFY_BATCH7_SHA512_OOM";
     if std::env::var_os(CHILD).is_some() {
-        ffmpeg::libavutil::mem::set_max_alloc(0);
+        ffmpeg_bindings::libavutil::libavutil::mem::set_max_alloc(0);
         assert!(Sha512::new(Algorithm::Sha512).is_none());
         assert!(Sha512Box::new().is_none());
     } else {
@@ -50,7 +50,7 @@ fn allocation_failure() {
     }
 }
 
-use ffmpeg::libavutil::sha512::context_size;
+use ffmpeg_bindings::libavutil::libavutil::sha512::context_size;
 
 #[test]
 #[cfg_attr(miri, ignore = "reads a C global")]

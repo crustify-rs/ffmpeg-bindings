@@ -1,6 +1,6 @@
 // An exclusive coordinate handle freezes the struct handle it came from.
-use ffmpeg::libavutil::csp::CieXy;
-use ffmpeg::libavutil::rational::Rational;
+use ffmpeg_bindings::libavutil::libavutil::csp::CieXy;
+use ffmpeg_bindings::libavutil::libavutil::rational::Rational;
 
 fn main() {
     let mut v = CieXy::default();

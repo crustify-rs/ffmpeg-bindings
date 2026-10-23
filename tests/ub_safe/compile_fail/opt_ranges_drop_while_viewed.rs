@@ -1,5 +1,5 @@
 // Dropping a range list while a view of it lives is rejected.
-use ffmpeg::libavutil::opt::OptionRangesBox;
+use ffmpeg_bindings::libavutil::libavutil::opt::OptionRangesBox;
 
 fn count(b: OptionRangesBox) -> usize {
     let view = b.as_ref().ranges();

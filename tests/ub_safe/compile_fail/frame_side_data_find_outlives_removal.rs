@@ -1,5 +1,5 @@
 // An entry found by kind cannot outlive a removal from its array.
-use ffmpeg::libavutil::frame::{SideDataArray, SideDataType};
+use ffmpeg_bindings::libavutil::libavutil::frame::{SideDataArray, SideDataType};
 
 fn main() {
     let mut array = SideDataArray::new();

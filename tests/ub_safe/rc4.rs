@@ -1,5 +1,5 @@
 use ffibox::CZeroable;
-use ffmpeg::libavutil::rc4::{Rc4, Rc4Box};
+use ffmpeg_bindings::libavutil::libavutil::rc4::{Rc4, Rc4Box};
 
 #[test]
 #[cfg_attr(miri, ignore = "calls C")]
@@ -65,14 +65,14 @@ fn allocation_failure_is_contained_in_a_child_process() {
         // Only this exact test runs in the child, so this process-global
         // allocation limit cannot interfere with other tests or threads.
         let held = Rc4::new(b"key").unwrap();
-        ffmpeg::libavutil::mem::set_max_alloc(1);
+        ffmpeg_bindings::libavutil::libavutil::mem::set_max_alloc(1);
         assert!(held.try_clone().is_none());
         assert_eq!(held.as_ref().x(), 1);
         assert!(Rc4Box::new().is_none());
         assert!(matches!(Rc4::new(b"key"), Err(-12)));
-        use ffmpeg::libavutil::ripemd::{DigestBits, Ripemd};
+        use ffmpeg_bindings::libavutil::libavutil::ripemd::{DigestBits, Ripemd};
         assert!(Ripemd::new(DigestBits::Bits160).is_none());
-        ffmpeg::libavutil::mem::set_max_alloc(i32::MAX as usize);
+        ffmpeg_bindings::libavutil::libavutil::mem::set_max_alloc(i32::MAX as usize);
         return;
     }
     let result = std::process::Command::new(std::env::current_exe().unwrap())
@@ -116,7 +116,7 @@ fn zeroed_inline_field_projection_without_ffi() {
 #[test]
 #[cfg_attr(miri, ignore = "calls C")]
 fn independent_thread_local_contexts_do_not_share_state() {
-    use ffmpeg::libavutil::ripemd::{DigestBits, Ripemd};
+    use ffmpeg_bindings::libavutil::libavutil::ripemd::{DigestBits, Ripemd};
     let threads: Vec<_> = (0..8u8)
         .map(|key| {
             std::thread::spawn(move || {

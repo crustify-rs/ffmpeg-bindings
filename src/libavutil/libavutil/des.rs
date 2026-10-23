@@ -25,7 +25,7 @@ define_ctype!(
     ///
     /// Handles cannot outlive their owner:
     /// ```compile_fail,E0597
-    /// use ffmpeg::libavutil::des::Des;
+    /// use ffmpeg_bindings::libavutil::libavutil::des::Des;
     /// let view;
     /// {
     ///     let owner = Des::new_boxed(&[0; 8], false).unwrap();
@@ -119,7 +119,7 @@ impl DesRef<'_> {
     ///
     /// Partially overlapping input/output cannot be passed through safe Rust:
     /// ```compile_fail,E0502
-    /// use ffmpeg::libavutil::{aes::Direction, des::Des};
+    /// use ffmpeg_bindings::libavutil::libavutil::{aes::Direction, des::Des};
     /// let context = Des::new(&[0; 8], false).unwrap();
     /// let mut bytes = [0; 24];
     /// context.as_ref().crypt(&mut bytes[8..], &bytes[..16], None, Direction::Encrypt).unwrap();
@@ -246,7 +246,7 @@ impl DesMut<'_> {
     /// Sets the raw mode flag; every integer value is valid for C.
     /// Shared and exclusive reborrows cannot overlap:
     /// ```compile_fail,E0502
-    /// use ffmpeg::libavutil::des::Des;
+    /// use ffmpeg_bindings::libavutil::libavutil::des::Des;
     /// let mut owner = Des::new(&[0; 8], false).unwrap();
     /// let mut exclusive = owner.as_mut();
     /// let shared = exclusive.as_ref();
@@ -255,7 +255,7 @@ impl DesMut<'_> {
     /// ```
     /// Nor can two exclusive handles be used at once:
     /// ```compile_fail,E0499
-    /// use ffmpeg::libavutil::des::Des;
+    /// use ffmpeg_bindings::libavutil::libavutil::des::Des;
     /// let mut owner = Des::new(&[0; 8], false).unwrap();
     /// let mut outer = owner.as_mut();
     /// let mut inner = outer.as_mut();

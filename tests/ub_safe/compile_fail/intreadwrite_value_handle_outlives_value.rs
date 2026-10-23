@@ -1,5 +1,5 @@
 // A handle to an inline value cannot outlive the value.
-use ffmpeg::libavutil::intreadwrite::{Unaligned16, Unaligned16Mut};
+use ffmpeg_bindings::libavutil::libavutil::intreadwrite::{Unaligned16, Unaligned16Mut};
 
 fn handle<'a>() -> Unaligned16Mut<'a> {
     let mut v = Unaligned16::new(1);

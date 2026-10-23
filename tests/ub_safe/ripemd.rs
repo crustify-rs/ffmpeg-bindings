@@ -1,4 +1,4 @@
-use ffmpeg::libavutil::ripemd::{DigestBits, Ripemd, context_size};
+use ffmpeg_bindings::libavutil::libavutil::ripemd::{DigestBits, Ripemd, context_size};
 
 #[test]
 #[cfg_attr(miri, ignore = "calls C")]

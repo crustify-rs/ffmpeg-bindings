@@ -2,8 +2,8 @@
 //! are random, so there is no value to compare, only the distribution both
 //! sides draw from.
 
-use ffmpeg::libavutil::ffi;
-use ffmpeg::libavutil::random_seed::get;
+use ffmpeg_bindings::libavutil::libavutil::ffi;
+use ffmpeg_bindings::libavutil::libavutil::random_seed::get;
 
 #[test]
 #[cfg_attr(miri, ignore = "calls C")]
@@ -35,8 +35,8 @@ fn seeds_vary_on_each_side() {
 mod bytes {
     use core::mem::MaybeUninit;
 
-    use ffmpeg::libavutil::ffi;
-    use ffmpeg::libavutil::random_seed::{random_bytes, random_bytes_uninit};
+    use ffmpeg_bindings::libavutil::libavutil::ffi;
+    use ffmpeg_bindings::libavutil::libavutil::random_seed::{random_bytes, random_bytes_uninit};
 
     /// `av_random_bytes` in C, on its own buffer.
     fn c_random(buf: &mut [u8]) -> i32 {

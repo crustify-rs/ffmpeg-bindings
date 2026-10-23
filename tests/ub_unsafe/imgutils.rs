@@ -8,9 +8,9 @@ use core::ffi::{c_int, c_void};
 use core::ptr;
 use std::thread;
 
-use ffmpeg::libavutil::ffi;
-use ffmpeg::libavutil::imgutils::check_size_with_context;
-use ffmpeg::libavutil::opt::ObjectRef;
+use ffmpeg_bindings::libavutil::libavutil::ffi;
+use ffmpeg_bindings::libavutil::libavutil::imgutils::check_size_with_context;
+use ffmpeg_bindings::libavutil::libavutil::opt::ObjectRef;
 
 /// `AVERROR(EINVAL)`.
 const EINVAL: c_int = -22;
@@ -116,10 +116,10 @@ mod max_pixels {
     use core::ffi::c_int;
     use std::thread;
 
-    use ffmpeg::libavutil::ffi;
-    use ffmpeg::libavutil::imgutils::check_size_max_pixels_with_context;
-    use ffmpeg::libavutil::opt::ObjectRef;
-    use ffmpeg::libavutil::pixfmt::PixelFormat;
+    use ffmpeg_bindings::libavutil::libavutil::ffi;
+    use ffmpeg_bindings::libavutil::libavutil::imgutils::check_size_max_pixels_with_context;
+    use ffmpeg_bindings::libavutil::libavutil::opt::ObjectRef;
+    use ffmpeg_bindings::libavutil::libavutil::pixfmt::PixelFormat;
 
     use super::{Ctx, EINVAL, class, object};
 

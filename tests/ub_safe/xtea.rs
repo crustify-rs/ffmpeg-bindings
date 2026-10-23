@@ -1,8 +1,8 @@
 //! Public safe layout, initialization, ownership, and reborrow tests.
 
 use ffibox::CZeroable;
-use ffmpeg::libavutil::mem::{HeapBox, alloc_cell_array_zeroed};
-use ffmpeg::libavutil::xtea::{Xtea, XteaBox, XteaMut};
+use ffmpeg_bindings::libavutil::libavutil::mem::{HeapBox, alloc_cell_array_zeroed};
+use ffmpeg_bindings::libavutil::libavutil::xtea::{Xtea, XteaBox, XteaMut};
 
 const KEY: [u8; 16] = [
     0, 1, 2, 3, 4, 5, 6, 7, 128, 255, 254, 253, 252, 251, 250, 249,
@@ -86,8 +86,8 @@ fn arrays_and_borrowed_elements() {
     assert_eq!(views.get(2).unwrap().key()[0], 0x03020100);
 }
 
-fn exercise_cipher(view: ffmpeg::libavutil::xtea::XteaRef<'_>) {
-    use ffmpeg::libavutil::aes::Direction::{Decrypt, Encrypt};
+fn exercise_cipher(view: ffmpeg_bindings::libavutil::libavutil::xtea::XteaRef<'_>) {
+    use ffmpeg_bindings::libavutil::libavutil::aes::Direction::{Decrypt, Encrypt};
     let snapshot = view.key();
     let shared = view;
     for le in [false, true] {

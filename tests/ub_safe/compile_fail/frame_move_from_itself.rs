@@ -1,5 +1,5 @@
 // A frame cannot move into itself: both handles are exclusive.
-use ffmpeg::libavutil::frame::Frame;
+use ffmpeg_bindings::libavutil::libavutil::frame::Frame;
 
 fn main() {
     let mut frame = Frame::new().unwrap();

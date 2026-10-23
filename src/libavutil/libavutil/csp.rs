@@ -1070,7 +1070,7 @@ impl ColorTransfer {
     /// unspecified and reserved values and any C does not know.
     ///
     /// ```
-    /// use ffmpeg::libavutil::pixfmt::ColorTransfer;
+    /// use ffmpeg_bindings::libavutil::libavutil::pixfmt::ColorTransfer;
     /// let oetf = ColorTransfer::LINEAR.trc_function().unwrap();
     /// assert_eq!(oetf.call(0.25), 0.25);
     /// assert!(ColorTransfer::UNSPECIFIED.trc_function().is_none());
@@ -1131,7 +1131,7 @@ impl ColorSpace {
     /// spaces, and every value C does not know.
     ///
     /// ```
-    /// use ffmpeg::libavutil::pixfmt::ColorSpace;
+    /// use ffmpeg_bindings::libavutil::libavutil::pixfmt::ColorSpace;
     /// let bt709 = ColorSpace::BT709.luma_coefficients().unwrap();
     /// assert_eq!((bt709.cg().num(), bt709.cg().den()), (71520, 100000));
     /// assert!(ColorSpace::UNSPECIFIED.luma_coefficients().is_none());
@@ -1160,7 +1160,7 @@ impl ColorPrimaries {
     /// values, and every value C does not know.
     ///
     /// ```
-    /// use ffmpeg::libavutil::pixfmt::ColorPrimaries;
+    /// use ffmpeg_bindings::libavutil::libavutil::pixfmt::ColorPrimaries;
     /// let bt709 = ColorPrimaries::BT709.descriptor().unwrap();
     /// let wp = bt709.white_point();
     /// assert_eq!((wp.x().num(), wp.x().den()), (31270, 100000));
@@ -1214,8 +1214,8 @@ impl ColorPrimariesDescriptorRef<'_> {
     /// all-zero, unspecified one included; this diverges from C there.
     ///
     /// ```
-    /// use ffmpeg::libavutil::csp::ColorPrimariesDescriptor;
-    /// use ffmpeg::libavutil::pixfmt::ColorPrimaries;
+    /// use ffmpeg_bindings::libavutil::libavutil::csp::ColorPrimariesDescriptor;
+    /// use ffmpeg_bindings::libavutil::libavutil::pixfmt::ColorPrimaries;
     /// let p3 = ColorPrimaries::SMPTE432.descriptor().unwrap();
     /// assert_eq!(p3.identify(), Some(ColorPrimaries::SMPTE432));
     /// assert_eq!(ColorPrimariesDescriptor::default().as_ref().identify(), None);

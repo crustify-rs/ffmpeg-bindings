@@ -1,4 +1,4 @@
-use ffmpeg::libavutil::camellia::{Camellia, context_size};
+use ffmpeg_bindings::libavutil::libavutil::camellia::{Camellia, context_size};
 
 #[test]
 #[cfg_attr(miri, ignore = "calls C")]
@@ -53,7 +53,7 @@ fn batch10_immutable_size_across_threads() {
     }
 }
 
-use ffmpeg::libavutil::aes::Direction;
+use ffmpeg_bindings::libavutil::libavutil::aes::Direction;
 
 #[test]
 #[cfg_attr(miri, ignore = "calls C")]

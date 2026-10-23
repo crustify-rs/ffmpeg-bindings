@@ -7,14 +7,14 @@
 /// (`av_read_image_line2`, `av_get_padded_bits_per_pixel`) observe them
 /// after each component is written.
 ///
-/// [`ComponentDescriptor`]: ffmpeg::libavutil::pixdesc::ComponentDescriptor
+/// [`ComponentDescriptor`]: ffmpeg_bindings::libavutil::libavutil::pixdesc::ComponentDescriptor
 mod component_descriptor {
     use core::ffi::{CStr, c_int, c_void};
     use core::ptr;
 
-    use ffmpeg::libavutil::ffi;
-    use ffmpeg::libavutil::mem::alloc_cell_array_zeroed;
-    use ffmpeg::libavutil::pixdesc::{
+    use ffmpeg_bindings::libavutil::libavutil::ffi;
+    use ffmpeg_bindings::libavutil::libavutil::mem::alloc_cell_array_zeroed;
+    use ffmpeg_bindings::libavutil::libavutil::pixdesc::{
         ComponentDescriptor, ComponentDescriptorMut, ComponentDescriptorRef,
     };
 
@@ -209,8 +209,8 @@ mod color_names {
     use core::ffi::{CStr, c_char, c_int};
     use std::ffi::CString;
 
-    use ffmpeg::libavutil::ffi;
-    use ffmpeg::libavutil::pixfmt::{
+    use ffmpeg_bindings::libavutil::libavutil::ffi;
+    use ffmpeg_bindings::libavutil::libavutil::pixfmt::{
         ChromaLocation, ColorPrimaries, ColorRange, ColorSpace, ColorTransfer,
     };
 
@@ -423,12 +423,12 @@ mod color_names {
 /// [`PixelFormat::swap_endianness`] against `av_pix_fmt_swap_endianness`, for
 /// every value C names and those around them, swapped once and back.
 ///
-/// [`PixelFormat::swap_endianness`]: ffmpeg::libavutil::pixfmt::PixelFormat::swap_endianness
+/// [`PixelFormat::swap_endianness`]: ffmpeg_bindings::libavutil::libavutil::pixfmt::PixelFormat::swap_endianness
 mod swap_endianness {
     use core::ffi::c_int;
 
-    use ffmpeg::libavutil::ffi;
-    use ffmpeg::libavutil::pixfmt::PixelFormat;
+    use ffmpeg_bindings::libavutil::libavutil::ffi;
+    use ffmpeg_bindings::libavutil::libavutil::pixfmt::PixelFormat;
 
     /// `av_pix_fmt_swap_endianness(raw)`.
     fn c_swap(raw: c_int) -> c_int {
@@ -486,8 +486,8 @@ mod property_names {
     use core::ffi::{CStr, c_char};
     use std::ffi::CString;
 
-    use ffmpeg::libavutil::ffi;
-    use ffmpeg::libavutil::pixfmt::{
+    use ffmpeg_bindings::libavutil::libavutil::ffi;
+    use ffmpeg_bindings::libavutil::libavutil::pixfmt::{
         AlphaMode, ChromaLocation, ColorPrimaries, ColorRange, ColorSpace, ColorTransfer,
     };
 
@@ -669,8 +669,8 @@ mod property_names {
 /// every location value, the `unsigned` extremes, every position on and
 /// around C's grid, and the round trips between them.
 mod chroma_positions {
-    use ffmpeg::libavutil::ffi;
-    use ffmpeg::libavutil::pixfmt::ChromaLocation;
+    use ffmpeg_bindings::libavutil::libavutil::ffi;
+    use ffmpeg_bindings::libavutil::libavutil::pixfmt::ChromaLocation;
 
     /// C's `enum_to_pos` for `raw`: the position when it succeeds, and
     /// whether it left the out-parameters alone when it fails.
@@ -769,8 +769,8 @@ mod pixel_format_names {
     use core::ffi::{CStr, c_int};
     use std::ffi::CString;
 
-    use ffmpeg::libavutil::ffi;
-    use ffmpeg::libavutil::pixfmt::PixelFormat;
+    use ffmpeg_bindings::libavutil::libavutil::ffi;
+    use ffmpeg_bindings::libavutil::libavutil::pixfmt::PixelFormat;
 
     fn nb() -> c_int {
         ffi::AVPixelFormat::AV_PIX_FMT_NB.0
@@ -919,9 +919,9 @@ mod pixel_format_loss {
     use core::ffi::c_int;
     use core::ptr;
 
-    use ffmpeg::libavutil::ffi;
-    use ffmpeg::libavutil::pixdesc::Loss;
-    use ffmpeg::libavutil::pixfmt::PixelFormat;
+    use ffmpeg_bindings::libavutil::libavutil::ffi;
+    use ffmpeg_bindings::libavutil::libavutil::pixdesc::Loss;
+    use ffmpeg_bindings::libavutil::libavutil::pixfmt::PixelFormat;
 
     fn nb() -> c_int {
         ffi::AVPixelFormat::AV_PIX_FMT_NB.0
@@ -1137,17 +1137,17 @@ mod pixel_format_loss {
 /// `av_read_image_line2`, `av_write_image_line2`) observe both after every
 /// step.
 ///
-/// [`PixelFormatDescriptor`]: ffmpeg::libavutil::pixdesc::PixelFormatDescriptor
+/// [`PixelFormatDescriptor`]: ffmpeg_bindings::libavutil::libavutil::pixdesc::PixelFormatDescriptor
 mod pixel_format_descriptor {
     use core::ffi::{CStr, c_int, c_void};
 
-    use ffmpeg::libavutil::ffi;
-    use ffmpeg::libavutil::mem::{HeapBox, alloc_cell_array_zeroed};
-    use ffmpeg::libavutil::pixdesc::{
+    use ffmpeg_bindings::libavutil::libavutil::ffi;
+    use ffmpeg_bindings::libavutil::libavutil::mem::{HeapBox, alloc_cell_array_zeroed};
+    use ffmpeg_bindings::libavutil::libavutil::pixdesc::{
         ComponentDescriptor, PixelFormatDescriptor, PixelFormatDescriptorMut,
         PixelFormatDescriptorRef, PixelFormatFlags,
     };
-    use ffmpeg::libavutil::pixfmt::PixelFormat;
+    use ffmpeg_bindings::libavutil::libavutil::pixfmt::PixelFormat;
 
     /// The number of entries in C's table.
     const NB: c_int = ffi::AVPixelFormat::AV_PIX_FMT_NB.0;
@@ -1639,8 +1639,8 @@ mod pixel_format_descriptor {
 mod pixel_format_queries {
     use core::ffi::{CStr, c_int};
 
-    use ffmpeg::libavutil::ffi;
-    use ffmpeg::libavutil::pixfmt::PixelFormat;
+    use ffmpeg_bindings::libavutil::libavutil::ffi;
+    use ffmpeg_bindings::libavutil::libavutil::pixfmt::PixelFormat;
 
     const NB: c_int = ffi::AVPixelFormat::AV_PIX_FMT_NB.0;
 
@@ -1710,12 +1710,12 @@ mod descriptor_table {
     use core::ffi::{CStr, c_char, c_int};
     use core::ptr;
 
-    use ffmpeg::libavutil::ffi;
-    use ffmpeg::libavutil::pixdesc::{
+    use ffmpeg_bindings::libavutil::libavutil::ffi;
+    use ffmpeg_bindings::libavutil::libavutil::pixdesc::{
         ComponentDescriptor, PixelFormatDescriptor, PixelFormatDescriptorRef, PixelFormatFlags,
         descriptors,
     };
-    use ffmpeg::libavutil::pixfmt::PixelFormat;
+    use ffmpeg_bindings::libavutil::libavutil::pixfmt::PixelFormat;
 
     const NB: c_int = ffi::AVPixelFormat::AV_PIX_FMT_NB.0;
 
@@ -1912,13 +1912,13 @@ mod descriptor_table {
 mod image_lines {
     use core::ffi::{c_int, c_void};
 
-    use ffmpeg::libavutil::ffi;
-    use ffmpeg::libavutil::imgutils::{Planes, PlanesMut};
-    use ffmpeg::libavutil::pixdesc::{
+    use ffmpeg_bindings::libavutil::libavutil::ffi;
+    use ffmpeg_bindings::libavutil::libavutil::imgutils::{Planes, PlanesMut};
+    use ffmpeg_bindings::libavutil::libavutil::pixdesc::{
         LineElement, PixelFormatDescriptorRef, read_image_line, read_image_line_u16,
         write_image_line, write_image_line_u16,
     };
-    use ffmpeg::libavutil::pixfmt::PixelFormat;
+    use ffmpeg_bindings::libavutil::libavutil::pixfmt::PixelFormat;
 
     const NB: c_int = ffi::AVPixelFormat::AV_PIX_FMT_NB.0;
     /// Bytes per row: room for 11 pixels of the widest step and offset, and
@@ -2086,7 +2086,7 @@ mod image_lines {
         for (raw, d) in formats() {
             let pal = d
                 .flags()
-                .contains(ffmpeg::libavutil::pixdesc::PixelFormatFlags::PALETTE);
+                .contains(ffmpeg_bindings::libavutil::libavutil::pixdesc::PixelFormatFlags::PALETTE);
             for flipped in [false, true] {
                 for c in 0..4 {
                     for &(x, y, w) in &LINES {
@@ -2240,14 +2240,14 @@ mod image_lines {
 /// and accepted lines run on exactly sized heap planes, where a byte C
 /// touches past either end is a sanitizer report.
 mod random_lines {
-    use ffmpeg::libavutil::ffi;
-    use ffmpeg::libavutil::imgutils::{Planes, PlanesMut};
-    use ffmpeg::libavutil::pixdesc::{
+    use ffmpeg_bindings::libavutil::libavutil::ffi;
+    use ffmpeg_bindings::libavutil::libavutil::imgutils::{Planes, PlanesMut};
+    use ffmpeg_bindings::libavutil::libavutil::pixdesc::{
         ComponentDescriptor, ImageLineError, PixelFormatDescriptor, PixelFormatDescriptorRef,
         PixelFormatFlags, read_image_line, read_image_line_u16, write_image_line,
         write_image_line_u16,
     };
-    use ffmpeg::libavutil::pixfmt::PixelFormat;
+    use ffmpeg_bindings::libavutil::libavutil::pixfmt::PixelFormat;
 
     struct Rng(u64);
 

@@ -1,5 +1,5 @@
 // A shared handle only reads: the setters are on `RationalMut`.
-use ffmpeg::libavutil::rational::Rational;
+use ffmpeg_bindings::libavutil::libavutil::rational::Rational;
 
 fn main() {
     let q = Rational::new(1, 2);

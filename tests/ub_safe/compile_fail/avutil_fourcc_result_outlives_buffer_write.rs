@@ -1,6 +1,6 @@
 // `fourcc_string`'s result borrows the buffer, which cannot be rewritten
 // while it lives.
-use ffmpeg::libavutil::avutil::fourcc_string;
+use ffmpeg_bindings::libavutil::libavutil::avutil::fourcc_string;
 
 fn main() {
     let mut buf = [0u8; 32];

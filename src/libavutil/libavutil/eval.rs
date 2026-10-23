@@ -61,7 +61,7 @@ use super::opt::{AVERROR_BUG, ObjectRef};
 /// value is 0 and the rest is all of `numstr`.
 ///
 /// ```
-/// use ffmpeg::libavutil::eval::parse_number;
+/// use ffmpeg_bindings::libavutil::libavutil::eval::parse_number;
 /// assert_eq!(parse_number(c"1.5KiB, more"), (12288.0, c", more"));
 /// assert_eq!(parse_number(c"none"), (0.0, c"none"));
 /// ```
@@ -135,7 +135,7 @@ impl_cdrop!(ExprFree, Expr, ffi::av_expr_free);
 /// Not `Clone`: C has no routine that copies a tree.
 ///
 /// ```compile_fail,E0599
-/// use ffmpeg::libavutil::eval::ExprBox;
+/// use ffmpeg_bindings::libavutil::libavutil::eval::ExprBox;
 /// fn copy(e: &ExprBox) -> ExprBox {
 ///     e.clone()
 /// }
@@ -145,7 +145,7 @@ impl_cdrop!(ExprFree, Expr, ffi::av_expr_free);
 /// never share one.
 ///
 /// ```compile_fail,E0277
-/// use ffmpeg::libavutil::eval::ExprBox;
+/// use ffmpeg_bindings::libavutil::libavutil::eval::ExprBox;
 /// fn share(e: &ExprBox) {
 ///     std::thread::scope(|s| {
 ///         s.spawn(|| e.as_ref());
@@ -332,7 +332,7 @@ impl ExprRef<'_> {
 /// Not `Sync`, since evaluation writes the tree:
 ///
 /// ```compile_fail,E0277
-/// use ffmpeg::libavutil::eval::Expression;
+/// use ffmpeg_bindings::libavutil::libavutil::eval::Expression;
 /// fn share(e: &Expression) {
 ///     std::thread::scope(|s| {
 ///         s.spawn(|| e.constant_count());

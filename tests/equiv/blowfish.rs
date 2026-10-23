@@ -1,5 +1,5 @@
 use core::ptr::{addr_of, addr_of_mut};
-use ffmpeg::libavutil::{blowfish::Blowfish, ffi};
+use ffmpeg_bindings::libavutil::libavutil::{blowfish::Blowfish, ffi};
 
 #[test]
 #[cfg_attr(miri, ignore = "calls C")]
@@ -58,7 +58,7 @@ fn lifecycle_and_field_sequences_match_c() {
     }
 }
 
-use ffmpeg::libavutil::aes::Direction;
+use ffmpeg_bindings::libavutil::libavutil::aes::Direction;
 
 #[test]
 #[cfg_attr(miri, ignore = "calls C")]

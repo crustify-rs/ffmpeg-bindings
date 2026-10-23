@@ -1,6 +1,6 @@
 // An image's planes cannot outlive the image whose block holds them.
-use ffmpeg::libavutil::imgutils::Image;
-use ffmpeg::libavutil::pixfmt::PixelFormat;
+use ffmpeg_bindings::libavutil::libavutil::imgutils::Image;
+use ffmpeg_bindings::libavutil::libavutil::pixfmt::PixelFormat;
 
 fn main() {
     let planes;

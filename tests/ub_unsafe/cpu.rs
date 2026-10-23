@@ -7,7 +7,7 @@ use core::ffi::c_int;
 use std::sync::Mutex;
 use std::thread;
 
-use ffmpeg::libavutil::cpu::{cpu_flags, force_cpu_flags};
+use ffmpeg_bindings::libavutil::libavutil::cpu::{cpu_flags, force_cpu_flags};
 
 /// Serialises the tests that force the process-wide set.
 static FORCED: Mutex<()> = Mutex::new(());

@@ -1,4 +1,4 @@
-use ffmpeg::libavutil::hwcontext::{DeviceReference, DeviceType};
+use ffmpeg_bindings::libavutil::libavutil::hwcontext::{DeviceReference, DeviceType};
 
 fn main() {
     let device = DeviceReference::alloc(DeviceType::VAAPI).unwrap();

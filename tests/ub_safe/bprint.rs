@@ -4,8 +4,8 @@
 
 use core::mem::{align_of, size_of};
 
-use ffmpeg::libavutil::bprint::PaddedStruct;
-use ffmpeg::libavutil::ffi;
+use ffmpeg_bindings::libavutil::libavutil::bprint::PaddedStruct;
+use ffmpeg_bindings::libavutil::libavutil::ffi;
 
 type BPrint = ffi::AVBPrint;
 
@@ -30,8 +30,8 @@ mod fields {
     use std::sync::Barrier;
     use std::thread;
 
-    use ffmpeg::libavutil::bprint::{BPrintFields, BPrintFieldsMut, PaddedStruct};
-    use ffmpeg::libavutil::ffi;
+    use ffmpeg_bindings::libavutil::libavutil::bprint::{BPrintFields, BPrintFieldsMut, PaddedStruct};
+    use ffmpeg_bindings::libavutil::libavutil::ffi;
 
     static GREETING: &CStr = c"Hello, AVBPrint";
 
@@ -205,7 +205,7 @@ mod fields {
 mod owners {
     use std::thread;
 
-    use ffmpeg::libavutil::bprint::{BPrint, BPrintBox, BPrintOnBuffer, BPrintRef};
+    use ffmpeg_bindings::libavutil::libavutil::bprint::{BPrint, BPrintBox, BPrintOnBuffer, BPrintRef};
 
     fn under_bsan() -> bool {
         std::env::var("CRUSTIFY_FFMPEG_VARIANT").as_deref() == Ok("bsan")
@@ -284,7 +284,7 @@ mod owners {
             return;
         }
 
-        use ffmpeg::libavutil::mem::set_max_alloc;
+        use ffmpeg_bindings::libavutil::libavutil::mem::set_max_alloc;
         for limit in [0, 1, 1023] {
             set_max_alloc(limit);
             assert!(BPrint::new(0, BPrint::SIZE_AUTOMATIC).is_none());
@@ -416,15 +416,15 @@ mod owners {
 /// and abandoned by a panic; and buffers, handles and times on other
 /// threads.
 ///
-/// [`Tm`]: ffmpeg::libavutil::bprint::Tm
+/// [`Tm`]: ffmpeg_bindings::libavutil::libavutil::bprint::Tm
 mod appenders {
     use core::ffi::{CStr, c_int, c_long};
     use core::fmt::Write;
     use std::panic::{AssertUnwindSafe, catch_unwind};
     use std::thread;
 
-    use ffmpeg::libavutil::avstring::{EscapeFlags, EscapeMode};
-    use ffmpeg::libavutil::bprint::{BPrint, BPrintMut, BPrintRef, Tm};
+    use ffmpeg_bindings::libavutil::libavutil::avstring::{EscapeFlags, EscapeMode};
+    use ffmpeg_bindings::libavutil::libavutil::bprint::{BPrint, BPrintMut, BPrintRef, Tm};
 
     /// `size_max` values at every boundary the appenders distinguish.
     const SIZE_MAX: [u32; 8] = [

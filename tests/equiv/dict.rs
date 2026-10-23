@@ -12,8 +12,8 @@ use core::ffi::{CStr, c_char, c_int};
 use core::ptr;
 use std::ffi::CString;
 
-use ffmpeg::libavutil::dict::{Dict, DictionaryBox};
-use ffmpeg::libavutil::ffi;
+use ffmpeg_bindings::libavutil::libavutil::dict::{Dict, DictionaryBox};
+use ffmpeg_bindings::libavutil::libavutil::ffi;
 
 const MULTIKEY: c_int = ffi::AV_DICT_MULTIKEY as c_int;
 
@@ -254,9 +254,9 @@ mod readers_and_writers {
     use core::ptr;
     use std::ffi::CString;
 
-    use ffmpeg::libavutil::dict::{Dict, Flags};
-    use ffmpeg::libavutil::ffi;
-    use ffmpeg::libavutil::mem::HeapString;
+    use ffmpeg_bindings::libavutil::libavutil::dict::{Dict, Flags};
+    use ffmpeg_bindings::libavutil::libavutil::ffi;
+    use ffmpeg_bindings::libavutil::libavutil::mem::HeapString;
 
     use super::{CDict, Rng, observe, observe_dict};
 
@@ -449,7 +449,7 @@ mod readers_and_writers {
                 .collect();
             let d = Dict::from_entries(pairs.iter().map(|(k, v)| (k, v))).unwrap();
             let c = CDict::build(&pairs, ffi::AV_DICT_MULTIKEY as c_int);
-            let owned = |e: ffmpeg::libavutil::dict::DictionaryEntryRef<'_>| {
+            let owned = |e: ffmpeg_bindings::libavutil::libavutil::dict::DictionaryEntryRef<'_>| {
                 (e.key().to_owned(), e.value().to_owned())
             };
             // Through the owner and, when not empty, the shared handle.

@@ -1,7 +1,7 @@
 use std::sync::Mutex;
 
-use ffmpeg::libavutil::intfloat::{IntFloat64, IntFloat64Mut};
-use ffmpeg::libavutil::refstruct::PoolCallbacks;
+use ffmpeg_bindings::libavutil::libavutil::intfloat::{IntFloat64, IntFloat64Mut};
+use ffmpeg_bindings::libavutil::libavutil::refstruct::PoolCallbacks;
 
 fn main() {
     // An entry handle kept past the callback would reach the entry after C

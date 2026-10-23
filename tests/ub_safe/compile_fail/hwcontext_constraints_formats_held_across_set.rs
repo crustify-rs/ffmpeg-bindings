@@ -1,5 +1,5 @@
-use ffmpeg::libavutil::hwcontext::FramesConstraints;
-use ffmpeg::libavutil::pixfmt::PixelFormat;
+use ffmpeg_bindings::libavutil::libavutil::hwcontext::FramesConstraints;
+use ffmpeg_bindings::libavutil::libavutil::pixfmt::PixelFormat;
 
 fn main() {
     let mut constraints = FramesConstraints::new().unwrap();

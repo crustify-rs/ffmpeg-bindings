@@ -1,4 +1,4 @@
-use ffmpeg::libavutil::frame::FrameBox;
+use ffmpeg_bindings::libavutil::libavutil::frame::FrameBox;
 
 fn frames_context(frame: FrameBox) {
     let frames = frame.as_ref().hw_frames_context();

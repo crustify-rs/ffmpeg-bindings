@@ -1,7 +1,7 @@
 // The class of a message's context is borrowed for the callback only.
 use std::cell::RefCell;
 
-use ffmpeg::libavutil::log::{Callback, ClassRef, Record};
+use ffmpeg_bindings::libavutil::libavutil::log::{Callback, ClassRef, Record};
 
 thread_local!(static KEPT: RefCell<Option<ClassRef<'static>>> = const { RefCell::new(None) });
 

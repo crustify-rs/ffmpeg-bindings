@@ -1,5 +1,5 @@
 // A coefficient reached through a shared handle cannot be written.
-use ffmpeg::libavutil::csp::LumaCoefficients;
+use ffmpeg_bindings::libavutil::libavutil::csp::LumaCoefficients;
 
 fn main() {
     let c = LumaCoefficients::default();

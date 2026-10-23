@@ -83,7 +83,7 @@ impl_cdrop!(HmacFree, Hmac, ffi::av_hmac_free);
 /// neither a handle nor its reborrow can outlive it.
 ///
 /// ```compile_fail,E0597
-/// use ffmpeg::libavutil::hmac::{Hmac, HmacType};
+/// use ffmpeg_bindings::libavutil::libavutil::hmac::{Hmac, HmacType};
 /// let view;
 /// {
 ///     let owner = Hmac::new(HmacType::MD5, b"key").unwrap();

@@ -6,7 +6,7 @@
 use std::ffi::{CStr, CString};
 use std::sync::{Mutex, MutexGuard, PoisonError};
 
-use ffmpeg::libavutil::parseutils::{
+use ffmpeg_bindings::libavutil::libavutil::parseutils::{
     parse_color, parse_color_prefix, parse_date, parse_duration, parse_video_size,
 };
 
@@ -116,9 +116,9 @@ fn long_colors() {
 #[test]
 #[cfg_attr(miri, ignore = "calls C")]
 fn colors_with_log_contexts() {
-    use ffmpeg::libavutil::log::{Class, ClassCategory};
-    use ffmpeg::libavutil::opt::BareObject;
-    use ffmpeg::libavutil::parseutils::parse_color_with_context;
+    use ffmpeg_bindings::libavutil::libavutil::log::{Class, ClassCategory};
+    use ffmpeg_bindings::libavutil::libavutil::opt::BareObject;
+    use ffmpeg_bindings::libavutil::libavutil::parseutils::parse_color_with_context;
 
     static CLASS: Class = Class::new(c"crustify-color-ctx", ClassCategory::NA);
     let local = BareObject::new(CLASS.as_ref()).unwrap();
@@ -313,7 +313,7 @@ fn many_threads() {
 mod info_tags_and_colors {
     use std::ffi::CString;
 
-    use ffmpeg::libavutil::parseutils::{find_info_tag, known_color_name};
+    use ffmpeg_bindings::libavutil::libavutil::parseutils::{find_info_tag, known_color_name};
 
     /// Looks `tag` up in `info` into exactly sized heap buffers of 0 to 8 bytes,
     /// so that ASan sees a write past any of them.
@@ -411,11 +411,11 @@ mod info_tags_and_colors {
 /// C-UB inputs the wrappers refuse, every `int` edge of a `Tm`, borrowed
 /// rests outliving the `Tm`, and calls from many threads.
 mod ratios_and_dates {
-    use ffmpeg::libavutil::bprint::Tm;
-    use ffmpeg::libavutil::ffi;
-    use ffmpeg::libavutil::log::{Class, ClassCategory};
-    use ffmpeg::libavutil::opt::BareObject;
-    use ffmpeg::libavutil::parseutils::{
+    use ffmpeg_bindings::libavutil::libavutil::bprint::Tm;
+    use ffmpeg_bindings::libavutil::libavutil::ffi;
+    use ffmpeg_bindings::libavutil::libavutil::log::{Class, ClassCategory};
+    use ffmpeg_bindings::libavutil::libavutil::opt::BareObject;
+    use ffmpeg_bindings::libavutil::libavutil::parseutils::{
         parse_ratio, parse_ratio_with_context, parse_video_rate, small_strptime, timegm,
     };
 

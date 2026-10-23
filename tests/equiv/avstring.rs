@@ -5,10 +5,10 @@
 use core::ffi::{CStr, c_char, c_int, c_void};
 use core::num::NonZeroU8;
 
-use ffmpeg::libavutil::avstring::{
+use ffmpeg_bindings::libavutil::libavutil::avstring::{
     EscapeMode, is_graph, is_space, is_xdigit, match_list, match_name,
 };
-use ffmpeg::libavutil::ffi;
+use ffmpeg_bindings::libavutil::libavutil::ffi;
 
 /// Every mode beside its C enumerator.
 const MODES: [(EscapeMode, ffi::AVEscapeMode); 4] = [
@@ -139,11 +139,11 @@ mod helpers {
     use core::ffi::{CStr, c_char, c_int, c_uint};
     use core::ptr;
 
-    use ffmpeg::libavutil::avstring::{
+    use ffmpeg_bindings::libavutil::libavutil::avstring::{
         cmp_n_ignore_ascii_case, find, strip_prefix, strlcat, strlcatf, strlcpy, strnlen,
         to_ascii_lowercase, to_ascii_uppercase, tokens, utf8_decode,
     };
-    use ffmpeg::libavutil::ffi;
+    use ffmpeg_bindings::libavutil::libavutil::ffi;
 
     /// Filler for bytes neither side should write.
     const FILL: u8 = 0xa5;
@@ -583,9 +583,9 @@ mod paths_and_format {
     use core::ptr::null;
     use std::process::Command;
 
-    use ffmpeg::libavutil::avstring::{append_path_component, basename, format};
-    use ffmpeg::libavutil::ffi;
-    use ffmpeg::libavutil::mem::HeapString;
+    use ffmpeg_bindings::libavutil::libavutil::avstring::{append_path_component, basename, format};
+    use ffmpeg_bindings::libavutil::libavutil::ffi;
+    use ffmpeg_bindings::libavutil::libavutil::mem::HeapString;
 
     /// A string C returned, freed with `av_free` on drop.
     struct CString(*mut c_char);
@@ -855,8 +855,8 @@ mod paths_and_format {
 mod paths_and_tokens {
     use core::ffi::{CStr, c_char, c_int};
 
-    use ffmpeg::libavutil::avstring::{dirname, get_token, is_ascii_digit};
-    use ffmpeg::libavutil::ffi;
+    use ffmpeg_bindings::libavutil::libavutil::avstring::{dirname, get_token, is_ascii_digit};
+    use ffmpeg_bindings::libavutil::libavutil::ffi;
 
     /// Paths around every cut `av_dirname` makes: none, a leading, inner,
     /// doubled or trailing `/`, DOS separators (plain bytes on this platform),
@@ -1045,11 +1045,11 @@ mod search_and_scan {
     use core::ffi::{CStr, c_char, c_void};
     use core::ptr::addr_of_mut;
 
-    use ffmpeg::libavutil::avstring::{
+    use ffmpeg_bindings::libavutil::libavutil::avstring::{
         ScanArg, cmp_ignore_ascii_case, find_ignore_ascii_case, replace_ignore_ascii_case, scan,
         strip_prefix_ignore_ascii_case,
     };
-    use ffmpeg::libavutil::ffi;
+    use ffmpeg_bindings::libavutil::libavutil::ffi;
 
     /// Strings that differ in case, length, and bytes outside ASCII.
     const WORDS: [&CStr; 14] = [
@@ -1647,15 +1647,15 @@ fn match_list_matches_av_match_list_for_every_separator() {
     }
 }
 
-/// The safe [`escape`](ffmpeg::libavutil::avstring::escape) against raw
+/// The safe [`escape`](ffmpeg_bindings::libavutil::libavutil::avstring::escape) against raw
 /// `av_escape` (core wave 1, batch 2), over every mode, flag set and special
 /// set, alone and chained.
 mod escape_wrapper {
     use core::ffi::{CStr, c_int};
     use std::ffi::CString;
 
-    use ffmpeg::libavutil::avstring::{EscapeFlags, escape};
-    use ffmpeg::libavutil::ffi;
+    use ffmpeg_bindings::libavutil::libavutil::avstring::{EscapeFlags, escape};
+    use ffmpeg_bindings::libavutil::libavutil::ffi;
 
     use super::{FLAGS, INPUTS, MODES};
 
@@ -1663,7 +1663,7 @@ mod escape_wrapper {
     fn mine(
         src: &CStr,
         special: Option<&CStr>,
-        mode: ffmpeg::libavutil::avstring::EscapeMode,
+        mode: ffmpeg_bindings::libavutil::libavutil::avstring::EscapeMode,
         flags: c_int,
     ) -> Result<Vec<u8>, ()> {
         escape(src, special, mode, EscapeFlags::from_bits_retain(flags))

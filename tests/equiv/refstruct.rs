@@ -11,8 +11,8 @@ mod pool_and_opaque {
     use std::sync::Barrier;
     use std::thread;
 
-    use ffmpeg::libavutil::ffi;
-    use ffmpeg::libavutil::refstruct::{
+    use ffmpeg_bindings::libavutil::libavutil::ffi;
+    use ffmpeg_bindings::libavutil::libavutil::refstruct::{
         PoolFlags, RefStructOpaque, RefStructPool, RefStructPoolArc,
     };
 
@@ -536,10 +536,10 @@ mod counted_references {
     use core::mem::size_of;
     use core::ptr;
 
-    use ffmpeg::libavutil::csp::ColorPrimariesDescriptor;
-    use ffmpeg::libavutil::ffi;
-    use ffmpeg::libavutil::intfloat::IntFloat64;
-    use ffmpeg::libavutil::refstruct::{
+    use ffmpeg_bindings::libavutil::libavutil::csp::ColorPrimariesDescriptor;
+    use ffmpeg_bindings::libavutil::libavutil::ffi;
+    use ffmpeg_bindings::libavutil::libavutil::intfloat::IntFloat64;
+    use ffmpeg_bindings::libavutil::libavutil::refstruct::{
         ConstRefStructArc, RefStructArc, into_const, is_exclusive, replace, to_const,
     };
 
@@ -843,9 +843,9 @@ mod releases_and_typed_pools {
     use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
     use std::sync::{Arc, Mutex};
 
-    use ffmpeg::libavutil::ffi;
-    use ffmpeg::libavutil::intfloat::{IntFloat64, IntFloat64Mut};
-    use ffmpeg::libavutil::refstruct::{
+    use ffmpeg_bindings::libavutil::libavutil::ffi;
+    use ffmpeg_bindings::libavutil::libavutil::intfloat::{IntFloat64, IntFloat64Mut};
+    use ffmpeg_bindings::libavutil::libavutil::refstruct::{
         PoolCallbacks, PoolFlags, RefStructArc, RefStructBox, TypedRefStructPool,
         alloc_with_release, is_exclusive,
     };

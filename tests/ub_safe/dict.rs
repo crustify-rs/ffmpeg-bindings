@@ -7,7 +7,7 @@ use core::ffi::CStr;
 use std::ffi::CString;
 use std::thread;
 
-use ffmpeg::libavutil::dict::{
+use ffmpeg_bindings::libavutil::libavutil::dict::{
     Dict, DictionaryBox, DictionaryEntryMut, DictionaryEntryRef, DictionaryFree, DictionaryMut,
     DictionaryRef,
 };
@@ -164,8 +164,8 @@ mod readers_and_writers {
     use std::ffi::CString;
     use std::thread;
 
-    use ffmpeg::libavutil::dict::{Dict, DictionaryEntryRef, Flags, Iter, Matches};
-    use ffmpeg::libavutil::mem::{HeapString, string_from_c_str};
+    use ffmpeg_bindings::libavutil::libavutil::dict::{Dict, DictionaryEntryRef, Flags, Iter, Matches};
+    use ffmpeg_bindings::libavutil::libavutil::mem::{HeapString, string_from_c_str};
 
     const ALL: [Flags; 6] = [
         Flags::MATCH_CASE,

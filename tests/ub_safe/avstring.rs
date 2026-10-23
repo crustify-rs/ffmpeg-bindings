@@ -8,10 +8,10 @@ use core::num::NonZeroU8;
 use std::ffi::CString;
 use std::thread;
 
-use ffmpeg::libavutil::avstring::{
+use ffmpeg_bindings::libavutil::libavutil::avstring::{
     EscapeMode, is_graph, is_space, is_xdigit, match_list, match_name,
 };
-use ffmpeg::libavutil::ffi;
+use ffmpeg_bindings::libavutil::libavutil::ffi;
 
 const ALL: [EscapeMode; 4] = [
     EscapeMode::Auto,
@@ -49,11 +49,11 @@ mod helpers {
     use std::ffi::CString;
     use std::thread;
 
-    use ffmpeg::libavutil::avstring::{
+    use ffmpeg_bindings::libavutil::libavutil::avstring::{
         cmp_n_ignore_ascii_case, find, strip_prefix, strlcat, strlcatf, strlcpy, strnlen,
         to_ascii_lowercase, to_ascii_uppercase, tokens, utf8_decode,
     };
-    use ffmpeg::libavutil::ffi;
+    use ffmpeg_bindings::libavutil::libavutil::ffi;
 
     /// A heap copy of `bytes` with no spare capacity.
     fn exact(bytes: &[u8]) -> Box<[u8]> {
@@ -261,8 +261,8 @@ mod paths_and_format {
     use std::ffi::CString;
     use std::panic::{AssertUnwindSafe, catch_unwind};
 
-    use ffmpeg::libavutil::avstring::{append_path_component, basename, format};
-    use ffmpeg::libavutil::mem::HeapString;
+    use ffmpeg_bindings::libavutil::libavutil::avstring::{append_path_component, basename, format};
+    use ffmpeg_bindings::libavutil::libavutil::mem::HeapString;
 
     /// A path of up to 512 bytes of `n`-byte components, NUL-terminated.
     /// Small enough that BSan's runtime, whose memory grows with every byte
@@ -400,7 +400,7 @@ mod paths_and_format {
 mod paths_and_tokens {
     use std::thread;
 
-    use ffmpeg::libavutil::avstring::{dirname, get_token, is_ascii_digit};
+    use ffmpeg_bindings::libavutil::libavutil::avstring::{dirname, get_token, is_ascii_digit};
 
     #[test]
     #[cfg_attr(miri, ignore = "calls C")]
@@ -522,7 +522,7 @@ mod paths_and_tokens {
 mod search_and_scan {
     use std::ffi::CString;
 
-    use ffmpeg::libavutil::avstring::{
+    use ffmpeg_bindings::libavutil::libavutil::avstring::{
         SCAN_MAX_ARGS, ScanArg, ScanError, cmp_ignore_ascii_case, find_ignore_ascii_case,
         replace_ignore_ascii_case, scan, strip_prefix_ignore_ascii_case,
     };
@@ -764,15 +764,15 @@ fn matching_runs_concurrently() {
     }
 }
 
-/// [`escape`](ffmpeg::libavutil::avstring::escape) (core wave 1, batch 2) over
+/// [`escape`](ffmpeg_bindings::libavutil::libavutil::avstring::escape) (core wave 1, batch 2) over
 /// every byte, every mode and flag set, inputs that grow most when escaped,
 /// and results dropped or kept past their inputs, here and on other threads.
 mod escaping {
     use std::ffi::CString;
     use std::thread;
 
-    use ffmpeg::libavutil::avstring::{EscapeFlags, EscapeMode, escape};
-    use ffmpeg::libavutil::mem::HeapString;
+    use ffmpeg_bindings::libavutil::libavutil::avstring::{EscapeFlags, EscapeMode, escape};
+    use ffmpeg_bindings::libavutil::libavutil::mem::HeapString;
 
     const MODES: [EscapeMode; 4] = [
         EscapeMode::Auto,

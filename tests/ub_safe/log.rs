@@ -11,8 +11,8 @@ use std::sync::atomic::{AtomicBool, AtomicUsize, Ordering};
 use std::sync::{Arc, Mutex, MutexGuard, PoisonError};
 use std::thread;
 
-use ffmpeg::libavutil::ffi;
-use ffmpeg::libavutil::log::{
+use ffmpeg_bindings::libavutil::libavutil::ffi;
+use ffmpeg_bindings::libavutil::libavutil::log::{
     self, Callback, ClassCategory, ClassStateFlags, Flags, Level, Record,
 };
 
@@ -489,8 +489,8 @@ mod vlog {
     use std::ffi::CString;
     use std::thread;
 
-    use ffmpeg::libavutil::ffi;
-    use ffmpeg::libavutil::log::{Level, log};
+    use ffmpeg_bindings::libavutil::libavutil::ffi;
+    use ffmpeg_bindings::libavutil::libavutil::log::{Level, log};
 
     const DEBUG: c_int = ffi::AV_LOG_DEBUG as c_int;
 
@@ -564,8 +564,8 @@ mod class {
     use std::cell::RefCell;
     use std::thread;
 
-    use ffmpeg::libavutil::cpu;
-    use ffmpeg::libavutil::log::{self, Callback, Class, ClassCategory, ClassRef, Record};
+    use ffmpeg_bindings::libavutil::libavutil::cpu;
+    use ffmpeg_bindings::libavutil::libavutil::log::{self, Callback, Class, ClassCategory, ClassRef, Record};
 
     use super::LogState;
 
@@ -696,7 +696,7 @@ mod class {
 /// local descriptor's lifetime while moving between scoped threads.
 #[test]
 fn local_class_handles_can_be_reborrowed_on_scoped_threads() {
-    use ffmpeg::libavutil::log::{Class, ClassCategory};
+    use ffmpeg_bindings::libavutil::libavutil::log::{Class, ClassCategory};
 
     let mut class = Class::new(c"local-class", ClassCategory::FILTER);
     std::thread::scope(|scope| {
@@ -726,10 +726,10 @@ mod object_context {
     use std::cell::RefCell;
     use std::thread;
 
-    use ffmpeg::libavutil::log::{
+    use ffmpeg_bindings::libavutil::libavutil::log::{
         self, Callback, Class, ClassCategory, Level, Record, default_category, default_item_name,
     };
-    use ffmpeg::libavutil::opt::BareObject;
+    use ffmpeg_bindings::libavutil::libavutil::opt::BareObject;
 
     use super::{Forward, LogState};
 

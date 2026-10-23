@@ -1,6 +1,6 @@
 // A descriptor's component run cannot outlive the box holding it.
-use ffmpeg::libavutil::mem::HeapBox;
-use ffmpeg::libavutil::pixdesc::PixelFormatDescriptor;
+use ffmpeg_bindings::libavutil::libavutil::mem::HeapBox;
+use ffmpeg_bindings::libavutil::libavutil::pixdesc::PixelFormatDescriptor;
 
 fn main() {
     let b = HeapBox::<PixelFormatDescriptor>::new_zeroed().unwrap();

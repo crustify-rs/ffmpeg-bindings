@@ -12,8 +12,8 @@ use core::ptr;
 use core::sync::atomic::{AtomicUsize, Ordering};
 use std::sync::Arc;
 
-use ffmpeg::libavutil::buffer::{BufferPool, BufferPoolBox, BufferReference};
-use ffmpeg::libavutil::ffi;
+use ffmpeg_bindings::libavutil::libavutil::buffer::{BufferPool, BufferPoolBox, BufferReference};
+use ffmpeg_bindings::libavutil::libavutil::ffi;
 
 /// One step of a sequence; indices pick a held reference modulo their count.
 #[derive(Clone, Copy, Debug)]
@@ -354,9 +354,9 @@ fn stateless_allocators_as_c_init() {
 mod default_release {
     use core::ptr;
 
-    use ffmpeg::libavutil::buffer::default_free;
-    use ffmpeg::libavutil::ffi;
-    use ffmpeg::libavutil::mem::{HeapVec, alloc_array_zeroed};
+    use ffmpeg_bindings::libavutil::libavutil::buffer::default_free;
+    use ffmpeg_bindings::libavutil::libavutil::ffi;
+    use ffmpeg_bindings::libavutil::libavutil::mem::{HeapVec, alloc_array_zeroed};
 
     #[test]
     #[cfg_attr(miri, ignore = "calls C")]
@@ -392,9 +392,9 @@ mod reference {
     use core::sync::atomic::{AtomicUsize, Ordering};
     use std::sync::Arc;
 
-    use ffmpeg::libavutil::buffer::{BufferReference, BufferReferenceBox, UninitBuffer};
-    use ffmpeg::libavutil::ffi;
-    use ffmpeg::libavutil::mem::HeapVec;
+    use ffmpeg_bindings::libavutil::libavutil::buffer::{BufferReference, BufferReferenceBox, UninitBuffer};
+    use ffmpeg_bindings::libavutil::libavutil::ffi;
+    use ffmpeg_bindings::libavutil::libavutil::mem::HeapVec;
 
     #[derive(Clone, Copy, Debug)]
     enum Kind {
@@ -854,9 +854,9 @@ mod mutation {
     use core::sync::atomic::{AtomicUsize, Ordering};
     use std::sync::Arc;
 
-    use ffmpeg::libavutil::buffer::{self, BufferReference, BufferReferenceBox};
-    use ffmpeg::libavutil::ffi;
-    use ffmpeg::libavutil::mem::HeapVec;
+    use ffmpeg_bindings::libavutil::libavutil::buffer::{self, BufferReference, BufferReferenceBox};
+    use ffmpeg_bindings::libavutil::libavutil::ffi;
+    use ffmpeg_bindings::libavutil::libavutil::mem::HeapVec;
 
     #[derive(Clone, Copy, Debug)]
     enum Kind {
@@ -1401,8 +1401,8 @@ mod pool_get {
     use core::sync::atomic::{AtomicUsize, Ordering};
     use std::sync::Arc;
 
-    use ffmpeg::libavutil::buffer::{BufferPool, BufferPoolBox, BufferReferenceBox, UninitBuffer};
-    use ffmpeg::libavutil::ffi;
+    use ffmpeg_bindings::libavutil::libavutil::buffer::{BufferPool, BufferPoolBox, BufferReferenceBox, UninitBuffer};
+    use ffmpeg_bindings::libavutil::libavutil::ffi;
 
     /// The index of `p` in `seen`, appended when new; NULL is `None`.
     fn index<T: PartialEq + Copy>(seen: &mut Vec<T>, p: T, null: bool) -> Option<usize> {
@@ -1651,8 +1651,8 @@ mod pool_get {
 mod pool_resize {
     use core::ptr;
 
-    use ffmpeg::libavutil::buffer::BufferPool;
-    use ffmpeg::libavutil::ffi;
+    use ffmpeg_bindings::libavutil::libavutil::buffer::BufferPool;
+    use ffmpeg_bindings::libavutil::libavutil::ffi;
 
     /// The resized window's bytes, count, writability and whether it has an
     /// opaque; whether its data left the pool's block; whether the next

@@ -1,5 +1,5 @@
 // A shared handle cannot outlive the `Alias64` it borrows.
-use ffmpeg::libavutil::intreadwrite::Alias64;
+use ffmpeg_bindings::libavutil::libavutil::intreadwrite::Alias64;
 
 fn main() {
     let r;

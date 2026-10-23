@@ -1,6 +1,6 @@
 //! C observation probes compare independently owned contexts after construction
 //! and each safe reinitialization, update sequence and finalization.
-use ffmpeg::libavutil::{
+use ffmpeg_bindings::libavutil::libavutil::{
     ffi,
     sha512::{Algorithm, Sha512, Sha512Box},
 };
@@ -150,7 +150,7 @@ fn constructors_choose_the_expected_digest() {
     probe(&mut owner, &mut reference, &[b"abc"]);
 }
 
-use ffmpeg::libavutil::sha512;
+use ffmpeg_bindings::libavutil::libavutil::sha512;
 
 #[test]
 #[cfg_attr(miri, ignore = "reads a C global")]

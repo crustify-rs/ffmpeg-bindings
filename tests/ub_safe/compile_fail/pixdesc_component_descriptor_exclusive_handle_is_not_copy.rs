@@ -1,5 +1,5 @@
 // Two exclusive handles to one descriptor cannot be made by copying one.
-use ffmpeg::libavutil::pixdesc::ComponentDescriptor;
+use ffmpeg_bindings::libavutil::libavutil::pixdesc::ComponentDescriptor;
 
 fn main() {
     let mut d = ComponentDescriptor::new();

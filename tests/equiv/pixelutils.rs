@@ -4,8 +4,8 @@
 
 use core::ffi::c_int;
 
-use ffmpeg::libavutil::ffi;
-use ffmpeg::libavutil::pixelutils::{SadAlignment, SadFn};
+use ffmpeg_bindings::libavutil::libavutil::ffi;
+use ffmpeg_bindings::libavutil::libavutil::pixelutils::{SadAlignment, SadFn};
 
 const ALIGNMENTS: [(SadAlignment, c_int); 3] = [
     (SadAlignment::Unaligned, 0),

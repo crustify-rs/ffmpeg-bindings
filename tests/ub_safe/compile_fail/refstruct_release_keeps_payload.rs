@@ -1,7 +1,7 @@
 use std::sync::{Arc, Mutex};
 
-use ffmpeg::libavutil::intfloat::{IntFloat64, IntFloat64Mut};
-use ffmpeg::libavutil::refstruct;
+use ffmpeg_bindings::libavutil::libavutil::intfloat::{IntFloat64, IntFloat64Mut};
+use ffmpeg_bindings::libavutil::libavutil::refstruct;
 
 fn main() {
     // The payload handle kept past the release would reach the block after

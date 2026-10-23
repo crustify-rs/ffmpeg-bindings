@@ -11,7 +11,7 @@ use super::rational::{Rational, RationalRef};
 /// (`i64::MIN`), and returns that text, borrowed from `buf`.
 ///
 /// ```
-/// use ffmpeg::libavutil::{ffi, timestamp::make_string};
+/// use ffmpeg_bindings::libavutil::libavutil::{ffi, timestamp::make_string};
 /// let mut buf = [0u8; ffi::AV_TS_MAX_STRING_SIZE as usize];
 /// assert_eq!(make_string(&mut buf, -42), c"-42");
 /// assert_eq!(make_string(&mut buf, i64::MIN), c"NOPTS");
@@ -37,7 +37,7 @@ pub fn make_string(buf: &mut [u8; ffi::AV_TS_MAX_STRING_SIZE as usize], ts: i64)
 /// it: `-nan` on x86-64 (C's trimming cuts a positive `nan` to `n`).
 ///
 /// ```
-/// use ffmpeg::libavutil::{ffi, rational::Rational, timestamp::make_time_string};
+/// use ffmpeg_bindings::libavutil::libavutil::{ffi, rational::Rational, timestamp::make_time_string};
 /// let mut buf = [0u8; ffi::AV_TS_MAX_STRING_SIZE as usize];
 /// assert_eq!(make_time_string(&mut buf, 135_000, Rational::new(1, 90_000)), c"1.5");
 /// assert_eq!(make_time_string(&mut buf, 3, Rational::new(1, 1000)), c"0.003");
@@ -67,7 +67,7 @@ pub fn make_time_string(
 /// from `buf`.
 ///
 /// ```
-/// use ffmpeg::libavutil::{ffi, rational::Rational, timestamp::make_time_string_by_ref};
+/// use ffmpeg_bindings::libavutil::libavutil::{ffi, rational::Rational, timestamp::make_time_string_by_ref};
 /// let mut buf = [0u8; ffi::AV_TS_MAX_STRING_SIZE as usize];
 /// let tb = Rational::new(1, 90_000);
 /// assert_eq!(make_time_string_by_ref(&mut buf, 135_000, tb.as_ref()), c"1.5");

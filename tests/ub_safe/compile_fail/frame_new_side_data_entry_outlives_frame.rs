@@ -1,6 +1,6 @@
 // An appended side data entry is lent by its frame for the frame's
 // exclusive borrow only.
-use ffmpeg::libavutil::frame::{Frame, SideDataType};
+use ffmpeg_bindings::libavutil::libavutil::frame::{Frame, SideDataType};
 
 fn main() {
     let mut frame = Frame::new().unwrap();

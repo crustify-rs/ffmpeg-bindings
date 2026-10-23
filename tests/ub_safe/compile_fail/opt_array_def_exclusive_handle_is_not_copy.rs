@@ -1,5 +1,5 @@
 // The exclusive handle is move-only, so two never edit one definition.
-use ffmpeg::libavutil::opt::OptionArrayDef;
+use ffmpeg_bindings::libavutil::libavutil::opt::OptionArrayDef;
 
 fn main() {
     let mut d = OptionArrayDef::new();

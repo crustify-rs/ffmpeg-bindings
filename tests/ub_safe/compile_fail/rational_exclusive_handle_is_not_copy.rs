@@ -1,5 +1,5 @@
 // Two exclusive handles to one rational cannot be made by copying one.
-use ffmpeg::libavutil::rational::Rational;
+use ffmpeg_bindings::libavutil::libavutil::rational::Rational;
 
 fn main() {
     let mut q = Rational::new(1, 2);

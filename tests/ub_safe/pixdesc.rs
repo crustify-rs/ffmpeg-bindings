@@ -6,9 +6,9 @@
 mod component_descriptor {
     use std::thread;
 
-    use ffmpeg::libavutil::ffi;
-    use ffmpeg::libavutil::mem::{HeapBox, alloc_cell_array_zeroed};
-    use ffmpeg::libavutil::pixdesc::{
+    use ffmpeg_bindings::libavutil::libavutil::ffi;
+    use ffmpeg_bindings::libavutil::libavutil::mem::{HeapBox, alloc_cell_array_zeroed};
+    use ffmpeg_bindings::libavutil::libavutil::pixdesc::{
         ComponentDescriptor, ComponentDescriptorMut, ComponentDescriptorRef,
     };
 
@@ -244,7 +244,7 @@ mod color_names {
     use std::ffi::CString;
     use std::thread;
 
-    use ffmpeg::libavutil::pixfmt::{
+    use ffmpeg_bindings::libavutil::libavutil::pixfmt::{
         ChromaLocation, ColorPrimaries, ColorRange, ColorSpace, ColorTransfer,
     };
 
@@ -398,12 +398,12 @@ mod color_names {
 /// [`PixelFormat::swap_endianness`] for every value, named or not, and from
 /// several threads at once.
 ///
-/// [`PixelFormat::swap_endianness`]: ffmpeg::libavutil::pixfmt::PixelFormat::swap_endianness
+/// [`PixelFormat::swap_endianness`]: ffmpeg_bindings::libavutil::libavutil::pixfmt::PixelFormat::swap_endianness
 mod swap_endianness {
     use std::thread;
 
-    use ffmpeg::libavutil::ffi;
-    use ffmpeg::libavutil::pixfmt::PixelFormat;
+    use ffmpeg_bindings::libavutil::libavutil::ffi;
+    use ffmpeg_bindings::libavutil::libavutil::pixfmt::PixelFormat;
 
     fn values() -> impl Iterator<Item = PixelFormat> {
         (-4..300)
@@ -449,8 +449,8 @@ mod names_and_positions {
     use std::ffi::CString;
     use std::thread;
 
-    use ffmpeg::libavutil::ffi;
-    use ffmpeg::libavutil::pixfmt::{
+    use ffmpeg_bindings::libavutil::libavutil::ffi;
+    use ffmpeg_bindings::libavutil::libavutil::pixfmt::{
         AlphaMode, ChromaLocation, ColorPrimaries, ColorRange, ColorSpace, ColorTransfer,
         PixelFormat,
     };
@@ -606,9 +606,9 @@ mod names_and_positions {
 mod pixel_format_loss {
     use std::thread;
 
-    use ffmpeg::libavutil::ffi;
-    use ffmpeg::libavutil::pixdesc::Loss;
-    use ffmpeg::libavutil::pixfmt::PixelFormat;
+    use ffmpeg_bindings::libavutil::libavutil::ffi;
+    use ffmpeg_bindings::libavutil::libavutil::pixdesc::Loss;
+    use ffmpeg_bindings::libavutil::libavutil::pixfmt::PixelFormat;
 
     fn formats() -> Vec<PixelFormat> {
         let nb = ffi::AVPixelFormat::AV_PIX_FMT_NB.0;
@@ -702,8 +702,8 @@ mod pixel_format_descriptor {
     use std::sync::Mutex;
     use std::thread;
 
-    use ffmpeg::libavutil::mem::{HeapBox, alloc_cell_array_zeroed};
-    use ffmpeg::libavutil::pixdesc::{
+    use ffmpeg_bindings::libavutil::libavutil::mem::{HeapBox, alloc_cell_array_zeroed};
+    use ffmpeg_bindings::libavutil::libavutil::pixdesc::{
         ComponentDescriptor, PixelFormatDescriptor, PixelFormatDescriptorMut,
         PixelFormatDescriptorRef, PixelFormatFlags,
     };
@@ -1098,8 +1098,8 @@ mod pixel_format_descriptor {
 mod pixel_format_queries {
     use std::thread;
 
-    use ffmpeg::libavutil::ffi;
-    use ffmpeg::libavutil::pixfmt::PixelFormat;
+    use ffmpeg_bindings::libavutil::libavutil::ffi;
+    use ffmpeg_bindings::libavutil::libavutil::pixfmt::PixelFormat;
 
     fn values() -> impl Iterator<Item = PixelFormat> {
         let nb = ffi::AVPixelFormat::AV_PIX_FMT_NB.0;
@@ -1147,12 +1147,12 @@ mod descriptor_table {
     use std::sync::OnceLock;
     use std::thread;
 
-    use ffmpeg::libavutil::ffi;
-    use ffmpeg::libavutil::pixdesc::{
+    use ffmpeg_bindings::libavutil::libavutil::ffi;
+    use ffmpeg_bindings::libavutil::libavutil::pixdesc::{
         ComponentDescriptor, PixelFormatDescriptor, PixelFormatDescriptorRef, PixelFormatFlags,
         descriptors,
     };
-    use ffmpeg::libavutil::pixfmt::PixelFormat;
+    use ffmpeg_bindings::libavutil::libavutil::pixfmt::PixelFormat;
 
     const NB: i32 = ffi::AVPixelFormat::AV_PIX_FMT_NB.0;
 
@@ -1265,14 +1265,14 @@ mod descriptor_table {
 mod image_lines {
     use std::thread;
 
-    use ffmpeg::libavutil::ffi;
-    use ffmpeg::libavutil::imgutils::{Image, Planes, PlanesMut};
-    use ffmpeg::libavutil::pixdesc::{
+    use ffmpeg_bindings::libavutil::libavutil::ffi;
+    use ffmpeg_bindings::libavutil::libavutil::imgutils::{Image, Planes, PlanesMut};
+    use ffmpeg_bindings::libavutil::libavutil::pixdesc::{
         ComponentDescriptor, ImageLineError, PixelFormatDescriptor, PixelFormatDescriptorRef,
         PixelFormatFlags, read_image_line, read_image_line_u16, write_image_line,
         write_image_line_u16,
     };
-    use ffmpeg::libavutil::pixfmt::PixelFormat;
+    use ffmpeg_bindings::libavutil::libavutil::pixfmt::PixelFormat;
 
     const NB: i32 = ffi::AVPixelFormat::AV_PIX_FMT_NB.0;
     /// The largest plane the searches try.

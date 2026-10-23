@@ -1,5 +1,5 @@
 // The buffer cannot be written while its tokens are being found.
-use ffmpeg::libavutil::avstring::tokens;
+use ffmpeg_bindings::libavutil::libavutil::avstring::tokens;
 
 fn main() {
     let mut buf = *b"a b c\0";

@@ -1,5 +1,5 @@
 // A coefficient cannot be written while a shared field handle to it lives.
-use ffmpeg::libavutil::csp::LumaCoefficients;
+use ffmpeg_bindings::libavutil::libavutil::csp::LumaCoefficients;
 
 fn main() {
     let mut c = LumaCoefficients::default();

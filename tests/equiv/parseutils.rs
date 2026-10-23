@@ -8,10 +8,10 @@ use core::ptr::{self, null_mut};
 use std::ffi::CString;
 use std::sync::{Mutex, MutexGuard, PoisonError};
 
-use ffmpeg::libavutil::ffi;
-use ffmpeg::libavutil::log::{self, Callback, Record};
-use ffmpeg::libavutil::opt::ObjectRef;
-use ffmpeg::libavutil::parseutils::{
+use ffmpeg_bindings::libavutil::libavutil::ffi;
+use ffmpeg_bindings::libavutil::libavutil::log::{self, Callback, Record};
+use ffmpeg_bindings::libavutil::libavutil::opt::ObjectRef;
+use ffmpeg_bindings::libavutil::libavutil::parseutils::{
     parse_color, parse_color_prefix, parse_color_with_context, parse_date, parse_duration,
     parse_video_size,
 };
@@ -614,8 +614,8 @@ mod info_tags_and_colors {
     use core::ptr;
     use std::ffi::CString;
 
-    use ffmpeg::libavutil::ffi;
-    use ffmpeg::libavutil::parseutils::{find_info_tag, known_color_name};
+    use ffmpeg_bindings::libavutil::libavutil::ffi;
+    use ffmpeg_bindings::libavutil::libavutil::parseutils::{find_info_tag, known_color_name};
 
     /// C's result and buffer for `tag` in `info` with a buffer of `len` bytes
     /// (at least 1), every byte `0xAA` before the call.
@@ -699,13 +699,13 @@ mod ratios_and_dates {
     use core::ffi::{CStr, c_int, c_void};
     use core::ptr::{self, null_mut};
 
-    use ffmpeg::libavutil::bprint::{Tm, TmRef};
-    use ffmpeg::libavutil::ffi;
-    use ffmpeg::libavutil::opt::ObjectRef;
-    use ffmpeg::libavutil::parseutils::{
+    use ffmpeg_bindings::libavutil::libavutil::bprint::{Tm, TmRef};
+    use ffmpeg_bindings::libavutil::libavutil::ffi;
+    use ffmpeg_bindings::libavutil::libavutil::opt::ObjectRef;
+    use ffmpeg_bindings::libavutil::libavutil::parseutils::{
         parse_ratio, parse_ratio_with_context, parse_video_rate, small_strptime, timegm,
     };
-    use ffmpeg::libavutil::rational::Rational;
+    use ffmpeg_bindings::libavutil::libavutil::rational::Rational;
 
     use super::{CLASS, Ctx, captured, isolated};
     use crate::log::LogState;

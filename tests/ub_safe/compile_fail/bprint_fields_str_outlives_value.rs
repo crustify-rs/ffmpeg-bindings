@@ -1,6 +1,6 @@
 // The string `BPrintFieldsRef::str` returns is borrowed through the value, so
 // it cannot outlive it.
-use ffmpeg::libavutil::bprint::BPrintFields;
+use ffmpeg_bindings::libavutil::libavutil::bprint::BPrintFields;
 
 fn main() {
     let s = {

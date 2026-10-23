@@ -1,6 +1,6 @@
 // A frame cannot copy its planes from itself: the destination is borrowed
 // exclusively, the source shared.
-use ffmpeg::libavutil::frame::Frame;
+use ffmpeg_bindings::libavutil::libavutil::frame::Frame;
 
 fn main() {
     let mut frame = Frame::new().unwrap();

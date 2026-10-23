@@ -1,6 +1,6 @@
 // An exclusive object handle excludes every other handle while it lives.
-use ffmpeg::libavutil::log::{Class, ClassCategory};
-use ffmpeg::libavutil::opt::BareObject;
+use ffmpeg_bindings::libavutil::libavutil::log::{Class, ClassCategory};
+use ffmpeg_bindings::libavutil::libavutil::opt::BareObject;
 
 static CLASS: Class = Class::new(c"object", ClassCategory::NA);
 

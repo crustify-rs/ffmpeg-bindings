@@ -5,7 +5,7 @@ error[E0599]: no method named `set_props` found for struct `SideDataDescriptorRe
   |       ^^^^^^^^^
   |
 help: there is a method `props` with a similar name, but with different arguments
- --> libavutil/frame.rs
+ --> src/libavutil/libavutil/frame.rs
   |
   |     pub fn props(&self) -> SideDataProps {
   |     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^

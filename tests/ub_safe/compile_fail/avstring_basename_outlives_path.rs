@@ -1,5 +1,5 @@
 // `basename` borrows its result from the path: it cannot outlive it.
-use ffmpeg::libavutil::avstring::basename;
+use ffmpeg_bindings::libavutil::libavutil::avstring::basename;
 
 fn main() {
     let base;

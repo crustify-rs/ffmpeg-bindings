@@ -1,5 +1,5 @@
 // A `FastBuffer`'s bytes start uninitialised: they read as `MaybeUninit<u8>`.
-use ffmpeg::libavutil::mem::FastBuffer;
+use ffmpeg_bindings::libavutil::libavutil::mem::FastBuffer;
 
 fn main() {
     let mut b = FastBuffer::new();

@@ -56,7 +56,7 @@ use super::mem::HeapVec;
 /// does not name:
 ///
 /// ```
-/// use ffmpeg::libavutil::channel_layout::Channel;
+/// use ffmpeg_bindings::libavutil::libavutil::channel_layout::Channel;
 /// fn is_lfe(ch: Channel) -> bool {
 ///     matches!(ch, Channel::LOW_FREQUENCY | Channel::LOW_FREQUENCY_2)
 /// }
@@ -210,7 +210,7 @@ impl Channel {
     /// [`UNKNOWN`](Self::UNKNOWN) and the Ambisonic components).
     ///
     /// ```
-    /// use ffmpeg::libavutil::channel_layout::{Channel, masks};
+    /// use ffmpeg_bindings::libavutil::libavutil::channel_layout::{Channel, masks};
     /// assert_eq!(Channel::FRONT_LEFT.mask(), Some(1));
     /// assert_eq!(
     ///     Channel::FRONT_LEFT.mask().unwrap() | Channel::FRONT_RIGHT.mask().unwrap(),
@@ -345,7 +345,7 @@ unsafe impl CPlainElem for Channel {}
 /// associated constants, with a `_` arm for the values C does not name:
 ///
 /// ```
-/// use ffmpeg::libavutil::channel_layout::MatrixEncoding;
+/// use ffmpeg_bindings::libavutil::libavutil::channel_layout::MatrixEncoding;
 /// fn is_dolby(e: MatrixEncoding) -> bool {
 ///     match e {
 ///         MatrixEncoding::NONE => false,
@@ -479,7 +479,7 @@ unsafe impl CPlainElem for MatrixEncoding {}
 /// does not name:
 ///
 /// ```
-/// use ffmpeg::libavutil::channel_layout::ChannelOrder;
+/// use ffmpeg_bindings::libavutil::libavutil::channel_layout::ChannelOrder;
 /// fn has_mask(order: ChannelOrder) -> bool {
 ///     matches!(order, ChannelOrder::NATIVE | ChannelOrder::AMBISONIC)
 /// }
@@ -1018,7 +1018,7 @@ impl Channel {
     /// [`UNUSED`](Self::UNUSED), and `USR<id>` for every other value.
     ///
     /// ```
-    /// use ffmpeg::libavutil::channel_layout::Channel;
+    /// use ffmpeg_bindings::libavutil::libavutil::channel_layout::Channel;
     /// assert_eq!(Channel::FRONT_LEFT.name().as_c_str(), c"FL");
     /// assert_eq!(Channel::ambisonic(3).unwrap().name().as_c_str(), c"AMBI3");
     /// ```
@@ -1061,8 +1061,8 @@ impl Channel {
     /// handle.
     ///
     /// ```
-    /// use ffmpeg::libavutil::bprint::BPrint;
-    /// use ffmpeg::libavutil::channel_layout::Channel;
+    /// use ffmpeg_bindings::libavutil::libavutil::bprint::BPrint;
+    /// use ffmpeg_bindings::libavutil::libavutil::channel_layout::Channel;
     /// let mut buf = BPrint::new(0, BPrint::SIZE_UNLIMITED).unwrap();
     /// Channel::FRONT_LEFT.append_name(buf.as_mut());
     /// buf.as_mut().append_bytes(b"+");
@@ -1119,7 +1119,7 @@ const EINVAL: i32 = -22;
 /// are [`ChannelLayout`]'s constants of the same names.
 ///
 /// ```
-/// use ffmpeg::libavutil::channel_layout::{ChannelLayout, LayoutDetails, masks};
+/// use ffmpeg_bindings::libavutil::libavutil::channel_layout::{ChannelLayout, LayoutDetails, masks};
 /// let l = ChannelLayout::from_mask(masks::L5POINT1).unwrap();
 /// assert_eq!(l.as_ref().channel_count(), 6);
 /// assert!(matches!(l.as_ref().details(), LayoutDetails::Native(masks::L5POINT1)));
@@ -1525,7 +1525,7 @@ impl ChannelLayout {
     /// (`ambisonic 2+stereo`).
     ///
     /// ```
-    /// use ffmpeg::libavutil::channel_layout::{ChannelLayout, ChannelOrder, LayoutDetails};
+    /// use ffmpeg_bindings::libavutil::libavutil::channel_layout::{ChannelLayout, ChannelOrder, LayoutDetails};
     /// let stereo = ChannelLayout::parse(c"stereo").unwrap();
     /// assert_eq!(stereo.as_ref().order(), ChannelOrder::NATIVE);
     /// assert_eq!(stereo.as_ref().channel_count(), 2);
@@ -1574,8 +1574,8 @@ impl ChannelLayout {
     /// or longer than `i32::MAX`, which a layout cannot count.
     ///
     /// ```
-    /// use ffmpeg::libavutil::channel_layout::{Channel, ChannelCustom, ChannelLayout};
-    /// use ffmpeg::libavutil::mem::alloc_cell_array_zeroed;
+    /// use ffmpeg_bindings::libavutil::libavutil::channel_layout::{Channel, ChannelCustom, ChannelLayout};
+    /// use ffmpeg_bindings::libavutil::libavutil::mem::alloc_cell_array_zeroed;
     /// let mut map = alloc_cell_array_zeroed::<ChannelCustom>(2).unwrap();
     /// for (i, id) in [Channel::FRONT_LEFT, Channel::LOW_FREQUENCY].into_iter().enumerate() {
     ///     map.as_handles_mut().get_mut(i).unwrap().set_id(id);
@@ -1599,7 +1599,7 @@ impl ChannelLayout {
 /// [`ChannelLayoutMut::set`] and its siblings take.
 ///
 /// ```
-/// use ffmpeg::libavutil::channel_layout::{ChannelLayout, ChannelLayoutVal, ChannelOrder};
+/// use ffmpeg_bindings::libavutil::libavutil::channel_layout::{ChannelLayout, ChannelLayoutVal, ChannelOrder};
 /// assert_eq!(ChannelLayout::L5POINT1.as_ref().channel_count(), 6);
 /// let mut l = ChannelLayoutVal::from(ChannelLayout::STEREO);
 /// l.as_mut().set(ChannelLayout::AMBISONIC_FIRST_ORDER.into());
@@ -1845,7 +1845,7 @@ impl<'a> ChannelLayoutRef<'a> {
     /// layout.
     ///
     /// ```
-    /// use ffmpeg::libavutil::channel_layout::{Channel, ChannelLayout, LayoutDetails};
+    /// use ffmpeg_bindings::libavutil::libavutil::channel_layout::{Channel, ChannelLayout, LayoutDetails};
     /// let layout = ChannelLayout::parse(c"FL@left+LFE").unwrap();
     /// let LayoutDetails::Custom(map) = layout.as_ref().details() else { panic!() };
     /// assert_eq!(map.get(0).unwrap().name().as_c_str(), c"left");
@@ -2171,7 +2171,7 @@ impl ChannelLayoutRef<'_> {
     /// unspecified layout or an order C does not know.
     ///
     /// ```
-    /// use ffmpeg::libavutil::channel_layout::{Channel, ChannelLayout, masks};
+    /// use ffmpeg_bindings::libavutil::libavutil::channel_layout::{Channel, ChannelLayout, masks};
     /// let l = ChannelLayout::parse(c"LFE@sub+FL+USR40").unwrap();
     /// let front_right = Channel::FRONT_RIGHT.mask().unwrap();
     /// assert_eq!(l.as_ref().subset(masks::L2POINT1), masks::L2POINT1 ^ front_right);
@@ -2232,7 +2232,7 @@ impl ChannelLayoutMut<'_> {
     ///   are named.
     ///
     /// ```
-    /// use ffmpeg::libavutil::channel_layout::{ChannelLayout, ChannelOrder, Conversion};
+    /// use ffmpeg_bindings::libavutil::libavutil::channel_layout::{ChannelLayout, ChannelOrder, Conversion};
     /// let mut l = ChannelLayout::parse(c"FL@left+FR").unwrap();
     /// assert_eq!(l.as_ref().order(), ChannelOrder::CUSTOM);
     /// assert_eq!(l.as_mut().retype(ChannelOrder::NATIVE), Ok(Conversion::Lossy));
@@ -2264,7 +2264,7 @@ impl ChannelLayoutMut<'_> {
     /// does, but only if every channel designation and name survives.
     ///
     /// ```
-    /// use ffmpeg::libavutil::channel_layout::{ChannelLayout, ChannelOrder};
+    /// use ffmpeg_bindings::libavutil::libavutil::channel_layout::{ChannelLayout, ChannelOrder};
     /// let mut l = ChannelLayout::parse(c"FL@left+FR").unwrap();
     /// assert_eq!(l.as_mut().retype_lossless(ChannelOrder::NATIVE), Err(-38)); // ENOSYS
     /// assert_eq!(l.as_ref().order(), ChannelOrder::CUSTOM);
@@ -2289,7 +2289,7 @@ impl ChannelLayoutMut<'_> {
     /// is.
     ///
     /// ```
-    /// use ffmpeg::libavutil::channel_layout::{ChannelLayout, ChannelOrder, masks};
+    /// use ffmpeg_bindings::libavutil::libavutil::channel_layout::{ChannelLayout, ChannelOrder, masks};
     /// let mut l = ChannelLayout::from_mask(masks::L5POINT1).unwrap();
     /// l.as_mut().retype(ChannelOrder::CUSTOM).unwrap();
     /// l.as_mut().canonicalize().unwrap();
@@ -2315,7 +2315,7 @@ impl ChannelLayoutMut<'_> {
 /// to `22.2`, each borrowed for the whole program.
 ///
 /// ```
-/// use ffmpeg::libavutil::channel_layout::{ChannelLayout, LayoutDetails, masks, standard_layouts};
+/// use ffmpeg_bindings::libavutil::libavutil::channel_layout::{ChannelLayout, LayoutDetails, masks, standard_layouts};
 /// let first = standard_layouts().next().unwrap();
 /// assert!(matches!(first.details(), LayoutDetails::Native(masks::MONO)));
 /// assert!(standard_layouts().any(|l| l.channel_count() == 24));
@@ -2326,7 +2326,7 @@ impl ChannelLayoutMut<'_> {
 /// The entries are C's shared, read-only table: only a copy converts.
 ///
 /// ```compile_fail,E0599
-/// use ffmpeg::libavutil::channel_layout::{ChannelOrder, standard_layouts};
+/// use ffmpeg_bindings::libavutil::libavutil::channel_layout::{ChannelOrder, standard_layouts};
 /// let mut stereo = standard_layouts().nth(1).unwrap();
 /// let _ = stereo.retype(ChannelOrder::CUSTOM);
 /// ```
@@ -2450,7 +2450,7 @@ impl<'a> ChannelLayoutRef<'a> {
     /// C does not know.
     ///
     /// ```
-    /// use ffmpeg::libavutil::channel_layout::ChannelLayout;
+    /// use ffmpeg_bindings::libavutil::libavutil::channel_layout::ChannelLayout;
     /// assert!(ChannelLayout::STEREO.as_ref().is_valid());
     /// assert!(!ChannelLayout::unspecified(0).as_ref().is_valid());
     /// ```
@@ -2474,7 +2474,7 @@ impl<'a> ChannelLayoutRef<'a> {
     /// place, and for an incomplete order (C's `AVERROR(EINVAL)`).
     ///
     /// ```
-    /// use ffmpeg::libavutil::channel_layout::ChannelLayout;
+    /// use ffmpeg_bindings::libavutil::libavutil::channel_layout::ChannelLayout;
     /// assert_eq!(ChannelLayout::AMBISONIC_FIRST_ORDER.as_ref().ambisonic_order(), Some(1));
     /// let custom = ChannelLayout::parse(c"AMBI0+AMBI1+AMBI2+AMBI3+FL@x").unwrap();
     /// assert_eq!(custom.as_ref().ambisonic_order(), Some(1));
@@ -2504,7 +2504,7 @@ impl<'a> ChannelLayoutRef<'a> {
     /// C returns for no channel.
     ///
     /// ```
-    /// use ffmpeg::libavutil::channel_layout::{Channel, ChannelLayout};
+    /// use ffmpeg_bindings::libavutil::libavutil::channel_layout::{Channel, ChannelLayout};
     /// let l = ChannelLayout::L2POINT1;
     /// assert_eq!(l.as_ref().channel(2), Some(Channel::LOW_FREQUENCY));
     /// assert_eq!(l.as_ref().channel(3), None);
@@ -2535,7 +2535,7 @@ impl<'a> ChannelLayoutRef<'a> {
     /// order or an order C does not know, and for [`Channel::NONE`].
     ///
     /// ```
-    /// use ffmpeg::libavutil::channel_layout::{Channel, ChannelLayout};
+    /// use ffmpeg_bindings::libavutil::libavutil::channel_layout::{Channel, ChannelLayout};
     /// let l = ChannelLayout::L5POINT1;
     /// assert_eq!(l.as_ref().index_of(Channel::LOW_FREQUENCY), Some(3));
     /// assert_eq!(l.as_ref().index_of(Channel::BACK_LEFT), None);
@@ -2573,7 +2573,7 @@ impl<'a> ChannelLayoutRef<'a> {
     /// channel name.
     ///
     /// ```
-    /// use ffmpeg::libavutil::channel_layout::ChannelLayout;
+    /// use ffmpeg_bindings::libavutil::libavutil::channel_layout::ChannelLayout;
     /// let l = ChannelLayout::parse(c"FL@left+FR@right+FL@rear").unwrap();
     /// assert_eq!(l.as_ref().index_by_name(c"FR"), Some(1));
     /// assert_eq!(l.as_ref().index_by_name(c"@rear"), Some(2));
@@ -2611,7 +2611,7 @@ impl<'a> ChannelLayoutRef<'a> {
     /// finds nothing.
     ///
     /// ```
-    /// use ffmpeg::libavutil::channel_layout::{Channel, ChannelLayout};
+    /// use ffmpeg_bindings::libavutil::libavutil::channel_layout::{Channel, ChannelLayout};
     /// let l = ChannelLayout::parse(c"FL@left+LFE@sub").unwrap();
     /// assert_eq!(l.as_ref().channel_by_name(c"@sub"), Some(Channel::LOW_FREQUENCY));
     /// assert_eq!(l.as_ref().channel_by_name(c"FR"), None);
@@ -2664,7 +2664,7 @@ impl<'a> ChannelLayoutRef<'a> {
     /// Ambisonic order) is described as such.
     ///
     /// ```
-    /// use ffmpeg::libavutil::channel_layout::{ChannelLayout, ChannelLayoutRef, masks};
+    /// use ffmpeg_bindings::libavutil::libavutil::channel_layout::{ChannelLayout, ChannelLayoutRef, masks};
     /// let d = |l: ChannelLayoutRef<'_>| l.description().unwrap().into_string().unwrap();
     /// assert_eq!(d(ChannelLayout::L5POINT1.as_ref()), "5.1(side)");
     /// let odd = ChannelLayout::native(masks::STEREO | 1 << 50);
@@ -2692,8 +2692,8 @@ impl<'a> ChannelLayoutRef<'a> {
     /// which `as_mut()` reborrows from an owner or another handle.
     ///
     /// ```
-    /// use ffmpeg::libavutil::bprint::BPrint;
-    /// use ffmpeg::libavutil::channel_layout::ChannelLayout;
+    /// use ffmpeg_bindings::libavutil::libavutil::bprint::BPrint;
+    /// use ffmpeg_bindings::libavutil::libavutil::channel_layout::ChannelLayout;
     /// let mut buf = BPrint::new(0, BPrint::SIZE_UNLIMITED).unwrap();
     /// buf.as_mut().append_bytes(b"layout: ");
     /// ChannelLayout::STEREO.as_ref().append_description(buf.as_mut()).unwrap();
@@ -2726,7 +2726,7 @@ impl<'a> ChannelLayoutRef<'a> {
 /// Names and user pointers are not compared.
 ///
 /// ```
-/// use ffmpeg::libavutil::channel_layout::{ChannelLayout, ChannelOrder};
+/// use ffmpeg_bindings::libavutil::libavutil::channel_layout::{ChannelLayout, ChannelOrder};
 /// let mut l = ChannelLayout::parse(c"FL@left+FR").unwrap();
 /// assert!(l.as_ref() == ChannelLayout::STEREO.as_ref());
 /// l.as_mut().retype(ChannelOrder::UNSPEC).unwrap();
@@ -2739,7 +2739,7 @@ impl<'a> ChannelLayoutRef<'a> {
 /// included, rather than being read through.
 ///
 /// ```compile_fail,E0277
-/// use ffmpeg::libavutil::channel_layout::ChannelLayout;
+/// use ffmpeg_bindings::libavutil::libavutil::channel_layout::ChannelLayout;
 /// fn total<T: Eq>(_: &T) {}
 /// total(&ChannelLayout::STEREO);
 /// ```

@@ -20,7 +20,7 @@ define_ctype!(
 /// No thread-safety assertion is made for the wrapped C type:
 ///
 /// ```compile_fail,E0277
-/// use ffmpeg::libavutil::ripemd::RipemdBox;
+/// use ffmpeg_bindings::libavutil::libavutil::ripemd::RipemdBox;
 /// fn requires_send<T: Send>() {}
 /// requires_send::<RipemdBox>();
 /// ```

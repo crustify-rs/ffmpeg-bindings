@@ -1,4 +1,4 @@
-use ffmpeg::libavutil::camellia::Camellia;
+use ffmpeg_bindings::libavutil::libavutil::camellia::Camellia;
 fn main() {
     let mut owner = Camellia::new(&[0; 16]).unwrap();
     let mut exclusive = owner.as_mut();

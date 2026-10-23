@@ -3,9 +3,9 @@
 
 use core::ptr::addr_of_mut;
 
-use ffmpeg::libavutil::aes::Direction;
-use ffmpeg::libavutil::ffi;
-use ffmpeg::libavutil::xtea::{Xtea, XteaBox, XteaRef};
+use ffmpeg_bindings::libavutil::libavutil::aes::Direction;
+use ffmpeg_bindings::libavutil::libavutil::ffi;
+use ffmpeg_bindings::libavutil::libavutil::xtea::{Xtea, XteaBox, XteaRef};
 
 const KEYS: [[u8; 16]; 4] = [
     [0; 16],

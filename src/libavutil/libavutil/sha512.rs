@@ -56,7 +56,7 @@ define_ctype!(
 /// Borrows cannot outlive their owner:
 ///
 /// ```compile_fail
-/// use ffmpeg::libavutil::sha512::{Algorithm, Sha512};
+/// use ffmpeg_bindings::libavutil::libavutil::sha512::{Algorithm, Sha512};
 /// let view = {
 ///     let owner = Sha512::new(Algorithm::Sha512).unwrap();
 ///     owner.as_ref()
@@ -67,7 +67,7 @@ define_ctype!(
 /// A shared reborrow freezes the exclusive handle:
 ///
 /// ```compile_fail
-/// use ffmpeg::libavutil::sha512::{Algorithm, Sha512};
+/// use ffmpeg_bindings::libavutil::libavutil::sha512::{Algorithm, Sha512};
 /// let mut owner = Sha512::new(Algorithm::Sha512).unwrap();
 /// let mut exclusive = owner.as_mut();
 /// let shared = exclusive.as_ref();
@@ -78,7 +78,7 @@ define_ctype!(
 /// The opaque layout has no Rust size, so there is no Rust-sized allocation:
 ///
 /// ```compile_fail,E0277
-/// use ffmpeg::libavutil::sha512::Sha512Box;
+/// use ffmpeg_bindings::libavutil::libavutil::sha512::Sha512Box;
 /// let _ = Sha512Box::new_uninit();
 /// ```
 pub type Sha512Box = CBox<Sha512, Sha512Free>;

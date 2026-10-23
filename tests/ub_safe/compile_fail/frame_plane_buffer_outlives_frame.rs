@@ -1,7 +1,7 @@
 // A plane's buffer reference is borrowed from its frame, so it cannot
 // outlive it.
-use ffmpeg::libavutil::frame::Frame;
-use ffmpeg::libavutil::pixfmt::PixelFormat;
+use ffmpeg_bindings::libavutil::libavutil::frame::Frame;
+use ffmpeg_bindings::libavutil::libavutil::pixfmt::PixelFormat;
 
 fn main() {
     let mut frame = Frame::new().unwrap();

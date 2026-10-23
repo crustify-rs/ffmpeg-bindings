@@ -14,8 +14,8 @@ mod pixel_format_descriptor_from_raw {
     use std::sync::Mutex;
     use std::thread;
 
-    use ffmpeg::libavutil::ffi;
-    use ffmpeg::libavutil::pixdesc::{PixelFormatDescriptor, PixelFormatFlags};
+    use ffmpeg_bindings::libavutil::libavutil::ffi;
+    use ffmpeg_bindings::libavutil::libavutil::pixdesc::{PixelFormatDescriptor, PixelFormatFlags};
 
     /// `bytes` as an exactly sized heap C string that lives for the rest of
     /// the program, kept reachable from a static so that neither

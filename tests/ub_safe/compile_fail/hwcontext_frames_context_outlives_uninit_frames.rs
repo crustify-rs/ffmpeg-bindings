@@ -1,4 +1,4 @@
-use ffmpeg::libavutil::hwcontext::UninitFrames;
+use ffmpeg_bindings::libavutil::libavutil::hwcontext::UninitFrames;
 
 fn view(frames: UninitFrames) {
     let ctx = frames.context();

@@ -1,7 +1,7 @@
 // A writable plane excludes every other view of the frame, a shared plane
 // included.
-use ffmpeg::libavutil::buffer::BufferReference;
-use ffmpeg::libavutil::frame::Frame;
+use ffmpeg_bindings::libavutil::libavutil::buffer::BufferReference;
+use ffmpeg_bindings::libavutil::libavutil::frame::Frame;
 
 fn main() {
     let mut frame = Frame::new().unwrap();

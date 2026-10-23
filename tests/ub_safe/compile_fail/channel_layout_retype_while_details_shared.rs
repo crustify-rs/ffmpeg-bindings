@@ -1,6 +1,6 @@
 // A layout cannot be retyped, which may free its map, while a view of the
 // map is held.
-use ffmpeg::libavutil::channel_layout::{ChannelLayout, ChannelOrder, LayoutDetails};
+use ffmpeg_bindings::libavutil::libavutil::channel_layout::{ChannelLayout, ChannelOrder, LayoutDetails};
 
 fn main() {
     let mut layout = ChannelLayout::parse(c"FL@a+FR@b").unwrap();

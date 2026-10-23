@@ -18,7 +18,7 @@ define_ctype!(
     ///
     /// An exclusive reborrow freezes its parent:
     /// ```compile_fail
-    /// use ffmpeg::libavutil::twofish::Twofish;
+    /// use ffmpeg_bindings::libavutil::libavutil::twofish::Twofish;
     /// let (mut owner, _) = Twofish::new(&[0; 16], 128).unwrap();
     /// let mut parent = owner.as_mut();
     /// let mut child = parent.as_mut();
@@ -27,7 +27,7 @@ define_ctype!(
     /// ```
     /// A shared handle keeps its owner alive:
     /// ```compile_fail
-    /// use ffmpeg::libavutil::twofish::Twofish;
+    /// use ffmpeg_bindings::libavutil::libavutil::twofish::Twofish;
     /// let (owner, _) = Twofish::new(&[0; 16], 128).unwrap();
     /// let shared = owner.as_ref();
     /// drop(owner);
@@ -41,7 +41,7 @@ define_ctype!(
 /// The opaque layout has no Rust size, so there is no Rust-sized allocation:
 ///
 /// ```compile_fail,E0277
-/// use ffmpeg::libavutil::twofish::TwofishBox;
+/// use ffmpeg_bindings::libavutil::libavutil::twofish::TwofishBox;
 /// let _ = TwofishBox::new_uninit();
 /// ```
 pub type TwofishBox = CBox<Twofish, TwofishFree>;

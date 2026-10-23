@@ -1,5 +1,5 @@
 // A reborrowed exclusive handle freezes its parent while it lives.
-use ffmpeg::libavutil::intfloat::IntFloat32;
+use ffmpeg_bindings::libavutil::libavutil::intfloat::IntFloat32;
 
 fn main() {
     let mut a = IntFloat32::default();

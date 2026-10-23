@@ -1,5 +1,5 @@
 // A shared handle cannot outlive the channel it borrows.
-use ffmpeg::libavutil::channel_layout::{Channel, ChannelCustom};
+use ffmpeg_bindings::libavutil::libavutil::channel_layout::{Channel, ChannelCustom};
 
 fn main() {
     let r = {

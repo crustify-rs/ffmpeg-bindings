@@ -1,6 +1,6 @@
 // A user function is called with whatever opaque pointer the evaluator gets,
 // so an `unsafe` function, which could demand more of it, is refused.
-use ffmpeg::libavutil::eval::Expr;
+use ffmpeg_bindings::libavutil::libavutil::eval::Expr;
 use std::ffi::c_void;
 
 unsafe extern "C" fn deref(opaque: *mut c_void, x: f64) -> f64 {

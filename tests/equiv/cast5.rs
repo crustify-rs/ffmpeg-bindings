@@ -1,4 +1,4 @@
-use ffmpeg::libavutil::{
+use ffmpeg_bindings::libavutil::libavutil::{
     cast5::{Cast5, Cast5Box, InitError},
     ffi,
 };
@@ -99,7 +99,7 @@ fn constructors_and_reinitialization_match_independent_c_contexts() {
     }
 }
 
-use ffmpeg::libavutil::cast5;
+use ffmpeg_bindings::libavutil::libavutil::cast5;
 
 #[test]
 #[cfg_attr(miri, ignore = "reads a C global")]
@@ -112,7 +112,7 @@ fn batch10_size_is_the_c_global() {
     }
 }
 
-use ffmpeg::libavutil::aes::Direction;
+use ffmpeg_bindings::libavutil::libavutil::aes::Direction;
 
 #[test]
 #[cfg_attr(miri, ignore = "calls C")]

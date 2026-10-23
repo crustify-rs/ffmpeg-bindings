@@ -1,5 +1,5 @@
 // A regrowth may free the block, so no slice of it may live across one.
-use ffmpeg::libavutil::mem::ZeroedFastBuffer;
+use ffmpeg_bindings::libavutil::libavutil::mem::ZeroedFastBuffer;
 
 fn main() {
     let mut b = ZeroedFastBuffer::new();

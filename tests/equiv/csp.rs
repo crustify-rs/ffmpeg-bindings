@@ -8,14 +8,14 @@
 /// identifies them after each step, and equality against C's `av_cmp_q` on
 /// both coordinates.
 ///
-/// [`CieXy`]: ffmpeg::libavutil::csp::CieXy
+/// [`CieXy`]: ffmpeg_bindings::libavutil::libavutil::csp::CieXy
 mod cie_xy {
     use core::mem::{align_of, offset_of, size_of};
 
-    use ffmpeg::libavutil::csp::{CieXy, CieXyMut, CieXyRef};
-    use ffmpeg::libavutil::ffi;
-    use ffmpeg::libavutil::mem::{HeapVec, alloc_cell_array_zeroed};
-    use ffmpeg::libavutil::rational::Rational;
+    use ffmpeg_bindings::libavutil::libavutil::csp::{CieXy, CieXyMut, CieXyRef};
+    use ffmpeg_bindings::libavutil::libavutil::ffi;
+    use ffmpeg_bindings::libavutil::libavutil::mem::{HeapVec, alloc_cell_array_zeroed};
+    use ffmpeg_bindings::libavutil::libavutil::rational::Rational;
 
     /// Every primaries value C may describe, past the end of both ranges
     /// included.
@@ -249,15 +249,15 @@ mod cie_xy {
 /// built field by field, by C-layout writes and through the safe field
 /// handles in `av_malloc`-owned storage, compared after every write.
 ///
-/// [`LumaCoefficients`]: ffmpeg::libavutil::csp::LumaCoefficients
+/// [`LumaCoefficients`]: ffmpeg_bindings::libavutil::libavutil::csp::LumaCoefficients
 mod luma_coefficients {
     use core::ptr::NonNull;
 
     use ffibox::CSlice;
-    use ffmpeg::libavutil::csp::{LumaCoefficients, LumaCoefficientsRef};
-    use ffmpeg::libavutil::ffi;
-    use ffmpeg::libavutil::mem::HeapBox;
-    use ffmpeg::libavutil::rational::Rational;
+    use ffmpeg_bindings::libavutil::libavutil::csp::{LumaCoefficients, LumaCoefficientsRef};
+    use ffmpeg_bindings::libavutil::libavutil::ffi;
+    use ffmpeg_bindings::libavutil::libavutil::mem::HeapBox;
+    use ffmpeg_bindings::libavutil::libavutil::rational::Rational;
 
     /// Every colour space id, out-of-range ones on both sides included.
     fn spaces() -> impl Iterator<Item = ffi::AVColorSpace> {
@@ -439,17 +439,17 @@ mod luma_coefficients {
 /// gamut after each step; and equality against C's `av_cmp_q` on all six
 /// coordinates.
 ///
-/// [`PrimaryCoefficients`]: ffmpeg::libavutil::csp::PrimaryCoefficients
+/// [`PrimaryCoefficients`]: ffmpeg_bindings::libavutil::libavutil::csp::PrimaryCoefficients
 mod primary_coefficients {
     use core::mem::{align_of, offset_of, size_of};
 
-    use ffmpeg::libavutil::csp::{
+    use ffmpeg_bindings::libavutil::libavutil::csp::{
         CieXy, PrimaryCoefficients, PrimaryCoefficientsMut, PrimaryCoefficientsRef,
     };
-    use ffmpeg::libavutil::ffi;
-    use ffmpeg::libavutil::mem::HeapBox;
-    use ffmpeg::libavutil::pixfmt::ColorPrimaries;
-    use ffmpeg::libavutil::rational::Rational;
+    use ffmpeg_bindings::libavutil::libavutil::ffi;
+    use ffmpeg_bindings::libavutil::libavutil::mem::HeapBox;
+    use ffmpeg_bindings::libavutil::libavutil::pixfmt::ColorPrimaries;
+    use ffmpeg_bindings::libavutil::libavutil::rational::Rational;
 
     /// Every primaries value C may describe, past the end of both ranges
     /// included.
@@ -687,8 +687,8 @@ mod primary_coefficients {
 /// `unsigned` extremes, the gammas bit for bit, and every handle against the
 /// function C returns, called on the same inputs in sequence.
 mod color_transfer {
-    use ffmpeg::libavutil::ffi;
-    use ffmpeg::libavutil::pixfmt::ColorTransfer;
+    use ffmpeg_bindings::libavutil::libavutil::ffi;
+    use ffmpeg_bindings::libavutil::libavutil::pixfmt::ColorTransfer;
 
     type Trc = unsafe extern "C" fn(f64) -> f64;
     type Eotf = unsafe extern "C" fn(f64, f64, *mut f64);
@@ -864,9 +864,9 @@ mod color_transfer {
 }
 
 mod luma_lookup {
-    use ffmpeg::libavutil::csp::LumaCoefficients;
-    use ffmpeg::libavutil::ffi;
-    use ffmpeg::libavutil::pixfmt::ColorSpace;
+    use ffmpeg_bindings::libavutil::libavutil::csp::LumaCoefficients;
+    use ffmpeg_bindings::libavutil::libavutil::ffi;
+    use ffmpeg_bindings::libavutil::libavutil::pixfmt::ColorSpace;
 
     /// Every value C has a table slot for, its neighbours, and the extremes,
     /// as C's `unsigned` enum takes them.
@@ -917,19 +917,19 @@ mod luma_lookup {
 /// both after each step; and equality against C's `av_cmp_q` on all eight
 /// coordinates.
 ///
-/// [`ColorPrimariesDescriptor`]: ffmpeg::libavutil::csp::ColorPrimariesDescriptor
+/// [`ColorPrimariesDescriptor`]: ffmpeg_bindings::libavutil::libavutil::csp::ColorPrimariesDescriptor
 mod color_primaries_descriptor {
     use core::mem::{align_of, offset_of, size_of};
     use core::ptr::{self, addr_of};
 
-    use ffmpeg::libavutil::csp::{
+    use ffmpeg_bindings::libavutil::libavutil::csp::{
         CieXy, CieXyMut, ColorPrimariesDescriptor, ColorPrimariesDescriptorMut,
         ColorPrimariesDescriptorRef, PrimaryCoefficients,
     };
-    use ffmpeg::libavutil::ffi;
-    use ffmpeg::libavutil::mem::HeapBox;
-    use ffmpeg::libavutil::pixfmt::ColorPrimaries;
-    use ffmpeg::libavutil::rational::Rational;
+    use ffmpeg_bindings::libavutil::libavutil::ffi;
+    use ffmpeg_bindings::libavutil::libavutil::mem::HeapBox;
+    use ffmpeg_bindings::libavutil::libavutil::pixfmt::ColorPrimaries;
+    use ffmpeg_bindings::libavutil::libavutil::rational::Rational;
 
     /// Every primaries value C may describe, past the end of both ranges
     /// included.
@@ -1295,10 +1295,10 @@ mod color_primaries_descriptor {
 /// `csp::unit_tests`): the sequences check the wrapper's `None` there
 /// instead.
 mod primaries_lookup {
-    use ffmpeg::libavutil::csp::{CieXy, ColorPrimariesDescriptor, ColorPrimariesDescriptorRef};
-    use ffmpeg::libavutil::ffi;
-    use ffmpeg::libavutil::mem::HeapBox;
-    use ffmpeg::libavutil::pixfmt::ColorPrimaries;
+    use ffmpeg_bindings::libavutil::libavutil::csp::{CieXy, ColorPrimariesDescriptor, ColorPrimariesDescriptorRef};
+    use ffmpeg_bindings::libavutil::libavutil::ffi;
+    use ffmpeg_bindings::libavutil::libavutil::mem::HeapBox;
+    use ffmpeg_bindings::libavutil::libavutil::pixfmt::ColorPrimaries;
 
     /// Every value C has a table slot for, its neighbours, and the extremes,
     /// as C's `unsigned` enum takes them.

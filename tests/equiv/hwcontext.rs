@@ -15,9 +15,9 @@
 use core::ffi::{CStr, c_uint, c_void};
 use core::mem::size_of;
 
-use ffmpeg::libavutil::ffi;
-use ffmpeg::libavutil::hwcontext::{DeviceType, TransferDirection};
-use ffmpeg::libavutil::mem::{HeapVec, alloc_array_zeroed};
+use ffmpeg_bindings::libavutil::libavutil::ffi;
+use ffmpeg_bindings::libavutil::libavutil::hwcontext::{DeviceType, TransferDirection};
+use ffmpeg_bindings::libavutil::libavutil::mem::{HeapVec, alloc_array_zeroed};
 
 use ffi::AVHWDeviceType as C;
 
@@ -290,16 +290,16 @@ mod hwframes;
 /// (hwcontext wave 1, batch 2), over independent fake contexts and frames
 /// built alike for each side.
 ///
-/// [`FrameRef::transfer_formats`]: ffmpeg::libavutil::frame::FrameRef::transfer_formats
-/// [`FrameMut::transfer_data_from`]: ffmpeg::libavutil::frame::FrameMut::transfer_data_from
+/// [`FrameRef::transfer_formats`]: ffmpeg_bindings::libavutil::libavutil::frame::FrameRef::transfer_formats
+/// [`FrameMut::transfer_data_from`]: ffmpeg_bindings::libavutil::libavutil::frame::FrameMut::transfer_data_from
 mod transfer {
     use core::ffi::c_int;
     use core::ptr;
 
-    use ffmpeg::libavutil::buffer::BufferReferenceBox;
-    use ffmpeg::libavutil::frame::{Frame, FrameBox};
-    use ffmpeg::libavutil::hwcontext::TransferDirection;
-    use ffmpeg::libavutil::pixfmt::PixelFormat;
+    use ffmpeg_bindings::libavutil::libavutil::buffer::BufferReferenceBox;
+    use ffmpeg_bindings::libavutil::libavutil::frame::{Frame, FrameBox};
+    use ffmpeg_bindings::libavutil::libavutil::hwcontext::TransferDirection;
+    use ffmpeg_bindings::libavutil::libavutil::pixfmt::PixelFormat;
 
     use super::ffi;
     use super::hwframes::{
@@ -378,7 +378,7 @@ mod transfer {
     /// Rust's from [`FrameMut::alloc_buffers`], both zeroed and then holding
     /// `pattern(seed)`.
     ///
-    /// [`FrameMut::alloc_buffers`]: ffmpeg::libavutil::frame::FrameMut::alloc_buffers
+    /// [`FrameMut::alloc_buffers`]: ffmpeg_bindings::libavutil::libavutil::frame::FrameMut::alloc_buffers
     fn sw_frames(format: Fmt, w: c_int, h: c_int, seed: u8) -> (CFrame, FrameBox) {
         let c = CFrame(fx::new_sw_frame(format, w, h, pattern(seed)));
         assert!(!c.0.is_null());
@@ -782,13 +782,13 @@ mod contexts {
     use core::ffi::{CStr, c_int};
     use core::ptr::{self, null_mut};
 
-    use ffmpeg::libavutil::dict::Dict;
-    use ffmpeg::libavutil::ffi;
-    use ffmpeg::libavutil::hwcontext::{
+    use ffmpeg_bindings::libavutil::libavutil::dict::Dict;
+    use ffmpeg_bindings::libavutil::libavutil::ffi;
+    use ffmpeg_bindings::libavutil::libavutil::hwcontext::{
         DeviceReference, DeviceReferenceBox, DeviceType, FramesReferenceBox, HardwareFrame,
         MapFlags,
     };
-    use ffmpeg::libavutil::pixfmt::PixelFormat;
+    use ffmpeg_bindings::libavutil::libavutil::pixfmt::PixelFormat;
 
     use super::backend::{self as fx, Event, FramesHw, FramesHwctx, HWCONFIG_SIZE, Kind, averror};
     use super::{C, NAMED, UNNAMED, c_find, c_name, c_next};
@@ -1527,21 +1527,21 @@ mod contexts {
 /// so only its listing runs in C. Results, downloaded images, frame shapes
 /// and the backends' event logs are compared after each step.
 ///
-/// [`HardwareFrame`]: ffmpeg::libavutil::hwcontext::HardwareFrame
-/// [`download_to`]: ffmpeg::libavutil::hwcontext::HardwareFrame::download_to
-/// [`upload_from`]: ffmpeg::libavutil::hwcontext::HardwareFrame::upload_from
-/// [`copy_from`]: ffmpeg::libavutil::hwcontext::HardwareFrame::copy_from
-/// [`FramesReferenceRef::transfer_formats`]: ffmpeg::libavutil::hwcontext::FramesReferenceRef::transfer_formats
+/// [`HardwareFrame`]: ffmpeg_bindings::libavutil::libavutil::hwcontext::HardwareFrame
+/// [`download_to`]: ffmpeg_bindings::libavutil::libavutil::hwcontext::HardwareFrame::download_to
+/// [`upload_from`]: ffmpeg_bindings::libavutil::libavutil::hwcontext::HardwareFrame::upload_from
+/// [`copy_from`]: ffmpeg_bindings::libavutil::libavutil::hwcontext::HardwareFrame::copy_from
+/// [`FramesReferenceRef::transfer_formats`]: ffmpeg_bindings::libavutil::libavutil::hwcontext::FramesReferenceRef::transfer_formats
 mod hardware_frame_transfers {
     use core::ffi::c_int;
     use core::ptr;
 
-    use ffmpeg::libavutil::ffi;
-    use ffmpeg::libavutil::frame::{Frame, FrameBox};
-    use ffmpeg::libavutil::hwcontext::{
+    use ffmpeg_bindings::libavutil::libavutil::ffi;
+    use ffmpeg_bindings::libavutil::libavutil::frame::{Frame, FrameBox};
+    use ffmpeg_bindings::libavutil::libavutil::hwcontext::{
         DeviceReferenceBox, FramesReferenceBox, HardwareFrame, MapFlags, TransferDirection,
     };
-    use ffmpeg::libavutil::pixfmt::PixelFormat;
+    use ffmpeg_bindings::libavutil::libavutil::pixfmt::PixelFormat;
 
     use super::backend::{self as fx, Event, FramesHw, FramesHwctx, Kind, averror};
 
@@ -1645,7 +1645,7 @@ mod hardware_frame_transfers {
     /// `av_frame_get_buffer` and [`alloc_buffers`] (zeroed), its image then
     /// holding `seed`'s bytes.
     ///
-    /// [`alloc_buffers`]: ffmpeg::libavutil::frame::FrameMut::alloc_buffers
+    /// [`alloc_buffers`]: ffmpeg_bindings::libavutil::libavutil::frame::FrameMut::alloc_buffers
     fn software(w: c_int, h: c_int, seed: u8) -> (CFrame, FrameBox) {
         let c = CFrame::alloc();
         // SAFETY: a fresh frame given a format, size and buffers, whose image
@@ -1906,15 +1906,15 @@ mod hwdevice;
 /// `tests/common/hwdevice.rs`, on independent, equivalent contexts: C's
 /// `av_hwdevice_ctx_init` on one, [`UninitDevice::init`] on the other.
 ///
-/// [`DeviceContext`]: ffmpeg::libavutil::hwcontext::DeviceContext
-/// [`UninitDevice::init`]: ffmpeg::libavutil::hwcontext::UninitDevice::init
+/// [`DeviceContext`]: ffmpeg_bindings::libavutil::libavutil::hwcontext::DeviceContext
+/// [`UninitDevice::init`]: ffmpeg_bindings::libavutil::libavutil::hwcontext::UninitDevice::init
 mod device_context {
     use core::ffi::{CStr, c_int, c_void};
     use core::ptr::null_mut;
     use std::sync::{Arc, Mutex};
 
-    use ffmpeg::libavutil::ffi;
-    use ffmpeg::libavutil::hwcontext::{DeviceContextMut, DeviceContextRef, UninitDevice};
+    use ffmpeg_bindings::libavutil::libavutil::ffi;
+    use ffmpeg_bindings::libavutil::libavutil::hwcontext::{DeviceContextMut, DeviceContextRef, UninitDevice};
 
     use super::hwdevice::{self, BARE_TYPE, Events, FakeHw};
 
@@ -2152,12 +2152,12 @@ mod device_class_object {
     use core::cell::RefCell;
     use core::ffi::c_void;
 
-    use ffmpeg::libavutil::ffi;
-    use ffmpeg::libavutil::hwcontext::UninitDevice;
-    use ffmpeg::libavutil::log::{
+    use ffmpeg_bindings::libavutil::libavutil::ffi;
+    use ffmpeg_bindings::libavutil::libavutil::hwcontext::UninitDevice;
+    use ffmpeg_bindings::libavutil::libavutil::log::{
         self, Callback, ClassCategory, Level, Record, default_category, default_item_name,
     };
-    use ffmpeg::libavutil::opt::{ObjectMut, ObjectRef};
+    use ffmpeg_bindings::libavutil::libavutil::opt::{ObjectMut, ObjectRef};
 
     use super::hwdevice;
     use crate::log::LogState;
@@ -2251,18 +2251,18 @@ mod device_class_object {
 /// edited in step by C-style writes and the setters, and released by
 /// `av_hwframe_constraints_free` and the box (hwcontext wave 1, batch 0).
 ///
-/// [`FramesConstraints`]: ffmpeg::libavutil::hwcontext::FramesConstraints
+/// [`FramesConstraints`]: ffmpeg_bindings::libavutil::libavutil::hwcontext::FramesConstraints
 mod frames_constraints {
     use core::ffi::c_int;
     use core::ptr::{null, null_mut};
     use core::sync::atomic::Ordering;
     use std::sync::Arc;
 
-    use ffmpeg::libavutil::ffi;
-    use ffmpeg::libavutil::hwcontext::{
+    use ffmpeg_bindings::libavutil::libavutil::ffi;
+    use ffmpeg_bindings::libavutil::libavutil::hwcontext::{
         DeviceReferenceBox, FramesConstraints, FramesConstraintsBox, UninitDevice,
     };
-    use ffmpeg::libavutil::pixfmt::PixelFormat;
+    use ffmpeg_bindings::libavutil::libavutil::pixfmt::PixelFormat;
 
     use super::hwdevice::{self, BARE_TYPE, Backend, Events, FakeConfig, FakeHw};
 
@@ -2502,7 +2502,7 @@ mod frames_constraints {
 
     fn rust_edit(c: &mut FramesConstraintsBox, e: &Edit) -> Option<Vec<ffi::AVPixelFormat>> {
         let mut m = c.as_mut();
-        let raw = |v: Option<ffmpeg::libavutil::mem::HeapVec<PixelFormat>>| {
+        let raw = |v: Option<ffmpeg_bindings::libavutil::libavutil::mem::HeapVec<PixelFormat>>| {
             v.map(|v| v.as_slice().iter().map(|f| f.into_raw()).collect())
         };
         match e {
@@ -2804,8 +2804,8 @@ mod frames_constraints {
 /// field reads, pool allocations and the backends' event logs are compared
 /// after each step.
 ///
-/// [`FramesContext`]: ffmpeg::libavutil::hwcontext::FramesContext
-/// [`FramesContextMut`]: ffmpeg::libavutil::hwcontext::FramesContextMut
+/// [`FramesContext`]: ffmpeg_bindings::libavutil::libavutil::hwcontext::FramesContext
+/// [`FramesContextMut`]: ffmpeg_bindings::libavutil::libavutil::hwcontext::FramesContextMut
 mod frames_context {
     use core::cell::RefCell;
     use core::ffi::{c_int, c_void};
@@ -2813,12 +2813,12 @@ mod frames_context {
     use core::sync::atomic::{AtomicUsize, Ordering};
     use std::sync::Arc;
 
-    use ffmpeg::libavutil::buffer::{BufferPool, BufferPoolBox, BufferReference};
-    use ffmpeg::libavutil::ffi;
-    use ffmpeg::libavutil::hwcontext::{
+    use ffmpeg_bindings::libavutil::libavutil::buffer::{BufferPool, BufferPoolBox, BufferReference};
+    use ffmpeg_bindings::libavutil::libavutil::ffi;
+    use ffmpeg_bindings::libavutil::libavutil::hwcontext::{
         DeviceReferenceBox, FramesContextMut, FramesContextRef, HardwareFrame, UninitFrames,
     };
-    use ffmpeg::libavutil::pixfmt::PixelFormat;
+    use ffmpeg_bindings::libavutil::libavutil::pixfmt::PixelFormat;
 
     use super::backend::{self as fx, Event, FramesHw, FramesHwctx, Kind};
 
@@ -3387,11 +3387,11 @@ mod frame_hw_frames_context {
     use core::ffi::c_int;
     use core::ptr;
 
-    use ffmpeg::libavutil::buffer::BufferReference;
-    use ffmpeg::libavutil::ffi;
-    use ffmpeg::libavutil::frame::{Frame, FrameBox, FrameRef};
-    use ffmpeg::libavutil::hwcontext::{DeviceReferenceBox, FramesReferenceBox};
-    use ffmpeg::libavutil::pixfmt::PixelFormat;
+    use ffmpeg_bindings::libavutil::libavutil::buffer::BufferReference;
+    use ffmpeg_bindings::libavutil::libavutil::ffi;
+    use ffmpeg_bindings::libavutil::libavutil::frame::{Frame, FrameBox, FrameRef};
+    use ffmpeg_bindings::libavutil::libavutil::hwcontext::{DeviceReferenceBox, FramesReferenceBox};
+    use ffmpeg_bindings::libavutil::libavutil::pixfmt::PixelFormat;
 
     use super::backend::{self as fx, Kind};
 

@@ -41,7 +41,7 @@ use super::mem::HeapVec;
 /// associated constants, with a `_` arm for the values C does not name:
 ///
 /// ```
-/// use ffmpeg::libavutil::samplefmt::SampleFormat;
+/// use ffmpeg_bindings::libavutil::libavutil::samplefmt::SampleFormat;
 /// fn is_float(f: SampleFormat) -> bool {
 ///     matches!(
 ///         f,
@@ -957,7 +957,7 @@ impl SampleFormat {
     /// value C does not know.
     ///
     /// ```
-    /// use ffmpeg::libavutil::samplefmt::SampleFormat;
+    /// use ffmpeg_bindings::libavutil::libavutil::samplefmt::SampleFormat;
     /// assert_eq!(SampleFormat::S16.alt(true), Some(SampleFormat::S16P));
     /// assert_eq!(SampleFormat::S16.alt(false), Some(SampleFormat::S16));
     /// assert_eq!(SampleFormat::NONE.alt(true), None);
@@ -1006,7 +1006,7 @@ impl SampleFormat {
     /// `None` for [`NONE`](Self::NONE) and any value C does not name.
     ///
     /// ```
-    /// use ffmpeg::libavutil::samplefmt::SampleFormat;
+    /// use ffmpeg_bindings::libavutil::libavutil::samplefmt::SampleFormat;
     /// assert_eq!(SampleFormat::FLTP.name(), Some(c"fltp"));
     /// assert_eq!(SampleFormat::NONE.name(), None);
     /// ```
@@ -1027,7 +1027,7 @@ impl SampleFormat {
     /// included.
     ///
     /// ```
-    /// use ffmpeg::libavutil::samplefmt::SampleFormat;
+    /// use ffmpeg_bindings::libavutil::libavutil::samplefmt::SampleFormat;
     /// assert_eq!(SampleFormat::from_name(c"s16p"), Some(SampleFormat::S16P));
     /// assert_eq!(SampleFormat::from_name(c"S16P"), None);
     /// ```
@@ -1068,7 +1068,7 @@ impl SampleFormat {
     /// does not name.
     ///
     /// ```
-    /// use ffmpeg::libavutil::samplefmt::SampleFormat;
+    /// use ffmpeg_bindings::libavutil::libavutil::samplefmt::SampleFormat;
     /// let mut buf = [0u8; 32];
     /// assert_eq!(SampleFormat::S16.describe(&mut buf), Some(c"s16      16 "));
     /// assert_eq!(SampleFormat::NONE.describe(&mut buf), Some(c"name   depth"));
@@ -1615,7 +1615,7 @@ mod unit_tests {
         if !isolated("libavutil::samplefmt::unit_tests::allocation_failures_report_enomem") {
             return;
         }
-        crate::libavutil::mem::set_max_alloc(64);
+        crate::libavutil::libavutil::mem::set_max_alloc(64);
         let enomem = Err(AVERROR_ENOMEM);
         assert_eq!(
             SampleBuffer::new(1, 128, SampleFormat::U8, 1).map(|_| ()),

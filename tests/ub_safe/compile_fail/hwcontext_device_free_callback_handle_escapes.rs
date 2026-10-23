@@ -1,6 +1,6 @@
 use std::cell::RefCell;
 
-use ffmpeg::libavutil::hwcontext::{DeviceContextMut, DeviceReference, DeviceType};
+use ffmpeg_bindings::libavutil::libavutil::hwcontext::{DeviceContextMut, DeviceReference, DeviceType};
 
 thread_local! {
     static KEPT: RefCell<Option<DeviceContextMut<'static>>> = const { RefCell::new(None) };

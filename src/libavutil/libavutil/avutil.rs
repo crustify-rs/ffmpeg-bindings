@@ -20,7 +20,7 @@ use super::rational::Rational;
 /// the associated constants, with a `_` arm for the values C does not name:
 ///
 /// ```
-/// use ffmpeg::libavutil::avutil::MediaType;
+/// use ffmpeg_bindings::libavutil::libavutil::avutil::MediaType;
 /// fn is_av(t: MediaType) -> bool {
 ///     match t {
 ///         MediaType::VIDEO | MediaType::AUDIO => true,
@@ -136,7 +136,7 @@ unsafe impl CPlainElem for MediaType {}
 /// `_` arm for the values C does not name:
 ///
 /// ```
-/// use ffmpeg::libavutil::avutil::PictureType;
+/// use ffmpeg_bindings::libavutil::libavutil::avutil::PictureType;
 /// fn is_intra(t: PictureType) -> bool {
 ///     matches!(t, PictureType::I | PictureType::SI | PictureType::BI)
 /// }
@@ -303,7 +303,7 @@ const FOURCC_MAX_STRING_SIZE: usize = ffi::AV_FOURCC_MAX_STRING_SIZE as usize;
 /// value in brackets (`[0]`). The result borrows `buf`.
 ///
 /// ```
-/// use ffmpeg::libavutil::avutil::fourcc_string;
+/// use ffmpeg_bindings::libavutil::libavutil::avutil::fourcc_string;
 /// let mut buf = [0; 32];
 /// assert_eq!(fourcc_string(&mut buf, u32::from_le_bytes(*b"H264")), c"H264");
 /// assert_eq!(fourcc_string(&mut buf, 0x0100_2e41), c"A.[0][1]");

@@ -4,7 +4,7 @@
 //! backend). Its transfers trust the software frame as CUDA's do, so a frame
 //! the wrapper failed to refuse is overrun under ASan.
 
-use ffmpeg::libavutil::ffi;
+use ffmpeg_bindings::libavutil::libavutil::ffi;
 
 #[path = "../common/hwframes.rs"]
 mod hwframes;
@@ -14,9 +14,9 @@ mod hwframes;
 mod fixture {
     use core::ffi::c_int;
 
-    use ffmpeg::libavutil::buffer::BufferReferenceBox;
-    use ffmpeg::libavutil::frame::{Frame, FrameBox};
-    use ffmpeg::libavutil::pixfmt::PixelFormat;
+    use ffmpeg_bindings::libavutil::libavutil::buffer::BufferReferenceBox;
+    use ffmpeg_bindings::libavutil::libavutil::frame::{Frame, FrameBox};
+    use ffmpeg_bindings::libavutil::libavutil::pixfmt::PixelFormat;
 
     use super::ffi;
     use super::hwframes::{self as fx, Behaviour, INERT, YUV, pattern};
@@ -99,8 +99,8 @@ mod fixture {
 mod frame_ref_transfer_formats {
     use std::thread;
 
-    use ffmpeg::libavutil::hwcontext::TransferDirection;
-    use ffmpeg::libavutil::pixfmt::PixelFormat;
+    use ffmpeg_bindings::libavutil::libavutil::hwcontext::TransferDirection;
+    use ffmpeg_bindings::libavutil::libavutil::pixfmt::PixelFormat;
 
     use super::fixture::{context, hw_frame, inert_context};
     use super::hwframes::{EMPTY, GRAY_FIRST, LISTING_FAILS, YUV};
@@ -193,11 +193,11 @@ mod frame_mut_transfer_data_from {
     use core::ffi::c_int;
     use std::thread;
 
-    use ffmpeg::libavutil::buffer::BufferReference;
-    use ffmpeg::libavutil::dict::Dict;
-    use ffmpeg::libavutil::frame::{Frame, FrameBox};
-    use ffmpeg::libavutil::hwcontext::FramesReferenceBox;
-    use ffmpeg::libavutil::pixfmt::PixelFormat;
+    use ffmpeg_bindings::libavutil::libavutil::buffer::BufferReference;
+    use ffmpeg_bindings::libavutil::libavutil::dict::Dict;
+    use ffmpeg_bindings::libavutil::libavutil::frame::{Frame, FrameBox};
+    use ffmpeg_bindings::libavutil::libavutil::hwcontext::FramesReferenceBox;
+    use ffmpeg_bindings::libavutil::libavutil::pixfmt::PixelFormat;
 
     use super::ffi;
     use super::fixture::{H, W, context, hw_frame, image, inert_context, software, surface};
@@ -527,20 +527,20 @@ mod hwdevice;
 /// `av_hwdevice_ctx_init` and `av_hwdevice_get_hwframe_constraints` running
 /// on it.
 ///
-/// [`UninitDevice::from_c`]: ffmpeg::libavutil::hwcontext::UninitDevice::from_c
-/// [`UninitDevice::init`]: ffmpeg::libavutil::hwcontext::UninitDevice::init
-/// [`DeviceContextRef::hwctx`]: ffmpeg::libavutil::hwcontext::DeviceContextRef::hwctx
-/// [`DeviceContextMut::into_hwctx`]: ffmpeg::libavutil::hwcontext::DeviceContextMut::into_hwctx
+/// [`UninitDevice::from_c`]: ffmpeg_bindings::libavutil::libavutil::hwcontext::UninitDevice::from_c
+/// [`UninitDevice::init`]: ffmpeg_bindings::libavutil::libavutil::hwcontext::UninitDevice::init
+/// [`DeviceContextRef::hwctx`]: ffmpeg_bindings::libavutil::libavutil::hwcontext::DeviceContextRef::hwctx
+/// [`DeviceContextMut::into_hwctx`]: ffmpeg_bindings::libavutil::libavutil::hwcontext::DeviceContextMut::into_hwctx
 mod device_context {
     use core::sync::atomic::{AtomicUsize, Ordering};
     use std::sync::{Arc, Mutex};
     use std::thread;
 
-    use ffmpeg::libavutil::ffi;
-    use ffmpeg::libavutil::hwcontext::{
+    use ffmpeg_bindings::libavutil::libavutil::ffi;
+    use ffmpeg_bindings::libavutil::libavutil::hwcontext::{
         DeviceContextMut, DeviceReferenceBox, DeviceType, UninitDevice,
     };
-    use ffmpeg::libavutil::pixfmt::PixelFormat;
+    use ffmpeg_bindings::libavutil::libavutil::pixfmt::PixelFormat;
 
     use super::hwdevice::{self, BARE_TYPE, Events, FakeConfig, FakeHw};
 
@@ -795,7 +795,7 @@ mod device_context {
     /// [`DeviceContextRef::hwctx`]: typed shared reads from uninitialised
     /// and initialised contexts, through several handles at once.
     ///
-    /// [`DeviceContextRef::hwctx`]: ffmpeg::libavutil::hwcontext::DeviceContextRef::hwctx
+    /// [`DeviceContextRef::hwctx`]: ffmpeg_bindings::libavutil::libavutil::hwcontext::DeviceContextRef::hwctx
     mod ref_hwctx {
         use super::*;
 
@@ -832,7 +832,7 @@ mod device_context {
     /// [`DeviceContextMut::into_hwctx`]: writes before initialisation that C
     /// reads, through reborrows, and inside the free callback.
     ///
-    /// [`DeviceContextMut::into_hwctx`]: ffmpeg::libavutil::hwcontext::DeviceContextMut::into_hwctx
+    /// [`DeviceContextMut::into_hwctx`]: ffmpeg_bindings::libavutil::libavutil::hwcontext::DeviceContextMut::into_hwctx
     mod mut_into_hwctx {
         use super::*;
 
@@ -906,22 +906,22 @@ mod hwbackend;
 /// their `frames_get_buffer` takes any buffer of the context's pool for a
 /// surface, so a pool of bytes is within `set_pool`'s contract here.
 ///
-/// [`FramesContextRef::hwctx`]: ffmpeg::libavutil::hwcontext::FramesContextRef::hwctx
-/// [`FramesContextMut::into_hwctx`]: ffmpeg::libavutil::hwcontext::FramesContextMut::into_hwctx
-/// [`FramesContextRef::pool`]: ffmpeg::libavutil::hwcontext::FramesContextRef::pool
-/// [`FramesContextMut::set_pool`]: ffmpeg::libavutil::hwcontext::FramesContextMut::set_pool
+/// [`FramesContextRef::hwctx`]: ffmpeg_bindings::libavutil::libavutil::hwcontext::FramesContextRef::hwctx
+/// [`FramesContextMut::into_hwctx`]: ffmpeg_bindings::libavutil::libavutil::hwcontext::FramesContextMut::into_hwctx
+/// [`FramesContextRef::pool`]: ffmpeg_bindings::libavutil::libavutil::hwcontext::FramesContextRef::pool
+/// [`FramesContextMut::set_pool`]: ffmpeg_bindings::libavutil::libavutil::hwcontext::FramesContextMut::set_pool
 mod frames_context {
     use core::ffi::c_int;
     use core::sync::atomic::{AtomicUsize, Ordering};
     use std::sync::{Arc, Mutex};
     use std::thread;
 
-    use ffmpeg::libavutil::buffer::{BufferPool, BufferPoolBox, BufferReference};
-    use ffmpeg::libavutil::ffi;
-    use ffmpeg::libavutil::hwcontext::{
+    use ffmpeg_bindings::libavutil::libavutil::buffer::{BufferPool, BufferPoolBox, BufferReference};
+    use ffmpeg_bindings::libavutil::libavutil::ffi;
+    use ffmpeg_bindings::libavutil::libavutil::hwcontext::{
         DeviceReferenceBox, FramesContextMut, FramesReferenceBox, UninitFrames,
     };
-    use ffmpeg::libavutil::pixfmt::PixelFormat;
+    use ffmpeg_bindings::libavutil::libavutil::pixfmt::PixelFormat;
 
     use super::hwbackend::{self as fx, FramesHw, FramesHwctx, Kind, SURFACE_SIZE};
 
@@ -992,7 +992,7 @@ mod frames_context {
     /// [`FramesContextRef::hwctx`]: typed shared reads from uninitialised
     /// and initialised contexts, through several handles at once.
     ///
-    /// [`FramesContextRef::hwctx`]: ffmpeg::libavutil::hwcontext::FramesContextRef::hwctx
+    /// [`FramesContextRef::hwctx`]: ffmpeg_bindings::libavutil::libavutil::hwcontext::FramesContextRef::hwctx
     mod ref_hwctx {
         use super::*;
 
@@ -1056,7 +1056,7 @@ mod frames_context {
     /// [`FramesContextMut::into_hwctx`]: writes before initialisation that
     /// the backend obeys, through reborrows, and inside the free callback.
     ///
-    /// [`FramesContextMut::into_hwctx`]: ffmpeg::libavutil::hwcontext::FramesContextMut::into_hwctx
+    /// [`FramesContextMut::into_hwctx`]: ffmpeg_bindings::libavutil::libavutil::hwcontext::FramesContextMut::into_hwctx
     mod mut_into_hwctx {
         use super::*;
 
@@ -1125,7 +1125,7 @@ mod frames_context {
     /// from, replaced, taken back, refused, and released with the context's
     /// last reference on any thread.
     ///
-    /// [`FramesContextMut::set_pool`]: ffmpeg::libavutil::hwcontext::FramesContextMut::set_pool
+    /// [`FramesContextMut::set_pool`]: ffmpeg_bindings::libavutil::libavutil::hwcontext::FramesContextMut::set_pool
     mod mut_set_pool {
         use super::*;
 
@@ -1220,7 +1220,7 @@ mod frames_context {
     /// [`FramesContextRef::pool`]: the pool a context's frames come from,
     /// lent while the context lives, its buffers taken alongside C's.
     ///
-    /// [`FramesContextRef::pool`]: ffmpeg::libavutil::hwcontext::FramesContextRef::pool
+    /// [`FramesContextRef::pool`]: ffmpeg_bindings::libavutil::libavutil::hwcontext::FramesContextRef::pool
     mod ref_pool {
         use super::*;
 

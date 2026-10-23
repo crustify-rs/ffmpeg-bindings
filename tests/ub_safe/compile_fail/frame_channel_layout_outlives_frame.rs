@@ -1,5 +1,5 @@
 // A frame's channel layout is a field of it, borrowed with it.
-use ffmpeg::libavutil::frame::Frame;
+use ffmpeg_bindings::libavutil::libavutil::frame::Frame;
 
 fn main() {
     let frame = Frame::new().unwrap();

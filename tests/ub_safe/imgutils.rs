@@ -7,7 +7,7 @@
 
 use std::thread;
 
-use ffmpeg::libavutil::imgutils::{
+use ffmpeg_bindings::libavutil::libavutil::imgutils::{
     PlaneCopyError, check_size, copy_plane, copy_plane_from_uncacheable,
 };
 
@@ -336,16 +336,16 @@ fn planes_copy_on_many_threads() {
 mod images {
     use std::thread;
 
-    use ffmpeg::libavutil::ffi::AVPixelFormat;
-    use ffmpeg::libavutil::imgutils::{
+    use ffmpeg_bindings::libavutil::libavutil::ffi::AVPixelFormat;
+    use ffmpeg_bindings::libavutil::libavutil::imgutils::{
         Image, ImageCopyError, PlaneCopyError, Planes, PlanesMut, buffer_size,
         buffer_size_for_linesizes, check_fill_black, check_fill_color, check_sar,
         check_size_max_pixels, copy, copy_from_mut, copy_from_uncacheable, copy_to_buffer,
         fill_arrays, fill_arrays_mut, fill_black, fill_color, fill_linesizes, fill_plane_sizes,
         fill_pointers, fill_pointers_mut, linesize,
     };
-    use ffmpeg::libavutil::pixfmt::{ColorRange, PixelFormat};
-    use ffmpeg::libavutil::rational::Rational;
+    use ffmpeg_bindings::libavutil::libavutil::pixfmt::{ColorRange, PixelFormat};
+    use ffmpeg_bindings::libavutil::libavutil::rational::Rational;
 
     use super::{placed, plane, span};
 
@@ -855,12 +855,12 @@ mod images {
 /// plane at the edges of C's four-plane arrays, which live on the wrapper's
 /// stack (so an index past them is an ASan report).
 mod pixel_steps {
-    use ffmpeg::libavutil::ffi;
-    use ffmpeg::libavutil::imgutils::max_pixel_steps;
-    use ffmpeg::libavutil::pixdesc::{
+    use ffmpeg_bindings::libavutil::libavutil::ffi;
+    use ffmpeg_bindings::libavutil::libavutil::imgutils::max_pixel_steps;
+    use ffmpeg_bindings::libavutil::libavutil::pixdesc::{
         ComponentDescriptor, InvalidDescriptor, PixelFormatDescriptor,
     };
-    use ffmpeg::libavutil::pixfmt::PixelFormat;
+    use ffmpeg_bindings::libavutil::libavutil::pixfmt::PixelFormat;
 
     #[test]
     #[cfg_attr(miri, ignore = "calls C")]
@@ -911,11 +911,11 @@ mod with_context {
     use core::ffi::c_int;
     use std::thread;
 
-    use ffmpeg::libavutil::ffi;
-    use ffmpeg::libavutil::imgutils::{check_size_max_pixels_with_context, check_size_with_context};
-    use ffmpeg::libavutil::log::{Class, ClassCategory};
-    use ffmpeg::libavutil::opt::{BareObject, ObjectRef};
-    use ffmpeg::libavutil::pixfmt::PixelFormat;
+    use ffmpeg_bindings::libavutil::libavutil::ffi;
+    use ffmpeg_bindings::libavutil::libavutil::imgutils::{check_size_max_pixels_with_context, check_size_with_context};
+    use ffmpeg_bindings::libavutil::libavutil::log::{Class, ClassCategory};
+    use ffmpeg_bindings::libavutil::libavutil::opt::{BareObject, ObjectRef};
+    use ffmpeg_bindings::libavutil::libavutil::pixfmt::PixelFormat;
 
     const EINVAL: c_int = -22;
 

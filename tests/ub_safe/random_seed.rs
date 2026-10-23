@@ -2,7 +2,7 @@
 
 use std::thread;
 
-use ffmpeg::libavutil::random_seed::get;
+use ffmpeg_bindings::libavutil::libavutil::random_seed::get;
 
 #[test]
 #[cfg_attr(miri, ignore = "calls C")]
@@ -23,7 +23,7 @@ fn seeds_are_drawn_concurrently() {
 mod bytes {
     use core::mem::MaybeUninit;
 
-    use ffmpeg::libavutil::random_seed::{random_bytes, random_bytes_uninit};
+    use ffmpeg_bindings::libavutil::libavutil::random_seed::{random_bytes, random_bytes_uninit};
 
     #[test]
     #[cfg_attr(miri, ignore = "calls C")]

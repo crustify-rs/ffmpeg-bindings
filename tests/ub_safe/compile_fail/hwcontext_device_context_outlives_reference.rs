@@ -1,4 +1,4 @@
-use ffmpeg::libavutil::hwcontext::DeviceReferenceBox;
+use ffmpeg_bindings::libavutil::libavutil::hwcontext::DeviceReferenceBox;
 
 fn view(device: DeviceReferenceBox) {
     let ctx = device.as_ref().context();

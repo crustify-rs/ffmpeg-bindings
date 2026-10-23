@@ -1,4 +1,4 @@
-use ffmpeg::libavutil::{crc::CrcId, ffi};
+use ffmpeg_bindings::libavutil::libavutil::{crc::CrcId, ffi};
 
 #[test]
 #[cfg_attr(miri, ignore = "calls C")]
@@ -54,11 +54,11 @@ fn identifiers_select_the_same_tables_without_cpu_extensions() {
     // SAFETY: zero enables no unsupported instructions. This isolated child
     // runs only CRC table lookups, which choose their implementation afresh;
     // no earlier context or buffer was allocated under different CPU flags.
-    unsafe { ffmpeg::libavutil::cpu::force_cpu_flags(0) };
+    unsafe { ffmpeg_bindings::libavutil::libavutil::cpu::force_cpu_flags(0) };
     constants_and_lookup_selection_match_c();
 }
 
-use ffmpeg::libavutil::crc::{Table, TableSize};
+use ffmpeg_bindings::libavutil::libavutil::crc::{Table, TableSize};
 
 #[test]
 #[cfg_attr(miri, ignore = "calls C")]
@@ -138,7 +138,7 @@ fn batch10_scalar_tables_match_c_in_isolated_process() {
 #[test]
 #[cfg_attr(miri, ignore = "calls C")]
 fn standard_table_sequences_match_c() {
-    use ffmpeg::libavutil::crc::{CrcId, get_table};
+    use ffmpeg_bindings::libavutil::libavutil::crc::{CrcId, get_table};
     for id in [
         CrcId::ATM_8,
         CrcId::ANSI_16,

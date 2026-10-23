@@ -1,8 +1,8 @@
 //! Equivalence of `libavutil/mathematics.h`'s [`Rounding`] with the C
 //! `enum AVRounding` values `av_rescale_rnd` accepts and acts on.
 
-use ffmpeg::libavutil::ffi;
-use ffmpeg::libavutil::mathematics::Rounding;
+use ffmpeg_bindings::libavutil::libavutil::ffi;
+use ffmpeg_bindings::libavutil::libavutil::mathematics::Rounding;
 
 /// `av_rescale_rnd` in C.
 fn rescale(a: i64, b: i64, c: i64, rnd: ffi::AVRounding) -> i64 {
@@ -170,8 +170,8 @@ fn methods_round_halves_as_c_documents() {
 
 /// `compare_mod` and `bessel_i0` against `av_compare_mod` and `av_bessel_i0`.
 mod numeric {
-    use ffmpeg::libavutil::ffi;
-    use ffmpeg::libavutil::mathematics::{bessel_i0, compare_mod};
+    use ffmpeg_bindings::libavutil::libavutil::ffi;
+    use ffmpeg_bindings::libavutil::libavutil::mathematics::{bessel_i0, compare_mod};
 
     /// Operands around zero, the wrap point of each width, and the limits.
     const OPERANDS: [u64; 12] = [
@@ -240,8 +240,8 @@ mod numeric {
 
 /// `av_gcd` against the safe `gcd`.
 mod greatest_common_divisor {
-    use ffmpeg::libavutil::ffi;
-    use ffmpeg::libavutil::mathematics::gcd;
+    use ffmpeg_bindings::libavutil::libavutil::ffi;
+    use ffmpeg_bindings::libavutil::libavutil::mathematics::gcd;
 
     /// Operands around `av_gcd`'s branches: zero, signs, powers of two (the
     /// trailing-zero shift), odd primes and composites, and the extremes.
@@ -298,7 +298,7 @@ mod greatest_common_divisor {
 #[test]
 #[cfg_attr(miri, ignore = "calls C")]
 fn rescale_matches_av_rescale_on_every_class() {
-    use ffmpeg::libavutil::mathematics::rescale as rescale_near;
+    use ffmpeg_bindings::libavutil::libavutil::mathematics::rescale as rescale_near;
     let bc = BC.into_iter().chain([
         (0, 1),
         (-1, 3),
@@ -330,12 +330,12 @@ fn rescale_matches_av_rescale_on_every_class() {
 mod timestamps {
     use core::cmp::Ordering;
 
-    use ffmpeg::libavutil::ffi;
-    use ffmpeg::libavutil::mathematics::{
+    use ffmpeg_bindings::libavutil::libavutil::ffi;
+    use ffmpeg_bindings::libavutil::libavutil::mathematics::{
         Rounding, add_stable, compare_timestamps, rescale_delta, rescale_rational,
         rescale_rational_rounded, rescale_rounded,
     };
-    use ffmpeg::libavutil::rational::Rational;
+    use ffmpeg_bindings::libavutil::libavutil::rational::Rational;
 
     use super::{A, BC, rescale, roundings};
 

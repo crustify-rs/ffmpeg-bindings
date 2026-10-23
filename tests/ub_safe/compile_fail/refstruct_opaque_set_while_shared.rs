@@ -1,4 +1,4 @@
-use ffmpeg::libavutil::refstruct::RefStructOpaque;
+use ffmpeg_bindings::libavutil::libavutil::refstruct::RefStructOpaque;
 fn main() {
     let mut value = RefStructOpaque::default();
     let shared = value.as_ref();

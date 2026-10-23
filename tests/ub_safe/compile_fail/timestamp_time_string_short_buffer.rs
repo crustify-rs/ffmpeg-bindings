@@ -1,6 +1,6 @@
 // `make_time_string` writes up to `AV_TS_MAX_STRING_SIZE` bytes: a shorter
 // buffer, or a slice of unknown length, is rejected.
-use ffmpeg::libavutil::{rational::Rational, timestamp::make_time_string};
+use ffmpeg_bindings::libavutil::libavutil::{rational::Rational, timestamp::make_time_string};
 
 fn main() {
     let tb = Rational::new(1, 1);

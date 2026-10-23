@@ -2,8 +2,8 @@
 //! `u32` edge through the conversions, the flag algebra and the formatting,
 //! and the values shared across threads.
 
-use ffmpeg::libavutil::ffi;
-use ffmpeg::libavutil::mathematics::{InvalidRounding, Rounding};
+use ffmpeg_bindings::libavutil::libavutil::ffi;
+use ffmpeg_bindings::libavutil::libavutil::mathematics::{InvalidRounding, Rounding};
 
 const METHODS: [Rounding; 5] = [
     Rounding::ZERO,
@@ -78,7 +78,7 @@ fn roundings_cross_threads() {
 
 /// `compare_mod` and `bessel_i0` on every edge, here and on other threads.
 mod numeric {
-    use ffmpeg::libavutil::mathematics::{bessel_i0, compare_mod};
+    use ffmpeg_bindings::libavutil::libavutil::mathematics::{bessel_i0, compare_mod};
 
     #[test]
     #[cfg_attr(miri, ignore = "calls C")]
@@ -138,7 +138,7 @@ mod numeric {
 
 /// `gcd` on every sign and extreme.
 mod greatest_common_divisor {
-    use ffmpeg::libavutil::mathematics::gcd;
+    use ffmpeg_bindings::libavutil::libavutil::mathematics::gcd;
 
     #[test]
     #[cfg_attr(miri, ignore = "calls C")]
@@ -173,7 +173,7 @@ mod greatest_common_divisor {
 #[test]
 #[cfg_attr(miri, ignore = "calls C")]
 fn rescale_every_extreme_is_sound() {
-    use ffmpeg::libavutil::mathematics::rescale;
+    use ffmpeg_bindings::libavutil::libavutil::mathematics::rescale;
     let v = [
         i64::MIN,
         i64::MIN + 1,
@@ -207,11 +207,11 @@ fn rescale_every_extreme_is_sound() {
 mod timestamps {
     use std::thread;
 
-    use ffmpeg::libavutil::mathematics::{
+    use ffmpeg_bindings::libavutil::libavutil::mathematics::{
         Rounding, add_stable, compare_timestamps, rescale_delta, rescale_rational,
         rescale_rational_rounded, rescale_rounded,
     };
-    use ffmpeg::libavutil::rational::Rational;
+    use ffmpeg_bindings::libavutil::libavutil::rational::Rational;
 
     use super::METHODS;
 

@@ -1,4 +1,4 @@
-use ffmpeg::libavutil::twofish::context_size;
+use ffmpeg_bindings::libavutil::libavutil::twofish::context_size;
 
 #[test]
 #[cfg_attr(miri, ignore = "reads a C global")]
@@ -19,8 +19,8 @@ fn batch10_immutable_size_across_threads() {
     }
 }
 
-use ffmpeg::libavutil::aes::Direction::{Decrypt, Encrypt};
-use ffmpeg::libavutil::twofish::{InitError, InitStatus, Twofish};
+use ffmpeg_bindings::libavutil::libavutil::aes::Direction::{Decrypt, Encrypt};
+use ffmpeg_bindings::libavutil::libavutil::twofish::{InitError, InitStatus, Twofish};
 
 #[test]
 #[cfg_attr(miri, ignore = "calls C")]

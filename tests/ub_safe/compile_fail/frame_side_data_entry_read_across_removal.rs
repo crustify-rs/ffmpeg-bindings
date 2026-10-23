@@ -1,6 +1,6 @@
 // A side data entry found on a frame is borrowed from it, so it cannot live
 // across a removal that may free it.
-use ffmpeg::libavutil::frame::{Frame, SideDataType};
+use ffmpeg_bindings::libavutil::libavutil::frame::{Frame, SideDataType};
 
 fn main() {
     let mut frame = Frame::new().unwrap();

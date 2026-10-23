@@ -173,16 +173,16 @@ unsafe impl CDrop<BufferPool> for BufferPoolUninit {
 /// A pool is only built by its constructors, never allocated bare:
 ///
 /// ```compile_fail
-/// use ffmpeg::libavutil::buffer::BufferPoolBox;
+/// use ffmpeg_bindings::libavutil::libavutil::buffer::BufferPoolBox;
 /// let _ = BufferPoolBox::new();
 /// ```
 /// ```compile_fail
-/// use ffmpeg::libavutil::buffer::BufferPoolBox;
+/// use ffmpeg_bindings::libavutil::libavutil::buffer::BufferPoolBox;
 /// let _ = BufferPoolBox::new_uninit();
 /// ```
 /// and it has no deep copy:
 /// ```compile_fail
-/// use ffmpeg::libavutil::buffer::BufferPool;
+/// use ffmpeg_bindings::libavutil::libavutil::buffer::BufferPool;
 /// let pool = BufferPool::new(64).unwrap();
 /// let _ = pool.clone();
 /// ```
@@ -227,7 +227,7 @@ impl BufferPool {
     /// State that cannot move to another thread is rejected:
     ///
     /// ```compile_fail,E0277
-    /// use ffmpeg::libavutil::buffer::BufferPool;
+    /// use ffmpeg_bindings::libavutil::libavutil::buffer::BufferPool;
     /// let local = std::rc::Rc::new(0);
     /// // SAFETY: the allocator returns no buffer.
     /// let _ = unsafe {
@@ -241,7 +241,7 @@ impl BufferPool {
     /// and so is state borrowed from the caller, which the pool can outlive:
     ///
     /// ```compile_fail,E0597
-    /// use ffmpeg::libavutil::buffer::BufferPool;
+    /// use ffmpeg_bindings::libavutil::libavutil::buffer::BufferPool;
     /// let calls = std::sync::atomic::AtomicUsize::new(0);
     /// // SAFETY: the allocator returns no buffer.
     /// let _ = unsafe {
@@ -530,18 +530,18 @@ unsafe impl CDupClone<BufferReference> for BufferUnref {
 /// Built by [`BufferReference`]'s constructors, never allocated bare:
 ///
 /// ```compile_fail,E0599
-/// use ffmpeg::libavutil::buffer::BufferReferenceBox;
+/// use ffmpeg_bindings::libavutil::libavutil::buffer::BufferReferenceBox;
 /// let _ = BufferReferenceBox::new();
 /// ```
 /// ```compile_fail,E0599
-/// use ffmpeg::libavutil::buffer::BufferReferenceBox;
+/// use ffmpeg_bindings::libavutil::libavutil::buffer::BufferReferenceBox;
 /// let _ = BufferReferenceBox::new_zeroed();
 /// ```
 ///
 /// Its bytes are borrowed from the box, so they cannot outlive it:
 ///
 /// ```compile_fail,E0505
-/// use ffmpeg::libavutil::buffer::BufferReference;
+/// use ffmpeg_bindings::libavutil::libavutil::buffer::BufferReference;
 /// let buf = BufferReference::alloc_zeroed(8).unwrap();
 /// let bytes = buf.as_ref().data();
 /// drop(buf);
@@ -552,7 +552,7 @@ unsafe impl CDupClone<BufferReference> for BufferUnref {
 /// included:
 ///
 /// ```compile_fail,E0502
-/// use ffmpeg::libavutil::buffer::BufferReference;
+/// use ffmpeg_bindings::libavutil::libavutil::buffer::BufferReference;
 /// let mut buf = BufferReference::alloc_zeroed(8).unwrap();
 /// let mut handle = buf.as_mut();
 /// let bytes = handle.data_mut().unwrap();
@@ -1102,7 +1102,7 @@ impl BufferReferenceMut<'_> {
 /// `src` cannot be borrowed from `dst` itself:
 ///
 /// ```compile_fail,E0502
-/// use ffmpeg::libavutil::buffer::{BufferReference, assign};
+/// use ffmpeg_bindings::libavutil::libavutil::buffer::{BufferReference, assign};
 /// let mut slot = Some(BufferReference::alloc_zeroed(8).unwrap());
 /// let _ = assign(&mut slot, slot.as_ref().map(|r| r.as_ref()));
 /// ```
@@ -1157,12 +1157,12 @@ pub fn assign(
 /// It lends no handle, and has no clone, which would share its bytes:
 ///
 /// ```compile_fail,E0599
-/// use ffmpeg::libavutil::buffer::BufferReference;
+/// use ffmpeg_bindings::libavutil::libavutil::buffer::BufferReference;
 /// let buf = BufferReference::alloc(8).unwrap();
 /// let _ = buf.as_ref().data();
 /// ```
 /// ```compile_fail,E0599
-/// use ffmpeg::libavutil::buffer::BufferReference;
+/// use ffmpeg_bindings::libavutil::libavutil::buffer::BufferReference;
 /// let buf = BufferReference::alloc(8).unwrap();
 /// let _ = buf.clone();
 /// ```
@@ -1170,7 +1170,7 @@ pub fn assign(
 /// and its uninitialised view ends when it is filled:
 ///
 /// ```compile_fail,E0505
-/// use ffmpeg::libavutil::buffer::BufferReference;
+/// use ffmpeg_bindings::libavutil::libavutil::buffer::BufferReference;
 /// let mut buf = BufferReference::alloc(8).unwrap();
 /// let view = buf.as_mut_slice();
 /// let filled = buf.fill(0);
@@ -1202,7 +1202,7 @@ impl UninitBuffer {
     /// bytes a user left uninitialised:
     ///
     /// ```compile_fail,E0277
-    /// use ffmpeg::libavutil::buffer::UninitBuffer;
+    /// use ffmpeg_bindings::libavutil::libavutil::buffer::UninitBuffer;
     /// let _ = UninitBuffer::from_owner(vec![0u8; 4]);
     /// ```
     pub fn from_owner<T>(owner: T) -> Result<Self, T>

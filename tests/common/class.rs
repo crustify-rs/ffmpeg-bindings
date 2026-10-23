@@ -7,9 +7,9 @@
 use core::cell::Cell;
 use core::ffi::c_void;
 
-use ffmpeg::libavutil::ffi;
-use ffmpeg::libavutil::log::{self, Callback, ClassRef, Level, Record};
-use ffmpeg::libavutil::opt::ObjectRef;
+use ffmpeg_bindings::libavutil::libavutil::ffi;
+use ffmpeg_bindings::libavutil::libavutil::log::{self, Callback, ClassRef, Level, Record};
+use ffmpeg_bindings::libavutil::libavutil::opt::ObjectRef;
 
 /// The visitor [`with_class`] lent this thread's callback, lifetime erased.
 type Visitor = *mut (dyn FnMut(Option<ClassRef<'_>>) + 'static);

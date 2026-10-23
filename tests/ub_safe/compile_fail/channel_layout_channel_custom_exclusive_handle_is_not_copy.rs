@@ -1,5 +1,5 @@
 // An exclusive handle cannot be duplicated into two writers.
-use ffmpeg::libavutil::channel_layout::{Channel, ChannelCustom};
+use ffmpeg_bindings::libavutil::libavutil::channel_layout::{Channel, ChannelCustom};
 
 fn main() {
     let mut ch = ChannelCustom::new(Channel::FRONT_LEFT);

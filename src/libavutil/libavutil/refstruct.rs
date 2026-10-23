@@ -526,7 +526,7 @@ pub struct ConstRefStructUnref;
 ///
 /// ```compile_fail,E0277
 /// use ffibox::{CZeroable, define_ctype};
-/// use ffmpeg::libavutil::{ffi, refstruct::RefStructArc};
+/// use ffmpeg_bindings::libavutil::libavutil::{ffi, refstruct::RefStructArc};
 /// define_ctype!(Local, LocalRef, LocalMut, ffi::AVRational); // neither `Send` nor `Sync`
 /// // SAFETY: 0/0 is a value every accessor accepts.
 /// unsafe impl CZeroable for Local {}
@@ -551,7 +551,7 @@ pub type RefStructBox<T> = CBox<T, RefStructUnref>;
 /// is shared; make one from a [`RefStructArc`]:
 ///
 /// ```compile_fail,E0277
-/// use ffmpeg::libavutil::{intfloat::IntFloat64, refstruct::ConstRefStructArc};
+/// use ffmpeg_bindings::libavutil::libavutil::{intfloat::IntFloat64, refstruct::ConstRefStructArc};
 /// let _ = ConstRefStructArc::<IntFloat64>::new_zeroed();
 /// ```
 pub type ConstRefStructArc<T> = CArc<T, ConstRefStructUnref>;
@@ -632,7 +632,7 @@ unsafe impl<T: CCell> CRefClone<T> for RefStructUnref {
 ///
 /// ```compile_fail,E0080
 /// use ffibox::{CZeroable, define_ctype};
-/// use ffmpeg::libavutil::{ffi, refstruct::RefStructArc};
+/// use ffmpeg_bindings::libavutil::libavutil::{ffi, refstruct::RefStructArc};
 /// #[repr(C, align(32))]
 /// pub struct wide_st([u8; 32]);
 /// define_ctype!(Wide, WideRef, WideMut, wide_st);
@@ -802,8 +802,8 @@ pub fn replace<T: CCell, D: RefStructPolicy + CDrop<T>>(
 /// reach one; a payload with no release is `new_zeroed`.
 ///
 /// ```
-/// use ffmpeg::libavutil::intfloat::IntFloat64;
-/// use ffmpeg::libavutil::refstruct::{self, RefStructArc};
+/// use ffmpeg_bindings::libavutil::libavutil::intfloat::IntFloat64;
+/// use ffmpeg_bindings::libavutil::libavutil::refstruct::{self, RefStructArc};
 /// use std::sync::mpsc;
 ///
 /// let (tx, rx) = mpsc::channel();
@@ -824,8 +824,8 @@ pub fn replace<T: CCell, D: RefStructPolicy + CDrop<T>>(
 /// rejected:
 ///
 /// ```compile_fail,E0597
-/// use ffmpeg::libavutil::intfloat::IntFloat64;
-/// use ffmpeg::libavutil::refstruct;
+/// use ffmpeg_bindings::libavutil::libavutil::intfloat::IntFloat64;
+/// use ffmpeg_bindings::libavutil::libavutil::refstruct;
 /// let seen = std::cell::Cell::new(0);
 /// let _ = refstruct::alloc_with_release::<IntFloat64, _>(|last| {
 ///     seen.set(last.as_ref().bits());
@@ -835,8 +835,8 @@ pub fn replace<T: CCell, D: RefStructPolicy + CDrop<T>>(
 /// and so is state that cannot move to the thread releasing the object:
 ///
 /// ```compile_fail,E0277
-/// use ffmpeg::libavutil::intfloat::IntFloat64;
-/// use ffmpeg::libavutil::refstruct;
+/// use ffmpeg_bindings::libavutil::libavutil::intfloat::IntFloat64;
+/// use ffmpeg_bindings::libavutil::libavutil::refstruct;
 /// let seen = std::rc::Rc::new(std::cell::Cell::new(0));
 /// let _ = refstruct::alloc_with_release::<IntFloat64, _>(move |last| {
 ///     seen.set(last.as_ref().bits());
@@ -917,8 +917,8 @@ const EINVAL: c_int = -22;
 /// State that is not `Sync` is rejected:
 ///
 /// ```compile_fail,E0277
-/// use ffmpeg::libavutil::intfloat::IntFloat64;
-/// use ffmpeg::libavutil::refstruct::PoolCallbacks;
+/// use ffmpeg_bindings::libavutil::libavutil::intfloat::IntFloat64;
+/// use ffmpeg_bindings::libavutil::libavutil::refstruct::PoolCallbacks;
 /// let _ = PoolCallbacks::<IntFloat64, _>::new(std::cell::Cell::new(0));
 /// ```
 pub struct PoolCallbacks<T: CCell + 'static, S> {
@@ -1022,7 +1022,7 @@ struct PoolState<T: CCell + 'static, S> {
 ///
 /// ```compile_fail,E0277
 /// use ffibox::{CZeroable, define_ctype};
-/// use ffmpeg::libavutil::{ffi, refstruct::{PoolFlags, TypedRefStructPool}};
+/// use ffmpeg_bindings::libavutil::libavutil::{ffi, refstruct::{PoolFlags, TypedRefStructPool}};
 /// define_ctype!(Local, LocalRef, LocalMut, ffi::AVRational); // neither `Send` nor `Sync`
 /// // SAFETY: 0/0 is a value every accessor accepts.
 /// unsafe impl CZeroable for Local {}
@@ -1074,8 +1074,8 @@ impl<T: CZeroable + 'static> TypedRefStructPool<T> {
     ///
     /// ```
     /// use std::sync::atomic::{AtomicUsize, Ordering};
-    /// use ffmpeg::libavutil::intfloat::IntFloat64;
-    /// use ffmpeg::libavutil::refstruct::{PoolCallbacks, PoolFlags, TypedRefStructPool};
+    /// use ffmpeg_bindings::libavutil::libavutil::intfloat::IntFloat64;
+    /// use ffmpeg_bindings::libavutil::libavutil::refstruct::{PoolCallbacks, PoolFlags, TypedRefStructPool};
     ///
     /// let callbacks = PoolCallbacks::<IntFloat64, _>::new(AtomicUsize::new(0))
     ///     .init(|made, mut e| {
@@ -1154,8 +1154,8 @@ impl<T: CCell + 'static> TypedRefStructPool<T> {
     /// after the reset callback, for a later `get` to hand out again.
     ///
     /// ```
-    /// use ffmpeg::libavutil::intfloat::IntFloat64;
-    /// use ffmpeg::libavutil::refstruct::{PoolFlags, RefStructArc, TypedRefStructPool};
+    /// use ffmpeg_bindings::libavutil::libavutil::intfloat::IntFloat64;
+    /// use ffmpeg_bindings::libavutil::libavutil::refstruct::{PoolFlags, RefStructArc, TypedRefStructPool};
     ///
     /// let pool = TypedRefStructPool::<IntFloat64>::new(PoolFlags::NONE).unwrap();
     /// let mut entry = pool.get().unwrap();
@@ -1478,7 +1478,7 @@ mod unit_tests {
     /// Buffer-frame wave 0, symbol batch 5: the counted references' policies.
     mod counted_references {
         use super::super::*;
-        use crate::libavutil::intfloat::IntFloat64;
+        use crate::libavutil::libavutil::intfloat::IntFloat64;
 
         /// A C-allocated zeroed object, adopted by its one reference.
         fn adopted() -> RefStructArc<IntFloat64> {
@@ -1599,7 +1599,7 @@ mod unit_tests {
     /// storage.
     mod releases_and_typed_pools {
         use super::super::*;
-        use crate::libavutil::intfloat::{IntFloat64, IntFloat64Mut};
+        use crate::libavutil::libavutil::intfloat::{IntFloat64, IntFloat64Mut};
         use std::sync::{Arc, Mutex};
 
         type ReleaseFn = unsafe extern "C" fn(ffi::AVRefStructOpaque, *mut c_void);
@@ -1789,7 +1789,7 @@ mod unit_tests {
 
             drop(RefStructBox::<IntFloat64>::new_uninit().unwrap());
             let wide =
-                RefStructBox::<crate::libavutil::csp::ColorPrimariesDescriptor>::new_uninit();
+                RefStructBox::<crate::libavutil::libavutil::csp::ColorPrimariesDescriptor>::new_uninit();
             drop(wide.unwrap());
         }
     }

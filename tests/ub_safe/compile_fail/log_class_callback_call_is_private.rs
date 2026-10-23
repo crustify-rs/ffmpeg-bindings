@@ -1,7 +1,7 @@
 // A class's callbacks run on an object through `ObjectRef::item_name` and
 // `ObjectRef::category`: running one class's callback on an arbitrary
 // pointer is not public.
-use ffmpeg::libavutil::log::{Class, ClassCategory};
+use ffmpeg_bindings::libavutil::libavutil::log::{Class, ClassCategory};
 
 static CLASS: Class = Class::new(c"c", ClassCategory::NA);
 

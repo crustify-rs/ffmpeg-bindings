@@ -78,7 +78,7 @@ use super::pixfmt::PixelFormat;
 /// associated constants, with a `_` arm for the values C does not name:
 ///
 /// ```
-/// use ffmpeg::libavutil::hwcontext::DeviceType;
+/// use ffmpeg_bindings::libavutil::libavutil::hwcontext::DeviceType;
 /// fn is_windows_api(t: DeviceType) -> bool {
 ///     matches!(
 ///         t,
@@ -227,7 +227,7 @@ unsafe impl CPlainElem for DeviceType {}
 /// plain-element arrays reject it.
 ///
 /// ```compile_fail,E0277
-/// use ffmpeg::libavutil::{hwcontext::TransferDirection, mem::alloc_array_zeroed};
+/// use ffmpeg_bindings::libavutil::libavutil::{hwcontext::TransferDirection, mem::alloc_array_zeroed};
 /// let _ = alloc_array_zeroed::<TransferDirection>(1);
 /// ```
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
@@ -358,8 +358,8 @@ impl FrameRef<'_> {
     /// promises at least one format on success. The list is the caller's.
     ///
     /// ```
-    /// use ffmpeg::libavutil::frame::Frame;
-    /// use ffmpeg::libavutil::hwcontext::TransferDirection;
+    /// use ffmpeg_bindings::libavutil::libavutil::frame::Frame;
+    /// use ffmpeg_bindings::libavutil::libavutil::hwcontext::TransferDirection;
     /// let software = Frame::new().unwrap();
     /// assert!(software.as_ref().transfer_formats(TransferDirection::From).is_err());
     /// ```
@@ -602,7 +602,7 @@ impl DeviceType {
     /// C does not name.
     ///
     /// ```
-    /// use ffmpeg::libavutil::hwcontext::DeviceType;
+    /// use ffmpeg_bindings::libavutil::libavutil::hwcontext::DeviceType;
     /// assert_eq!(DeviceType::VULKAN.name(), Some(c"vulkan"));
     /// assert_eq!(DeviceType::NONE.name(), None);
     /// ```
@@ -625,7 +625,7 @@ impl DeviceType {
     /// `strcmp`.
     ///
     /// ```
-    /// use ffmpeg::libavutil::hwcontext::DeviceType;
+    /// use ffmpeg_bindings::libavutil::libavutil::hwcontext::DeviceType;
     /// assert_eq!(DeviceType::from_name(c"cuda"), Some(DeviceType::CUDA));
     /// assert_eq!(DeviceType::from_name(c"CUDA"), None);
     /// ```
@@ -827,14 +827,14 @@ define_ctype!(
 /// [`DeviceReferenceRef::derive`]; never allocated bare:
 ///
 /// ```compile_fail,E0599
-/// use ffmpeg::libavutil::hwcontext::DeviceReferenceBox;
+/// use ffmpeg_bindings::libavutil::libavutil::hwcontext::DeviceReferenceBox;
 /// let _ = DeviceReferenceBox::new();
 /// ```
 ///
 /// Its handles are borrowed from it:
 ///
 /// ```compile_fail,E0505
-/// use ffmpeg::libavutil::hwcontext::DeviceReferenceBox;
+/// use ffmpeg_bindings::libavutil::libavutil::hwcontext::DeviceReferenceBox;
 /// fn use_after_drop(device: DeviceReferenceBox) {
 ///     let handle = device.as_ref();
 ///     drop(device);
@@ -845,7 +845,7 @@ define_ctype!(
 /// and it stays on its thread:
 ///
 /// ```compile_fail,E0277
-/// use ffmpeg::libavutil::hwcontext::DeviceReferenceBox;
+/// use ffmpeg_bindings::libavutil::libavutil::hwcontext::DeviceReferenceBox;
 /// fn send<T: Send>(_: T) {}
 /// fn move_away(device: DeviceReferenceBox) {
 ///     send(device);
@@ -1107,7 +1107,7 @@ impl<'a> DeviceReferenceRef<'a> {
 /// Neither `Send` nor `Sync`, as [`DeviceReference`]:
 ///
 /// ```compile_fail,E0277
-/// use ffmpeg::libavutil::hwcontext::UninitDevice;
+/// use ffmpeg_bindings::libavutil::libavutil::hwcontext::UninitDevice;
 /// fn send<T: Send>(_: T) {}
 /// fn move_away(device: UninitDevice) {
 ///     send(device);
@@ -1293,14 +1293,14 @@ define_ctype!(
 /// allocated bare:
 ///
 /// ```compile_fail,E0599
-/// use ffmpeg::libavutil::hwcontext::FramesReferenceBox;
+/// use ffmpeg_bindings::libavutil::libavutil::hwcontext::FramesReferenceBox;
 /// let _ = FramesReferenceBox::new();
 /// ```
 ///
 /// Its handles are borrowed from it:
 ///
 /// ```compile_fail,E0505
-/// use ffmpeg::libavutil::hwcontext::FramesReferenceBox;
+/// use ffmpeg_bindings::libavutil::libavutil::hwcontext::FramesReferenceBox;
 /// fn use_after_drop(frames: FramesReferenceBox) {
 ///     let handle = frames.as_ref();
 ///     drop(frames);
@@ -1311,7 +1311,7 @@ define_ctype!(
 /// and it stays on its thread:
 ///
 /// ```compile_fail,E0277
-/// use ffmpeg::libavutil::hwcontext::FramesReferenceBox;
+/// use ffmpeg_bindings::libavutil::libavutil::hwcontext::FramesReferenceBox;
 /// fn send<T: Send>(_: T) {}
 /// fn move_away(frames: FramesReferenceBox) {
 ///     send(frames);
@@ -1492,7 +1492,7 @@ impl<'a> FramesReferenceRef<'a> {
 /// nor `Sync`, as [`FramesReference`]:
 ///
 /// ```compile_fail,E0277
-/// use ffmpeg::libavutil::hwcontext::UninitFrames;
+/// use ffmpeg_bindings::libavutil::libavutil::hwcontext::UninitFrames;
 /// fn send<T: Send>(_: T) {}
 /// fn move_away(frames: UninitFrames) {
 ///     send(frames);
@@ -1599,7 +1599,7 @@ impl fmt::Debug for UninitFrames {
 /// frame API, whose readers would take its surface handles for bytes:
 ///
 /// ```compile_fail,E0599
-/// use ffmpeg::libavutil::hwcontext::HardwareFrame;
+/// use ffmpeg_bindings::libavutil::libavutil::hwcontext::HardwareFrame;
 /// fn planes(frame: &HardwareFrame) {
 ///     let _ = frame.as_ref().plane(0);
 /// }
@@ -1608,7 +1608,7 @@ impl fmt::Debug for UninitFrames {
 /// Its frames context is borrowed from it:
 ///
 /// ```compile_fail,E0505
-/// use ffmpeg::libavutil::hwcontext::HardwareFrame;
+/// use ffmpeg_bindings::libavutil::libavutil::hwcontext::HardwareFrame;
 /// fn outlive(frame: HardwareFrame) {
 ///     let frames = frame.frames();
 ///     drop(frame);
@@ -1619,7 +1619,7 @@ impl fmt::Debug for UninitFrames {
 /// Neither `Send` nor `Sync`, as [`FramesReference`]:
 ///
 /// ```compile_fail,E0277
-/// use ffmpeg::libavutil::hwcontext::HardwareFrame;
+/// use ffmpeg_bindings::libavutil::libavutil::hwcontext::HardwareFrame;
 /// fn send<T: Send>(_: T) {}
 /// fn move_away(frame: HardwareFrame) {
 ///     send(frame);
@@ -1851,7 +1851,7 @@ impl HardwareFrame {
     /// one's. A frame is not copied onto itself:
     ///
     /// ```compile_fail,E0502
-    /// use ffmpeg::libavutil::hwcontext::HardwareFrame;
+    /// use ffmpeg_bindings::libavutil::libavutil::hwcontext::HardwareFrame;
     /// fn copy_itself(frame: &mut HardwareFrame) {
     ///     let _ = frame.copy_from(frame);
     /// }
@@ -1899,7 +1899,7 @@ impl fmt::Debug for HardwareFrame {
 /// [`FramesReference`]:
 ///
 /// ```compile_fail,E0277
-/// use ffmpeg::libavutil::hwcontext::MappedFrame;
+/// use ffmpeg_bindings::libavutil::libavutil::hwcontext::MappedFrame;
 /// fn send<T: Send>(_: T) {}
 /// fn move_away(frame: MappedFrame) {
 ///     send(frame);
@@ -2207,7 +2207,7 @@ impl<'a> DeviceContextMut<'a> {
     ///
     /// ```compile_fail,E0277
     /// use std::rc::Rc;
-    /// use ffmpeg::libavutil::hwcontext::{DeviceReference, DeviceType};
+    /// use ffmpeg_bindings::libavutil::libavutil::hwcontext::{DeviceReference, DeviceType};
     /// let mut device = DeviceReference::alloc(DeviceType::VAAPI).unwrap();
     /// let local = Rc::new(1);
     /// let _ = device.context_mut().set_free_callback(move |_| drop(local));
@@ -2252,7 +2252,7 @@ impl<'a> DeviceContextMut<'a> {
     ///
     /// ```compile_fail,E0277
     /// use std::cell::Cell;
-    /// use ffmpeg::libavutil::hwcontext::{DeviceReference, DeviceType};
+    /// use ffmpeg_bindings::libavutil::libavutil::hwcontext::{DeviceReference, DeviceType};
     /// let mut device = DeviceReference::alloc(DeviceType::VAAPI).unwrap();
     /// let _ = device.context_mut().set_user_data(Cell::new(1));
     /// ```
@@ -2498,7 +2498,7 @@ unsafe impl CNew<FramesConstraints> for FramesConstraintsFree {
 /// Its format lists are borrowed from it:
 ///
 /// ```compile_fail,E0505
-/// use ffmpeg::libavutil::hwcontext::FramesConstraints;
+/// use ffmpeg_bindings::libavutil::libavutil::hwcontext::FramesConstraints;
 /// let constraints = FramesConstraints::new().unwrap();
 /// let formats = constraints.as_ref().valid_sw_formats();
 /// drop(constraints);
@@ -3182,7 +3182,7 @@ impl<'a> FramesContextMut<'a> {
     ///
     /// ```compile_fail,E0277
     /// use std::rc::Rc;
-    /// use ffmpeg::libavutil::hwcontext::UninitFrames;
+    /// use ffmpeg_bindings::libavutil::libavutil::hwcontext::UninitFrames;
     /// fn local(mut frames: UninitFrames) {
     ///     let local = Rc::new(1);
     ///     let _ = frames.context_mut().set_free_callback(move |_| drop(local));
@@ -3228,7 +3228,7 @@ impl<'a> FramesContextMut<'a> {
     ///
     /// ```compile_fail,E0277
     /// use std::cell::Cell;
-    /// use ffmpeg::libavutil::hwcontext::UninitFrames;
+    /// use ffmpeg_bindings::libavutil::libavutil::hwcontext::UninitFrames;
     /// fn local(mut frames: UninitFrames) {
     ///     let _ = frames.context_mut().set_user_data(Cell::new(1));
     /// }
@@ -3506,15 +3506,15 @@ impl<'a> FramesReferenceRef<'a> {
 }
 
 #[cfg(test)]
-#[path = "../tests/common/hwdevice.rs"]
+#[path = "../../../tests/common/hwdevice.rs"]
 pub(crate) mod hwdevice;
 
 #[cfg(test)]
-#[path = "../tests/common/hwframes.rs"]
+#[path = "../../../tests/common/hwframes.rs"]
 mod fixture;
 
 #[cfg(test)]
-#[path = "../tests/common/hwbackend.rs"]
+#[path = "../../../tests/common/hwbackend.rs"]
 pub(crate) mod backend;
 
 #[cfg(test)]
@@ -3524,9 +3524,9 @@ mod unit_tests {
     use core::mem::{align_of, size_of};
     use std::collections::HashSet;
 
-    use crate::libavutil::buffer::BufferReference;
-    use crate::libavutil::dict::Dict;
-    use crate::libavutil::mem::alloc_array_zeroed;
+    use crate::libavutil::libavutil::buffer::BufferReference;
+    use crate::libavutil::libavutil::dict::Dict;
+    use crate::libavutil::libavutil::mem::alloc_array_zeroed;
 
     /// `AVERROR(ENOSYS)`.
     const ENOSYS: c_int = -(ffi::ENOSYS as c_int);
@@ -3660,7 +3660,7 @@ mod unit_tests {
     mod hw {
         use super::super::fixture;
         use super::*;
-        use crate::libavutil::buffer::BufferReferenceBox;
+        use crate::libavutil::libavutil::buffer::BufferReferenceBox;
 
         pub(super) use fixture::{
             EMPTY, GRAY_FIRST, INERT, LISTING_FAILS, NO_LIST, TRANSFER_FAILS, YUV, pattern,
@@ -4143,12 +4143,12 @@ mod unit_tests {
         unsafe { (*c_dst.as_c_ptr()).format = YUV420P.into_raw().0 };
         // An `AVFrame` takes more than this; every other allocation is done.
         assert!(size_of::<ffi::AVFrame>() > 256);
-        crate::libavutil::mem::set_max_alloc(256);
+        crate::libavutil::libavutil::mem::set_max_alloc(256);
         // SAFETY: `src` is a hardware frame of the fake context.
         let ret = unsafe { dst.as_mut().transfer_data_from(src.as_ref()) };
         // SAFETY: as above, through C's own routine.
         let c_ret = unsafe { ffi::av_hwframe_transfer_data(c_dst.as_c_ptr(), src.as_c_ptr(), 0) };
-        crate::libavutil::mem::set_max_alloc(c_int::MAX as usize);
+        crate::libavutil::libavutil::mem::set_max_alloc(c_int::MAX as usize);
         assert_eq!(ret, Err(ENOMEM));
         assert_eq!(c_ret, ENOMEM);
         assert_eq!(dst.as_ref().pts(), 3);
@@ -4186,9 +4186,9 @@ mod unit_tests {
         use core::ffi::CStr;
         use core::ptr::{addr_of, addr_of_mut};
 
-        use crate::libavutil::buffer::MAX_REFERENCES;
-        use crate::libavutil::dict::Dict;
-        use crate::libavutil::hwcontext::backend::{
+        use crate::libavutil::libavutil::buffer::MAX_REFERENCES;
+        use crate::libavutil::libavutil::dict::Dict;
+        use crate::libavutil::libavutil::hwcontext::backend::{
             self as fx, Event, FramesHw, FramesHwctx, HWCONFIG_SIZE, Kind, averror,
         };
 
@@ -5866,9 +5866,9 @@ mod unit_tests {
             // away past half an hour and 40 GB there).
             let big = vec![PixelFormat::YUV420P; 1 << 9];
             assert!(size_of_val(&big[..]) > 1 << 10);
-            crate::libavutil::mem::set_max_alloc(1 << 10);
+            crate::libavutil::libavutil::mem::set_max_alloc(1 << 10);
             let ret = c.as_mut().set_valid_sw_formats(Some(&big));
-            crate::libavutil::mem::set_max_alloc(i32::MAX as usize);
+            crate::libavutil::libavutil::mem::set_max_alloc(i32::MAX as usize);
             assert_eq!(ret, Err(ENOMEM));
             let sw: Vec<_> = c.as_ref().valid_sw_formats().unwrap().elems().collect();
             assert_eq!(sw, [PixelFormat::NV12]);
@@ -5876,10 +5876,10 @@ mod unit_tests {
             let events = Arc::new(Events::default());
             // SAFETY: the fake backend's `device_init` accepts any payload.
             let arc = unsafe { builder(&events).init() }.unwrap();
-            crate::libavutil::mem::set_max_alloc(16);
+            crate::libavutil::libavutil::mem::set_max_alloc(16);
             let new = FramesConstraints::new();
             let queried = arc.as_ref().frames_constraints();
-            crate::libavutil::mem::set_max_alloc(i32::MAX as usize);
+            crate::libavutil::libavutil::mem::set_max_alloc(i32::MAX as usize);
             assert!(new.is_none() && queried.is_none());
             assert_eq!(events.get().2, 0);
         }
@@ -5895,7 +5895,7 @@ mod unit_tests {
         use core::sync::atomic::{AtomicUsize, Ordering};
         use std::sync::{Arc, Mutex};
 
-        use crate::libavutil::buffer::{BufferPool, BufferReference};
+        use crate::libavutil::libavutil::buffer::{BufferPool, BufferReference};
 
         /// An initialised test device of `kind`, adopted as a box, with its
         /// events taken.
@@ -6371,9 +6371,9 @@ mod unit_tests {
             // An `AVFrame` takes more than this; the backend's pool and the
             // preallocation's array less.
             assert!(size_of::<ffi::AVFrame>() > 256);
-            crate::libavutil::mem::set_max_alloc(256);
+            crate::libavutil::libavutil::mem::set_max_alloc(256);
             let ret = u.init();
-            crate::libavutil::mem::set_max_alloc(c_int::MAX as usize);
+            crate::libavutil::libavutil::mem::set_max_alloc(c_int::MAX as usize);
             let frames = ret.unwrap();
             assert_eq!(allocs.load(Ordering::SeqCst), 0);
             assert_eq!(fx::take_events(), [Event::FramesInit(Kind::A)]);
@@ -6568,12 +6568,12 @@ mod unit_tests {
             let d = big_struct_device();
             // The context, its reference and the device's fit; the struct not.
             assert!(size_of::<fx::FramesInternal>() < 1024);
-            crate::libavutil::mem::set_max_alloc(1024);
+            crate::libavutil::libavutil::mem::set_max_alloc(1024);
             let alloc = d.as_ref().alloc_frames();
             let created =
                 d.as_ref()
                     .create_frames(PixelFormat::DRM_PRIME, PixelFormat::NV12, 64, 32, 0);
-            crate::libavutil::mem::set_max_alloc(c_int::MAX as usize);
+            crate::libavutil::libavutil::mem::set_max_alloc(c_int::MAX as usize);
             assert!(alloc.is_none());
             assert_eq!(created.unwrap_err(), ENOMEM);
             // SAFETY: a live reference; C atomically loads its count.

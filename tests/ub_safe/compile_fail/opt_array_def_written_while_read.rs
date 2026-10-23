@@ -1,5 +1,5 @@
 // A shared handle freezes the definition: no setter runs while it lives.
-use ffmpeg::libavutil::opt::OptionArrayDef;
+use ffmpeg_bindings::libavutil::libavutil::opt::OptionArrayDef;
 
 fn main() {
     let mut d = OptionArrayDef::new();

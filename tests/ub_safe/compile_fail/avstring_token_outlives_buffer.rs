@@ -1,7 +1,7 @@
 // A token cannot outlive the buffer it was split out of.
 use std::ffi::CStr;
 
-use ffmpeg::libavutil::avstring::tokens;
+use ffmpeg_bindings::libavutil::libavutil::avstring::tokens;
 
 fn main() {
     let first: &CStr;

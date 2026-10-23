@@ -4,7 +4,7 @@
 
 use std::sync::Barrier;
 
-use ffmpeg::libavutil::cpu::{cpu_count, cpu_flags, cpu_max_align, force_cpu_count};
+use ffmpeg_bindings::libavutil::libavutil::cpu::{cpu_count, cpu_flags, cpu_max_align, force_cpu_count};
 
 /// The only test touching the process-global override, so the sequential
 /// checks see no other writer.
@@ -61,7 +61,7 @@ fn cpu_flags_read_concurrently_agree() {
 mod parse_caps {
     use core::ffi::CStr;
 
-    use ffmpeg::libavutil::cpu::parse_cpu_caps;
+    use ffmpeg_bindings::libavutil::libavutil::cpu::parse_cpu_caps;
 
     /// Strings reaching UB in C: expression functions converting a huge double
     /// to `int` (`ld`, `st`, `bitand`), and `+`/`-` operands C converts to

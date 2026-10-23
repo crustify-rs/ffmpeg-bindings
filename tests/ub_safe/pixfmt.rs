@@ -6,9 +6,9 @@ mod color_space_and_transfer {
     use std::collections::HashSet;
     use std::thread;
 
-    use ffmpeg::libavutil::ffi;
-    use ffmpeg::libavutil::mem::{HeapVec, alloc_array, alloc_array_from_fn, alloc_array_zeroed};
-    use ffmpeg::libavutil::pixfmt::{ColorSpace, ColorTransfer};
+    use ffmpeg_bindings::libavutil::libavutil::ffi;
+    use ffmpeg_bindings::libavutil::libavutil::mem::{HeapVec, alloc_array, alloc_array_from_fn, alloc_array_zeroed};
+    use ffmpeg_bindings::libavutil::libavutil::pixfmt::{ColorSpace, ColorTransfer};
 
     /// Named colour spaces, `AVCOL_SPC_NB` and values C may store unnamed.
     fn space_sample() -> Vec<ColorSpace> {
@@ -128,9 +128,9 @@ mod color_space_and_transfer {
 mod alpha_mode {
     use std::thread;
 
-    use ffmpeg::libavutil::ffi;
-    use ffmpeg::libavutil::mem::{HeapVec, alloc_array, alloc_array_from_fn, alloc_array_zeroed};
-    use ffmpeg::libavutil::pixfmt::AlphaMode;
+    use ffmpeg_bindings::libavutil::libavutil::ffi;
+    use ffmpeg_bindings::libavutil::libavutil::mem::{HeapVec, alloc_array, alloc_array_from_fn, alloc_array_zeroed};
+    use ffmpeg_bindings::libavutil::libavutil::pixfmt::AlphaMode;
 
     /// Named modes, `AVALPHA_MODE_NB`, `AVERROR(EINVAL)` and the extremes.
     fn alpha_mode_sample() -> Vec<AlphaMode> {
@@ -200,9 +200,9 @@ mod pixel_format {
     use std::collections::HashSet;
     use std::thread;
 
-    use ffmpeg::libavutil::ffi;
-    use ffmpeg::libavutil::mem::{HeapVec, alloc_array, alloc_array_from_fn, alloc_array_zeroed};
-    use ffmpeg::libavutil::pixfmt::PixelFormat;
+    use ffmpeg_bindings::libavutil::libavutil::ffi;
+    use ffmpeg_bindings::libavutil::libavutil::mem::{HeapVec, alloc_array, alloc_array_from_fn, alloc_array_zeroed};
+    use ffmpeg_bindings::libavutil::libavutil::pixfmt::PixelFormat;
 
     /// Named formats, `AV_PIX_FMT_NB` and its neighbours, and the `int` extremes.
     fn sample() -> Vec<PixelFormat> {
@@ -305,9 +305,9 @@ mod pixel_format {
 mod color_primaries_and_range {
     use std::thread;
 
-    use ffmpeg::libavutil::ffi;
-    use ffmpeg::libavutil::mem::{HeapVec, alloc_array, alloc_array_from_fn, alloc_array_zeroed};
-    use ffmpeg::libavutil::pixfmt::{ColorPrimaries, ColorRange};
+    use ffmpeg_bindings::libavutil::libavutil::ffi;
+    use ffmpeg_bindings::libavutil::libavutil::mem::{HeapVec, alloc_array, alloc_array_from_fn, alloc_array_zeroed};
+    use ffmpeg_bindings::libavutil::libavutil::pixfmt::{ColorPrimaries, ColorRange};
 
     /// Named primaries, the H.273 gap, both `NB` values and `u32::MAX`.
     fn primaries_sample() -> Vec<ColorPrimaries> {
@@ -417,9 +417,9 @@ mod color_primaries_and_range {
 mod chroma_location {
     use std::thread;
 
-    use ffmpeg::libavutil::ffi;
-    use ffmpeg::libavutil::mem::{HeapVec, alloc_array, alloc_array_from_fn, alloc_array_zeroed};
-    use ffmpeg::libavutil::pixfmt::ChromaLocation;
+    use ffmpeg_bindings::libavutil::libavutil::ffi;
+    use ffmpeg_bindings::libavutil::libavutil::mem::{HeapVec, alloc_array, alloc_array_from_fn, alloc_array_zeroed};
+    use ffmpeg_bindings::libavutil::libavutil::pixfmt::ChromaLocation;
 
     /// Every value C names, the values just past them and the `unsigned`
     /// extremes, which C may store in `AVFrame.chroma_location`.

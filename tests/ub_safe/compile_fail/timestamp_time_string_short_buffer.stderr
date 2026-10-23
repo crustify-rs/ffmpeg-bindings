@@ -7,7 +7,7 @@ error[E0308]: mismatched types
   |     arguments to this function are incorrect
   |
 note: function defined here
- --> libavutil/timestamp.rs
+ --> src/libavutil/libavutil/timestamp.rs
   |
   | pub fn make_time_string(
   |        ^^^^^^^^^^^^^^^^
@@ -23,7 +23,7 @@ error[E0308]: mismatched types
   = note: expected mutable reference `&mut [u8; 32]`
              found mutable reference `&mut [u8]`
 note: function defined here
- --> libavutil/timestamp.rs
+ --> src/libavutil/libavutil/timestamp.rs
   |
   | pub fn make_time_string(
   |        ^^^^^^^^^^^^^^^^

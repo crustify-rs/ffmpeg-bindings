@@ -1,6 +1,6 @@
 // The two exclusive coordinate handles each borrow the whole struct handle,
 // so they cannot be held at once.
-use ffmpeg::libavutil::csp::CieXy;
+use ffmpeg_bindings::libavutil::libavutil::csp::CieXy;
 
 fn main() {
     let mut v = CieXy::default();

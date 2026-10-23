@@ -9,8 +9,8 @@ use core::ptr::{self, addr_of_mut};
 use std::cell::RefCell;
 use std::sync::{Mutex, MutexGuard, PoisonError};
 
-use ffmpeg::libavutil::ffi;
-use ffmpeg::libavutil::log::{
+use ffmpeg_bindings::libavutil::libavutil::ffi;
+use ffmpeg_bindings::libavutil::libavutil::log::{
     self, Callback, ClassCategory, ClassStateFlags, Flags, Level, Record,
 };
 
@@ -541,9 +541,9 @@ mod vlog {
     use core::mem::offset_of;
     use std::sync::{Mutex, PoisonError};
 
-    use ffmpeg::libavutil::ffi;
-    use ffmpeg::libavutil::log::{Level, log, log_with_context};
-    use ffmpeg::libavutil::opt::ObjectRef;
+    use ffmpeg_bindings::libavutil::libavutil::ffi;
+    use ffmpeg_bindings::libavutil::libavutil::log::{Level, log, log_with_context};
+    use ffmpeg_bindings::libavutil::libavutil::opt::ObjectRef;
 
     use super::LogState;
 
@@ -769,9 +769,9 @@ mod item_name {
     use core::ffi::{CStr, c_void};
     use core::ptr::null;
 
-    use ffmpeg::libavutil::ffi;
-    use ffmpeg::libavutil::log::default_item_name;
-    use ffmpeg::libavutil::opt::ObjectRef;
+    use ffmpeg_bindings::libavutil::libavutil::ffi;
+    use ffmpeg_bindings::libavutil::libavutil::log::default_item_name;
+    use ffmpeg_bindings::libavutil::libavutil::opt::ObjectRef;
 
     /// A class named `name`, every other member zero.
     fn class(name: Option<&'static CStr>) -> ffi::AVClass {
@@ -1393,7 +1393,7 @@ fn contexts_shift_levels_and_prefix_lines_like_c() {
                         // options, an `int` at its level offset far from
                         // overflow and a NULL or valid parent context;
                         // nothing writes them.
-                        match unsafe { ffmpeg::libavutil::opt::ObjectRef::from_ptr(cx) } {
+                        match unsafe { ffmpeg_bindings::libavutil::libavutil::opt::ObjectRef::from_ptr(cx) } {
                             Some(o) => {
                                 log::log_with_context(o, level, msg);
                                 log::log_fmt_with_context(o, level, format_args!("{text}"));
@@ -1597,9 +1597,9 @@ mod class {
     use core::ptr::{self, NonNull};
     use std::ffi::CString;
 
-    use ffmpeg::libavutil::ffi;
-    use ffmpeg::libavutil::log::{Class, ClassCategory, ClassRef};
-    use ffmpeg::libavutil::opt::{ObjectRef, RangeFlags};
+    use ffmpeg_bindings::libavutil::libavutil::ffi;
+    use ffmpeg_bindings::libavutil::libavutil::log::{Class, ClassCategory, ClassRef};
+    use ffmpeg_bindings::libavutil::libavutil::opt::{ObjectRef, RangeFlags};
 
     use super::LogState;
     use super::class_fixture::with_class;
@@ -1874,8 +1874,8 @@ mod class {
 /// `av_default_get_category` (core wave 1, batch 2), over independently built
 /// contexts of every category and of unnamed values.
 mod default_category {
-    use ffmpeg::libavutil::ffi;
-    use ffmpeg::libavutil::log::{ClassCategory, default_category};
+    use ffmpeg_bindings::libavutil::libavutil::ffi;
+    use ffmpeg_bindings::libavutil::libavutil::log::{ClassCategory, default_category};
 
     use super::{CATEGORIES, Ctx, c_category, class, options};
 
@@ -1890,7 +1890,7 @@ mod default_category {
         // whose options address `ctx`'s members; nothing writes either during
         // the call.
         let obj = unsafe {
-            ffmpeg::libavutil::opt::ObjectRef::from_ptr((&raw const ctx).cast_mut().cast())
+            ffmpeg_bindings::libavutil::libavutil::opt::ObjectRef::from_ptr((&raw const ctx).cast_mut().cast())
         };
         default_category(obj.unwrap())
     }

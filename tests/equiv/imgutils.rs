@@ -9,12 +9,12 @@ use core::cell::RefCell;
 use core::ffi::{c_int, c_void};
 use core::ptr;
 
-use ffmpeg::libavutil::ffi;
-use ffmpeg::libavutil::imgutils::{
+use ffmpeg_bindings::libavutil::libavutil::ffi;
+use ffmpeg_bindings::libavutil::libavutil::imgutils::{
     check_size, check_size_with_context, copy_plane, copy_plane_from_uncacheable,
 };
-use ffmpeg::libavutil::log::{self, Callback, Record};
-use ffmpeg::libavutil::opt::ObjectRef;
+use ffmpeg_bindings::libavutil::libavutil::log::{self, Callback, Record};
+use ffmpeg_bindings::libavutil::libavutil::opt::ObjectRef;
 
 use crate::log::LogState;
 
@@ -383,17 +383,17 @@ mod images {
     use core::ffi::{c_int, c_void};
     use core::ptr;
 
-    use ffmpeg::libavutil::ffi;
-    use ffmpeg::libavutil::imgutils::{
+    use ffmpeg_bindings::libavutil::libavutil::ffi;
+    use ffmpeg_bindings::libavutil::libavutil::imgutils::{
         Image, Planes, PlanesMut, buffer_size, buffer_size_for_linesizes, check_fill_black,
         check_fill_color, check_sar, check_size_max_pixels, check_size_max_pixels_with_context,
         copy, copy_from_mut, copy_from_uncacheable, copy_to_buffer, fill_arrays, fill_arrays_mut,
         fill_black, fill_color, fill_linesizes, fill_plane_sizes, fill_pointers, fill_pointers_mut,
         linesize,
     };
-    use ffmpeg::libavutil::opt::ObjectRef;
-    use ffmpeg::libavutil::pixfmt::{ColorRange, PixelFormat};
-    use ffmpeg::libavutil::rational::Rational;
+    use ffmpeg_bindings::libavutil::libavutil::opt::ObjectRef;
+    use ffmpeg_bindings::libavutil::libavutil::pixfmt::{ColorRange, PixelFormat};
+    use ffmpeg_bindings::libavutil::libavutil::rational::Rational;
 
     use super::{Ctx, captured, isolated};
     use crate::log::LogState;
@@ -1573,9 +1573,9 @@ mod pixel_steps {
     use core::ffi::c_int;
     use core::ptr;
 
-    use ffmpeg::libavutil::ffi;
-    use ffmpeg::libavutil::imgutils::max_pixel_steps;
-    use ffmpeg::libavutil::pixfmt::PixelFormat;
+    use ffmpeg_bindings::libavutil::libavutil::ffi;
+    use ffmpeg_bindings::libavutil::libavutil::imgutils::max_pixel_steps;
+    use ffmpeg_bindings::libavutil::libavutil::pixfmt::PixelFormat;
 
     const NB: c_int = ffi::AVPixelFormat::AV_PIX_FMT_NB.0;
 
@@ -1611,7 +1611,7 @@ mod pixel_steps {
     #[test]
     #[cfg_attr(miri, ignore = "calls C")]
     fn max_pixel_steps_of_rust_built_descriptors_match_c() {
-        use ffmpeg::libavutil::pixdesc::{ComponentDescriptor, PixelFormatDescriptor};
+        use ffmpeg_bindings::libavutil::libavutil::pixdesc::{ComponentDescriptor, PixelFormatDescriptor};
         let steps = [c_int::MIN, -1, 0, 1, 2, 7, c_int::MAX];
         for planes in [[0, 0, 0, 0], [0, 1, 1, 0], [3, 2, 1, 0], [2, 2, 3, 3]] {
             for (i, &a) in steps.iter().enumerate() {

@@ -1,6 +1,6 @@
 // A child handle borrows its parent object: it cannot outlive it.
-use ffmpeg::libavutil::log::{Class, ClassCategory};
-use ffmpeg::libavutil::opt::BareObject;
+use ffmpeg_bindings::libavutil::libavutil::log::{Class, ClassCategory};
+use ffmpeg_bindings::libavutil::libavutil::opt::BareObject;
 
 static CLASS: Class = Class::new(c"parent", ClassCategory::NA);
 

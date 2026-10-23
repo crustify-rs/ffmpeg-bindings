@@ -2,7 +2,7 @@
 // a string the function owns cannot name one.
 use std::ffi::CString;
 
-use ffmpeg::libavutil::frame::{SideDataDescriptor, SideDataProps};
+use ffmpeg_bindings::libavutil::libavutil::frame::{SideDataDescriptor, SideDataProps};
 
 fn main() {
     let name = CString::new("short-lived").unwrap();

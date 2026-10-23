@@ -1,5 +1,5 @@
 // The frame's writable side data excludes reading the frame meanwhile.
-use ffmpeg::libavutil::frame::Frame;
+use ffmpeg_bindings::libavutil::libavutil::frame::Frame;
 
 fn main() {
     let mut frame = Frame::new().unwrap();

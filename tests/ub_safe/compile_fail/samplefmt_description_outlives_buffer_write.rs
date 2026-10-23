@@ -1,6 +1,6 @@
 // A sample format's description is borrowed from the buffer it was written
 // into, which cannot be overwritten while it is read.
-use ffmpeg::libavutil::samplefmt::SampleFormat;
+use ffmpeg_bindings::libavutil::libavutil::samplefmt::SampleFormat;
 
 fn main() {
     let mut buf = [0u8; 16];

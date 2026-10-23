@@ -2,7 +2,7 @@
 // a scope cannot be set.
 use std::ffi::CString;
 
-use ffmpeg::libavutil::pixdesc::PixelFormatDescriptor;
+use ffmpeg_bindings::libavutil::libavutil::pixdesc::PixelFormatDescriptor;
 
 fn main() {
     let mut d = PixelFormatDescriptor::new();

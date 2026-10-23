@@ -1,6 +1,6 @@
 // The text `make_time_string` returns borrows the buffer: it cannot outlive
 // it, nor survive a rewrite of it.
-use ffmpeg::libavutil::{ffi, rational::Rational, timestamp::make_time_string};
+use ffmpeg_bindings::libavutil::libavutil::{ffi, rational::Rational, timestamp::make_time_string};
 
 fn main() {
     let tb = Rational::new(1, 1000);

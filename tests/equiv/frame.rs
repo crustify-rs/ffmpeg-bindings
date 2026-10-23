@@ -6,14 +6,14 @@
 /// `AVFrameSideData.type` a frame's side-data list stores, looks up and
 /// removes by (buffer-frame wave 0, batch 2).
 ///
-/// [`SideDataType`]: ffmpeg::libavutil::frame::SideDataType
+/// [`SideDataType`]: ffmpeg_bindings::libavutil::libavutil::frame::SideDataType
 mod side_data_type {
     use core::ffi::CStr;
     use core::ptr;
 
-    use ffmpeg::libavutil::ffi;
-    use ffmpeg::libavutil::frame::SideDataType;
-    use ffmpeg::libavutil::mem::{HeapVec, alloc_array_zeroed};
+    use ffmpeg_bindings::libavutil::libavutil::ffi;
+    use ffmpeg_bindings::libavutil::libavutil::frame::SideDataType;
+    use ffmpeg_bindings::libavutil::libavutil::mem::{HeapVec, alloc_array_zeroed};
 
     use ffi::AVFrameSideDataType as C;
 
@@ -326,12 +326,12 @@ mod side_data_type {
 /// `AV_FRAME_DATA_AFD` side-data byte C frames store, look up and copy
 /// through `av_frame_copy_props`. No C routine reads or writes the enum itself.
 ///
-/// [`ActiveFormatDescription`]: ffmpeg::libavutil::frame::ActiveFormatDescription
+/// [`ActiveFormatDescription`]: ffmpeg_bindings::libavutil::libavutil::frame::ActiveFormatDescription
 mod active_format_description {
     use core::ptr::addr_of;
 
-    use ffmpeg::libavutil::ffi;
-    use ffmpeg::libavutil::frame::ActiveFormatDescription as Afd;
+    use ffmpeg_bindings::libavutil::libavutil::ffi;
+    use ffmpeg_bindings::libavutil::libavutil::frame::ActiveFormatDescription as Afd;
 
     type CAfd = ffi::AVActiveFormatDescription;
 
@@ -505,8 +505,8 @@ mod side_data_descriptor {
     use core::ffi::{CStr, c_int, c_uint};
     use core::ptr;
 
-    use ffmpeg::libavutil::ffi;
-    use ffmpeg::libavutil::frame::{SideDataDescriptor, SideDataProps};
+    use ffmpeg_bindings::libavutil::libavutil::ffi;
+    use ffmpeg_bindings::libavutil::libavutil::frame::{SideDataDescriptor, SideDataProps};
 
     /// Side data type values to look up: every enumerator, the first values
     /// past them, and values that only fit as `unsigned`.
@@ -775,8 +775,8 @@ mod side_data_descriptor {
 mod side_data_lookups {
     use core::ffi::CStr;
 
-    use ffmpeg::libavutil::ffi;
-    use ffmpeg::libavutil::frame::SideDataType;
+    use ffmpeg_bindings::libavutil::libavutil::ffi;
+    use ffmpeg_bindings::libavutil::libavutil::frame::SideDataType;
 
     /// Every value through one past the largest named type, plus the edges.
     fn values() -> impl Iterator<Item = u32> {
@@ -843,9 +843,9 @@ mod region_of_interest {
     use core::mem::size_of;
     use core::ptr;
 
-    use ffmpeg::libavutil::ffi;
-    use ffmpeg::libavutil::frame::{RegionOfInterest, RegionOfInterestRef};
-    use ffmpeg::libavutil::rational::Rational;
+    use ffmpeg_bindings::libavutil::libavutil::ffi;
+    use ffmpeg_bindings::libavutil::libavutil::frame::{RegionOfInterest, RegionOfInterestRef};
+    use ffmpeg_bindings::libavutil::libavutil::rational::Rational;
 
     const EDGES: [i32; 7] = [i32::MIN, -100, -1, 0, 1, 1920, i32::MAX];
 
@@ -1113,16 +1113,16 @@ mod region_of_interest {
 /// array, and by the buffers and dictionaries each side gave back, down to
 /// what the arrays' release leaves of them.
 ///
-/// [`SideData`]: ffmpeg::libavutil::frame::SideData
-/// [`SideDataArray`]: ffmpeg::libavutil::frame::SideDataArray
+/// [`SideData`]: ffmpeg_bindings::libavutil::libavutil::frame::SideData
+/// [`SideDataArray`]: ffmpeg_bindings::libavutil::libavutil::frame::SideDataArray
 mod side_data {
     use core::ffi::{CStr, c_int};
     use core::ptr;
 
-    use ffmpeg::libavutil::buffer::{BufferReference, BufferReferenceBox};
-    use ffmpeg::libavutil::dict::Dict;
-    use ffmpeg::libavutil::ffi;
-    use ffmpeg::libavutil::frame::{SideDataArray, SideDataFlags, SideDataRef, SideDataType};
+    use ffmpeg_bindings::libavutil::libavutil::buffer::{BufferReference, BufferReferenceBox};
+    use ffmpeg_bindings::libavutil::libavutil::dict::Dict;
+    use ffmpeg_bindings::libavutil::libavutil::ffi;
+    use ffmpeg_bindings::libavutil::libavutil::frame::{SideDataArray, SideDataFlags, SideDataRef, SideDataType};
 
     use super::side_data_fixture::{SAMPLE, Spec};
 
@@ -1727,8 +1727,8 @@ mod side_data_array_routines {
     use core::ffi::c_int;
     use core::ptr;
 
-    use ffmpeg::libavutil::ffi;
-    use ffmpeg::libavutil::frame::{SideDataArray, SideDataFlags, SideDataProps, SideDataType};
+    use ffmpeg_bindings::libavutil::libavutil::ffi;
+    use ffmpeg_bindings::libavutil::libavutil::frame::{SideDataArray, SideDataFlags, SideDataProps, SideDataType};
 
     use super::side_data::{
         CArray, FLAGS, KINDS, PAIRS, c_buffer, c_dict, compare, getters, rust_seen, xorshift,
@@ -1992,7 +1992,7 @@ mod side_data_array_routines {
         if !isolated(name) {
             return;
         }
-        let set_max = ffmpeg::libavutil::mem::set_max_alloc;
+        let set_max = ffmpeg_bindings::libavutil::libavutil::mem::set_max_alloc;
         let key = std::ffi::CString::new(vec![b'k'; 150]).unwrap();
         let long: &[(&core::ffi::CStr, &core::ffi::CStr)] = &[(&key, c"v")];
         // Source entries: a unique kind and a MULTI one, each with and
@@ -2012,7 +2012,7 @@ mod side_data_array_routines {
                         .alloc_from_slice(k, b"src", SideDataFlags::NONE)
                         .unwrap();
                     e.set_metadata(
-                        ffmpeg::libavutil::dict::Dict::from_entries(pairs.iter().copied()).unwrap(),
+                        ffmpeg_bindings::libavutil::libavutil::dict::Dict::from_entries(pairs.iter().copied()).unwrap(),
                     );
                     let i = c_new(
                         &mut c_src,
@@ -2118,7 +2118,7 @@ mod side_data_array_routines {
                             .alloc_from_slice(kind(k), b"source", SideDataFlags::NONE)
                             .unwrap();
                         e.set_metadata(
-                            ffmpeg::libavutil::dict::Dict::from_entries(pairs.iter().copied())
+                            ffmpeg_bindings::libavutil::libavutil::dict::Dict::from_entries(pairs.iter().copied())
                                 .unwrap(),
                         );
                         let i =
@@ -2129,7 +2129,7 @@ mod side_data_array_routines {
                             .alloc_from_slice(kind(k), b"old", SideDataFlags::NONE)
                             .unwrap();
                         e.set_metadata(
-                            ffmpeg::libavutil::dict::Dict::from_entries(old.iter().copied())
+                            ffmpeg_bindings::libavutil::libavutil::dict::Dict::from_entries(old.iter().copied())
                                 .unwrap(),
                         );
                         if shared {
@@ -2153,7 +2153,7 @@ mod side_data_array_routines {
                             }
                         }
                         compare(&mut r, &c, &label);
-                        let set_max = ffmpeg::libavutil::mem::set_max_alloc;
+                        let set_max = ffmpeg_bindings::libavutil::libavutil::mem::set_max_alloc;
                         set_max(limit);
                         let got = r
                             .as_mut()
@@ -2216,7 +2216,7 @@ mod side_data_array_routines {
                         .alloc_from_slice(kind(k2), &[m as u8; 3], SideDataFlags::NONE)
                         .unwrap();
                     e.set_metadata(
-                        ffmpeg::libavutil::dict::Dict::from_entries(pairs.iter().copied()).unwrap(),
+                        ffmpeg_bindings::libavutil::libavutil::dict::Dict::from_entries(pairs.iter().copied()).unwrap(),
                     );
                     let i = c_new(&mut c, k2, 3, SideDataFlags::NONE, Some(&[m as u8; 3])).unwrap();
                     let _ = c.replace_metadata(i, c_dict(pairs));
@@ -2267,24 +2267,24 @@ mod side_data_array_routines {
 /// writability against `av_buffer_is_writable`; and frames whose planes are
 /// external memory, copied by both clones.
 ///
-/// [`Frame`]: ffmpeg::libavutil::frame::Frame
+/// [`Frame`]: ffmpeg_bindings::libavutil::libavutil::frame::Frame
 mod frame_type {
     use core::ffi::{CStr, c_int};
     use core::ptr;
 
-    use ffmpeg::libavutil::avutil::PictureType;
-    use ffmpeg::libavutil::buffer::{BufferReference, BufferReferenceBox};
-    use ffmpeg::libavutil::channel_layout::ChannelLayout;
-    use ffmpeg::libavutil::dict::Dict;
-    use ffmpeg::libavutil::ffi;
-    use ffmpeg::libavutil::frame::{
+    use ffmpeg_bindings::libavutil::libavutil::avutil::PictureType;
+    use ffmpeg_bindings::libavutil::libavutil::buffer::{BufferReference, BufferReferenceBox};
+    use ffmpeg_bindings::libavutil::libavutil::channel_layout::ChannelLayout;
+    use ffmpeg_bindings::libavutil::libavutil::dict::Dict;
+    use ffmpeg_bindings::libavutil::libavutil::ffi;
+    use ffmpeg_bindings::libavutil::libavutil::frame::{
         DecodeErrorFlags, Frame, FrameBox, FrameFlags, FrameRef, NUM_DATA_POINTERS, PlaneError,
         SideDataFlags, SideDataType,
     };
-    use ffmpeg::libavutil::pixfmt::{
+    use ffmpeg_bindings::libavutil::libavutil::pixfmt::{
         AlphaMode, ChromaLocation, ColorPrimaries, ColorRange, ColorSpace, ColorTransfer,
     };
-    use ffmpeg::libavutil::rational::Rational;
+    use ffmpeg_bindings::libavutil::libavutil::rational::Rational;
 
     /// Where a plane pointer points: NULL, inside unified buffer `index`
     /// (`buf`, then `extended_buf`) at `offset`, or nowhere C allocated.
@@ -2492,7 +2492,7 @@ mod frame_type {
                 })
                 .unwrap_or(At::Stray),
         };
-        let pairs = |m: Option<ffmpeg::libavutil::dict::DictionaryRef<'_>>| {
+        let pairs = |m: Option<ffmpeg_bindings::libavutil::libavutil::dict::DictionaryRef<'_>>| {
             m.map_or_else(Vec::new, |m| {
                 m.iter()
                     .map(|p| (p.key().to_bytes().into(), p.value().to_bytes().into()))
@@ -3137,7 +3137,7 @@ mod frame_type {
             }
             16 => {
                 let mut m = r.as_mut();
-                m.set_pixel_format(ffmpeg::libavutil::pixfmt::PixelFormat::GRAY8);
+                m.set_pixel_format(ffmpeg_bindings::libavutil::libavutil::pixfmt::PixelFormat::GRAY8);
                 m.set_width(4);
                 m.set_height(2);
                 m.set_sample_count(0);
@@ -3240,7 +3240,7 @@ mod frame_type {
             let mut r = Frame::new().unwrap();
             let c = CFrame::new();
             let mut m = r.as_mut();
-            m.set_pixel_format(ffmpeg::libavutil::pixfmt::PixelFormat::GRAY8);
+            m.set_pixel_format(ffmpeg_bindings::libavutil::libavutil::pixfmt::PixelFormat::GRAY8);
             m.set_width(w);
             m.set_height(h);
             m.set_linesize(0, w);
@@ -3291,7 +3291,7 @@ mod frame_type {
     #[test]
     #[cfg_attr(miri, ignore = "calls C")]
     fn clones_copy_external_channels_alike() {
-        use ffmpeg::libavutil::samplefmt::SampleFormat;
+        use ffmpeg_bindings::libavutil::libavutil::samplefmt::SampleFormat;
         for channels in [1usize, 2, NUM_DATA_POINTERS, NUM_DATA_POINTERS + 1, 13] {
             for samples in [1usize, 47] {
                 let mut mems: Vec<Vec<u8>> = (0..channels)
@@ -3373,19 +3373,19 @@ mod frame_type {
 /// `av_frame_new_side_data_from_buf`, `av_frame_get_side_data` and
 /// `av_frame_remove_side_data`.
 ///
-/// [`Frame`]: ffmpeg::libavutil::frame::Frame
+/// [`Frame`]: ffmpeg_bindings::libavutil::libavutil::frame::Frame
 mod frame_routines {
     use core::ffi::{CStr, c_int};
     use core::ptr;
 
-    use ffmpeg::libavutil::buffer::BufferReference;
-    use ffmpeg::libavutil::channel_layout::ChannelLayout;
-    use ffmpeg::libavutil::dict::Dict;
-    use ffmpeg::libavutil::ffi;
-    use ffmpeg::libavutil::frame::{CropFlags, Frame, FrameBox, FrameRef, SideDataType};
-    use ffmpeg::libavutil::imgutils;
-    use ffmpeg::libavutil::pixfmt::PixelFormat;
-    use ffmpeg::libavutil::samplefmt::SampleFormat;
+    use ffmpeg_bindings::libavutil::libavutil::buffer::BufferReference;
+    use ffmpeg_bindings::libavutil::libavutil::channel_layout::ChannelLayout;
+    use ffmpeg_bindings::libavutil::libavutil::dict::Dict;
+    use ffmpeg_bindings::libavutil::libavutil::ffi;
+    use ffmpeg_bindings::libavutil::libavutil::frame::{CropFlags, Frame, FrameBox, FrameRef, SideDataType};
+    use ffmpeg_bindings::libavutil::libavutil::imgutils;
+    use ffmpeg_bindings::libavutil::libavutil::pixfmt::PixelFormat;
+    use ffmpeg_bindings::libavutil::libavutil::samplefmt::SampleFormat;
 
     use super::frame_type::{At, CFrame, c_at, c_dict, getters, pattern, rust_seen, shape};
 

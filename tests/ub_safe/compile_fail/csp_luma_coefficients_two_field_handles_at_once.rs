@@ -1,6 +1,6 @@
 // Two exclusive field handles cannot be held at once: each borrows the
 // parent handle exclusively.
-use ffmpeg::libavutil::csp::LumaCoefficients;
+use ffmpeg_bindings::libavutil::libavutil::csp::LumaCoefficients;
 
 fn main() {
     let mut c = LumaCoefficients::default();

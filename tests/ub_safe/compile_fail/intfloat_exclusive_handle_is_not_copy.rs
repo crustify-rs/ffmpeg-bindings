@@ -1,5 +1,5 @@
 // An exclusive handle moves; it is not duplicated by use.
-use ffmpeg::libavutil::intfloat::IntFloat32;
+use ffmpeg_bindings::libavutil::libavutil::intfloat::IntFloat32;
 
 fn main() {
     let mut a = IntFloat32::default();

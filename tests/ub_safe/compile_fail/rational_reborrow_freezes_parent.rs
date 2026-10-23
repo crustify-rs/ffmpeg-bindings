@@ -1,5 +1,5 @@
 // A reborrowed exclusive handle freezes its parent while it lives.
-use ffmpeg::libavutil::rational::Rational;
+use ffmpeg_bindings::libavutil::libavutil::rational::Rational;
 
 fn main() {
     let mut q = Rational::new(1, 2);

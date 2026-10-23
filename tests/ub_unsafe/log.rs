@@ -12,9 +12,9 @@ use std::cell::RefCell;
 use std::sync::{Mutex, MutexGuard, PoisonError};
 use std::thread;
 
-use ffmpeg::libavutil::ffi;
-use ffmpeg::libavutil::log::{self, Callback, Flags, Level, Record};
-use ffmpeg::libavutil::opt::ObjectRef;
+use ffmpeg_bindings::libavutil::libavutil::ffi;
+use ffmpeg_bindings::libavutil::libavutil::log::{self, Callback, Flags, Level, Record};
+use ffmpeg_bindings::libavutil::libavutil::opt::ObjectRef;
 
 /// The handle of the raw context `ctx`; `None` for NULL or a context whose
 /// class pointer is NULL, which is no object.
@@ -707,8 +707,8 @@ mod vlog {
     use core::ptr;
     use std::thread;
 
-    use ffmpeg::libavutil::ffi;
-    use ffmpeg::libavutil::log::Level;
+    use ffmpeg_bindings::libavutil::libavutil::ffi;
+    use ffmpeg_bindings::libavutil::libavutil::log::Level;
 
     use super::log_in;
 
@@ -919,7 +919,7 @@ mod item_name {
     use core::ffi::{CStr, c_void};
     use std::ffi::CString;
 
-    use ffmpeg::libavutil::ffi;
+    use ffmpeg_bindings::libavutil::libavutil::ffi;
 
     /// `default_item_name` of the raw object `ctx`.
     ///
@@ -929,7 +929,7 @@ mod item_name {
     unsafe fn default_item_name<'a>(ctx: *const c_void) -> Option<&'a CStr> {
         // SAFETY: the caller's contract.
         let obj = unsafe { super::object(ctx.cast_mut()) }.expect("a class");
-        ffmpeg::libavutil::log::default_item_name(obj)
+        ffmpeg_bindings::libavutil::libavutil::log::default_item_name(obj)
     }
 
     /// A class, `Sync` to live in a `static`.
@@ -1093,9 +1093,9 @@ mod class_callbacks {
     use core::ptr;
     use std::thread;
 
-    use ffmpeg::libavutil::ffi;
-    use ffmpeg::libavutil::log::{Class, ClassCategory};
-    use ffmpeg::libavutil::opt::RangeFlags;
+    use ffmpeg_bindings::libavutil::libavutil::ffi;
+    use ffmpeg_bindings::libavutil::libavutil::log::{Class, ClassCategory};
+    use ffmpeg_bindings::libavutil::libavutil::opt::RangeFlags;
 
     use super::class_fixture::with_class;
     use super::{LogState, object};
@@ -1140,7 +1140,7 @@ mod class_callbacks {
             // `Class::new` leaves `item_name` NULL, which C's logging reads as
             // `av_default_item_name`: name the object the way C then does.
             assert!(class.as_ref().item_name().is_none());
-            use ffmpeg::libavutil::log::default_item_name;
+            use ffmpeg_bindings::libavutil::libavutil::log::default_item_name;
             // SAFETY: `obj` is a live object whose first member points to
             // `class`, built by `Class::new`; the name is its `'static`
             // literal.
@@ -1284,8 +1284,8 @@ mod class_callbacks {
 mod default_category {
     use core::ffi::c_void;
 
-    use ffmpeg::libavutil::ffi;
-    use ffmpeg::libavutil::log::ClassCategory;
+    use ffmpeg_bindings::libavutil::libavutil::ffi;
+    use ffmpeg_bindings::libavutil::libavutil::log::ClassCategory;
 
     /// `default_category` of the raw object `ctx`.
     ///
@@ -1295,7 +1295,7 @@ mod default_category {
     unsafe fn default_category(ctx: *const c_void) -> ClassCategory {
         // SAFETY: the caller's contract.
         let obj = unsafe { super::object(ctx.cast_mut()) }.expect("a class");
-        ffmpeg::libavutil::log::default_category(obj)
+        ffmpeg_bindings::libavutil::libavutil::log::default_category(obj)
     }
 
     /// A class, `Sync` to live in a `static`.

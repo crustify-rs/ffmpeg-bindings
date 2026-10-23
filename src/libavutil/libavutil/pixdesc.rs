@@ -962,7 +962,7 @@ impl ColorRange {
     /// not name.
     ///
     /// ```
-    /// use ffmpeg::libavutil::pixfmt::ColorRange;
+    /// use ffmpeg_bindings::libavutil::libavutil::pixfmt::ColorRange;
     /// assert_eq!(ColorRange::JPEG.name(), Some(c"pc"));
     /// assert_eq!(ColorRange::from_name(c"tv"), Some(ColorRange::MPEG));
     /// ```
@@ -1036,7 +1036,7 @@ impl ChromaLocation {
     /// name.
     ///
     /// ```
-    /// use ffmpeg::libavutil::pixfmt::ChromaLocation;
+    /// use ffmpeg_bindings::libavutil::libavutil::pixfmt::ChromaLocation;
     /// assert_eq!(ChromaLocation::LEFT.position(), Some((0, 128)));
     /// assert_eq!(ChromaLocation::from_position(0, 128), Some(ChromaLocation::LEFT));
     /// assert_eq!(ChromaLocation::UNSPECIFIED.position(), None);
@@ -1224,7 +1224,7 @@ impl PixelFormat {
     /// [`NONE`](Self::NONE) and any value C does not know.
     ///
     /// ```
-    /// use ffmpeg::libavutil::pixfmt::PixelFormat;
+    /// use ffmpeg_bindings::libavutil::libavutil::pixfmt::PixelFormat;
     /// assert_eq!(PixelFormat::YUV420P.name(), Some(c"yuv420p"));
     /// assert_eq!(PixelFormat::NONE.name(), None);
     /// ```
@@ -1246,7 +1246,7 @@ impl PixelFormat {
     /// included.
     ///
     /// ```
-    /// use ffmpeg::libavutil::pixfmt::PixelFormat;
+    /// use ffmpeg_bindings::libavutil::libavutil::pixfmt::PixelFormat;
     /// assert_eq!(PixelFormat::from_name(c"yuv420p"), Some(PixelFormat::YUV420P));
     /// assert_eq!(PixelFormat::from_name(c"gray16"), Some(PixelFormat::GRAY16));
     /// assert_eq!(PixelFormat::from_name(c"no such format"), None);
@@ -1273,8 +1273,8 @@ impl PixelFormat {
     /// value C does not know.
     ///
     /// ```
-    /// use ffmpeg::libavutil::pixdesc::Loss;
-    /// use ffmpeg::libavutil::pixfmt::PixelFormat;
+    /// use ffmpeg_bindings::libavutil::libavutil::pixdesc::Loss;
+    /// use ffmpeg_bindings::libavutil::libavutil::pixfmt::PixelFormat;
     /// let loss = PixelFormat::RGB24.conversion_loss(PixelFormat::GRAY8, false).unwrap();
     /// assert!(loss.contains(Loss::CHROMA | Loss::COLORSPACE));
     /// assert_eq!(PixelFormat::NONE.conversion_loss(PixelFormat::GRAY8, false), Err(-4));
@@ -1299,7 +1299,7 @@ impl PixelFormat {
     /// answer even if it is unknown too.
     ///
     /// ```
-    /// use ffmpeg::libavutil::pixfmt::PixelFormat;
+    /// use ffmpeg_bindings::libavutil::libavutil::pixfmt::PixelFormat;
     /// let best = PixelFormat::RGBA.best_of_two(PixelFormat::RGB24, PixelFormat::BGRA, true);
     /// assert_eq!(best, PixelFormat::BGRA);
     /// ```
@@ -1366,7 +1366,7 @@ impl PixelFormat {
     /// past its descriptor table.
     ///
     /// ```
-    /// use ffmpeg::libavutil::pixfmt::PixelFormat;
+    /// use ffmpeg_bindings::libavutil::libavutil::pixfmt::PixelFormat;
     /// let mut buf = [0u8; 64];
     /// assert_eq!(
     ///     PixelFormat::YUV420P.describe(&mut buf),
@@ -1448,13 +1448,13 @@ impl PixelFormat {
     /// edit is a copy, [`get`](PixelFormatDescriptorRef::get):
     ///
     /// ```compile_fail,E0599
-    /// use ffmpeg::libavutil::pixfmt::PixelFormat;
+    /// use ffmpeg_bindings::libavutil::libavutil::pixfmt::PixelFormat;
     /// let mut desc = PixelFormat::YUV420P.descriptor().unwrap();
     /// desc.set_component_count(0);
     /// ```
     ///
     /// ```
-    /// use ffmpeg::libavutil::pixfmt::PixelFormat;
+    /// use ffmpeg_bindings::libavutil::libavutil::pixfmt::PixelFormat;
     /// let desc = PixelFormat::YUV420P.descriptor().unwrap();
     /// assert_eq!(desc.name(), Some(c"yuv420p"));
     /// assert_eq!(desc.pixel_format(), Some(PixelFormat::YUV420P));
@@ -1532,8 +1532,8 @@ fn next_descriptor(
 /// out. Each is borrowed for the whole program.
 ///
 /// ```
-/// use ffmpeg::libavutil::pixdesc::descriptors;
-/// use ffmpeg::libavutil::pixfmt::PixelFormat;
+/// use ffmpeg_bindings::libavutil::libavutil::pixdesc::descriptors;
+/// use ffmpeg_bindings::libavutil::libavutil::pixfmt::PixelFormat;
 /// let first = descriptors().next().unwrap();
 /// assert_eq!(first.pixel_format(), Some(PixelFormat::YUV420P));
 /// assert!(descriptors().any(|d| d.name() == Some(c"rgb24")));
@@ -1660,7 +1660,7 @@ impl PixelFormatDescriptorRef<'_> {
     /// past its component slots or overflow. C's own table has none.
     ///
     /// ```
-    /// use ffmpeg::libavutil::pixfmt::PixelFormat;
+    /// use ffmpeg_bindings::libavutil::libavutil::pixfmt::PixelFormat;
     /// let desc = PixelFormat::YUV420P.descriptor().unwrap();
     /// assert_eq!(desc.bits_per_pixel(), Ok(12));
     /// ```
@@ -1692,7 +1692,7 @@ impl PixelFormatDescriptorRef<'_> {
     /// none.
     ///
     /// ```
-    /// use ffmpeg::libavutil::pixfmt::PixelFormat;
+    /// use ffmpeg_bindings::libavutil::libavutil::pixfmt::PixelFormat;
     /// let desc = PixelFormat::RGB0.descriptor().unwrap();
     /// assert_eq!(desc.padded_bits_per_pixel(), Ok(32));
     /// ```
@@ -1721,9 +1721,9 @@ mod sealed {
 /// does not compile:
 ///
 /// ```compile_fail,E0277
-/// use ffmpeg::libavutil::imgutils::Planes;
-/// use ffmpeg::libavutil::pixdesc::read_image_line;
-/// use ffmpeg::libavutil::pixfmt::PixelFormat;
+/// use ffmpeg_bindings::libavutil::libavutil::imgutils::Planes;
+/// use ffmpeg_bindings::libavutil::libavutil::pixdesc::read_image_line;
+/// use ffmpeg_bindings::libavutil::libavutil::pixfmt::PixelFormat;
 /// let desc = PixelFormat::GRAY8.descriptor().unwrap();
 /// let mut bytes = [0u8; 4];
 /// let _ = read_image_line(&mut bytes, Planes::default(), desc, 0, 0, 0, false);
@@ -2056,9 +2056,9 @@ fn read_line_with(
 /// value the component's depth can hold (1024 bytes for an 8-bit index).
 ///
 /// ```
-/// use ffmpeg::libavutil::imgutils::Planes;
-/// use ffmpeg::libavutil::pixdesc::read_image_line;
-/// use ffmpeg::libavutil::pixfmt::PixelFormat;
+/// use ffmpeg_bindings::libavutil::libavutil::imgutils::Planes;
+/// use ffmpeg_bindings::libavutil::libavutil::pixdesc::read_image_line;
+/// use ffmpeg_bindings::libavutil::libavutil::pixfmt::PixelFormat;
 /// let desc = PixelFormat::RGB24.descriptor().unwrap();
 /// let row = [1, 2, 3, 4, 5, 6];
 /// let planes = Planes { data: [&row[..], &[], &[], &[]], linesizes: [6, 0, 0, 0] };
@@ -2199,9 +2199,9 @@ fn write_line_with(
 /// palette is involved.
 ///
 /// ```
-/// use ffmpeg::libavutil::imgutils::{Planes, PlanesMut};
-/// use ffmpeg::libavutil::pixdesc::{read_image_line, write_image_line};
-/// use ffmpeg::libavutil::pixfmt::PixelFormat;
+/// use ffmpeg_bindings::libavutil::libavutil::imgutils::{Planes, PlanesMut};
+/// use ffmpeg_bindings::libavutil::libavutil::pixdesc::{read_image_line, write_image_line};
+/// use ffmpeg_bindings::libavutil::libavutil::pixfmt::PixelFormat;
 /// let desc = PixelFormat::RGB565LE.descriptor().unwrap();
 /// let mut row = [0u8; 4];
 /// let mut planes = PlanesMut { data: [&mut row[..], &mut [], &mut [], &mut []], linesizes: [4, 0, 0, 0] };

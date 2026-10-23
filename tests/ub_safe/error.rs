@@ -1,7 +1,7 @@
 //! UB tests of `libavutil/error.h`'s [`describe`]: every buffer size,
 //! including none, and every class of code, across threads.
 
-use ffmpeg::libavutil::error::describe;
+use ffmpeg_bindings::libavutil::libavutil::error::describe;
 
 const CODES: [i32; 8] = [
     -(i32::from_le_bytes(*b"EOF ")),
@@ -49,7 +49,7 @@ fn concurrent_descriptions_do_not_race() {
 mod make_error_string {
     use std::thread;
 
-    use ffmpeg::libavutil::error::{MAX_STRING_SIZE, make_error_string};
+    use ffmpeg_bindings::libavutil::libavutil::error::{MAX_STRING_SIZE, make_error_string};
 
     /// FFmpeg codes, negated `errno`s, unknown values and the extremes.
     const CODES: [i32; 10] = [

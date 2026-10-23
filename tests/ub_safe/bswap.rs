@@ -1,7 +1,7 @@
 //! UB tests of `libavutil/bswap.h`'s safe byte swaps: every bit position and
 //! the extremes, on this thread and others.
 
-use ffmpeg::libavutil::bswap::{swap16, swap32, swap64};
+use ffmpeg_bindings::libavutil::libavutil::bswap::{swap16, swap32, swap64};
 
 #[test]
 #[cfg_attr(miri, ignore = "calls C")]

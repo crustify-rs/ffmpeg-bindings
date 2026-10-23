@@ -5,11 +5,11 @@
 use std::thread;
 
 use ffibox::CZeroable;
-use ffmpeg::libavutil::intfloat::{
+use ffmpeg_bindings::libavutil::libavutil::intfloat::{
     IntFloat32, IntFloat32Mut, IntFloat64, IntFloat64Mut, IntFloat64Ref, double_from_bits,
     double_to_bits, float_from_bits, float_to_bits,
 };
-use ffmpeg::libavutil::mem::{HeapBox, alloc_cell_array_zeroed};
+use ffmpeg_bindings::libavutil::libavutil::mem::{HeapBox, alloc_cell_array_zeroed};
 
 /// Bit patterns at every class edge of a `double`: zeros, subnormals, the
 /// finite extremes, infinities, and quiet and signalling NaNs with payloads.

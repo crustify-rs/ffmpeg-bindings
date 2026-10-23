@@ -444,7 +444,7 @@ impl Class {
     /// builds a `static`:
     ///
     /// ```
-    /// use ffmpeg::libavutil::log::{Class, ClassCategory};
+    /// use ffmpeg_bindings::libavutil::libavutil::log::{Class, ClassCategory};
     /// static CLASS: Class = Class::new(c"MyContext", ClassCategory::FILTER);
     /// assert_eq!(CLASS.as_ref().name(), Some(c"MyContext"));
     /// ```
@@ -1018,8 +1018,8 @@ pub fn log(level: Level, message: &CStr) {
 /// through `ffi` must accept it.
 ///
 /// ```
-/// use ffmpeg::libavutil::log::{self, Class, ClassCategory, Level};
-/// use ffmpeg::libavutil::opt::BareObject;
+/// use ffmpeg_bindings::libavutil::libavutil::log::{self, Class, ClassCategory, Level};
+/// use ffmpeg_bindings::libavutil::libavutil::opt::BareObject;
 /// static CLASS: Class = Class::new(c"MyContext", ClassCategory::NA);
 /// let obj = BareObject::new(CLASS.as_ref()).unwrap();
 /// log::log_with_context(obj.as_object(), Level::DEBUG, c"in context\n");
@@ -1067,7 +1067,7 @@ fn shift_overflows(obj: ObjectRef<'_>, level: Level) -> bool {
 /// format. The text ends at its first NUL, as C's `%s` reads it.
 ///
 /// ```
-/// use ffmpeg::libavutil::log::{self, Level};
+/// use ffmpeg_bindings::libavutil::libavutil::log::{self, Level};
 /// log::log_fmt(Level::DEBUG, format_args!("decoded {} frames\n", 42));
 /// ```
 pub fn log_fmt(level: Level, args: fmt::Arguments<'_>) {
@@ -1168,7 +1168,7 @@ pub fn log_once_with_context(
 ///
 /// ```
 /// use std::sync::atomic::{AtomicUsize, Ordering};
-/// use ffmpeg::libavutil::log::{self, Callback, Level, Record};
+/// use ffmpeg_bindings::libavutil::libavutil::log::{self, Callback, Level, Record};
 ///
 /// static ERRORS: AtomicUsize = AtomicUsize::new(0);
 ///
@@ -1200,7 +1200,7 @@ pub trait Callback {
 ///
 /// ```compile_fail,E0521
 /// use std::cell::RefCell;
-/// use ffmpeg::libavutil::log::{Callback, Record};
+/// use ffmpeg_bindings::libavutil::libavutil::log::{Callback, Record};
 /// thread_local!(static KEPT: RefCell<Option<Record<'static>>> = RefCell::new(None));
 /// struct Keep;
 /// impl Callback for Keep {
@@ -1213,7 +1213,7 @@ pub trait Callback {
 /// nor leave the thread that logs:
 ///
 /// ```compile_fail,E0277
-/// use ffmpeg::libavutil::log::{Callback, Record};
+/// use ffmpeg_bindings::libavutil::libavutil::log::{Callback, Record};
 /// fn sent<T: Send>(_: T) {}
 /// struct Send_;
 /// impl Callback for Send_ {
@@ -1917,7 +1917,7 @@ mod unit_tests {
         assert!(line.ends_with("] m\n"), "{line}");
     }
 
-    use crate::libavutil::opt::fixture as opt_fixture;
+    use crate::libavutil::libavutil::opt::fixture as opt_fixture;
 
     #[test]
     fn new_builds_a_named_class_of_this_version() {

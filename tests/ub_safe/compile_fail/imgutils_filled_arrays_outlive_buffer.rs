@@ -1,6 +1,6 @@
 // Planes laid out in a buffer cannot outlive it.
-use ffmpeg::libavutil::imgutils::fill_arrays_mut;
-use ffmpeg::libavutil::pixfmt::PixelFormat;
+use ffmpeg_bindings::libavutil::libavutil::imgutils::fill_arrays_mut;
+use ffmpeg_bindings::libavutil::libavutil::pixfmt::PixelFormat;
 
 fn main() {
     let planes;

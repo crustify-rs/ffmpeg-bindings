@@ -1,5 +1,5 @@
 // A view borrowed from a `HeapString` cannot outlive the owner that frees it.
-use ffmpeg::libavutil::mem::string_from_c_str;
+use ffmpeg_bindings::libavutil::libavutil::mem::string_from_c_str;
 
 fn main() {
     let v = {

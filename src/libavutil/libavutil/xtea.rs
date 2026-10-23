@@ -31,7 +31,7 @@ define_ctype!(
     ///
     /// A handle cannot outlive its owner:
     /// ```compile_fail,E0597
-    /// use ffmpeg::libavutil::xtea::Xtea;
+    /// use ffmpeg_bindings::libavutil::libavutil::xtea::Xtea;
     /// let view = {
     ///     let value = Xtea::from_key_words([0; 16]);
     ///     value.as_ref()
@@ -40,7 +40,7 @@ define_ctype!(
     /// ```
     /// Shared and mutable reborrows cannot overlap:
     /// ```compile_fail,E0502
-    /// use ffmpeg::libavutil::xtea::Xtea;
+    /// use ffmpeg_bindings::libavutil::libavutil::xtea::Xtea;
     /// let mut value = Xtea::from_key_words([0; 16]);
     /// let mut exclusive = value.as_mut();
     /// let shared = exclusive.as_ref();

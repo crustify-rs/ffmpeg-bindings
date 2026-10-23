@@ -2,7 +2,7 @@
 // the function owns cannot be set.
 use std::ffi::CString;
 
-use ffmpeg::libavutil::frame::SideDataDescriptor;
+use ffmpeg_bindings::libavutil::libavutil::frame::SideDataDescriptor;
 
 fn main() {
     let mut d = SideDataDescriptor::new();

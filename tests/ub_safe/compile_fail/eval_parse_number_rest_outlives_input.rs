@@ -1,7 +1,7 @@
 // The rest `parse_number` returns cannot outlive the string it borrows.
 use std::ffi::{CStr, CString};
 
-use ffmpeg::libavutil::eval::parse_number;
+use ffmpeg_bindings::libavutil::libavutil::eval::parse_number;
 
 fn main() {
     let rest: &CStr;

@@ -3,8 +3,8 @@
 
 use core::ffi::CStr;
 
-use ffmpeg::libavutil::error::describe;
-use ffmpeg::libavutil::ffi;
+use ffmpeg_bindings::libavutil::libavutil::error::describe;
+use ffmpeg_bindings::libavutil::libavutil::ffi;
 
 /// FFmpeg's own codes (`FFERRTAG`), `AVERROR(errno)` codes, and codes that
 /// are neither.
@@ -65,8 +65,8 @@ fn repeated_calls_into_one_buffer_match_c() {
 mod make_error_string {
     use core::ffi::c_int;
 
-    use ffmpeg::libavutil::error::{MAX_STRING_SIZE, make_error_string};
-    use ffmpeg::libavutil::ffi;
+    use ffmpeg_bindings::libavutil::libavutil::error::{MAX_STRING_SIZE, make_error_string};
+    use ffmpeg_bindings::libavutil::libavutil::ffi;
 
     /// `FFERRTAG(a, b, c, d)`.
     const fn tag(a: u8, b: u8, c: u8, d: u8) -> c_int {

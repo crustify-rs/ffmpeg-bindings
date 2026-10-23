@@ -1,6 +1,6 @@
 // An entry borrowed from a dictionary cannot be read after a write, which
 // may move or free it.
-use ffmpeg::libavutil::dict::{Dict, Flags};
+use ffmpeg_bindings::libavutil::libavutil::dict::{Dict, Flags};
 
 fn main() {
     let mut d = Dict::from_entries([(c"a", c"1")]).unwrap();

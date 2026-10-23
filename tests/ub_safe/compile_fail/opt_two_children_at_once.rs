@@ -1,7 +1,7 @@
 // The child cursor lends one child at a time: the next child cannot be taken
 // while the previous one is in use.
-use ffmpeg::libavutil::log::{Class, ClassCategory};
-use ffmpeg::libavutil::opt::BareObject;
+use ffmpeg_bindings::libavutil::libavutil::log::{Class, ClassCategory};
+use ffmpeg_bindings::libavutil::libavutil::opt::BareObject;
 
 static CLASS: Class = Class::new(c"parent", ClassCategory::NA);
 

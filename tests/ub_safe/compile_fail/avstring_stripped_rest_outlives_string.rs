@@ -1,7 +1,7 @@
 // The rest after a stripped prefix cannot outlive the string it borrows.
 use std::ffi::CString;
 
-use ffmpeg::libavutil::avstring::strip_prefix_ignore_ascii_case;
+use ffmpeg_bindings::libavutil::libavutil::avstring::strip_prefix_ignore_ascii_case;
 
 fn main() {
     let rest = {

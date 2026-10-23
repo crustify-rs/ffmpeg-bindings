@@ -5,14 +5,14 @@
 /// arrays, the storage a C array of `enum AVFrameSideDataType` lives in
 /// (buffer-frame wave 0, batch 2).
 ///
-/// [`SideDataType`]: ffmpeg::libavutil::frame::SideDataType
+/// [`SideDataType`]: ffmpeg_bindings::libavutil::libavutil::frame::SideDataType
 mod side_data_type {
     use std::collections::HashSet;
     use std::thread;
 
-    use ffmpeg::libavutil::ffi;
-    use ffmpeg::libavutil::frame::SideDataType;
-    use ffmpeg::libavutil::mem::{HeapVec, alloc_array, alloc_array_from_fn, alloc_array_zeroed};
+    use ffmpeg_bindings::libavutil::libavutil::ffi;
+    use ffmpeg_bindings::libavutil::libavutil::frame::SideDataType;
+    use ffmpeg_bindings::libavutil::libavutil::mem::{HeapVec, alloc_array, alloc_array_from_fn, alloc_array_zeroed};
 
     /// Named values at both ends, the first values past the table, and the
     /// `unsigned` extremes a negative `int` written into C storage reads as.
@@ -114,9 +114,9 @@ mod side_data_type {
 mod active_format_description {
     use std::thread;
 
-    use ffmpeg::libavutil::ffi;
-    use ffmpeg::libavutil::frame::ActiveFormatDescription as Afd;
-    use ffmpeg::libavutil::mem::{alloc_array_from_fn, alloc_array_zeroed};
+    use ffmpeg_bindings::libavutil::libavutil::ffi;
+    use ffmpeg_bindings::libavutil::libavutil::frame::ActiveFormatDescription as Afd;
+    use ffmpeg_bindings::libavutil::libavutil::mem::{alloc_array_from_fn, alloc_array_zeroed};
 
     /// Raw values at every edge: each byte, the first values past a byte, and
     /// the `unsigned int` limits a C `int`'s negative values map onto.
@@ -192,10 +192,10 @@ mod side_data_descriptor {
     use std::sync::Mutex;
     use std::thread;
 
-    use ffmpeg::libavutil::frame::{
+    use ffmpeg_bindings::libavutil::libavutil::frame::{
         SideDataDescriptor, SideDataDescriptorMut, SideDataDescriptorRef, SideDataProps,
     };
-    use ffmpeg::libavutil::mem::{HeapBox, alloc_cell_array_zeroed};
+    use ffmpeg_bindings::libavutil::libavutil::mem::{HeapBox, alloc_cell_array_zeroed};
 
     /// `bytes` as an exactly sized heap C string that lives for the rest of
     /// the program, kept reachable from a static so that neither
@@ -489,8 +489,8 @@ mod side_data_lookups {
     use core::ffi::CStr;
     use std::thread;
 
-    use ffmpeg::libavutil::ffi;
-    use ffmpeg::libavutil::frame::{SideDataDescriptor, SideDataDescriptorRef, SideDataType};
+    use ffmpeg_bindings::libavutil::libavutil::ffi;
+    use ffmpeg_bindings::libavutil::libavutil::frame::{SideDataDescriptor, SideDataDescriptorRef, SideDataType};
 
     fn every_value() -> impl Iterator<Item = SideDataType> {
         (0..=256u32)
@@ -561,10 +561,10 @@ mod side_data_lookups {
 mod region_of_interest {
     use std::thread;
 
-    use ffmpeg::libavutil::ffi;
-    use ffmpeg::libavutil::frame::{RegionOfInterest, RegionOfInterestMut, RegionOfInterestRef};
-    use ffmpeg::libavutil::mem::{HeapVec, alloc_cell_array_zeroed};
-    use ffmpeg::libavutil::rational::Rational;
+    use ffmpeg_bindings::libavutil::libavutil::ffi;
+    use ffmpeg_bindings::libavutil::libavutil::frame::{RegionOfInterest, RegionOfInterestMut, RegionOfInterestRef};
+    use ffmpeg_bindings::libavutil::libavutil::mem::{HeapVec, alloc_cell_array_zeroed};
+    use ffmpeg_bindings::libavutil::libavutil::rational::Rational;
 
     const EDGES: [i32; 5] = [i32::MIN, -1, 0, 1, i32::MAX];
 
@@ -710,15 +710,15 @@ mod region_of_interest {
 /// the old owners outliving the array; the array's handles and iterators;
 /// and entries read, written, cloned and dropped across threads.
 ///
-/// [`SideData`]: ffmpeg::libavutil::frame::SideData
-/// [`SideDataArray`]: ffmpeg::libavutil::frame::SideDataArray
+/// [`SideData`]: ffmpeg_bindings::libavutil::libavutil::frame::SideData
+/// [`SideDataArray`]: ffmpeg_bindings::libavutil::libavutil::frame::SideDataArray
 mod side_data {
     use std::sync::Arc;
     use std::thread;
 
-    use ffmpeg::libavutil::buffer::{BufferReference, BufferReferenceBox};
-    use ffmpeg::libavutil::dict::{Dict, Flags};
-    use ffmpeg::libavutil::frame::{SideDataArray, SideDataFlags, SideDataRef, SideDataType};
+    use ffmpeg_bindings::libavutil::libavutil::buffer::{BufferReference, BufferReferenceBox};
+    use ffmpeg_bindings::libavutil::libavutil::dict::{Dict, Flags};
+    use ffmpeg_bindings::libavutil::libavutil::frame::{SideDataArray, SideDataFlags, SideDataRef, SideDataType};
 
     use super::side_data_fixture::{SAMPLE, Spec, array, sample};
 
@@ -915,7 +915,7 @@ mod side_data {
         let kinds = [
             SideDataType::AFD,
             SideDataType::SEI_UNREGISTERED,
-            SideDataType::from_raw(ffmpeg::libavutil::ffi::AVFrameSideDataType(77)),
+            SideDataType::from_raw(ffmpeg_bindings::libavutil::libavutil::ffi::AVFrameSideDataType(77)),
         ];
         let mut a = sample();
         let mut kept = Vec::new();
@@ -999,7 +999,7 @@ mod side_data {
     fn kinds_take_any_value() {
         let mut a = sample();
         for raw in [0, 1, 37, 38, 1 << 31, u32::MAX] {
-            let kind = SideDataType::from_raw(ffmpeg::libavutil::ffi::AVFrameSideDataType(raw));
+            let kind = SideDataType::from_raw(ffmpeg_bindings::libavutil::libavutil::ffi::AVFrameSideDataType(raw));
             for mut e in a.as_mut().iter_mut() {
                 e.set_kind(kind);
                 assert_eq!(e.as_ref().kind(), kind);
@@ -1087,7 +1087,7 @@ mod side_data {
                         bytes.fill(i as u8 + 1);
                     }
                     e.set_kind(SideDataType::from_raw(
-                        ffmpeg::libavutil::ffi::AVFrameSideDataType(i as u32),
+                        ffmpeg_bindings::libavutil::libavutil::ffi::AVFrameSideDataType(i as u32),
                     ));
                 });
             }
@@ -1123,9 +1123,9 @@ mod side_data_fixture;
 mod side_data_array_routines {
     use std::thread;
 
-    use ffmpeg::libavutil::buffer::BufferReferenceBox;
-    use ffmpeg::libavutil::dict::Dict;
-    use ffmpeg::libavutil::frame::{
+    use ffmpeg_bindings::libavutil::libavutil::buffer::BufferReferenceBox;
+    use ffmpeg_bindings::libavutil::libavutil::dict::Dict;
+    use ffmpeg_bindings::libavutil::libavutil::frame::{
         SideDataArray, SideDataFlags, SideDataProps, SideDataRef, SideDataType,
     };
 
@@ -1342,7 +1342,7 @@ mod side_data_array_routines {
         let mut entries = a.as_mut();
         let mut e = entries
             .find_mut(SideDataType::from_raw(
-                ffmpeg::libavutil::ffi::AVFrameSideDataType(u32::MAX),
+                ffmpeg_bindings::libavutil::libavutil::ffi::AVFrameSideDataType(u32::MAX),
             ))
             .unwrap();
         e.data_mut().unwrap().fill(0);
@@ -1400,7 +1400,7 @@ mod side_data_array_routines {
         if !crate::log::isolated(name) {
             return;
         }
-        let set_max = ffmpeg::libavutil::mem::set_max_alloc;
+        let set_max = ffmpeg_bindings::libavutil::libavutil::mem::set_max_alloc;
         let afd = SideDataType::AFD;
         let mut src = SideDataArray::new();
         let mut e = src
@@ -1495,25 +1495,25 @@ mod side_data_array_routines {
 /// changes with the old owners outliving the frame; clones outliving their
 /// source; and frames read, cloned, written and dropped across threads.
 ///
-/// [`Frame`]: ffmpeg::libavutil::frame::Frame
+/// [`Frame`]: ffmpeg_bindings::libavutil::libavutil::frame::Frame
 mod frame_type {
     use std::sync::{Arc, Barrier};
     use std::thread;
 
-    use ffmpeg::libavutil::avutil::PictureType;
-    use ffmpeg::libavutil::buffer::{BufferReference, BufferReferenceBox};
-    use ffmpeg::libavutil::channel_layout::ChannelLayout;
-    use ffmpeg::libavutil::dict::Dict;
-    use ffmpeg::libavutil::frame::{
+    use ffmpeg_bindings::libavutil::libavutil::avutil::PictureType;
+    use ffmpeg_bindings::libavutil::libavutil::buffer::{BufferReference, BufferReferenceBox};
+    use ffmpeg_bindings::libavutil::libavutil::channel_layout::ChannelLayout;
+    use ffmpeg_bindings::libavutil::libavutil::dict::Dict;
+    use ffmpeg_bindings::libavutil::libavutil::frame::{
         DecodeErrorFlags, Frame, FrameBox, FrameFlags, NUM_DATA_POINTERS, PlaneError,
         SideDataFlags, SideDataType,
     };
-    use ffmpeg::libavutil::pixfmt::{
+    use ffmpeg_bindings::libavutil::libavutil::pixfmt::{
         AlphaMode, ChromaLocation, ColorPrimaries, ColorRange, ColorSpace, ColorTransfer,
         PixelFormat,
     };
-    use ffmpeg::libavutil::rational::Rational;
-    use ffmpeg::libavutil::samplefmt::SampleFormat;
+    use ffmpeg_bindings::libavutil::libavutil::rational::Rational;
+    use ffmpeg_bindings::libavutil::libavutil::samplefmt::SampleFormat;
 
     const NOPTS: i64 = i64::MIN;
 
@@ -1949,7 +1949,7 @@ mod frame_type {
         f.as_mut().set_height(16);
         assert!(f.as_ref().try_clone().is_none());
         f.as_mut().set_pixel_format(PixelFormat::from_raw(
-            ffmpeg::libavutil::ffi::AVPixelFormat(-77),
+            ffmpeg_bindings::libavutil::libavutil::ffi::AVPixelFormat(-77),
         ));
         assert!(f.as_ref().try_clone().is_none());
         f.as_mut().set_sample_format(SampleFormat::S16);
@@ -2052,15 +2052,15 @@ mod frame_routines {
     use std::sync::{Arc, Barrier};
     use std::thread;
 
-    use ffmpeg::libavutil::buffer::BufferReference;
-    use ffmpeg::libavutil::channel_layout::ChannelLayout;
-    use ffmpeg::libavutil::dict::Dict;
-    use ffmpeg::libavutil::frame::{
+    use ffmpeg_bindings::libavutil::libavutil::buffer::BufferReference;
+    use ffmpeg_bindings::libavutil::libavutil::channel_layout::ChannelLayout;
+    use ffmpeg_bindings::libavutil::libavutil::dict::Dict;
+    use ffmpeg_bindings::libavutil::libavutil::frame::{
         CropFlags, Frame, FrameBox, FrameRef, NUM_DATA_POINTERS, SideDataType,
     };
-    use ffmpeg::libavutil::mem::HeapVec;
-    use ffmpeg::libavutil::pixfmt::PixelFormat;
-    use ffmpeg::libavutil::samplefmt::SampleFormat;
+    use ffmpeg_bindings::libavutil::libavutil::mem::HeapVec;
+    use ffmpeg_bindings::libavutil::libavutil::pixfmt::PixelFormat;
+    use ffmpeg_bindings::libavutil::libavutil::samplefmt::SampleFormat;
 
     const EINVAL: i32 = -22;
     const ENOMEM: i32 = -12;

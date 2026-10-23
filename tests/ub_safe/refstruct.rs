@@ -7,7 +7,7 @@ mod pool_and_opaque {
     use std::sync::Barrier;
     use std::thread;
 
-    use ffmpeg::libavutil::refstruct::{
+    use ffmpeg_bindings::libavutil::libavutil::refstruct::{
         PoolFlags, RefStructOpaque, RefStructPool, RefStructPoolArc,
     };
 
@@ -186,10 +186,10 @@ mod counted_references {
     use std::sync::{Arc, Barrier};
     use std::thread;
 
-    use ffmpeg::libavutil::csp::{CieXy, ColorPrimariesDescriptor};
-    use ffmpeg::libavutil::intfloat::IntFloat64;
-    use ffmpeg::libavutil::rational::Rational;
-    use ffmpeg::libavutil::refstruct::{
+    use ffmpeg_bindings::libavutil::libavutil::csp::{CieXy, ColorPrimariesDescriptor};
+    use ffmpeg_bindings::libavutil::libavutil::intfloat::IntFloat64;
+    use ffmpeg_bindings::libavutil::libavutil::rational::Rational;
+    use ffmpeg_bindings::libavutil::libavutil::refstruct::{
         ConstRefStructArc, RefStructArc, RefStructBox, into_const, is_exclusive, replace, to_const,
     };
 
@@ -428,7 +428,7 @@ mod counted_references {
             return;
         }
         let kept = RefStructArc::<IntFloat64>::new_zeroed().unwrap();
-        ffmpeg::libavutil::mem::set_max_alloc(0);
+        ffmpeg_bindings::libavutil::libavutil::mem::set_max_alloc(0);
         assert!(RefStructArc::<IntFloat64>::new_zeroed().is_none());
         assert!(RefStructBox::<ColorPrimariesDescriptor>::new_zeroed().is_none());
         // Counting allocates nothing.
@@ -436,7 +436,7 @@ mod counted_references {
         let c = to_const(&more);
         let mut slot = None;
         replace(&mut slot, Some(&kept));
-        ffmpeg::libavutil::mem::set_max_alloc(i32::MAX as usize);
+        ffmpeg_bindings::libavutil::libavutil::mem::set_max_alloc(i32::MAX as usize);
         drop((more, c, slot));
         assert!(is_exclusive(&kept));
         drop(RefStructArc::<IntFloat64>::new_zeroed().unwrap());
@@ -478,10 +478,10 @@ mod releases_and_typed_pools {
     use std::sync::{Arc, Barrier, Mutex};
     use std::thread;
 
-    use ffmpeg::libavutil::csp::ColorPrimariesDescriptor;
-    use ffmpeg::libavutil::intfloat::{IntFloat64, IntFloat64Mut};
-    use ffmpeg::libavutil::rational::Rational;
-    use ffmpeg::libavutil::refstruct::{
+    use ffmpeg_bindings::libavutil::libavutil::csp::ColorPrimariesDescriptor;
+    use ffmpeg_bindings::libavutil::libavutil::intfloat::{IntFloat64, IntFloat64Mut};
+    use ffmpeg_bindings::libavutil::libavutil::rational::Rational;
+    use ffmpeg_bindings::libavutil::libavutil::refstruct::{
         ConstRefStructArc, PoolCallbacks, PoolFlags, RefStructArc, RefStructBox,
         TypedRefStructPool, alloc_with_release, into_const, is_exclusive, replace, to_const,
     };
@@ -982,7 +982,7 @@ mod releases_and_typed_pools {
         drop(pool.get().unwrap());
         let runs = Arc::new(AtomicUsize::new(0));
         let seen = Arc::new(AtomicU64::new(0));
-        ffmpeg::libavutil::mem::set_max_alloc(0);
+        ffmpeg_bindings::libavutil::libavutil::mem::set_max_alloc(0);
         let (r, s) = (Arc::clone(&runs), Arc::clone(&seen));
         let none = alloc_with_release::<IntFloat64, _>(move |_| {
             r.fetch_add(1, Ordering::SeqCst);
@@ -1007,7 +1007,7 @@ mod releases_and_typed_pools {
         // needs one.
         let reused = pool.get().expect("a free entry");
         assert!(pool.get().is_none());
-        ffmpeg::libavutil::mem::set_max_alloc(i32::MAX as usize);
+        ffmpeg_bindings::libavutil::libavutil::mem::set_max_alloc(i32::MAX as usize);
         drop((reused, pool));
         assert_eq!(Arc::strong_count(&counts), 1);
     }
@@ -1026,8 +1026,8 @@ mod pool_teardown_in_callbacks {
     use std::sync::atomic::{AtomicBool, Ordering};
     use std::sync::{Arc, Mutex};
 
-    use ffmpeg::libavutil::intfloat::IntFloat64;
-    use ffmpeg::libavutil::refstruct::{
+    use ffmpeg_bindings::libavutil::libavutil::intfloat::IntFloat64;
+    use ffmpeg_bindings::libavutil::libavutil::refstruct::{
         PoolCallbacks, PoolFlags, RefStructBox, TypedRefStructPool,
     };
 

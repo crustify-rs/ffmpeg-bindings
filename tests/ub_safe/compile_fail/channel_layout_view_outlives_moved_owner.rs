@@ -1,6 +1,6 @@
 // The shared view of a layout borrows its owner: the owner cannot be moved
 // into a thread while the view is in use.
-use ffmpeg::libavutil::channel_layout::ChannelLayout;
+use ffmpeg_bindings::libavutil::libavutil::channel_layout::ChannelLayout;
 
 fn main() {
     let layout = ChannelLayout::custom(2).unwrap();

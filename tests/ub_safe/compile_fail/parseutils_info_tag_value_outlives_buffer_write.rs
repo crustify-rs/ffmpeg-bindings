@@ -1,6 +1,6 @@
 // A found tag value borrows the caller's buffer: the buffer cannot be written
 // while the value is in use.
-use ffmpeg::libavutil::parseutils::find_info_tag;
+use ffmpeg_bindings::libavutil::libavutil::parseutils::find_info_tag;
 
 fn main() {
     let mut buf = [0u8; 16];

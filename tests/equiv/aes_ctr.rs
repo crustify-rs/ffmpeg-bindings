@@ -1,5 +1,5 @@
 //! Observe the private lifecycle state through the unchanged C processing API.
-use ffmpeg::libavutil::{aes_ctr::AesCtr, ffi};
+use ffmpeg_bindings::libavutil::libavutil::{aes_ctr::AesCtr, ffi};
 
 struct Reference(*mut ffi::AVAESCTR);
 impl Reference {
@@ -33,7 +33,7 @@ unsafe fn observe(ptr: *mut ffi::AVAESCTR, len: usize) -> (Vec<u8>, [u8; 16]) {
 }
 
 fn observe_safe(
-    owner: &mut ffmpeg::libavutil::aes_ctr::AesCtrBox,
+    owner: &mut ffmpeg_bindings::libavutil::libavutil::aes_ctr::AesCtrBox,
     len: usize,
 ) -> (Vec<u8>, [u8; 16]) {
     let input = vec![0x61; len];

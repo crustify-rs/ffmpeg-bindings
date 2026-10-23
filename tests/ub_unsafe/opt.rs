@@ -6,9 +6,9 @@
 
 use core::ffi::CStr;
 
-use ffmpeg::libavutil::ffi;
-use ffmpeg::libavutil::log::ClassRef;
-use ffmpeg::libavutil::opt::{
+use ffmpeg_bindings::libavutil::libavutil::ffi;
+use ffmpeg_bindings::libavutil::libavutil::log::ClassRef;
+use ffmpeg_bindings::libavutil::libavutil::opt::{
     ObjectRef, OptionRangeRef, OptionRangesBox, OptionRangesRef, RangeFlags,
 };
 
@@ -330,7 +330,7 @@ mod query_default {
 /// threads and drops.
 mod range_handles {
     use super::*;
-    use ffmpeg::libavutil::mem::{HeapString, string_from_c_str};
+    use ffmpeg_bindings::libavutil::libavutil::mem::{HeapString, string_from_c_str};
 
     fn query(fake: &'static FakeObj, key: &CStr, flags: RangeFlags) -> OptionRangesBox {
         with_fake_class(fake, |c| c.option_ranges(key, flags)).unwrap()
@@ -482,9 +482,9 @@ mod set_options_string {
     use core::ptr::{null, null_mut};
     use std::ffi::CString;
 
-    use ffmpeg::libavutil::ffi;
-    use ffmpeg::libavutil::log::{Class, ClassCategory};
-    use ffmpeg::libavutil::opt::{BareObject, ObjectMut};
+    use ffmpeg_bindings::libavutil::libavutil::ffi;
+    use ffmpeg_bindings::libavutil::libavutil::log::{Class, ClassCategory};
+    use ffmpeg_bindings::libavutil::libavutil::opt::{BareObject, ObjectMut};
 
     use super::fixture::{OBJ_CLASS, Obj, Owned, Table};
 
@@ -812,8 +812,8 @@ mod objects {
     use core::ptr;
     use std::ffi::CString;
 
-    use ffmpeg::libavutil::log::{Class, ClassCategory};
-    use ffmpeg::libavutil::opt::{BareObject, ObjectMut, ObjectRef, SearchFlags, SerializeFlags};
+    use ffmpeg_bindings::libavutil::libavutil::log::{Class, ClassCategory};
+    use ffmpeg_bindings::libavutil::libavutil::opt::{BareObject, ObjectMut, ObjectRef, SearchFlags, SerializeFlags};
 
     use super::fixture::{OBJ_OPTIONS, Obj, Owned};
 
@@ -906,8 +906,8 @@ mod objects {
         // of its type.
         unsafe {
             let p = o.ptr();
-            (*p).q = ffmpeg::libavutil::ffi::AVRational { num: 1, den: 0 };
-            (*p).wide_q = ffmpeg::libavutil::ffi::AVRational { num: 0, den: 0 };
+            (*p).q = ffmpeg_bindings::libavutil::libavutil::ffi::AVRational { num: 1, den: 0 };
+            (*p).wide_q = ffmpeg_bindings::libavutil::libavutil::ffi::AVRational { num: 0, den: 0 };
             (*p).dbl = f64::NAN;
             (*p).flt = f32::INFINITY;
             (*p).duration = i64::MIN;
@@ -932,7 +932,7 @@ mod objects {
         r.show(None, -1, 0);
         r.show(
             Some(log.as_object()),
-            ffmpeg::libavutil::ffi::AV_OPT_FLAG_ENCODING_PARAM as i32,
+            ffmpeg_bindings::libavutil::libavutil::ffi::AV_OPT_FLAG_ENCODING_PARAM as i32,
             0,
         );
         r.show(Some(child), 0, -1);
@@ -1029,7 +1029,7 @@ mod objects {
         read_all(m.as_ref());
         m.free_options();
         m.set_defaults();
-        m.set_defaults_masked(ffmpeg::libavutil::ffi::AV_OPT_FLAG_ENCODING_PARAM as i32, 0);
+        m.set_defaults_masked(ffmpeg_bindings::libavutil::libavutil::ffi::AV_OPT_FLAG_ENCODING_PARAM as i32, 0);
         assert_eq!(
             m.set_from_string(c"7:+eight", &[c"int", c"flags"], c"=", c":"),
             Ok(2)
@@ -1204,10 +1204,10 @@ mod log_contexts {
     use core::ptr::{null, null_mut};
     use std::ffi::CString;
 
-    use ffmpeg::libavutil::eval::parse_and_eval;
-    use ffmpeg::libavutil::ffi;
-    use ffmpeg::libavutil::opt::{BareObject, ObjectRef};
-    use ffmpeg::libavutil::parseutils::parse_color_with_context;
+    use ffmpeg_bindings::libavutil::libavutil::eval::parse_and_eval;
+    use ffmpeg_bindings::libavutil::libavutil::ffi;
+    use ffmpeg_bindings::libavutil::libavutil::opt::{BareObject, ObjectRef};
+    use ffmpeg_bindings::libavutil::libavutil::parseutils::parse_color_with_context;
 
     use super::fixture::Class;
 
@@ -1415,8 +1415,8 @@ mod previewed_values {
     use std::ffi::CString;
     use std::time::{SystemTime, UNIX_EPOCH};
 
-    use ffmpeg::libavutil::ffi;
-    use ffmpeg::libavutil::opt::{ObjectMut, SearchFlags};
+    use ffmpeg_bindings::libavutil::libavutil::ffi;
+    use ffmpeg_bindings::libavutil::libavutil::opt::{ObjectMut, SearchFlags};
 
     use super::fixture::{ArrayDef, Class, Owned, Table};
 
@@ -1609,13 +1609,13 @@ mod typed_setters {
     use core::ffi::{CStr, c_void};
     use std::ffi::CString;
 
-    use ffmpeg::libavutil::channel_layout::{ChannelCustom, ChannelLayout};
-    use ffmpeg::libavutil::dict::Dict;
-    use ffmpeg::libavutil::ffi;
-    use ffmpeg::libavutil::opt::{ObjectMut, ObjectRef, SearchFlags};
-    use ffmpeg::libavutil::pixfmt::PixelFormat;
-    use ffmpeg::libavutil::rational::Rational;
-    use ffmpeg::libavutil::samplefmt::SampleFormat;
+    use ffmpeg_bindings::libavutil::libavutil::channel_layout::{ChannelCustom, ChannelLayout};
+    use ffmpeg_bindings::libavutil::libavutil::dict::Dict;
+    use ffmpeg_bindings::libavutil::libavutil::ffi;
+    use ffmpeg_bindings::libavutil::libavutil::opt::{ObjectMut, ObjectRef, SearchFlags};
+    use ffmpeg_bindings::libavutil::libavutil::pixfmt::PixelFormat;
+    use ffmpeg_bindings::libavutil::libavutil::rational::Rational;
+    use ffmpeg_bindings::libavutil::libavutil::samplefmt::SampleFormat;
 
     use super::fixture::{ARRAYS_NAMES, OBJ_OPTIONS, Owned, OwnedArrays};
 
@@ -1655,7 +1655,7 @@ mod typed_setters {
     }
 
     /// A custom layout whose first name fills its field without a NUL.
-    fn unterminated() -> ffmpeg::libavutil::channel_layout::ChannelLayoutVal {
+    fn unterminated() -> ffmpeg_bindings::libavutil::libavutil::channel_layout::ChannelLayoutVal {
         let mut l = ChannelLayout::custom(1).unwrap();
         let mut map = l.as_mut().into_custom_map_mut().unwrap();
         map.get_mut(0)
@@ -1975,10 +1975,10 @@ mod typed_setters {
 mod remove_array_shrink_failure {
     use core::ffi::CStr;
 
-    use ffmpeg::libavutil::channel_layout::{ChannelLayout, ChannelLayoutVal};
-    use ffmpeg::libavutil::dict::Dict;
-    use ffmpeg::libavutil::mem::{HeapString, set_max_alloc};
-    use ffmpeg::libavutil::opt::{ObjectMut, ObjectRef, SearchFlags};
+    use ffmpeg_bindings::libavutil::libavutil::channel_layout::{ChannelLayout, ChannelLayoutVal};
+    use ffmpeg_bindings::libavutil::libavutil::dict::Dict;
+    use ffmpeg_bindings::libavutil::libavutil::mem::{HeapString, set_max_alloc};
+    use ffmpeg_bindings::libavutil::libavutil::opt::{ObjectMut, ObjectRef, SearchFlags};
 
     use super::fixture::OwnedArrays;
 
@@ -2112,7 +2112,7 @@ mod remove_array_shrink_failure {
 /// writes through an exclusive handle's reborrows (BorrowSanitizer).
 mod lookups {
     use super::*;
-    use ffmpeg::libavutil::opt::{EvalContext, ObjectMut, SearchFlags};
+    use ffmpeg_bindings::libavutil::libavutil::opt::{EvalContext, ObjectMut, SearchFlags};
     use fixture::OBJ_OPTIONS;
 
     /// The exclusive handle of `o`.

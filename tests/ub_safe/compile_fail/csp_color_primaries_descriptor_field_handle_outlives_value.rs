@@ -1,5 +1,5 @@
 // A field handle cannot outlive the description it projects.
-use ffmpeg::libavutil::csp::ColorPrimariesDescriptor;
+use ffmpeg_bindings::libavutil::libavutil::csp::ColorPrimariesDescriptor;
 
 fn main() {
     let p = {

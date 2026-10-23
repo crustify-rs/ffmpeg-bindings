@@ -1,5 +1,5 @@
 // A primary's handle cannot outlive the primaries it projects.
-use ffmpeg::libavutil::csp::PrimaryCoefficients;
+use ffmpeg_bindings::libavutil::libavutil::csp::PrimaryCoefficients;
 
 fn main() {
     let r = {

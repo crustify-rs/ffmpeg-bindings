@@ -1,13 +1,13 @@
 error[E0308]: mismatched types
  --> tests/ub_safe/compile_fail/uuid_unparse_destination_too_small.rs
   |
-  |     let _ = ffmpeg::libavutil::uuid::unparse(&[0; 16], &mut output);
-  |             --------------------------------           ^^^^^^^^^^^ expected an array with a size of 37, found one with a size of 36
+  |     let _ = ffmpeg_bindings::libavutil::libavutil::uuid::unparse(&[0; 16], &mut output);
+  |             ----------------------------------------------------           ^^^^^^^^^^^ expected an array with a size of 37, found one with a size of 36
   |             |
   |             arguments to this function are incorrect
   |
 note: function defined here
- --> libavutil/uuid.rs
+ --> src/libavutil/libavutil/uuid.rs
   |
   | pub fn unparse<'a>(uuid: &[u8; 16], output: &'a mut [u8; 37]) -> &'a CStr {
   |        ^^^^^^^

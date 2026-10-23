@@ -1,5 +1,5 @@
 // A primary reached through the shared handle is read-only.
-use ffmpeg::libavutil::csp::PrimaryCoefficients;
+use ffmpeg_bindings::libavutil::libavutil::csp::PrimaryCoefficients;
 
 fn main() {
     let p = PrimaryCoefficients::default();

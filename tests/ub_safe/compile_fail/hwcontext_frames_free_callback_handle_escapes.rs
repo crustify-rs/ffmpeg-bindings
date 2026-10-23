@@ -1,6 +1,6 @@
 use std::cell::RefCell;
 
-use ffmpeg::libavutil::hwcontext::{FramesContextMut, UninitFrames};
+use ffmpeg_bindings::libavutil::libavutil::hwcontext::{FramesContextMut, UninitFrames};
 
 thread_local! {
     static KEPT: RefCell<Option<FramesContextMut<'static>>> = const { RefCell::new(None) };

@@ -1,4 +1,4 @@
-use ffmpeg::libavutil::hwcontext::FramesConstraints;
+use ffmpeg_bindings::libavutil::libavutil::hwcontext::FramesConstraints;
 
 fn main() {
     let constraints = FramesConstraints::new().unwrap();

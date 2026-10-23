@@ -1,4 +1,4 @@
-use ffmpeg::libavutil::hwcontext::UninitFrames;
+use ffmpeg_bindings::libavutil::libavutil::hwcontext::UninitFrames;
 
 fn replace(mut frames: UninitFrames) {
     frames.context_mut().set_user_data(String::from("data")).unwrap();

@@ -1,6 +1,6 @@
 // The text `make_time_string_by_ref` returns borrows the buffer, not the time
 // base handle: the buffer cannot be rewritten while the text is in use.
-use ffmpeg::libavutil::{ffi, rational::Rational, timestamp::make_time_string_by_ref};
+use ffmpeg_bindings::libavutil::libavutil::{ffi, rational::Rational, timestamp::make_time_string_by_ref};
 
 fn main() {
     let tb = Rational::new(1, 1000);

@@ -40,7 +40,7 @@ use super::mem::{HeapString, string_from_c_str};
 /// plain-element arrays reject it.
 ///
 /// ```compile_fail,E0277
-/// use ffmpeg::libavutil::{avstring::EscapeMode, mem::alloc_array_zeroed};
+/// use ffmpeg_bindings::libavutil::libavutil::{avstring::EscapeMode, mem::alloc_array_zeroed};
 /// let _ = alloc_array_zeroed::<EscapeMode>(1);
 /// ```
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash)]
@@ -205,7 +205,7 @@ impl BitAnd for EscapeFlags {
 /// allocated, which includes a result of `i32::MAX` bytes or more.
 ///
 /// ```
-/// use ffmpeg::libavutil::avstring::{EscapeFlags, EscapeMode, escape};
+/// use ffmpeg_bindings::libavutil::libavutil::avstring::{EscapeFlags, EscapeMode, escape};
 /// let s = escape(c"a b:c", Some(c":"), EscapeMode::Backslash, EscapeFlags::empty()).unwrap();
 /// assert_eq!(s.to_str(), Ok("a b\\:c"));
 /// let s = escape(c"<it's>", None, EscapeMode::Xml, EscapeFlags::XML_SINGLE_QUOTES).unwrap();
@@ -308,7 +308,7 @@ pub fn strlcat(dst: &mut [u8], src: &CStr) -> Option<usize> {
 /// holds no NUL.
 ///
 /// ```
-/// use ffmpeg::libavutil::avstring::strlcatf;
+/// use ffmpeg_bindings::libavutil::libavutil::avstring::strlcatf;
 /// let mut buf = [0u8; 8];
 /// assert_eq!(strlcatf(&mut buf, format_args!("{}-{}", 12, "ab")), Some(5));
 /// assert_eq!(&buf[..6], b"12-ab\0");
@@ -381,7 +381,7 @@ pub fn cmp_n_ignore_ascii_case(a: &CStr, b: &CStr, n: usize) -> Ordering {
 /// past them:
 ///
 /// ```
-/// use ffmpeg::libavutil::avstring::tokens;
+/// use ffmpeg_bindings::libavutil::libavutil::avstring::tokens;
 /// let mut buf = *b"a,,b c\0";
 /// let all: Vec<_> = tokens(&mut buf, c", ").unwrap().collect();
 /// assert_eq!(all, [c"a", c"b", c"c"]);
@@ -550,7 +550,7 @@ pub fn utf8_decode(buf: &[u8], flags: c_uint) -> Option<(Result<u32, Utf8Error>,
 /// result holds the text before the first NUL `args` produces.
 ///
 /// ```
-/// use ffmpeg::libavutil::avstring::format;
+/// use ffmpeg_bindings::libavutil::libavutil::avstring::format;
 /// let s = format(format_args!("{}x{}", 1920, 1080)).unwrap();
 /// assert_eq!(s.to_str(), Ok("1920x1080"));
 /// ```
@@ -591,7 +591,7 @@ pub fn format(args: fmt::Arguments<'_>) -> Option<HeapString> {
 /// for an empty `path` (as C returns for NULL too).
 ///
 /// ```
-/// use ffmpeg::libavutil::avstring::basename;
+/// use ffmpeg_bindings::libavutil::libavutil::avstring::basename;
 /// assert_eq!(basename(c"/usr/lib/libavutil.so"), c"libavutil.so");
 /// assert_eq!(basename(c""), c".");
 /// ```
@@ -620,7 +620,7 @@ pub fn basename(path: &CStr) -> &CStr {
 /// that two NULLs yield NULL.)
 ///
 /// ```
-/// use ffmpeg::libavutil::avstring::append_path_component;
+/// use ffmpeg_bindings::libavutil::libavutil::avstring::append_path_component;
 /// let p = append_path_component(c"/tmp/", c"/out.mkv").unwrap();
 /// assert_eq!(p.to_str(), Ok("/tmp/out.mkv"));
 /// ```
@@ -1071,7 +1071,7 @@ fn bind_scan_args(
 /// refused (see [`ScanError::Unsupported`]).
 ///
 /// ```
-/// use ffmpeg::libavutil::avstring::scan;
+/// use ffmpeg_bindings::libavutil::libavutil::avstring::scan;
 /// let (mut w, mut h, mut name) = (0i32, 0i32, [0u8; 8]);
 /// let n = scan(c"640x480 vga", c"%dx%d %7s", &mut [
 ///     (&mut w).into(),

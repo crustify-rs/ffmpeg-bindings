@@ -1,5 +1,5 @@
 use core::ptr::{addr_of, addr_of_mut};
-use ffmpeg::libavutil::{aes::Direction, des::Des, ffi};
+use ffmpeg_bindings::libavutil::libavutil::{aes::Direction, des::Des, ffi};
 
 /// The safe direction for C's `decrypt` flag.
 fn direction(decrypt: bool) -> Direction {

@@ -1,5 +1,5 @@
 //! Compare independent contexts through every multi-call state transition.
-use ffmpeg::libavutil::{ffi, md5::Md5};
+use ffmpeg_bindings::libavutil::libavutil::{ffi, md5::Md5};
 
 #[test]
 #[cfg_attr(miri, ignore = "calls C")]
@@ -81,7 +81,7 @@ fn interleaved_update_and_final_match_after_each_step() {
     }
 }
 
-use ffmpeg::libavutil::md5;
+use ffmpeg_bindings::libavutil::libavutil::md5;
 
 #[test]
 #[cfg_attr(miri, ignore = "reads a C global")]

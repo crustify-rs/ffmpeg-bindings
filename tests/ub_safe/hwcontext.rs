@@ -5,14 +5,14 @@
 /// arrays, the storage a C array of `enum AVHWDeviceType` lives in (hwcontext
 /// wave 0, batch 0).
 ///
-/// [`DeviceType`]: ffmpeg::libavutil::hwcontext::DeviceType
+/// [`DeviceType`]: ffmpeg_bindings::libavutil::libavutil::hwcontext::DeviceType
 mod device_type {
     use std::collections::HashSet;
     use std::thread;
 
-    use ffmpeg::libavutil::ffi;
-    use ffmpeg::libavutil::hwcontext::DeviceType;
-    use ffmpeg::libavutil::mem::{HeapVec, alloc_array, alloc_array_from_fn, alloc_array_zeroed};
+    use ffmpeg_bindings::libavutil::libavutil::ffi;
+    use ffmpeg_bindings::libavutil::libavutil::hwcontext::DeviceType;
+    use ffmpeg_bindings::libavutil::libavutil::mem::{HeapVec, alloc_array, alloc_array_from_fn, alloc_array_zeroed};
 
     /// Named values at both ends, the first values past the enumerators, and
     /// the `unsigned` extremes a negative `int` written into C storage reads
@@ -114,13 +114,13 @@ mod device_type {
 /// threads (hwcontext wave 0, batch 0). It is not a plain element: the
 /// `compile_fail` doctest on the type pins that C storage never reads as one.
 ///
-/// [`TransferDirection`]: ffmpeg::libavutil::hwcontext::TransferDirection
+/// [`TransferDirection`]: ffmpeg_bindings::libavutil::libavutil::hwcontext::TransferDirection
 mod transfer_direction {
     use std::collections::HashSet;
     use std::thread;
 
-    use ffmpeg::libavutil::ffi;
-    use ffmpeg::libavutil::hwcontext::TransferDirection;
+    use ffmpeg_bindings::libavutil::libavutil::ffi;
+    use ffmpeg_bindings::libavutil::libavutil::hwcontext::TransferDirection;
 
     const ALL: [TransferDirection; 2] = [TransferDirection::From, TransferDirection::To];
 
@@ -161,15 +161,15 @@ mod transfer_direction {
 /// `ub_unsafe` suites' fake context. A transfer cannot read the frame it
 /// writes (`compile_fail/hwcontext_transfer_*`).
 ///
-/// [`FrameRef::transfer_formats`]: ffmpeg::libavutil::frame::FrameRef::transfer_formats
+/// [`FrameRef::transfer_formats`]: ffmpeg_bindings::libavutil::libavutil::frame::FrameRef::transfer_formats
 mod frame_ref_transfer_formats {
     use std::thread;
 
-    use ffmpeg::libavutil::buffer::BufferReference;
-    use ffmpeg::libavutil::ffi;
-    use ffmpeg::libavutil::frame::{Frame, FrameBox};
-    use ffmpeg::libavutil::hwcontext::TransferDirection;
-    use ffmpeg::libavutil::pixfmt::PixelFormat;
+    use ffmpeg_bindings::libavutil::libavutil::buffer::BufferReference;
+    use ffmpeg_bindings::libavutil::libavutil::ffi;
+    use ffmpeg_bindings::libavutil::libavutil::frame::{Frame, FrameBox};
+    use ffmpeg_bindings::libavutil::libavutil::hwcontext::TransferDirection;
+    use ffmpeg_bindings::libavutil::libavutil::pixfmt::PixelFormat;
 
     const EINVAL: i32 = -(ffi::EINVAL as i32);
     const DIRS: [TransferDirection; 2] = [TransferDirection::From, TransferDirection::To];
@@ -237,9 +237,9 @@ mod contexts {
     use std::ffi::CString;
     use std::thread;
 
-    use ffmpeg::libavutil::dict::Dict;
-    use ffmpeg::libavutil::ffi;
-    use ffmpeg::libavutil::hwcontext::{DeviceReference, DeviceType, MapFlags};
+    use ffmpeg_bindings::libavutil::libavutil::dict::Dict;
+    use ffmpeg_bindings::libavutil::libavutil::ffi;
+    use ffmpeg_bindings::libavutil::libavutil::hwcontext::{DeviceReference, DeviceType, MapFlags};
 
     /// Every value 0..64, and the `unsigned` extremes.
     fn types() -> impl Iterator<Item = DeviceType> {
@@ -356,20 +356,20 @@ mod contexts {
 /// setter, the owned and borrowed list forms, and the asserted `Send` and
 /// `Sync` (hwcontext wave 1, batch 0).
 ///
-/// [`FramesConstraints`]: ffmpeg::libavutil::hwcontext::FramesConstraints
+/// [`FramesConstraints`]: ffmpeg_bindings::libavutil::libavutil::hwcontext::FramesConstraints
 mod frames_constraints {
     use std::sync::Mutex;
     use std::thread;
 
-    use ffmpeg::libavutil::hwcontext::{FramesConstraints, FramesConstraintsBox};
-    use ffmpeg::libavutil::mem::HeapVec;
-    use ffmpeg::libavutil::pixfmt::PixelFormat;
+    use ffmpeg_bindings::libavutil::libavutil::hwcontext::{FramesConstraints, FramesConstraintsBox};
+    use ffmpeg_bindings::libavutil::libavutil::mem::HeapVec;
+    use ffmpeg_bindings::libavutil::libavutil::pixfmt::PixelFormat;
 
     /// Format lists of every length shape: empty, one, a `NONE` inside, a
     /// `NONE` first, long.
     fn lists() -> Vec<Vec<PixelFormat>> {
         let long: Vec<_> = (0..300)
-            .map(|i| PixelFormat::from_raw(ffmpeg::libavutil::ffi::AVPixelFormat(i % 200)))
+            .map(|i| PixelFormat::from_raw(ffmpeg_bindings::libavutil::libavutil::ffi::AVPixelFormat(i % 200)))
             .collect();
         vec![
             vec![],

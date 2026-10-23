@@ -1,6 +1,6 @@
 //! C allocation observes the enum's ABI values, including invalid encodings.
 
-use ffmpeg::libavutil::{ffi, hmac::HmacType};
+use ffmpeg_bindings::libavutil::libavutil::{ffi, hmac::HmacType};
 
 fn c_accepts(algorithm: ffi::AVHMACType) -> bool {
     // SAFETY: C accepts all enum integers and returns NULL for unknown ones.
@@ -37,7 +37,7 @@ fn algorithm_values_match_c_consumption() {
     }
 }
 
-use ffmpeg::libavutil::hmac::Hmac;
+use ffmpeg_bindings::libavutil::libavutil::hmac::Hmac;
 
 struct Reference(*mut ffi::AVHMAC);
 impl Reference {
@@ -198,7 +198,7 @@ fn calculate_and_failed_output_preserve_c_state() {
 /// `equiv/hash-and-hmac-reject-outputs-beyond-c-ranges`).
 mod beyond_uint_max {
     use super::Reference;
-    use ffmpeg::libavutil::{
+    use ffmpeg_bindings::libavutil::libavutil::{
         ffi,
         hmac::{Hmac, HmacType},
     };

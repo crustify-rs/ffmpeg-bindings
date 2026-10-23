@@ -71,7 +71,7 @@ mod sealed {
 /// the crate, a type cannot claim them:
 ///
 /// ```compile_fail,E0277
-/// use ffmpeg::libavutil::bprint::{BPrintFields, PaddedStruct};
+/// use ffmpeg_bindings::libavutil::libavutil::bprint::{BPrintFields, PaddedStruct};
 /// struct Unpadded([u8; 8]);
 /// impl PaddedStruct for Unpadded {
 ///     const SIZE: usize = 4;
@@ -80,7 +80,7 @@ mod sealed {
 /// ```
 ///
 /// ```
-/// use ffmpeg::libavutil::{bprint::PaddedStruct, ffi};
+/// use ffmpeg_bindings::libavutil::libavutil::{bprint::PaddedStruct, ffi};
 /// assert_eq!(<ffi::AVBPrint as PaddedStruct>::SIZE, 1024);
 /// ```
 pub trait PaddedStruct: sealed::Sealed + Sized {
@@ -426,7 +426,7 @@ impl_cdrop!(BPrintFinalize, BPrint, finalize_and_free);
 /// Not `Clone`: C has no routine that copies a buffer.
 ///
 /// ```compile_fail,E0599
-/// use ffmpeg::libavutil::bprint::BPrintBox;
+/// use ffmpeg_bindings::libavutil::libavutil::bprint::BPrintBox;
 /// fn copy(b: &BPrintBox) -> BPrintBox {
 ///     (*b).clone()
 /// }
@@ -464,7 +464,7 @@ impl_cdrop!(BufferStorage<'_>, BPrint, free_storage);
 /// holds what was printed, NUL-terminated:
 ///
 /// ```compile_fail,E0503
-/// use ffmpeg::libavutil::bprint::BPrint;
+/// use ffmpeg_bindings::libavutil::libavutil::bprint::BPrint;
 /// let mut out = [0u8; 16];
 /// let buf = BPrint::for_buffer(&mut out).unwrap();
 /// let first = out[0];
@@ -769,7 +769,7 @@ impl BPrintRef<'_> {
     /// cannot make it so.
     ///
     /// ```
-    /// use ffmpeg::libavutil::bprint::BPrint;
+    /// use ffmpeg_bindings::libavutil::libavutil::bprint::BPrint;
     /// let mut buf = BPrint::new(0, BPrint::SIZE_COUNT_ONLY).unwrap();
     /// assert!(!buf.as_ref().is_complete());
     /// buf.as_mut().append_bytes(b"counted");
@@ -890,7 +890,7 @@ impl BPrintMut<'_> {
     /// first NUL. [`write!`] through [`fmt::Write`] keeps NULs instead.
     ///
     /// ```
-    /// use ffmpeg::libavutil::bprint::BPrint;
+    /// use ffmpeg_bindings::libavutil::libavutil::bprint::BPrint;
     /// let mut buf = BPrint::new(0, BPrint::SIZE_UNLIMITED).unwrap();
     /// buf.as_mut().append_fmt(format_args!("{}x{}", 1920, 1080));
     /// assert_eq!(buf.as_ref().as_bytes(), b"1920x1080");
@@ -933,7 +933,7 @@ impl BPrintMut<'_> {
     /// `'!'`s and marks it truncated.
     ///
     /// ```
-    /// use ffmpeg::libavutil::bprint::{BPrint, Tm};
+    /// use ffmpeg_bindings::libavutil::libavutil::bprint::{BPrint, Tm};
     /// let mut tm = Tm::new();
     /// let mut t = tm.as_mut();
     /// t.set_year(2000 - 1900);
@@ -976,7 +976,7 @@ impl BPrintMut<'_> {
     /// buffer is left as before the call.
     ///
     /// ```
-    /// use ffmpeg::libavutil::bprint::BPrint;
+    /// use ffmpeg_bindings::libavutil::libavutil::bprint::BPrint;
     /// let mut buf = BPrint::new(0, BPrint::SIZE_UNLIMITED).unwrap();
     /// let n = buf.as_mut().append_with(4, |spare| {
     ///     spare[..3].copy_from_slice(b"abc");
@@ -1036,7 +1036,7 @@ impl BPrintMut<'_> {
 ///
 /// ```
 /// use core::fmt::Write;
-/// use ffmpeg::libavutil::bprint::BPrint;
+/// use ffmpeg_bindings::libavutil::libavutil::bprint::BPrint;
 /// let mut buf = BPrint::new(0, BPrint::SIZE_UNLIMITED).unwrap();
 /// write!(buf.as_mut(), "{}-{}", 1, '\0').unwrap();
 /// assert_eq!(buf.as_ref().as_bytes(), b"1-\0");
@@ -1195,7 +1195,7 @@ impl<'a> TmRef<'a> {
     /// not negative, and nothing otherwise.
     ///
     /// ```
-    /// use ffmpeg::libavutil::bprint::{BPrint, Tm};
+    /// use ffmpeg_bindings::libavutil::libavutil::bprint::{BPrint, Tm};
     /// let mut tm = Tm::new();
     /// tm.as_mut().set_isdst(-1);
     /// let mut buf = BPrint::new(0, BPrint::SIZE_UNLIMITED).unwrap();

@@ -1,5 +1,5 @@
 // An error description cannot outlive the buffer it was written into.
-use ffmpeg::libavutil::error::describe;
+use ffmpeg_bindings::libavutil::libavutil::error::describe;
 
 fn main() {
     let text = {

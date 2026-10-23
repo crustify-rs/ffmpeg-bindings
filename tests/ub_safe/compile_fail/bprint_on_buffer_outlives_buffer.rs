@@ -1,5 +1,5 @@
 // A buffer printing into caller storage cannot outlive that storage.
-use ffmpeg::libavutil::bprint::BPrint;
+use ffmpeg_bindings::libavutil::libavutil::bprint::BPrint;
 
 fn main() {
     let buf;

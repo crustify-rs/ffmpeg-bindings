@@ -2,7 +2,7 @@
 // borrow, which it cannot record.
 use std::ffi::CString;
 
-use ffmpeg::libavutil::bprint::Tm;
+use ffmpeg_bindings::libavutil::libavutil::bprint::Tm;
 
 fn main() {
     let mut tm = Tm::new();

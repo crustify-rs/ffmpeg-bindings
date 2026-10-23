@@ -1,5 +1,5 @@
 // The rest of a parsed options string borrows it: it cannot outlive it.
-use ffmpeg::libavutil::opt::parse_key_value;
+use ffmpeg_bindings::libavutil::libavutil::opt::parse_key_value;
 
 fn main() {
     let rest;

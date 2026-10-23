@@ -1,4 +1,4 @@
-use ffmpeg::libavutil::{crc::CrcId, ffi};
+use ffmpeg_bindings::libavutil::libavutil::{crc::CrcId, ffi};
 
 #[test]
 fn arbitrary_identifiers_remain_valid_values() {
@@ -18,7 +18,7 @@ fn identifiers_cross_threads_without_shared_mutable_storage() {
     assert_eq!(thread.join().unwrap(), ids);
 }
 
-use ffmpeg::libavutil::crc::{Table, TableSize};
+use ffmpeg_bindings::libavutil::libavutil::crc::{Table, TableSize};
 
 #[test]
 #[cfg_attr(miri, ignore = "calls C")]
@@ -56,7 +56,7 @@ fn batch10_tables_clone_share_and_stream_unaligned_data() {
 #[test]
 #[cfg_attr(miri, ignore = "calls C")]
 fn standard_tables_are_static_shared_and_thread_safe() {
-    use ffmpeg::libavutil::crc::{CrcId, get_table};
+    use ffmpeg_bindings::libavutil::libavutil::crc::{CrcId, get_table};
     let threads: Vec<_> = [
         CrcId::ATM_8,
         CrcId::ANSI_16,

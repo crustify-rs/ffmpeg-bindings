@@ -1,8 +1,8 @@
 //! Equivalence of `libavutil/bswap.h`'s safe byte swaps with the raw C
 //! functions, and with Rust's `swap_bytes`.
 
-use ffmpeg::libavutil::bswap::{swap16, swap32, swap64};
-use ffmpeg::libavutil::ffi;
+use ffmpeg_bindings::libavutil::libavutil::bswap::{swap16, swap32, swap64};
+use ffmpeg_bindings::libavutil::libavutil::ffi;
 
 /// Every single-bit and single-byte pattern of a 64-bit word, its
 /// complements, and a few mixed words.

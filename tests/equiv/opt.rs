@@ -8,8 +8,8 @@ use core::ffi::{CStr, c_int, c_void};
 use core::mem::size_of;
 use std::ffi::CString;
 
-use ffmpeg::libavutil::ffi;
-use ffmpeg::libavutil::opt::{
+use ffmpeg_bindings::libavutil::libavutil::ffi;
+use ffmpeg_bindings::libavutil::libavutil::opt::{
     ObjectRef, OptionRangeRef, OptionRangesBox, OptionRangesRef, RangeFlags,
 };
 
@@ -432,7 +432,7 @@ fn rust_write(b: &mut OptionRangesBox, i: usize, comp: usize, w: Write) -> Optio
     let mut e = m.get_mut(i, comp).unwrap();
     match w {
         Write::Label(s) => {
-            e.set_label(s.map(|s| ffmpeg::libavutil::mem::string_from_c_str(s).unwrap()))
+            e.set_label(s.map(|s| ffmpeg_bindings::libavutil::libavutil::mem::string_from_c_str(s).unwrap()))
         }
         Write::Take => return Some(e.take_label().map(|s| s.as_c_str().to_owned())),
         Write::ValueMin(v) => e.set_value_min(v),
@@ -510,9 +510,9 @@ mod option_type {
     use core::ptr;
     use std::ffi::CString;
 
-    use ffmpeg::libavutil::ffi;
-    use ffmpeg::libavutil::log::ClassRef;
-    use ffmpeg::libavutil::opt::OptionType;
+    use ffmpeg_bindings::libavutil::libavutil::ffi;
+    use ffmpeg_bindings::libavutil::libavutil::log::ClassRef;
+    use ffmpeg_bindings::libavutil::libavutil::opt::OptionType;
 
     use super::fixture::{CLASS, Ctx, FAKE, OPTIONS};
     use crate::log::LogState;
@@ -655,9 +655,9 @@ mod set_options_string {
     use core::ffi::{CStr, c_char, c_int, c_void};
     use core::ptr;
 
-    use ffmpeg::libavutil::ffi;
-    use ffmpeg::libavutil::log::{Class, ClassCategory};
-    use ffmpeg::libavutil::opt::{BareObject, ObjectMut};
+    use ffmpeg_bindings::libavutil::libavutil::ffi;
+    use ffmpeg_bindings::libavutil::libavutil::log::{Class, ClassCategory};
+    use ffmpeg_bindings::libavutil::libavutil::opt::{BareObject, ObjectMut};
 
     use super::fixture::{OBJ_OPTIONS, Owned};
 
@@ -954,8 +954,8 @@ mod array_def {
     use core::ptr;
     use std::ffi::CString;
 
-    use ffmpeg::libavutil::ffi;
-    use ffmpeg::libavutil::opt::{OptionArrayDef, OptionArrayDefMut};
+    use ffmpeg_bindings::libavutil::libavutil::ffi;
+    use ffmpeg_bindings::libavutil::libavutil::opt::{OptionArrayDef, OptionArrayDefMut};
 
     use ffi::AVOptionType as T;
 
@@ -1152,9 +1152,9 @@ mod objects {
     use core::ptr;
     use std::ffi::CString;
 
-    use ffmpeg::libavutil::ffi;
-    use ffmpeg::libavutil::log::{self, Callback, Record};
-    use ffmpeg::libavutil::opt::{
+    use ffmpeg_bindings::libavutil::libavutil::ffi;
+    use ffmpeg_bindings::libavutil::libavutil::log::{self, Callback, Record};
+    use ffmpeg_bindings::libavutil::libavutil::opt::{
         ObjectMut, ObjectRef, SearchFlags, SerializeFlags, parse_key_value,
     };
 
@@ -2452,15 +2452,15 @@ mod getters {
     use core::mem::size_of;
     use core::ptr;
 
-    use ffmpeg::libavutil::channel_layout::ChannelLayoutVal;
-    use ffmpeg::libavutil::dict::Dict;
-    use ffmpeg::libavutil::ffi;
-    use ffmpeg::libavutil::log::ClassRef;
-    use ffmpeg::libavutil::mem::HeapString;
-    use ffmpeg::libavutil::opt::{ArrayElement, ObjectRef, OptionType, SearchFlags};
-    use ffmpeg::libavutil::pixfmt::PixelFormat;
-    use ffmpeg::libavutil::rational::Rational;
-    use ffmpeg::libavutil::samplefmt::SampleFormat;
+    use ffmpeg_bindings::libavutil::libavutil::channel_layout::ChannelLayoutVal;
+    use ffmpeg_bindings::libavutil::libavutil::dict::Dict;
+    use ffmpeg_bindings::libavutil::libavutil::ffi;
+    use ffmpeg_bindings::libavutil::libavutil::log::ClassRef;
+    use ffmpeg_bindings::libavutil::libavutil::mem::HeapString;
+    use ffmpeg_bindings::libavutil::libavutil::opt::{ArrayElement, ObjectRef, OptionType, SearchFlags};
+    use ffmpeg_bindings::libavutil::libavutil::pixfmt::PixelFormat;
+    use ffmpeg_bindings::libavutil::libavutil::rational::Rational;
+    use ffmpeg_bindings::libavutil::libavutil::samplefmt::SampleFormat;
 
     use super::fixture::{ARR_CLASS, ARR_NAMES, ArrOwned, OBJ_CLASS, OBJ_OPTIONS, Owned};
 
@@ -3026,13 +3026,13 @@ mod typed_setters {
     use core::ffi::{CStr, c_char, c_int, c_uint, c_void};
     use core::ptr;
 
-    use ffmpeg::libavutil::channel_layout::{ChannelLayout, ChannelLayoutVal};
-    use ffmpeg::libavutil::dict::{Dict, DictionaryRef};
-    use ffmpeg::libavutil::ffi;
-    use ffmpeg::libavutil::opt::{ObjectMut, SearchFlags};
-    use ffmpeg::libavutil::pixfmt::PixelFormat;
-    use ffmpeg::libavutil::rational::Rational;
-    use ffmpeg::libavutil::samplefmt::SampleFormat;
+    use ffmpeg_bindings::libavutil::libavutil::channel_layout::{ChannelLayout, ChannelLayoutVal};
+    use ffmpeg_bindings::libavutil::libavutil::dict::{Dict, DictionaryRef};
+    use ffmpeg_bindings::libavutil::libavutil::ffi;
+    use ffmpeg_bindings::libavutil::libavutil::opt::{ObjectMut, SearchFlags};
+    use ffmpeg_bindings::libavutil::libavutil::pixfmt::PixelFormat;
+    use ffmpeg_bindings::libavutil::libavutil::rational::Rational;
+    use ffmpeg_bindings::libavutil::libavutil::samplefmt::SampleFormat;
 
     use super::fixture::{ARRAYS_NAMES, Arrays, OBJ_OPTIONS, Owned, OwnedArrays};
     use ffi::AVOptionType as T;
@@ -3963,9 +3963,9 @@ mod typed_setters {
 mod rational_array_conversion {
     use core::ffi::{CStr, c_int, c_void};
 
-    use ffmpeg::libavutil::ffi;
-    use ffmpeg::libavutil::opt::{ObjectMut, SearchFlags};
-    use ffmpeg::libavutil::rational::Rational;
+    use ffmpeg_bindings::libavutil::libavutil::ffi;
+    use ffmpeg_bindings::libavutil::libavutil::opt::{ObjectMut, SearchFlags};
+    use ffmpeg_bindings::libavutil::libavutil::rational::Rational;
 
     use super::fixture::OwnedArrays;
 
@@ -4058,8 +4058,8 @@ mod lookups {
     use core::ffi::{CStr, c_char, c_int, c_void};
     use core::ptr;
 
-    use ffmpeg::libavutil::ffi;
-    use ffmpeg::libavutil::opt::{EvalContext, ObjectMut, ObjectRef, OptionDefRef, SearchFlags};
+    use ffmpeg_bindings::libavutil::libavutil::ffi;
+    use ffmpeg_bindings::libavutil::libavutil::opt::{EvalContext, ObjectMut, ObjectRef, OptionDefRef, SearchFlags};
 
     use super::fixture::{OBJ_CLASS, OBJ_OPTIONS, Obj, Owned};
 

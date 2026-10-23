@@ -1,5 +1,5 @@
 // A shared handle cannot outlive the side data descriptor value it borrows.
-use ffmpeg::libavutil::frame::SideDataDescriptor;
+use ffmpeg_bindings::libavutil::libavutil::frame::SideDataDescriptor;
 
 fn main() {
     let r = {

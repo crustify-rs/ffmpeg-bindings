@@ -1,5 +1,5 @@
 // A shared handle cannot outlive the descriptor value it borrows.
-use ffmpeg::libavutil::pixdesc::PixelFormatDescriptor;
+use ffmpeg_bindings::libavutil::libavutil::pixdesc::PixelFormatDescriptor;
 
 fn main() {
     let r = {

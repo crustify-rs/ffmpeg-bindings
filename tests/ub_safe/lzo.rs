@@ -1,4 +1,4 @@
-use ffmpeg::libavutil::lzo::decode;
+use ffmpeg_bindings::libavutil::libavutil::lzo::decode;
 fn samples() -> Vec<Vec<u8>> {
     let mut long = vec![0, 0, 27];
     long.extend((0..300).map(|i| i as u8));

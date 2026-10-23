@@ -1,6 +1,6 @@
 use ffibox::CZeroable;
-use ffmpeg::libavutil::aes::Direction::{Decrypt, Encrypt};
-use ffmpeg::libavutil::des::{Des, DesBox};
+use ffmpeg_bindings::libavutil::libavutil::aes::Direction::{Decrypt, Encrypt};
+use ffmpeg_bindings::libavutil::libavutil::des::{Des, DesBox};
 
 #[test]
 #[cfg_attr(miri, ignore = "calls C")]

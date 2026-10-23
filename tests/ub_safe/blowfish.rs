@@ -1,4 +1,4 @@
-use ffmpeg::libavutil::blowfish::{Blowfish, BlowfishBox};
+use ffmpeg_bindings::libavutil::libavutil::blowfish::{Blowfish, BlowfishBox};
 
 #[test]
 #[cfg_attr(miri, ignore = "calls C")]
@@ -40,7 +40,7 @@ fn foreign_initialization_across_reborrows() {
 #[test]
 #[cfg_attr(miri, ignore = "calls C")]
 fn allocation_failure_is_reported_without_leaking() {
-    use ffmpeg::libavutil::{blowfish, camellia, mem};
+    use ffmpeg_bindings::libavutil::libavutil::{blowfish, camellia, mem};
     const CHILD: &str = "CRUSTIFY_CRYPTO_BATCH1_ALLOC_FAILURE_CHILD";
     if std::env::var_os(CHILD).is_some() {
         // This child runs only this exact test: changing C's process-wide
@@ -70,7 +70,7 @@ fn allocation_failure_is_reported_without_leaking() {
     assert!(status.success());
 }
 
-use ffmpeg::libavutil::aes::Direction;
+use ffmpeg_bindings::libavutil::libavutil::aes::Direction;
 
 #[test]
 #[cfg_attr(miri, ignore = "calls C")]

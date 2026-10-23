@@ -350,8 +350,8 @@ fn parse_ratio_raw(
 /// [`eval::parse_and_eval`] refuses.
 ///
 /// ```
-/// use ffmpeg::libavutil::parseutils::parse_ratio;
-/// use ffmpeg::libavutil::rational::Rational;
+/// use ffmpeg_bindings::libavutil::libavutil::parseutils::parse_ratio;
+/// use ffmpeg_bindings::libavutil::libavutil::rational::Rational;
 /// assert_eq!(parse_ratio(c"16:12", 255).map(Rational::into_raw).map(|q| (q.num, q.den)), Ok((4, 3)));
 /// assert_eq!(parse_ratio(c"0.75", 255).map(Rational::into_raw).map(|q| (q.num, q.den)), Ok((3, 4)));
 /// ```
@@ -437,8 +437,8 @@ pub fn parse_video_rate(rate: &CStr) -> Result<Rational, i32> {
 /// No other field of `tm` is written.
 ///
 /// ```
-/// use ffmpeg::libavutil::bprint::Tm;
-/// use ffmpeg::libavutil::parseutils::small_strptime;
+/// use ffmpeg_bindings::libavutil::libavutil::bprint::Tm;
+/// use ffmpeg_bindings::libavutil::libavutil::parseutils::small_strptime;
 /// let mut tm = Tm::new();
 /// let rest = small_strptime(c"2024-02-29 12:34:56 UTC", c"%Y-%m-%d %T", tm.as_mut());
 /// assert_eq!(rest, Some(c" UTC"));
@@ -494,8 +494,8 @@ fn timegm_terms(tm: TmRef<'_>) -> Option<(c_int, c_int)> {
 /// day exceed the `int` range.
 ///
 /// ```
-/// use ffmpeg::libavutil::bprint::Tm;
-/// use ffmpeg::libavutil::parseutils::timegm;
+/// use ffmpeg_bindings::libavutil::libavutil::bprint::Tm;
+/// use ffmpeg_bindings::libavutil::libavutil::parseutils::timegm;
 /// let mut tm = Tm::new();
 /// let mut t = tm.as_mut();
 /// t.set_year(100);
@@ -795,7 +795,7 @@ mod unit_tests {
     /// model.
     mod timegm_and_ratios {
         use super::*;
-        use crate::libavutil::bprint::Tm;
+        use crate::libavutil::libavutil::bprint::Tm;
 
         /// `av_timegm`'s computation in `i64`, with whether every
         /// intermediate value of C's `int` operations fits an `int`.

@@ -1,6 +1,6 @@
 // A custom map read through `details` cannot outlive its layout, which frees
 // the map when it drops.
-use ffmpeg::libavutil::channel_layout::{ChannelLayout, LayoutDetails};
+use ffmpeg_bindings::libavutil::libavutil::channel_layout::{ChannelLayout, LayoutDetails};
 
 fn main() {
     let details = {

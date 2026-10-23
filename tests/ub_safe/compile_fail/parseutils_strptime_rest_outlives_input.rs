@@ -2,8 +2,8 @@
 // drop while the rest lives.
 use std::ffi::CString;
 
-use ffmpeg::libavutil::bprint::Tm;
-use ffmpeg::libavutil::parseutils::small_strptime;
+use ffmpeg_bindings::libavutil::libavutil::bprint::Tm;
+use ffmpeg_bindings::libavutil::libavutil::parseutils::small_strptime;
 
 fn main() {
     let mut tm = Tm::new();

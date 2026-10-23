@@ -6,9 +6,9 @@
 use core::ffi::{CStr, c_int, c_void};
 use core::mem::size_of;
 
-use ffmpeg::libavutil::channel_layout::Channel;
-use ffmpeg::libavutil::ffi;
-use ffmpeg::libavutil::mem::{HeapVec, alloc_array_zeroed};
+use ffmpeg_bindings::libavutil::libavutil::channel_layout::Channel;
+use ffmpeg_bindings::libavutil::libavutil::ffi;
+use ffmpeg_bindings::libavutil::libavutil::mem::{HeapVec, alloc_array_zeroed};
 
 /// Which descriptions C's parser may be given under BSan.
 #[path = "../common/channel_layout.rs"]
@@ -358,13 +358,13 @@ fn channel_values_c_writes_are_read_back_unchanged() {
 /// `matrix_encoding` option publishes it: its default, its range, and the
 /// value behind each named constant.
 ///
-/// [`MatrixEncoding`]: ffmpeg::libavutil::channel_layout::MatrixEncoding
+/// [`MatrixEncoding`]: ffmpeg_bindings::libavutil::libavutil::channel_layout::MatrixEncoding
 mod matrix_encoding {
     use core::ffi::{CStr, c_int, c_void};
 
-    use ffmpeg::libavutil::channel_layout::MatrixEncoding;
-    use ffmpeg::libavutil::ffi;
-    use ffmpeg::libswresample::ffi as swr;
+    use ffmpeg_bindings::libavutil::libavutil::channel_layout::MatrixEncoding;
+    use ffmpeg_bindings::libavutil::libavutil::ffi;
+    use ffmpeg_bindings::libswresample::libswresample::ffi as swr;
 
     /// C's option `name` (in `unit` for a named constant) on
     /// libswresample's class, as `(default, min, max)`.
@@ -436,9 +436,9 @@ mod channel_order {
     use core::ffi::{CStr, c_int, c_uint, c_void};
     use core::mem::{MaybeUninit, size_of};
 
-    use ffmpeg::libavutil::channel_layout::ChannelOrder;
-    use ffmpeg::libavutil::ffi;
-    use ffmpeg::libavutil::mem::{HeapVec, alloc_array_zeroed};
+    use ffmpeg_bindings::libavutil::libavutil::channel_layout::ChannelOrder;
+    use ffmpeg_bindings::libavutil::libavutil::ffi;
+    use ffmpeg_bindings::libavutil::libavutil::mem::{HeapVec, alloc_array_zeroed};
 
     use super::parser_inputs::skipped_under_bsan;
 
@@ -760,15 +760,15 @@ mod channel_order {
 /// every step, then copied (`av_channel_layout_copy`) and freed
 /// (`av_channel_layout_uninit`), a Rust-built map included.
 ///
-/// [`ChannelCustom`]: ffmpeg::libavutil::channel_layout::ChannelCustom
+/// [`ChannelCustom`]: ffmpeg_bindings::libavutil::libavutil::channel_layout::ChannelCustom
 mod channel_custom {
     use core::ffi::{CStr, c_char, c_int, c_uint, c_void};
     use core::ptr::{self, NonNull};
 
     use ffibox::{CSlice, CSliceMut};
-    use ffmpeg::libavutil::channel_layout::{Channel, ChannelCustom, ChannelCustomRef};
-    use ffmpeg::libavutil::ffi;
-    use ffmpeg::libavutil::mem::alloc_cell_array_zeroed;
+    use ffmpeg_bindings::libavutil::libavutil::channel_layout::{Channel, ChannelCustom, ChannelCustomRef};
+    use ffmpeg_bindings::libavutil::libavutil::ffi;
+    use ffmpeg_bindings::libavutil::libavutil::mem::alloc_cell_array_zeroed;
 
     /// A C channel layout, uninitialised by C (its map freed) on drop.
     struct Layout(ffi::AVChannelLayout);
@@ -805,7 +805,7 @@ mod channel_custom {
 
         /// A custom layout over a map Rust allocated (`av_calloc`) and
         /// filled, which C frees.
-        fn adopt(map: ffmpeg::libavutil::mem::HeapVec<ChannelCustom>) -> Self {
+        fn adopt(map: ffmpeg_bindings::libavutil::libavutil::mem::HeapVec<ChannelCustom>) -> Self {
             let (p, n) = map.into_raw_parts();
             let mut l = Self::zeroed();
             l.order = ffi::AVChannelOrder::AV_CHANNEL_ORDER_CUSTOM;
@@ -1167,8 +1167,8 @@ mod channel_names {
     use core::ffi::{CStr, c_char, c_int};
     use std::ffi::CString;
 
-    use ffmpeg::libavutil::channel_layout::Channel;
-    use ffmpeg::libavutil::ffi;
+    use ffmpeg_bindings::libavutil::libavutil::channel_layout::Channel;
+    use ffmpeg_bindings::libavutil::libavutil::ffi;
 
     type Writer = unsafe extern "C" fn(*mut c_char, usize, ffi::AVChannel) -> c_int;
     type RustWriter = fn(Channel, &mut [u8]) -> Result<usize, i32>;
@@ -1383,12 +1383,12 @@ mod name_appenders {
     use core::mem::MaybeUninit;
     use core::ptr::{self, addr_of};
 
-    use ffmpeg::libavutil::bprint::{BPrint, BPrintRef};
-    use ffmpeg::libavutil::channel_layout::Channel;
-    use ffmpeg::libavutil::ffi;
+    use ffmpeg_bindings::libavutil::libavutil::bprint::{BPrint, BPrintRef};
+    use ffmpeg_bindings::libavutil::libavutil::channel_layout::Channel;
+    use ffmpeg_bindings::libavutil::libavutil::ffi;
 
     type CAppender = unsafe extern "C" fn(*mut ffi::AVBPrint, ffi::AVChannel);
-    type RustAppender = fn(Channel, ffmpeg::libavutil::bprint::BPrintMut<'_>);
+    type RustAppender = fn(Channel, ffmpeg_bindings::libavutil::libavutil::bprint::BPrintMut<'_>);
 
     const APPENDERS: [(CAppender, RustAppender); 2] = [
         (ffi::av_channel_name_bprint, Channel::append_name),
@@ -1526,12 +1526,12 @@ mod layout {
     use core::ptr;
     use std::ffi::CString;
 
-    use ffmpeg::libavutil::channel_layout::{
+    use ffmpeg_bindings::libavutil::libavutil::channel_layout::{
         Channel, ChannelCustom, ChannelLayout, ChannelLayoutRef, ChannelLayoutVal, ChannelOrder,
         LayoutDetails,
     };
-    use ffmpeg::libavutil::ffi;
-    use ffmpeg::libavutil::mem::{HeapVec, alloc_cell_array_zeroed};
+    use ffmpeg_bindings::libavutil::libavutil::ffi;
+    use ffmpeg_bindings::libavutil::libavutil::mem::{HeapVec, alloc_cell_array_zeroed};
 
     use super::parser_inputs::{CHANNEL_BITS, LAYOUT_MASKS, STANDARD_LAYOUTS, allowed, under_bsan};
 
@@ -2324,7 +2324,7 @@ mod layout {
     /// `av_channel_layout_subset` and `av_channel_layout_standard` (formats
     /// wave-3 batch 2).
     mod order_changes {
-        use ffmpeg::libavutil::channel_layout::{Conversion, masks, standard_layouts};
+        use ffmpeg_bindings::libavutil::libavutil::channel_layout::{Conversion, masks, standard_layouts};
 
         use super::*;
 
@@ -2680,8 +2680,8 @@ mod layout {
     mod readers {
         use core::mem::MaybeUninit;
 
-        use ffmpeg::libavutil::bprint::BPrint;
-        use ffmpeg::libavutil::channel_layout::masks;
+        use ffmpeg_bindings::libavutil::libavutil::bprint::BPrint;
+        use ffmpeg_bindings::libavutil::libavutil::channel_layout::masks;
 
         use super::order_changes::{c_retype, rust_retype, starts, twins};
         use super::*;

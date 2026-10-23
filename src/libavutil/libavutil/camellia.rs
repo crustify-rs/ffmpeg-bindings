@@ -27,7 +27,7 @@ define_ctype!(
 /// The opaque layout has no Rust size, so there is no Rust-sized allocation:
 ///
 /// ```compile_fail,E0277
-/// use ffmpeg::libavutil::camellia::CamelliaBox;
+/// use ffmpeg_bindings::libavutil::libavutil::camellia::CamelliaBox;
 /// let _ = CamelliaBox::new_uninit();
 /// ```
 pub type CamelliaBox = CBox<Camellia, CamelliaFree>;

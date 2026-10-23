@@ -1,7 +1,7 @@
 // A shared handle only reads, and so do the coordinate handles it lends: the
 // setters are on `CieXyMut` and `RationalMut`.
-use ffmpeg::libavutil::csp::CieXy;
-use ffmpeg::libavutil::rational::Rational;
+use ffmpeg_bindings::libavutil::libavutil::csp::CieXy;
+use ffmpeg_bindings::libavutil::libavutil::rational::Rational;
 
 fn main() {
     let v = CieXy::default();

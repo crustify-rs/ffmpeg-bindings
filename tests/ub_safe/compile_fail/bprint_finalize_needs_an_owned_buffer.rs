@@ -1,6 +1,6 @@
 // Only a buffer that owns its string is finalized: one printing into caller
 // storage would have C free that storage.
-use ffmpeg::libavutil::bprint::BPrint;
+use ffmpeg_bindings::libavutil::libavutil::bprint::BPrint;
 
 fn main() {
     let mut out = [0u8; 16];

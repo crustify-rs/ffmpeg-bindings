@@ -1,5 +1,5 @@
 // An entry an allocation returns cannot outlive its array.
-use ffmpeg::libavutil::frame::{SideDataArray, SideDataFlags, SideDataType};
+use ffmpeg_bindings::libavutil::libavutil::frame::{SideDataArray, SideDataFlags, SideDataType};
 
 fn main() {
     let mut array = SideDataArray::new();

@@ -1,6 +1,6 @@
 // Taking the dictionary out (which a writer may then free) needs the owner
 // exclusively: not while a shared handle to it lives.
-use ffmpeg::libavutil::dict::Dict;
+use ffmpeg_bindings::libavutil::libavutil::dict::Dict;
 
 fn main() {
     let mut d = Dict::from_entries([(c"k", c"v")]).unwrap();

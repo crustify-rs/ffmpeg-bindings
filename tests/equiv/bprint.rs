@@ -5,8 +5,8 @@ use core::ffi::c_char;
 use core::mem::{MaybeUninit, offset_of};
 use core::ptr::{addr_of, addr_of_mut};
 
-use ffmpeg::libavutil::bprint::PaddedStruct;
-use ffmpeg::libavutil::ffi;
+use ffmpeg_bindings::libavutil::libavutil::bprint::PaddedStruct;
+use ffmpeg_bindings::libavutil::libavutil::ffi;
 
 const SIZE: usize = <ffi::AVBPrint as PaddedStruct>::SIZE;
 
@@ -102,8 +102,8 @@ mod fields {
     use core::ffi::{CStr, c_char};
     use core::mem::{MaybeUninit, size_of};
 
-    use ffmpeg::libavutil::bprint::{BPrintFields, PaddedStruct};
-    use ffmpeg::libavutil::ffi;
+    use ffmpeg_bindings::libavutil::libavutil::bprint::{BPrintFields, PaddedStruct};
+    use ffmpeg_bindings::libavutil::libavutil::ffi;
 
     use super::state;
 
@@ -237,9 +237,9 @@ mod owners {
     use core::mem::MaybeUninit;
     use core::ptr::{self, addr_of, addr_of_mut};
 
-    use ffmpeg::libavutil::avstring::{EscapeFlags, EscapeMode};
-    use ffmpeg::libavutil::bprint::{BPrint, BPrintMut, BPrintRef, Tm};
-    use ffmpeg::libavutil::ffi;
+    use ffmpeg_bindings::libavutil::libavutil::avstring::{EscapeFlags, EscapeMode};
+    use ffmpeg_bindings::libavutil::libavutil::bprint::{BPrint, BPrintMut, BPrintRef, Tm};
+    use ffmpeg_bindings::libavutil::libavutil::ffi;
 
     /// A C-side buffer on its own heap storage, which C initialises in place
     /// and which never moves.
@@ -659,7 +659,7 @@ mod owners {
     }
 
     /// Fills both buffers with `n` bytes of `c`.
-    fn fill(c: &CBuf, r: &mut ffmpeg::libavutil::bprint::BPrintBox, n: u32) {
+    fn fill(c: &CBuf, r: &mut ffmpeg_bindings::libavutil::libavutil::bprint::BPrintBox, n: u32) {
         c_op(c.buf, Op::Chars(b'f', n));
         r.as_mut().append_repeated(b'f', n);
     }
@@ -685,23 +685,23 @@ mod owners {
 
         let (c, mut r) = pair();
         fill(&c, &mut r, 100);
-        ffmpeg::libavutil::mem::set_max_alloc(50);
+        ffmpeg_bindings::libavutil::libavutil::mem::set_max_alloc(50);
         assert_eq!(c.finalize(), (enomem, None));
         assert_eq!(BPrint::into_string(r).map(drop), Err(enomem));
-        ffmpeg::libavutil::mem::set_max_alloc(i32::MAX as usize);
+        ffmpeg_bindings::libavutil::libavutil::mem::set_max_alloc(i32::MAX as usize);
 
         let (c, mut r) = pair();
         fill(&c, &mut r, 100);
-        ffmpeg::libavutil::mem::set_max_alloc(50);
+        ffmpeg_bindings::libavutil::libavutil::mem::set_max_alloc(50);
         assert_eq!(c.finalize(), (enomem, None));
         assert_eq!(BPrint::into_bytes(r).map(drop), Err(enomem));
-        ffmpeg::libavutil::mem::set_max_alloc(i32::MAX as usize);
+        ffmpeg_bindings::libavutil::libavutil::mem::set_max_alloc(i32::MAX as usize);
 
         for into_string in [false, true] {
             let (c, mut r) = pair();
             fill(&c, &mut r, 3000);
             assert!(!r.as_ref().is_inline());
-            ffmpeg::libavutil::mem::set_max_alloc(100);
+            ffmpeg_bindings::libavutil::libavutil::mem::set_max_alloc(100);
             let (ret, c_bytes) = c.finalize();
             assert_eq!(ret, 0);
             let c_bytes = c_bytes.unwrap();
@@ -711,15 +711,15 @@ mod owners {
             } else {
                 assert_eq!(BPrint::into_bytes(r).unwrap().as_slice(), c_bytes);
             }
-            ffmpeg::libavutil::mem::set_max_alloc(i32::MAX as usize);
+            ffmpeg_bindings::libavutil::libavutil::mem::set_max_alloc(i32::MAX as usize);
         }
 
         // Rust's count-only string, "" where C has no string, needs one
         // byte; at a zero limit it fails as C's own copies do.
         let r = BPrint::new(0, BPrint::SIZE_COUNT_ONLY).unwrap();
-        ffmpeg::libavutil::mem::set_max_alloc(0);
+        ffmpeg_bindings::libavutil::libavutil::mem::set_max_alloc(0);
         assert_eq!(BPrint::into_string(r).map(drop), Err(enomem));
-        ffmpeg::libavutil::mem::set_max_alloc(i32::MAX as usize);
+        ffmpeg_bindings::libavutil::libavutil::mem::set_max_alloc(i32::MAX as usize);
     }
 
     /// After a failed growth, later appends remain truncated even when the
@@ -733,13 +733,13 @@ mod owners {
         }
         let c = CBuf::init(0, BPrint::SIZE_UNLIMITED);
         let mut r = BPrint::new(0, BPrint::SIZE_UNLIMITED).unwrap();
-        ffmpeg::libavutil::mem::set_max_alloc(1024);
+        ffmpeg_bindings::libavutil::libavutil::mem::set_max_alloc(1024);
         for n in [2000, 16] {
             fill(&c, &mut r, n);
             assert_eq!(rust_state(r.as_ref()), c.state());
             assert!(r.as_ref().len() >= r.as_ref().size());
         }
-        ffmpeg::libavutil::mem::set_max_alloc(i32::MAX as usize);
+        ffmpeg_bindings::libavutil::libavutil::mem::set_max_alloc(i32::MAX as usize);
         fill(&c, &mut r, 32);
         assert_eq!(rust_state(r.as_ref()), c.state());
         assert!(r.as_ref().is_inline());
@@ -927,13 +927,13 @@ mod owners {
         for ops in cases {
             let c = CBuf::init(0, BPrint::SIZE_UNLIMITED);
             let mut r = BPrint::new(0, BPrint::SIZE_UNLIMITED).unwrap();
-            ffmpeg::libavutil::mem::set_max_alloc(1100);
+            ffmpeg_bindings::libavutil::libavutil::mem::set_max_alloc(1100);
             for &op in ops {
                 let n = c_op(c.buf, op);
                 assert_eq!(rust_op(&mut r.as_mut(), op), n, "{op:?}");
                 assert_eq!(rust_state(r.as_ref()), c.state(), "{op:?}");
             }
-            ffmpeg::libavutil::mem::set_max_alloc(i32::MAX as usize);
+            ffmpeg_bindings::libavutil::libavutil::mem::set_max_alloc(i32::MAX as usize);
         }
     }
 }

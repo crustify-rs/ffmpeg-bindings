@@ -1,9 +1,9 @@
 //! A line read fills a destination borrowed exclusively, so it cannot be a
 //! plane the same call reads.
 
-use ffmpeg::libavutil::imgutils::Planes;
-use ffmpeg::libavutil::pixdesc::read_image_line;
-use ffmpeg::libavutil::pixfmt::PixelFormat;
+use ffmpeg_bindings::libavutil::libavutil::imgutils::Planes;
+use ffmpeg_bindings::libavutil::libavutil::pixdesc::read_image_line;
+use ffmpeg_bindings::libavutil::libavutil::pixfmt::PixelFormat;
 
 fn main() {
     let desc = PixelFormat::GRAY16LE.descriptor().unwrap();

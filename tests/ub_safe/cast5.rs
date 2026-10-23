@@ -1,4 +1,4 @@
-use ffmpeg::libavutil::cast5::{Cast5, InitError};
+use ffmpeg_bindings::libavutil::libavutil::cast5::{Cast5, InitError};
 
 #[test]
 #[cfg_attr(miri, ignore = "calls C")]
@@ -53,7 +53,7 @@ fn allocation_failure_returns_an_error_without_an_owner() {
         assert!(status.success());
         return;
     }
-    ffmpeg::libavutil::mem::set_max_alloc(0);
+    ffmpeg_bindings::libavutil::libavutil::mem::set_max_alloc(0);
     assert!(matches!(
         Cast5::new(&[0; 5]),
         Err(InitError::AllocationFailed)
@@ -63,11 +63,11 @@ fn allocation_failure_returns_an_error_without_an_owner() {
         Cast5::new(&[0; 4]),
         Err(InitError::InvalidKeyLength)
     ));
-    ffmpeg::libavutil::mem::set_max_alloc(i32::MAX as usize);
+    ffmpeg_bindings::libavutil::libavutil::mem::set_max_alloc(i32::MAX as usize);
     drop(Cast5::new(&[0; 16]).unwrap());
 }
 
-use ffmpeg::libavutil::cast5::context_size;
+use ffmpeg_bindings::libavutil::libavutil::cast5::context_size;
 
 #[test]
 #[cfg_attr(miri, ignore = "reads a C global")]
@@ -88,7 +88,7 @@ fn batch10_immutable_size_across_threads() {
     }
 }
 
-use ffmpeg::libavutil::aes::Direction;
+use ffmpeg_bindings::libavutil::libavutil::aes::Direction;
 
 #[test]
 #[cfg_attr(miri, ignore = "calls C")]

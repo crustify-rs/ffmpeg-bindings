@@ -1,5 +1,5 @@
 // Bytes cannot be viewed exclusively while a shared view of them is alive.
-use ffmpeg::libavutil::intreadwrite::{Unaligned16Mut, Unaligned16Ref};
+use ffmpeg_bindings::libavutil::libavutil::intreadwrite::{Unaligned16Mut, Unaligned16Ref};
 
 fn main() {
     let mut bytes = [0u8; 2];

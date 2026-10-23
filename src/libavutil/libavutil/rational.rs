@@ -537,7 +537,7 @@ mod unit_tests {
     use super::*;
     use core::mem::{align_of, offset_of, size_of};
 
-    use crate::libavutil::mem::HeapBox;
+    use crate::libavutil::libavutil::mem::HeapBox;
 
     #[test]
     fn layout_matches_the_c_struct() {

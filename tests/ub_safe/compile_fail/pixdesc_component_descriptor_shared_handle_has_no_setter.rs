@@ -1,5 +1,5 @@
 // A shared handle only reads: the setters are on `ComponentDescriptorMut`.
-use ffmpeg::libavutil::pixdesc::ComponentDescriptor;
+use ffmpeg_bindings::libavutil::libavutil::pixdesc::ComponentDescriptor;
 
 fn main() {
     let d = ComponentDescriptor::new();

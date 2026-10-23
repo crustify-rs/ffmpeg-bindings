@@ -3,7 +3,7 @@
 
 use std::thread;
 
-use ffmpeg::libavutil::time::{now, now_relative, relative_is_monotonic, usleep};
+use ffmpeg_bindings::libavutil::libavutil::time::{now, now_relative, relative_is_monotonic, usleep};
 
 #[test]
 #[cfg_attr(miri, ignore = "calls C")]

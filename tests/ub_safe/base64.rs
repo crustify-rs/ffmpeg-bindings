@@ -1,4 +1,4 @@
-use ffmpeg::libavutil::base64::{decode, encode, validate};
+use ffmpeg_bindings::libavutil::libavutil::base64::{decode, encode, validate};
 
 #[test]
 #[cfg_attr(miri, ignore = "calls C")]

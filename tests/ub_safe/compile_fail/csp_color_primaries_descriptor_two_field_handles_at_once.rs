@@ -1,6 +1,6 @@
 // The white point and primaries handles cannot be held at once: each borrows
 // the parent handle exclusively.
-use ffmpeg::libavutil::csp::ColorPrimariesDescriptor;
+use ffmpeg_bindings::libavutil::libavutil::csp::ColorPrimariesDescriptor;
 
 fn main() {
     let mut d = ColorPrimariesDescriptor::default();

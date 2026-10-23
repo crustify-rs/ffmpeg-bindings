@@ -4,9 +4,9 @@
 
 use std::thread;
 
-use ffmpeg::libavutil::channel_layout::Channel;
-use ffmpeg::libavutil::ffi;
-use ffmpeg::libavutil::mem::{HeapVec, alloc_array, alloc_array_from_fn, alloc_array_zeroed};
+use ffmpeg_bindings::libavutil::libavutil::channel_layout::Channel;
+use ffmpeg_bindings::libavutil::libavutil::ffi;
+use ffmpeg_bindings::libavutil::libavutil::mem::{HeapVec, alloc_array, alloc_array_from_fn, alloc_array_zeroed};
 
 /// Which descriptions C's parser may be given under BSan.
 #[path = "../common/channel_layout.rs"]
@@ -170,9 +170,9 @@ fn channel_arrays_cross_and_are_shared_between_threads() {
 mod matrix_encoding {
     use std::thread;
 
-    use ffmpeg::libavutil::channel_layout::MatrixEncoding;
-    use ffmpeg::libavutil::ffi;
-    use ffmpeg::libavutil::mem::{alloc_array_from_fn, alloc_array_zeroed};
+    use ffmpeg_bindings::libavutil::libavutil::channel_layout::MatrixEncoding;
+    use ffmpeg_bindings::libavutil::libavutil::ffi;
+    use ffmpeg_bindings::libavutil::libavutil::mem::{alloc_array_from_fn, alloc_array_zeroed};
 
     /// Raw values at every edge: each named one, the `NB` sentinel, and the
     /// `unsigned int` limits a C `int` field's negative values map onto.
@@ -241,9 +241,9 @@ mod matrix_encoding {
 mod channel_order {
     use std::thread;
 
-    use ffmpeg::libavutil::channel_layout::ChannelOrder;
-    use ffmpeg::libavutil::ffi;
-    use ffmpeg::libavutil::mem::{HeapVec, alloc_array, alloc_array_from_fn, alloc_array_zeroed};
+    use ffmpeg_bindings::libavutil::libavutil::channel_layout::ChannelOrder;
+    use ffmpeg_bindings::libavutil::libavutil::ffi;
+    use ffmpeg_bindings::libavutil::libavutil::mem::{HeapVec, alloc_array, alloc_array_from_fn, alloc_array_zeroed};
 
     /// Every value C names, the values just past them and the `unsigned`
     /// extremes, which C may store in `AVChannelLayout.order`.
@@ -338,11 +338,11 @@ mod channel_custom {
     use std::ffi::{CStr, CString};
     use std::thread;
 
-    use ffmpeg::libavutil::channel_layout::{
+    use ffmpeg_bindings::libavutil::libavutil::channel_layout::{
         Channel, ChannelCustom, ChannelCustomMut, ChannelCustomRef, ChannelName, NameTooLong,
     };
-    use ffmpeg::libavutil::ffi;
-    use ffmpeg::libavutil::mem::{HeapBox, alloc_cell_array_zeroed};
+    use ffmpeg_bindings::libavutil::libavutil::ffi;
+    use ffmpeg_bindings::libavutil::libavutil::mem::{HeapBox, alloc_cell_array_zeroed};
 
     /// A name of `len` bytes in an exactly sized heap allocation, so a read
     /// past its NUL is an ASan report.
@@ -614,8 +614,8 @@ mod channel_names {
     use std::ffi::CString;
     use std::thread;
 
-    use ffmpeg::libavutil::channel_layout::Channel;
-    use ffmpeg::libavutil::ffi;
+    use ffmpeg_bindings::libavutil::libavutil::channel_layout::Channel;
+    use ffmpeg_bindings::libavutil::libavutil::ffi;
 
     fn ids() -> Vec<Channel> {
         (-4..70)
@@ -718,8 +718,8 @@ mod channel_names {
 mod name_appenders {
     use std::thread;
 
-    use ffmpeg::libavutil::bprint::{BPrint, BPrintMut};
-    use ffmpeg::libavutil::channel_layout::Channel;
+    use ffmpeg_bindings::libavutil::libavutil::bprint::{BPrint, BPrintMut};
+    use ffmpeg_bindings::libavutil::libavutil::channel_layout::Channel;
 
     use super::channel_sample;
 
@@ -797,12 +797,12 @@ mod layout {
     use std::ffi::CString;
     use std::thread;
 
-    use ffmpeg::libavutil::channel_layout::{
+    use ffmpeg_bindings::libavutil::libavutil::channel_layout::{
         Channel, ChannelCustom, ChannelLayout, ChannelLayoutRef, ChannelLayoutVal, ChannelOrder,
         LayoutDetails,
     };
-    use ffmpeg::libavutil::ffi;
-    use ffmpeg::libavutil::mem::{HeapVec, alloc_cell_array_zeroed};
+    use ffmpeg_bindings::libavutil::libavutil::ffi;
+    use ffmpeg_bindings::libavutil::libavutil::mem::{HeapVec, alloc_cell_array_zeroed};
 
     use super::parser_inputs::{CHANNEL_BITS, LAYOUT_MASKS, STANDARD_LAYOUTS, allowed, under_bsan};
 
@@ -1341,7 +1341,7 @@ mod layout {
     /// `ChannelLayoutMut::retype` and its siblings, `ChannelLayoutRef::subset`
     /// and `standard_layouts` (formats wave-3 batch 2).
     mod order_changes {
-        use ffmpeg::libavutil::channel_layout::{Conversion, masks, standard_layouts};
+        use ffmpeg_bindings::libavutil::libavutil::channel_layout::{Conversion, masks, standard_layouts};
 
         use super::*;
 
@@ -1659,7 +1659,7 @@ mod layout {
         use core::ffi::{CStr, c_char};
         use std::ffi::CString;
 
-        use ffmpeg::libavutil::bprint::BPrint;
+        use ffmpeg_bindings::libavutil::libavutil::bprint::BPrint;
 
         use super::order_changes::starts;
         use super::*;

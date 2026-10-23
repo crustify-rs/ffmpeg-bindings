@@ -3,16 +3,16 @@
 //! ([`SideDataArrayMut::add`], [`SideDataMut::set_metadata`]) from specs the
 //! suites also hand to C.
 //!
-//! [`SideDataArrayMut::add`]: ffmpeg::libavutil::frame::SideDataArrayMut::add
-//! [`SideDataMut::set_metadata`]: ffmpeg::libavutil::frame::SideDataMut::set_metadata
+//! [`SideDataArrayMut::add`]: ffmpeg_bindings::libavutil::libavutil::frame::SideDataArrayMut::add
+//! [`SideDataMut::set_metadata`]: ffmpeg_bindings::libavutil::libavutil::frame::SideDataMut::set_metadata
 #![allow(dead_code)]
 
 use core::ffi::CStr;
 
-use ffmpeg::libavutil::buffer::{BufferReference, BufferReferenceBox};
-use ffmpeg::libavutil::dict::Dict;
-use ffmpeg::libavutil::ffi;
-use ffmpeg::libavutil::frame::{SideDataArray, SideDataFlags, SideDataType};
+use ffmpeg_bindings::libavutil::libavutil::buffer::{BufferReference, BufferReferenceBox};
+use ffmpeg_bindings::libavutil::libavutil::dict::Dict;
+use ffmpeg_bindings::libavutil::libavutil::ffi;
+use ffmpeg_bindings::libavutil::libavutil::frame::{SideDataArray, SideDataFlags, SideDataType};
 
 /// One entry to build: its kind, its payload, and its metadata pairs, in
 /// insertion order, keys distinct.

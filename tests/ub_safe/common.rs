@@ -5,7 +5,7 @@
 
 use std::thread;
 
-use ffmpeg::libavutil::common::{
+use ffmpeg_bindings::libavutil::libavutil::common::{
     ceil_log2, clamp_f32, clamp_f64, clamp_i32, clamp_i64, clamp_to_i8, clamp_to_i16, clamp_to_i32,
     clamp_to_signed_pow2, clamp_to_u8, clamp_to_u16, clamp_to_unsigned_pow2, log2, log2_16bit,
     parity, zero_extend,
@@ -108,7 +108,7 @@ fn zero_extend_is_defined_at_every_position() {
 /// arithmetic: every overflow edge, in debug builds where Rust's own
 /// arithmetic overflow would panic, and across threads.
 mod count_and_saturate {
-    use ffmpeg::libavutil::common::{
+    use ffmpeg_bindings::libavutil::libavutil::common::{
         count_ones, count_ones64, saturating_add_doubled32, saturating_add32, saturating_add64,
         saturating_sub_doubled32, saturating_sub32, saturating_sub64,
     };

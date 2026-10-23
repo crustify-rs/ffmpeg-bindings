@@ -6,10 +6,10 @@
 mod cie_xy {
     use std::thread;
 
-    use ffmpeg::libavutil::csp::{CieXy, CieXyMut, CieXyRef, WhitepointCoefficients};
-    use ffmpeg::libavutil::ffi;
-    use ffmpeg::libavutil::mem::{HeapBox, alloc_cell_array_zeroed};
-    use ffmpeg::libavutil::rational::Rational;
+    use ffmpeg_bindings::libavutil::libavutil::csp::{CieXy, CieXyMut, CieXyRef, WhitepointCoefficients};
+    use ffmpeg_bindings::libavutil::libavutil::ffi;
+    use ffmpeg_bindings::libavutil::libavutil::mem::{HeapBox, alloc_cell_array_zeroed};
+    use ffmpeg_bindings::libavutil::libavutil::rational::Rational;
 
     /// Coordinate parts at every edge: unspecified, C's own white point and
     /// primaries, the infinities and the `int` limits.
@@ -278,10 +278,10 @@ mod cie_xy {
 mod luma_coefficients {
     use std::thread;
 
-    use ffmpeg::libavutil::csp::{LumaCoefficients, LumaCoefficientsMut, LumaCoefficientsRef};
-    use ffmpeg::libavutil::ffi;
-    use ffmpeg::libavutil::mem::{HeapBox, alloc_cell_array_zeroed};
-    use ffmpeg::libavutil::rational::Rational;
+    use ffmpeg_bindings::libavutil::libavutil::csp::{LumaCoefficients, LumaCoefficientsMut, LumaCoefficientsRef};
+    use ffmpeg_bindings::libavutil::libavutil::ffi;
+    use ffmpeg_bindings::libavutil::libavutil::mem::{HeapBox, alloc_cell_array_zeroed};
+    use ffmpeg_bindings::libavutil::libavutil::rational::Rational;
 
     /// Coefficient tuples at every edge: all-zero, BT.709's, and the `int`
     /// limits.
@@ -519,12 +519,12 @@ mod luma_coefficients {
 mod primary_coefficients {
     use std::thread;
 
-    use ffmpeg::libavutil::csp::{
+    use ffmpeg_bindings::libavutil::libavutil::csp::{
         CieXy, PrimaryCoefficients, PrimaryCoefficientsMut, PrimaryCoefficientsRef,
     };
-    use ffmpeg::libavutil::ffi;
-    use ffmpeg::libavutil::mem::{HeapBox, alloc_cell_array_zeroed};
-    use ffmpeg::libavutil::rational::Rational;
+    use ffmpeg_bindings::libavutil::libavutil::ffi;
+    use ffmpeg_bindings::libavutil::libavutil::mem::{HeapBox, alloc_cell_array_zeroed};
+    use ffmpeg_bindings::libavutil::libavutil::rational::Rational;
 
     /// Coordinate tuples at every edge: all-zero, BT.709's primaries, and
     /// the `int` limits.
@@ -787,9 +787,9 @@ mod primary_coefficients {
 mod color_transfer {
     use std::thread;
 
-    use ffmpeg::libavutil::csp::{EotfFunction, TrcFunction};
-    use ffmpeg::libavutil::ffi;
-    use ffmpeg::libavutil::pixfmt::ColorTransfer;
+    use ffmpeg_bindings::libavutil::libavutil::csp::{EotfFunction, TrcFunction};
+    use ffmpeg_bindings::libavutil::libavutil::ffi;
+    use ffmpeg_bindings::libavutil::libavutil::pixfmt::ColorTransfer;
 
     fn transfers() -> Vec<ColorTransfer> {
         (0..300)
@@ -904,9 +904,9 @@ mod luma_lookup {
     use std::sync::OnceLock;
     use std::thread;
 
-    use ffmpeg::libavutil::csp::LumaCoefficientsRef;
-    use ffmpeg::libavutil::ffi;
-    use ffmpeg::libavutil::pixfmt::ColorSpace;
+    use ffmpeg_bindings::libavutil::libavutil::csp::LumaCoefficientsRef;
+    use ffmpeg_bindings::libavutil::libavutil::ffi;
+    use ffmpeg_bindings::libavutil::libavutil::pixfmt::ColorSpace;
 
     fn values() -> impl Iterator<Item = u32> {
         (0..ffi::AVColorSpace::AVCOL_SPC_NB.0 + 3).chain([u32::MAX, 1 << 31, (1 << 31) - 1])
@@ -948,13 +948,13 @@ mod luma_lookup {
 mod color_primaries_descriptor {
     use std::thread;
 
-    use ffmpeg::libavutil::csp::{
+    use ffmpeg_bindings::libavutil::libavutil::csp::{
         CieXy, CieXyMut, ColorPrimariesDescriptor, ColorPrimariesDescriptorMut,
         ColorPrimariesDescriptorRef, PrimaryCoefficients, WhitepointCoefficients,
     };
-    use ffmpeg::libavutil::ffi;
-    use ffmpeg::libavutil::mem::{HeapBox, alloc_cell_array_zeroed};
-    use ffmpeg::libavutil::rational::Rational;
+    use ffmpeg_bindings::libavutil::libavutil::ffi;
+    use ffmpeg_bindings::libavutil::libavutil::mem::{HeapBox, alloc_cell_array_zeroed};
+    use ffmpeg_bindings::libavutil::libavutil::rational::Rational;
 
     /// Coordinate tuples at every edge, white point first: all-zero, BT.709,
     /// the `int` limits and a mix of signs and zero denominators.
@@ -1273,14 +1273,14 @@ mod primaries_lookup {
     use std::sync::OnceLock;
     use std::thread;
 
-    use ffmpeg::libavutil::csp::{
+    use ffmpeg_bindings::libavutil::libavutil::csp::{
         CieXy, ColorPrimariesDescriptor, ColorPrimariesDescriptorMut, ColorPrimariesDescriptorRef,
         PrimaryCoefficients,
     };
-    use ffmpeg::libavutil::ffi;
-    use ffmpeg::libavutil::mem::{HeapBox, alloc_cell_array_zeroed};
-    use ffmpeg::libavutil::pixfmt::ColorPrimaries;
-    use ffmpeg::libavutil::rational::Rational;
+    use ffmpeg_bindings::libavutil::libavutil::ffi;
+    use ffmpeg_bindings::libavutil::libavutil::mem::{HeapBox, alloc_cell_array_zeroed};
+    use ffmpeg_bindings::libavutil::libavutil::pixfmt::ColorPrimaries;
+    use ffmpeg_bindings::libavutil::libavutil::rational::Rational;
 
     fn values() -> impl Iterator<Item = u32> {
         let ext = ffi::AVColorPrimaries::AVCOL_PRI_EXT_BASE.0;

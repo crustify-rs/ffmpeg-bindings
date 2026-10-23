@@ -1,5 +1,5 @@
 // An exclusive handle cannot be taken while a shared one lives.
-use ffmpeg::libavutil::intreadwrite::Alias64;
+use ffmpeg_bindings::libavutil::libavutil::intreadwrite::Alias64;
 
 fn main() {
     let mut a = Alias64::default();

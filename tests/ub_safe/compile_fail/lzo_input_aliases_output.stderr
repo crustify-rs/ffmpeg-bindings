@@ -1,8 +1,8 @@
 error[E0502]: cannot borrow `bytes` as mutable because it is also borrowed as immutable
  --> tests/ub_safe/compile_fail/lzo_input_aliases_output.rs
   |
-  |     let _ = ffmpeg::libavutil::lzo::decode(&bytes, &mut bytes);
-  |             ------------------------------ ------  ^^^^^^^^^^ mutable borrow occurs here
-  |             |                              |
-  |             |                              immutable borrow occurs here
+  |     let _ = ffmpeg_bindings::libavutil::libavutil::lzo::decode(&bytes, &mut bytes);
+  |             -------------------------------------------------- ------  ^^^^^^^^^^ mutable borrow occurs here
+  |             |                                                  |
+  |             |                                                  immutable borrow occurs here
   |             immutable borrow later used by call

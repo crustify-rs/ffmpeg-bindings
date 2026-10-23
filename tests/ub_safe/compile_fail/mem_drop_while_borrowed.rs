@@ -1,5 +1,5 @@
 // Dropping a `HeapVec` while a slice of it lives is rejected.
-use ffmpeg::libavutil::mem::HeapVec;
+use ffmpeg_bindings::libavutil::libavutil::mem::HeapVec;
 
 fn main() {
     let a = HeapVec::<u32>::from_slice(&[1, 2, 3]).unwrap();

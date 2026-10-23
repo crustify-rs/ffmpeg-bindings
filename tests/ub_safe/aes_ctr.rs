@@ -1,4 +1,4 @@
-use ffmpeg::libavutil::aes_ctr::{AesCtr, AesCtrRef};
+use ffmpeg_bindings::libavutil::libavutil::aes_ctr::{AesCtr, AesCtrRef};
 
 fn shared_views(view: AesCtrRef<'_>) {
     let _copy = view;
@@ -66,7 +66,7 @@ fn parallel_random_iv_and_seed_access() {
                 let mut owner = AesCtr::new(&[seed; 16]).unwrap();
                 for _ in 0..16 {
                     owner.as_mut().set_random_iv();
-                    let _seed = ffmpeg::libavutil::random_seed::get();
+                    let _seed = ffmpeg_bindings::libavutil::libavutil::random_seed::get();
                     owner.as_mut().crypt_in_place(&mut [0; 17]).unwrap();
                 }
             })

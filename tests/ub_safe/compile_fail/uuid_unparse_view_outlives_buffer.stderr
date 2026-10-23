@@ -3,8 +3,8 @@ error[E0597]: `output` does not live long enough
   |
   |         let mut output = [0; 37];
   |             ---------- binding `output` declared here
-  |         view = ffmpeg::libavutil::uuid::unparse(&[0; 16], &mut output);
-  |                                                           ^^^^^^^^^^^ borrowed value does not live long enough
+  |         view = ffmpeg_bindings::libavutil::libavutil::uuid::unparse(&[0; 16], &mut output);
+  |                                                                               ^^^^^^^^^^^ borrowed value does not live long enough
   |     }
   |     - `output` dropped here while still borrowed
   |     println!("{view:?}");

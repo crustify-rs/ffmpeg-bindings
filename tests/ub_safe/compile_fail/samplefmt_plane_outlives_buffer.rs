@@ -1,6 +1,6 @@
 // A plane's samples are borrowed from the buffer that owns them: they cannot
 // be read after the buffer (and its `av_malloc` block) is dropped.
-use ffmpeg::libavutil::samplefmt::{SampleBuffer, SampleFormat};
+use ffmpeg_bindings::libavutil::libavutil::samplefmt::{SampleBuffer, SampleFormat};
 
 fn main() {
     let plane = {

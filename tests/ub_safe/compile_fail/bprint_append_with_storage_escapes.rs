@@ -1,6 +1,6 @@
 // The storage `append_with` hands out is the buffer's own, which a later
 // append may reallocate: it cannot leave the closure.
-use ffmpeg::libavutil::bprint::BPrint;
+use ffmpeg_bindings::libavutil::libavutil::bprint::BPrint;
 
 fn main() {
     let mut b = BPrint::new(0, BPrint::SIZE_UNLIMITED).unwrap();

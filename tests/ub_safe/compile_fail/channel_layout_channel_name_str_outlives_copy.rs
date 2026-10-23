@@ -1,5 +1,5 @@
 // A name's `CStr` borrows the copy `name()` returned, which must be kept.
-use ffmpeg::libavutil::channel_layout::{Channel, ChannelCustom};
+use ffmpeg_bindings::libavutil::libavutil::channel_layout::{Channel, ChannelCustom};
 
 fn main() {
     let ch = ChannelCustom::new(Channel::FRONT_LEFT);

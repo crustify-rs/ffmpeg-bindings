@@ -1,4 +1,4 @@
-use ffmpeg::libavutil::twofish;
+use ffmpeg_bindings::libavutil::libavutil::twofish;
 
 #[test]
 #[cfg_attr(miri, ignore = "reads a C global")]
@@ -11,8 +11,8 @@ fn batch10_size_is_the_c_global() {
     }
 }
 
-use ffmpeg::libavutil::aes::Direction;
-use ffmpeg::libavutil::twofish::{InitError, InitStatus, Twofish};
+use ffmpeg_bindings::libavutil::libavutil::aes::Direction;
+use ffmpeg_bindings::libavutil::libavutil::twofish::{InitError, InitStatus, Twofish};
 use libavutil_sys as ffi;
 
 /// The safe direction for C's `decrypt` flag.

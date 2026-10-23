@@ -5,9 +5,9 @@
 use std::collections::HashSet;
 use std::thread;
 
-use ffmpeg::libavutil::ffi;
-use ffmpeg::libavutil::mem::{HeapVec, alloc_array, alloc_array_from_fn, alloc_array_zeroed};
-use ffmpeg::libavutil::samplefmt::SampleFormat;
+use ffmpeg_bindings::libavutil::libavutil::ffi;
+use ffmpeg_bindings::libavutil::libavutil::mem::{HeapVec, alloc_array, alloc_array_from_fn, alloc_array_zeroed};
+use ffmpeg_bindings::libavutil::libavutil::samplefmt::SampleFormat;
 
 /// Named constants, `AV_SAMPLE_FMT_NB` and the `int` extremes.
 fn sample() -> Vec<SampleFormat> {
@@ -139,7 +139,7 @@ fn arrays_cross_and_are_shared_between_threads() {
 mod buffers {
     use std::thread;
 
-    use ffmpeg::libavutil::samplefmt::{
+    use ffmpeg_bindings::libavutil::libavutil::samplefmt::{
         SampleBuffer, SampleBufferWithPointers, SampleFormat, SamplesError, SamplesMut, SamplesRef,
         samples_buffer_size,
     };
@@ -299,7 +299,7 @@ mod buffers {
             }
         }
         for raw in [-1, 12, 13, i32::MAX, i32::MIN] {
-            let f = SampleFormat::from_raw(ffmpeg::libavutil::ffi::AVSampleFormat(raw));
+            let f = SampleFormat::from_raw(ffmpeg_bindings::libavutil::libavutil::ffi::AVSampleFormat(raw));
             assert!(SampleBuffer::new(1, 1, f, 1).is_err());
             assert!(SampleBufferWithPointers::new(1, 1, f, 1).is_err());
             assert!(SamplesRef::from_buffer(&[0; 64], 1, 1, f, 1).is_err());
@@ -392,7 +392,7 @@ mod buffers {
             return;
         }
         let n = (i32::MAX - 31) as usize;
-        let enomem = -(ffmpeg::libavutil::ffi::ENOMEM as i32);
+        let enomem = -(ffmpeg_bindings::libavutil::libavutil::ffi::ENOMEM as i32);
         match SampleBufferWithPointers::new(1, n, SampleFormat::U8, 0) {
             Ok(mut b) => {
                 assert_eq!(b.as_ref().plane(0).unwrap().len(), n);
@@ -410,7 +410,7 @@ mod buffers {
     #[cfg_attr(miri, ignore = "calls C")]
     fn is_planar_accepts_every_value() {
         for raw in [i32::MIN, -2, -1, 0, 5, 11, 12, 13, i32::MAX] {
-            let f = SampleFormat::from_raw(ffmpeg::libavutil::ffi::AVSampleFormat(raw));
+            let f = SampleFormat::from_raw(ffmpeg_bindings::libavutil::libavutil::ffi::AVSampleFormat(raw));
             assert_eq!(f.is_planar(), (5..=9).contains(&raw) || raw == 11, "{raw}");
         }
     }
@@ -421,8 +421,8 @@ mod buffers {
 mod sample_format_forms {
     use std::thread;
 
-    use ffmpeg::libavutil::ffi;
-    use ffmpeg::libavutil::samplefmt::SampleFormat;
+    use ffmpeg_bindings::libavutil::libavutil::ffi;
+    use ffmpeg_bindings::libavutil::libavutil::samplefmt::SampleFormat;
 
     fn values() -> Vec<SampleFormat> {
         (-3..16)
@@ -478,8 +478,8 @@ mod sample_format_forms {
 mod lookups {
     use std::thread;
 
-    use ffmpeg::libavutil::ffi;
-    use ffmpeg::libavutil::samplefmt::SampleFormat;
+    use ffmpeg_bindings::libavutil::libavutil::ffi;
+    use ffmpeg_bindings::libavutil::libavutil::samplefmt::SampleFormat;
 
     fn values() -> impl Iterator<Item = SampleFormat> {
         (-3..16)

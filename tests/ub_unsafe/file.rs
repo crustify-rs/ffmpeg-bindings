@@ -7,9 +7,9 @@ use std::ffi::CString;
 use std::path::PathBuf;
 use std::thread;
 
-use ffmpeg::libavutil::file::{FileMap, map};
-use ffmpeg::libavutil::log::{Class, ClassCategory};
-use ffmpeg::libavutil::opt::BareObject;
+use ffmpeg_bindings::libavutil::libavutil::file::{FileMap, map};
+use ffmpeg_bindings::libavutil::libavutil::log::{Class, ClassCategory};
+use ffmpeg_bindings::libavutil::libavutil::opt::BareObject;
 
 /// `AVERROR(EINVAL)` and `AVERROR(ENOENT)`.
 const EINVAL: c_int = -22;

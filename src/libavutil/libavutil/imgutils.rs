@@ -504,8 +504,8 @@ pub struct MaxPixelSteps {
 /// table has none.
 ///
 /// ```
-/// use ffmpeg::libavutil::imgutils::max_pixel_steps;
-/// use ffmpeg::libavutil::pixfmt::PixelFormat;
+/// use ffmpeg_bindings::libavutil::libavutil::imgutils::max_pixel_steps;
+/// use ffmpeg_bindings::libavutil::libavutil::pixfmt::PixelFormat;
 /// let nv12 = max_pixel_steps(PixelFormat::NV12.descriptor().unwrap()).unwrap();
 /// assert_eq!(nv12.steps, [1, 2, 0, 0]);
 /// assert_eq!(nv12.components, [0, 1, 0, 0]);
@@ -544,7 +544,7 @@ pub fn max_pixel_steps(
 /// `AV_LOG_ERROR` in C's `IMGUTILS` class context.
 ///
 /// ```
-/// use ffmpeg::libavutil::{imgutils::check_size_max_pixels, pixfmt::PixelFormat};
+/// use ffmpeg_bindings::libavutil::libavutil::{imgutils::check_size_max_pixels, pixfmt::PixelFormat};
 /// assert_eq!(check_size_max_pixels(1920, 1080, i64::MAX, PixelFormat::YUV420P), Ok(()));
 /// assert!(check_size_max_pixels(1920, 1080, 1 << 20, PixelFormat::YUV420P).is_err());
 /// ```
@@ -626,7 +626,7 @@ pub fn check_sar(width: u32, height: u32, sar: Rational) -> Result<(), i32> {
 /// a plane past 3 (which C would read past its arrays for).
 ///
 /// ```
-/// use ffmpeg::libavutil::{imgutils::linesize, pixfmt::PixelFormat};
+/// use ffmpeg_bindings::libavutil::libavutil::{imgutils::linesize, pixfmt::PixelFormat};
 /// assert_eq!(linesize(PixelFormat::YUV420P, 101, 0), Ok(101));
 /// assert_eq!(linesize(PixelFormat::YUV420P, 101, 1), Ok(51));
 /// assert_eq!(linesize(PixelFormat::RGB24, 101, 1), Ok(0));
@@ -899,7 +899,7 @@ fn c_fill_arrays(
 /// shorter than that size.
 ///
 /// ```
-/// use ffmpeg::libavutil::{imgutils::fill_arrays, pixfmt::PixelFormat};
+/// use ffmpeg_bindings::libavutil::libavutil::{imgutils::fill_arrays, pixfmt::PixelFormat};
 /// let buf = [0u8; 64 * 48 * 3 / 2];
 /// let planes = fill_arrays(&buf, PixelFormat::YUV420P, 64, 48, 1).unwrap();
 /// assert_eq!(planes.linesizes, [64, 32, 32, 0]);
@@ -1040,7 +1040,7 @@ impl Image {
     /// fails.
     ///
     /// ```
-    /// use ffmpeg::libavutil::{imgutils::Image, pixfmt::PixelFormat};
+    /// use ffmpeg_bindings::libavutil::libavutil::{imgutils::Image, pixfmt::PixelFormat};
     /// let mut image = Image::alloc(100, 50, PixelFormat::YUV420P, 32).unwrap();
     /// assert_eq!(image.linesizes(), [128, 64, 64, 0]);
     /// image.planes_mut().data[0].fill(16);
@@ -1564,7 +1564,7 @@ fn fill_args(
 /// rejects, and a plane of `dst` that does not hold its rows.
 ///
 /// ```
-/// use ffmpeg::libavutil::{imgutils::{fill_color, Image}, pixfmt::PixelFormat};
+/// use ffmpeg_bindings::libavutil::libavutil::{imgutils::{fill_color, Image}, pixfmt::PixelFormat};
 /// let mut image = Image::alloc(4, 2, PixelFormat::RGB24, 1).unwrap();
 /// fill_color(&mut image.planes_mut(), PixelFormat::RGB24, [1, 2, 3, 0], 4, 2).unwrap();
 /// assert_eq!(&image.planes().data[0][..6], &[1, 2, 3, 1, 2, 3]);

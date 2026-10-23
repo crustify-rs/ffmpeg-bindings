@@ -13,8 +13,8 @@ use core::sync::atomic::{AtomicUsize, Ordering};
 use std::sync::{Arc, Barrier, Mutex};
 use std::thread;
 
-use ffmpeg::libavutil::buffer::{BufferPool, BufferPoolBox, BufferReference, UninitBuffer};
-use ffmpeg::libavutil::ffi;
+use ffmpeg_bindings::libavutil::libavutil::buffer::{BufferPool, BufferPoolBox, BufferReference, UninitBuffer};
+use ffmpeg_bindings::libavutil::libavutil::ffi;
 
 /// Counts the drops of the allocator state it is moved into.
 struct DropCount(Arc<AtomicUsize>);
@@ -421,8 +421,8 @@ mod uninit_assume_init {
     use core::ptr;
     use std::thread;
 
-    use ffmpeg::libavutil::buffer::{BufferReference, UninitBuffer};
-    use ffmpeg::libavutil::mem::HeapVec;
+    use ffmpeg_bindings::libavutil::libavutil::buffer::{BufferReference, UninitBuffer};
+    use ffmpeg_bindings::libavutil::libavutil::mem::HeapVec;
 
     const SIZES: [usize; 5] = [0, 1, 15, 4096, 1 << 16];
 

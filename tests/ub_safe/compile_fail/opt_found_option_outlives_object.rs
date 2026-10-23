@@ -1,7 +1,7 @@
 //! An option found through an object's handle borrows the object's class
 //! for the object's borrow, and cannot outlive the object.
-use ffmpeg::libavutil::log::{Class, ClassCategory};
-use ffmpeg::libavutil::opt::{BareObject, SearchFlags};
+use ffmpeg_bindings::libavutil::libavutil::log::{Class, ClassCategory};
+use ffmpeg_bindings::libavutil::libavutil::opt::{BareObject, SearchFlags};
 
 fn main() {
     let found = {

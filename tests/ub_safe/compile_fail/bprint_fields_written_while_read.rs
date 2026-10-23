@@ -1,6 +1,6 @@
 // A value cannot be written through an exclusive handle while a shared handle
 // to it is still used.
-use ffmpeg::libavutil::bprint::BPrintFields;
+use ffmpeg_bindings::libavutil::libavutil::bprint::BPrintFields;
 
 fn main() {
     let mut f = BPrintFields::new();

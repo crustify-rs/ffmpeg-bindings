@@ -1,8 +1,8 @@
 // The layouts an array edit copies are borrowed: a layout cannot drop
 // while a handle to it is listed among the values.
-use ffmpeg::libavutil::channel_layout::ChannelLayout;
-use ffmpeg::libavutil::log::{Class, ClassCategory};
-use ffmpeg::libavutil::opt::{BareObject, SearchFlags};
+use ffmpeg_bindings::libavutil::libavutil::channel_layout::ChannelLayout;
+use ffmpeg_bindings::libavutil::libavutil::log::{Class, ClassCategory};
+use ffmpeg_bindings::libavutil::libavutil::opt::{BareObject, SearchFlags};
 
 static CLASS: Class = Class::new(c"c", ClassCategory::NA);
 

@@ -1,6 +1,6 @@
 // Storing an unchecked plane pointer asserts the memory outlives the frame's
 // use of it, so it needs `unsafe`.
-use ffmpeg::libavutil::frame::Frame;
+use ffmpeg_bindings::libavutil::libavutil::frame::Frame;
 
 fn main() {
     let mut frame = Frame::new().unwrap();

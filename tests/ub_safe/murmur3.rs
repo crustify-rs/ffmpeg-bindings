@@ -1,5 +1,5 @@
 //! Public safe context lifecycle, input lifetimes, and exclusive reborrows.
-use ffmpeg::libavutil::murmur3::{Murmur3, Murmur3Box, Murmur3Mut, Murmur3Ref};
+use ffmpeg_bindings::libavutil::libavutil::murmur3::{Murmur3, Murmur3Box, Murmur3Mut, Murmur3Ref};
 
 #[test]
 #[cfg_attr(miri, ignore = "calls C")]

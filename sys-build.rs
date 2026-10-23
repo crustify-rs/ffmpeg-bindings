@@ -14,9 +14,9 @@ use std::env;
 use std::path::{Path, PathBuf};
 
 fn repo_root() -> PathBuf {
-    // crustify/rust/<crate>/ -> repo root
+    // <crate>/ -> repo root
     let manifest = PathBuf::from(env::var("CARGO_MANIFEST_DIR").unwrap());
-    manifest.ancestors().nth(3).unwrap().to_path_buf()
+    manifest.ancestors().nth(1).unwrap().to_path_buf()
 }
 
 fn build_dir(root: &Path) -> PathBuf {
@@ -75,7 +75,7 @@ pub fn build(lib: &str, deps: &[&str]) {
         build.display()
     );
 
-    let includes = [root.clone(), build.clone(), manifest.clone()];
+    let includes = [root.join("c"), build.clone(), manifest.clone()];
     let mut b = bindgen::Builder::default()
         .header(manifest.join("wrapper.h").to_str().unwrap())
         .clang_args(includes.iter().map(|i| format!("-I{}", i.display())))

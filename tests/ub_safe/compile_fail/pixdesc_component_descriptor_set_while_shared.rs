@@ -1,5 +1,5 @@
 // The exclusive handle cannot write while a shared reborrow of it lives.
-use ffmpeg::libavutil::pixdesc::ComponentDescriptor;
+use ffmpeg_bindings::libavutil::libavutil::pixdesc::ComponentDescriptor;
 
 fn main() {
     let mut d = ComponentDescriptor::new();

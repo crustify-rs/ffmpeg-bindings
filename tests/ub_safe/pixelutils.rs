@@ -5,7 +5,7 @@
 
 use std::thread;
 
-use ffmpeg::libavutil::pixelutils::{SadAlignment, SadError, SadFn};
+use ffmpeg_bindings::libavutil::libavutil::pixelutils::{SadAlignment, SadError, SadFn};
 
 const ALIGNMENTS: [SadAlignment; 3] = [
     SadAlignment::Unaligned,

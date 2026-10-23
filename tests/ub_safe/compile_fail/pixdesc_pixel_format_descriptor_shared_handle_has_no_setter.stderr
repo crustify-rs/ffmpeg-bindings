@@ -5,7 +5,7 @@ error[E0599]: no method named `set_component_count` found for struct `PixelForma
   |                ^^^^^^^^^^^^^^^^^^^
   |
 help: there is a method `component_count` with a similar name, but with different arguments
- --> libavutil/pixdesc.rs
+ --> src/libavutil/libavutil/pixdesc.rs
   |
   |     pub fn component_count(&self) -> u8 {
   |     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^

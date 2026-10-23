@@ -52,7 +52,7 @@ unsafe impl CAlloc<AesCtr> for AesCtrFree {
 ///
 /// An exclusive handle cannot outlive its owner:
 /// ```compile_fail,E0505
-/// use ffmpeg::libavutil::aes_ctr::AesCtr;
+/// use ffmpeg_bindings::libavutil::libavutil::aes_ctr::AesCtr;
 /// let mut ctr = AesCtr::new(&[0; 16]).unwrap();
 /// let mut handle = ctr.as_mut();
 /// drop(ctr);
@@ -60,7 +60,7 @@ unsafe impl CAlloc<AesCtr> for AesCtrFree {
 /// ```
 /// Reborrows cannot alias a mutation:
 /// ```compile_fail,E0499
-/// use ffmpeg::libavutil::aes_ctr::AesCtr;
+/// use ffmpeg_bindings::libavutil::libavutil::aes_ctr::AesCtr;
 /// let mut ctr = AesCtr::new(&[0; 16]).unwrap();
 /// let mut first = ctr.as_mut();
 /// let mut second = ctr.as_mut();

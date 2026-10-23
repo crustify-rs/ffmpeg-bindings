@@ -4,7 +4,7 @@
 use std::sync::Barrier;
 use std::thread;
 
-use ffmpeg::libavutil::buffer::{BufferPool, BufferPoolBox, BufferPoolRef};
+use ffmpeg_bindings::libavutil::libavutil::buffer::{BufferPool, BufferPoolBox, BufferPoolRef};
 
 /// Sizes from empty to the largest `size_t`: C allocates no buffer until one
 /// is requested, so each builds a pool.
@@ -117,8 +117,8 @@ mod default_release {
     use std::mem::MaybeUninit;
     use std::thread;
 
-    use ffmpeg::libavutil::buffer::default_free;
-    use ffmpeg::libavutil::mem::{HeapVec, alloc_array, alloc_array_zeroed};
+    use ffmpeg_bindings::libavutil::libavutil::buffer::default_free;
+    use ffmpeg_bindings::libavutil::libavutil::mem::{HeapVec, alloc_array, alloc_array_zeroed};
 
     #[test]
     #[cfg_attr(miri, ignore = "calls C")]
@@ -160,10 +160,10 @@ mod reference {
     use std::sync::{Arc, Barrier};
     use std::thread;
 
-    use ffmpeg::libavutil::buffer::{
+    use ffmpeg_bindings::libavutil::libavutil::buffer::{
         BufferReference, BufferReferenceBox, BufferReferenceRef, UninitBuffer,
     };
-    use ffmpeg::libavutil::mem::HeapVec;
+    use ffmpeg_bindings::libavutil::libavutil::mem::HeapVec;
 
     const SIZES: [usize; 6] = [0, 1, 7, 64, 4097, 1 << 16];
 
@@ -577,7 +577,7 @@ mod mutation {
     use std::sync::{Arc, Barrier};
     use std::thread;
 
-    use ffmpeg::libavutil::buffer::{self, BufferPool, BufferReference, BufferReferenceBox};
+    use ffmpeg_bindings::libavutil::libavutil::buffer::{self, BufferPool, BufferReference, BufferReferenceBox};
 
     use super::reference::{every_constructor, pattern};
 
@@ -1003,7 +1003,7 @@ mod uninit_owner {
     use std::sync::atomic::{AtomicUsize, Ordering};
     use std::thread;
 
-    use ffmpeg::libavutil::buffer::{BufferReference, UninitBuffer};
+    use ffmpeg_bindings::libavutil::libavutil::buffer::{BufferReference, UninitBuffer};
 
     use super::reference::pattern;
 

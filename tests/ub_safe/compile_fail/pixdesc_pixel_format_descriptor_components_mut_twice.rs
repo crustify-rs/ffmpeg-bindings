@@ -1,5 +1,5 @@
 // Two exclusive component runs cannot be taken from one handle at once.
-use ffmpeg::libavutil::pixdesc::PixelFormatDescriptor;
+use ffmpeg_bindings::libavutil::libavutil::pixdesc::PixelFormatDescriptor;
 
 fn main() {
     let mut d = PixelFormatDescriptor::new();

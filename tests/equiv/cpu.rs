@@ -5,10 +5,10 @@
 use core::ffi::c_int;
 use std::process::Command;
 
-use ffmpeg::libavutil::cpu::{
+use ffmpeg_bindings::libavutil::libavutil::cpu::{
     cpu_count, cpu_flags, cpu_max_align, force_cpu_count, force_cpu_flags,
 };
-use ffmpeg::libavutil::ffi;
+use ffmpeg_bindings::libavutil::libavutil::ffi;
 
 /// Set in the child process an isolated test re-runs itself in.
 const ISOLATED: &str = "CRUSTIFY_EQUIV_ISOLATED";
@@ -180,8 +180,8 @@ fn mmx_is_implied_alike() {
 mod parse_caps {
     use core::ffi::CStr;
 
-    use ffmpeg::libavutil::cpu::parse_cpu_caps;
-    use ffmpeg::libavutil::ffi;
+    use ffmpeg_bindings::libavutil::libavutil::cpu::parse_cpu_caps;
+    use ffmpeg_bindings::libavutil::libavutil::ffi;
 
     /// `av_parse_cpu_caps` in C, on its own flag word.
     fn c_parse(flags: &mut u32, s: &CStr) -> Result<(), i32> {

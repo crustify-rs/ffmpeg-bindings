@@ -3,13 +3,13 @@
 //! contract: the string stays valid and unwritten until no copy of the value
 //! can return it.
 //!
-//! [`BPrintFieldsMut::set_str_borrowed`]: ffmpeg::libavutil::bprint::BPrintFieldsMut::set_str_borrowed
+//! [`BPrintFieldsMut::set_str_borrowed`]: ffmpeg_bindings::libavutil::libavutil::bprint::BPrintFieldsMut::set_str_borrowed
 
 use core::ffi::CStr;
 use std::ffi::CString;
 use std::thread;
 
-use ffmpeg::libavutil::bprint::{BPrintFields, BPrintFieldsMut};
+use ffmpeg_bindings::libavutil::libavutil::bprint::{BPrintFields, BPrintFieldsMut};
 
 /// Stores `s`, within the contract: per each caller, `s` outlives every read
 /// of it through the value and its copies.

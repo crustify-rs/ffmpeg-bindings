@@ -1,6 +1,6 @@
 // A handle cannot outlive the `av_malloc` block its `HeapBox` frees.
-use ffmpeg::libavutil::mem::HeapBox;
-use ffmpeg::libavutil::rational::Rational;
+use ffmpeg_bindings::libavutil::libavutil::mem::HeapBox;
+use ffmpeg_bindings::libavutil::libavutil::rational::Rational;
 
 fn main() {
     let boxed = HeapBox::<Rational>::new_zeroed().unwrap();

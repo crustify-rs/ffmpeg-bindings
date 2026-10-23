@@ -128,7 +128,7 @@ unsafe impl CAlloc<Aes> for AesFree {
 ///
 /// Handles cannot outlive the owner:
 /// ```compile_fail,E0505
-/// use ffmpeg::libavutil::aes::{Aes, AesRef, Direction};
+/// use ffmpeg_bindings::libavutil::libavutil::aes::{Aes, AesRef, Direction};
 /// fn inspect(_: AesRef<'_>) {}
 /// let aes = Aes::new(&[0; 16], Direction::Encrypt).unwrap();
 /// let view = aes.as_ref();
@@ -137,7 +137,7 @@ unsafe impl CAlloc<Aes> for AesFree {
 /// ```
 /// A shared reborrow excludes reinitialization:
 /// ```compile_fail,E0502
-/// use ffmpeg::libavutil::aes::{Aes, AesRef, Direction};
+/// use ffmpeg_bindings::libavutil::libavutil::aes::{Aes, AesRef, Direction};
 /// fn inspect(_: AesRef<'_>) {}
 /// let mut aes = Aes::new(&[0; 16], Direction::Encrypt).unwrap();
 /// let mut handle = aes.as_mut();
@@ -218,14 +218,14 @@ impl AesMut<'_> {
     ///
     /// Use the in-place variant rather than aliasing two buffer arguments:
     /// ```compile_fail,E0502
-    /// use ffmpeg::libavutil::aes::{Aes, Direction};
+    /// use ffmpeg_bindings::libavutil::libavutil::aes::{Aes, Direction};
     /// let mut aes = Aes::new(&[0; 16], Direction::Encrypt).unwrap();
     /// let mut data = [0; 16];
     /// aes.as_mut().crypt(&mut data, &data, None).unwrap();
     /// ```
     /// A CBC IV cannot alias the output:
     /// ```compile_fail,E0499
-    /// use ffmpeg::libavutil::aes::{Aes, Direction};
+    /// use ffmpeg_bindings::libavutil::libavutil::aes::{Aes, Direction};
     /// let mut aes = Aes::new(&[0; 16], Direction::Encrypt).unwrap();
     /// let mut data = [0; 16];
     /// aes.as_mut().crypt(&mut data, &[0; 16], Some(&mut data)).unwrap();

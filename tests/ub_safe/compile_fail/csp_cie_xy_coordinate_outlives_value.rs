@@ -1,6 +1,6 @@
 // A coordinate handle keeps the struct handle's lifetime: it cannot outlive
 // the inline value either.
-use ffmpeg::libavutil::csp::CieXy;
+use ffmpeg_bindings::libavutil::libavutil::csp::CieXy;
 
 fn main() {
     let x = {

@@ -1,6 +1,6 @@
 // Two exclusive range handles of one list cannot coexist, even for two
 // different ranges.
-use ffmpeg::libavutil::opt::OptionRangesBox;
+use ffmpeg_bindings::libavutil::libavutil::opt::OptionRangesBox;
 
 fn both(b: &mut OptionRangesBox) {
     let mut m = b.as_mut();

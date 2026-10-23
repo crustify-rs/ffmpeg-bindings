@@ -1,5 +1,5 @@
 // The exclusive handle cannot write while a shared reborrow of it lives.
-use ffmpeg::libavutil::rational::Rational;
+use ffmpeg_bindings::libavutil::libavutil::rational::Rational;
 
 fn main() {
     let mut q = Rational::new(1, 2);

@@ -9,9 +9,9 @@ mod color_space_and_transfer {
     use core::ffi::{CStr, c_int, c_uint, c_void};
     use core::mem::size_of;
 
-    use ffmpeg::libavutil::ffi;
-    use ffmpeg::libavutil::mem::{HeapVec, alloc_array_zeroed};
-    use ffmpeg::libavutil::pixfmt::{ColorSpace, ColorTransfer};
+    use ffmpeg_bindings::libavutil::libavutil::ffi;
+    use ffmpeg_bindings::libavutil::libavutil::mem::{HeapVec, alloc_array_zeroed};
+    use ffmpeg_bindings::libavutil::libavutil::pixfmt::{ColorSpace, ColorTransfer};
 
     type Spc = ffi::AVColorSpace;
     type Trc = ffi::AVColorTransferCharacteristic;
@@ -453,9 +453,9 @@ mod alpha_mode {
     use core::ffi::{CStr, c_uint, c_void};
     use core::mem::size_of;
 
-    use ffmpeg::libavutil::ffi;
-    use ffmpeg::libavutil::mem::{HeapVec, alloc_array_zeroed};
-    use ffmpeg::libavutil::pixfmt::AlphaMode;
+    use ffmpeg_bindings::libavutil::libavutil::ffi;
+    use ffmpeg_bindings::libavutil::libavutil::mem::{HeapVec, alloc_array_zeroed};
+    use ffmpeg_bindings::libavutil::libavutil::pixfmt::AlphaMode;
 
     /// Every named alpha mode beside its C enumerator and C name.
     const ALPHA_MODE_NAMED: [(AlphaMode, ffi::AVAlphaMode, &CStr); 3] = [
@@ -643,9 +643,9 @@ mod pixel_format {
     use core::mem::size_of;
     use core::ptr;
 
-    use ffmpeg::libavutil::ffi;
-    use ffmpeg::libavutil::mem::{HeapVec, alloc_array_zeroed};
-    use ffmpeg::libavutil::pixfmt::PixelFormat;
+    use ffmpeg_bindings::libavutil::libavutil::ffi;
+    use ffmpeg_bindings::libavutil::libavutil::mem::{HeapVec, alloc_array_zeroed};
+    use ffmpeg_bindings::libavutil::libavutil::pixfmt::PixelFormat;
 
     /// The constant's name for every C alias spelled `AV_PIX_FMT_NE(be, le)`.
     const NATIVE_ENDIAN: [(&str, PixelFormat); 104] = [
@@ -1041,9 +1041,9 @@ mod color_primaries_and_range {
     use core::mem::size_of;
     use core::ptr::{addr_of, addr_of_mut};
 
-    use ffmpeg::libavutil::ffi;
-    use ffmpeg::libavutil::mem::{HeapVec, alloc_array_zeroed};
-    use ffmpeg::libavutil::pixfmt::{ColorPrimaries, ColorRange};
+    use ffmpeg_bindings::libavutil::libavutil::ffi;
+    use ffmpeg_bindings::libavutil::libavutil::mem::{HeapVec, alloc_array_zeroed};
+    use ffmpeg_bindings::libavutil::libavutil::pixfmt::{ColorPrimaries, ColorRange};
 
     /// Every primaries constant, aliases included, beside its C enumerator and
     /// the name `av_color_primaries_name` gives it.
@@ -1562,9 +1562,9 @@ mod chroma_location {
     use core::ffi::{CStr, c_uint, c_void};
     use core::mem::size_of;
 
-    use ffmpeg::libavutil::ffi;
-    use ffmpeg::libavutil::mem::{HeapVec, alloc_array_zeroed};
-    use ffmpeg::libavutil::pixfmt::ChromaLocation;
+    use ffmpeg_bindings::libavutil::libavutil::ffi;
+    use ffmpeg_bindings::libavutil::libavutil::mem::{HeapVec, alloc_array_zeroed};
+    use ffmpeg_bindings::libavutil::libavutil::pixfmt::ChromaLocation;
 
     /// Every named constant beside its C enumerator and C name.
     const NAMED: [(ChromaLocation, ffi::AVChromaLocation, &str); 7] = [
@@ -1790,8 +1790,8 @@ mod chroma_location {
 mod frame_defaults {
     use core::ptr::addr_of;
 
-    use ffmpeg::libavutil::ffi;
-    use ffmpeg::libavutil::pixfmt::{
+    use ffmpeg_bindings::libavutil::libavutil::ffi;
+    use ffmpeg_bindings::libavutil::libavutil::pixfmt::{
         AlphaMode, ChromaLocation, ColorPrimaries, ColorRange, ColorSpace, ColorTransfer,
         PixelFormat,
     };

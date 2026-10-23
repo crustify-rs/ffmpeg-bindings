@@ -4,8 +4,8 @@
 use core::ffi::{CStr, c_char};
 use std::ffi::CString;
 
-use ffmpeg::libavutil::eval::parse_number;
-use ffmpeg::libavutil::ffi;
+use ffmpeg_bindings::libavutil::libavutil::eval::parse_number;
+use ffmpeg_bindings::libavutil::libavutil::ffi;
 
 /// `av_strtod` in C: the value and the number of bytes it consumed.
 fn c_strtod(s: &CStr) -> (f64, usize) {
@@ -185,8 +185,8 @@ mod expr {
     use core::ptr;
     use std::ffi::CString;
 
-    use ffmpeg::libavutil::eval::{BinaryFn, Expr, UnaryFn};
-    use ffmpeg::libavutil::ffi;
+    use ffmpeg_bindings::libavutil::libavutil::eval::{BinaryFn, Expr, UnaryFn};
+    use ffmpeg_bindings::libavutil::libavutil::ffi;
 
     /// `AVERROR(EINVAL)`.
     const EINVAL: c_int = -22;
@@ -699,7 +699,7 @@ mod expr {
         // Limits below every allocation, between them, and above them: the
         // whitespace-free copy of the text, the nodes, the root's registers.
         for limit in [0, 1, 8, 16, 32, 64, 80, 128, 160, 181, 182, 256, 1024, 4096] {
-            ffmpeg::libavutil::mem::set_max_alloc(limit);
+            ffmpeg_bindings::libavutil::libavutil::mem::set_max_alloc(limit);
             for s in [c"1", c"X*f(Y)", c"st(0, 1); random(0)", long.as_c_str()] {
                 let c = c_parse(s, &CONSTS, &UNARY, &BINARY, QUIET).map(drop);
                 let r = Expr::parse(s, &CONSTS, &UNARY, &BINARY, QUIET).map(drop);
@@ -707,7 +707,7 @@ mod expr {
                 outcomes.push(r);
             }
         }
-        ffmpeg::libavutil::mem::set_max_alloc(c_int::MAX as usize);
+        ffmpeg_bindings::libavutil::libavutil::mem::set_max_alloc(c_int::MAX as usize);
         let enomem = -(ffi::ENOMEM as c_int);
         assert!(outcomes.contains(&Err(enomem)) && outcomes.contains(&Ok(())));
     }
@@ -719,7 +719,7 @@ mod expr {
     /// carry from one evaluation to the next on both sides.
     mod expression {
         use super::*;
-        use ffmpeg::libavutil::eval::{Arity, Expression};
+        use ffmpeg_bindings::libavutil::libavutil::eval::{Arity, Expression};
 
         /// One evaluation of each side, with no opaque pointer or with
         /// `token`'s address on both; the value bits and the user calls.
@@ -904,8 +904,8 @@ mod expressions {
     use core::ptr;
     use std::ffi::CString;
 
-    use ffmpeg::libavutil::eval::{Func1, Func2, parse_and_eval};
-    use ffmpeg::libavutil::ffi;
+    use ffmpeg_bindings::libavutil::libavutil::eval::{Func1, Func2, parse_and_eval};
+    use ffmpeg_bindings::libavutil::libavutil::ffi;
 
     unsafe extern "C" fn c_square(_: *mut c_void, x: f64) -> f64 {
         x * x
@@ -1070,10 +1070,10 @@ mod parse_with_context {
     use core::ffi::{CStr, c_int, c_void};
     use core::ptr;
 
-    use ffmpeg::libavutil::eval::Expr;
-    use ffmpeg::libavutil::ffi;
-    use ffmpeg::libavutil::log::{self, Callback, Record};
-    use ffmpeg::libavutil::opt::ObjectRef;
+    use ffmpeg_bindings::libavutil::libavutil::eval::Expr;
+    use ffmpeg_bindings::libavutil::libavutil::ffi;
+    use ffmpeg_bindings::libavutil::libavutil::log::{self, Callback, Record};
+    use ffmpeg_bindings::libavutil::libavutil::opt::ObjectRef;
 
     use crate::log::LogState;
 

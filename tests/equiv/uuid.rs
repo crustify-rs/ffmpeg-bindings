@@ -1,4 +1,4 @@
-use ffmpeg::libavutil::{ffi, uuid};
+use ffmpeg_bindings::libavutil::libavutil::{ffi, uuid};
 
 #[test]
 #[cfg_attr(miri, ignore = "calls C")]

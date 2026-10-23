@@ -6,7 +6,7 @@ error[E0423]: cannot initialize a tuple struct which contains private fields
   |
   = note: a struct named `Rounding` exists in another namespace
 note: constructor is not visible here due to private fields
- --> libavutil/mathematics.rs
+ --> src/libavutil/libavutil/mathematics.rs
   |
   | pub struct Rounding(ffi::AVRounding);
   |                     ^^^^^^^^^^^^^^^ private field

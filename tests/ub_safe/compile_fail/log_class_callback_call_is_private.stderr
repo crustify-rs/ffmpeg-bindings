@@ -4,7 +4,7 @@ error[E0624]: method `call` is private
   |         let _ = unsafe { f.call(core::ptr::null_mut()) };
   |                            ^^^^ private method
   |
- ::: libavutil/log.rs
+ ::: src/libavutil/libavutil/log.rs
   |
   |     pub(crate) unsafe fn call<'o>(self, obj: *mut c_void) -> Option<&'o CStr> {
   |     ------------------------------------------------------------------------- private method defined here

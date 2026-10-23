@@ -42,7 +42,7 @@
 //! [`Alias32Mut::from_bytes`]), which is `None` at a misaligned address.
 //!
 //! ```
-//! use ffmpeg::libavutil::intreadwrite::{Unaligned32Mut, Unaligned32Ref};
+//! use ffmpeg_bindings::libavutil::libavutil::intreadwrite::{Unaligned32Mut, Unaligned32Ref};
 //!
 //! let mut buf = [0u8; 7];
 //! let at = buf[3..].first_chunk_mut::<4>().unwrap(); // misaligned for `u32`
@@ -167,7 +167,7 @@ impl<'a> Unaligned16Ref<'a> {
     /// or more bytes does not compile:
     ///
     /// ```compile_fail,E0308
-    /// use ffmpeg::libavutil::intreadwrite::Unaligned16Ref;
+    /// use ffmpeg_bindings::libavutil::libavutil::intreadwrite::Unaligned16Ref;
     /// let _ = Unaligned16Ref::from_bytes(&[0u8; 4]);
     /// ```
     #[inline]
@@ -292,7 +292,7 @@ impl<'a> Unaligned32Mut<'a> {
     /// a view over fewer bytes does not compile:
     ///
     /// ```compile_fail,E0308
-    /// use ffmpeg::libavutil::intreadwrite::Unaligned32Mut;
+    /// use ffmpeg_bindings::libavutil::libavutil::intreadwrite::Unaligned32Mut;
     /// let mut b = [0u8; 2];
     /// Unaligned32Mut::from_bytes(&mut b).set_value(1);
     /// ```
@@ -368,7 +368,7 @@ impl<'a> Unaligned64Ref<'a> {
     /// `<&[u8; 8]>::try_from(&buf[i..i + 8])`; fewer do not make a view:
     ///
     /// ```compile_fail,E0308
-    /// use ffmpeg::libavutil::intreadwrite::Unaligned64Ref;
+    /// use ffmpeg_bindings::libavutil::libavutil::intreadwrite::Unaligned64Ref;
     /// let _ = Unaligned64Ref::from_bytes(&[0u8; 4]);
     /// ```
     #[inline]
@@ -391,7 +391,7 @@ impl Unaligned64Ref<'_> {
     /// shared handle has no setter:
     ///
     /// ```compile_fail,E0599
-    /// use ffmpeg::libavutil::intreadwrite::Unaligned64Ref;
+    /// use ffmpeg_bindings::libavutil::libavutil::intreadwrite::Unaligned64Ref;
     /// Unaligned64Ref::from_bytes(&[0; 8]).set_value(1);
     /// ```
     #[inline]

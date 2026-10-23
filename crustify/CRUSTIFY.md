@@ -7,14 +7,14 @@ for campaign decisions that remain unresolved.
 ## Campaign
 
 1. **Which repository and revision should this campaign use?** (`id: source`)
-   - Answer: ffmpeg's existing checkout mounted at `/target`, at its current checked-out
-     revision
+   - Answer: `https://github.com/FFmpeg/FFmpeg`, `1019f8f036`: the `c/` submodule. The
+     revision the campaign has used from the start, first as the checkout at `/target`
 
 2. **Should this campaign port the C implementation to Rust, or create safe
    Rust wrappers?** (`id: campaign`)
    - Answer: `wrap`
 
-3. **What should this campaign target: a named subset of subsystems, or a named
+3. **What should this campaign target: a named subset of modules, or a named
    subset of functions and types, or the whole target repo? You can define them
    now or we can brainstorm them during the live session. You can also let the
    orchestrator decide.** (`id: scope`)
@@ -90,7 +90,7 @@ Answer these approval-gate questions only if question 6 is answered `no`.
 14. **Should I wait for your approval before starting the translation phase?**
     (`id: gates.translation`)
     - Answer: `yes`
-15. **Should I wait for your approval between subsystems?** (`id: gates.subsystem`)
+15. **Should I wait for your approval between modules?** (`id: gates.module`)
     - Answer: `no`
 16. **Should I wait for your approval before starting review passes?** (`id: gates.review`)
     - Answer: `no`

@@ -21,7 +21,7 @@ define_ctype!(
     ///
     /// A shared handle cannot outlive its owner:
     /// ```compile_fail
-    /// use ffmpeg::libavutil::cast5::Cast5;
+    /// use ffmpeg_bindings::libavutil::libavutil::cast5::Cast5;
     /// let handle = {
     ///     let owner = Cast5::new(&[0; 5]).unwrap();
     ///     owner.as_ref()
@@ -30,7 +30,7 @@ define_ctype!(
     /// ```
     /// Nor can an exclusive reborrow overlap a shared one:
     /// ```compile_fail
-    /// use ffmpeg::libavutil::cast5::Cast5;
+    /// use ffmpeg_bindings::libavutil::libavutil::cast5::Cast5;
     /// let mut owner = Cast5::new(&[0; 5]).unwrap();
     /// let mut exclusive = owner.as_mut();
     /// let shared = exclusive.as_ref();
@@ -39,7 +39,7 @@ define_ctype!(
     /// ```
     /// And an owner cannot be dropped before its mutable handle:
     /// ```compile_fail
-    /// use ffmpeg::libavutil::cast5::Cast5;
+    /// use ffmpeg_bindings::libavutil::libavutil::cast5::Cast5;
     /// let mut owner = Cast5::new(&[0; 5]).unwrap();
     /// let mut handle = owner.as_mut();
     /// drop(owner);
