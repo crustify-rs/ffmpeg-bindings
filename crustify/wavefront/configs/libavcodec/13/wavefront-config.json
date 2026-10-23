@@ -7,5 +7,17 @@
   ],
   "api_headers": [
     "libavcodec/bsf.h"
-  ]
+  ],
+  "out_of_scope": {
+    "items": [
+      {
+        "name": "AVBitStreamFilterContext",
+        "defined_in": "libavcodec/bsf.h"
+      },
+      {
+        "name": "AVBitStreamFilterGraph",
+        "defined_in": "libavcodec/bsf.h"
+      }
+    ]
+  }
 }

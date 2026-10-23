@@ -12,6 +12,30 @@
   "out_of_scope": {
     "items": [
       {
+        "name": "AVFilterChain",
+        "defined_in": "libavfilter/avfilter.h"
+      },
+      {
+        "name": "AVFilterGraph",
+        "defined_in": "libavfilter/avfilter.h"
+      },
+      {
+        "name": "AVFilterGraphSegment",
+        "defined_in": "libavfilter/avfilter.h"
+      },
+      {
+        "name": "AVFilterInOut",
+        "defined_in": "libavfilter/avfilter.h"
+      },
+      {
+        "name": "AVFilterPadParams",
+        "defined_in": "libavfilter/avfilter.h"
+      },
+      {
+        "name": "AVFilterParams",
+        "defined_in": "libavfilter/avfilter.h"
+      },
+      {
         "name": "FFFilter",
         "defined_in": "libavfilter/filters.h"
       },

@@ -27,10 +27,6 @@
         "defined_in": "libavcodec/avcodec.h"
       },
       {
-        "name": "AVHWAccel",
-        "defined_in": "libavcodec/avcodec.h"
-      },
-      {
         "name": "AVPictureStructure",
         "defined_in": "libavcodec/avcodec.h"
       },

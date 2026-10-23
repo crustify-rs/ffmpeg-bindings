@@ -7,5 +7,25 @@
   ],
   "api_headers": [
     "libavformat/avformat.h"
-  ]
+  ],
+  "out_of_scope": {
+    "items": [
+      {
+        "name": "AVIndexEntry",
+        "defined_in": "libavformat/avformat.h"
+      },
+      {
+        "name": "AVInputFormat",
+        "defined_in": "libavformat/avformat.h"
+      },
+      {
+        "name": "AVOutputFormat",
+        "defined_in": "libavformat/avformat.h"
+      },
+      {
+        "name": "AVProbeData",
+        "defined_in": "libavformat/avformat.h"
+      }
+    ]
+  }
 }

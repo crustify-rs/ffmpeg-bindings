@@ -7822,6 +7822,8 @@
               "items": {
                 "included": [],
                 "excluded": [
+                  "SwsFilter",
+                  "SwsVector",
                   "sws_allocVec",
                   "sws_alloc_context",
                   "sws_convertPalette8ToPacked24",
@@ -7922,8 +7924,8 @@
             },
             "api": {
               "files": 1,
-              "loc": 118,
-              "structs": 3,
+              "loc": 108,
+              "structs": 1,
               "opaque_structs": 0,
               "functions": 8,
               "global_variables": 0,
@@ -8020,10 +8022,10 @@
                 "link_unit": "libswscale",
                 "module": "libswscale/swscale.c",
                 "foundational": false,
-                "outgoing_edges": 18,
+                "outgoing_edges": 8,
                 "incoming_edges": 0,
                 "counters": {
-                  "structs": 3,
+                  "structs": 1,
                   "functions": 0,
                   "global_variables": 0,
                   "enums": 0,
@@ -8047,6 +8049,8 @@
               "path": "libswscale/swscale.h",
               "items": {
                 "included": [
+                  "SwsFilter",
+                  "SwsVector",
                   "sws_allocVec",
                   "sws_alloc_context",
                   "sws_freeContext",
@@ -8088,8 +8092,8 @@
             },
             "api": {
               "files": 1,
-              "loc": 15,
-              "structs": 0,
+              "loc": 25,
+              "structs": 2,
               "opaque_structs": 0,
               "functions": 15,
               "global_variables": 0,
@@ -8332,7 +8336,14 @@
             "objective": "wrap",
             "rust_equivalent": {
               "std": null,
-              "crates": []
+              "crates": [
+                {
+                  "crate": "adts-reader",
+                  "feature_parity": "partial",
+                  "license": "MIT OR Apache-2.0",
+                  "notes": "AdtsHeader::from_bytes needs the 2 CRC bytes and a frame length of at least 9 when protection is present, where av_adts_header_parse reads 7 bytes and accepts a frame length of 7; samples are (raw data blocks) x 1024, computed by the caller"
+                }
+              ]
             }
           },
           "counters": {
@@ -9361,7 +9372,7 @@
                 "link_unit": "libavutil",
                 "module": "libavutil/pixdesc.c",
                 "foundational": false,
-                "outgoing_edges": 8,
+                "outgoing_edges": 7,
                 "incoming_edges": 0,
                 "counters": {
                   "structs": 0,
@@ -9406,7 +9417,7 @@
                 "link_unit": "libavutil",
                 "module": "libavutil/utils.c",
                 "foundational": false,
-                "outgoing_edges": 2,
+                "outgoing_edges": 1,
                 "incoming_edges": 0,
                 "counters": {
                   "structs": 0,
@@ -9436,7 +9447,7 @@
                 "link_unit": "libavcodec",
                 "module": "libavcodec/codec_desc.c",
                 "foundational": false,
-                "outgoing_edges": 4,
+                "outgoing_edges": 2,
                 "incoming_edges": 0,
                 "counters": {
                   "structs": 1,
@@ -9466,7 +9477,7 @@
                 "link_unit": "libavcodec",
                 "module": "libavcodec/defs.h",
                 "foundational": false,
-                "outgoing_edges": 4,
+                "outgoing_edges": 3,
                 "incoming_edges": 0,
                 "counters": {
                   "structs": 0,
@@ -9493,7 +9504,23 @@
                 }
               }
             ],
-            "cut": []
+            "cut": [
+              {
+                "link_unit": "libavcodec",
+                "module": "libavcodec/decode.c",
+                "foundational": false,
+                "outgoing_edges": 1,
+                "incoming_edges": 5,
+                "counters": {
+                  "structs": 1,
+                  "functions": 0,
+                  "global_variables": 0,
+                  "enums": 0,
+                  "unions": 0,
+                  "callbacks": 0
+                }
+              }
+            ]
           },
           "translation_unit": {
             "path": "libavcodec/avcodec.c",
@@ -9526,6 +9553,9 @@
               "items": {
                 "included": [],
                 "excluded": [
+                  "AVCodecParser",
+                  "AVCodecParserContext",
+                  "AVHWAccel",
                   "av_fast_padded_malloc",
                   "av_fast_padded_mallocz",
                   "av_get_audio_frame_duration",
@@ -9592,8 +9622,8 @@
             },
             "api": {
               "files": 2,
-              "loc": 353,
-              "structs": 7,
+              "loc": 301,
+              "structs": 4,
               "opaque_structs": 1,
               "functions": 12,
               "global_variables": 0,
@@ -9820,7 +9850,7 @@
                 "link_unit": "libavutil",
                 "module": "libavutil/log.c",
                 "foundational": false,
-                "outgoing_edges": 5,
+                "outgoing_edges": 3,
                 "incoming_edges": 0,
                 "counters": {
                   "structs": 1,
@@ -9892,23 +9922,7 @@
                 }
               }
             ],
-            "cut": [
-              {
-                "link_unit": "libavcodec",
-                "module": "libavcodec/bitstreamfilter.c",
-                "foundational": false,
-                "outgoing_edges": 2,
-                "incoming_edges": 3,
-                "counters": {
-                  "structs": 2,
-                  "functions": 0,
-                  "global_variables": 0,
-                  "enums": 0,
-                  "unions": 0,
-                  "callbacks": 0
-                }
-              }
-            ]
+            "cut": []
           },
           "translation_unit": {
             "path": "libavcodec/bsf.c",
@@ -9932,6 +9946,8 @@
               "items": {
                 "included": [],
                 "excluded": [
+                  "AVBitStreamFilterContext",
+                  "AVBitStreamFilterGraph",
                   "AVBitStreamFilterLink",
                   "AVBitStreamFilterPad",
                   "av_bsf_get_by_name",
@@ -9980,8 +9996,8 @@
             },
             "api": {
               "files": 1,
-              "loc": 48,
-              "structs": 4,
+              "loc": 29,
+              "structs": 2,
               "opaque_structs": 1,
               "functions": 14,
               "global_variables": 0,
@@ -10091,6 +10107,21 @@
                 }
               },
               {
+                "link_unit": "libavutil",
+                "module": "libavutil/log.c",
+                "foundational": false,
+                "outgoing_edges": 1,
+                "incoming_edges": 0,
+                "counters": {
+                  "structs": 1,
+                  "functions": 0,
+                  "global_variables": 0,
+                  "enums": 0,
+                  "unions": 0,
+                  "callbacks": 0
+                }
+              },
+              {
                 "link_unit": "libavcodec",
                 "module": "libavcodec/codec_desc.c",
                 "foundational": false,
@@ -10109,8 +10140,8 @@
                 "link_unit": "libavcodec",
                 "module": "libavcodec/bsf.c",
                 "foundational": false,
-                "outgoing_edges": 3,
-                "incoming_edges": 2,
+                "outgoing_edges": 1,
+                "incoming_edges": 0,
                 "counters": {
                   "structs": 1,
                   "functions": 0,
@@ -10121,7 +10152,23 @@
                 }
               }
             ],
-            "cut": []
+            "cut": [
+              {
+                "link_unit": "libavcodec",
+                "module": "libavcodec/bsfgraph.c",
+                "foundational": false,
+                "outgoing_edges": 1,
+                "incoming_edges": 4,
+                "counters": {
+                  "structs": 1,
+                  "functions": 0,
+                  "global_variables": 0,
+                  "enums": 0,
+                  "unions": 0,
+                  "callbacks": 0
+                }
+              }
+            ]
           },
           "translation_unit": {
             "path": "libavcodec/bitstreamfilter.c",
@@ -10147,6 +10194,7 @@
               "path": "libavcodec/bsf.h",
               "items": {
                 "included": [
+                  "AVBitStreamFilterContext",
                   "AVBitStreamFilterLink",
                   "AVBitStreamFilterPad",
                   "av_bsf_init_dict",
@@ -10180,8 +10228,8 @@
             },
             "api": {
               "files": 1,
-              "loc": 7,
-              "structs": 0,
+              "loc": 20,
+              "structs": 1,
               "opaque_structs": 2,
               "functions": 5,
               "global_variables": 0,
@@ -10245,7 +10293,7 @@
               },
               {
                 "link_unit": "libavcodec",
-                "module": "libavcodec/bsf.c",
+                "module": "libavcodec/bitstreamfilter.c",
                 "foundational": false,
                 "outgoing_edges": 3,
                 "incoming_edges": 0,
@@ -10353,7 +10401,7 @@
               },
               {
                 "link_unit": "libavcodec",
-                "module": "libavcodec/bsf.c",
+                "module": "libavcodec/bitstreamfilter.c",
                 "foundational": false,
                 "outgoing_edges": 4,
                 "incoming_edges": 0,
@@ -10449,7 +10497,7 @@
                 "link_unit": "libavutil",
                 "module": "libavutil/log.c",
                 "foundational": false,
-                "outgoing_edges": 1,
+                "outgoing_edges": 2,
                 "incoming_edges": 0,
                 "counters": {
                   "structs": 1,
@@ -10464,10 +10512,25 @@
                 "link_unit": "libavcodec",
                 "module": "libavcodec/bsf.c",
                 "foundational": false,
-                "outgoing_edges": 12,
+                "outgoing_edges": 2,
                 "incoming_edges": 0,
                 "counters": {
-                  "structs": 3,
+                  "structs": 1,
+                  "functions": 0,
+                  "global_variables": 0,
+                  "enums": 0,
+                  "unions": 0,
+                  "callbacks": 0
+                }
+              },
+              {
+                "link_unit": "libavcodec",
+                "module": "libavcodec/bitstreamfilter.c",
+                "foundational": false,
+                "outgoing_edges": 4,
+                "incoming_edges": 1,
+                "counters": {
+                  "structs": 1,
                   "functions": 0,
                   "global_variables": 0,
                   "enums": 0,
@@ -10491,6 +10554,7 @@
               "path": "libavcodec/bsf.h",
               "items": {
                 "included": [
+                  "AVBitStreamFilterGraph",
                   "av_bsf_graph_alloc",
                   "av_bsf_graph_alloc_filter",
                   "av_bsf_graph_config",
@@ -10524,8 +10588,8 @@
             },
             "api": {
               "files": 1,
-              "loc": 7,
-              "structs": 0,
+              "loc": 13,
+              "structs": 1,
               "opaque_structs": 0,
               "functions": 7,
               "global_variables": 0,
@@ -10561,7 +10625,37 @@
                 "link_unit": "libavutil",
                 "module": "libavutil/pixdesc.c",
                 "foundational": false,
-                "outgoing_edges": 2,
+                "outgoing_edges": 3,
+                "incoming_edges": 0,
+                "counters": {
+                  "structs": 0,
+                  "functions": 0,
+                  "global_variables": 0,
+                  "enums": 1,
+                  "unions": 0,
+                  "callbacks": 0
+                }
+              },
+              {
+                "link_unit": "libavutil",
+                "module": "libavutil/utils.c",
+                "foundational": false,
+                "outgoing_edges": 1,
+                "incoming_edges": 0,
+                "counters": {
+                  "structs": 0,
+                  "functions": 0,
+                  "global_variables": 0,
+                  "enums": 1,
+                  "unions": 0,
+                  "callbacks": 0
+                }
+              },
+              {
+                "link_unit": "libavcodec",
+                "module": "libavcodec/codec_desc.c",
+                "foundational": false,
+                "outgoing_edges": 1,
                 "incoming_edges": 0,
                 "counters": {
                   "structs": 0,
@@ -10592,7 +10686,7 @@
                 "module": "libavcodec/avcodec.c",
                 "foundational": false,
                 "outgoing_edges": 5,
-                "incoming_edges": 0,
+                "incoming_edges": 1,
                 "counters": {
                   "structs": 2,
                   "functions": 0,
@@ -10626,6 +10720,7 @@
               "path": "libavcodec/avcodec.h",
               "items": {
                 "included": [
+                  "AVHWAccel",
                   "avcodec_decode_subtitle2",
                   "avcodec_default_get_format",
                   "avcodec_get_hw_frames_parameters",
@@ -10656,8 +10751,8 @@
             },
             "api": {
               "files": 1,
-              "loc": 4,
-              "structs": 0,
+              "loc": 11,
+              "structs": 1,
               "opaque_structs": 0,
               "functions": 4,
               "global_variables": 0,
@@ -11011,6 +11106,21 @@
                 "link_unit": "libavcodec",
                 "module": "libavcodec/codec_desc.c",
                 "foundational": false,
+                "outgoing_edges": 2,
+                "incoming_edges": 0,
+                "counters": {
+                  "structs": 0,
+                  "functions": 0,
+                  "global_variables": 0,
+                  "enums": 1,
+                  "unions": 0,
+                  "callbacks": 0
+                }
+              },
+              {
+                "link_unit": "libavcodec",
+                "module": "libavcodec/defs.h",
+                "foundational": false,
                 "outgoing_edges": 1,
                 "incoming_edges": 0,
                 "counters": {
@@ -11026,13 +11136,13 @@
                 "link_unit": "libavcodec",
                 "module": "libavcodec/avcodec.c",
                 "foundational": false,
-                "outgoing_edges": 4,
+                "outgoing_edges": 2,
                 "incoming_edges": 0,
                 "counters": {
-                  "structs": 2,
+                  "structs": 1,
                   "functions": 0,
                   "global_variables": 0,
-                  "enums": 0,
+                  "enums": 1,
                   "unions": 0,
                   "callbacks": 0
                 }
@@ -11068,6 +11178,8 @@
               "path": "libavcodec/avcodec.h",
               "items": {
                 "included": [
+                  "AVCodecParser",
+                  "AVCodecParserContext",
                   "av_parser_close",
                   "av_parser_init",
                   "av_parser_parse2"
@@ -11097,8 +11209,8 @@
             },
             "api": {
               "files": 1,
-              "loc": 3,
-              "structs": 0,
+              "loc": 48,
+              "structs": 2,
               "opaque_structs": 0,
               "functions": 3,
               "global_variables": 0,
@@ -11117,7 +11229,7 @@
             "scheduled": [
               {
                 "link_unit": "libavcodec",
-                "module": "libavcodec/avcodec.c",
+                "module": "libavcodec/parser.c",
                 "foundational": false,
                 "outgoing_edges": 1,
                 "incoming_edges": 0,
@@ -12380,7 +12492,7 @@
                 "link_unit": "libavutil",
                 "module": "libavutil/log.c",
                 "foundational": false,
-                "outgoing_edges": 8,
+                "outgoing_edges": 6,
                 "incoming_edges": 0,
                 "counters": {
                   "structs": 1,
@@ -12455,7 +12567,7 @@
                 "link_unit": "libavcodec",
                 "module": "libavcodec/codec_desc.c",
                 "foundational": false,
-                "outgoing_edges": 2,
+                "outgoing_edges": 1,
                 "incoming_edges": 0,
                 "counters": {
                   "structs": 0,
@@ -12543,12 +12655,12 @@
               },
               {
                 "link_unit": "libavformat",
-                "module": "libavformat/utils.c",
+                "module": "libavformat/format.c",
                 "foundational": false,
                 "outgoing_edges": 2,
                 "incoming_edges": 0,
                 "counters": {
-                  "structs": 1,
+                  "structs": 2,
                   "functions": 0,
                   "global_variables": 0,
                   "enums": 0,
@@ -12582,6 +12694,10 @@
                 "included": [],
                 "excluded": [
                   "AVCodecTag",
+                  "AVIndexEntry",
+                  "AVInputFormat",
+                  "AVOutputFormat",
+                  "AVProbeData",
                   "av_add_index_entry",
                   "av_append_packet",
                   "av_codec_get_id",
@@ -12703,8 +12819,8 @@
             },
             "api": {
               "files": 1,
-              "loc": 294,
-              "structs": 14,
+              "loc": 258,
+              "structs": 10,
               "opaque_structs": 0,
               "functions": 12,
               "global_variables": 0,
@@ -12723,7 +12839,7 @@
             "scheduled": [
               {
                 "link_unit": "libavformat",
-                "module": "libavformat/avformat.c",
+                "module": "libavformat/format.c",
                 "foundational": false,
                 "outgoing_edges": 2,
                 "incoming_edges": 0,
@@ -12830,12 +12946,27 @@
               },
               {
                 "link_unit": "libavformat",
-                "module": "libavformat/avformat.c",
+                "module": "libavformat/format.c",
                 "foundational": false,
-                "outgoing_edges": 5,
+                "outgoing_edges": 1,
                 "incoming_edges": 0,
                 "counters": {
-                  "structs": 2,
+                  "structs": 1,
+                  "functions": 0,
+                  "global_variables": 0,
+                  "enums": 0,
+                  "unions": 0,
+                  "callbacks": 0
+                }
+              },
+              {
+                "link_unit": "libavformat",
+                "module": "libavformat/avformat.c",
+                "foundational": false,
+                "outgoing_edges": 4,
+                "incoming_edges": 0,
+                "counters": {
+                  "structs": 1,
                   "functions": 0,
                   "global_variables": 0,
                   "enums": 0,
@@ -12925,7 +13056,7 @@
             "scheduled": [
               {
                 "link_unit": "libavcodec",
-                "module": "libavcodec/avcodec.c",
+                "module": "libavcodec/parser.c",
                 "foundational": false,
                 "outgoing_edges": 1,
                 "incoming_edges": 0,
@@ -13144,7 +13275,7 @@
                 "link_unit": "libavutil",
                 "module": "libavutil/log.c",
                 "foundational": false,
-                "outgoing_edges": 2,
+                "outgoing_edges": 4,
                 "incoming_edges": 0,
                 "counters": {
                   "structs": 1,
@@ -13174,7 +13305,7 @@
                 "link_unit": "libavcodec",
                 "module": "libavcodec/codec_desc.c",
                 "foundational": false,
-                "outgoing_edges": 1,
+                "outgoing_edges": 2,
                 "incoming_edges": 0,
                 "counters": {
                   "structs": 0,
@@ -13202,12 +13333,12 @@
               },
               {
                 "link_unit": "libavformat",
-                "module": "libavformat/avformat.c",
+                "module": "libavformat/utils.c",
                 "foundational": false,
-                "outgoing_edges": 11,
+                "outgoing_edges": 2,
                 "incoming_edges": 0,
                 "counters": {
-                  "structs": 3,
+                  "structs": 1,
                   "functions": 0,
                   "global_variables": 0,
                   "enums": 0,
@@ -13231,6 +13362,9 @@
               "path": "libavformat/avformat.h",
               "items": {
                 "included": [
+                  "AVInputFormat",
+                  "AVOutputFormat",
+                  "AVProbeData",
                   "av_find_input_format",
                   "av_guess_codec",
                   "av_guess_format",
@@ -13266,8 +13400,8 @@
             },
             "api": {
               "files": 1,
-              "loc": 9,
-              "structs": 0,
+              "loc": 36,
+              "structs": 3,
               "opaque_structs": 0,
               "functions": 9,
               "global_variables": 0,
@@ -13408,12 +13542,27 @@
               },
               {
                 "link_unit": "libavformat",
-                "module": "libavformat/avformat.c",
+                "module": "libavformat/format.c",
                 "foundational": false,
-                "outgoing_edges": 11,
+                "outgoing_edges": 1,
                 "incoming_edges": 0,
                 "counters": {
-                  "structs": 2,
+                  "structs": 1,
+                  "functions": 0,
+                  "global_variables": 0,
+                  "enums": 0,
+                  "unions": 0,
+                  "callbacks": 0
+                }
+              },
+              {
+                "link_unit": "libavformat",
+                "module": "libavformat/avformat.c",
+                "foundational": false,
+                "outgoing_edges": 10,
+                "incoming_edges": 0,
+                "counters": {
+                  "structs": 1,
                   "functions": 0,
                   "global_variables": 0,
                   "enums": 0,
@@ -13524,7 +13673,7 @@
               },
               {
                 "link_unit": "libavformat",
-                "module": "libavformat/avformat.c",
+                "module": "libavformat/format.c",
                 "foundational": false,
                 "outgoing_edges": 1,
                 "incoming_edges": 0,
@@ -13854,7 +14003,14 @@
             "objective": "wrap",
             "rust_equivalent": {
               "std": null,
-              "crates": []
+              "crates": [
+                {
+                  "crate": "sdp",
+                  "feature_parity": "partial",
+                  "license": "MIT OR Apache-2.0",
+                  "notes": "SDP session model with parse and marshal only: none of the media, rtpmap and fmtp lines av_sdp_create derives from each stream's AVCodecParameters and extradata (H.264/HEVC parameter sets, AAC config), nor av_sdp_create's RTP payload-type and destination choices"
+                }
+              ]
             }
           },
           "counters": {
@@ -13892,10 +14048,10 @@
                 "link_unit": "libavformat",
                 "module": "libavformat/avformat.c",
                 "foundational": false,
-                "outgoing_edges": 10,
+                "outgoing_edges": 8,
                 "incoming_edges": 0,
                 "counters": {
-                  "structs": 3,
+                  "structs": 2,
                   "functions": 0,
                   "global_variables": 0,
                   "enums": 0,
@@ -13919,6 +14075,7 @@
               "path": "libavformat/avformat.h",
               "items": {
                 "included": [
+                  "AVIndexEntry",
                   "av_add_index_entry",
                   "av_index_search_timestamp",
                   "av_seek_frame",
@@ -13953,8 +14110,8 @@
             },
             "api": {
               "files": 1,
-              "loc": 8,
-              "structs": 0,
+              "loc": 17,
+              "structs": 1,
               "opaque_structs": 0,
               "functions": 8,
               "global_variables": 0,
@@ -14165,7 +14322,7 @@
                 "link_unit": "libavutil",
                 "module": "libavutil/dict.c",
                 "foundational": false,
-                "outgoing_edges": 2,
+                "outgoing_edges": 1,
                 "incoming_edges": 0,
                 "counters": {
                   "structs": 1,
@@ -14180,7 +14337,7 @@
                 "link_unit": "libavutil",
                 "module": "libavutil/log.c",
                 "foundational": false,
-                "outgoing_edges": 4,
+                "outgoing_edges": 3,
                 "incoming_edges": 0,
                 "counters": {
                   "structs": 1,
@@ -14267,7 +14424,23 @@
                 }
               }
             ],
-            "cut": []
+            "cut": [
+              {
+                "link_unit": "libavfilter",
+                "module": "libavfilter/avfiltergraph.c",
+                "foundational": false,
+                "outgoing_edges": 1,
+                "incoming_edges": 6,
+                "counters": {
+                  "structs": 1,
+                  "functions": 0,
+                  "global_variables": 0,
+                  "enums": 0,
+                  "unions": 0,
+                  "callbacks": 0
+                }
+              }
+            ]
           },
           "translation_unit": {
             "path": "libavfilter/avfilter.c",
@@ -14300,8 +14473,14 @@
               "items": {
                 "included": [],
                 "excluded": [
+                  "AVFilterChain",
                   "AVFilterChannelLayouts",
                   "AVFilterFormats",
+                  "AVFilterGraph",
+                  "AVFilterGraphSegment",
+                  "AVFilterInOut",
+                  "AVFilterPadParams",
+                  "AVFilterParams",
                   "av_filter_iterate",
                   "avfilter_configuration",
                   "avfilter_get_by_name",
@@ -14363,8 +14542,8 @@
             },
             "api": {
               "files": 1,
-              "loc": 111,
-              "structs": 10,
+              "loc": 70,
+              "structs": 4,
               "opaque_structs": 1,
               "functions": 11,
               "global_variables": 0,
@@ -14462,7 +14641,7 @@
                 "link_unit": "libavutil",
                 "module": "libavutil/log.c",
                 "foundational": false,
-                "outgoing_edges": 1,
+                "outgoing_edges": 2,
                 "incoming_edges": 0,
                 "counters": {
                   "structs": 1,
@@ -14477,10 +14656,10 @@
                 "link_unit": "libavfilter",
                 "module": "libavfilter/avfilter.c",
                 "foundational": false,
-                "outgoing_edges": 15,
-                "incoming_edges": 0,
+                "outgoing_edges": 6,
+                "incoming_edges": 1,
                 "counters": {
-                  "structs": 3,
+                  "structs": 2,
                   "functions": 0,
                   "global_variables": 0,
                   "enums": 0,
@@ -14504,6 +14683,7 @@
               "path": "libavfilter/avfilter.h",
               "items": {
                 "included": [
+                  "AVFilterGraph",
                   "avfilter_graph_alloc",
                   "avfilter_graph_alloc_filter",
                   "avfilter_graph_config",
@@ -14540,8 +14720,8 @@
             },
             "api": {
               "files": 1,
-              "loc": 10,
-              "structs": 0,
+              "loc": 22,
+              "structs": 1,
               "opaque_structs": 0,
               "functions": 10,
               "global_variables": 0,
@@ -14873,7 +15053,7 @@
             "scheduled": [
               {
                 "link_unit": "libavfilter",
-                "module": "libavfilter/avfilter.c",
+                "module": "libavfilter/avfiltergraph.c",
                 "foundational": false,
                 "outgoing_edges": 1,
                 "incoming_edges": 0,
@@ -14949,6 +15129,21 @@
             "scheduled": [
               {
                 "link_unit": "libavutil",
+                "module": "libavutil/dict.c",
+                "foundational": false,
+                "outgoing_edges": 1,
+                "incoming_edges": 0,
+                "counters": {
+                  "structs": 1,
+                  "functions": 0,
+                  "global_variables": 0,
+                  "enums": 0,
+                  "unions": 0,
+                  "callbacks": 0
+                }
+              },
+              {
+                "link_unit": "libavutil",
                 "module": "libavutil/log.c",
                 "foundational": false,
                 "outgoing_edges": 1,
@@ -14966,10 +15161,25 @@
                 "link_unit": "libavfilter",
                 "module": "libavfilter/avfilter.c",
                 "foundational": false,
-                "outgoing_edges": 18,
+                "outgoing_edges": 2,
                 "incoming_edges": 0,
                 "counters": {
-                  "structs": 3,
+                  "structs": 1,
+                  "functions": 0,
+                  "global_variables": 0,
+                  "enums": 0,
+                  "unions": 0,
+                  "callbacks": 0
+                }
+              },
+              {
+                "link_unit": "libavfilter",
+                "module": "libavfilter/avfiltergraph.c",
+                "foundational": false,
+                "outgoing_edges": 5,
+                "incoming_edges": 0,
+                "counters": {
+                  "structs": 1,
                   "functions": 0,
                   "global_variables": 0,
                   "enums": 0,
@@ -14993,6 +15203,11 @@
               "path": "libavfilter/avfilter.h",
               "items": {
                 "included": [
+                  "AVFilterChain",
+                  "AVFilterGraphSegment",
+                  "AVFilterInOut",
+                  "AVFilterPadParams",
+                  "AVFilterParams",
                   "avfilter_graph_parse",
                   "avfilter_graph_parse2",
                   "avfilter_graph_parse_ptr",
@@ -15031,8 +15246,8 @@
             },
             "api": {
               "files": 1,
-              "loc": 12,
-              "structs": 0,
+              "loc": 41,
+              "structs": 5,
               "opaque_structs": 0,
               "functions": 12,
               "global_variables": 0,
@@ -15128,7 +15343,7 @@
             "scheduled": [
               {
                 "link_unit": "libavformat",
-                "module": "libavformat/avformat.c",
+                "module": "libavformat/format.c",
                 "foundational": false,
                 "outgoing_edges": 4,
                 "incoming_edges": 0,
@@ -15238,12 +15453,27 @@
               },
               {
                 "link_unit": "libavformat",
-                "module": "libavformat/avformat.c",
+                "module": "libavformat/format.c",
                 "foundational": false,
-                "outgoing_edges": 5,
+                "outgoing_edges": 2,
                 "incoming_edges": 0,
                 "counters": {
-                  "structs": 3,
+                  "structs": 2,
+                  "functions": 0,
+                  "global_variables": 0,
+                  "enums": 0,
+                  "unions": 0,
+                  "callbacks": 0
+                }
+              },
+              {
+                "link_unit": "libavformat",
+                "module": "libavformat/avformat.c",
+                "foundational": false,
+                "outgoing_edges": 3,
+                "incoming_edges": 0,
+                "counters": {
+                  "structs": 1,
                   "functions": 0,
                   "global_variables": 0,
                   "enums": 0,
@@ -15382,7 +15612,15 @@
       "kind": "executable",
       "linkage": null,
       "depends_on": {
-        "scheduled": [],
+        "scheduled": [
+          "libavutil",
+          "libswresample",
+          "libswscale",
+          "libavcodec",
+          "libavformat",
+          "libavfilter",
+          "libavdevice"
+        ],
         "cut": []
       },
       "modules": []
@@ -15393,7 +15631,15 @@
       "kind": "executable",
       "linkage": null,
       "depends_on": {
-        "scheduled": [],
+        "scheduled": [
+          "libavutil",
+          "libswresample",
+          "libswscale",
+          "libavcodec",
+          "libavformat",
+          "libavfilter",
+          "libavdevice"
+        ],
         "cut": []
       },
       "modules": []

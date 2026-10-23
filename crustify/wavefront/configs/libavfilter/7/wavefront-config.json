@@ -14,10 +14,6 @@
         "defined_in": "libavfilter/avfilter.h"
       },
       {
-        "name": "AVFilterChain",
-        "defined_in": "libavfilter/avfilter.h"
-      },
-      {
         "name": "AVFilterContext",
         "defined_in": "libavfilter/avfilter.h"
       },
@@ -30,23 +26,7 @@
         "defined_in": "libavfilter/avfilter.h"
       },
       {
-        "name": "AVFilterGraphSegment",
-        "defined_in": "libavfilter/avfilter.h"
-      },
-      {
-        "name": "AVFilterInOut",
-        "defined_in": "libavfilter/avfilter.h"
-      },
-      {
         "name": "AVFilterLink",
-        "defined_in": "libavfilter/avfilter.h"
-      },
-      {
-        "name": "AVFilterPadParams",
-        "defined_in": "libavfilter/avfilter.h"
-      },
-      {
-        "name": "AVFilterParams",
         "defined_in": "libavfilter/avfilter.h"
       },
       {

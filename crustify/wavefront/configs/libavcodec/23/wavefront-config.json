@@ -20,14 +20,6 @@
         "defined_in": "libavcodec/avcodec.h"
       },
       {
-        "name": "AVCodecParser",
-        "defined_in": "libavcodec/avcodec.h"
-      },
-      {
-        "name": "AVCodecParserContext",
-        "defined_in": "libavcodec/avcodec.h"
-      },
-      {
         "name": "AVHWAccel",
         "defined_in": "libavcodec/avcodec.h"
       },

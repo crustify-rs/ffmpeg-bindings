@@ -13,6 +13,18 @@
   "out_of_scope": {
     "items": [
       {
+        "name": "AVCodecParser",
+        "defined_in": "libavcodec/avcodec.h"
+      },
+      {
+        "name": "AVCodecParserContext",
+        "defined_in": "libavcodec/avcodec.h"
+      },
+      {
+        "name": "AVHWAccel",
+        "defined_in": "libavcodec/avcodec.h"
+      },
+      {
         "name": "AVPacket",
         "defined_in": "libavcodec/packet.h"
       },

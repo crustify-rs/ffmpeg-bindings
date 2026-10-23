@@ -11,6 +11,14 @@
   "out_of_scope": {
     "items": [
       {
+        "name": "SwsFilter",
+        "defined_in": "libswscale/swscale.h"
+      },
+      {
+        "name": "SwsVector",
+        "defined_in": "libswscale/swscale.h"
+      },
+      {
         "name": "SwsColorFunc",
         "defined_in": "libswscale/swscale_internal.h"
       },

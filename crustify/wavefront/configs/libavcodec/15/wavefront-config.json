@@ -19,10 +19,6 @@
         "defined_in": "libavcodec/bsf.h"
       },
       {
-        "name": "AVBitStreamFilterContext",
-        "defined_in": "libavcodec/bsf.h"
-      },
-      {
         "name": "AVBitStreamFilterGraph",
         "defined_in": "libavcodec/bsf.h"
       }

@@ -26,10 +26,6 @@
         "defined_in": "libswscale/swscale.h"
       },
       {
-        "name": "SwsFilter",
-        "defined_in": "libswscale/swscale.h"
-      },
-      {
         "name": "SwsFlags",
         "defined_in": "libswscale/swscale.h"
       },
@@ -39,10 +35,6 @@
       },
       {
         "name": "SwsScaler",
-        "defined_in": "libswscale/swscale.h"
-      },
-      {
-        "name": "SwsVector",
         "defined_in": "libswscale/swscale.h"
       }
     ]
