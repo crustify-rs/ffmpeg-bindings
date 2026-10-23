@@ -1,0 +1,27 @@
+{
+  "objective": "wrap",
+  "items": [
+    {
+      "name": "AVAES",
+      "defined_in": "libavutil/aes_internal.h",
+      "kind": "type",
+      "field_anchors": [],
+      "home": "src/libavutil/libavutil/aes.rs"
+    },
+    {
+      "name": "AVAESCTR",
+      "defined_in": "libavutil/aes_ctr.c",
+      "kind": "type",
+      "field_anchors": [],
+      "home": "src/libavutil/libavutil/aes_ctr.rs"
+    }
+  ],
+  "wave": 124,
+  "batch": 0,
+  "link_unit": "libavutil",
+  "module": "libavutil/aes.c",
+  "foundational": false,
+  "base_branch": "crustify/waves/wave-124",
+  "model": "openrouter/openai/gpt-6.1-sol",
+  "billing": "api"
+}

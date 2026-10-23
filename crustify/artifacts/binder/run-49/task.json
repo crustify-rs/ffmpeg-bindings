@@ -1,0 +1,104 @@
+{
+  "objective": "wrap",
+  "items": [
+    {
+      "name": "av_opt_set_array",
+      "defined_in": "libavutil/opt.c",
+      "kind": "symbol",
+      "field_anchors": [],
+      "home": "src/libavutil/libavutil/opt.rs"
+    },
+    {
+      "name": "av_opt_set_chlayout",
+      "defined_in": "libavutil/opt.c",
+      "kind": "symbol",
+      "field_anchors": [],
+      "home": "src/libavutil/libavutil/opt.rs"
+    },
+    {
+      "name": "av_opt_set_dict",
+      "defined_in": "libavutil/opt.c",
+      "kind": "symbol",
+      "field_anchors": [],
+      "home": "src/libavutil/libavutil/opt.rs"
+    },
+    {
+      "name": "av_opt_set_dict2",
+      "defined_in": "libavutil/opt.c",
+      "kind": "symbol",
+      "field_anchors": [],
+      "home": "src/libavutil/libavutil/opt.rs"
+    },
+    {
+      "name": "av_opt_set_dict_val",
+      "defined_in": "libavutil/opt.c",
+      "kind": "symbol",
+      "field_anchors": [],
+      "home": "src/libavutil/libavutil/opt.rs"
+    },
+    {
+      "name": "av_opt_set_pixel_fmt",
+      "defined_in": "libavutil/opt.c",
+      "kind": "symbol",
+      "field_anchors": [],
+      "home": "src/libavutil/libavutil/opt.rs"
+    },
+    {
+      "name": "av_opt_set_q",
+      "defined_in": "libavutil/opt.c",
+      "kind": "symbol",
+      "field_anchors": [],
+      "home": "src/libavutil/libavutil/opt.rs"
+    },
+    {
+      "name": "av_opt_set_sample_fmt",
+      "defined_in": "libavutil/opt.c",
+      "kind": "symbol",
+      "field_anchors": [],
+      "home": "src/libavutil/libavutil/opt.rs"
+    },
+    {
+      "name": "av_opt_set_video_rate",
+      "defined_in": "libavutil/opt.c",
+      "kind": "symbol",
+      "field_anchors": [],
+      "home": "src/libavutil/libavutil/opt.rs"
+    },
+    {
+      "name": "av_parse_ratio",
+      "defined_in": "libavutil/parseutils.c",
+      "kind": "symbol",
+      "field_anchors": [],
+      "home": "src/libavutil/libavutil/parseutils.rs"
+    },
+    {
+      "name": "av_parse_video_rate",
+      "defined_in": "libavutil/parseutils.c",
+      "kind": "symbol",
+      "field_anchors": [],
+      "home": "src/libavutil/libavutil/parseutils.rs"
+    },
+    {
+      "name": "av_small_strptime",
+      "defined_in": "libavutil/parseutils.c",
+      "kind": "symbol",
+      "field_anchors": [],
+      "home": "src/libavutil/libavutil/parseutils.rs"
+    },
+    {
+      "name": "av_timegm",
+      "defined_in": "libavutil/parseutils.c",
+      "kind": "symbol",
+      "field_anchors": [],
+      "home": "src/libavutil/libavutil/parseutils.rs"
+    }
+  ],
+  "wave": 116,
+  "batch": 0,
+  "link_unit": "libavutil",
+  "module": "libavutil/parseutils.c",
+  "foundational": false,
+  "base_branch": "crustify/waves/wave-116",
+  "model": "openrouter/anthropic/claude-opus-5.5",
+  "billing": "api"
+}

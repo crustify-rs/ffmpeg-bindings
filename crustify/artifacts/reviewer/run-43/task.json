@@ -1,0 +1,13 @@
+{
+  "commits": [
+    "c91366e514de091c69fdcf5112b1d4565bca0dd4"
+  ],
+  "wave": 221,
+  "batch": 0,
+  "link_unit": "libavutil",
+  "module": "libavutil/frame.c",
+  "foundational": false,
+  "base_branch": "crustify/waves/wave-221",
+  "model": "openrouter/anthropic/claude-opus-5.5",
+  "billing": "api"
+}

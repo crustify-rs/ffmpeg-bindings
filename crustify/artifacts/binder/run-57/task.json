@@ -1,0 +1,27 @@
+{
+  "objective": "wrap",
+  "items": [
+    {
+      "name": "AVMD5",
+      "defined_in": "libavutil/md5.c",
+      "kind": "type",
+      "field_anchors": [],
+      "home": "src/libavutil/libavutil/md5.rs"
+    },
+    {
+      "name": "AVMurMur3",
+      "defined_in": "libavutil/murmur3.c",
+      "kind": "type",
+      "field_anchors": [],
+      "home": "src/libavutil/libavutil/murmur3.rs"
+    }
+  ],
+  "wave": 146,
+  "batch": 0,
+  "link_unit": "libavutil",
+  "module": "libavutil/md5.c",
+  "foundational": false,
+  "base_branch": "crustify/waves/wave-146",
+  "model": "openrouter/openai/gpt-6.1-sol",
+  "billing": "api"
+}

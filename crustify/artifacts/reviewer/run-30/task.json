@@ -1,0 +1,15 @@
+{
+  "commits": [
+    "3b737affd4c270137bbc1b42b1c119c99713cb32",
+    "684583535ae92889e007f0591151276de50a581a",
+    "7348dbbf4521ecc10b0348a7bbaf9ebf3e2f28aa"
+  ],
+  "wave": 105,
+  "batch": 0,
+  "link_unit": "libavutil",
+  "module": "libavutil/dict.c",
+  "foundational": false,
+  "base_branch": "crustify/waves/wave-105",
+  "model": "openrouter/anthropic/claude-opus-5.5",
+  "billing": "api"
+}

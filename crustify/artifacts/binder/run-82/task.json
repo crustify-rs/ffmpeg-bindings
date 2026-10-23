@@ -1,0 +1,27 @@
+{
+  "objective": "wrap",
+  "items": [
+    {
+      "name": "av_hwframe_transfer_data",
+      "defined_in": "libavutil/hwcontext.c",
+      "kind": "symbol",
+      "field_anchors": [],
+      "home": "src/libavutil/libavutil/hwcontext.rs"
+    },
+    {
+      "name": "av_hwframe_transfer_get_formats",
+      "defined_in": "libavutil/hwcontext.c",
+      "kind": "symbol",
+      "field_anchors": [],
+      "home": "src/libavutil/libavutil/hwcontext.rs"
+    }
+  ],
+  "wave": 228,
+  "batch": 2,
+  "link_unit": "libavutil",
+  "module": "libavutil/hwcontext.c",
+  "foundational": false,
+  "base_branch": "crustify/waves/wave-228",
+  "model": "openrouter/anthropic/claude-opus-5.5",
+  "billing": "api"
+}

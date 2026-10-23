@@ -1,0 +1,30 @@
+{
+  "objective": "wrap",
+  "items": [
+    {
+      "name": "AVBlowfish",
+      "defined_in": "libavutil/blowfish.h",
+      "kind": "type",
+      "field_anchors": [
+        "p",
+        "s"
+      ],
+      "home": "src/libavutil/libavutil/blowfish.rs"
+    },
+    {
+      "name": "AVCAMELLIA",
+      "defined_in": "libavutil/camellia.c",
+      "kind": "type",
+      "field_anchors": [],
+      "home": "src/libavutil/libavutil/camellia.rs"
+    }
+  ],
+  "wave": 130,
+  "batch": 0,
+  "link_unit": "libavutil",
+  "module": "libavutil/blowfish.c",
+  "foundational": false,
+  "base_branch": "crustify/waves/wave-130",
+  "model": "openrouter/openai/gpt-6.1-sol",
+  "billing": "api"
+}

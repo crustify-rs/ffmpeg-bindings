@@ -1,0 +1,13 @@
+{
+  "commits": [
+    "7f26d6c921e62c1554d37ab6f8eec51cb6e677fa"
+  ],
+  "wave": 31,
+  "batch": 3,
+  "link_unit": "libavutil",
+  "module": "libavutil/intreadwrite.h",
+  "foundational": false,
+  "base_branch": "crustify/waves/wave-31",
+  "model": "openrouter/anthropic/claude-fable-5.1",
+  "billing": "api"
+}

@@ -1,0 +1,13 @@
+{
+  "commits": [
+    "ab1f01334b5241fa2a5aa7da6db8647d1a4a4f3b"
+  ],
+  "wave": 231,
+  "batch": 1,
+  "link_unit": "libavutil",
+  "module": "libavutil/hwcontext.c",
+  "foundational": false,
+  "base_branch": "crustify/waves/wave-231",
+  "model": "openrouter/anthropic/claude-opus-5.5",
+  "billing": "api"
+}

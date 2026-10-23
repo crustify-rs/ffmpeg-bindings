@@ -1,0 +1,35 @@
+{
+  "objective": "wrap",
+  "items": [
+    {
+      "name": "av_alias16",
+      "defined_in": "libavutil/intreadwrite.h",
+      "kind": "type",
+      "field_anchors": [
+        "u8",
+        "u16"
+      ],
+      "home": "src/libavutil/libavutil/intreadwrite.rs"
+    },
+    {
+      "name": "av_alias32",
+      "defined_in": "libavutil/intreadwrite.h",
+      "kind": "type",
+      "field_anchors": [
+        "u8",
+        "u16",
+        "f32",
+        "u32"
+      ],
+      "home": "src/libavutil/libavutil/intreadwrite.rs"
+    }
+  ],
+  "wave": 30,
+  "batch": 0,
+  "link_unit": "libavutil",
+  "module": "libavutil/intreadwrite.h",
+  "foundational": false,
+  "base_branch": "crustify/waves/wave-30",
+  "model": "openrouter/anthropic/claude-opus-5.5",
+  "billing": "api"
+}

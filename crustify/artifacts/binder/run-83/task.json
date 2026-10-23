@@ -1,0 +1,33 @@
+{
+  "objective": "wrap",
+  "items": [
+    {
+      "name": "AVHWFramesContext",
+      "defined_in": "libavutil/hwcontext.h",
+      "kind": "type",
+      "field_anchors": [
+        "height",
+        "av_class",
+        "format",
+        "width",
+        "device_ref",
+        "initial_pool_size",
+        "pool",
+        "device_ctx",
+        "free",
+        "sw_format",
+        "user_opaque",
+        "hwctx"
+      ],
+      "home": "src/libavutil/libavutil/hwcontext.rs"
+    }
+  ],
+  "wave": 230,
+  "batch": 0,
+  "link_unit": "libavutil",
+  "module": "libavutil/hwcontext.c",
+  "foundational": false,
+  "base_branch": "crustify/waves/wave-230",
+  "model": "openrouter/anthropic/claude-opus-5.5",
+  "billing": "api"
+}

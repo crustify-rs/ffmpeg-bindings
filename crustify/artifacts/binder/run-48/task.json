@@ -1,0 +1,167 @@
+{
+  "objective": "wrap",
+  "items": [
+    {
+      "name": "av_dict_copy",
+      "defined_in": "libavutil/dict.c",
+      "kind": "symbol",
+      "field_anchors": [],
+      "home": "src/libavutil/libavutil/dict.rs"
+    },
+    {
+      "name": "av_dict_count",
+      "defined_in": "libavutil/dict.c",
+      "kind": "symbol",
+      "field_anchors": [],
+      "home": "src/libavutil/libavutil/dict.rs"
+    },
+    {
+      "name": "av_dict_free",
+      "defined_in": "libavutil/dict.c",
+      "kind": "symbol",
+      "field_anchors": [],
+      "home": "src/libavutil/libavutil/dict.rs"
+    },
+    {
+      "name": "av_dict_get",
+      "defined_in": "libavutil/dict.c",
+      "kind": "symbol",
+      "field_anchors": [],
+      "home": "src/libavutil/libavutil/dict.rs"
+    },
+    {
+      "name": "av_dict_get_string",
+      "defined_in": "libavutil/dict.c",
+      "kind": "symbol",
+      "field_anchors": [],
+      "home": "src/libavutil/libavutil/dict.rs"
+    },
+    {
+      "name": "av_dict_iterate",
+      "defined_in": "libavutil/dict.c",
+      "kind": "symbol",
+      "field_anchors": [],
+      "home": "src/libavutil/libavutil/dict.rs"
+    },
+    {
+      "name": "av_dict_parse_string",
+      "defined_in": "libavutil/dict.c",
+      "kind": "symbol",
+      "field_anchors": [],
+      "home": "src/libavutil/libavutil/dict.rs"
+    },
+    {
+      "name": "av_dict_set",
+      "defined_in": "libavutil/dict.c",
+      "kind": "symbol",
+      "field_anchors": [],
+      "home": "src/libavutil/libavutil/dict.rs"
+    },
+    {
+      "name": "av_dict_set_int",
+      "defined_in": "libavutil/dict.c",
+      "kind": "symbol",
+      "field_anchors": [],
+      "home": "src/libavutil/libavutil/dict.rs"
+    },
+    {
+      "name": "av_expr_count_func",
+      "defined_in": "libavutil/eval.c",
+      "kind": "symbol",
+      "field_anchors": [],
+      "home": "src/libavutil/libavutil/eval.rs"
+    },
+    {
+      "name": "av_expr_count_vars",
+      "defined_in": "libavutil/eval.c",
+      "kind": "symbol",
+      "field_anchors": [],
+      "home": "src/libavutil/libavutil/eval.rs"
+    },
+    {
+      "name": "av_expr_eval",
+      "defined_in": "libavutil/eval.c",
+      "kind": "symbol",
+      "field_anchors": [],
+      "home": "src/libavutil/libavutil/eval.rs"
+    },
+    {
+      "name": "av_expr_free",
+      "defined_in": "libavutil/eval.c",
+      "kind": "symbol",
+      "field_anchors": [],
+      "home": "src/libavutil/libavutil/eval.rs"
+    },
+    {
+      "name": "av_expr_parse",
+      "defined_in": "libavutil/eval.c",
+      "kind": "symbol",
+      "field_anchors": [],
+      "home": "src/libavutil/libavutil/eval.rs"
+    },
+    {
+      "name": "av_opt_child_class_iterate",
+      "defined_in": "libavutil/opt.c",
+      "kind": "symbol",
+      "field_anchors": [],
+      "home": "src/libavutil/libavutil/opt.rs"
+    },
+    {
+      "name": "av_opt_get_array",
+      "defined_in": "libavutil/opt.c",
+      "kind": "symbol",
+      "field_anchors": [],
+      "home": "src/libavutil/libavutil/opt.rs"
+    },
+    {
+      "name": "av_opt_get_chlayout",
+      "defined_in": "libavutil/opt.c",
+      "kind": "symbol",
+      "field_anchors": [],
+      "home": "src/libavutil/libavutil/opt.rs"
+    },
+    {
+      "name": "av_opt_get_dict_val",
+      "defined_in": "libavutil/opt.c",
+      "kind": "symbol",
+      "field_anchors": [],
+      "home": "src/libavutil/libavutil/opt.rs"
+    },
+    {
+      "name": "av_opt_get_pixel_fmt",
+      "defined_in": "libavutil/opt.c",
+      "kind": "symbol",
+      "field_anchors": [],
+      "home": "src/libavutil/libavutil/opt.rs"
+    },
+    {
+      "name": "av_opt_get_q",
+      "defined_in": "libavutil/opt.c",
+      "kind": "symbol",
+      "field_anchors": [],
+      "home": "src/libavutil/libavutil/opt.rs"
+    },
+    {
+      "name": "av_opt_get_sample_fmt",
+      "defined_in": "libavutil/opt.c",
+      "kind": "symbol",
+      "field_anchors": [],
+      "home": "src/libavutil/libavutil/opt.rs"
+    },
+    {
+      "name": "av_opt_get_video_rate",
+      "defined_in": "libavutil/opt.c",
+      "kind": "symbol",
+      "field_anchors": [],
+      "home": "src/libavutil/libavutil/opt.rs"
+    }
+  ],
+  "wave": 112,
+  "batch": 0,
+  "link_unit": "libavutil",
+  "module": "libavutil/dict.c",
+  "foundational": false,
+  "base_branch": "crustify/waves/wave-112",
+  "model": "openrouter/anthropic/claude-opus-5.5",
+  "billing": "api"
+}

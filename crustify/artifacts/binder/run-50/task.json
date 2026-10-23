@@ -1,0 +1,111 @@
+{
+  "objective": "wrap",
+  "items": [
+    {
+      "name": "av_opt_eval_double",
+      "defined_in": "libavutil/opt.c",
+      "kind": "symbol",
+      "field_anchors": [],
+      "home": "src/libavutil/libavutil/opt.rs"
+    },
+    {
+      "name": "av_opt_eval_flags",
+      "defined_in": "libavutil/opt.c",
+      "kind": "symbol",
+      "field_anchors": [],
+      "home": "src/libavutil/libavutil/opt.rs"
+    },
+    {
+      "name": "av_opt_eval_float",
+      "defined_in": "libavutil/opt.c",
+      "kind": "symbol",
+      "field_anchors": [],
+      "home": "src/libavutil/libavutil/opt.rs"
+    },
+    {
+      "name": "av_opt_eval_int",
+      "defined_in": "libavutil/opt.c",
+      "kind": "symbol",
+      "field_anchors": [],
+      "home": "src/libavutil/libavutil/opt.rs"
+    },
+    {
+      "name": "av_opt_eval_int64",
+      "defined_in": "libavutil/opt.c",
+      "kind": "symbol",
+      "field_anchors": [],
+      "home": "src/libavutil/libavutil/opt.rs"
+    },
+    {
+      "name": "av_opt_eval_q",
+      "defined_in": "libavutil/opt.c",
+      "kind": "symbol",
+      "field_anchors": [],
+      "home": "src/libavutil/libavutil/opt.rs"
+    },
+    {
+      "name": "av_opt_eval_uint",
+      "defined_in": "libavutil/opt.c",
+      "kind": "symbol",
+      "field_anchors": [],
+      "home": "src/libavutil/libavutil/opt.rs"
+    },
+    {
+      "name": "av_opt_find",
+      "defined_in": "libavutil/opt.c",
+      "kind": "symbol",
+      "field_anchors": [],
+      "home": "src/libavutil/libavutil/opt.rs"
+    },
+    {
+      "name": "av_opt_find2",
+      "defined_in": "libavutil/opt.c",
+      "kind": "symbol",
+      "field_anchors": [],
+      "home": "src/libavutil/libavutil/opt.rs"
+    },
+    {
+      "name": "av_opt_freep_ranges",
+      "defined_in": "libavutil/opt.c",
+      "kind": "symbol",
+      "field_anchors": [],
+      "home": "src/libavutil/libavutil/opt.rs"
+    },
+    {
+      "name": "av_opt_is_set_to_default",
+      "defined_in": "libavutil/opt.c",
+      "kind": "symbol",
+      "field_anchors": [],
+      "home": "src/libavutil/libavutil/opt.rs"
+    },
+    {
+      "name": "av_opt_next",
+      "defined_in": "libavutil/opt.c",
+      "kind": "symbol",
+      "field_anchors": [],
+      "home": "src/libavutil/libavutil/opt.rs"
+    },
+    {
+      "name": "av_opt_query_ranges",
+      "defined_in": "libavutil/opt.c",
+      "kind": "symbol",
+      "field_anchors": [],
+      "home": "src/libavutil/libavutil/opt.rs"
+    },
+    {
+      "name": "av_opt_query_ranges_default",
+      "defined_in": "libavutil/opt.c",
+      "kind": "symbol",
+      "field_anchors": [],
+      "home": "src/libavutil/libavutil/opt.rs"
+    }
+  ],
+  "wave": 120,
+  "batch": 0,
+  "link_unit": "libavutil",
+  "module": "libavutil/opt.c",
+  "foundational": false,
+  "base_branch": "crustify/waves/wave-120",
+  "model": "openrouter/anthropic/claude-opus-5.5",
+  "billing": "api"
+}

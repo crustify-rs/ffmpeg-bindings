@@ -1,0 +1,20 @@
+{
+  "objective": "wrap",
+  "items": [
+    {
+      "name": "av_ts_make_time_string2",
+      "defined_in": "libavutil/timestamp.c",
+      "kind": "symbol",
+      "field_anchors": [],
+      "home": "src/libavutil/libavutil/timestamp.rs"
+    }
+  ],
+  "wave": 60,
+  "batch": 1,
+  "link_unit": "libavutil",
+  "module": "libavutil/timestamp.c",
+  "foundational": false,
+  "base_branch": "crustify/waves/wave-60",
+  "model": "openrouter/anthropic/claude-opus-5.5",
+  "billing": "api"
+}

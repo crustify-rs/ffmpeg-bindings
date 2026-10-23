@@ -1,0 +1,111 @@
+{
+  "objective": "wrap",
+  "items": [
+    {
+      "name": "av_channel_layout_ambisonic_order",
+      "defined_in": "libavutil/channel_layout.c",
+      "kind": "symbol",
+      "field_anchors": [],
+      "home": "src/libavutil/libavutil/channel_layout.rs"
+    },
+    {
+      "name": "av_channel_layout_channel_from_index",
+      "defined_in": "libavutil/channel_layout.c",
+      "kind": "symbol",
+      "field_anchors": [],
+      "home": "src/libavutil/libavutil/channel_layout.rs"
+    },
+    {
+      "name": "av_channel_layout_channel_from_string",
+      "defined_in": "libavutil/channel_layout.c",
+      "kind": "symbol",
+      "field_anchors": [],
+      "home": "src/libavutil/libavutil/channel_layout.rs"
+    },
+    {
+      "name": "av_channel_layout_check",
+      "defined_in": "libavutil/channel_layout.c",
+      "kind": "symbol",
+      "field_anchors": [],
+      "home": "src/libavutil/libavutil/channel_layout.rs"
+    },
+    {
+      "name": "av_channel_layout_compare",
+      "defined_in": "libavutil/channel_layout.c",
+      "kind": "symbol",
+      "field_anchors": [],
+      "home": "src/libavutil/libavutil/channel_layout.rs"
+    },
+    {
+      "name": "av_channel_layout_copy",
+      "defined_in": "libavutil/channel_layout.c",
+      "kind": "symbol",
+      "field_anchors": [],
+      "home": "src/libavutil/libavutil/channel_layout.rs"
+    },
+    {
+      "name": "av_channel_layout_custom_init",
+      "defined_in": "libavutil/channel_layout.c",
+      "kind": "symbol",
+      "field_anchors": [],
+      "home": "src/libavutil/libavutil/channel_layout.rs"
+    },
+    {
+      "name": "av_channel_layout_default",
+      "defined_in": "libavutil/channel_layout.c",
+      "kind": "symbol",
+      "field_anchors": [],
+      "home": "src/libavutil/libavutil/channel_layout.rs"
+    },
+    {
+      "name": "av_channel_layout_describe",
+      "defined_in": "libavutil/channel_layout.c",
+      "kind": "symbol",
+      "field_anchors": [],
+      "home": "src/libavutil/libavutil/channel_layout.rs"
+    },
+    {
+      "name": "av_channel_layout_describe_bprint",
+      "defined_in": "libavutil/channel_layout.c",
+      "kind": "symbol",
+      "field_anchors": [],
+      "home": "src/libavutil/libavutil/channel_layout.rs"
+    },
+    {
+      "name": "av_channel_layout_from_mask",
+      "defined_in": "libavutil/channel_layout.c",
+      "kind": "symbol",
+      "field_anchors": [],
+      "home": "src/libavutil/libavutil/channel_layout.rs"
+    },
+    {
+      "name": "av_channel_layout_from_string",
+      "defined_in": "libavutil/channel_layout.c",
+      "kind": "symbol",
+      "field_anchors": [],
+      "home": "src/libavutil/libavutil/channel_layout.rs"
+    },
+    {
+      "name": "av_channel_layout_index_from_channel",
+      "defined_in": "libavutil/channel_layout.c",
+      "kind": "symbol",
+      "field_anchors": [],
+      "home": "src/libavutil/libavutil/channel_layout.rs"
+    },
+    {
+      "name": "av_channel_layout_index_from_string",
+      "defined_in": "libavutil/channel_layout.c",
+      "kind": "symbol",
+      "field_anchors": [],
+      "home": "src/libavutil/libavutil/channel_layout.rs"
+    }
+  ],
+  "wave": 98,
+  "batch": 0,
+  "link_unit": "libavutil",
+  "module": "libavutil/channel_layout.c",
+  "foundational": false,
+  "base_branch": "crustify/waves/wave-98",
+  "model": "openrouter/anthropic/claude-opus-5.5",
+  "billing": "api"
+}

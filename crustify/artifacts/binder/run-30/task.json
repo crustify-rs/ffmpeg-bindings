@@ -1,0 +1,90 @@
+{
+  "objective": "wrap",
+  "items": [
+    {
+      "name": "av_chroma_location_from_name",
+      "defined_in": "libavutil/pixdesc.c",
+      "kind": "symbol",
+      "field_anchors": [],
+      "home": "src/libavutil/libavutil/pixdesc.rs"
+    },
+    {
+      "name": "av_color_primaries_from_name",
+      "defined_in": "libavutil/pixdesc.c",
+      "kind": "symbol",
+      "field_anchors": [],
+      "home": "src/libavutil/libavutil/pixdesc.rs"
+    },
+    {
+      "name": "av_color_range_from_name",
+      "defined_in": "libavutil/pixdesc.c",
+      "kind": "symbol",
+      "field_anchors": [],
+      "home": "src/libavutil/libavutil/pixdesc.rs"
+    },
+    {
+      "name": "av_color_space_from_name",
+      "defined_in": "libavutil/pixdesc.c",
+      "kind": "symbol",
+      "field_anchors": [],
+      "home": "src/libavutil/libavutil/pixdesc.rs"
+    },
+    {
+      "name": "av_color_transfer_from_name",
+      "defined_in": "libavutil/pixdesc.c",
+      "kind": "symbol",
+      "field_anchors": [],
+      "home": "src/libavutil/libavutil/pixdesc.rs"
+    },
+    {
+      "name": "av_csp_eotf_function",
+      "defined_in": "libavutil/csp.h",
+      "kind": "callback",
+      "field_anchors": [],
+      "home": "src/libavutil/libavutil/csp.rs"
+    },
+    {
+      "name": "av_csp_trc_function",
+      "defined_in": "libavutil/csp.h",
+      "kind": "callback",
+      "field_anchors": [],
+      "home": "src/libavutil/libavutil/csp.rs"
+    },
+    {
+      "name": "av_image_check_size",
+      "defined_in": "libavutil/imgutils.c",
+      "kind": "symbol",
+      "field_anchors": [],
+      "home": "src/libavutil/libavutil/imgutils.rs"
+    },
+    {
+      "name": "av_image_copy_plane",
+      "defined_in": "libavutil/imgutils.c",
+      "kind": "symbol",
+      "field_anchors": [],
+      "home": "src/libavutil/libavutil/imgutils.rs"
+    },
+    {
+      "name": "av_image_copy_plane_uc_from",
+      "defined_in": "libavutil/imgutils.c",
+      "kind": "symbol",
+      "field_anchors": [],
+      "home": "src/libavutil/libavutil/imgutils.rs"
+    },
+    {
+      "name": "av_pixelutils_sad_fn",
+      "defined_in": "libavutil/pixelutils.h",
+      "kind": "callback",
+      "field_anchors": [],
+      "home": "src/libavutil/libavutil/pixelutils.rs"
+    }
+  ],
+  "wave": 68,
+  "batch": 6,
+  "link_unit": "libavutil",
+  "module": "libavutil/pixdesc.c",
+  "foundational": false,
+  "base_branch": "crustify/waves/wave-68",
+  "model": "openrouter/anthropic/claude-opus-5.5",
+  "billing": "api"
+}

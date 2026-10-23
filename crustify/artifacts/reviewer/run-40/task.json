@@ -1,0 +1,13 @@
+{
+  "commits": [
+    "351db52630217fb1f81bcc5ab321c6990f89b905"
+  ],
+  "wave": 209,
+  "batch": 0,
+  "link_unit": "libavutil",
+  "module": "libavutil/refstruct.c",
+  "foundational": true,
+  "base_branch": "crustify/waves/wave-209",
+  "model": "openrouter/anthropic/claude-opus-5.5",
+  "billing": "api"
+}

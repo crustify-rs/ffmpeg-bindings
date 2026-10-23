@@ -1,0 +1,160 @@
+{
+  "objective": "wrap",
+  "items": [
+    {
+      "name": "av_strlcat",
+      "defined_in": "libavutil/avstring.c",
+      "kind": "symbol",
+      "field_anchors": [],
+      "home": "src/libavutil/libavutil/avstring.rs"
+    },
+    {
+      "name": "av_strlcatf",
+      "defined_in": "libavutil/avstring.c",
+      "kind": "symbol",
+      "field_anchors": [],
+      "home": "src/libavutil/libavutil/avstring.rs"
+    },
+    {
+      "name": "av_strlcpy",
+      "defined_in": "libavutil/avstring.c",
+      "kind": "symbol",
+      "field_anchors": [],
+      "home": "src/libavutil/libavutil/avstring.rs"
+    },
+    {
+      "name": "av_strncasecmp",
+      "defined_in": "libavutil/avstring.c",
+      "kind": "symbol",
+      "field_anchors": [],
+      "home": "src/libavutil/libavutil/avstring.rs"
+    },
+    {
+      "name": "av_strndup",
+      "defined_in": "libavutil/mem.c",
+      "kind": "symbol",
+      "field_anchors": [],
+      "home": "src/libavutil/libavutil/mem.rs"
+    },
+    {
+      "name": "av_strnlen",
+      "defined_in": "libavutil/avstring.h",
+      "kind": "symbol",
+      "field_anchors": [],
+      "home": "src/libavutil/libavutil/avstring.rs"
+    },
+    {
+      "name": "av_strnstr",
+      "defined_in": "libavutil/avstring.c",
+      "kind": "symbol",
+      "field_anchors": [],
+      "home": "src/libavutil/libavutil/avstring.rs"
+    },
+    {
+      "name": "av_strstart",
+      "defined_in": "libavutil/avstring.c",
+      "kind": "symbol",
+      "field_anchors": [],
+      "home": "src/libavutil/libavutil/avstring.rs"
+    },
+    {
+      "name": "av_strtok",
+      "defined_in": "libavutil/avstring.c",
+      "kind": "symbol",
+      "field_anchors": [],
+      "home": "src/libavutil/libavutil/avstring.rs"
+    },
+    {
+      "name": "av_tolower",
+      "defined_in": "libavutil/avstring.h",
+      "kind": "symbol",
+      "field_anchors": [],
+      "home": "src/libavutil/libavutil/avstring.rs"
+    },
+    {
+      "name": "av_toupper",
+      "defined_in": "libavutil/avstring.h",
+      "kind": "symbol",
+      "field_anchors": [],
+      "home": "src/libavutil/libavutil/avstring.rs"
+    },
+    {
+      "name": "av_ts_make_string",
+      "defined_in": "libavutil/timestamp.h",
+      "kind": "symbol",
+      "field_anchors": [],
+      "home": "src/libavutil/libavutil/timestamp.rs"
+    },
+    {
+      "name": "av_usleep",
+      "defined_in": "libavutil/time.c",
+      "kind": "symbol",
+      "field_anchors": [],
+      "home": "src/libavutil/libavutil/time.rs"
+    },
+    {
+      "name": "av_utf8_decode",
+      "defined_in": "libavutil/avstring.c",
+      "kind": "symbol",
+      "field_anchors": [],
+      "home": "src/libavutil/libavutil/avstring.rs"
+    },
+    {
+      "name": "av_version_info",
+      "defined_in": "libavutil/version.c",
+      "kind": "symbol",
+      "field_anchors": [],
+      "home": "src/libavutil/libavutil/avutil.rs"
+    },
+    {
+      "name": "av_vlog",
+      "defined_in": "libavutil/log.c",
+      "kind": "symbol",
+      "field_anchors": [],
+      "home": "src/libavutil/libavutil/log.rs"
+    },
+    {
+      "name": "av_x_if_null",
+      "defined_in": "libavutil/avutil.h",
+      "kind": "symbol",
+      "field_anchors": [],
+      "home": "src/libavutil/libavutil/avutil.rs"
+    },
+    {
+      "name": "av_zero_extend_c",
+      "defined_in": "libavutil/common.h",
+      "kind": "symbol",
+      "field_anchors": [],
+      "home": "src/libavutil/libavutil/common.rs"
+    },
+    {
+      "name": "avutil_configuration",
+      "defined_in": "libavutil/version.c",
+      "kind": "symbol",
+      "field_anchors": [],
+      "home": "src/libavutil/libavutil/avutil.rs"
+    },
+    {
+      "name": "avutil_license",
+      "defined_in": "libavutil/version.c",
+      "kind": "symbol",
+      "field_anchors": [],
+      "home": "src/libavutil/libavutil/avutil.rs"
+    },
+    {
+      "name": "avutil_version",
+      "defined_in": "libavutil/version.c",
+      "kind": "symbol",
+      "field_anchors": [],
+      "home": "src/libavutil/libavutil/avutil.rs"
+    }
+  ],
+  "wave": 4,
+  "batch": 4,
+  "link_unit": "libavutil",
+  "module": "libavutil/mem.c",
+  "foundational": true,
+  "base_branch": "crustify/waves/wave-4",
+  "model": "openrouter/anthropic/claude-opus-5.5",
+  "billing": "api"
+}

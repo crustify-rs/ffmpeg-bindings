@@ -1,0 +1,30 @@
+{
+  "objective": "wrap",
+  "items": [
+    {
+      "name": "AVDES",
+      "defined_in": "libavutil/des.h",
+      "kind": "type",
+      "field_anchors": [
+        "triple_des",
+        "round_keys"
+      ],
+      "home": "src/libavutil/libavutil/des.rs"
+    },
+    {
+      "name": "AVHMAC",
+      "defined_in": "libavutil/hmac.c",
+      "kind": "type",
+      "field_anchors": [],
+      "home": "src/libavutil/libavutil/hmac.rs"
+    }
+  ],
+  "wave": 138,
+  "batch": 0,
+  "link_unit": "libavutil",
+  "module": "libavutil/des.c",
+  "foundational": false,
+  "base_branch": "crustify/waves/wave-138",
+  "model": "openrouter/openai/gpt-6.1-sol",
+  "billing": "api"
+}

@@ -1,0 +1,188 @@
+{
+  "objective": "wrap",
+  "items": [
+    {
+      "name": "av_dirname",
+      "defined_in": "libavutil/avstring.c",
+      "kind": "symbol",
+      "field_anchors": [],
+      "home": "src/libavutil/libavutil/avstring.rs"
+    },
+    {
+      "name": "av_double2int",
+      "defined_in": "libavutil/intfloat.h",
+      "kind": "symbol",
+      "field_anchors": [],
+      "home": "src/libavutil/libavutil/intfloat.rs"
+    },
+    {
+      "name": "av_dynarray2_add",
+      "defined_in": "libavutil/mem.c",
+      "kind": "symbol",
+      "field_anchors": [],
+      "home": "src/libavutil/libavutil/mem.rs"
+    },
+    {
+      "name": "av_dynarray_add",
+      "defined_in": "libavutil/mem.c",
+      "kind": "symbol",
+      "field_anchors": [],
+      "home": "src/libavutil/libavutil/mem.rs"
+    },
+    {
+      "name": "av_dynarray_add_nofree",
+      "defined_in": "libavutil/mem.c",
+      "kind": "symbol",
+      "field_anchors": [],
+      "home": "src/libavutil/libavutil/mem.rs"
+    },
+    {
+      "name": "av_fast_malloc",
+      "defined_in": "libavutil/mem.c",
+      "kind": "symbol",
+      "field_anchors": [],
+      "home": "src/libavutil/libavutil/mem.rs"
+    },
+    {
+      "name": "av_fast_mallocz",
+      "defined_in": "libavutil/mem.c",
+      "kind": "symbol",
+      "field_anchors": [],
+      "home": "src/libavutil/libavutil/mem.rs"
+    },
+    {
+      "name": "av_fast_realloc",
+      "defined_in": "libavutil/mem.c",
+      "kind": "symbol",
+      "field_anchors": [],
+      "home": "src/libavutil/libavutil/mem.rs"
+    },
+    {
+      "name": "av_file_map",
+      "defined_in": "libavutil/file.c",
+      "kind": "symbol",
+      "field_anchors": [],
+      "home": "src/libavutil/libavutil/file.rs"
+    },
+    {
+      "name": "av_file_unmap",
+      "defined_in": "libavutil/file.c",
+      "kind": "symbol",
+      "field_anchors": [],
+      "home": "src/libavutil/libavutil/file.rs"
+    },
+    {
+      "name": "av_float2int",
+      "defined_in": "libavutil/intfloat.h",
+      "kind": "symbol",
+      "field_anchors": [],
+      "home": "src/libavutil/libavutil/intfloat.rs"
+    },
+    {
+      "name": "av_force_cpu_flags",
+      "defined_in": "libavutil/cpu.c",
+      "kind": "symbol",
+      "field_anchors": [],
+      "home": "src/libavutil/libavutil/cpu.rs"
+    },
+    {
+      "name": "av_fourcc_make_string",
+      "defined_in": "libavutil/utils.c",
+      "kind": "symbol",
+      "field_anchors": [],
+      "home": "src/libavutil/libavutil/avutil.rs"
+    },
+    {
+      "name": "av_free",
+      "defined_in": "libavutil/mem.c",
+      "kind": "symbol",
+      "field_anchors": [],
+      "home": "src/libavutil/libavutil/mem.rs"
+    },
+    {
+      "name": "av_freep",
+      "defined_in": "libavutil/mem.c",
+      "kind": "symbol",
+      "field_anchors": [],
+      "home": "src/libavutil/libavutil/mem.rs"
+    },
+    {
+      "name": "av_gcd",
+      "defined_in": "libavutil/mathematics.c",
+      "kind": "symbol",
+      "field_anchors": [],
+      "home": "src/libavutil/libavutil/mathematics.rs"
+    },
+    {
+      "name": "av_get_cpu_flags",
+      "defined_in": "libavutil/cpu.c",
+      "kind": "symbol",
+      "field_anchors": [],
+      "home": "src/libavutil/libavutil/cpu.rs"
+    },
+    {
+      "name": "av_get_random_seed",
+      "defined_in": "libavutil/random_seed.c",
+      "kind": "symbol",
+      "field_anchors": [],
+      "home": "src/libavutil/libavutil/random_seed.rs"
+    },
+    {
+      "name": "av_get_token",
+      "defined_in": "libavutil/avstring.c",
+      "kind": "symbol",
+      "field_anchors": [],
+      "home": "src/libavutil/libavutil/avstring.rs"
+    },
+    {
+      "name": "av_gettime",
+      "defined_in": "libavutil/time.c",
+      "kind": "symbol",
+      "field_anchors": [],
+      "home": "src/libavutil/libavutil/time.rs"
+    },
+    {
+      "name": "av_gettime_relative",
+      "defined_in": "libavutil/time.c",
+      "kind": "symbol",
+      "field_anchors": [],
+      "home": "src/libavutil/libavutil/time.rs"
+    },
+    {
+      "name": "av_gettime_relative_is_monotonic",
+      "defined_in": "libavutil/time.c",
+      "kind": "symbol",
+      "field_anchors": [],
+      "home": "src/libavutil/libavutil/time.rs"
+    },
+    {
+      "name": "av_int2double",
+      "defined_in": "libavutil/intfloat.h",
+      "kind": "symbol",
+      "field_anchors": [],
+      "home": "src/libavutil/libavutil/intfloat.rs"
+    },
+    {
+      "name": "av_int2float",
+      "defined_in": "libavutil/intfloat.h",
+      "kind": "symbol",
+      "field_anchors": [],
+      "home": "src/libavutil/libavutil/intfloat.rs"
+    },
+    {
+      "name": "av_isdigit",
+      "defined_in": "libavutil/avstring.h",
+      "kind": "symbol",
+      "field_anchors": [],
+      "home": "src/libavutil/libavutil/avstring.rs"
+    }
+  ],
+  "wave": 4,
+  "batch": 1,
+  "link_unit": "libavutil",
+  "module": "libavutil/mem.c",
+  "foundational": true,
+  "base_branch": "crustify/waves/wave-4",
+  "model": "openrouter/anthropic/claude-opus-5.5",
+  "billing": "api"
+}

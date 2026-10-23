@@ -1,0 +1,30 @@
+{
+  "objective": "wrap",
+  "items": [
+    {
+      "name": "AVSideDataDescriptor",
+      "defined_in": "libavutil/frame.h",
+      "kind": "type",
+      "field_anchors": [
+        "name",
+        "props"
+      ],
+      "home": "src/libavutil/libavutil/frame.rs"
+    },
+    {
+      "name": "AVSideDataProps",
+      "defined_in": "libavutil/frame.h",
+      "kind": "type",
+      "field_anchors": [],
+      "home": "src/libavutil/libavutil/frame.rs"
+    }
+  ],
+  "wave": 206,
+  "batch": 2,
+  "link_unit": "libavutil",
+  "module": "libavutil/frame.c",
+  "foundational": false,
+  "base_branch": "crustify/waves/wave-206",
+  "model": "openrouter/anthropic/claude-opus-5.5",
+  "billing": "api"
+}

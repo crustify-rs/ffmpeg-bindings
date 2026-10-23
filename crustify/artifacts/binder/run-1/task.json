@@ -1,0 +1,20 @@
+{
+  "objective": "wrap",
+  "items": [
+    {
+      "name": "void",
+      "defined_in": null,
+      "kind": "raw-lifetime",
+      "field_anchors": [],
+      "home": "src/libavutil/libavutil/mem.rs"
+    }
+  ],
+  "wave": 0,
+  "batch": 0,
+  "link_unit": "libavutil",
+  "module": "libavutil/mem.c",
+  "foundational": true,
+  "base_branch": "crustify/waves/wave-0",
+  "model": "openrouter/anthropic/claude-opus-5.5",
+  "billing": "api"
+}

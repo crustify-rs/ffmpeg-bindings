@@ -1,0 +1,32 @@
+{
+  "objective": "wrap",
+  "items": [
+    {
+      "name": "AVExpr",
+      "defined_in": "libavutil/eval.c",
+      "kind": "type",
+      "field_anchors": [],
+      "home": "src/libavutil/libavutil/eval.rs"
+    },
+    {
+      "name": "AVOptionArrayDef",
+      "defined_in": "libavutil/opt.h",
+      "kind": "type",
+      "field_anchors": [
+        "def",
+        "sep",
+        "size_max",
+        "size_min"
+      ],
+      "home": "src/libavutil/libavutil/opt.rs"
+    }
+  ],
+  "wave": 106,
+  "batch": 0,
+  "link_unit": "libavutil",
+  "module": "libavutil/eval.c",
+  "foundational": false,
+  "base_branch": "crustify/waves/wave-106",
+  "model": "openrouter/anthropic/claude-opus-5.5",
+  "billing": "api"
+}

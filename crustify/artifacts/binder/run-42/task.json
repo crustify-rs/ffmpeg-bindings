@@ -1,0 +1,27 @@
+{
+  "objective": "wrap",
+  "items": [
+    {
+      "name": "av_csp_primaries_desc_from_id",
+      "defined_in": "libavutil/csp.c",
+      "kind": "symbol",
+      "field_anchors": [],
+      "home": "src/libavutil/libavutil/csp.rs"
+    },
+    {
+      "name": "av_csp_primaries_id_from_desc",
+      "defined_in": "libavutil/csp.c",
+      "kind": "symbol",
+      "field_anchors": [],
+      "home": "src/libavutil/libavutil/csp.rs"
+    }
+  ],
+  "wave": 102,
+  "batch": 0,
+  "link_unit": "libavutil",
+  "module": "libavutil/csp.c",
+  "foundational": false,
+  "base_branch": "crustify/waves/wave-102",
+  "model": "openrouter/anthropic/claude-opus-5.5",
+  "billing": "api"
+}

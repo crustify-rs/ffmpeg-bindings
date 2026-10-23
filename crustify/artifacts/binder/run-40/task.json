@@ -1,0 +1,41 @@
+{
+  "objective": "wrap",
+  "items": [
+    {
+      "name": "av_channel_layout_retype",
+      "defined_in": "libavutil/channel_layout.c",
+      "kind": "symbol",
+      "field_anchors": [],
+      "home": "src/libavutil/libavutil/channel_layout.rs"
+    },
+    {
+      "name": "av_channel_layout_standard",
+      "defined_in": "libavutil/channel_layout.c",
+      "kind": "symbol",
+      "field_anchors": [],
+      "home": "src/libavutil/libavutil/channel_layout.rs"
+    },
+    {
+      "name": "av_channel_layout_subset",
+      "defined_in": "libavutil/channel_layout.c",
+      "kind": "symbol",
+      "field_anchors": [],
+      "home": "src/libavutil/libavutil/channel_layout.rs"
+    },
+    {
+      "name": "av_channel_layout_uninit",
+      "defined_in": "libavutil/channel_layout.c",
+      "kind": "symbol",
+      "field_anchors": [],
+      "home": "src/libavutil/libavutil/channel_layout.rs"
+    }
+  ],
+  "wave": 98,
+  "batch": 1,
+  "link_unit": "libavutil",
+  "module": "libavutil/channel_layout.c",
+  "foundational": false,
+  "base_branch": "crustify/waves/wave-98",
+  "model": "openrouter/anthropic/claude-opus-5.5",
+  "billing": "api"
+}

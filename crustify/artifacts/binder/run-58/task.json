@@ -1,0 +1,31 @@
+{
+  "objective": "wrap",
+  "items": [
+    {
+      "name": "AVRC4",
+      "defined_in": "libavutil/rc4.h",
+      "kind": "type",
+      "field_anchors": [
+        "x",
+        "y",
+        "state"
+      ],
+      "home": "src/libavutil/libavutil/rc4.rs"
+    },
+    {
+      "name": "AVRIPEMD",
+      "defined_in": "libavutil/ripemd.c",
+      "kind": "type",
+      "field_anchors": [],
+      "home": "src/libavutil/libavutil/ripemd.rs"
+    }
+  ],
+  "wave": 150,
+  "batch": 0,
+  "link_unit": "libavutil",
+  "module": "libavutil/rc4.c",
+  "foundational": false,
+  "base_branch": "crustify/waves/wave-150",
+  "model": "openrouter/openai/gpt-6.1-sol",
+  "billing": "api"
+}

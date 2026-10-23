@@ -1,0 +1,27 @@
+{
+  "objective": "wrap",
+  "items": [
+    {
+      "name": "AVTEA",
+      "defined_in": "libavutil/tea.c",
+      "kind": "type",
+      "field_anchors": [],
+      "home": "src/libavutil/libavutil/tea.rs"
+    },
+    {
+      "name": "AVTWOFISH",
+      "defined_in": "libavutil/twofish.c",
+      "kind": "type",
+      "field_anchors": [],
+      "home": "src/libavutil/libavutil/twofish.rs"
+    }
+  ],
+  "wave": 158,
+  "batch": 0,
+  "link_unit": "libavutil",
+  "module": "libavutil/tea.c",
+  "foundational": false,
+  "base_branch": "crustify/waves/wave-158",
+  "model": "openrouter/openai/gpt-6.1-sol",
+  "billing": "api"
+}

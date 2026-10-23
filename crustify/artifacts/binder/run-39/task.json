@@ -1,0 +1,23 @@
+{
+  "objective": "wrap",
+  "items": [
+    {
+      "name": "AVColorPrimariesDesc",
+      "defined_in": "libavutil/csp.h",
+      "kind": "type",
+      "field_anchors": [
+        "prim",
+        "wp"
+      ],
+      "home": "src/libavutil/libavutil/csp.rs"
+    }
+  ],
+  "wave": 100,
+  "batch": 0,
+  "link_unit": "libavutil",
+  "module": "libavutil/csp.c",
+  "foundational": false,
+  "base_branch": "crustify/waves/wave-100",
+  "model": "openrouter/anthropic/claude-opus-5.5",
+  "billing": "api"
+}

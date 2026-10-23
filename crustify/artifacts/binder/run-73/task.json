@@ -1,0 +1,83 @@
+{
+  "objective": "wrap",
+  "items": [
+    {
+      "name": "av_buffer_pool_uninit",
+      "defined_in": "libavutil/buffer.c",
+      "kind": "symbol",
+      "field_anchors": [],
+      "home": "src/libavutil/libavutil/buffer.rs"
+    },
+    {
+      "name": "av_frame_side_data_desc",
+      "defined_in": "libavutil/side_data.c",
+      "kind": "symbol",
+      "field_anchors": [],
+      "home": "src/libavutil/libavutil/frame.rs"
+    },
+    {
+      "name": "av_frame_side_data_name",
+      "defined_in": "libavutil/side_data.c",
+      "kind": "symbol",
+      "field_anchors": [],
+      "home": "src/libavutil/libavutil/frame.rs"
+    },
+    {
+      "name": "av_refstruct_alloc_ext",
+      "defined_in": "libavutil/refstruct.h",
+      "kind": "symbol",
+      "field_anchors": [],
+      "home": "src/libavutil/libavutil/refstruct.rs"
+    },
+    {
+      "name": "av_refstruct_alloc_ext_c",
+      "defined_in": "libavutil/refstruct.c",
+      "kind": "symbol",
+      "field_anchors": [],
+      "home": "src/libavutil/libavutil/refstruct.rs"
+    },
+    {
+      "name": "av_refstruct_pool_alloc",
+      "defined_in": "libavutil/refstruct.c",
+      "kind": "symbol",
+      "field_anchors": [],
+      "home": "src/libavutil/libavutil/refstruct.rs"
+    },
+    {
+      "name": "av_refstruct_pool_alloc_ext",
+      "defined_in": "libavutil/refstruct.h",
+      "kind": "symbol",
+      "field_anchors": [],
+      "home": "src/libavutil/libavutil/refstruct.rs"
+    },
+    {
+      "name": "av_refstruct_pool_alloc_ext_c",
+      "defined_in": "libavutil/refstruct.c",
+      "kind": "symbol",
+      "field_anchors": [],
+      "home": "src/libavutil/libavutil/refstruct.rs"
+    },
+    {
+      "name": "av_refstruct_pool_get",
+      "defined_in": "libavutil/refstruct.c",
+      "kind": "symbol",
+      "field_anchors": [],
+      "home": "src/libavutil/libavutil/refstruct.rs"
+    },
+    {
+      "name": "av_refstruct_pool_uninit",
+      "defined_in": "libavutil/refstruct.h",
+      "kind": "symbol",
+      "field_anchors": [],
+      "home": "src/libavutil/libavutil/refstruct.rs"
+    }
+  ],
+  "wave": 208,
+  "batch": 0,
+  "link_unit": "libavutil",
+  "module": "libavutil/refstruct.c",
+  "foundational": true,
+  "base_branch": "crustify/waves/wave-208",
+  "model": "openrouter/anthropic/claude-opus-5.5",
+  "billing": "api"
+}

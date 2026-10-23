@@ -1,0 +1,14 @@
+{
+  "commits": [
+    "01ade9ae79e47c92a77d42888660bfb0ff4ba343",
+    "c06eadd649ef42c5350816dac53dfb8fd85a9ae4"
+  ],
+  "wave": 37,
+  "batch": 0,
+  "link_unit": "libavutil",
+  "module": "libavutil/rational.c",
+  "foundational": false,
+  "base_branch": "crustify/waves/wave-37",
+  "model": "openrouter/anthropic/claude-fable-5.1",
+  "billing": "api"
+}

@@ -1,0 +1,41 @@
+{
+  "objective": "wrap",
+  "items": [
+    {
+      "name": "av_xtea_crypt",
+      "defined_in": "libavutil/xtea.c",
+      "kind": "symbol",
+      "field_anchors": [],
+      "home": "src/libavutil/libavutil/xtea.rs"
+    },
+    {
+      "name": "av_xtea_init",
+      "defined_in": "libavutil/xtea.c",
+      "kind": "symbol",
+      "field_anchors": [],
+      "home": "src/libavutil/libavutil/xtea.rs"
+    },
+    {
+      "name": "av_xtea_le_crypt",
+      "defined_in": "libavutil/xtea.c",
+      "kind": "symbol",
+      "field_anchors": [],
+      "home": "src/libavutil/libavutil/xtea.rs"
+    },
+    {
+      "name": "av_xtea_le_init",
+      "defined_in": "libavutil/xtea.c",
+      "kind": "symbol",
+      "field_anchors": [],
+      "home": "src/libavutil/libavutil/xtea.rs"
+    }
+  ],
+  "wave": 200,
+  "batch": 1,
+  "link_unit": "libavutil",
+  "module": "libavutil/xtea.c",
+  "foundational": false,
+  "base_branch": "crustify/waves/wave-200",
+  "model": "openrouter/openai/gpt-6.1-sol",
+  "billing": "api"
+}

@@ -1,0 +1,13 @@
+{
+  "commits": [
+    "fe9edfcafd504958d9f2917e2782b680bfd8f037"
+  ],
+  "wave": 69,
+  "batch": 1,
+  "link_unit": "libavutil",
+  "module": "libavutil/pixdesc.c",
+  "foundational": false,
+  "base_branch": "crustify/waves/wave-69",
+  "model": "openrouter/anthropic/claude-fable-5.1",
+  "billing": "api"
+}

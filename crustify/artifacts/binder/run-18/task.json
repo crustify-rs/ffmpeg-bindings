@@ -1,0 +1,47 @@
+{
+  "objective": "wrap",
+  "items": [
+    {
+      "name": "AVBPrint",
+      "defined_in": "libavutil/bprint.h",
+      "kind": "type",
+      "field_anchors": [
+        "str",
+        "len",
+        "size",
+        "reserved_padding",
+        "reserved_internal_buffer",
+        "size_max"
+      ],
+      "home": "src/libavutil/libavutil/bprint.rs"
+    },
+    {
+      "name": "AVClass",
+      "defined_in": "libavutil/log.h",
+      "kind": "type",
+      "field_anchors": [
+        "version",
+        "option",
+        "category",
+        "item_name",
+        "get_category",
+        "state_flags_offset",
+        "child_class_iterate",
+        "child_next",
+        "query_ranges",
+        "parent_log_context_offset",
+        "log_level_offset_offset",
+        "class_name"
+      ],
+      "home": "src/libavutil/libavutil/log.rs"
+    }
+  ],
+  "wave": 52,
+  "batch": 0,
+  "link_unit": "libavutil",
+  "module": "libavutil/bprint.c",
+  "foundational": false,
+  "base_branch": "crustify/waves/wave-52",
+  "model": "openrouter/anthropic/claude-opus-5.5",
+  "billing": "api"
+}

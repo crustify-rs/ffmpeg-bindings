@@ -1,0 +1,27 @@
+{
+  "objective": "wrap",
+  "items": [
+    {
+      "name": "AVSHA",
+      "defined_in": "libavutil/sha.c",
+      "kind": "type",
+      "field_anchors": [],
+      "home": "src/libavutil/libavutil/sha.rs"
+    },
+    {
+      "name": "AVSHA512",
+      "defined_in": "libavutil/sha512.c",
+      "kind": "type",
+      "field_anchors": [],
+      "home": "src/libavutil/libavutil/sha512.rs"
+    }
+  ],
+  "wave": 154,
+  "batch": 0,
+  "link_unit": "libavutil",
+  "module": "libavutil/sha.c",
+  "foundational": false,
+  "base_branch": "crustify/waves/wave-154",
+  "model": "openrouter/openai/gpt-6.1-sol",
+  "billing": "api"
+}

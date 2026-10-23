@@ -1,0 +1,104 @@
+{
+  "objective": "wrap",
+  "items": [
+    {
+      "name": "av_channel_description_bprint",
+      "defined_in": "libavutil/channel_layout.c",
+      "kind": "symbol",
+      "field_anchors": [],
+      "home": "src/libavutil/libavutil/channel_layout.rs"
+    },
+    {
+      "name": "av_channel_name_bprint",
+      "defined_in": "libavutil/channel_layout.c",
+      "kind": "symbol",
+      "field_anchors": [],
+      "home": "src/libavutil/libavutil/channel_layout.rs"
+    },
+    {
+      "name": "av_csp_luma_coeffs_from_avcsp",
+      "defined_in": "libavutil/csp.c",
+      "kind": "symbol",
+      "field_anchors": [],
+      "home": "src/libavutil/libavutil/csp.rs"
+    },
+    {
+      "name": "av_get_bits_per_pixel",
+      "defined_in": "libavutil/pixdesc.c",
+      "kind": "symbol",
+      "field_anchors": [],
+      "home": "src/libavutil/libavutil/pixdesc.rs"
+    },
+    {
+      "name": "av_get_padded_bits_per_pixel",
+      "defined_in": "libavutil/pixdesc.c",
+      "kind": "symbol",
+      "field_anchors": [],
+      "home": "src/libavutil/libavutil/pixdesc.rs"
+    },
+    {
+      "name": "av_image_fill_max_pixsteps",
+      "defined_in": "libavutil/imgutils.c",
+      "kind": "symbol",
+      "field_anchors": [],
+      "home": "src/libavutil/libavutil/imgutils.rs"
+    },
+    {
+      "name": "av_pix_fmt_desc_get",
+      "defined_in": "libavutil/pixdesc.c",
+      "kind": "symbol",
+      "field_anchors": [],
+      "home": "src/libavutil/libavutil/pixdesc.rs"
+    },
+    {
+      "name": "av_pix_fmt_desc_get_id",
+      "defined_in": "libavutil/pixdesc.c",
+      "kind": "symbol",
+      "field_anchors": [],
+      "home": "src/libavutil/libavutil/pixdesc.rs"
+    },
+    {
+      "name": "av_pix_fmt_desc_next",
+      "defined_in": "libavutil/pixdesc.c",
+      "kind": "symbol",
+      "field_anchors": [],
+      "home": "src/libavutil/libavutil/pixdesc.rs"
+    },
+    {
+      "name": "av_read_image_line",
+      "defined_in": "libavutil/pixdesc.c",
+      "kind": "symbol",
+      "field_anchors": [],
+      "home": "src/libavutil/libavutil/pixdesc.rs"
+    },
+    {
+      "name": "av_read_image_line2",
+      "defined_in": "libavutil/pixdesc.c",
+      "kind": "symbol",
+      "field_anchors": [],
+      "home": "src/libavutil/libavutil/pixdesc.rs"
+    },
+    {
+      "name": "av_write_image_line",
+      "defined_in": "libavutil/pixdesc.c",
+      "kind": "symbol",
+      "field_anchors": [],
+      "home": "src/libavutil/libavutil/pixdesc.rs"
+    },
+    {
+      "name": "av_write_image_line2",
+      "defined_in": "libavutil/pixdesc.c",
+      "kind": "symbol",
+      "field_anchors": [],
+      "home": "src/libavutil/libavutil/pixdesc.rs"
+    }
+  ],
+  "wave": 90,
+  "batch": 1,
+  "link_unit": "libavutil",
+  "module": "libavutil/channel_layout.c",
+  "foundational": false,
+  "base_branch": "crustify/waves/wave-90",
+  "model": "openrouter/anthropic/claude-opus-5.5",
+  "billing": "api"
+}

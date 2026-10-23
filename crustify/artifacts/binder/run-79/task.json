@@ -1,0 +1,27 @@
+{
+  "objective": "wrap",
+  "items": [
+    {
+      "name": "AVHWDeviceType",
+      "defined_in": "libavutil/hwcontext.h",
+      "kind": "type",
+      "field_anchors": [],
+      "home": "src/libavutil/libavutil/hwcontext.rs"
+    },
+    {
+      "name": "AVHWFrameTransferDirection",
+      "defined_in": "libavutil/hwcontext.h",
+      "kind": "type",
+      "field_anchors": [],
+      "home": "src/libavutil/libavutil/hwcontext.rs"
+    }
+  ],
+  "wave": 226,
+  "batch": 0,
+  "link_unit": "libavutil",
+  "module": "libavutil/hwcontext.c",
+  "foundational": false,
+  "base_branch": "crustify/waves/wave-226",
+  "model": "openrouter/anthropic/claude-opus-5.5",
+  "billing": "api"
+}

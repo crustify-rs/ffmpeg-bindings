@@ -1,0 +1,31 @@
+{
+  "objective": "wrap",
+  "items": [
+    {
+      "name": "unaligned_16",
+      "defined_in": "libavutil/intreadwrite.h",
+      "kind": "type",
+      "field_anchors": [
+        "l"
+      ],
+      "home": "src/libavutil/libavutil/intreadwrite.rs"
+    },
+    {
+      "name": "unaligned_32",
+      "defined_in": "libavutil/intreadwrite.h",
+      "kind": "type",
+      "field_anchors": [
+        "l"
+      ],
+      "home": "src/libavutil/libavutil/intreadwrite.rs"
+    }
+  ],
+  "wave": 30,
+  "batch": 2,
+  "link_unit": "libavutil",
+  "module": "libavutil/intreadwrite.h",
+  "foundational": false,
+  "base_branch": "crustify/waves/wave-30",
+  "model": "openrouter/anthropic/claude-opus-5.5",
+  "billing": "api"
+}

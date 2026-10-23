@@ -1,0 +1,27 @@
+{
+  "objective": "wrap",
+  "items": [
+    {
+      "name": "AVBuffer",
+      "defined_in": "libavutil/buffer_internal.h",
+      "kind": "type",
+      "field_anchors": [],
+      "home": "src/libavutil/libavutil/buffer.rs"
+    },
+    {
+      "name": "AVBufferPool",
+      "defined_in": "libavutil/buffer_internal.h",
+      "kind": "type",
+      "field_anchors": [],
+      "home": "src/libavutil/libavutil/buffer.rs"
+    }
+  ],
+  "wave": 204,
+  "batch": 0,
+  "link_unit": "libavutil",
+  "module": "libavutil/buffer.c",
+  "foundational": false,
+  "base_branch": "crustify/waves/wave-204",
+  "model": "openrouter/anthropic/claude-opus-5.5",
+  "billing": "api"
+}

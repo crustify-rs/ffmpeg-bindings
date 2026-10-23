@@ -1,0 +1,22 @@
+{
+  "commits": [
+    "892d8391802739b66ce004f745a6792d4e4ce60f",
+    "e1df91c77218d6d12df1050ba7f81cf7a85a4bab",
+    "53ce117713d61830554134ebf34dadb1e46a3959",
+    "42022e20f7ca96ae2c841205a8a433bd9ee6aa4d",
+    "b74f3328fa6620b6d1b19a58bc27185b50b25d46",
+    "618d133141a7174f256ee8eb8095ac8a5ee89619",
+    "a15a84376b54960926501dfb84641e7d65f1d9a9",
+    "20bc617d6c0879b8cd376bd497da7cb66afe1e0e",
+    "99dda2492d1f4feb11faeaa2a57a97deb0a75e7d",
+    "5eccdfa47b573930bf12b5300aab2c53513a359a"
+  ],
+  "wave": 125,
+  "batch": 0,
+  "link_unit": "libavutil",
+  "module": "libavutil/aes.c",
+  "foundational": false,
+  "base_branch": "crustify/waves/wave-125",
+  "model": "openrouter/anthropic/claude-opus-5.5",
+  "billing": "api"
+}

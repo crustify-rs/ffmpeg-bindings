@@ -1,0 +1,35 @@
+{
+  "objective": "wrap",
+  "items": [
+    {
+      "name": "AVChannelCustom",
+      "defined_in": "libavutil/channel_layout.h",
+      "kind": "type",
+      "field_anchors": [
+        "name",
+        "id",
+        "opaque"
+      ],
+      "home": "src/libavutil/libavutil/channel_layout.rs"
+    },
+    {
+      "name": "AVLumaCoefficients",
+      "defined_in": "libavutil/csp.h",
+      "kind": "type",
+      "field_anchors": [
+        "cb",
+        "cr",
+        "cg"
+      ],
+      "home": "src/libavutil/libavutil/csp.rs"
+    }
+  ],
+  "wave": 78,
+  "batch": 0,
+  "link_unit": "libavutil",
+  "module": "libavutil/channel_layout.c",
+  "foundational": false,
+  "base_branch": "crustify/waves/wave-78",
+  "model": "openrouter/anthropic/claude-opus-5.5",
+  "billing": "api"
+}

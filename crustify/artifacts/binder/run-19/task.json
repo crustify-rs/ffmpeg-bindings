@@ -1,0 +1,26 @@
+{
+  "objective": "wrap",
+  "items": [
+    {
+      "name": "ff_pad_helper_AVBPrint",
+      "defined_in": "libavutil/bprint.h",
+      "kind": "type",
+      "field_anchors": [
+        "str",
+        "len",
+        "size",
+        "reserved_internal_buffer",
+        "size_max"
+      ],
+      "home": "src/libavutil/libavutil/bprint.rs"
+    }
+  ],
+  "wave": 52,
+  "batch": 1,
+  "link_unit": "libavutil",
+  "module": "libavutil/bprint.c",
+  "foundational": false,
+  "base_branch": "crustify/waves/wave-52",
+  "model": "openrouter/anthropic/claude-opus-5.5",
+  "billing": "api"
+}

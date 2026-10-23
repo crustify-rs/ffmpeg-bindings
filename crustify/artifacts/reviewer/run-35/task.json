@@ -1,0 +1,13 @@
+{
+  "commits": [
+    "8d3920a76cae879b1eeec6a5fc3f77ce52bb36b5"
+  ],
+  "wave": 123,
+  "batch": 0,
+  "link_unit": "libavutil",
+  "module": "libavutil/adler32.c",
+  "foundational": false,
+  "base_branch": "crustify/waves/wave-123",
+  "model": "openrouter/anthropic/claude-opus-5.5",
+  "billing": "api"
+}

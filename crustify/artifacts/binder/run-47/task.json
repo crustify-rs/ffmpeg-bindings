@@ -1,0 +1,48 @@
+{
+  "objective": "wrap",
+  "items": [
+    {
+      "name": "av_parse_color",
+      "defined_in": "libavutil/parseutils.c",
+      "kind": "symbol",
+      "field_anchors": [],
+      "home": "src/libavutil/libavutil/parseutils.rs"
+    },
+    {
+      "name": "av_parse_time",
+      "defined_in": "libavutil/parseutils.c",
+      "kind": "symbol",
+      "field_anchors": [],
+      "home": "src/libavutil/libavutil/parseutils.rs"
+    },
+    {
+      "name": "av_parse_video_size",
+      "defined_in": "libavutil/parseutils.c",
+      "kind": "symbol",
+      "field_anchors": [],
+      "home": "src/libavutil/libavutil/parseutils.rs"
+    },
+    {
+      "name": "av_set_options_string",
+      "defined_in": "libavutil/opt.c",
+      "kind": "symbol",
+      "field_anchors": [],
+      "home": "src/libavutil/libavutil/opt.rs"
+    },
+    {
+      "name": "av_strtod",
+      "defined_in": "libavutil/eval.c",
+      "kind": "symbol",
+      "field_anchors": [],
+      "home": "src/libavutil/libavutil/eval.rs"
+    }
+  ],
+  "wave": 106,
+  "batch": 2,
+  "link_unit": "libavutil",
+  "module": "libavutil/eval.c",
+  "foundational": false,
+  "base_branch": "crustify/waves/wave-106",
+  "model": "openrouter/anthropic/claude-opus-5.5",
+  "billing": "api"
+}

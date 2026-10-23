@@ -1,0 +1,38 @@
+{
+  "objective": "wrap",
+  "items": [
+    {
+      "name": "AVBufferRef",
+      "defined_in": "libavutil/buffer.h",
+      "kind": "type",
+      "field_anchors": [
+        "data",
+        "buffer",
+        "size"
+      ],
+      "home": "src/libavutil/libavutil/buffer.rs"
+    },
+    {
+      "name": "AVRegionOfInterest",
+      "defined_in": "libavutil/frame.h",
+      "kind": "type",
+      "field_anchors": [
+        "qoffset",
+        "right",
+        "left",
+        "bottom",
+        "top",
+        "self_size"
+      ],
+      "home": "src/libavutil/libavutil/frame.rs"
+    }
+  ],
+  "wave": 210,
+  "batch": 0,
+  "link_unit": "libavutil",
+  "module": "libavutil/buffer.c",
+  "foundational": false,
+  "base_branch": "crustify/waves/wave-210",
+  "model": "openrouter/anthropic/claude-opus-5.5",
+  "billing": "api"
+}

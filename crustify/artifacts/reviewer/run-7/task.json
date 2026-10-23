@@ -1,0 +1,13 @@
+{
+  "commits": [
+    "2975c095681a3ff1188c8590a1420d92c9be68f4"
+  ],
+  "wave": 15,
+  "batch": 0,
+  "link_unit": "libavutil",
+  "module": "libavutil/bprint.c",
+  "foundational": false,
+  "base_branch": "crustify/waves/wave-15",
+  "model": "openrouter/anthropic/claude-fable-5.1",
+  "billing": "api"
+}
