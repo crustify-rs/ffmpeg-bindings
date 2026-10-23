@@ -1664,7 +1664,7 @@ mod typed_setters {
     use ffmpeg_bindings::libavutil::libavutil::dict::Dict;
     use ffmpeg_bindings::libavutil::libavutil::ffi;
     use ffmpeg_bindings::libavutil::libavutil::opt::{ObjectMut, ObjectRef, SearchFlags};
-    use ffmpeg_bindings::libavutil::libavutil::pixfmt::PixelFormat;
+    use ffmpeg_bindings::libavutil::libavutil::pixdesc::PixelFormat;
     use ffmpeg_bindings::libavutil::libavutil::rational::Rational;
     use ffmpeg_bindings::libavutil::libavutil::samplefmt::SampleFormat;
 

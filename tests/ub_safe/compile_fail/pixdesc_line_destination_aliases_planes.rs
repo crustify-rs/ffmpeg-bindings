@@ -3,7 +3,7 @@
 
 use ffmpeg_bindings::libavutil::libavutil::imgutils::Planes;
 use ffmpeg_bindings::libavutil::libavutil::pixdesc::read_image_line;
-use ffmpeg_bindings::libavutil::libavutil::pixfmt::PixelFormat;
+use ffmpeg_bindings::libavutil::libavutil::pixdesc::PixelFormat;
 
 fn main() {
     let desc = PixelFormat::GRAY16LE.descriptor().unwrap();

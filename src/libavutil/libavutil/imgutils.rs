@@ -31,8 +31,7 @@ use core::{fmt, ptr};
 use super::ffi;
 use super::mem::HeapVec;
 use super::opt::ObjectRef;
-use super::pixdesc::{InvalidDescriptor, PixelFormatDescriptorRef};
-use super::pixfmt::{ColorRange, PixelFormat};
+use super::pixdesc::{ColorRange, InvalidDescriptor, PixelFormat, PixelFormatDescriptorRef};
 use super::rational::Rational;
 
 /// `AVERROR(EINVAL)`.
@@ -530,7 +529,7 @@ pub struct MaxPixelSteps {
 ///
 /// ```
 /// use ffmpeg_bindings::libavutil::libavutil::imgutils::max_pixel_steps;
-/// use ffmpeg_bindings::libavutil::libavutil::pixfmt::PixelFormat;
+/// use ffmpeg_bindings::libavutil::libavutil::pixdesc::PixelFormat;
 /// let nv12 = max_pixel_steps(PixelFormat::NV12.descriptor().unwrap()).unwrap();
 /// assert_eq!(nv12.steps, [1, 2, 0, 0]);
 /// assert_eq!(nv12.components, [0, 1, 0, 0]);
@@ -564,7 +563,7 @@ pub fn max_pixel_steps(
 ///
 /// ```
 /// use ffmpeg_bindings::libavutil::libavutil::imgutils::check_size_max_pixels;
-/// use ffmpeg_bindings::libavutil::libavutil::pixfmt::PixelFormat;
+/// use ffmpeg_bindings::libavutil::libavutil::pixdesc::PixelFormat;
 /// assert_eq!(
 ///     check_size_max_pixels(1920, 1080, i64::MAX, PixelFormat::YUV420P),
 ///     Ok(())
@@ -659,7 +658,7 @@ pub fn check_sar(width: u32, height: u32, sar: Rational) -> Result<(), i32> {
 ///
 /// ```
 /// use ffmpeg_bindings::libavutil::libavutil::imgutils::linesize;
-/// use ffmpeg_bindings::libavutil::libavutil::pixfmt::PixelFormat;
+/// use ffmpeg_bindings::libavutil::libavutil::pixdesc::PixelFormat;
 /// assert_eq!(linesize(PixelFormat::YUV420P, 101, 0), Ok(101));
 /// assert_eq!(linesize(PixelFormat::YUV420P, 101, 1), Ok(51));
 /// assert_eq!(linesize(PixelFormat::RGB24, 101, 1), Ok(0));
@@ -958,7 +957,7 @@ fn c_fill_arrays(
 ///
 /// ```
 /// use ffmpeg_bindings::libavutil::libavutil::imgutils::fill_arrays;
-/// use ffmpeg_bindings::libavutil::libavutil::pixfmt::PixelFormat;
+/// use ffmpeg_bindings::libavutil::libavutil::pixdesc::PixelFormat;
 /// let buf = [0u8; 64 * 48 * 3 / 2];
 /// let planes = fill_arrays(&buf, PixelFormat::YUV420P, 64, 48, 1).unwrap();
 /// assert_eq!(planes.linesizes, [64, 32, 32, 0]);
@@ -1105,7 +1104,7 @@ impl Image {
     ///
     /// ```
     /// use ffmpeg_bindings::libavutil::libavutil::imgutils::Image;
-    /// use ffmpeg_bindings::libavutil::libavutil::pixfmt::PixelFormat;
+    /// use ffmpeg_bindings::libavutil::libavutil::pixdesc::PixelFormat;
     /// let mut image = Image::alloc(100, 50, PixelFormat::YUV420P, 32).unwrap();
     /// assert_eq!(image.linesizes(), [128, 64, 64, 0]);
     /// image.planes_mut().data[0].fill(16);
@@ -1658,7 +1657,7 @@ fn fill_args(
 ///
 /// ```
 /// use ffmpeg_bindings::libavutil::libavutil::imgutils::{Image, fill_color};
-/// use ffmpeg_bindings::libavutil::libavutil::pixfmt::PixelFormat;
+/// use ffmpeg_bindings::libavutil::libavutil::pixdesc::PixelFormat;
 /// let mut image = Image::alloc(4, 2, PixelFormat::RGB24, 1).unwrap();
 /// fill_color(
 ///     &mut image.planes_mut(),

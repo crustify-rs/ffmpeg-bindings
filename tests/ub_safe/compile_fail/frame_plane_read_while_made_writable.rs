@@ -1,7 +1,7 @@
 // `make_writable` may replace the buffers a plane view reads, so no view may
 // live across it.
 use ffmpeg_bindings::libavutil::libavutil::frame::Frame;
-use ffmpeg_bindings::libavutil::libavutil::pixfmt::PixelFormat;
+use ffmpeg_bindings::libavutil::libavutil::pixdesc::PixelFormat;
 
 fn main() {
     let mut frame = Frame::new().unwrap();

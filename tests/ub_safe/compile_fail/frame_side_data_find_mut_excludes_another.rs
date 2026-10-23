@@ -1,5 +1,7 @@
 // Entries found writable exclude one another, even of the same kind.
-use ffmpeg_bindings::libavutil::libavutil::frame::{SideDataArray, SideDataType};
+use ffmpeg_bindings::libavutil::libavutil::frame::SideDataType;
+
+use ffmpeg_bindings::libavutil::libavutil::side_data::SideDataArray;
 
 fn main() {
     let mut array = SideDataArray::new();

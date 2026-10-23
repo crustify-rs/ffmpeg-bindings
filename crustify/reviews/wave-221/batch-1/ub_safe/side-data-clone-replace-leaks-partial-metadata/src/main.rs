@@ -19,7 +19,9 @@
 use std::ffi::CString;
 
 use ffmpeg::libavutil::libavutil::dict::Dict;
-use ffmpeg::libavutil::libavutil::frame::{SideDataArray, SideDataFlags, SideDataType};
+use ffmpeg::libavutil::libavutil::frame::SideDataType;
+
+use ffmpeg::libavutil::libavutil::side_data::{SideDataArray, SideDataFlags};
 use ffmpeg::libavutil::libavutil::mem::set_max_alloc;
 
 fn main() {

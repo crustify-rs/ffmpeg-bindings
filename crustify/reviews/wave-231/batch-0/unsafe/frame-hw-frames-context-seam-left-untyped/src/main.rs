@@ -25,7 +25,7 @@ use ffmpeg::libavutil::libavutil::buffer::BufferReferenceBox;
 use ffmpeg::libavutil::libavutil::ffi;
 use ffmpeg::libavutil::libavutil::frame::Frame;
 use ffmpeg::libavutil::libavutil::hwcontext::DeviceReferenceBox;
-use ffmpeg::libavutil::libavutil::pixfmt::PixelFormat;
+use ffmpeg::libavutil::libavutil::pixdesc::PixelFormat;
 
 #[path = "../../../../../../../tests/common/hwbackend.rs"]
 mod hwbackend;

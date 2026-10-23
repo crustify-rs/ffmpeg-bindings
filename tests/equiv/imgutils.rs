@@ -424,7 +424,7 @@ mod images {
         linesize,
     };
     use ffmpeg_bindings::libavutil::libavutil::opt::ObjectRef;
-    use ffmpeg_bindings::libavutil::libavutil::pixfmt::{ColorRange, PixelFormat};
+    use ffmpeg_bindings::libavutil::libavutil::pixdesc::{ColorRange, PixelFormat};
     use ffmpeg_bindings::libavutil::libavutil::rational::Rational;
 
     use super::{Ctx, captured, isolated};
@@ -1609,7 +1609,7 @@ mod pixel_steps {
 
     use ffmpeg_bindings::libavutil::libavutil::ffi;
     use ffmpeg_bindings::libavutil::libavutil::imgutils::max_pixel_steps;
-    use ffmpeg_bindings::libavutil::libavutil::pixfmt::PixelFormat;
+    use ffmpeg_bindings::libavutil::libavutil::pixdesc::PixelFormat;
 
     const NB: c_int = ffi::AVPixelFormat::AV_PIX_FMT_NB.0;
 

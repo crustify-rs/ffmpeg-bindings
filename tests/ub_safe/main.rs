@@ -3,6 +3,7 @@
 
 mod aes;
 mod aes_ctr;
+mod avsscanf;
 mod avstring;
 mod avutil_h;
 mod blowfish;
@@ -36,7 +37,6 @@ mod opt;
 mod parseutils;
 mod pixdesc;
 mod pixelutils;
-mod pixfmt;
 mod random_seed;
 mod rational;
 mod rc4;
@@ -66,6 +66,7 @@ mod base64;
 mod camellia;
 mod lzo;
 mod ripemd;
+mod side_data;
 mod tea;
 mod twofish;
 mod utils;

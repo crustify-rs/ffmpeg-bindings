@@ -3,7 +3,7 @@
 
 use ffmpeg_bindings::libavutil::libavutil::imgutils::PlanesMut;
 use ffmpeg_bindings::libavutil::libavutil::pixdesc::{read_image_line, write_image_line};
-use ffmpeg_bindings::libavutil::libavutil::pixfmt::PixelFormat;
+use ffmpeg_bindings::libavutil::libavutil::pixdesc::PixelFormat;
 
 fn main() {
     let desc = PixelFormat::GRAY8.descriptor().unwrap();

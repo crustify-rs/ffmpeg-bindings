@@ -1,5 +1,5 @@
 // A destination bound into scan arguments cannot be read until they are gone.
-use ffmpeg_bindings::libavutil::libavutil::avstring::{ScanArg, scan};
+use ffmpeg_bindings::libavutil::libavutil::avsscanf::{ScanArg, scan};
 
 fn main() {
     let mut n = 0i32;

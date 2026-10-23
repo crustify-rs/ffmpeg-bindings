@@ -3,7 +3,7 @@
 //! ([`SideDataArrayMut::add`], [`SideDataMut::set_metadata`]) from specs the
 //! suites also hand to C.
 //!
-//! [`SideDataArrayMut::add`]: ffmpeg_bindings::libavutil::libavutil::frame::SideDataArrayMut::add
+//! [`SideDataArrayMut::add`]: ffmpeg_bindings::libavutil::libavutil::side_data::SideDataArrayMut::add
 //! [`SideDataMut::set_metadata`]: ffmpeg_bindings::libavutil::libavutil::frame::SideDataMut::set_metadata
 #![expect(
     clippy::cast_possible_truncation,
@@ -15,7 +15,8 @@ use core::ffi::CStr;
 use ffmpeg_bindings::libavutil::libavutil::buffer::{BufferReference, BufferReferenceBox};
 use ffmpeg_bindings::libavutil::libavutil::dict::Dict;
 use ffmpeg_bindings::libavutil::libavutil::ffi;
-use ffmpeg_bindings::libavutil::libavutil::frame::{SideDataArray, SideDataFlags, SideDataType};
+use ffmpeg_bindings::libavutil::libavutil::frame::SideDataType;
+use ffmpeg_bindings::libavutil::libavutil::side_data::{SideDataArray, SideDataFlags};
 
 /// One entry to build: its kind, its payload, and its metadata pairs, in
 /// insertion order, keys distinct.

@@ -37,7 +37,7 @@ mod fixture {
 
     use ffmpeg_bindings::libavutil::libavutil::buffer::BufferReferenceBox;
     use ffmpeg_bindings::libavutil::libavutil::frame::{Frame, FrameBox};
-    use ffmpeg_bindings::libavutil::libavutil::pixfmt::PixelFormat;
+    use ffmpeg_bindings::libavutil::libavutil::pixdesc::PixelFormat;
 
     use super::ffi;
     use super::hwframes::{self as fx, Behaviour, INERT, YUV, pattern};
@@ -123,7 +123,7 @@ mod frame_ref_transfer_formats {
     use std::thread;
 
     use ffmpeg_bindings::libavutil::libavutil::hwcontext::TransferDirection;
-    use ffmpeg_bindings::libavutil::libavutil::pixfmt::PixelFormat;
+    use ffmpeg_bindings::libavutil::libavutil::pixdesc::PixelFormat;
 
     use super::fixture::{context, hw_frame, inert_context};
     use super::hwframes::{EMPTY, GRAY_FIRST, LISTING_FAILS, YUV};
@@ -220,7 +220,7 @@ mod frame_mut_transfer_data_from {
     use ffmpeg_bindings::libavutil::libavutil::dict::Dict;
     use ffmpeg_bindings::libavutil::libavutil::frame::{Frame, FrameBox};
     use ffmpeg_bindings::libavutil::libavutil::hwcontext::FramesReferenceBox;
-    use ffmpeg_bindings::libavutil::libavutil::pixfmt::PixelFormat;
+    use ffmpeg_bindings::libavutil::libavutil::pixdesc::PixelFormat;
 
     use super::ffi;
     use super::fixture::{H, W, context, hw_frame, image, inert_context, software, surface};
@@ -567,7 +567,7 @@ mod device_context {
     use ffmpeg_bindings::libavutil::libavutil::hwcontext::{
         DeviceContextMut, DeviceReferenceBox, DeviceType, UninitDevice,
     };
-    use ffmpeg_bindings::libavutil::libavutil::pixfmt::PixelFormat;
+    use ffmpeg_bindings::libavutil::libavutil::pixdesc::PixelFormat;
 
     use super::hwdevice::{self, BARE_TYPE, Events, FakeConfig, FakeHw};
 
@@ -954,7 +954,7 @@ mod frames_context {
     use ffmpeg_bindings::libavutil::libavutil::hwcontext::{
         DeviceReferenceBox, FramesContextMut, FramesReferenceBox, UninitFrames,
     };
-    use ffmpeg_bindings::libavutil::libavutil::pixfmt::PixelFormat;
+    use ffmpeg_bindings::libavutil::libavutil::pixdesc::PixelFormat;
 
     use super::hwbackend::{self as fx, FramesHw, FramesHwctx, Kind, SURFACE_SIZE};
 

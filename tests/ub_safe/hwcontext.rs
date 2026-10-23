@@ -185,7 +185,7 @@ mod frame_ref_transfer_formats {
     use ffmpeg_bindings::libavutil::libavutil::ffi;
     use ffmpeg_bindings::libavutil::libavutil::frame::{Frame, FrameBox};
     use ffmpeg_bindings::libavutil::libavutil::hwcontext::TransferDirection;
-    use ffmpeg_bindings::libavutil::libavutil::pixfmt::PixelFormat;
+    use ffmpeg_bindings::libavutil::libavutil::pixdesc::PixelFormat;
 
     const EINVAL: i32 = -(ffi::EINVAL as i32);
     const DIRS: [TransferDirection; 2] = [TransferDirection::From, TransferDirection::To];
@@ -381,7 +381,7 @@ mod frames_constraints {
         FramesConstraints, FramesConstraintsBox,
     };
     use ffmpeg_bindings::libavutil::libavutil::mem::HeapVec;
-    use ffmpeg_bindings::libavutil::libavutil::pixfmt::PixelFormat;
+    use ffmpeg_bindings::libavutil::libavutil::pixdesc::PixelFormat;
 
     /// Format lists of every length shape: empty, one, a `NONE` inside, a
     /// `NONE` first, long.

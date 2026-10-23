@@ -58,8 +58,7 @@ use super::frame::{
 use super::log::ClassRef;
 use super::mem::{HeapVec, alloc_array_from_fn};
 use super::opt::impl_class_object;
-use super::pixdesc::PixelFormatFlags;
-use super::pixfmt::PixelFormat;
+use super::pixdesc::{PixelFormat, PixelFormatFlags};
 
 /// Wraps: `AVHWDeviceType`
 /// Handwritten

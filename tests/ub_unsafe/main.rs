@@ -10,3 +10,4 @@ mod imgutils;
 mod log;
 mod opt;
 mod pixdesc;
+mod side_data;

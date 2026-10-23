@@ -463,7 +463,7 @@ mod primary_coefficients {
     };
     use ffmpeg_bindings::libavutil::libavutil::ffi;
     use ffmpeg_bindings::libavutil::libavutil::mem::HeapBox;
-    use ffmpeg_bindings::libavutil::libavutil::pixfmt::ColorPrimaries;
+    use ffmpeg_bindings::libavutil::libavutil::pixdesc::ColorPrimaries;
     use ffmpeg_bindings::libavutil::libavutil::rational::Rational;
 
     /// Every primaries value C may describe, past the end of both ranges
@@ -703,7 +703,7 @@ mod primary_coefficients {
 /// function C returns, called on the same inputs in sequence.
 mod color_transfer {
     use ffmpeg_bindings::libavutil::libavutil::ffi;
-    use ffmpeg_bindings::libavutil::libavutil::pixfmt::ColorTransfer;
+    use ffmpeg_bindings::libavutil::libavutil::pixdesc::ColorTransfer;
 
     type Trc = unsafe extern "C" fn(f64) -> f64;
     type Eotf = unsafe extern "C" fn(f64, f64, *mut f64);
@@ -873,7 +873,7 @@ mod color_transfer {
 mod luma_lookup {
     use ffmpeg_bindings::libavutil::libavutil::csp::LumaCoefficients;
     use ffmpeg_bindings::libavutil::libavutil::ffi;
-    use ffmpeg_bindings::libavutil::libavutil::pixfmt::ColorSpace;
+    use ffmpeg_bindings::libavutil::libavutil::pixdesc::ColorSpace;
 
     /// Every value C has a table slot for, its neighbours, and the extremes,
     /// as C's `unsigned` enum takes them.
@@ -935,7 +935,7 @@ mod color_primaries_descriptor {
     };
     use ffmpeg_bindings::libavutil::libavutil::ffi;
     use ffmpeg_bindings::libavutil::libavutil::mem::HeapBox;
-    use ffmpeg_bindings::libavutil::libavutil::pixfmt::ColorPrimaries;
+    use ffmpeg_bindings::libavutil::libavutil::pixdesc::ColorPrimaries;
     use ffmpeg_bindings::libavutil::libavutil::rational::Rational;
 
     /// Every primaries value C may describe, past the end of both ranges
@@ -1311,7 +1311,7 @@ mod primaries_lookup {
     };
     use ffmpeg_bindings::libavutil::libavutil::ffi;
     use ffmpeg_bindings::libavutil::libavutil::mem::HeapBox;
-    use ffmpeg_bindings::libavutil::libavutil::pixfmt::ColorPrimaries;
+    use ffmpeg_bindings::libavutil::libavutil::pixdesc::ColorPrimaries;
 
     /// Every value C has a table slot for, its neighbours, and the extremes,
     /// as C's `unsigned` enum takes them.

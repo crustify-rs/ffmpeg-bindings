@@ -354,7 +354,7 @@ mod images {
         fill_arrays, fill_arrays_mut, fill_black, fill_color, fill_linesizes, fill_plane_sizes,
         fill_pointers, fill_pointers_mut, linesize,
     };
-    use ffmpeg_bindings::libavutil::libavutil::pixfmt::{ColorRange, PixelFormat};
+    use ffmpeg_bindings::libavutil::libavutil::pixdesc::{ColorRange, PixelFormat};
     use ffmpeg_bindings::libavutil::libavutil::rational::Rational;
 
     use super::{placed, plane, span};
@@ -868,9 +868,8 @@ mod pixel_steps {
     use ffmpeg_bindings::libavutil::libavutil::ffi;
     use ffmpeg_bindings::libavutil::libavutil::imgutils::max_pixel_steps;
     use ffmpeg_bindings::libavutil::libavutil::pixdesc::{
-        ComponentDescriptor, InvalidDescriptor, PixelFormatDescriptor,
+        ComponentDescriptor, InvalidDescriptor, PixelFormat, PixelFormatDescriptor,
     };
-    use ffmpeg_bindings::libavutil::libavutil::pixfmt::PixelFormat;
 
     #[test]
     #[cfg_attr(miri, ignore = "calls C")]
@@ -927,7 +926,7 @@ mod with_context {
     };
     use ffmpeg_bindings::libavutil::libavutil::log::{Class, ClassCategory};
     use ffmpeg_bindings::libavutil::libavutil::opt::{BareObject, ObjectRef};
-    use ffmpeg_bindings::libavutil::libavutil::pixfmt::PixelFormat;
+    use ffmpeg_bindings::libavutil::libavutil::pixdesc::PixelFormat;
 
     const EINVAL: c_int = -22;
 

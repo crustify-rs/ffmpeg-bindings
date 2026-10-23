@@ -13,7 +13,7 @@ use ffmpeg::libavutil::libavutil::pixdesc::{
     PixelFormatFlags, read_image_line, read_image_line_u16, write_image_line,
     write_image_line_u16,
 };
-use ffmpeg::libavutil::libavutil::pixfmt::PixelFormat;
+use ffmpeg::libavutil::libavutil::pixdesc::PixelFormat;
 
 struct Rng(u64);
 impl Rng {

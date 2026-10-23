@@ -2566,7 +2566,7 @@ mod getters {
     use ffmpeg_bindings::libavutil::libavutil::opt::{
         ArrayElement, ObjectRef, OptionType, SearchFlags,
     };
-    use ffmpeg_bindings::libavutil::libavutil::pixfmt::PixelFormat;
+    use ffmpeg_bindings::libavutil::libavutil::pixdesc::PixelFormat;
     use ffmpeg_bindings::libavutil::libavutil::rational::Rational;
     use ffmpeg_bindings::libavutil::libavutil::samplefmt::SampleFormat;
 
@@ -3146,7 +3146,7 @@ mod typed_setters {
     use ffmpeg_bindings::libavutil::libavutil::dict::{Dict, DictionaryRef};
     use ffmpeg_bindings::libavutil::libavutil::ffi;
     use ffmpeg_bindings::libavutil::libavutil::opt::{ObjectMut, SearchFlags};
-    use ffmpeg_bindings::libavutil::libavutil::pixfmt::PixelFormat;
+    use ffmpeg_bindings::libavutil::libavutil::pixdesc::PixelFormat;
     use ffmpeg_bindings::libavutil::libavutil::rational::Rational;
     use ffmpeg_bindings::libavutil::libavutil::samplefmt::SampleFormat;
 

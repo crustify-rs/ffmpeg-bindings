@@ -73,7 +73,7 @@ use super::channel_layout::{ChannelLayout, ChannelLayoutRef, ChannelLayoutVal};
 use super::dict::{Dict, DictionaryBox, DictionaryRef};
 use super::log::{ClassCategory, ClassRef, ItemNameFn};
 use super::mem::HeapString;
-use super::pixfmt::PixelFormat;
+use super::pixdesc::PixelFormat;
 use super::rational::Rational;
 use super::samplefmt::SampleFormat;
 use super::{avstring, channel_layout, eval, ffi, parseutils};

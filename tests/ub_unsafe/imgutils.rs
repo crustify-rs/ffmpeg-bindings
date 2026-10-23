@@ -127,7 +127,7 @@ mod max_pixels {
     use ffmpeg_bindings::libavutil::libavutil::ffi;
     use ffmpeg_bindings::libavutil::libavutil::imgutils::check_size_max_pixels_with_context;
     use ffmpeg_bindings::libavutil::libavutil::opt::ObjectRef;
-    use ffmpeg_bindings::libavutil::libavutil::pixfmt::PixelFormat;
+    use ffmpeg_bindings::libavutil::libavutil::pixdesc::PixelFormat;
 
     use super::{Ctx, EINVAL, class, object};
 

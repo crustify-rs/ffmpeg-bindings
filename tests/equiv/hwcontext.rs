@@ -332,7 +332,7 @@ mod transfer {
     use ffmpeg_bindings::libavutil::libavutil::buffer::BufferReferenceBox;
     use ffmpeg_bindings::libavutil::libavutil::frame::{Frame, FrameBox};
     use ffmpeg_bindings::libavutil::libavutil::hwcontext::TransferDirection;
-    use ffmpeg_bindings::libavutil::libavutil::pixfmt::PixelFormat;
+    use ffmpeg_bindings::libavutil::libavutil::pixdesc::PixelFormat;
 
     use super::ffi;
     use super::hwframes::{
@@ -860,7 +860,7 @@ mod contexts {
         DeviceReference, DeviceReferenceBox, DeviceType, FramesReferenceBox, HardwareFrame,
         MapFlags,
     };
-    use ffmpeg_bindings::libavutil::libavutil::pixfmt::PixelFormat;
+    use ffmpeg_bindings::libavutil::libavutil::pixdesc::PixelFormat;
 
     use super::backend::{self as fx, Event, FramesHw, FramesHwctx, HWCONFIG_SIZE, Kind, averror};
     use super::{C, NAMED, UNNAMED, c_find, c_name, c_next};
@@ -1661,7 +1661,7 @@ mod hardware_frame_transfers {
     use ffmpeg_bindings::libavutil::libavutil::hwcontext::{
         DeviceReferenceBox, FramesReferenceBox, HardwareFrame, MapFlags, TransferDirection,
     };
-    use ffmpeg_bindings::libavutil::libavutil::pixfmt::PixelFormat;
+    use ffmpeg_bindings::libavutil::libavutil::pixdesc::PixelFormat;
 
     use super::backend::{self as fx, Event, FramesHw, FramesHwctx, Kind, averror};
 
@@ -2450,7 +2450,7 @@ mod frames_constraints {
     use ffmpeg_bindings::libavutil::libavutil::hwcontext::{
         DeviceReferenceBox, FramesConstraints, FramesConstraintsBox, UninitDevice,
     };
-    use ffmpeg_bindings::libavutil::libavutil::pixfmt::PixelFormat;
+    use ffmpeg_bindings::libavutil::libavutil::pixdesc::PixelFormat;
 
     use super::hwdevice::{self, BARE_TYPE, Backend, Events, FakeConfig, FakeHw};
 
@@ -3036,7 +3036,7 @@ mod frames_context {
     use ffmpeg_bindings::libavutil::libavutil::hwcontext::{
         DeviceReferenceBox, FramesContextMut, FramesContextRef, HardwareFrame, UninitFrames,
     };
-    use ffmpeg_bindings::libavutil::libavutil::pixfmt::PixelFormat;
+    use ffmpeg_bindings::libavutil::libavutil::pixdesc::PixelFormat;
 
     use super::backend::{self as fx, Event, FramesHw, FramesHwctx, Kind};
 
@@ -3658,7 +3658,7 @@ mod frame_hw_frames_context {
     use ffmpeg_bindings::libavutil::libavutil::hwcontext::{
         DeviceReferenceBox, FramesReferenceBox,
     };
-    use ffmpeg_bindings::libavutil::libavutil::pixfmt::PixelFormat;
+    use ffmpeg_bindings::libavutil::libavutil::pixdesc::PixelFormat;
 
     use super::backend::{self as fx, Kind};
 

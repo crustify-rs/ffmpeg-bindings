@@ -810,7 +810,7 @@ mod color_transfer {
 
     use ffmpeg_bindings::libavutil::libavutil::csp::{EotfFunction, TrcFunction};
     use ffmpeg_bindings::libavutil::libavutil::ffi;
-    use ffmpeg_bindings::libavutil::libavutil::pixfmt::ColorTransfer;
+    use ffmpeg_bindings::libavutil::libavutil::pixdesc::ColorTransfer;
 
     fn transfers() -> Vec<ColorTransfer> {
         (0..300)
@@ -927,7 +927,7 @@ mod luma_lookup {
 
     use ffmpeg_bindings::libavutil::libavutil::csp::LumaCoefficientsRef;
     use ffmpeg_bindings::libavutil::libavutil::ffi;
-    use ffmpeg_bindings::libavutil::libavutil::pixfmt::ColorSpace;
+    use ffmpeg_bindings::libavutil::libavutil::pixdesc::ColorSpace;
 
     fn values() -> impl Iterator<Item = u32> {
         (0..ffi::AVColorSpace::AVCOL_SPC_NB.0 + 3).chain([u32::MAX, 1 << 31, (1 << 31) - 1])
@@ -1300,7 +1300,7 @@ mod primaries_lookup {
     };
     use ffmpeg_bindings::libavutil::libavutil::ffi;
     use ffmpeg_bindings::libavutil::libavutil::mem::{HeapBox, alloc_cell_array_zeroed};
-    use ffmpeg_bindings::libavutil::libavutil::pixfmt::ColorPrimaries;
+    use ffmpeg_bindings::libavutil::libavutil::pixdesc::ColorPrimaries;
     use ffmpeg_bindings::libavutil::libavutil::rational::Rational;
 
     fn values() -> impl Iterator<Item = u32> {
