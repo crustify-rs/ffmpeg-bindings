@@ -74,6 +74,203 @@
     "ffi_calls": 594
   },
   "counts_unavailable": null,
+  "ffibox": {
+    "counts": {
+      "fn_sig_ffibox_owner_pub": 164,
+      "fn_sig_ffibox_owner_priv": 20,
+      "fn_sig_ffibox_handle_pub": 1078,
+      "fn_sig_ffibox_handle_priv": 535,
+      "fn_sig_non_ffibox_owner_pub": 5,
+      "fn_sig_non_ffibox_owner_priv": 0,
+      "fn_sig_non_ffibox_handle_pub": 95,
+      "fn_sig_non_ffibox_handle_priv": 26,
+      "ty_pub_fields_pub_ffibox_owner": 2,
+      "ty_pub_fields_priv_ffibox_owner": 14,
+      "ty_priv_ffibox_owner": 1,
+      "ty_pub_fields_pub_ffibox_handle": 3,
+      "ty_pub_fields_priv_ffibox_handle": 126,
+      "ty_priv_ffibox_handle": 4,
+      "ty_pub_fields_pub_non_ffibox_owner": 0,
+      "ty_pub_fields_priv_non_ffibox_owner": 0,
+      "ty_priv_non_ffibox_owner": 0,
+      "ty_pub_fields_pub_non_ffibox_handle": 1,
+      "ty_pub_fields_priv_non_ffibox_handle": 5,
+      "ty_priv_non_ffibox_handle": 1,
+      "ffibox_impl_macro": 69,
+      "ffibox_impl_manual": 85,
+      "ffibox_define_ctype_macro": 58,
+      "ffibox_define_ctype_manual": 0,
+      "ffibox_ccell_not_layout": 0,
+      "ffibox_layout_not_ccell": 0
+    },
+    "by": {
+      "fn_sig_ffibox_owner_pub": {
+        "CArc": 8,
+        "CBox": 88,
+        "CStrBox": 17,
+        "CVal": 17,
+        "CVec": 34
+      },
+      "fn_sig_ffibox_owner_priv": {
+        "CBox": 12,
+        "CStrBox": 2,
+        "CVal": 1,
+        "CVec": 5
+      },
+      "fn_sig_ffibox_handle_pub": {
+        "CSlice": 6,
+        "CSliceMut": 6,
+        "Mut": 568,
+        "Ref": 495,
+        "libavutil::libavutil::opt::BareObject": 3
+      },
+      "fn_sig_ffibox_handle_priv": {
+        "CSlice": 2,
+        "Mut": 201,
+        "Ref": 326,
+        "libavutil::libavutil::hwcontext::HwFrames": 6
+      },
+      "fn_sig_non_ffibox_owner_pub": {
+        "libavutil::libavutil::hwcontext::HwConfig": 2,
+        "libavutil::libavutil::mem::DynArray": 1,
+        "libavutil::libavutil::side_data::SideDataArray": 2
+      },
+      "fn_sig_non_ffibox_owner_priv": {},
+      "fn_sig_non_ffibox_handle_pub": {
+        "libavutil::libavutil::log::ChildClasses": 1,
+        "libavutil::libavutil::log::Record": 8,
+        "libavutil::libavutil::opt::ChildrenMut": 2,
+        "libavutil::libavutil::opt::ObjectMut": 29,
+        "libavutil::libavutil::opt::ObjectRef": 46,
+        "libavutil::libavutil::opt::PotentialChildren": 1,
+        "libavutil::libavutil::side_data::SideDataArrayRef": 8
+      },
+      "fn_sig_non_ffibox_handle_priv": {
+        "libavutil::libavutil::log::Record": 1,
+        "libavutil::libavutil::opt::ObjectMut": 5,
+        "libavutil::libavutil::opt::ObjectRef": 17,
+        "libavutil::libavutil::side_data::SideDataArrayRef": 3
+      },
+      "ty_pub_fields_pub_ffibox_owner": {
+        "CStrBox": 2
+      },
+      "ty_pub_fields_priv_ffibox_owner": {
+        "CArc": 2,
+        "CBox": 7,
+        "CVec": 5
+      },
+      "ty_priv_ffibox_owner": {
+        "CBox": 1
+      },
+      "ty_pub_fields_pub_ffibox_handle": {
+        "CSlice": 1,
+        "Ref": 2
+      },
+      "ty_pub_fields_priv_ffibox_handle": {
+        "CBorrowedPtr": 58,
+        "Ref": 68
+      },
+      "ty_priv_ffibox_handle": {
+        "CSlice": 1,
+        "Mut": 1,
+        "Ref": 2
+      },
+      "ty_pub_fields_pub_non_ffibox_owner": {},
+      "ty_pub_fields_priv_non_ffibox_owner": {},
+      "ty_priv_non_ffibox_owner": {},
+      "ty_pub_fields_pub_non_ffibox_handle": {
+        "libavutil::libavutil::opt::ObjectRef": 1
+      },
+      "ty_pub_fields_priv_non_ffibox_handle": {
+        "libavutil::libavutil::opt::ObjectRef": 3,
+        "libavutil::libavutil::side_data::SideDataArrayRef": 2
+      },
+      "ty_priv_non_ffibox_handle": {
+        "libavutil::libavutil::opt::ObjectRef": 1
+      },
+      "ffibox_impl_macro": {
+        "CCell": 58,
+        "CDispose": 1,
+        "CDrop": 6,
+        "CDupClone": 1,
+        "CLenClone": 1,
+        "CLenDrop": 2
+      },
+      "ffibox_impl_manual": {
+        "CAlloc": 4,
+        "CAllocZeroed": 2,
+        "CDrop": 22,
+        "CDupClone": 4,
+        "CNew": 7,
+        "CPlainElem": 17,
+        "CRefClone": 3,
+        "CZeroable": 26
+      },
+      "ffibox_define_ctype_macro": {
+        "libavutil::libavutil::aes::Aes": 1,
+        "libavutil::libavutil::aes_ctr::AesCtr": 1,
+        "libavutil::libavutil::blowfish::Blowfish": 1,
+        "libavutil::libavutil::bprint::BPrint": 1,
+        "libavutil::libavutil::bprint::BPrintFields": 1,
+        "libavutil::libavutil::buffer::Buffer": 1,
+        "libavutil::libavutil::buffer::BufferPool": 1,
+        "libavutil::libavutil::buffer::BufferReference": 1,
+        "libavutil::libavutil::camellia::Camellia": 1,
+        "libavutil::libavutil::cast5::Cast5": 1,
+        "libavutil::libavutil::channel_layout::ChannelCustom": 1,
+        "libavutil::libavutil::channel_layout::ChannelLayout": 1,
+        "libavutil::libavutil::csp::CieXy": 1,
+        "libavutil::libavutil::csp::ColorPrimariesDescriptor": 1,
+        "libavutil::libavutil::csp::LumaCoefficients": 1,
+        "libavutil::libavutil::csp::PrimaryCoefficients": 1,
+        "libavutil::libavutil::des::Des": 1,
+        "libavutil::libavutil::dict::Dictionary": 1,
+        "libavutil::libavutil::dict::DictionaryEntry": 1,
+        "libavutil::libavutil::eval::Expr": 1,
+        "libavutil::libavutil::frame::Frame": 1,
+        "libavutil::libavutil::frame::RegionOfInterest": 1,
+        "libavutil::libavutil::frame::SideData": 1,
+        "libavutil::libavutil::frame::SideDataDescriptor": 1,
+        "libavutil::libavutil::hash::HashContext": 1,
+        "libavutil::libavutil::hmac::Hmac": 1,
+        "libavutil::libavutil::hwcontext::DeviceContext": 1,
+        "libavutil::libavutil::hwcontext::DeviceReference": 1,
+        "libavutil::libavutil::hwcontext::FramesConstraints": 1,
+        "libavutil::libavutil::hwcontext::FramesContext": 1,
+        "libavutil::libavutil::hwcontext::FramesReference": 1,
+        "libavutil::libavutil::intfloat_h::IntFloat32": 1,
+        "libavutil::libavutil::intfloat_h::IntFloat64": 1,
+        "libavutil::libavutil::intreadwrite_h::Alias16": 1,
+        "libavutil::libavutil::intreadwrite_h::Alias32": 1,
+        "libavutil::libavutil::intreadwrite_h::Alias64": 1,
+        "libavutil::libavutil::intreadwrite_h::Unaligned16": 1,
+        "libavutil::libavutil::intreadwrite_h::Unaligned32": 1,
+        "libavutil::libavutil::intreadwrite_h::Unaligned64": 1,
+        "libavutil::libavutil::log::Class": 1,
+        "libavutil::libavutil::md5::Md5": 1,
+        "libavutil::libavutil::murmur3::Murmur3": 1,
+        "libavutil::libavutil::opt::OptionArrayDef": 1,
+        "libavutil::libavutil::opt::OptionDef": 1,
+        "libavutil::libavutil::opt::OptionRange": 1,
+        "libavutil::libavutil::opt::OptionRanges": 1,
+        "libavutil::libavutil::pixdesc::ComponentDescriptor": 1,
+        "libavutil::libavutil::pixdesc::PixelFormatDescriptor": 1,
+        "libavutil::libavutil::rational::Rational": 1,
+        "libavutil::libavutil::rc4::Rc4": 1,
+        "libavutil::libavutil::refstruct::RefStructOpaque": 1,
+        "libavutil::libavutil::refstruct::RefStructPool": 1,
+        "libavutil::libavutil::ripemd::Ripemd": 1,
+        "libavutil::libavutil::sha512::Sha512": 1,
+        "libavutil::libavutil::sha::Sha": 1,
+        "libavutil::libavutil::tea::Tea": 1,
+        "libavutil::libavutil::twofish::Twofish": 1,
+        "libavutil::libavutil::xtea::Xtea": 1
+      },
+      "ffibox_define_ctype_manual": {},
+      "ffibox_ccell_not_layout": {},
+      "ffibox_layout_not_ccell": {}
+    }
+  },
   "derived": {
     "fns_pub": 1589,
     "fns_priv": 772,
